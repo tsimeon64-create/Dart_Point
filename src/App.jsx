@@ -264,11 +264,16 @@ const GalerieSection = ({ slug, type="bar", isAdmin }) => {
     : d=>db.addPhotoAsso({...d, asso_slug:slug});
   const deletePhoto = type==="bar" ? db.deletePhoto : db.deletePhotoAsso;
 
+  const MAX_PHOTOS = 6;
+
   useEffect(() => { getPhotos().then(p=>{setPhotos(p||[]);setLoading(false);}).catch(()=>setLoading(false)); }, [slug]);
 
   const handleFile = async (e) => {
-    const files = Array.from(e.target.files); if (!files.length) return; setUploading(true);
-    for (const file of files.slice(0,5)) {
+    const files = Array.from(e.target.files); if (!files.length) return;
+    const remaining = MAX_PHOTOS - photos.length;
+    if (remaining <= 0) return;
+    setUploading(true);
+    for (const file of files.slice(0, remaining)) {
       await new Promise(res => {
         const reader = new FileReader();
         reader.onload = async ev => {
@@ -301,12 +306,15 @@ const GalerieSection = ({ slug, type="bar", isAdmin }) => {
         </div>
       )}
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18,marginBottom:14 }}>
-        <p style={{ fontSize:13,color:C.muted,marginBottom:10 }}>Partagez vos photos <span style={{ fontSize:11 }}>(max 5 à la fois)</span></p>
+        <p style={{ fontSize:13,color:C.muted,marginBottom:10 }}>Partagez vos photos <span style={{ fontSize:11 }}>({photos.length}/{MAX_PHOTOS} photos)</span></p>
         <div style={{ display:"flex",gap:10,flexWrap:"wrap",alignItems:"center" }}>
           <input value={pseudo} onChange={e=>setPseudo(e.target.value)} placeholder="Votre pseudo (optionnel)" style={{ flex:1,minWidth:130,background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:13 }}/>
           <input ref={fileRef} type="file" accept="image/*" multiple style={{ display:"none" }} onChange={handleFile}/>
-          <Btn onClick={()=>fileRef.current?.click()} variant="ghost" style={{ fontSize:13,padding:"8px 16px" }} disabled={uploading}>{uploading?"⏳ Envoi…":"📷 Ajouter des photos"}</Btn>
+          <Btn onClick={()=>fileRef.current?.click()} variant="ghost" style={{ fontSize:13,padding:"8px 16px" }} disabled={uploading||photos.length>=MAX_PHOTOS}>
+            {photos.length>=MAX_PHOTOS?"🚫 Maximum atteint":uploading?"⏳ Envoi…":"📷 Ajouter des photos"}
+          </Btn>
         </div>
+        {photos.length>=MAX_PHOTOS&&<p style={{ color:C.muted,fontSize:12,marginTop:8 }}>Maximum de {MAX_PHOTOS} photos atteint pour cette fiche.</p>}
       </div>
       {loading?<Spinner/>:photos.length===0
         ?<div style={{ textAlign:"center",padding:"28px",background:C.card,border:`1px dashed ${C.border}`,borderRadius:12 }}><div style={{ fontSize:32,marginBottom:8 }}>📷</div><p style={{ color:C.muted,fontSize:13 }}>Aucune photo pour l'instant. Soyez le premier !</p></div>
@@ -693,9 +701,26 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
   const [bar,setBar]=useState(null); const [loading,setLoading]=useState(true);
   const [showSignal,setShowSignal]=useState(false); const [showEdit,setShowEdit]=useState(false);
   useEffect(()=>{
-    db.getBar(slug).then(b=>{ if(b){ const nv=(b.vues||0)+1; db.updateBarVues(slug,b.vues||0); setBar({...b,vues:nv}); setBars(p=>p.map(x=>x.slug===slug?{...x,vues:nv}:x)); } setLoading(false); }).catch(()=>setLoading(false));
+    setLoading(true);
+    db.getBar(slug).then(b=>{
+      if(b){
+        const nv=(b.vues||0)+1;
+        db.updateBarVues(slug,b.vues||0);
+        setBar({...b,vues:nv});
+        setBars(p=>p.map(x=>x.slug===slug?{...x,vues:nv}:x));
+      }
+      setLoading(false);
+    }).catch(err=>{ console.error("Erreur chargement bar:",err); setLoading(false); });
   },[slug]);
-  if(loading) return <Spinner/>; if(!bar) return <div style={{ padding:40,textAlign:"center",color:C.muted }}>Bar introuvable.</div>;
+  if(loading) return <Spinner/>;
+  if(!bar) return (
+    <div style={{ maxWidth:860,margin:"0 auto",padding:"36px 20px",textAlign:"center" }}>
+      <div style={{ fontSize:48,marginBottom:16 }}>😕</div>
+      <h2 style={{ fontWeight:700,marginBottom:8 }}>Bar introuvable</h2>
+      <p style={{ color:C.muted,marginBottom:24 }}>Ce bar n'existe pas ou a été supprimé.</p>
+      <Btn onClick={()=>setPage("bars")}>← Retour aux bars</Btn>
+    </div>
+  );
   const asso=associations.find(a=>a.nom===bar.association);
   const ti=typeInfo(bar.type);
   return (
