@@ -1,817 +1,217 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef } from "react";
 
-// ── SUPABASE CONFIG ───────────────────────────────────────────────────────────
-const SB_URL = 'https://secuyejzngzhnnuweuwm.supabase.co';
-const SB_KEY = 'sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC';
+const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
+const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 
 const sb = async (path, opts = {}) => {
   const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
-    headers: {
-      apikey: SB_KEY,
-      Authorization: `Bearer ${SB_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: opts.prefer || 'return=representation',
-      ...opts.headers,
-    },
+    headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}`, "Content-Type": "application/json", "Prefer": opts.prefer || "return=representation", ...opts.headers },
     ...opts,
   });
-  if (!res.ok) {
-    const e = await res.text();
-    throw new Error(e);
-  }
+  if (!res.ok) { const e = await res.text(); throw new Error(e); }
   const text = await res.text();
   return text ? JSON.parse(text) : null;
 };
 
 const db = {
-  getBars: () => sb('bars?order=nom.asc&select=*'),
-  getBar: (slug) =>
-    sb(`bars?slug=eq.${encodeURIComponent(slug)}&select=*`).then((r) => r?.[0]),
-  incVues: (slug) =>
-    sb(`bars?slug=eq.${encodeURIComponent(slug)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({}),
-      headers: { 'Content-Type': 'application/json' },
-    }).catch(() => {}),
-  updateBarVues: async (slug, vues) =>
-    sb(`bars?slug=eq.${encodeURIComponent(slug)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ vues: vues + 1 }),
-      prefer: 'return=minimal',
-    }).catch(() => {}),
-  toggleVerifie: (slug, val) =>
-    sb(`bars?slug=eq.${encodeURIComponent(slug)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ verifie: val }),
-      prefer: 'return=minimal',
-    }),
-
-  getPropositions: () => sb('propositions?order=date.desc&select=*'),
-  addProposition: (data) =>
-    sb('propositions', { method: 'POST', body: JSON.stringify(data) }),
-  updateProposition: (id, data) =>
-    sb(`propositions?id=eq.${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-      prefer: 'return=minimal',
-    }),
-  addBar: (data) => sb('bars', { method: 'POST', body: JSON.stringify(data) }),
-  deleteBar: (slug) =>
-    sb(`bars?slug=eq.${encodeURIComponent(slug)}`, {
-      method: 'DELETE',
-      prefer: 'return=minimal',
-    }),
-
-  getAvis: (slug) =>
-    sb(`avis?bar_slug=eq.${encodeURIComponent(slug)}&order=date.desc&select=*`),
-  addAvis: (data) => sb('avis', { method: 'POST', body: JSON.stringify(data) }),
-  updateAvis: (id, data) =>
-    sb(`avis?id=eq.${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-      prefer: 'return=minimal',
-    }),
-  deleteAvis: (id) =>
-    sb(`avis?id=eq.${id}`, { method: 'DELETE', prefer: 'return=minimal' }),
-
-  getReactions: (slug) =>
-    sb(`reactions?bar_slug=eq.${encodeURIComponent(slug)}&select=*`).then(
-      (r) => r?.[0]
-    ),
-  upsertReactions: (slug, counts) =>
-    sb('reactions', {
-      method: 'POST',
-      body: JSON.stringify({ bar_slug: slug, counts }),
-      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    }),
-
-  getSignalements: () => sb('signalements?order=date.desc&select=*'),
-  addSignalement: (data) =>
-    sb('signalements', { method: 'POST', body: JSON.stringify(data) }),
-  updateSignalement: (id, data) =>
-    sb(`signalements?id=eq.${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-      prefer: 'return=minimal',
-    }),
-
-  getPhotos: (slug) =>
-    sb(
-      `photos?bar_slug=eq.${encodeURIComponent(slug)}&order=date.desc&select=*`
-    ),
-  addPhoto: (data) =>
-    sb('photos', { method: 'POST', body: JSON.stringify(data) }),
-  deletePhoto: (id) =>
-    sb(`photos?id=eq.${id}`, { method: 'DELETE', prefer: 'return=minimal' }),
+  getBars: () => sb("bars?order=nom.asc&select=*"),
+  getBar: (slug) => sb(`bars?slug=eq.${encodeURIComponent(slug)}&select=*`).then(r => r?.[0]),
+  updateBarVues: (slug, vues) => sb(`bars?slug=eq.${encodeURIComponent(slug)}`, { method:"PATCH", body: JSON.stringify({ vues: vues+1 }), prefer:"return=minimal" }).catch(()=>{}),
+  toggleVerifie: (slug, val) => sb(`bars?slug=eq.${encodeURIComponent(slug)}`, { method:"PATCH", body: JSON.stringify({ verifie: val }), prefer:"return=minimal" }),
+  updateBar: (slug, data) => sb(`bars?slug=eq.${encodeURIComponent(slug)}`, { method:"PATCH", body: JSON.stringify(data), prefer:"return=minimal" }),
+  deleteBar: (slug) => sb(`bars?slug=eq.${encodeURIComponent(slug)}`, { method:"DELETE", prefer:"return=minimal" }),
+  addBar: (data) => sb("bars", { method:"POST", body: JSON.stringify(data) }),
+  getPropositions: () => sb("propositions?order=date.desc&select=*"),
+  addProposition: (data) => sb("propositions", { method:"POST", body: JSON.stringify(data) }),
+  updateProposition: (id, data) => sb(`propositions?id=eq.${id}`, { method:"PATCH", body: JSON.stringify(data), prefer:"return=minimal" }),
+  getAvis: (slug) => sb(`avis?bar_slug=eq.${encodeURIComponent(slug)}&order=date.desc&select=*`),
+  addAvis: (data) => sb("avis", { method:"POST", body: JSON.stringify(data) }),
+  updateAvis: (id, data) => sb(`avis?id=eq.${id}`, { method:"PATCH", body: JSON.stringify(data), prefer:"return=minimal" }),
+  deleteAvis: (id) => sb(`avis?id=eq.${id}`, { method:"DELETE", prefer:"return=minimal" }),
+  getReactions: (slug) => sb(`reactions?bar_slug=eq.${encodeURIComponent(slug)}&select=*`).then(r => r?.[0]),
+  upsertReactions: (slug, counts) => sb("reactions", { method:"POST", body: JSON.stringify({ bar_slug: slug, counts }), headers:{ "Prefer":"resolution=merge-duplicates,return=minimal" } }),
+  getSignalements: () => sb("signalements?order=date.desc&select=*"),
+  addSignalement: (data) => sb("signalements", { method:"POST", body: JSON.stringify(data) }),
+  updateSignalement: (id, data) => sb(`signalements?id=eq.${id}`, { method:"PATCH", body: JSON.stringify(data), prefer:"return=minimal" }),
+  getPhotos: (slug) => sb(`photos?bar_slug=eq.${encodeURIComponent(slug)}&order=date.desc&select=*`),
+  addPhoto: (data) => sb("photos", { method:"POST", body: JSON.stringify(data) }),
+  deletePhoto: (id) => sb(`photos?id=eq.${id}`, { method:"DELETE", prefer:"return=minimal" }),
+  // Propositions associations
+  getPropositionsAsso: () => sb("propositions?type=eq.association&order=date.desc&select=*").catch(()=>[]),
 };
 
-// ── STATIC DATA ───────────────────────────────────────────────────────────────
-const ASSOCIATIONS = [
-  {
-    id: 1,
-    slug: 'euskal-dardoa',
-    nom: 'Euskal Dardoa – Fléchettes',
-    ville: 'Cambo-les-Bains',
-    zone: 'Pays Basque intérieur',
-    type: 'electronique',
-    jours: 'À confirmer',
-    lieu: 'Le Central',
-    tel: '06 26 88 01 75',
-    contact: 'Via mairie de Cambo-les-Bains',
-    description:
-      'Association de fléchettes de Cambo-les-Bains. Contact via la mairie ou par téléphone.',
-    bars: ['Le Central'],
-    lat: 43.3567,
-    lng: -1.3978,
-  },
-  {
-    id: 2,
-    slug: 'baiona-darts-klub',
-    nom: 'Baiona Darts Klub',
-    ville: 'Bayonne',
-    zone: 'Côte Basque',
-    type: 'electronique',
-    jours: 'À confirmer',
-    lieu: 'À confirmer',
-    tel: '',
-    contact: 'Fiche HelloAsso disponible',
-    description:
-      'Club de fléchettes de Bayonne. Fiche disponible sur HelloAsso.',
-    bars: [],
-    lat: 43.4929,
-    lng: -1.4748,
-  },
-  {
-    id: 3,
-    slug: 'team-score-64',
-    nom: 'Team Score 64',
-    ville: 'Pau',
-    zone: 'Béarn',
-    type: 'traditionnel',
-    jours: 'À confirmer',
-    lieu: '5 rue Nogué, 64000 Pau',
-    tel: '',
-    contact: 'gralon.net',
-    description:
-      'Association de fléchettes paloise. Siège social au 5 rue Nogué, 64000 Pau.',
-    bars: ['Le Zinc'],
-    lat: 43.2951,
-    lng: -0.3708,
-  },
-  {
-    id: 4,
-    slug: 'garadarts-pau',
-    nom: 'Garadarts Pau',
-    ville: 'Pau',
-    zone: 'Béarn',
-    type: 'traditionnel',
-    jours: 'À confirmer',
-    lieu: '5 rue Marca, 64000 Pau',
-    tel: '',
-    contact: 'gralon.net',
-    description:
-      'Club de fléchettes palois. Siège social au 5 rue Marca, 64000 Pau.',
-    bars: [],
-    lat: 43.2951,
-    lng: -0.3708,
-  },
-  {
-    id: 5,
-    slug: 'union-darts-pau',
-    nom: 'Union Darts',
-    ville: 'Pau',
-    zone: 'Béarn',
-    type: 'traditionnel',
-    jours: 'À confirmer',
-    lieu: '8 rue Lapouble, 64000 Pau',
-    tel: '',
-    contact: 'gralon.net',
-    description:
-      'Association de fléchettes. Siège au 8 rue Lapouble, 64000 Pau.',
-    bars: ['Le Zinc'],
-    lat: 43.2951,
-    lng: -0.3708,
-  },
-  {
-    id: 6,
-    slug: 'lous-dartayres-landes',
-    nom: 'Lous Dartayres Landes',
-    ville: 'Mont-de-Marsan',
-    zone: 'Landes',
-    type: 'traditionnel',
-    jours: 'À confirmer',
-    lieu: 'À confirmer',
-    tel: '',
-    contact: 'gralon.net',
-    description: 'Association de fléchettes des Landes basée à Mont-de-Marsan.',
-    bars: [],
-    lat: 43.8897,
-    lng: -0.5025,
-  },
-  {
-    id: 7,
-    slug: 'battle-darts-soustons',
-    nom: 'Battle Darts',
-    ville: 'Soustons',
-    zone: 'Landes',
-    type: 'traditionnel',
-    jours: 'À confirmer',
-    lieu: 'Commune de Soustons (40140)',
-    tel: '',
-    contact: 'assoce.fr',
-    description:
-      "Association spécialisée dans l'organisation de tournois de fléchettes à Soustons.",
-    bars: [],
-    lat: 43.7506,
-    lng: -1.3333,
-  },
-  {
-    id: 8,
-    slug: 'club-flechettes-tarnos',
-    nom: 'Club de Fléchettes de Tarnos',
-    ville: 'Tarnos',
-    zone: 'Landes',
-    type: 'traditionnel',
-    jours: 'À confirmer',
-    lieu: 'Irish Coffee, centre 2002, 40220 Tarnos',
-    tel: '',
-    contact: 'net1901.fr',
-    description:
-      "Club de fléchettes de Tarnos, basé à l'Irish Coffee, centre 2002.",
-    bars: [],
-    lat: 43.54,
-    lng: -1.47,
-  },
+const ASSOCIATIONS_INIT = [
+  { id:1, slug:"euskal-dardoa", nom:"Euskal Dardoa – Fléchettes", ville:"Cambo-les-Bains", zone:"Pays Basque intérieur", type:"electronique", jours:"À confirmer", lieu:"Le Central", tel:"06 26 88 01 75", contact:"Via mairie de Cambo-les-Bains", description:"Association de fléchettes de Cambo-les-Bains. Contact via la mairie ou par téléphone.", bars:["Le Central"], lat:43.3567, lng:-1.3978 },
+  { id:2, slug:"baiona-darts-klub", nom:"Baiona Darts Klub", ville:"Bayonne", zone:"Côte Basque", type:"electronique", jours:"À confirmer", lieu:"À confirmer", tel:"", contact:"Fiche HelloAsso disponible", description:"Club de fléchettes de Bayonne. Fiche disponible sur HelloAsso.", bars:[], lat:43.4929, lng:-1.4748 },
+  { id:3, slug:"team-score-64", nom:"Team Score 64", ville:"Pau", zone:"Béarn", type:"traditionnel", jours:"À confirmer", lieu:"5 rue Nogué, 64000 Pau", tel:"", contact:"gralon.net", description:"Association de fléchettes paloise. Siège social au 5 rue Nogué, 64000 Pau.", bars:["Le Zinc"], lat:43.2951, lng:-0.3708 },
+  { id:4, slug:"garadarts-pau", nom:"Garadarts Pau", ville:"Pau", zone:"Béarn", type:"traditionnel", jours:"À confirmer", lieu:"5 rue Marca, 64000 Pau", tel:"", contact:"gralon.net", description:"Club de fléchettes palois. Siège social au 5 rue Marca, 64000 Pau.", bars:[], lat:43.2951, lng:-0.3708 },
+  { id:5, slug:"union-darts-pau", nom:"Union Darts", ville:"Pau", zone:"Béarn", type:"traditionnel", jours:"À confirmer", lieu:"8 rue Lapouble, 64000 Pau", tel:"", contact:"gralon.net", description:"Association de fléchettes. Siège au 8 rue Lapouble, 64000 Pau.", bars:["Le Zinc"], lat:43.2951, lng:-0.3708 },
+  { id:6, slug:"lous-dartayres-landes", nom:"Lous Dartayres Landes", ville:"Mont-de-Marsan", zone:"Landes", type:"traditionnel", jours:"À confirmer", lieu:"À confirmer", tel:"", contact:"gralon.net", description:"Association de fléchettes des Landes basée à Mont-de-Marsan.", bars:[], lat:43.8897, lng:-0.5025 },
+  { id:7, slug:"battle-darts-soustons", nom:"Battle Darts", ville:"Soustons", zone:"Landes", type:"traditionnel", jours:"À confirmer", lieu:"Commune de Soustons (40140)", tel:"", contact:"assoce.fr", description:"Association spécialisée dans l'organisation de tournois de fléchettes à Soustons.", bars:[], lat:43.7506, lng:-1.3333 },
+  { id:8, slug:"club-flechettes-tarnos", nom:"Club de Fléchettes de Tarnos", ville:"Tarnos", zone:"Landes", type:"traditionnel", jours:"À confirmer", lieu:"Irish Coffee, centre 2002, 40220 Tarnos", tel:"", contact:"net1901.fr", description:"Club de fléchettes de Tarnos, basé à l'Irish Coffee, centre 2002.", bars:[], lat:43.5400, lng:-1.4700 },
 ];
 
-const ADMIN_PASSWORD = 'dartpoint2025';
-const slugify = (s) =>
-  s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
+const ADMIN_PASSWORD = "dartpoint2025";
+const slugify = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
 const uid = () => Date.now() + Math.random().toString(36).slice(2);
 
 const REACTIONS_LIST = [
-  { id: 'ambiance', emoji: '🎉', label: 'Bonne ambiance' },
-  { id: 'equipement', emoji: '🎯', label: 'Bon équipement' },
-  { id: 'accueil', emoji: '😊', label: 'Accueil sympa' },
-  { id: 'accessibilite', emoji: '📍', label: "Facile d'accès" },
-  { id: 'soirees', emoji: '🏆', label: 'Soirées régulières' },
-  { id: 'debutants', emoji: '🌱', label: 'Idéal débutants' },
+  { id:"ambiance", emoji:"🎉", label:"Bonne ambiance" },
+  { id:"equipement", emoji:"🎯", label:"Bon équipement" },
+  { id:"accueil", emoji:"😊", label:"Accueil sympa" },
+  { id:"accessibilite", emoji:"📍", label:"Facile d'accès" },
+  { id:"soirees", emoji:"🏆", label:"Soirées régulières" },
+  { id:"debutants", emoji:"🌱", label:"Idéal débutants" },
 ];
 
 const VILLES_FR = {
-  paris: [48.8566, 2.3522],
-  lyon: [45.764, 4.8357],
-  marseille: [43.2965, 5.3698],
-  toulouse: [43.6047, 1.4442],
-  nice: [43.7102, 7.262],
-  nantes: [47.2184, -1.5536],
-  bordeaux: [44.8378, -0.5792],
-  lille: [50.6292, 3.0573],
-  strasbourg: [48.5734, 7.7521],
-  rennes: [48.1173, -1.6778],
-  grenoble: [45.1885, 5.7245],
-  montpellier: [43.6108, 3.8767],
-  dijon: [47.322, 5.0415],
-  nimes: [43.8367, 4.3601],
-  tours: [47.3941, 0.6848],
-  amiens: [49.8941, 2.2957],
-  limoges: [45.8336, 1.2611],
-  'clermont-ferrand': [45.7797, 3.0863],
-  besancon: [47.2378, 6.0241],
-  orleans: [47.9029, 1.9039],
-  rouen: [49.4432, 1.0993],
-  caen: [49.1829, -0.3707],
-  metz: [49.1193, 6.1757],
-  nancy: [48.6921, 6.1844],
-  perpignan: [42.6987, 2.8956],
-  pau: [43.2951, -0.3708],
-  bayonne: [43.4929, -1.4748],
-  biarritz: [43.4832, -1.5586],
-  anglet: [43.4938, -1.5339],
-  hendaye: [43.3694, -1.78],
-  'saint-jean-de-luz': [43.3877, -1.6614],
-  'cambo-les-bains': [43.3567, -1.3978],
-  nevers: [46.9897, 3.1572],
-  troyes: [48.2973, 4.0744],
-  angers: [47.4784, -0.5632],
-  brest: [48.3904, -4.4861],
-  toulon: [43.1242, 5.928],
-  'le havre': [49.4944, 0.1079],
-  'saint-etienne': [45.4347, 4.39],
-  'le mans': [48.0061, 0.1996],
-  'aix-en-provence': [43.5297, 5.4474],
-  mulhouse: [47.7508, 7.3359],
-  avignon: [43.9493, 4.8055],
-  poitiers: [46.5802, 0.3404],
-  'la rochelle': [46.1591, -1.152],
-  lorient: [47.7482, -3.3702],
-  annecy: [45.8992, 6.1294],
-  valence: [44.9334, 4.8924],
-  'mont-de-marsan': [43.8897, -0.5025],
-  dax: [43.7099, -1.052],
-  soustons: [43.7506, -1.3333],
-  tarnos: [43.54, -1.47],
-  reims: [49.2583, 4.0317],
+  "paris":[48.8566,2.3522],"lyon":[45.7640,4.8357],"marseille":[43.2965,5.3698],"toulouse":[43.6047,1.4442],"nice":[43.7102,7.2620],"nantes":[47.2184,-1.5536],"bordeaux":[44.8378,-0.5792],"lille":[50.6292,3.0573],"strasbourg":[48.5734,7.7521],"rennes":[48.1173,-1.6778],"grenoble":[45.1885,5.7245],"montpellier":[43.6108,3.8767],"dijon":[47.3220,5.0415],"nimes":[43.8367,4.3601],"tours":[47.3941,0.6848],"amiens":[49.8941,2.2957],"limoges":[45.8336,1.2611],"clermont-ferrand":[45.7797,3.0863],"besancon":[47.2378,6.0241],"orleans":[47.9029,1.9039],"rouen":[49.4432,1.0993],"caen":[49.1829,-0.3707],"metz":[49.1193,6.1757],"nancy":[48.6921,6.1844],"perpignan":[42.6987,2.8956],"pau":[43.2951,-0.3708],"bayonne":[43.4929,-1.4748],"biarritz":[43.4832,-1.5586],"anglet":[43.4938,-1.5339],"hendaye":[43.3694,-1.7800],"saint-jean-de-luz":[43.3877,-1.6614],"cambo-les-bains":[43.3567,-1.3978],"nevers":[46.9897,3.1572],"troyes":[48.2973,4.0744],"angers":[47.4784,-0.5632],"brest":[48.3904,-4.4861],"toulon":[43.1242,5.9280],"le havre":[49.4944,0.1079],"saint-etienne":[45.4347,4.3900],"le mans":[48.0061,0.1996],"aix-en-provence":[43.5297,5.4474],"mulhouse":[47.7508,7.3359],"avignon":[43.9493,4.8055],"poitiers":[46.5802,0.3404],"la rochelle":[46.1591,-1.1520],"lorient":[47.7482,-3.3702],"annecy":[45.8992,6.1294],"valence":[44.9334,4.8924],"mont-de-marsan":[43.8897,-0.5025],"dax":[43.7099,-1.0520],"soustons":[43.7506,-1.3333],"tarnos":[43.5400,-1.4700],"reims":[49.2583,4.0317],
 };
 
-// ── PALETTE ───────────────────────────────────────────────────────────────────
-const C = {
-  bg: '#0f0f0f',
-  card: '#1a1a1a',
-  border: '#2a2a2a',
-  accent: '#f97316',
-  text: '#f1f5f9',
-  muted: '#94a3b8',
-  green: '#22c55e',
-  red: '#ef4444',
-  yellow: '#f59e0b',
-};
+const C = { bg:"#0f0f0f", card:"#1a1a1a", border:"#2a2a2a", accent:"#f97316", text:"#f1f5f9", muted:"#94a3b8", green:"#22c55e", red:"#ef4444", yellow:"#f59e0b" };
 
 // ── LEAFLET ───────────────────────────────────────────────────────────────────
-function LeafletMap({
-  bars,
-  onBarClick,
-  centerSlug,
-  centerVille = null,
-  height = 400,
-}) {
+function LeafletMap({ bars, onBarClick, centerSlug, centerVille=null, height=400 }) {
   const divRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
   const [ready, setReady] = useState(!!window.L);
 
   useEffect(() => {
-    if (window.L) {
-      setReady(true);
-      return;
-    }
-    const css = document.createElement('link');
-    css.rel = 'stylesheet';
-    css.href =
-      'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
-    document.head.appendChild(css);
-    const js = document.createElement('script');
-    js.src =
-      'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
-    js.onload = () => setReady(true);
-    document.head.appendChild(js);
+    if (window.L) { setReady(true); return; }
+    const css = document.createElement("link"); css.rel="stylesheet"; css.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(css);
+    const js = document.createElement("script"); js.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; js.onload=()=>setReady(true); document.head.appendChild(js);
   }, []);
 
   useEffect(() => {
     if (!ready || !divRef.current || mapRef.current) return;
-    const map = window.L.map(divRef.current, {
-      scrollWheelZoom: false,
-    }).setView([43.47, -1.52], 9);
-    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap',
-      maxZoom: 19,
-    }).addTo(map);
+    const map = window.L.map(divRef.current, { scrollWheelZoom:false }).setView([43.47,-1.52],9);
+    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{ attribution:"© OpenStreetMap", maxZoom:19 }).addTo(map);
     mapRef.current = map;
   }, [ready]);
 
   useEffect(() => {
     if (!ready || !mapRef.current) return;
-    const L = window.L;
-    const map = mapRef.current;
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
-    bars.forEach((bar) => {
-      if (!bar.lat || !bar.lng) return;
-      const isHL = bar.slug === centerSlug;
-      const icon = L.divIcon({
-        className: '',
-        html: `<div style="width:${isHL ? 38 : 30}px;height:${
-          isHL ? 38 : 30
-        }px;background:${isHL ? '#fff' : C.accent};border:3px solid ${
-          isHL ? C.accent : 'rgba(255,255,255,0.3)'
-        };border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:${
-          isHL ? 20 : 15
-        }px;box-shadow:0 2px 8px rgba(0,0,0,0.5);cursor:pointer">🎯</div>`,
-        iconSize: [isHL ? 38 : 30, isHL ? 38 : 30],
-        iconAnchor: [isHL ? 19 : 15, isHL ? 19 : 15],
-      });
-      const m = L.marker([bar.lat, bar.lng], { icon }).addTo(map);
-      m.bindPopup(
-        `<div style="font-family:Inter,sans-serif;min-width:160px"><strong style="font-size:14px">${
-          bar.nom
-        }</strong><br><span style="color:#64748b;font-size:12px">📍 ${
-          bar.ville
-        }</span><br><span style="font-size:12px">${
-          bar.type === 'electronique' ? '⚡' : '🎯'
-        } · ${bar.cibles} cible(s)</span>${
-          bar.verifie
-            ? '<br><span style="font-size:11px;color:#22c55e">✅ Vérifié</span>'
-            : ''
-        }<br><button style="margin-top:8px;background:#f97316;color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600" onclick="window.__dpClick('${
-          bar.slug
-        }')">Voir la fiche →</button></div>`
-      );
+    const L = window.L; const map = mapRef.current;
+    markersRef.current.forEach(m=>m.remove()); markersRef.current = [];
+    bars.forEach(bar => {
+      if (!bar.lat||!bar.lng) return;
+      const isHL = bar.slug===centerSlug;
+      const icon = L.divIcon({ className:"", html:`<div style="width:${isHL?38:30}px;height:${isHL?38:30}px;background:${isHL?"#fff":C.accent};border:3px solid ${isHL?C.accent:"rgba(255,255,255,0.3)"};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:${isHL?20:15}px;box-shadow:0 2px 8px rgba(0,0,0,0.5);cursor:pointer">🎯</div>`, iconSize:[isHL?38:30,isHL?38:30], iconAnchor:[isHL?19:15,isHL?19:15] });
+      const m = L.marker([bar.lat,bar.lng],{icon}).addTo(map);
+      m.bindPopup(`<div style="font-family:Inter,sans-serif;min-width:160px"><strong style="font-size:14px">${bar.nom}</strong><br><span style="color:#64748b;font-size:12px">📍 ${bar.ville}</span><br><span style="font-size:12px">${bar.type==="electronique"?"⚡":"🎯"} · ${bar.cibles} cible(s)</span>${bar.verifie?'<br><span style="font-size:11px;color:#22c55e">✅ Vérifié</span>':''}<br><button style="margin-top:8px;background:#f97316;color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600" onclick="window.__dpClick('${bar.slug}')">Voir la fiche →</button></div>`);
       markersRef.current.push(m);
     });
-    if (centerSlug) {
-      const b = bars.find((x) => x.slug === centerSlug);
-      if (b?.lat) mapRef.current.flyTo([b.lat, b.lng], 15, { duration: 0.8 });
-    }
-    window.__dpClick = (slug) => onBarClick(slug);
+    if (centerSlug) { const b=bars.find(x=>x.slug===centerSlug); if(b?.lat) mapRef.current.flyTo([b.lat,b.lng],15,{duration:0.8}); }
+    window.__dpClick = slug => onBarClick(slug);
   }, [ready, bars, centerSlug]);
 
   useEffect(() => {
-    if (
-      !ready ||
-      !mapRef.current ||
-      !centerVille ||
-      centerVille.trim().length < 2
-    )
-      return;
-    const L = window.L;
-    const map = mapRef.current;
+    if (!ready || !mapRef.current || !centerVille || centerVille.trim().length < 2) return;
+    const L = window.L; const map = mapRef.current;
     const timer = setTimeout(() => {
       map.invalidateSize();
       const q = centerVille.toLowerCase().trim();
-      const vilBars = bars.filter(
-        (b) => b.lat && b.lng && b.ville.toLowerCase().includes(q)
-      );
-      if (vilBars.length === 1) {
-        map.flyTo([vilBars[0].lat, vilBars[0].lng], 14, { duration: 0.8 });
-        return;
-      }
-      if (vilBars.length > 1) {
-        const bounds = L.latLngBounds(vilBars.map((b) => [b.lat, b.lng]));
-        map.flyToBounds(bounds, {
-          padding: [60, 60],
-          duration: 0.8,
-          maxZoom: 14,
-        });
-        return;
-      }
-      const found = Object.entries(VILLES_FR).find(
-        ([k]) => k.includes(q) || q.includes(k)
-      );
-      if (found) map.flyTo(found[1], 13, { duration: 0.8 });
+      const vilBars = bars.filter(b => b.lat && b.lng && b.ville.toLowerCase().includes(q));
+      if (vilBars.length === 1) { map.flyTo([vilBars[0].lat, vilBars[0].lng], 14, {duration:0.8}); return; }
+      if (vilBars.length > 1) { const bounds = L.latLngBounds(vilBars.map(b=>[b.lat,b.lng])); map.flyToBounds(bounds, {padding:[60,60], duration:0.8, maxZoom:14}); return; }
+      const found = Object.entries(VILLES_FR).find(([k]) => k.includes(q) || q.includes(k));
+      if (found) map.flyTo(found[1], 13, {duration:0.8});
     }, 400);
     return () => clearTimeout(timer);
   }, [ready, centerVille, bars]);
 
-  useEffect(() => {
-    if (mapRef.current) setTimeout(() => mapRef.current.invalidateSize(), 100);
-  });
+  useEffect(() => { if (mapRef.current) setTimeout(()=>mapRef.current.invalidateSize(),100); });
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        height,
-        borderRadius: 12,
-        overflow: 'hidden',
-        border: `1px solid ${C.border}`,
-      }}
-    >
-      {!ready && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: '#1a1f2e',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'column',
-            gap: 10,
-            zIndex: 10,
-          }}
-        >
-          <span style={{ fontSize: 36 }}>🗺️</span>
-          <span style={{ color: C.muted, fontSize: 14 }}>
-            Chargement de la carte…
-          </span>
-        </div>
-      )}
-      <div ref={divRef} style={{ width: '100%', height: '100%' }} />
+    <div style={{ position:"relative", height, borderRadius:12, overflow:"hidden", border:`1px solid ${C.border}` }}>
+      {!ready && <div style={{ position:"absolute", inset:0, background:"#1a1f2e", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:10, zIndex:10 }}><span style={{ fontSize:36 }}>🗺️</span><span style={{ color:C.muted, fontSize:14 }}>Chargement de la carte…</span></div>}
+      <div ref={divRef} style={{ width:"100%", height:"100%" }} />
     </div>
   );
 }
 
 // ── UI ────────────────────────────────────────────────────────────────────────
-const Badge = ({ children, color = C.accent }) => (
-  <span
-    style={{
-      background: color + '22',
-      color,
-      border: `1px solid ${color}44`,
-      borderRadius: 20,
-      padding: '2px 10px',
-      fontSize: 11,
-      fontWeight: 600,
-      whiteSpace: 'nowrap',
-    }}
-  >
-    {children}
-  </span>
+const Badge = ({ children, color=C.accent }) => <span style={{ background:color+"22", color, border:`1px solid ${color}44`, borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:600, whiteSpace:"nowrap" }}>{children}</span>;
+const Btn = ({ children, onClick, variant="primary", style={}, disabled=false }) => {
+  const base = { cursor:disabled?"not-allowed":"pointer", border:"none", borderRadius:8, fontWeight:600, fontSize:14, padding:"10px 20px", transition:"all .15s", opacity:disabled?.5:1 };
+  const v = { primary:{background:C.accent,color:"#fff"}, ghost:{background:"transparent",color:C.accent,border:`1px solid ${C.accent}`}, dark:{background:C.card,color:C.text,border:`1px solid ${C.border}`}, danger:{background:"#7f1d1d",color:C.red,border:`1px solid ${C.red}44`}, success:{background:"#14532d",color:C.green,border:`1px solid ${C.green}44`} };
+  return <button onClick={disabled?undefined:onClick} style={{...base,...v[variant],...style}}>{children}</button>;
+};
+const Field = ({ label, value, onChange, placeholder, type="text", as="input", options }) => (
+  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+    {label && <label style={{ fontSize:13, fontWeight:500, color:C.muted }}>{label}</label>}
+    {as==="select"?<select value={value} onChange={e=>onChange(e.target.value)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 14px", color:C.text, fontSize:14 }}>{options.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select>
+    :as==="textarea"?<textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={4} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 14px", color:C.text, fontSize:14, resize:"vertical" }}/>
+    :<input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 14px", color:C.text, fontSize:14 }}/>}
+  </div>
 );
-const Btn = ({
-  children,
-  onClick,
-  variant = 'primary',
-  style = {},
-  disabled = false,
-}) => {
-  const base = {
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    border: 'none',
-    borderRadius: 8,
-    fontWeight: 600,
-    fontSize: 14,
-    padding: '10px 20px',
-    transition: 'all .15s',
-    opacity: disabled ? 0.5 : 1,
-  };
-  const v = {
-    primary: { background: C.accent, color: '#fff' },
-    ghost: {
-      background: 'transparent',
-      color: C.accent,
-      border: `1px solid ${C.accent}`,
-    },
-    dark: {
-      background: C.card,
-      color: C.text,
-      border: `1px solid ${C.border}`,
-    },
-    danger: {
-      background: '#7f1d1d',
-      color: C.red,
-      border: `1px solid ${C.red}44`,
-    },
-    success: {
-      background: '#14532d',
-      color: C.green,
-      border: `1px solid ${C.green}44`,
-    },
-  };
+const Spinner = () => <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:40 }}><div style={{ width:32, height:32, border:`3px solid ${C.border}`, borderTop:`3px solid ${C.accent}`, borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/></div>;
+
+// ── NAV MOBILE ────────────────────────────────────────────────────────────────
+const Nav = ({ page, setPage, isAdmin }) => {
+  const [open, setOpen] = useState(false);
+  const links = [["bars","🎯 Bars"],["associations","🏆 Assoc."],["tournois","🏅 Tournois"],["proposer","➕ Proposer"],["proposer-asso","🤝 Proposer une asso"],["apropos","ℹ️ À propos"],["contact","✉️ Contact"]];
+
   return (
-    <button
-      onClick={disabled ? undefined : onClick}
-      style={{ ...base, ...v[variant], ...style }}
-    >
-      {children}
-    </button>
+    <nav style={{ background:"#111", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, zIndex:200 }}>
+      <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 16px", display:"flex", alignItems:"center", justifyContent:"space-between", height:58 }}>
+        <div onClick={()=>{setPage("home");setOpen(false);}} style={{ cursor:"pointer", display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+          <span style={{ fontSize:22 }}>🎯</span>
+          <span style={{ fontWeight:800, fontSize:19, color:C.accent }}>Dart<span style={{ color:C.text }}>Point</span></span>
+        </div>
+
+        {/* Desktop */}
+        <div style={{ display:"none", gap:2, alignItems:"center", flexWrap:"wrap" }} className="desktop-nav">
+          {links.map(([p,l])=>(
+            <button key={p} onClick={()=>setPage(p)} style={{ background:page===p?C.accent+"22":"transparent", color:page===p?C.accent:C.muted, border:"none", cursor:"pointer", padding:"7px 10px", borderRadius:8, fontSize:12, fontWeight:500 }}>{l}</button>
+          ))}
+          {isAdmin && <button onClick={()=>setPage("admin")} style={{ background:"#451a03", color:C.yellow, border:`1px solid #78350f`, cursor:"pointer", padding:"5px 10px", borderRadius:8, fontSize:12, fontWeight:600, marginLeft:4 }}>⚙️ Admin</button>}
+          <button onClick={()=>setPage("adminlogin")} style={{ background:"none", border:"none", color:"#2a2a2a", cursor:"pointer", fontSize:17, marginLeft:2 }}>⚙</button>
+        </div>
+
+        {/* Mobile hamburger */}
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          {isAdmin && <button onClick={()=>{setPage("admin");setOpen(false);}} style={{ background:"#451a03", color:C.yellow, border:`1px solid #78350f`, cursor:"pointer", padding:"5px 10px", borderRadius:8, fontSize:12, fontWeight:600 }}>⚙️</button>}
+          <button onClick={()=>setOpen(!open)} style={{ background:"none", border:`1px solid ${C.border}`, color:C.text, cursor:"pointer", fontSize:18, padding:"6px 10px", borderRadius:8 }}>
+            {open ? "✕" : "☰"}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile menu */}
+      {open && (
+        <div style={{ background:"#111", borderTop:`1px solid ${C.border}`, padding:"8px 16px 16px" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+            {links.map(([p,l])=>(
+              <button key={p} onClick={()=>{setPage(p);setOpen(false);}}
+                style={{ background:page===p?C.accent+"22":"#1a1a1a", color:page===p?C.accent:C.text, border:`1px solid ${page===p?C.accent:C.border}`, cursor:"pointer", padding:"10px 12px", borderRadius:8, fontSize:13, fontWeight:500, textAlign:"left" }}>
+                {l}
+              </button>
+            ))}
+            <button onClick={()=>{setPage("adminlogin");setOpen(false);}} style={{ background:"#1a1a1a", color:C.muted, border:`1px solid ${C.border}`, cursor:"pointer", padding:"10px 12px", borderRadius:8, fontSize:13, textAlign:"left" }}>⚙️ Admin</button>
+          </div>
+        </div>
+      )}
+    </nav>
   );
 };
-const Field = ({
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = 'text',
-  as = 'input',
-  options,
-}) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-    {label && (
-      <label style={{ fontSize: 13, fontWeight: 500, color: C.muted }}>
-        {label}
-      </label>
-    )}
-    {as === 'select' ? (
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: 8,
-          padding: '10px 14px',
-          color: C.text,
-          fontSize: 14,
-        }}
-      >
-        {options.map((o) => (
-          <option key={o.v} value={o.v}>
-            {o.l}
-          </option>
-        ))}
-      </select>
-    ) : as === 'textarea' ? (
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={4}
-        style={{
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: 8,
-          padding: '10px 14px',
-          color: C.text,
-          fontSize: 14,
-          resize: 'vertical',
-        }}
-      />
-    ) : (
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        style={{
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: 8,
-          padding: '10px 14px',
-          color: C.text,
-          fontSize: 14,
-        }}
-      />
-    )}
-  </div>
-);
-const Spinner = () => (
-  <div
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 40,
-    }}
-  >
-    <div
-      style={{
-        width: 32,
-        height: 32,
-        border: `3px solid ${C.border}`,
-        borderTop: `3px solid ${C.accent}`,
-        borderRadius: '50%',
-        animation: 'spin 0.8s linear infinite',
-      }}
-    />
-    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-  </div>
-);
-
-// ── NAV ───────────────────────────────────────────────────────────────────────
-const Nav = ({ page, setPage, isAdmin }) => (
-  <nav
-    style={{
-      background: '#111',
-      borderBottom: `1px solid ${C.border}`,
-      position: 'sticky',
-      top: 0,
-      zIndex: 200,
-    }}
-  >
-    <div
-      style={{
-        maxWidth: 1100,
-        margin: '0 auto',
-        padding: '0 16px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        height: 58,
-      }}
-    >
-      <div
-        onClick={() => setPage('home')}
-        style={{
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}
-      >
-        <span style={{ fontSize: 22 }}>🎯</span>
-        <span style={{ fontWeight: 800, fontSize: 19, color: C.accent }}>
-          Dart<span style={{ color: C.text }}>Point</span>
-        </span>
-      </div>
-      <div
-        style={{
-          display: 'flex',
-          gap: 2,
-          alignItems: 'center',
-          flexWrap: 'wrap',
-        }}
-      >
-        {[
-          ['bars', '🎯 Bars'],
-          ['associations', '🏆 Assoc.'],
-          ['tournois', '🏅 Tournois'],
-          ['proposer', '➕ Proposer'],
-          ['apropos', 'ℹ️ À propos'],
-          ['contact', '✉️ Contact'],
-        ].map(([p, l]) => (
-          <button
-            key={p}
-            onClick={() => setPage(p)}
-            style={{
-              background: page === p ? C.accent + '22' : 'transparent',
-              color: page === p ? C.accent : C.muted,
-              border: 'none',
-              cursor: 'pointer',
-              padding: '7px 10px',
-              borderRadius: 8,
-              fontSize: 12,
-              fontWeight: 500,
-            }}
-          >
-            {l}
-          </button>
-        ))}
-        {isAdmin && (
-          <button
-            onClick={() => setPage('admin')}
-            style={{
-              background: '#451a03',
-              color: C.yellow,
-              border: `1px solid #78350f`,
-              cursor: 'pointer',
-              padding: '5px 10px',
-              borderRadius: 8,
-              fontSize: 12,
-              fontWeight: 600,
-              marginLeft: 4,
-            }}
-          >
-            ⚙️ Admin
-          </button>
-        )}
-        <button
-          onClick={() => setPage('adminlogin')}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#2a2a2a',
-            cursor: 'pointer',
-            fontSize: 17,
-            marginLeft: 2,
-          }}
-        >
-          ⚙
-        </button>
-      </div>
-    </div>
-  </nav>
-);
 
 // ── BAR CARD ──────────────────────────────────────────────────────────────────
 const BarCard = ({ bar, onClick }) => (
-  <div
-    onClick={onClick}
-    style={{
-      background: C.card,
-      border: `1px solid ${C.border}`,
-      borderRadius: 12,
-      padding: 18,
-      cursor: 'pointer',
-      transition: 'border-color .15s',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 9,
-    }}
-    onMouseEnter={(e) => (e.currentTarget.style.borderColor = C.accent)}
-    onMouseLeave={(e) => (e.currentTarget.style.borderColor = C.border)}
-  >
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        flexWrap: 'wrap',
-        gap: 6,
-      }}
-    >
-      <h3 style={{ fontWeight: 700, fontSize: 15 }}>
-        {bar.nom}{' '}
-        {bar.verifie && (
-          <span style={{ fontSize: 12, color: C.green }}>✅</span>
-        )}
-      </h3>
-      <Badge color={bar.type === 'electronique' ? C.accent : '#60a5fa'}>
-        {bar.type === 'electronique' ? '⚡' : '🎯'}{' '}
-        {bar.type === 'electronique' ? 'Électronique' : 'Traditionnel'}
-      </Badge>
+  <div onClick={onClick} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:18, cursor:"pointer", transition:"border-color .15s", display:"flex", flexDirection:"column", gap:9 }}
+    onMouseEnter={e=>e.currentTarget.style.borderColor=C.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:6 }}>
+      <h3 style={{ fontWeight:700, fontSize:15 }}>{bar.nom} {bar.verifie && <span style={{ fontSize:12, color:C.green }}>✅</span>}</h3>
+      <Badge color={bar.type==="electronique"?C.accent:"#60a5fa"}>{bar.type==="electronique"?"⚡":"🎯"} {bar.type==="electronique"?"Électronique":"Traditionnel"}</Badge>
     </div>
-    <p style={{ color: C.muted, fontSize: 12 }}>
-      📍 {bar.adresse ? bar.adresse + ', ' : ''}
-      {bar.ville}
-    </p>
-    {bar.description && (
-      <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.5 }}>
-        {bar.description.slice(0, 85)}…
-      </p>
-    )}
-    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-      <Badge color="#a78bfa">
-        🎯 {bar.cibles} cible{bar.cibles > 1 ? 's' : ''}
-      </Badge>
+    <p style={{ color:C.muted, fontSize:12 }}>📍 {bar.adresse?bar.adresse+", ":""}{bar.ville}</p>
+    {bar.description && <p style={{ color:C.muted, fontSize:12, lineHeight:1.5 }}>{bar.description.slice(0,85)}…</p>}
+    <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+      <Badge color="#a78bfa">🎯 {bar.cibles} cible{bar.cibles>1?"s":""}</Badge>
       {bar.tournois && <Badge color={C.green}>🏆 Tournois</Badge>}
       {bar.association && <Badge color="#f472b6">🤝 Asso</Badge>}
-      {bar.vues > 0 && <Badge color={C.muted}>👁 {bar.vues}</Badge>}
+      {bar.vues>0 && <Badge color={C.muted}>👁 {bar.vues}</Badge>}
     </div>
   </div>
 );
@@ -822,49 +222,27 @@ const GalerieSection = ({ barSlug, isAdmin }) => {
   const [loading, setLoading] = useState(true);
   const [lightbox, setLightbox] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [pseudo, setPseudo] = useState('');
+  const [pseudo, setPseudo] = useState("");
   const fileRef = useRef(null);
 
-  useEffect(() => {
-    db.getPhotos(barSlug)
-      .then((p) => {
-        setPhotos(p || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [barSlug]);
+  useEffect(() => { db.getPhotos(barSlug).then(p=>{setPhotos(p||[]);setLoading(false);}).catch(()=>setLoading(false)); }, [barSlug]);
 
   const handleFile = async (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
     setUploading(true);
-    for (const file of files.slice(0, 5)) {
-      await new Promise((res) => {
+    for (const file of files.slice(0,5)) {
+      await new Promise(res => {
         const reader = new FileReader();
         reader.onload = async (ev) => {
           const img = new Image();
           img.onload = async () => {
-            const MAX = 900;
-            let w = img.width,
-              h = img.height;
-            if (w > MAX) {
-              h = Math.round((h * MAX) / w);
-              w = MAX;
-            }
-            const canvas = document.createElement('canvas');
-            canvas.width = w;
-            canvas.height = h;
-            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-            const data = canvas.toDataURL('image/jpeg', 0.7);
-            try {
-              const added = await db.addPhoto({
-                bar_slug: barSlug,
-                pseudo: pseudo.trim() || 'Anonyme',
-                data,
-                date: Date.now(),
-              });
-              if (added?.[0]) setPhotos((p) => [added[0], ...p]);
-            } catch {}
+            const MAX=900; let w=img.width,h=img.height;
+            if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
+            const canvas=document.createElement("canvas"); canvas.width=w; canvas.height=h;
+            canvas.getContext("2d").drawImage(img,0,0,w,h);
+            const data = canvas.toDataURL("image/jpeg",0.7);
+            try { const added = await db.addPhoto({ bar_slug:barSlug, pseudo:pseudo.trim()||"Anonyme", data, date:Date.now() }); if(added?.[0]) setPhotos(p=>[added[0],...p]); } catch {}
             res();
           };
           img.src = ev.target.result;
@@ -872,252 +250,37 @@ const GalerieSection = ({ barSlug, isAdmin }) => {
         reader.readAsDataURL(file);
       });
     }
-    setUploading(false);
-    e.target.value = '';
-  };
-
-  const supprimer = async (id) => {
-    await db.deletePhoto(id);
-    setPhotos((p) => p.filter((x) => x.id !== id));
+    setUploading(false); e.target.value="";
   };
 
   return (
-    <div style={{ marginBottom: 24 }}>
-      <h3
-        style={{
-          fontWeight: 700,
-          fontSize: 16,
-          marginBottom: 14,
-          color: C.accent,
-        }}
-      >
-        📸 Photos de la communauté
-      </h3>
-      {lightbox !== null && (
-        <div
-          onClick={() => setLightbox(null)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: '#000d',
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'zoom-out',
-          }}
-        >
-          <div
-            style={{
-              position: 'relative',
-              maxWidth: '90vw',
-              maxHeight: '90vh',
-            }}
-          >
-            <img
-              src={photos[lightbox]?.data}
-              alt=""
-              style={{
-                maxWidth: '90vw',
-                maxHeight: '85vh',
-                borderRadius: 10,
-                objectFit: 'contain',
-              }}
-            />
-            <div
-              style={{
-                textAlign: 'center',
-                color: '#aaa',
-                fontSize: 12,
-                marginTop: 8,
-              }}
-            >
-              📷 {photos[lightbox]?.pseudo} ·{' '}
-              {new Date(photos[lightbox]?.date).toLocaleDateString('fr-FR', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-              })}
-            </div>
-            {photos.length > 1 && (
-              <>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setLightbox((lightbox - 1 + photos.length) % photos.length);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    left: -44,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: '#fff2',
-                    border: 'none',
-                    color: '#fff',
-                    fontSize: 24,
-                    cursor: 'pointer',
-                    borderRadius: 6,
-                    padding: '4px 10px',
-                  }}
-                >
-                  ‹
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setLightbox((lightbox + 1) % photos.length);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    right: -44,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: '#fff2',
-                    border: 'none',
-                    color: '#fff',
-                    fontSize: 24,
-                    cursor: 'pointer',
-                    borderRadius: 6,
-                    padding: '4px 10px',
-                  }}
-                >
-                  ›
-                </button>
-              </>
-            )}
+    <div style={{ marginBottom:24 }}>
+      <h3 style={{ fontWeight:700, fontSize:16, marginBottom:14, color:C.accent }}>📸 Photos de la communauté</h3>
+      {lightbox!==null && (
+        <div onClick={()=>setLightbox(null)} style={{ position:"fixed", inset:0, background:"#000d", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", cursor:"zoom-out" }}>
+          <div style={{ position:"relative", maxWidth:"90vw" }}>
+            <img src={photos[lightbox]?.data} alt="" style={{ maxWidth:"90vw", maxHeight:"85vh", borderRadius:10, objectFit:"contain" }}/>
+            {photos.length>1 && <>
+              <button onClick={e=>{e.stopPropagation();setLightbox((lightbox-1+photos.length)%photos.length);}} style={{ position:"absolute", left:-44, top:"50%", transform:"translateY(-50%)", background:"#fff2", border:"none", color:"#fff", fontSize:24, cursor:"pointer", borderRadius:6, padding:"4px 10px" }}>‹</button>
+              <button onClick={e=>{e.stopPropagation();setLightbox((lightbox+1)%photos.length);}} style={{ position:"absolute", right:-44, top:"50%", transform:"translateY(-50%)", background:"#fff2", border:"none", color:"#fff", fontSize:24, cursor:"pointer", borderRadius:6, padding:"4px 10px" }}>›</button>
+            </>}
           </div>
         </div>
       )}
-      <div
-        style={{
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: 12,
-          padding: 18,
-          marginBottom: 14,
-        }}
-      >
-        <p style={{ fontSize: 13, color: C.muted, marginBottom: 10 }}>
-          Partagez vos photos{' '}
-          <span style={{ fontSize: 11 }}>(max 5 à la fois)</span>
-        </p>
-        <div
-          style={{
-            display: 'flex',
-            gap: 10,
-            flexWrap: 'wrap',
-            alignItems: 'center',
-          }}
-        >
-          <input
-            value={pseudo}
-            onChange={(e) => setPseudo(e.target.value)}
-            placeholder="Votre pseudo (optionnel)"
-            style={{
-              flex: 1,
-              minWidth: 130,
-              background: '#111',
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              padding: '8px 12px',
-              color: C.text,
-              fontSize: 13,
-            }}
-          />
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            multiple
-            style={{ display: 'none' }}
-            onChange={handleFile}
-          />
-          <Btn
-            onClick={() => fileRef.current?.click()}
-            variant="ghost"
-            style={{ fontSize: 13, padding: '8px 16px' }}
-            disabled={uploading}
-          >
-            {uploading ? '⏳ Envoi…' : '📷 Ajouter des photos'}
-          </Btn>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:18, marginBottom:14 }}>
+        <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+          <input value={pseudo} onChange={e=>setPseudo(e.target.value)} placeholder="Votre pseudo (optionnel)" style={{ flex:1, minWidth:130, background:"#111", border:`1px solid ${C.border}`, borderRadius:8, padding:"8px 12px", color:C.text, fontSize:13 }}/>
+          <input ref={fileRef} type="file" accept="image/*" multiple style={{ display:"none" }} onChange={handleFile}/>
+          <Btn onClick={()=>fileRef.current?.click()} variant="ghost" style={{ fontSize:13, padding:"8px 16px" }} disabled={uploading}>{uploading?"⏳ Envoi…":"📷 Ajouter des photos"}</Btn>
         </div>
       </div>
-      {loading ? (
-        <Spinner />
-      ) : photos.length === 0 ? (
-        <div
-          style={{
-            textAlign: 'center',
-            padding: '30px 20px',
-            background: C.card,
-            border: `1px dashed ${C.border}`,
-            borderRadius: 12,
-          }}
-        >
-          <div style={{ fontSize: 36, marginBottom: 8 }}>📷</div>
-          <p style={{ color: C.muted, fontSize: 13 }}>
-            Aucune photo pour l'instant. Soyez le premier !
-          </p>
-        </div>
-      ) : (
-        <div
-          style={{ columns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}
-        >
-          {photos.map((p, i) => (
-            <div
-              key={p.id}
-              style={{
-                breakInside: 'avoid',
-                marginBottom: 10,
-                position: 'relative',
-                borderRadius: 10,
-                overflow: 'hidden',
-                cursor: 'zoom-in',
-                border: `1px solid ${C.border}`,
-              }}
-              onClick={() => setLightbox(i)}
-            >
-              <img
-                src={p.data}
-                alt=""
-                style={{ width: '100%', display: 'block', objectFit: 'cover' }}
-              />
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  background: 'linear-gradient(transparent,#000a)',
-                  padding: '16px 8px 6px',
-                  fontSize: 11,
-                  color: '#ccc',
-                }}
-              >
-                📷 {p.pseudo}
-              </div>
-              {isAdmin && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    supprimer(p.id);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: 6,
-                    right: 6,
-                    background: '#000a',
-                    border: 'none',
-                    color: C.red,
-                    cursor: 'pointer',
-                    borderRadius: 6,
-                    padding: '3px 7px',
-                    fontSize: 12,
-                  }}
-                >
-                  🗑
-                </button>
-              )}
+      {loading?<Spinner/>:photos.length===0?<div style={{ textAlign:"center", padding:"30px 20px", background:C.card, border:`1px dashed ${C.border}`, borderRadius:12 }}><div style={{ fontSize:36, marginBottom:8 }}>📷</div><p style={{ color:C.muted, fontSize:13 }}>Aucune photo pour l'instant.</p></div>:(
+        <div style={{ columns:"repeat(auto-fill, minmax(150px, 1fr))", gap:10 }}>
+          {photos.map((p,i)=>(
+            <div key={p.id} style={{ breakInside:"avoid", marginBottom:10, position:"relative", borderRadius:10, overflow:"hidden", cursor:"zoom-in", border:`1px solid ${C.border}` }} onClick={()=>setLightbox(i)}>
+              <img src={p.data} alt="" style={{ width:"100%", display:"block", objectFit:"cover" }}/>
+              <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent,#000a)", padding:"16px 8px 6px", fontSize:11, color:"#ccc" }}>📷 {p.pseudo}</div>
+              {isAdmin && <button onClick={e=>{e.stopPropagation();db.deletePhoto(p.id);setPhotos(x=>x.filter(y=>y.id!==p.id));}} style={{ position:"absolute", top:6, right:6, background:"#000a", border:"none", color:C.red, cursor:"pointer", borderRadius:6, padding:"3px 7px", fontSize:12 }}>🗑</button>}
             </div>
           ))}
         </div>
@@ -1130,463 +293,103 @@ const GalerieSection = ({ barSlug, isAdmin }) => {
 const AvisSection = ({ barSlug, isAdmin }) => {
   const [avis, setAvis] = useState([]);
   const [reactions, setReactions] = useState({});
-  const [form, setForm] = useState({ pseudo: '', texte: '', reactions: [] });
+  const [form, setForm] = useState({ pseudo:"", texte:"", reactions:[] });
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([db.getAvis(barSlug), db.getReactions(barSlug)])
-      .then(([a, r]) => {
-        setAvis(a || []);
-        setReactions(r?.counts || {});
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    Promise.all([db.getAvis(barSlug), db.getReactions(barSlug)]).then(([a,r])=>{ setAvis(a||[]); setReactions(r?.counts||{}); setLoading(false); }).catch(()=>setLoading(false));
   }, [barSlug]);
 
-  const toggleFormReact = (id) =>
-    setForm((f) => ({
-      ...f,
-      reactions: f.reactions.includes(id)
-        ? f.reactions.filter((r) => r !== id)
-        : [...f.reactions, id],
-    }));
+  const toggleFormReact = id => setForm(f=>({...f,reactions:f.reactions.includes(id)?f.reactions.filter(r=>r!==id):[...f.reactions,id]}));
 
   const submit = async () => {
-    if (!form.texte.trim() && form.reactions.length === 0) return;
-    const data = {
-      bar_slug: barSlug,
-      pseudo: form.pseudo.trim() || 'Anonyme',
-      texte: form.texte.trim(),
-      reactions: form.reactions,
-      date: Date.now(),
-    };
+    if (!form.texte.trim() && form.reactions.length===0) return;
+    const data = { bar_slug:barSlug, pseudo:form.pseudo.trim()||"Anonyme", texte:form.texte.trim(), reactions:form.reactions, date:Date.now() };
     const added = await db.addAvis(data);
-    if (added?.[0]) setAvis((a) => [added[0], ...a]);
-    const updatedReact = { ...reactions };
-    form.reactions.forEach((r) => {
-      updatedReact[r] = (updatedReact[r] || 0) + 1;
-    });
+    if(added?.[0]) setAvis(a=>[added[0],...a]);
+    const updatedReact = {...reactions};
+    form.reactions.forEach(r=>{updatedReact[r]=(updatedReact[r]||0)+1;});
     await db.upsertReactions(barSlug, updatedReact);
     setReactions(updatedReact);
-    setForm({ pseudo: '', texte: '', reactions: [] });
-    setSent(true);
-    setTimeout(() => setSent(false), 3000);
-  };
-
-  const signaler = async (id) => {
-    await db.updateAvis(id, { signale: true });
-    setAvis((a) => a.map((x) => (x.id === id ? { ...x, signale: true } : x)));
-  };
-
-  const supprimer = async (id) => {
-    await db.deleteAvis(id);
-    setAvis((a) => a.filter((x) => x.id !== id));
+    setForm({pseudo:"",texte:"",reactions:[]}); setSent(true); setTimeout(()=>setSent(false),3000);
   };
 
   return (
-    <div style={{ marginBottom: 20 }}>
-      <h3
-        style={{
-          fontWeight: 700,
-          fontSize: 16,
-          marginBottom: 14,
-          color: C.accent,
-        }}
-      >
-        💬 Avis de la communauté
-      </h3>
-      {Object.values(reactions).some((v) => v > 0) && (
-        <div
-          style={{
-            display: 'flex',
-            gap: 8,
-            flexWrap: 'wrap',
-            marginBottom: 14,
-          }}
-        >
-          {REACTIONS_LIST.filter((r) => reactions[r.id] > 0).map((r) => (
-            <div
-              key={r.id}
-              style={{
-                background: C.card,
-                border: `1px solid ${C.border}`,
-                borderRadius: 20,
-                padding: '5px 12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: 13,
-              }}
-            >
-              <span>{r.emoji}</span>
-              <span style={{ color: C.muted }}>{r.label}</span>
-              <span
-                style={{
-                  background: C.accent + '33',
-                  color: C.accent,
-                  borderRadius: 10,
-                  padding: '1px 7px',
-                  fontSize: 11,
-                  fontWeight: 700,
-                }}
-              >
-                {reactions[r.id]}
-              </span>
+    <div style={{ marginBottom:20 }}>
+      <h3 style={{ fontWeight:700, fontSize:16, marginBottom:14, color:C.accent }}>💬 Avis de la communauté</h3>
+      {Object.values(reactions).some(v=>v>0) && (
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:14 }}>
+          {REACTIONS_LIST.filter(r=>reactions[r.id]>0).map(r=>(
+            <div key={r.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:"5px 12px", display:"flex", alignItems:"center", gap:6, fontSize:13 }}>
+              <span>{r.emoji}</span><span style={{ color:C.muted }}>{r.label}</span>
+              <span style={{ background:C.accent+"33", color:C.accent, borderRadius:10, padding:"1px 7px", fontSize:11, fontWeight:700 }}>{reactions[r.id]}</span>
             </div>
           ))}
         </div>
       )}
-      <div
-        style={{
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: 12,
-          padding: 18,
-          marginBottom: 14,
-        }}
-      >
-        <p
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            marginBottom: 10,
-            color: C.muted,
-          }}
-        >
-          Laisser un avis
-        </p>
-        <div
-          style={{
-            display: 'flex',
-            gap: 8,
-            flexWrap: 'wrap',
-            marginBottom: 10,
-          }}
-        >
-          {REACTIONS_LIST.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => toggleFormReact(r.id)}
-              style={{
-                background: form.reactions.includes(r.id)
-                  ? C.accent + '33'
-                  : '#111',
-                border: `1px solid ${
-                  form.reactions.includes(r.id) ? C.accent : C.border
-                }`,
-                borderRadius: 20,
-                padding: '5px 11px',
-                cursor: 'pointer',
-                fontSize: 12,
-                color: form.reactions.includes(r.id) ? C.accent : C.muted,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-              }}
-            >
-              {r.emoji} {r.label}
-            </button>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:18, marginBottom:14 }}>
+        <p style={{ fontSize:13, fontWeight:600, marginBottom:10, color:C.muted }}>Laisser un avis</p>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+          {REACTIONS_LIST.map(r=>(
+            <button key={r.id} onClick={()=>toggleFormReact(r.id)} style={{ background:form.reactions.includes(r.id)?C.accent+"33":"#111", border:`1px solid ${form.reactions.includes(r.id)?C.accent:C.border}`, borderRadius:20, padding:"5px 11px", cursor:"pointer", fontSize:12, color:form.reactions.includes(r.id)?C.accent:C.muted, display:"flex", alignItems:"center", gap:5 }}>{r.emoji} {r.label}</button>
           ))}
         </div>
-        <textarea
-          value={form.texte}
-          onChange={(e) => setForm((f) => ({ ...f, texte: e.target.value }))}
-          placeholder="Votre commentaire (optionnel)…"
-          rows={3}
-          style={{
-            width: '100%',
-            background: '#111',
-            border: `1px solid ${C.border}`,
-            borderRadius: 8,
-            padding: '9px 12px',
-            color: C.text,
-            fontSize: 13,
-            resize: 'vertical',
-            marginBottom: 10,
-          }}
-        />
-        <div
-          style={{
-            display: 'flex',
-            gap: 10,
-            alignItems: 'center',
-            flexWrap: 'wrap',
-          }}
-        >
-          <input
-            value={form.pseudo}
-            onChange={(e) => setForm((f) => ({ ...f, pseudo: e.target.value }))}
-            placeholder="Pseudo (optionnel)"
-            style={{
-              flex: 1,
-              minWidth: 130,
-              background: '#111',
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              padding: '8px 12px',
-              color: C.text,
-              fontSize: 13,
-            }}
-          />
-          <Btn
-            onClick={submit}
-            style={{ fontSize: 13, padding: '8px 18px' }}
-            disabled={!form.texte.trim() && form.reactions.length === 0}
-          >
-            {sent ? '✅ Publié !' : 'Publier →'}
-          </Btn>
+        <textarea value={form.texte} onChange={e=>setForm(f=>({...f,texte:e.target.value}))} placeholder="Votre commentaire (optionnel)…" rows={3} style={{ width:"100%", background:"#111", border:`1px solid ${C.border}`, borderRadius:8, padding:"9px 12px", color:C.text, fontSize:13, resize:"vertical", marginBottom:10 }}/>
+        <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
+          <input value={form.pseudo} onChange={e=>setForm(f=>({...f,pseudo:e.target.value}))} placeholder="Pseudo (optionnel)" style={{ flex:1, minWidth:130, background:"#111", border:`1px solid ${C.border}`, borderRadius:8, padding:"8px 12px", color:C.text, fontSize:13 }}/>
+          <Btn onClick={submit} style={{ fontSize:13, padding:"8px 18px" }} disabled={!form.texte.trim()&&form.reactions.length===0}>{sent?"✅ Publié !":"Publier →"}</Btn>
         </div>
       </div>
-      {loading ? (
-        <Spinner />
-      ) : avis.length === 0 ? (
-        <p style={{ color: C.muted, fontSize: 13 }}>
-          Aucun avis pour l'instant. Soyez le premier !
-        </p>
-      ) : (
-        avis.map((a) => (
-          <div
-            key={a.id}
-            style={{
-              background: a.signale ? '#1a0808' : C.card,
-              border: `1px solid ${a.signale ? C.red + '44' : C.border}`,
-              borderRadius: 10,
-              padding: 14,
-              marginBottom: 10,
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                marginBottom: 6,
-                flexWrap: 'wrap',
-                gap: 6,
-              }}
-            >
-              <span style={{ fontWeight: 600, fontSize: 13 }}>
-                👤 {a.pseudo}
-              </span>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                {a.signale && <Badge color={C.red}>⚠️ Signalé</Badge>}
-                <span style={{ color: C.muted, fontSize: 11 }}>
-                  {new Date(a.date).toLocaleDateString('fr-FR', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                  })}
-                </span>
-              </div>
-            </div>
-            {a.reactions?.length > 0 && (
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 6,
-                  flexWrap: 'wrap',
-                  marginBottom: 6,
-                }}
-              >
-                {a.reactions.map((rid) => {
-                  const r = REACTIONS_LIST.find((x) => x.id === rid);
-                  return r ? (
-                    <span
-                      key={rid}
-                      style={{
-                        background: C.accent + '22',
-                        color: C.accent,
-                        borderRadius: 20,
-                        padding: '2px 9px',
-                        fontSize: 11,
-                      }}
-                    >
-                      {r.emoji} {r.label}
-                    </span>
-                  ) : null;
-                })}
-              </div>
-            )}
-            {a.texte && (
-              <p
-                style={{
-                  color: '#cbd5e1',
-                  fontSize: 13,
-                  lineHeight: 1.6,
-                  marginBottom: 6,
-                }}
-              >
-                {a.texte}
-              </p>
-            )}
-            <div style={{ display: 'flex', gap: 8 }}>
-              {!a.signale && !isAdmin && (
-                <button
-                  onClick={() => signaler(a.id)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: C.muted,
-                    cursor: 'pointer',
-                    fontSize: 11,
-                    padding: 0,
-                  }}
-                >
-                  ⚠️ Signaler
-                </button>
-              )}
-              {isAdmin && (
-                <button
-                  onClick={() => supprimer(a.id)}
-                  style={{
-                    background: 'none',
-                    border: `1px solid ${C.red}44`,
-                    borderRadius: 6,
-                    color: C.red,
-                    cursor: 'pointer',
-                    fontSize: 11,
-                    padding: '2px 8px',
-                  }}
-                >
-                  🗑 Supprimer
-                </button>
-              )}
+      {loading?<Spinner/>:avis.length===0?<p style={{ color:C.muted, fontSize:13 }}>Aucun avis pour l'instant.</p>:avis.map(a=>(
+        <div key={a.id} style={{ background:a.signale?"#1a0808":C.card, border:`1px solid ${a.signale?C.red+"44":C.border}`, borderRadius:10, padding:14, marginBottom:10 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6, flexWrap:"wrap", gap:6 }}>
+            <span style={{ fontWeight:600, fontSize:13 }}>👤 {a.pseudo}</span>
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              {a.signale && <Badge color={C.red}>⚠️ Signalé</Badge>}
+              <span style={{ color:C.muted, fontSize:11 }}>{new Date(a.date).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"})}</span>
             </div>
           </div>
-        ))
-      )}
+          {a.reactions?.length>0 && <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:6 }}>{a.reactions.map(rid=>{const r=REACTIONS_LIST.find(x=>x.id===rid);return r?<span key={rid} style={{ background:C.accent+"22",color:C.accent,borderRadius:20,padding:"2px 9px",fontSize:11 }}>{r.emoji} {r.label}</span>:null;})}</div>}
+          {a.texte && <p style={{ color:"#cbd5e1", fontSize:13, lineHeight:1.6, marginBottom:6 }}>{a.texte}</p>}
+          <div style={{ display:"flex", gap:8 }}>
+            {!a.signale&&!isAdmin&&<button onClick={()=>{db.updateAvis(a.id,{signale:true});setAvis(x=>x.map(y=>y.id===a.id?{...y,signale:true}:y));}} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:11, padding:0 }}>⚠️ Signaler</button>}
+            {isAdmin&&<button onClick={()=>{db.deleteAvis(a.id);setAvis(x=>x.filter(y=>y.id!==a.id));}} style={{ background:"none", border:`1px solid ${C.red}44`, borderRadius:6, color:C.red, cursor:"pointer", fontSize:11, padding:"2px 8px" }}>🗑 Supprimer</button>}
+          </div>
+        </div>
+      ))}
     </div>
   );
 };
 
-// ── SIGNALEMENT MODAL ─────────────────────────────────────────────────────────
+// ── SIGNALEMENT ───────────────────────────────────────────────────────────────
 const SignalForm = ({ barSlug, barNom, onClose }) => {
-  const [type, setType] = useState('horaires');
-  const [msg, setMsg] = useState('');
-  const [sent, setSent] = useState(false);
-  const types = [
-    ['horaires', '⏰ Horaires'],
-    ['ferme', '🚫 Bar fermé'],
-    ['adresse', '📍 Adresse'],
-    ['cibles', '🎯 Fléchettes'],
-    ['autre', '💬 Autre'],
-  ];
-  const submit = async () => {
-    if (!msg.trim()) return;
-    await db.addSignalement({
-      bar_slug: barSlug,
-      bar_nom: barNom,
-      type,
-      message: msg,
-      date: Date.now(),
-    });
-    setSent(true);
-  };
-  if (sent)
-    return (
-      <div
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: '#000a',
-          zIndex: 500,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <div
-          style={{
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: 14,
-            padding: 32,
-            maxWidth: 420,
-            width: '90%',
-            textAlign: 'center',
-          }}
-        >
-          <div style={{ fontSize: 44, marginBottom: 10 }}>✅</div>
-          <h3 style={{ fontWeight: 700, marginBottom: 8 }}>
-            Signalement envoyé !
-          </h3>
-          <p style={{ color: C.muted, fontSize: 14, marginBottom: 20 }}>
-            Merci, nous vérifierons rapidement.
-          </p>
-          <Btn onClick={onClose}>Fermer</Btn>
-        </div>
+  const [type,setType]=useState("horaires");
+  const [msg,setMsg]=useState("");
+  const [sent,setSent]=useState(false);
+  const types=[["horaires","⏰ Horaires"],["ferme","🚫 Bar fermé"],["adresse","📍 Adresse"],["cibles","🎯 Fléchettes"],["autre","💬 Autre"]];
+  if(sent) return (
+    <div style={{ position:"fixed", inset:0, background:"#000a", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:32, maxWidth:420, width:"90%", textAlign:"center" }}>
+        <div style={{ fontSize:44, marginBottom:10 }}>✅</div>
+        <h3 style={{ fontWeight:700, marginBottom:8 }}>Signalement envoyé !</h3>
+        <Btn onClick={onClose}>Fermer</Btn>
       </div>
-    );
+    </div>
+  );
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: '#000a',
-        zIndex: 500,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <div
-        style={{
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: 14,
-          padding: 28,
-          maxWidth: 440,
-          width: '90%',
-        }}
-      >
-        <h3 style={{ fontWeight: 700, marginBottom: 4 }}>
-          ⚠️ Signaler une erreur
-        </h3>
-        <p style={{ color: C.muted, fontSize: 13, marginBottom: 18 }}>
-          Fiche : <strong>{barNom}</strong>
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {types.map(([v, l]) => (
-              <button
-                key={v}
-                onClick={() => setType(v)}
-                style={{
-                  background: type === v ? C.accent + '33' : '#111',
-                  border: `1px solid ${type === v ? C.accent : C.border}`,
-                  borderRadius: 20,
-                  padding: '5px 12px',
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  color: type === v ? C.accent : C.muted,
-                }}
-              >
-                {l}
-              </button>
-            ))}
+    <div style={{ position:"fixed", inset:0, background:"#000a", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:28, maxWidth:440, width:"90%" }}>
+        <h3 style={{ fontWeight:700, marginBottom:4 }}>⚠️ Signaler une erreur</h3>
+        <p style={{ color:C.muted, fontSize:13, marginBottom:18 }}>Fiche : <strong>{barNom}</strong></p>
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {types.map(([v,l])=><button key={v} onClick={()=>setType(v)} style={{ background:type===v?C.accent+"33":"#111", border:`1px solid ${type===v?C.accent:C.border}`, borderRadius:20, padding:"5px 12px", cursor:"pointer", fontSize:12, color:type===v?C.accent:C.muted }}>{l}</button>)}
           </div>
-          <textarea
-            value={msg}
-            onChange={(e) => setMsg(e.target.value)}
-            placeholder="Décrivez l'erreur…"
-            rows={4}
-            style={{
-              background: '#111',
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              padding: '10px 12px',
-              color: C.text,
-              fontSize: 13,
-              resize: 'vertical',
-            }}
-          />
-          <div style={{ display: 'flex', gap: 10 }}>
-            <Btn onClick={submit} disabled={!msg.trim()} style={{ flex: 1 }}>
-              Envoyer
-            </Btn>
-            <Btn onClick={onClose} variant="dark" style={{ flex: 1 }}>
-              Annuler
-            </Btn>
+          <textarea value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Décrivez l'erreur…" rows={4} style={{ background:"#111", border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 12px", color:C.text, fontSize:13, resize:"vertical" }}/>
+          <div style={{ display:"flex", gap:10 }}>
+            <Btn onClick={async()=>{if(!msg.trim())return;await db.addSignalement({bar_slug:barSlug,bar_nom:barNom,type,message:msg,date:Date.now()});setSent(true);}} disabled={!msg.trim()} style={{ flex:1 }}>Envoyer</Btn>
+            <Btn onClick={onClose} variant="dark" style={{ flex:1 }}>Annuler</Btn>
           </div>
         </div>
       </div>
@@ -1596,366 +399,159 @@ const SignalForm = ({ barSlug, barNom, onClose }) => {
 
 // ── SHARE ─────────────────────────────────────────────────────────────────────
 const ShareBar = ({ bar }) => {
-  const [copied, setCopied] = useState(false);
-  const url = `https://dartpoint.fr/bars/${bar.slug}`;
-  const text = `🎯 ${bar.nom} — ${bar.ville} sur DartPoint`;
-  const copy = () => {
-    try {
-      navigator.clipboard.writeText(url);
-    } catch {}
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const [copied,setCopied]=useState(false);
+  const url=`https://dartpoint.fr/bars/${bar.slug}`;
+  const text=`🎯 ${bar.nom} — ${bar.ville} sur DartPoint`;
   return (
-    <div
-      style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}
-    >
-      <a
-        href={`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`}
-        target="_blank"
-        rel="noreferrer"
-      >
-        <Btn variant="dark" style={{ fontSize: 12, padding: '7px 14px' }}>
-          📱 WhatsApp
-        </Btn>
-      </a>
-      <a
-        href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
-          url
-        )}`}
-        target="_blank"
-        rel="noreferrer"
-      >
-        <Btn variant="dark" style={{ fontSize: 12, padding: '7px 14px' }}>
-          📘 Facebook
-        </Btn>
-      </a>
-      <Btn
-        onClick={copy}
-        variant="dark"
-        style={{ fontSize: 12, padding: '7px 14px' }}
-      >
-        {copied ? '✅ Copié !' : '🔗 Copier le lien'}
-      </Btn>
+    <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:20 }}>
+      <a href={`https://wa.me/?text=${encodeURIComponent(text+" "+url)}`} target="_blank" rel="noreferrer"><Btn variant="dark" style={{ fontSize:12, padding:"7px 14px" }}>📱 WhatsApp</Btn></a>
+      <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`} target="_blank" rel="noreferrer"><Btn variant="dark" style={{ fontSize:12, padding:"7px 14px" }}>📘 Facebook</Btn></a>
+      <Btn onClick={()=>{try{navigator.clipboard.writeText(url);}catch{}setCopied(true);setTimeout(()=>setCopied(false),2000);}} variant="dark" style={{ fontSize:12, padding:"7px 14px" }}>{copied?"✅ Copié !":"🔗 Copier le lien"}</Btn>
+    </div>
+  );
+};
+
+// ── EDIT BAR MODAL ────────────────────────────────────────────────────────────
+const EditBarModal = ({ bar, onSave, onClose }) => {
+  const [f, setF] = useState({ nom:bar.nom||"", ville:bar.ville||"", cp:bar.cp||"", adresse:bar.adresse||"", tel:bar.tel||"", type:bar.type||"electronique", cibles:String(bar.cibles||1), horaires:bar.horaires||"", description:bar.description||"", tournois:bar.tournois?"oui":"non", lat:String(bar.lat||""), lng:String(bar.lng||"") });
+  const [saving, setSaving] = useState(false);
+  const set = k => v => setF(p=>({...p,[k]:v}));
+
+  const save = async () => {
+    setSaving(true);
+    const data = { nom:f.nom, ville:f.ville, cp:f.cp, adresse:f.adresse, tel:f.tel, type:f.type, cibles:parseInt(f.cibles)||1, horaires:f.horaires, description:f.description, tournois:f.tournois==="oui", lat:parseFloat(f.lat)||null, lng:parseFloat(f.lng)||null };
+    await db.updateBar(bar.slug, data);
+    onSave({...bar,...data});
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"#000c", zIndex:600, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:24, maxWidth:600, width:"100%", maxHeight:"90vh", overflowY:"auto" }}>
+        <h3 style={{ fontWeight:700, fontSize:18, marginBottom:20 }}>✏️ Modifier — {bar.nom}</h3>
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Le Central"/>
+            <Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <Field label="Code postal" value={f.cp} onChange={set("cp")} placeholder="64100"/>
+            <Field label="Adresse" value={f.adresse} onChange={set("adresse")} placeholder="12 rue de la Mairie"/>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <Field label="Téléphone" value={f.tel} onChange={set("tel")} placeholder="05 59 XX XX XX"/>
+            <Field label="Horaires" value={f.horaires} onChange={set("horaires")} placeholder="Lun–Sam 10h–2h"/>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
+            <Field label="Type" as="select" value={f.type} onChange={set("type")} options={[{v:"electronique",l:"⚡ Électronique"},{v:"traditionnel",l:"🎯 Traditionnel"}]} placeholder=""/>
+            <Field label="Cibles" value={f.cibles} onChange={set("cibles")} placeholder="2" type="number"/>
+            <Field label="Tournois" as="select" value={f.tournois} onChange={set("tournois")} options={[{v:"non",l:"Non"},{v:"oui",l:"Oui"}]} placeholder=""/>
+          </div>
+          <Field label="Description" value={f.description} onChange={set("description")} placeholder="Description du bar…" as="textarea"/>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <Field label="Latitude GPS" value={f.lat} onChange={set("lat")} placeholder="43.4929" type="number"/>
+            <Field label="Longitude GPS" value={f.lng} onChange={set("lng")} placeholder="-1.4748" type="number"/>
+          </div>
+          <div style={{ display:"flex", gap:10, marginTop:8 }}>
+            <Btn onClick={save} disabled={saving||!f.nom||!f.ville} style={{ flex:1 }}>{saving?"Sauvegarde…":"💾 Sauvegarder"}</Btn>
+            <Btn onClick={onClose} variant="dark" style={{ flex:1 }}>Annuler</Btn>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
 
 // ── PAGE HOME ─────────────────────────────────────────────────────────────────
 const Home = ({ bars, setPage, setBarSlug, setVilleFilter }) => {
-  const [search, setSearch] = useState('');
-  const results = useMemo(() => {
-    if (!search.trim()) return [];
-    const q = search.toLowerCase();
-    return bars.filter(
-      (b) =>
-        b.ville.toLowerCase().includes(q) || b.nom.toLowerCase().includes(q)
-    );
-  }, [search, bars]);
-  const villes = useMemo(
-    () => [...new Set(bars.map((b) => b.ville))].sort(),
-    [bars]
-  );
-  const topBars = useMemo(
-    () => [...bars].sort((a, b) => (b.vues || 0) - (a.vues || 0)).slice(0, 3),
-    [bars]
-  );
-  const mapBars = useMemo(() => {
-    if (!search.trim()) return bars;
-    const q = search.toLowerCase();
-    return bars.filter(
-      (b) =>
-        b.ville.toLowerCase().includes(q) || b.nom.toLowerCase().includes(q)
-    );
-  }, [search, bars]);
+  const [search,setSearch]=useState("");
+  const results=useMemo(()=>{ if(!search.trim()) return []; const q=search.toLowerCase(); return bars.filter(b=>b.ville.toLowerCase().includes(q)||b.nom.toLowerCase().includes(q)); },[search,bars]);
+  const villes=useMemo(()=>[...new Set(bars.map(b=>b.ville))].sort(),[bars]);
+  const topBars=useMemo(()=>[...bars].sort((a,b)=>(b.vues||0)-(a.vues||0)).slice(0,3),[bars]);
+  const mapBars=useMemo(()=>{ if(!search.trim()) return bars; const q=search.toLowerCase(); return bars.filter(b=>b.ville.toLowerCase().includes(q)||b.nom.toLowerCase().includes(q)); },[search,bars]);
 
   return (
     <div>
-      <div
-        style={{
-          background: 'linear-gradient(135deg,#111 0%,#1a0800 100%)',
-          padding: '64px 20px 48px',
-          textAlign: 'center',
-        }}
-      >
-        <div style={{ maxWidth: 680, margin: '0 auto' }}>
-          <div style={{ fontSize: 50, marginBottom: 12 }}>🎯</div>
-          <h1
-            style={{
-              fontSize: 'clamp(22px,5vw,42px)',
-              fontWeight: 800,
-              marginBottom: 10,
-            }}
-          >
-            Trouvez où jouer aux{' '}
-            <span style={{ color: C.accent }}>fléchettes</span> près de chez
-            vous
-          </h1>
-          <p
-            style={{
-              color: C.muted,
-              fontSize: 15,
-              marginBottom: 28,
-              lineHeight: 1.7,
-            }}
-          >
-            Bars équipés, associations, tournois — tout le réseau fléchettes.
-          </p>
-          <div
-            style={{ position: 'relative', maxWidth: 460, margin: '0 auto' }}
-          >
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher une ville ou un bar…"
-              style={{
-                width: '100%',
-                background: '#1a1a1a',
-                border: `2px solid ${C.accent}`,
-                borderRadius: 12,
-                padding: '13px 48px 13px 18px',
-                color: C.text,
-                fontSize: 15,
-              }}
-            />
-            <span
-              style={{
-                position: 'absolute',
-                right: 14,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                fontSize: 20,
-              }}
-            >
-              🔍
-            </span>
-            {results.length > 0 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 6px)',
-                  left: 0,
-                  right: 0,
-                  background: '#1a1a1a',
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 10,
-                  zIndex: 50,
-                  overflow: 'hidden',
-                }}
-              >
-                {results.map((b) => (
-                  <div
-                    key={b.id}
-                    onClick={() => {
-                      setBarSlug(b.slug);
-                      setPage('bar');
-                    }}
-                    style={{
-                      padding: '11px 16px',
-                      cursor: 'pointer',
-                      borderBottom: `1px solid ${C.border}`,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = '#222')
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = 'transparent')
-                    }
-                  >
-                    <span>
-                      {b.nom} {b.verifie && '✅'}
-                    </span>
-                    <span style={{ color: C.muted, fontSize: 12 }}>
-                      📍 {b.ville}
-                    </span>
+      <div style={{ background:"linear-gradient(135deg,#111 0%,#1a0800 100%)", padding:"64px 20px 48px", textAlign:"center" }}>
+        <div style={{ maxWidth:680, margin:"0 auto" }}>
+          <div style={{ fontSize:50, marginBottom:12 }}>🎯</div>
+          <h1 style={{ fontSize:"clamp(22px,5vw,42px)", fontWeight:800, marginBottom:10 }}>Trouvez où jouer aux <span style={{ color:C.accent }}>fléchettes</span> près de chez vous</h1>
+          <p style={{ color:C.muted, fontSize:15, marginBottom:28, lineHeight:1.7 }}>Bars équipés, associations, tournois — tout le réseau fléchettes.</p>
+          <div style={{ position:"relative", maxWidth:460, margin:"0 auto" }}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher une ville ou un bar…"
+              style={{ width:"100%", background:"#1a1a1a", border:`2px solid ${C.accent}`, borderRadius:12, padding:"13px 48px 13px 18px", color:C.text, fontSize:15 }}/>
+            <span style={{ position:"absolute", right:14, top:"50%", transform:"translateY(-50%)", fontSize:20 }}>🔍</span>
+            {results.length>0 && (
+              <div style={{ position:"absolute", top:"calc(100% + 6px)", left:0, right:0, background:"#1a1a1a", border:`1px solid ${C.border}`, borderRadius:10, zIndex:50, overflow:"hidden" }}>
+                {results.map(b=>(
+                  <div key={b.id} onClick={()=>{setBarSlug(b.slug);setPage("bar");}}
+                    style={{ padding:"11px 16px", cursor:"pointer", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between" }}
+                    onMouseEnter={e=>e.currentTarget.style.background="#222"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <span>{b.nom} {b.verifie&&"✅"}</span><span style={{ color:C.muted, fontSize:12 }}>📍 {b.ville}</span>
                   </div>
                 ))}
               </div>
             )}
           </div>
-          <div
-            style={{
-              display: 'flex',
-              gap: 10,
-              justifyContent: 'center',
-              marginTop: 18,
-              flexWrap: 'wrap',
-            }}
-          >
-            <Btn onClick={() => setPage('bars')}>🎯 Voir les bars</Btn>
-            <Btn onClick={() => setPage('associations')} variant="ghost">
-              🏆 Associations
-            </Btn>
+          <div style={{ display:"flex", gap:10, justifyContent:"center", marginTop:18, flexWrap:"wrap" }}>
+            <Btn onClick={()=>setPage("bars")}>🎯 Voir les bars</Btn>
+            <Btn onClick={()=>setPage("associations")} variant="ghost">🏆 Associations</Btn>
           </div>
         </div>
       </div>
 
-      <div style={{ background: C.accent, padding: '16px 20px' }}>
-        <div
-          style={{
-            maxWidth: 1100,
-            margin: '0 auto',
-            display: 'flex',
-            justifyContent: 'center',
-            gap: 'clamp(20px,6vw,80px)',
-            flexWrap: 'wrap',
-          }}
-        >
-          {[
-            [bars.length, 'Bars référencés'],
-            [bars.filter((b) => b.verifie).length, 'Bars vérifiés ✅'],
-            [ASSOCIATIONS.length, 'Associations'],
-            [villes.length, 'Villes'],
-          ].map(([n, l]) => (
-            <div key={l} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#fff' }}>
-                {n}
-              </div>
-              <div style={{ fontSize: 12, color: '#fff9' }}>{l}</div>
-            </div>
+      <div style={{ background:C.accent, padding:"16px 20px" }}>
+        <div style={{ maxWidth:1100, margin:"0 auto", display:"flex", justifyContent:"center", gap:"clamp(20px,6vw,80px)", flexWrap:"wrap" }}>
+          {[[bars.length,"Bars"],[bars.filter(b=>b.verifie).length,"Vérifiés ✅"],[ASSOCIATIONS_INIT.length,"Associations"],[villes.length,"Villes"]].map(([n,l])=>(
+            <div key={l} style={{ textAlign:"center" }}><div style={{ fontSize:22, fontWeight:800, color:"#fff" }}>{n}</div><div style={{ fontSize:12, color:"#fff9" }}>{l}</div></div>
           ))}
         </div>
       </div>
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 20px 0' }}>
-        <h2 style={{ fontWeight: 700, fontSize: 20, marginBottom: 14 }}>
-          🗺️ Carte des bars
-        </h2>
-        <LeafletMap
-          bars={mapBars}
-          onBarClick={(slug) => {
-            setBarSlug(slug);
-            setPage('bar');
-          }}
-          centerSlug={null}
-          centerVille={search.trim() || null}
-          height={380}
-        />
+      <div style={{ maxWidth:1100, margin:"0 auto", padding:"40px 20px 0" }}>
+        <h2 style={{ fontWeight:700, fontSize:20, marginBottom:14 }}>🗺️ Carte des bars</h2>
+        <LeafletMap bars={mapBars} onBarClick={(slug)=>{setBarSlug(slug);setPage("bar");}} centerSlug={null} centerVille={search.trim()||null} height={380}/>
       </div>
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '36px 20px' }}>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 18,
-            flexWrap: 'wrap',
-            gap: 10,
-          }}
-        >
-          <h2 style={{ fontWeight: 700, fontSize: 20 }}>
-            🔥 Bars les plus consultés
-          </h2>
-          <Btn
-            onClick={() => setPage('bars')}
-            variant="ghost"
-            style={{ fontSize: 12 }}
-          >
-            Voir tous →
-          </Btn>
+      <div style={{ maxWidth:1100, margin:"0 auto", padding:"36px 20px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, flexWrap:"wrap", gap:10 }}>
+          <h2 style={{ fontWeight:700, fontSize:20 }}>🔥 Bars les plus consultés</h2>
+          <Btn onClick={()=>setPage("bars")} variant="ghost" style={{ fontSize:12 }}>Voir tous →</Btn>
         </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))',
-            gap: 12,
-          }}
-        >
-          {topBars.map((b) => (
-            <BarCard
-              key={b.id}
-              bar={b}
-              onClick={() => {
-                setBarSlug(b.slug);
-                setPage('bar');
-              }}
-            />
-          ))}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:12 }}>
+          {topBars.map(b=><BarCard key={b.id} bar={b} onClick={()=>{setBarSlug(b.slug);setPage("bar");}}/>)}
         </div>
       </div>
 
-      <div style={{ background: '#111', padding: '32px 20px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <h2 style={{ fontWeight: 700, fontSize: 20, marginBottom: 14 }}>
-            📍 Explorer par ville
-          </h2>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {villes.map((v) => {
-              const nb = bars.filter((b) => b.ville === v).length;
-              return (
-                <button
-                  key={v}
-                  onClick={() => {
-                    setVilleFilter(v);
-                    setPage('bars');
-                  }}
-                  style={{
-                    background: C.card,
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 20,
-                    padding: '7px 15px',
-                    color: C.text,
-                    cursor: 'pointer',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.borderColor = C.accent)
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.borderColor = C.border)
-                  }
-                >
-                  {v}{' '}
-                  <span
-                    style={{
-                      background: C.accent + '33',
-                      color: C.accent,
-                      borderRadius: 10,
-                      padding: '0px 7px',
-                      fontSize: 11,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {nb}
-                  </span>
-                </button>
-              );
+      <div style={{ background:"#111", padding:"32px 20px" }}>
+        <div style={{ maxWidth:1100, margin:"0 auto" }}>
+          <h2 style={{ fontWeight:700, fontSize:20, marginBottom:14 }}>📍 Explorer par ville</h2>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {villes.map(v=>{ const nb=bars.filter(b=>b.ville===v).length;
+              return <button key={v} onClick={()=>{setVilleFilter(v);setPage("bars");}} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:"7px 15px", color:C.text, cursor:"pointer", fontSize:13, fontWeight:500, display:"flex", alignItems:"center", gap:6 }}
+                onMouseEnter={e=>e.currentTarget.style.borderColor=C.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+                {v} <span style={{ background:C.accent+"33",color:C.accent,borderRadius:10,padding:"0px 7px",fontSize:11,fontWeight:700 }}>{nb}</span>
+              </button>;
             })}
           </div>
         </div>
       </div>
 
-      <div
-        style={{
-          maxWidth: 1100,
-          margin: '0 auto',
-          padding: '36px 20px',
-          textAlign: 'center',
-        }}
-      >
-        <div
-          style={{
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: 14,
-            padding: '32px 20px',
-          }}
-        >
-          <div style={{ fontSize: 34, marginBottom: 10 }}>📍</div>
-          <h2 style={{ fontWeight: 700, fontSize: 19, marginBottom: 8 }}>
-            Vous connaissez un bar avec des fléchettes ?
-          </h2>
-          <p style={{ color: C.muted, marginBottom: 18, fontSize: 14 }}>
-            Contribuez à la carte et aidez la communauté à grandir.
-          </p>
-          <Btn onClick={() => setPage('proposer')}>Proposer un bar</Btn>
+      <div style={{ maxWidth:1100, margin:"0 auto", padding:"36px 20px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:14 }}>
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"28px 20px", textAlign:"center" }}>
+            <div style={{ fontSize:34, marginBottom:10 }}>📍</div>
+            <h2 style={{ fontWeight:700, fontSize:18, marginBottom:8 }}>Vous connaissez un bar ?</h2>
+            <p style={{ color:C.muted, marginBottom:18, fontSize:14 }}>Proposez-le à la communauté.</p>
+            <Btn onClick={()=>setPage("proposer")}>Proposer un bar</Btn>
+          </div>
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"28px 20px", textAlign:"center" }}>
+            <div style={{ fontSize:34, marginBottom:10 }}>🏆</div>
+            <h2 style={{ fontWeight:700, fontSize:18, marginBottom:8 }}>Vous connaissez une association ?</h2>
+            <p style={{ color:C.muted, marginBottom:18, fontSize:14 }}>Aidez les joueurs à trouver un club.</p>
+            <Btn onClick={()=>setPage("proposer-asso")} variant="ghost">Proposer une association</Btn>
+          </div>
         </div>
       </div>
     </div>
@@ -1964,919 +560,222 @@ const Home = ({ bars, setPage, setBarSlug, setVilleFilter }) => {
 
 // ── PAGE BARS ─────────────────────────────────────────────────────────────────
 const Bars = ({ bars, setPage, setBarSlug, villeFilter, setVilleFilter }) => {
-  const [search, setSearch] = useState('');
-  const [type, setType] = useState('tous');
-  const [view, setView] = useState('liste');
-  useEffect(() => {
-    if (villeFilter) {
-      setSearch(villeFilter);
-      setVilleFilter(null);
-    }
-  }, [villeFilter]);
-  const villes = useMemo(
-    () => [...new Set(bars.map((b) => b.ville))].sort(),
-    [bars]
-  );
-  const filtered = useMemo(
-    () =>
-      bars.filter((b) => {
-        const q = search.toLowerCase();
-        return (
-          (!q ||
-            b.ville.toLowerCase().includes(q) ||
-            b.nom.toLowerCase().includes(q)) &&
-          (type === 'tous' || b.type === type)
-        );
-      }),
-    [bars, search, type]
-  );
+  const [search,setSearch]=useState("");
+  const [type,setType]=useState("tous");
+  const [view,setView]=useState("liste");
+  useEffect(()=>{ if(villeFilter){setSearch(villeFilter);setVilleFilter(null);} },[villeFilter]);
+  const villes=useMemo(()=>[...new Set(bars.map(b=>b.ville))].sort(),[bars]);
+  const filtered=useMemo(()=>bars.filter(b=>{ const q=search.toLowerCase(); return (!q||b.ville.toLowerCase().includes(q)||b.nom.toLowerCase().includes(q))&&(type==="tous"||b.type===type); }),[bars,search,type]);
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '36px 20px' }}>
-      <h1 style={{ fontWeight: 800, fontSize: 26, marginBottom: 6 }}>
-        🎯 Bars à fléchettes
-      </h1>
-      <p style={{ color: C.muted, marginBottom: 20 }}>
-        {filtered.length} lieu{filtered.length > 1 ? 'x' : ''} trouvé
-        {filtered.length > 1 ? 's' : ''}
-      </p>
-      <div
-        style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}
-      >
-        <div style={{ position: 'relative', flex: 1, minWidth: 180 }}>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="🔍 Ville ou nom…"
-            style={{
-              width: '100%',
-              background: C.card,
-              border: `1px solid ${search ? C.accent : C.border}`,
-              borderRadius: 8,
-              padding: '9px 36px 9px 12px',
-              color: C.text,
-              fontSize: 14,
-            }}
-          />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              style={{
-                position: 'absolute',
-                right: 10,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                color: C.muted,
-                cursor: 'pointer',
-                fontSize: 15,
-              }}
-            >
-              ✕
-            </button>
-          )}
+    <div style={{ maxWidth:1100, margin:"0 auto", padding:"36px 20px" }}>
+      <h1 style={{ fontWeight:800, fontSize:26, marginBottom:6 }}>🎯 Bars à fléchettes</h1>
+      <p style={{ color:C.muted, marginBottom:20 }}>{filtered.length} lieu{filtered.length>1?"x":""} trouvé{filtered.length>1?"s":""}</p>
+      <div style={{ display:"flex", gap:10, marginBottom:14, flexWrap:"wrap" }}>
+        <div style={{ position:"relative", flex:1, minWidth:180 }}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Ville ou nom…"
+            style={{ width:"100%", background:C.card, border:`1px solid ${search?C.accent:C.border}`, borderRadius:8, padding:"9px 36px 9px 12px", color:C.text, fontSize:14 }}/>
+          {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:15 }}>✕</button>}
         </div>
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-          style={{
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: 8,
-            padding: '9px 12px',
-            color: C.text,
-            fontSize: 14,
-          }}
-        >
-          <option value="tous">Tous les types</option>
+        <select value={type} onChange={e=>setType(e.target.value)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:"9px 12px", color:C.text, fontSize:14 }}>
+          <option value="tous">Tous</option>
           <option value="electronique">⚡ Électronique</option>
           <option value="traditionnel">🎯 Traditionnel</option>
         </select>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {[
-            ['liste', '☰ Liste'],
-            ['carte', '🗺️ Carte'],
-          ].map(([vv, ll]) => (
-            <button
-              key={vv}
-              onClick={() => setView(vv)}
-              style={{
-                background: view === vv ? C.accent : 'transparent',
-                color: view === vv ? '#fff' : C.muted,
-                border: `1px solid ${view === vv ? C.accent : C.border}`,
-                borderRadius: 8,
-                padding: '9px 14px',
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 500,
-              }}
-            >
-              {ll}
-            </button>
+        <div style={{ display:"flex", gap:4 }}>
+          {[["liste","☰"],["carte","🗺️"]].map(([vv,ll])=>(
+            <button key={vv} onClick={()=>setView(vv)} style={{ background:view===vv?C.accent:"transparent", color:view===vv?"#fff":C.muted, border:`1px solid ${view===vv?C.accent:C.border}`, borderRadius:8, padding:"9px 14px", cursor:"pointer", fontSize:15 }}>{ll}</button>
           ))}
         </div>
       </div>
-      <div
-        style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 18 }}
-      >
-        <button
-          onClick={() => setSearch('')}
-          style={{
-            background: !search ? C.accent + '22' : 'transparent',
-            color: !search ? C.accent : C.muted,
-            border: `1px solid ${!search ? C.accent : C.border}`,
-            borderRadius: 20,
-            padding: '4px 13px',
-            cursor: 'pointer',
-            fontSize: 12,
-          }}
-        >
-          Toutes
-        </button>
-        {villes.map((v) => (
-          <button
-            key={v}
-            onClick={() => setSearch(v)}
-            style={{
-              background: search === v ? C.accent + '22' : 'transparent',
-              color: search === v ? C.accent : C.muted,
-              border: `1px solid ${search === v ? C.accent : C.border}`,
-              borderRadius: 20,
-              padding: '4px 13px',
-              cursor: 'pointer',
-              fontSize: 12,
-            }}
-          >
-            {v}{' '}
-            <span style={{ opacity: 0.7 }}>
-              ({bars.filter((b) => b.ville === v).length})
-            </span>
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:18 }}>
+        <button onClick={()=>setSearch("")} style={{ background:!search?C.accent+"22":"transparent", color:!search?C.accent:C.muted, border:`1px solid ${!search?C.accent:C.border}`, borderRadius:20, padding:"4px 13px", cursor:"pointer", fontSize:12 }}>Toutes</button>
+        {villes.map(v=>(
+          <button key={v} onClick={()=>setSearch(v)} style={{ background:search===v?C.accent+"22":"transparent", color:search===v?C.accent:C.muted, border:`1px solid ${search===v?C.accent:C.border}`, borderRadius:20, padding:"4px 13px", cursor:"pointer", fontSize:12 }}>
+            {v} <span style={{ opacity:.7 }}>({bars.filter(b=>b.ville===v).length})</span>
           </button>
         ))}
       </div>
-      {view === 'carte' ? (
-        <LeafletMap
-          bars={filtered}
-          onBarClick={(slug) => {
-            setBarSlug(slug);
-            setPage('bar');
-          }}
-          centerSlug={null}
-          centerVille={search || null}
-          height={500}
-        />
-      ) : filtered.length === 0 ? (
-        <div
-          style={{ textAlign: 'center', padding: '50px 20px', color: C.muted }}
-        >
-          <div style={{ fontSize: 44, marginBottom: 10 }}>🔍</div>
-          <p>Aucun bar trouvé pour "{search}".</p>
-          <button
-            onClick={() => setSearch('')}
-            style={{
-              marginTop: 12,
-              background: 'none',
-              border: `1px solid ${C.border}`,
-              color: C.muted,
-              borderRadius: 8,
-              padding: '7px 14px',
-              cursor: 'pointer',
-              fontSize: 13,
-            }}
-          >
-            Effacer
-          </button>
-        </div>
-      ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))',
-            gap: 12,
-          }}
-        >
-          {filtered.map((b) => (
-            <BarCard
-              key={b.id}
-              bar={b}
-              onClick={() => {
-                setBarSlug(b.slug);
-                setPage('bar');
-              }}
-            />
-          ))}
-        </div>
-      )}
+      {view==="carte"?<LeafletMap bars={filtered} onBarClick={(slug)=>{setBarSlug(slug);setPage("bar");}} centerSlug={null} centerVille={search||null} height={500}/>
+      :filtered.length===0?(<div style={{ textAlign:"center", padding:"50px 20px", color:C.muted }}><div style={{ fontSize:44, marginBottom:10 }}>🔍</div><p>Aucun bar trouvé.</p><button onClick={()=>setSearch("")} style={{ marginTop:12, background:"none", border:`1px solid ${C.border}`, color:C.muted, borderRadius:8, padding:"7px 14px", cursor:"pointer", fontSize:13 }}>Effacer</button></div>)
+      :(<div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:12 }}>{filtered.map(b=><BarCard key={b.id} bar={b} onClick={()=>{setBarSlug(b.slug);setPage("bar");}}/>)}</div>)}
     </div>
   );
 };
 
 // ── PAGE BAR DETAIL ───────────────────────────────────────────────────────────
-const BarDetail = ({
-  slug,
-  allBars,
-  setBars,
-  setPage,
-  setAssoSlug,
-  isAdmin,
-}) => {
+const BarDetail = ({ slug, allBars, setBars, setPage, setAssoSlug, isAdmin }) => {
   const [bar, setBar] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showSignal, setShowSignal] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   useEffect(() => {
-    db.getBar(slug)
-      .then(async (b) => {
-        if (b) {
-          setBar(b);
-          // Incrémenter vues
-          const newVues = (b.vues || 0) + 1;
-          db.updateBarVues(slug, b.vues || 0);
-          setBar({ ...b, vues: newVues });
-          setBars((prev) =>
-            prev.map((x) => (x.slug === slug ? { ...x, vues: newVues } : x))
-          );
-        }
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    db.getBar(slug).then(async b => {
+      if (b) {
+        setBar(b);
+        const newVues = (b.vues||0)+1;
+        db.updateBarVues(slug, b.vues||0);
+        setBar({...b, vues: newVues});
+        setBars(prev => prev.map(x => x.slug===slug ? {...x, vues:newVues} : x));
+      }
+      setLoading(false);
+    }).catch(()=>setLoading(false));
   }, [slug]);
 
-  if (loading) return <Spinner />;
-  if (!bar)
-    return (
-      <div style={{ padding: 40, textAlign: 'center', color: C.muted }}>
-        Bar introuvable.
-      </div>
-    );
-  const asso = ASSOCIATIONS.find((a) => a.nom === bar.association);
+  if (loading) return <Spinner/>;
+  if (!bar) return <div style={{ padding:40, textAlign:"center", color:C.muted }}>Bar introuvable.</div>;
+  const asso = ASSOCIATIONS_INIT.find(a=>a.nom===bar.association);
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', padding: '36px 20px' }}>
-      {showSignal && (
-        <SignalForm
-          barSlug={bar.slug}
-          barNom={bar.nom}
-          onClose={() => setShowSignal(false)}
-        />
-      )}
-      <button
-        onClick={() => setPage('bars')}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: C.muted,
-          cursor: 'pointer',
-          marginBottom: 18,
-          fontSize: 13,
-        }}
-      >
-        ← Retour aux bars
-      </button>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 10,
-          marginBottom: 6,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            flexWrap: 'wrap',
-          }}
-        >
-          <h1 style={{ fontWeight: 800, fontSize: 28 }}>{bar.nom}</h1>
+    <div style={{ maxWidth:860, margin:"0 auto", padding:"36px 20px" }}>
+      {showSignal && <SignalForm barSlug={bar.slug} barNom={bar.nom} onClose={()=>setShowSignal(false)}/>}
+      {showEdit && <EditBarModal bar={bar} onSave={(updated)=>{setBar(updated);setBars(prev=>prev.map(x=>x.slug===slug?updated:x));}} onClose={()=>setShowEdit(false)}/>}
+      <button onClick={()=>setPage("bars")} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", marginBottom:18, fontSize:13 }}>← Retour aux bars</button>
+      <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginBottom:6 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+          <h1 style={{ fontWeight:800, fontSize:28 }}>{bar.nom}</h1>
           {bar.verifie && <Badge color={C.green}>✅ Vérifié</Badge>}
         </div>
-        <Badge color={bar.type === 'electronique' ? C.accent : '#60a5fa'}>
-          {bar.type === 'electronique' ? '⚡ Électronique' : '🎯 Traditionnel'}
-        </Badge>
+        <Badge color={bar.type==="electronique"?C.accent:"#60a5fa"}>{bar.type==="electronique"?"⚡ Électronique":"🎯 Traditionnel"}</Badge>
       </div>
-      <p style={{ color: C.muted, marginBottom: 8 }}>
-        📍 {bar.adresse}
-        {bar.adresse ? ', ' : ''}
-        {bar.cp} {bar.ville}
-      </p>
-      <p style={{ color: C.muted, fontSize: 12, marginBottom: 24 }}>
-        👁 {bar.vues || 0} consultation{(bar.vues || 0) > 1 ? 's' : ''}
-      </p>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))',
-          gap: 12,
-          marginBottom: 16,
-        }}
-      >
-        <div
-          style={{
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: 12,
-            padding: 18,
-          }}
-        >
-          <h3
-            style={{
-              fontWeight: 700,
-              marginBottom: 12,
-              color: C.accent,
-              fontSize: 14,
-            }}
-          >
-            📋 Infos pratiques
-          </h3>
-          {[
-            ['📍', 'Adresse', (bar.adresse || '—') + ', ' + bar.ville],
-            ['⏰', 'Horaires', bar.horaires || 'Non renseignés'],
-            ['📞', 'Téléphone', bar.tel || 'Non renseigné'],
-          ].map(([i, l, v]) => (
-            <div key={l} style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-              <span style={{ fontSize: 15 }}>{i}</span>
-              <div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 1 }}>
-                  {l}
-                </div>
-                <div style={{ fontSize: 13 }}>{v}</div>
-              </div>
+      <p style={{ color:C.muted, marginBottom:8 }}>📍 {bar.adresse}{bar.adresse?", ":""}{bar.cp} {bar.ville}</p>
+      <p style={{ color:C.muted, fontSize:12, marginBottom:24 }}>👁 {bar.vues||0} consultation{(bar.vues||0)>1?"s":""}</p>
+
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))", gap:12, marginBottom:16 }}>
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:18 }}>
+          <h3 style={{ fontWeight:700, marginBottom:12, color:C.accent, fontSize:14 }}>📋 Infos pratiques</h3>
+          {[["📍","Adresse",(bar.adresse||"—")+", "+bar.ville],["⏰","Horaires",bar.horaires||"Non renseignés"],["📞","Téléphone",bar.tel||"Non renseigné"]].map(([i,l,v])=>(
+            <div key={l} style={{ display:"flex", gap:8, marginBottom:10 }}>
+              <span style={{ fontSize:15 }}>{i}</span><div><div style={{ fontSize:11, color:C.muted, marginBottom:1 }}>{l}</div><div style={{ fontSize:13 }}>{v}</div></div>
             </div>
           ))}
         </div>
-        <div
-          style={{
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: 12,
-            padding: 18,
-          }}
-        >
-          <h3
-            style={{
-              fontWeight: 700,
-              marginBottom: 12,
-              color: C.accent,
-              fontSize: 14,
-            }}
-          >
-            🎯 Équipement
-          </h3>
-          {[
-            [
-              'Type',
-              bar.type === 'electronique' ? 'Électronique' : 'Traditionnel',
-            ],
-            ['Cibles', bar.cibles + ' cible' + (bar.cibles > 1 ? 's' : '')],
-            ['Tournois', bar.tournois ? '✅ Oui' : '❌ Non'],
-          ].map(([l, v]) => (
-            <div
-              key={l}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                borderBottom: `1px solid ${C.border}`,
-                paddingBottom: 7,
-                marginBottom: 7,
-              }}
-            >
-              <span style={{ color: C.muted, fontSize: 12 }}>{l}</span>
-              <span style={{ fontWeight: 500, fontSize: 13 }}>{v}</span>
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:18 }}>
+          <h3 style={{ fontWeight:700, marginBottom:12, color:C.accent, fontSize:14 }}>🎯 Équipement</h3>
+          {[["Type",bar.type==="electronique"?"Électronique":"Traditionnel"],["Cibles",bar.cibles+" cible"+(bar.cibles>1?"s":"")],["Tournois",bar.tournois?"✅ Oui":"❌ Non"]].map(([l,v])=>(
+            <div key={l} style={{ display:"flex", justifyContent:"space-between", borderBottom:`1px solid ${C.border}`, paddingBottom:7, marginBottom:7 }}>
+              <span style={{ color:C.muted, fontSize:12 }}>{l}</span><span style={{ fontWeight:500, fontSize:13 }}>{v}</span>
             </div>
           ))}
         </div>
       </div>
-      {bar.description && (
-        <div
-          style={{
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: 12,
-            padding: 18,
-            marginBottom: 12,
-          }}
-        >
-          <h3
-            style={{
-              fontWeight: 700,
-              marginBottom: 10,
-              color: C.accent,
-              fontSize: 14,
-            }}
-          >
-            💬 Description
-          </h3>
-          <p style={{ color: C.muted, lineHeight: 1.7, fontSize: 14 }}>
-            {bar.description}
-          </p>
-        </div>
-      )}
-      {asso && (
-        <div
-          style={{
-            background: '#1a0f1a',
-            border: `1px solid #f472b644`,
-            borderRadius: 12,
-            padding: 18,
-            marginBottom: 12,
-            cursor: 'pointer',
-          }}
-          onClick={() => {
-            setAssoSlug(asso.slug);
-            setPage('asso');
-          }}
-        >
-          <h3
-            style={{
-              fontWeight: 700,
-              marginBottom: 6,
-              color: '#f472b6',
-              fontSize: 14,
-            }}
-          >
-            🤝 Association partenaire
-          </h3>
-          <div style={{ fontWeight: 600, marginBottom: 3, fontSize: 14 }}>
-            {asso.nom}
-          </div>
-          <p style={{ color: C.muted, fontSize: 12 }}>
-            Entraînements le {asso.jours} · Voir la fiche →
-          </p>
-        </div>
-      )}
-      {bar.lat && (
-        <div style={{ marginBottom: 16 }}>
-          <LeafletMap
-            bars={allBars}
-            onBarClick={() => {}}
-            centerSlug={bar.slug}
-            height={220}
-          />
-        </div>
-      )}
-      <ShareBar bar={bar} />
-      <div
-        style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 28 }}
-      >
-        <a
-          href={`https://www.google.com/maps/search/${encodeURIComponent(
-            (bar.adresse || bar.nom) + ' ' + bar.ville
-          )}`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <Btn variant="ghost" style={{ fontSize: 12 }}>
-            🗺️ Ouvrir dans Maps
-          </Btn>
+      {bar.description && <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:18, marginBottom:12 }}>
+        <h3 style={{ fontWeight:700, marginBottom:10, color:C.accent, fontSize:14 }}>💬 Description</h3>
+        <p style={{ color:C.muted, lineHeight:1.7, fontSize:14 }}>{bar.description}</p>
+      </div>}
+      {asso && <div style={{ background:"#1a0f1a", border:`1px solid #f472b644`, borderRadius:12, padding:18, marginBottom:12, cursor:"pointer" }} onClick={()=>{setAssoSlug(asso.slug);setPage("asso");}}>
+        <h3 style={{ fontWeight:700, marginBottom:6, color:"#f472b6", fontSize:14 }}>🤝 Association partenaire</h3>
+        <div style={{ fontWeight:600, marginBottom:3, fontSize:14 }}>{asso.nom}</div>
+        <p style={{ color:C.muted, fontSize:12 }}>Entraînements le {asso.jours} · Voir la fiche →</p>
+      </div>}
+      {bar.lat && <div style={{ marginBottom:16 }}><LeafletMap bars={allBars} onBarClick={()=>{}} centerSlug={bar.slug} height={220}/></div>}
+      <ShareBar bar={bar}/>
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:28 }}>
+        <a href={`https://www.google.com/maps/search/${encodeURIComponent((bar.adresse||bar.nom)+" "+bar.ville)}`} target="_blank" rel="noreferrer">
+          <Btn variant="ghost" style={{ fontSize:12 }}>🗺️ Ouvrir dans Maps</Btn>
         </a>
-        <Btn
-          variant="dark"
-          onClick={() => setShowSignal(true)}
-          style={{ fontSize: 12 }}
-        >
-          ⚠️ Signaler une erreur
-        </Btn>
+        <Btn variant="dark" onClick={()=>setShowSignal(true)} style={{ fontSize:12 }}>⚠️ Signaler une erreur</Btn>
+        {isAdmin && <Btn variant="ghost" onClick={()=>setShowEdit(true)} style={{ fontSize:12, borderColor:C.yellow, color:C.yellow }}>✏️ Modifier</Btn>}
       </div>
-      <GalerieSection barSlug={bar.slug} isAdmin={isAdmin} />
-      <AvisSection barSlug={bar.slug} isAdmin={isAdmin} />
+      <GalerieSection barSlug={bar.slug} isAdmin={isAdmin}/>
+      <AvisSection barSlug={bar.slug} isAdmin={isAdmin}/>
     </div>
   );
 };
 
 // ── PAGE ASSOCIATIONS ─────────────────────────────────────────────────────────
 const Associations = ({ setPage, setAssoSlug }) => (
-  <div style={{ maxWidth: 1100, margin: '0 auto', padding: '36px 20px' }}>
-    <h1 style={{ fontWeight: 800, fontSize: 26, marginBottom: 6 }}>
-      🏆 Associations & clubs
-    </h1>
-    <p style={{ color: C.muted, marginBottom: 22 }}>
-      {ASSOCIATIONS.length} associations référencées
-    </p>
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))',
-        gap: 12,
-      }}
-    >
-      {ASSOCIATIONS.map((a) => (
-        <div
-          key={a.id}
-          onClick={() => {
-            setAssoSlug(a.slug);
-            setPage('asso');
-          }}
-          style={{
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: 12,
-            padding: 18,
-            cursor: 'pointer',
-            transition: 'border-color .15s',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.borderColor = C.accent)}
-          onMouseLeave={(e) => (e.currentTarget.style.borderColor = C.border)}
-        >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 6,
-              marginBottom: 8,
-            }}
-          >
-            <h3 style={{ fontWeight: 700, fontSize: 15 }}>{a.nom}</h3>
-            <Badge color={a.type === 'electronique' ? C.accent : '#60a5fa'}>
-              {a.type === 'electronique' ? '⚡' : '🎯'}
-            </Badge>
+  <div style={{ maxWidth:1100, margin:"0 auto", padding:"36px 20px" }}>
+    <h1 style={{ fontWeight:800, fontSize:26, marginBottom:6 }}>🏆 Associations & clubs</h1>
+    <p style={{ color:C.muted, marginBottom:22 }}>{ASSOCIATIONS_INIT.length} associations référencées</p>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:12, marginBottom:20 }}>
+      {ASSOCIATIONS_INIT.map(a=>(
+        <div key={a.id} onClick={()=>{setAssoSlug(a.slug);setPage("asso");}}
+          style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:18, cursor:"pointer", transition:"border-color .15s" }}
+          onMouseEnter={e=>e.currentTarget.style.borderColor=C.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+          <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:6, marginBottom:8 }}>
+            <h3 style={{ fontWeight:700, fontSize:15 }}>{a.nom}</h3>
+            <Badge color={a.type==="electronique"?C.accent:"#60a5fa"}>{a.type==="electronique"?"⚡":"🎯"}</Badge>
           </div>
-          <p style={{ color: C.muted, fontSize: 12, marginBottom: 6 }}>
-            📍 {a.ville} — {a.zone}
-          </p>
-          <p
-            style={{
-              color: C.muted,
-              fontSize: 12,
-              marginBottom: 10,
-              lineHeight: 1.5,
-            }}
-          >
-            {a.description.slice(0, 100)}…
-          </p>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <p style={{ color:C.muted, fontSize:12, marginBottom:6 }}>📍 {a.ville} — {a.zone}</p>
+          <p style={{ color:C.muted, fontSize:12, marginBottom:10, lineHeight:1.5 }}>{a.description.slice(0,100)}…</p>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
             <Badge color="#a78bfa">🗓 {a.jours}</Badge>
-            <Badge color="#f472b6">📍 {a.lieu}</Badge>
+            <Badge color="#f472b6">📍 {a.lieu.slice(0,20)}{a.lieu.length>20?"…":""}</Badge>
           </div>
         </div>
       ))}
+    </div>
+    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:20, textAlign:"center" }}>
+      <p style={{ color:C.muted, fontSize:14, marginBottom:12 }}>Vous connaissez une association non référencée ?</p>
+      <Btn onClick={()=>setPage("proposer-asso")} variant="ghost">🤝 Proposer une association</Btn>
     </div>
   </div>
 );
 
 // ── PAGE ASSO DETAIL ──────────────────────────────────────────────────────────
 const AssoDetail = ({ slug, bars, setPage, setBarSlug }) => {
-  const asso = ASSOCIATIONS.find((a) => a.slug === slug);
-  if (!asso) return null;
+  const asso=ASSOCIATIONS_INIT.find(a=>a.slug===slug); if(!asso) return null;
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', padding: '36px 20px' }}>
-      <button
-        onClick={() => setPage('associations')}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: C.muted,
-          cursor: 'pointer',
-          marginBottom: 18,
-          fontSize: 13,
-        }}
-      >
-        ← Retour
-      </button>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 10,
-          marginBottom: 6,
-        }}
-      >
-        <h1 style={{ fontWeight: 800, fontSize: 28 }}>{asso.nom}</h1>
-        <Badge color={asso.type === 'electronique' ? C.accent : '#60a5fa'}>
-          {asso.type === 'electronique' ? '⚡ Électronique' : '🎯 Traditionnel'}
-        </Badge>
+    <div style={{ maxWidth:860, margin:"0 auto", padding:"36px 20px" }}>
+      <button onClick={()=>setPage("associations")} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", marginBottom:18, fontSize:13 }}>← Retour</button>
+      <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginBottom:6 }}>
+        <h1 style={{ fontWeight:800, fontSize:28 }}>{asso.nom}</h1>
+        <Badge color={asso.type==="electronique"?C.accent:"#60a5fa"}>{asso.type==="electronique"?"⚡ Électronique":"🎯 Traditionnel"}</Badge>
       </div>
-      <p style={{ color: C.muted, marginBottom: 24 }}>
-        📍 {asso.ville} — {asso.zone}
-      </p>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))',
-          gap: 12,
-          marginBottom: 16,
-        }}
-      >
-        <div
-          style={{
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: 12,
-            padding: 18,
-          }}
-        >
-          <h3
-            style={{
-              fontWeight: 700,
-              marginBottom: 12,
-              color: C.accent,
-              fontSize: 14,
-            }}
-          >
-            📋 Infos
-          </h3>
-          {[
-            ['🗓', 'Entraînements', asso.jours],
-            ['📍', 'Lieu', asso.lieu],
-            ['📞', 'Téléphone', asso.tel || 'Non renseigné'],
-            ['📧', 'Contact', asso.contact],
-          ].map(([i, l, v]) => (
-            <div key={l} style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-              <span>{i}</span>
-              <div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 1 }}>
-                  {l}
-                </div>
-                <div style={{ fontSize: 13 }}>{v}</div>
-              </div>
+      <p style={{ color:C.muted, marginBottom:24 }}>📍 {asso.ville} — {asso.zone}</p>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))", gap:12, marginBottom:16 }}>
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:18 }}>
+          <h3 style={{ fontWeight:700, marginBottom:12, color:C.accent, fontSize:14 }}>📋 Infos</h3>
+          {[["🗓","Entraînements",asso.jours],["📍","Lieu",asso.lieu],["📞","Téléphone",asso.tel||"Non renseigné"],["📧","Contact",asso.contact]].map(([i,l,v])=>(
+            <div key={l} style={{ display:"flex", gap:8, marginBottom:10 }}>
+              <span>{i}</span><div><div style={{ fontSize:11, color:C.muted, marginBottom:1 }}>{l}</div><div style={{ fontSize:13 }}>{v}</div></div>
             </div>
           ))}
         </div>
-        <div
-          style={{
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: 12,
-            padding: 18,
-          }}
-        >
-          <h3
-            style={{
-              fontWeight: 700,
-              marginBottom: 10,
-              color: C.accent,
-              fontSize: 14,
-            }}
-          >
-            💬 Description
-          </h3>
-          <p style={{ color: C.muted, lineHeight: 1.7, fontSize: 13 }}>
-            {asso.description}
-          </p>
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:18 }}>
+          <h3 style={{ fontWeight:700, marginBottom:10, color:C.accent, fontSize:14 }}>💬 Description</h3>
+          <p style={{ color:C.muted, lineHeight:1.7, fontSize:13 }}>{asso.description}</p>
         </div>
       </div>
-      {asso.bars.length > 0 && (
-        <div
-          style={{
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: 12,
-            padding: 18,
-          }}
-        >
-          <h3
-            style={{
-              fontWeight: 700,
-              marginBottom: 12,
-              color: C.accent,
-              fontSize: 14,
-            }}
-          >
-            🍺 Bars partenaires
-          </h3>
-          {asso.bars.map((nom) => {
-            const b = bars.find((x) => x.nom === nom);
-            return b ? (
-              <div
-                key={nom}
-                onClick={() => {
-                  setBarSlug(b.slug);
-                  setPage('bar');
-                }}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '9px 0',
-                  borderBottom: `1px solid ${C.border}`,
-                  cursor: 'pointer',
-                }}
-              >
-                <span style={{ fontWeight: 500, fontSize: 14 }}>{nom}</span>
-                <span style={{ color: C.muted, fontSize: 12 }}>
-                  📍 {b.ville} →
-                </span>
-              </div>
-            ) : null;
-          })}
-        </div>
-      )}
+      {asso.bars.length>0 && <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:18 }}>
+        <h3 style={{ fontWeight:700, marginBottom:12, color:C.accent, fontSize:14 }}>🍺 Bars partenaires</h3>
+        {asso.bars.map(nom=>{const b=bars.find(x=>x.nom===nom);return b?<div key={nom} onClick={()=>{setBarSlug(b.slug);setPage("bar");}} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom:`1px solid ${C.border}`, cursor:"pointer" }}><span style={{ fontWeight:500,fontSize:14 }}>{nom}</span><span style={{ color:C.muted,fontSize:12 }}>📍 {b.ville} →</span></div>:null;})}
+      </div>}
     </div>
   );
 };
 
 // ── PAGE TOURNOIS ─────────────────────────────────────────────────────────────
 const Tournois = ({ bars, setPage, setBarSlug }) => {
-  const events = [
-    {
-      id: 1,
-      nom: 'Open Biarritz 2025',
-      ville: 'Biarritz',
-      bar: 'Le Phare',
-      asso: 'Marraque Darts',
-      date: '2025-09-20',
-      type: 'electronique',
-      infos:
-        'Tournoi ouvert à tous niveaux. Inscriptions sur place. Dotations à gagner.',
-    },
-    {
-      id: 2,
-      nom: 'Tournoi Mensuel Central',
-      ville: 'Cambo-les-Bains',
-      bar: 'Le Central',
-      asso: 'Euskal Dardoa',
-      date: '2025-08-01',
-      type: 'electronique',
-      infos:
-        "Tournoi mensuel du vendredi soir. 5€ d'inscription. Repas inclus.",
-    },
-    {
-      id: 3,
-      nom: 'Championnat Béarn',
-      ville: 'Pau',
-      bar: 'Le Zinc',
-      asso: 'Battle Darts Pau',
-      date: '2025-10-15',
-      type: 'traditionnel',
-      infos: 'Sélection régionale affiliée FFD. Licence obligatoire.',
-    },
-  ];
-  const upcoming = events
-    .filter((e) => new Date(e.date) >= new Date())
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-  const past = events.filter((e) => new Date(e.date) < new Date());
-  const Card = ({ e }) => {
-    const d = new Date(e.date);
-    const isPast = d < new Date();
-    return (
-      <div
-        style={{
-          background: C.card,
-          border: `1px solid ${isPast ? C.border : C.accent + '44'}`,
-          borderRadius: 12,
-          padding: 20,
-          opacity: isPast ? 0.6 : 1,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 8,
-            marginBottom: 10,
-          }}
-        >
-          <h3 style={{ fontWeight: 700, fontSize: 16 }}>{e.nom}</h3>
-          <Badge color={isPast ? C.muted : C.green}>
-            {isPast ? 'Passé' : 'À venir'}
-          </Badge>
-        </div>
-        <p
-          style={{
-            color: C.accent,
-            fontWeight: 600,
-            fontSize: 14,
-            marginBottom: 6,
-          }}
-        >
-          📅{' '}
-          {d.toLocaleDateString('fr-FR', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          })}
-        </p>
-        <p style={{ color: C.muted, fontSize: 13, marginBottom: 4 }}>
-          📍 {e.ville} — {e.bar}
-        </p>
-        {e.asso && (
-          <p style={{ color: C.muted, fontSize: 13, marginBottom: 8 }}>
-            🏆 {e.asso}
-          </p>
-        )}
-        <p
-          style={{
-            color: '#cbd5e1',
-            fontSize: 13,
-            lineHeight: 1.6,
-            marginBottom: 12,
-          }}
-        >
-          {e.infos}
-        </p>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Badge color={e.type === 'electronique' ? C.accent : '#60a5fa'}>
-            {e.type === 'electronique' ? '⚡' : '🎯'}
-          </Badge>
-          {bars.find((b) => b.nom === e.bar) && (
-            <button
-              onClick={() => {
-                setBarSlug(bars.find((b) => b.nom === e.bar).slug);
-                setPage('bar');
-              }}
-              style={{
-                background: 'none',
-                border: `1px solid ${C.border}`,
-                borderRadius: 20,
-                padding: '2px 10px',
-                color: C.muted,
-                cursor: 'pointer',
-                fontSize: 11,
-              }}
-            >
-              Voir le bar →
-            </button>
-          )}
-        </div>
+  const events=[{id:1,nom:"Open Biarritz 2025",ville:"Biarritz",bar:"Le Phare",asso:"Marraque Darts",date:"2025-09-20",type:"electronique",infos:"Tournoi ouvert à tous niveaux. Inscriptions sur place."},{id:2,nom:"Tournoi Mensuel Central",ville:"Cambo-les-Bains",bar:"Le Central",asso:"Euskal Dardoa",date:"2025-08-01",type:"electronique",infos:"Tournoi mensuel du vendredi soir. 5€ d'inscription."},{id:3,nom:"Championnat Béarn",ville:"Pau",bar:"Le Zinc",asso:"Battle Darts Pau",date:"2025-10-15",type:"traditionnel",infos:"Sélection régionale affiliée FFD. Licence obligatoire."}];
+  const upcoming=events.filter(e=>new Date(e.date)>=new Date()).sort((a,b)=>new Date(a.date).getTime()-new Date(b.date).getTime());
+  const past=events.filter(e=>new Date(e.date)<new Date());
+  const Card=({e})=>{const d=new Date(e.date);const isPast=d<new Date();return(
+    <div style={{ background:C.card, border:`1px solid ${isPast?C.border:C.accent+"44"}`, borderRadius:12, padding:20, opacity:isPast?.6:1 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:10 }}>
+        <h3 style={{ fontWeight:700, fontSize:16 }}>{e.nom}</h3>
+        <Badge color={isPast?C.muted:C.green}>{isPast?"Passé":"À venir"}</Badge>
       </div>
-    );
-  };
+      <p style={{ color:C.accent, fontWeight:600, fontSize:14, marginBottom:6 }}>📅 {d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</p>
+      <p style={{ color:C.muted, fontSize:13, marginBottom:4 }}>📍 {e.ville} — {e.bar}</p>
+      <p style={{ color:"#cbd5e1", fontSize:13, lineHeight:1.6, marginBottom:12 }}>{e.infos}</p>
+      <div style={{ display:"flex", gap:8 }}>
+        <Badge color={e.type==="electronique"?C.accent:"#60a5fa"}>{e.type==="electronique"?"⚡":"🎯"}</Badge>
+        {bars.find(b=>b.nom===e.bar)&&<button onClick={()=>{setBarSlug(bars.find(b=>b.nom===e.bar).slug);setPage("bar");}} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:20, padding:"2px 10px", color:C.muted, cursor:"pointer", fontSize:11 }}>Voir le bar →</button>}
+      </div>
+    </div>
+  );};
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '36px 20px' }}>
-      <h1 style={{ fontWeight: 800, fontSize: 26, marginBottom: 6 }}>
-        🏅 Tournois & événements
-      </h1>
-      <p style={{ color: C.muted, marginBottom: 28 }}>
-        Compétitions et soirées fléchettes dans la région
-      </p>
-      {upcoming.length > 0 && (
-        <>
-          <h2
-            style={{
-              fontWeight: 700,
-              fontSize: 18,
-              marginBottom: 14,
-              color: C.green,
-            }}
-          >
-            📅 À venir
-          </h2>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill,minmax(340px,1fr))',
-              gap: 14,
-              marginBottom: 32,
-            }}
-          >
-            {upcoming.map((e) => (
-              <Card key={e.id} e={e} />
-            ))}
-          </div>
-        </>
-      )}
-      {past.length > 0 && (
-        <>
-          <h2
-            style={{
-              fontWeight: 700,
-              fontSize: 18,
-              marginBottom: 14,
-              color: C.muted,
-            }}
-          >
-            📆 Passés
-          </h2>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill,minmax(340px,1fr))',
-              gap: 14,
-            }}
-          >
-            {past.map((e) => (
-              <Card key={e.id} e={e} />
-            ))}
-          </div>
-        </>
-      )}
-      <div
-        style={{
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: 12,
-          padding: 20,
-          marginTop: 32,
-          textAlign: 'center',
-        }}
-      >
-        <p style={{ color: C.muted, fontSize: 14, marginBottom: 12 }}>
-          Vous organisez un tournoi ? Signalez-le à la communauté.
-        </p>
-        <Btn
-          onClick={() => setPage('contact')}
-          variant="ghost"
-          style={{ fontSize: 13 }}
-        >
-          Nous contacter →
-        </Btn>
+    <div style={{ maxWidth:900, margin:"0 auto", padding:"36px 20px" }}>
+      <h1 style={{ fontWeight:800, fontSize:26, marginBottom:6 }}>🏅 Tournois & événements</h1>
+      <p style={{ color:C.muted, marginBottom:28 }}>Compétitions et soirées fléchettes</p>
+      {upcoming.length>0&&<><h2 style={{ fontWeight:700, fontSize:18, marginBottom:14, color:C.green }}>📅 À venir</h2><div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:14, marginBottom:32 }}>{upcoming.map(e=><Card key={e.id} e={e}/>)}</div></>}
+      {past.length>0&&<><h2 style={{ fontWeight:700, fontSize:18, marginBottom:14, color:C.muted }}>📆 Passés</h2><div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:14 }}>{past.map(e=><Card key={e.id} e={e}/>)}</div></>}
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:20, marginTop:32, textAlign:"center" }}>
+        <p style={{ color:C.muted, fontSize:14, marginBottom:12 }}>Vous organisez un tournoi ?</p>
+        <Btn onClick={()=>setPage("contact")} variant="ghost" style={{ fontSize:13 }}>Nous contacter →</Btn>
       </div>
     </div>
   );
@@ -2884,298 +783,107 @@ const Tournois = ({ bars, setPage, setBarSlug }) => {
 
 // ── PAGE À PROPOS ─────────────────────────────────────────────────────────────
 const APropos = ({ bars, setPage }) => (
-  <div style={{ maxWidth: 760, margin: '0 auto', padding: '36px 20px' }}>
-    <h1 style={{ fontWeight: 800, fontSize: 28, marginBottom: 6 }}>
-      ℹ️ À propos de DartPoint
-    </h1>
-    <p style={{ color: C.muted, fontSize: 15, marginBottom: 32 }}>
-      Le guide communautaire des bars à fléchettes en France
-    </p>
-    {[
-      {
-        emoji: '🎯',
-        titre: 'Notre mission',
-        texte:
-          "DartPoint est né d'un constat simple : trouver un bar où jouer aux fléchettes près de chez soi relevait du bouche-à-oreille. Nous avons voulu créer le premier annuaire dédié, pensé par et pour les joueurs.",
-      },
-      {
-        emoji: '🗺️',
-        titre: 'Comment ça marche ?',
-        texte:
-          "Chaque bar référencé est vérifié par notre équipe ou signalé par la communauté. Les fiches contiennent les infos pratiques, le type d'équipement, les associations liées et les avis des joueurs.",
-      },
-      {
-        emoji: '🤝',
-        titre: 'Une plateforme communautaire',
-        texte:
-          'DartPoint vit grâce à ses contributeurs. Vous connaissez un bar non référencé ? Vous remarquez une erreur ? Proposez un ajout ou signalez une correction directement depuis chaque fiche.',
-      },
-      {
-        emoji: '🏆',
-        titre: "Les associations à l'honneur",
-        texte:
-          'Les clubs et associations de fléchettes sont au cœur du projet. Nous cherchons à les mettre en avant, à les connecter aux bars partenaires et à valoriser leurs tournois locaux.',
-      },
-    ].map(({ emoji, titre, texte }) => (
-      <div
-        key={titre}
-        style={{
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: 12,
-          padding: 22,
-          marginBottom: 14,
-        }}
-      >
-        <h2 style={{ fontWeight: 700, fontSize: 17, marginBottom: 10 }}>
-          {emoji} {titre}
-        </h2>
-        <p style={{ color: C.muted, lineHeight: 1.8, fontSize: 14 }}>{texte}</p>
+  <div style={{ maxWidth:760, margin:"0 auto", padding:"36px 20px" }}>
+    <h1 style={{ fontWeight:800, fontSize:28, marginBottom:6 }}>ℹ️ À propos de DartPoint</h1>
+    <p style={{ color:C.muted, fontSize:15, marginBottom:32 }}>Le guide communautaire des bars à fléchettes en France</p>
+    {[{emoji:"🎯",titre:"Notre mission",texte:"DartPoint est né d'un constat simple : trouver un bar où jouer aux fléchettes près de chez soi relevait du bouche-à-oreille. Nous avons voulu créer le premier annuaire dédié, pensé par et pour les joueurs."},{emoji:"🗺️",titre:"Comment ça marche ?",texte:"Chaque bar référencé est vérifié par notre équipe ou signalé par la communauté. Les fiches contiennent les infos pratiques, le type d'équipement, les associations liées et les avis des joueurs."},{emoji:"🤝",titre:"Une plateforme communautaire",texte:"DartPoint vit grâce à ses contributeurs. Proposez un bar, signalez une erreur, laissez un avis — chaque contribution enrichit la carte."},{emoji:"🏆",titre:"Les associations à l'honneur",texte:"Les clubs et associations de fléchettes sont au cœur du projet. Nous cherchons à les mettre en avant et à valoriser leurs tournois locaux."}].map(({emoji,titre,texte})=>(
+      <div key={titre} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:22, marginBottom:14 }}>
+        <h2 style={{ fontWeight:700, fontSize:17, marginBottom:10 }}>{emoji} {titre}</h2>
+        <p style={{ color:C.muted, lineHeight:1.8, fontSize:14 }}>{texte}</p>
       </div>
     ))}
-    <div
-      style={{
-        background: 'linear-gradient(135deg,#1a0800,#111)',
-        border: `1px solid ${C.accent}44`,
-        borderRadius: 12,
-        padding: 24,
-        marginTop: 8,
-        textAlign: 'center',
-      }}
-    >
-      <div style={{ fontSize: 36, marginBottom: 10 }}>🎯</div>
-      <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>
-        {bars.length} bars référencés · {bars.filter((b) => b.verifie).length}{' '}
-        vérifiés
-      </p>
-      <p style={{ color: C.muted, fontSize: 13, marginBottom: 18 }}>
-        Et ça grandit chaque semaine grâce à vous.
-      </p>
-      <div
-        style={{
-          display: 'flex',
-          gap: 10,
-          justifyContent: 'center',
-          flexWrap: 'wrap',
-        }}
-      >
-        <Btn onClick={() => setPage('proposer')} style={{ fontSize: 13 }}>
-          Proposer un bar
-        </Btn>
-        <Btn
-          onClick={() => setPage('contact')}
-          variant="ghost"
-          style={{ fontSize: 13 }}
-        >
-          Nous contacter
-        </Btn>
+    <div style={{ background:"linear-gradient(135deg,#1a0800,#111)", border:`1px solid ${C.accent}44`, borderRadius:12, padding:24, marginTop:8, textAlign:"center" }}>
+      <div style={{ fontSize:36, marginBottom:10 }}>🎯</div>
+      <p style={{ fontWeight:700, fontSize:16, marginBottom:6 }}>{bars.length} bars · {bars.filter(b=>b.verifie).length} vérifiés</p>
+      <div style={{ display:"flex", gap:10, justifyContent:"center", flexWrap:"wrap", marginTop:16 }}>
+        <Btn onClick={()=>setPage("proposer")} style={{ fontSize:13 }}>Proposer un bar</Btn>
+        <Btn onClick={()=>setPage("contact")} variant="ghost" style={{ fontSize:13 }}>Nous contacter</Btn>
       </div>
     </div>
   </div>
 );
 
-// ── PAGE PROPOSER ─────────────────────────────────────────────────────────────
+// ── PAGE PROPOSER BAR ─────────────────────────────────────────────────────────
 const Proposer = ({ bars, onSubmit }) => {
-  const [f, setF] = useState({
-    nom: '',
-    adresse: '',
-    ville: '',
-    cp: '',
-    type: 'electronique',
-    cibles: '1',
-    tournois: 'non',
-    tel: '',
-    commentaire: '',
-    pseudo: '',
-    email: '',
-  });
-  const [sent, setSent] = useState(false);
-  const [doublon, setDoublon] = useState(null);
-  const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
-  const valid = f.nom.trim() && f.ville.trim() && !doublon;
-  useEffect(() => {
-    if (!f.nom.trim() || !f.ville.trim()) {
-      setDoublon(null);
-      return;
-    }
-    const q = f.nom.toLowerCase().trim(),
-      v = f.ville.toLowerCase().trim();
-    setDoublon(
-      bars.find(
-        (b) =>
-          b.nom.toLowerCase().includes(q) && b.ville.toLowerCase().includes(v)
-      ) || null
-    );
-  }, [f.nom, f.ville, bars]);
-  if (sent)
-    return (
-      <div
-        style={{
-          maxWidth: 600,
-          margin: '80px auto',
-          padding: '0 20px',
-          textAlign: 'center',
-        }}
-      >
-        <div style={{ fontSize: 50, marginBottom: 12 }}>✅</div>
-        <h2 style={{ fontWeight: 700, fontSize: 22, marginBottom: 8 }}>
-          Merci !
-        </h2>
-        <p style={{ color: C.muted, lineHeight: 1.7 }}>
-          Votre proposition est en attente de validation par notre équipe.
-        </p>
-      </div>
-    );
+  const [f,setF]=useState({nom:"",adresse:"",ville:"",cp:"",type:"electronique",cibles:"1",tournois:"non",tel:"",commentaire:"",pseudo:"",email:""});
+  const [sent,setSent]=useState(false);
+  const [doublon,setDoublon]=useState(null);
+  const set=k=>v=>setF(p=>({...p,[k]:v}));
+  const valid=f.nom.trim()&&f.ville.trim()&&!doublon;
+  useEffect(()=>{ if(!f.nom.trim()||!f.ville.trim()){setDoublon(null);return;} const q=f.nom.toLowerCase().trim(),v=f.ville.toLowerCase().trim(); setDoublon(bars.find(b=>b.nom.toLowerCase().includes(q)&&b.ville.toLowerCase().includes(v))||null); },[f.nom,f.ville,bars]);
+  if(sent) return <div style={{ maxWidth:600, margin:"80px auto", padding:"0 20px", textAlign:"center" }}><div style={{ fontSize:50, marginBottom:12 }}>✅</div><h2 style={{ fontWeight:700, fontSize:22, marginBottom:8 }}>Merci !</h2><p style={{ color:C.muted }}>Votre proposition est en attente de validation.</p></div>;
   return (
-    <div style={{ maxWidth: 660, margin: '0 auto', padding: '36px 20px' }}>
-      <h1 style={{ fontWeight: 800, fontSize: 26, marginBottom: 6 }}>
-        ➕ Proposer un bar
-      </h1>
-      <p style={{ color: C.muted, marginBottom: 24 }}>
-        Votre proposition sera examinée avant publication.
-      </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-        <div
-          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 13 }}
-        >
-          <Field
-            label="Nom du bar *"
-            value={f.nom}
-            onChange={set('nom')}
-            placeholder="Le Central"
-          />
-          <Field
-            label="Ville *"
-            value={f.ville}
-            onChange={set('ville')}
-            placeholder="Bayonne"
-          />
+    <div style={{ maxWidth:660, margin:"0 auto", padding:"36px 20px" }}>
+      <h1 style={{ fontWeight:800, fontSize:26, marginBottom:6 }}>➕ Proposer un bar</h1>
+      <p style={{ color:C.muted, marginBottom:24 }}>Votre proposition sera examinée avant publication.</p>
+      <div style={{ display:"flex", flexDirection:"column", gap:13 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:13 }}>
+          <Field label="Nom du bar *" value={f.nom} onChange={set("nom")} placeholder="Le Central"/>
+          <Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/>
         </div>
-        {doublon && (
-          <div
-            style={{
-              background: '#1a0f00',
-              border: `1px solid ${C.yellow}44`,
-              borderRadius: 10,
-              padding: 14,
-              display: 'flex',
-              gap: 12,
-            }}
-          >
-            <span style={{ fontSize: 20 }}>⚠️</span>
-            <div>
-              <p
-                style={{
-                  fontWeight: 600,
-                  color: C.yellow,
-                  fontSize: 13,
-                  marginBottom: 4,
-                }}
-              >
-                Ce bar semble déjà référencé !
-              </p>
-              <p style={{ color: C.muted, fontSize: 12 }}>
-                "{doublon.nom}" à {doublon.ville} existe déjà dans notre base.
-              </p>
-            </div>
-          </div>
-        )}
-        <Field
-          label="Adresse"
-          value={f.adresse}
-          onChange={set('adresse')}
-          placeholder="12 rue de la Mairie"
-        />
-        <div
-          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 13 }}
-        >
-          <Field
-            label="Code postal"
-            value={f.cp}
-            onChange={set('cp')}
-            placeholder="64100"
-          />
-          <Field
-            label="Type"
-            as="select"
-            value={f.type}
-            onChange={set('type')}
-            options={[
-              { v: 'electronique', l: '⚡ Électronique' },
-              { v: 'traditionnel', l: '🎯 Traditionnel' },
-              { v: 'les deux', l: 'Les deux' },
-            ]}
-          />
+        {doublon && <div style={{ background:"#1a0f00", border:`1px solid ${C.yellow}44`, borderRadius:10, padding:14, display:"flex", gap:12 }}><span style={{ fontSize:20 }}>⚠️</span><div><p style={{ fontWeight:600, color:C.yellow, fontSize:13, marginBottom:4 }}>Ce bar semble déjà référencé !</p><p style={{ color:C.muted, fontSize:12 }}>"{doublon.nom}" à {doublon.ville} existe déjà.</p></div></div>}
+        <Field label="Adresse" value={f.adresse} onChange={set("adresse")} placeholder="12 rue de la Mairie"/>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:13 }}>
+          <Field label="Code postal" value={f.cp} onChange={set("cp")} placeholder="64100"/>
+          <Field label="Type" as="select" value={f.type} onChange={set("type")} options={[{v:"electronique",l:"⚡ Électronique"},{v:"traditionnel",l:"🎯 Traditionnel"},{v:"les deux",l:"Les deux"}]} placeholder=""/>
         </div>
-        <div
-          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 13 }}
-        >
-          <Field
-            label="Nombre de cibles"
-            value={f.cibles}
-            onChange={set('cibles')}
-            placeholder="2"
-            type="number"
-          />
-          <Field
-            label="Tournois ?"
-            as="select"
-            value={f.tournois}
-            onChange={set('tournois')}
-            options={[
-              { v: 'non', l: 'Non' },
-              { v: 'oui', l: 'Oui' },
-              { v: 'nsp', l: 'Je ne sais pas' },
-            ]}
-          />
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:13 }}>
+          <Field label="Nombre de cibles" value={f.cibles} onChange={set("cibles")} placeholder="2" type="number"/>
+          <Field label="Tournois ?" as="select" value={f.tournois} onChange={set("tournois")} options={[{v:"non",l:"Non"},{v:"oui",l:"Oui"},{v:"nsp",l:"Je ne sais pas"}]} placeholder=""/>
         </div>
-        <Field
-          label="Téléphone"
-          value={f.tel}
-          onChange={set('tel')}
-          placeholder="05 59 XX XX XX"
-        />
-        <Field
-          label="Commentaire"
-          value={f.commentaire}
-          onChange={set('commentaire')}
-          placeholder="Ambiance, infos complémentaires…"
-          as="textarea"
-        />
-        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 13 }}>
-          <p style={{ color: C.muted, fontSize: 12, marginBottom: 10 }}>
-            Vos informations (optionnel)
-          </p>
-          <div
-            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 13 }}
-          >
-            <Field
-              label="Prénom ou pseudo"
-              value={f.pseudo}
-              onChange={set('pseudo')}
-              placeholder="Alex"
-            />
-            <Field
-              label="Email (pour être notifié)"
-              value={f.email}
-              onChange={set('email')}
-              placeholder="vous@email.com"
-              type="email"
-            />
+        <Field label="Téléphone" value={f.tel} onChange={set("tel")} placeholder="05 59 XX XX XX"/>
+        <Field label="Commentaire" value={f.commentaire} onChange={set("commentaire")} placeholder="Ambiance, infos…" as="textarea"/>
+        <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:13 }}>
+          <p style={{ color:C.muted, fontSize:12, marginBottom:10 }}>Vos informations (optionnel)</p>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:13 }}>
+            <Field label="Prénom ou pseudo" value={f.pseudo} onChange={set("pseudo")} placeholder="Alex"/>
+            <Field label="Email" value={f.email} onChange={set("email")} placeholder="vous@email.com" type="email"/>
           </div>
         </div>
-        <Btn
-          onClick={() => {
-            if (valid) {
-              onSubmit(f);
-              setSent(true);
-            }
-          }}
-          disabled={!valid}
-          style={{ marginTop: 4, padding: '13px 22px', fontSize: 15 }}
-        >
-          Envoyer →
-        </Btn>
+        <Btn onClick={()=>{if(valid){onSubmit(f);setSent(true);}}} disabled={!valid} style={{ marginTop:4, padding:"13px 22px", fontSize:15 }}>Envoyer →</Btn>
+      </div>
+    </div>
+  );
+};
+
+// ── PAGE PROPOSER ASSOCIATION ─────────────────────────────────────────────────
+const ProposerAsso = ({ onSubmit }) => {
+  const [f,setF]=useState({nom:"",ville:"",zone:"",type:"electronique",jours:"",lieu:"",tel:"",contact:"",description:"",pseudo:"",email:""});
+  const [sent,setSent]=useState(false);
+  const set=k=>v=>setF(p=>({...p,[k]:v}));
+  const valid=f.nom.trim()&&f.ville.trim();
+  if(sent) return <div style={{ maxWidth:600, margin:"80px auto", padding:"0 20px", textAlign:"center" }}><div style={{ fontSize:50, marginBottom:12 }}>✅</div><h2 style={{ fontWeight:700, fontSize:22, marginBottom:8 }}>Merci !</h2><p style={{ color:C.muted }}>Votre proposition d'association est en attente de validation.</p></div>;
+  return (
+    <div style={{ maxWidth:660, margin:"0 auto", padding:"36px 20px" }}>
+      <h1 style={{ fontWeight:800, fontSize:26, marginBottom:6 }}>🤝 Proposer une association</h1>
+      <p style={{ color:C.muted, marginBottom:24 }}>Aidez les joueurs à trouver un club près de chez eux.</p>
+      <div style={{ display:"flex", flexDirection:"column", gap:13 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:13 }}>
+          <Field label="Nom de l'association *" value={f.nom} onChange={set("nom")} placeholder="Les Darts du Coin"/>
+          <Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:13 }}>
+          <Field label="Zone / département" value={f.zone} onChange={set("zone")} placeholder="Côte Basque"/>
+          <Field label="Type" as="select" value={f.type} onChange={set("type")} options={[{v:"electronique",l:"⚡ Électronique"},{v:"traditionnel",l:"🎯 Traditionnel"},{v:"les deux",l:"Les deux"}]} placeholder=""/>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:13 }}>
+          <Field label="Jours d'entraînement" value={f.jours} onChange={set("jours")} placeholder="Vendredi 20h"/>
+          <Field label="Lieu de pratique" value={f.lieu} onChange={set("lieu")} placeholder="Bar des Sports"/>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:13 }}>
+          <Field label="Téléphone" value={f.tel} onChange={set("tel")} placeholder="06 XX XX XX XX"/>
+          <Field label="Contact / Email" value={f.contact} onChange={set("contact")} placeholder="asso@email.com"/>
+        </div>
+        <Field label="Description" value={f.description} onChange={set("description")} placeholder="Présentez votre association, niveau, ambiance…" as="textarea"/>
+        <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:13 }}>
+          <p style={{ color:C.muted, fontSize:12, marginBottom:10 }}>Vos informations (optionnel)</p>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:13 }}>
+            <Field label="Prénom ou pseudo" value={f.pseudo} onChange={set("pseudo")} placeholder="Alex"/>
+            <Field label="Email" value={f.email} onChange={set("email")} placeholder="vous@email.com" type="email"/>
+          </div>
+        </div>
+        <Btn onClick={()=>{if(valid){onSubmit({...f,type_prop:"association"});setSent(true);}}} disabled={!valid} style={{ marginTop:4, padding:"13px 22px", fontSize:15 }}>Envoyer →</Btn>
+        {!valid && <p style={{ color:C.red, fontSize:12 }}>* Nom et ville obligatoires</p>}
       </div>
     </div>
   );
@@ -3183,71 +891,22 @@ const Proposer = ({ bars, onSubmit }) => {
 
 // ── PAGE CONTACT ──────────────────────────────────────────────────────────────
 const Contact = () => {
-  const [f, setF] = useState({ nom: '', email: '', sujet: '', message: '' });
-  const [sent, setSent] = useState(false);
-  const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
-  if (sent)
-    return (
-      <div
-        style={{
-          maxWidth: 600,
-          margin: '80px auto',
-          padding: '0 20px',
-          textAlign: 'center',
-        }}
-      >
-        <div style={{ fontSize: 50, marginBottom: 12 }}>✉️</div>
-        <h2 style={{ fontWeight: 700, fontSize: 22, marginBottom: 8 }}>
-          Message envoyé !
-        </h2>
-        <p style={{ color: C.muted }}>Nous vous répondrons rapidement.</p>
-      </div>
-    );
+  const [f,setF]=useState({nom:"",email:"",sujet:"",message:""});
+  const [sent,setSent]=useState(false);
+  const set=k=>v=>setF(p=>({...p,[k]:v}));
+  if(sent) return <div style={{ maxWidth:600, margin:"80px auto", padding:"0 20px", textAlign:"center" }}><div style={{ fontSize:50, marginBottom:12 }}>✉️</div><h2 style={{ fontWeight:700, fontSize:22, marginBottom:8 }}>Message envoyé !</h2></div>;
   return (
-    <div style={{ maxWidth: 580, margin: '0 auto', padding: '36px 20px' }}>
-      <h1 style={{ fontWeight: 800, fontSize: 26, marginBottom: 6 }}>
-        ✉️ Contact
-      </h1>
-      <p style={{ color: C.muted, marginBottom: 24 }}>
-        Une question, un partenariat, une idée ?
-      </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-        <div
-          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 13 }}
-        >
-          <Field
-            label="Nom"
-            value={f.nom}
-            onChange={set('nom')}
-            placeholder="Jean Dupont"
-          />
-          <Field
-            label="Email *"
-            value={f.email}
-            onChange={set('email')}
-            placeholder="vous@email.com"
-            type="email"
-          />
+    <div style={{ maxWidth:580, margin:"0 auto", padding:"36px 20px" }}>
+      <h1 style={{ fontWeight:800, fontSize:26, marginBottom:6 }}>✉️ Contact</h1>
+      <p style={{ color:C.muted, marginBottom:24 }}>Une question, un partenariat, une idée ?</p>
+      <div style={{ display:"flex", flexDirection:"column", gap:13 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:13 }}>
+          <Field label="Nom" value={f.nom} onChange={set("nom")} placeholder="Jean Dupont"/>
+          <Field label="Email *" value={f.email} onChange={set("email")} placeholder="vous@email.com" type="email"/>
         </div>
-        <Field
-          label="Sujet"
-          value={f.sujet}
-          onChange={set('sujet')}
-          placeholder="Partenariat, correction…"
-        />
-        <Field
-          label="Message *"
-          value={f.message}
-          onChange={set('message')}
-          placeholder="Votre message…"
-          as="textarea"
-        />
-        <Btn
-          onClick={() => (f.email && f.message ? setSent(true) : null)}
-          style={{ padding: '13px 22px', fontSize: 15 }}
-        >
-          Envoyer →
-        </Btn>
+        <Field label="Sujet" value={f.sujet} onChange={set("sujet")} placeholder="Partenariat, correction…"/>
+        <Field label="Message *" value={f.message} onChange={set("message")} placeholder="Votre message…" as="textarea"/>
+        <Btn onClick={()=>f.email&&f.message?setSent(true):null} style={{ padding:"13px 22px", fontSize:15 }}>Envoyer →</Btn>
       </div>
     </div>
   );
@@ -3255,57 +914,17 @@ const Contact = () => {
 
 // ── ADMIN LOGIN ───────────────────────────────────────────────────────────────
 const AdminLogin = ({ onLogin }) => {
-  const [pw, setPw] = useState('');
-  const [err, setErr] = useState(false);
+  const [pw,setPw]=useState(""); const [err,setErr]=useState(false);
   return (
-    <div style={{ maxWidth: 380, margin: '80px auto', padding: '0 20px' }}>
-      <div
-        style={{
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: 14,
-          padding: 28,
-          textAlign: 'center',
-        }}
-      >
-        <div style={{ fontSize: 38, marginBottom: 12 }}>🔐</div>
-        <h2 style={{ fontWeight: 700, fontSize: 19, marginBottom: 18 }}>
-          Administration
-        </h2>
-        <input
-          type="password"
-          value={pw}
-          onChange={(e) => setPw(e.target.value)}
-          placeholder="Mot de passe"
-          onKeyDown={(e) =>
-            e.key === 'Enter' &&
-            (pw === ADMIN_PASSWORD ? onLogin() : setErr(true))
-          }
-          style={{
-            width: '100%',
-            background: '#111',
-            border: `1px solid ${err ? C.red : C.border}`,
-            borderRadius: 8,
-            padding: '11px 14px',
-            color: C.text,
-            fontSize: 14,
-            marginBottom: 10,
-          }}
-        />
-        {err && (
-          <p style={{ color: C.red, fontSize: 12, marginBottom: 10 }}>
-            Mot de passe incorrect
-          </p>
-        )}
-        <Btn
-          onClick={() => (pw === ADMIN_PASSWORD ? onLogin() : setErr(true))}
-          style={{ width: '100%', padding: '11px' }}
-        >
-          Accéder →
-        </Btn>
-        <p style={{ color: C.muted, fontSize: 11, marginTop: 12 }}>
-          Démo : dartpoint2025
-        </p>
+    <div style={{ maxWidth:380, margin:"80px auto", padding:"0 20px" }}>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:28, textAlign:"center" }}>
+        <div style={{ fontSize:38, marginBottom:12 }}>🔐</div>
+        <h2 style={{ fontWeight:700, fontSize:19, marginBottom:18 }}>Administration</h2>
+        <input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="Mot de passe"
+          onKeyDown={e=>e.key==="Enter"&&(pw===ADMIN_PASSWORD?onLogin():setErr(true))}
+          style={{ width:"100%", background:"#111", border:`1px solid ${err?C.red:C.border}`, borderRadius:8, padding:"11px 14px", color:C.text, fontSize:14, marginBottom:10 }}/>
+        {err&&<p style={{ color:C.red, fontSize:12, marginBottom:10 }}>Mot de passe incorrect</p>}
+        <Btn onClick={()=>pw===ADMIN_PASSWORD?onLogin():setErr(true)} style={{ width:"100%", padding:"11px" }}>Accéder →</Btn>
       </div>
     </div>
   );
@@ -3313,467 +932,129 @@ const AdminLogin = ({ onLogin }) => {
 
 // ── ADMIN ─────────────────────────────────────────────────────────────────────
 const Admin = ({ bars, setBars, setPage, setBarSlug }) => {
-  const [tab, setTab] = useState('pending');
-  const [propositions, setPropositions] = useState([]);
-  const [signalements, setSignalements] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tab,setTab]=useState("pending");
+  const [propositions,setPropositions]=useState([]);
+  const [signalements,setSignalements]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [editBar,setEditBar]=useState(null);
 
-  useEffect(() => {
-    Promise.all([db.getPropositions(), db.getSignalements()])
-      .then(([p, s]) => {
-        setPropositions(p || []);
-        setSignalements(s || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+  useEffect(()=>{
+    Promise.all([db.getPropositions(), db.getSignalements()]).then(([p,s])=>{ setPropositions(p||[]); setSignalements(s||[]); setLoading(false); }).catch(()=>setLoading(false));
+  },[]);
 
   const valider = async (prop) => {
-    const slug = slugify(prop.nom + '-' + prop.ville);
-    const newBar = {
-      slug,
-      nom: prop.nom,
-      ville: prop.ville,
-      cp: prop.cp || '',
-      adresse: prop.adresse || '',
-      tel: prop.tel || '',
-      type: prop.type,
-      cibles: parseInt(prop.cibles) || 1,
-      horaires: '',
-      description: '',
-      commentaire: prop.commentaire || '',
-      tournois: prop.tournois === 'oui',
-      association: null,
-      source: 'user',
-      verifie: false,
-      vues: 0,
-      lat: null,
-      lng: null,
-    };
+    const slug = slugify(prop.nom+"-"+prop.ville);
+    const newBar = { slug, nom:prop.nom, ville:prop.ville, cp:prop.cp||"", adresse:prop.adresse||"", tel:prop.tel||"", type:prop.type, cibles:parseInt(prop.cibles)||1, horaires:"", description:"", commentaire:prop.commentaire||"", tournois:prop.tournois==="oui", association:null, source:"user", verifie:false, vues:0, lat:null, lng:null };
     const added = await db.addBar(newBar);
-    if (added?.[0]) setBars((b) => [...b, added[0]]);
-    await db.updateProposition(prop.id, { statut: 'publie' });
-    setPropositions((p) =>
-      p.map((x) => (x.id === prop.id ? { ...x, statut: 'publie' } : x))
-    );
+    if(added?.[0]) setBars(b=>[...b, added[0]]);
+    await db.updateProposition(prop.id, {statut:"publie"});
+    setPropositions(p=>p.map(x=>x.id===prop.id?{...x,statut:"publie"}:x));
   };
 
-  const refuser = async (id) => {
-    await db.updateProposition(id, { statut: 'refuse' });
-    setPropositions((p) =>
-      p.map((x) => (x.id === id ? { ...x, statut: 'refuse' } : x))
-    );
-  };
+  const refuser = async (id) => { await db.updateProposition(id, {statut:"refuse"}); setPropositions(p=>p.map(x=>x.id===id?{...x,statut:"refuse"}:x)); };
 
-  const supprimer = async (prop) => {
-    await db.deleteBar(prop.slug);
-    setBars((b) => b.filter((x) => x.slug !== prop.slug));
-    await db.updateProposition(prop.id, { statut: 'supprime' });
-    setPropositions((p) => p.filter((x) => x.id !== prop.id));
-  };
-
-  const traiterSignalement = async (id) => {
-    await db.updateSignalement(id, { traite: true });
-    setSignalements((s) =>
-      s.map((x) => (x.id === id ? { ...x, traite: true } : x))
-    );
+  const supprimerBar = async (slug) => {
+    if(!window.confirm("Supprimer ce bar ?")) return;
+    await db.deleteBar(slug);
+    setBars(b=>b.filter(x=>x.slug!==slug));
   };
 
   const toggleVerifie = async (bar) => {
     await db.toggleVerifie(bar.slug, !bar.verifie);
-    setBars((b) =>
-      b.map((x) => (x.slug === bar.slug ? { ...x, verifie: !x.verifie } : x))
-    );
+    setBars(b=>b.map(x=>x.slug===bar.slug?{...x,verifie:!x.verifie}:x));
   };
 
-  const pending = propositions.filter((p) => p.statut === 'en_attente');
-  const published = propositions.filter((p) => p.statut === 'publie');
-  const refused = propositions.filter((p) =>
-    ['refuse', 'supprime'].includes(p.statut)
-  );
-  const sigPending = signalements.filter((s) => !s.traite);
+  const pending=propositions.filter(p=>p.statut==="en_attente");
+  const published=propositions.filter(p=>p.statut==="publie");
+  const refused=propositions.filter(p=>["refuse","supprime"].includes(p.statut));
+  const sigPending=signalements.filter(s=>!s.traite);
 
-  const tabs = [
-    ['pending', `⏳ En attente (${pending.length})`],
-    ['published', `✅ Publiés (${published.length})`],
-    ['refused', `❌ Refusés (${refused.length})`],
-    ['signalements', `⚠️ Signalements (${sigPending.length})`],
-    ['allbars', `🎯 Bars (${bars.length})`],
-  ];
-  const current =
-    tab === 'pending'
-      ? pending
-      : tab === 'published'
-      ? published
-      : tab === 'refused'
-      ? refused
-      : null;
+  const tabs=[["pending",`⏳ En attente (${pending.length})`],["published",`✅ Publiés (${published.length})`],["refused",`❌ Refusés (${refused.length})`],["signalements",`⚠️ Signalements (${sigPending.length})`],["allbars",`🎯 Bars (${bars.length})`]];
+  const current=tab==="pending"?pending:tab==="published"?published:tab==="refused"?refused:null;
 
-  const Row = ({ p }) => (
-    <div
-      style={{
-        background: C.card,
-        border: `1px solid ${C.border}`,
-        borderRadius: 12,
-        padding: 18,
-        marginBottom: 10,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 8,
-          marginBottom: 10,
-        }}
-      >
+  const Row=({p})=>(
+    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:18, marginBottom:10 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:10 }}>
         <div>
-          <h3 style={{ fontWeight: 700, fontSize: 15 }}>{p.nom}</h3>
-          <p style={{ color: C.muted, fontSize: 12 }}>
-            📍 {p.adresse || ''} {p.ville} ·{' '}
-            {p.type === 'electronique' ? '⚡' : '🎯'} · {p.cibles} cible(s)
-          </p>
-          {p.pseudo && (
-            <p style={{ color: C.muted, fontSize: 11 }}>
-              👤 {p.pseudo}
-              {p.email ? ' — ' + p.email : ''}
-            </p>
-          )}
-          <p style={{ color: C.muted, fontSize: 11 }}>
-            🕐{' '}
-            {new Date(p.date).toLocaleDateString('fr-FR', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-            })}
-          </p>
+          <h3 style={{ fontWeight:700, fontSize:15 }}>{p.nom}</h3>
+          <p style={{ color:C.muted, fontSize:12 }}>📍 {p.adresse||""} {p.ville} · {p.type==="electronique"?"⚡":"🎯"} · {p.cibles} cible(s)</p>
+          {p.pseudo&&<p style={{ color:C.muted, fontSize:11 }}>👤 {p.pseudo}{p.email?" — "+p.email:""}</p>}
         </div>
-        <Badge
-          color={
-            p.statut === 'en_attente'
-              ? C.yellow
-              : p.statut === 'publie'
-              ? C.green
-              : C.red
-          }
-        >
-          {p.statut === 'en_attente'
-            ? '⏳ En attente'
-            : p.statut === 'publie'
-            ? '✅ Publié'
-            : '❌ Refusé'}
-        </Badge>
+        <Badge color={p.statut==="en_attente"?C.yellow:p.statut==="publie"?C.green:C.red}>{p.statut==="en_attente"?"⏳":"publie"===p.statut?"✅":"❌"} {p.statut}</Badge>
       </div>
-      {p.commentaire && (
-        <p
-          style={{
-            color: '#cbd5e1',
-            fontSize: 12,
-            fontStyle: 'italic',
-            margin: '6px 0 10px',
-            background: '#111',
-            padding: '7px 11px',
-            borderRadius: 8,
-          }}
-        >
-          "{p.commentaire}"
-        </p>
-      )}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {p.statut === 'en_attente' && (
-          <>
-            <Btn
-              variant="success"
-              onClick={() => valider(p)}
-              style={{ fontSize: 12 }}
-            >
-              ✅ Valider
-            </Btn>
-            <Btn
-              variant="danger"
-              onClick={() => refuser(p.id)}
-              style={{ fontSize: 12 }}
-            >
-              ❌ Refuser
-            </Btn>
-          </>
-        )}
-        {p.statut === 'publie' && (
-          <>
-            <Btn
-              variant="ghost"
-              onClick={() => {
-                setBarSlug(slugify(p.nom + '-' + p.ville));
-                setPage('bar');
-              }}
-              style={{ fontSize: 12 }}
-            >
-              👁 Voir
-            </Btn>
-            <Btn
-              variant="danger"
-              onClick={() => supprimer(p)}
-              style={{ fontSize: 12 }}
-            >
-              🗑 Supprimer
-            </Btn>
-          </>
-        )}
+      {p.commentaire&&<p style={{ color:"#cbd5e1",fontSize:12,fontStyle:"italic",margin:"6px 0 10px",background:"#111",padding:"7px 11px",borderRadius:8 }}>"{p.commentaire}"</p>}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        {p.statut==="en_attente"&&<><Btn variant="success" onClick={()=>valider(p)} style={{ fontSize:12 }}>✅ Valider</Btn><Btn variant="danger" onClick={()=>refuser(p.id)} style={{ fontSize:12 }}>❌ Refuser</Btn></>}
+        {p.statut==="publie"&&<><Btn variant="ghost" onClick={()=>{setBarSlug(slugify(p.nom+"-"+p.ville));setPage("bar");}} style={{ fontSize:12 }}>👁 Voir</Btn></>}
       </div>
     </div>
   );
 
   return (
-    <div style={{ maxWidth: 980, margin: '0 auto', padding: '36px 20px' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 12,
-          marginBottom: 24,
-        }}
-      >
-        <div>
-          <h1 style={{ fontWeight: 800, fontSize: 24 }}>⚙️ Administration</h1>
-          <p style={{ color: C.muted, fontSize: 13 }}>
-            Gérez les propositions, signalements et bars
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {[
-            [pending.length, C.yellow, 'En attente'],
-            [sigPending.length, C.red, 'Signalements'],
-            [bars.length, C.accent, 'Total bars'],
-          ].map(([n, c, l]) => (
-            <div
-              key={l}
-              style={{
-                background: C.card,
-                border: `1px solid ${C.border}`,
-                borderRadius: 10,
-                padding: '9px 16px',
-                textAlign: 'center',
-              }}
-            >
-              <div style={{ fontSize: 18, fontWeight: 800, color: c }}>{n}</div>
-              <div style={{ fontSize: 11, color: C.muted }}>{l}</div>
+    <div style={{ maxWidth:980, margin:"0 auto", padding:"36px 20px" }}>
+      {editBar && <EditBarModal bar={editBar} onSave={(updated)=>{setBars(b=>b.map(x=>x.slug===updated.slug?updated:x));setEditBar(null);}} onClose={()=>setEditBar(null)}/>}
+      <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:24 }}>
+        <div><h1 style={{ fontWeight:800, fontSize:24 }}>⚙️ Administration</h1><p style={{ color:C.muted, fontSize:13 }}>Gérez propositions, signalements et bars</p></div>
+        <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+          {[[pending.length,C.yellow,"En attente"],[sigPending.length,C.red,"Signalements"],[bars.length,C.accent,"Total bars"]].map(([n,c,l])=>(
+            <div key={l} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"9px 16px", textAlign:"center" }}>
+              <div style={{ fontSize:18, fontWeight:800, color:c }}>{n}</div><div style={{ fontSize:11, color:C.muted }}>{l}</div>
             </div>
           ))}
         </div>
       </div>
-      <div
-        style={{ display: 'flex', gap: 6, marginBottom: 18, flexWrap: 'wrap' }}
-      >
-        {tabs.map(([t, l]) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={{
-              background: tab === t ? C.accent + '22' : 'transparent',
-              color: tab === t ? C.accent : C.muted,
-              border: `1px solid ${tab === t ? C.accent : C.border}`,
-              cursor: 'pointer',
-              padding: '6px 13px',
-              borderRadius: 8,
-              fontSize: 12,
-              fontWeight: 500,
-            }}
-          >
-            {l}
-          </button>
+      <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
+        {tabs.map(([t,l])=>(
+          <button key={t} onClick={()=>setTab(t)} style={{ background:tab===t?C.accent+"22":"transparent", color:tab===t?C.accent:C.muted, border:`1px solid ${tab===t?C.accent:C.border}`, cursor:"pointer", padding:"6px 13px", borderRadius:8, fontSize:12, fontWeight:500 }}>{l}</button>
         ))}
       </div>
-      {loading ? (
-        <Spinner />
-      ) : tab === 'signalements' ? (
-        sigPending.length === 0 ? (
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '50px 20px',
-              color: C.muted,
-            }}
-          >
-            <div style={{ fontSize: 42, marginBottom: 10 }}>✅</div>
-            <p>Aucun signalement en attente.</p>
-          </div>
-        ) : (
-          sigPending.map((s) => (
-            <div
-              key={s.id}
-              style={{
-                background: C.card,
-                border: `1px solid ${C.red}33`,
-                borderRadius: 12,
-                padding: 18,
-                marginBottom: 10,
-              }}
-            >
-              <h3 style={{ fontWeight: 700, fontSize: 15 }}>⚠️ {s.bar_nom}</h3>
-              <p style={{ color: C.muted, fontSize: 12, marginBottom: 8 }}>
-                Type : {s.type} · {new Date(s.date).toLocaleDateString('fr-FR')}
-              </p>
-              <p
-                style={{
-                  color: '#cbd5e1',
-                  fontSize: 13,
-                  background: '#111',
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  marginBottom: 10,
-                }}
-              >
-                {s.message}
-              </p>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <Btn
-                  variant="ghost"
-                  onClick={() => {
-                    setBarSlug(s.bar_slug);
-                    setPage('bar');
-                  }}
-                  style={{ fontSize: 12 }}
-                >
-                  👁 Voir
-                </Btn>
-                <Btn
-                  variant="success"
-                  onClick={() => traiterSignalement(s.id)}
-                  style={{ fontSize: 12 }}
-                >
-                  ✅ Traité
-                </Btn>
-              </div>
+      {loading?<Spinner/>
+      :tab==="signalements"?(
+        sigPending.length===0?<div style={{ textAlign:"center", padding:"50px 20px", color:C.muted }}><div style={{ fontSize:42, marginBottom:10 }}>✅</div><p>Aucun signalement.</p></div>
+        :sigPending.map(s=>(
+          <div key={s.id} style={{ background:C.card, border:`1px solid ${C.red}33`, borderRadius:12, padding:18, marginBottom:10 }}>
+            <h3 style={{ fontWeight:700, fontSize:15 }}>⚠️ {s.bar_nom}</h3>
+            <p style={{ color:C.muted, fontSize:12, marginBottom:8 }}>Type : {s.type} · {new Date(s.date).toLocaleDateString("fr-FR")}</p>
+            <p style={{ color:"#cbd5e1", fontSize:13, background:"#111", padding:"8px 12px", borderRadius:8, marginBottom:10 }}>{s.message}</p>
+            <div style={{ display:"flex", gap:8 }}>
+              <Btn variant="ghost" onClick={()=>{setBarSlug(s.bar_slug);setPage("bar");}} style={{ fontSize:12 }}>👁 Voir</Btn>
+              <Btn variant="success" onClick={async()=>{await db.updateSignalement(s.id,{traite:true});setSignalements(x=>x.map(y=>y.id===s.id?{...y,traite:true}:y));}} style={{ fontSize:12 }}>✅ Traité</Btn>
             </div>
-          ))
-        )
-      ) : tab === 'allbars' ? (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))',
-            gap: 10,
-          }}
-        >
-          {bars.map((b) => (
-            <div
-              key={b.id}
-              style={{
-                background: C.card,
-                border: `1px solid ${C.border}`,
-                borderRadius: 10,
-                padding: 14,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <div
-                onClick={() => {
-                  setBarSlug(b.slug);
-                  setPage('bar');
-                }}
-                style={{ cursor: 'pointer', flex: 1 }}
-              >
-                <div style={{ fontWeight: 600, fontSize: 13 }}>
-                  {b.nom} {b.verifie && '✅'}
-                </div>
-                <div style={{ color: C.muted, fontSize: 11 }}>
-                  📍 {b.ville} · 👁 {b.vues || 0}
+          </div>
+        ))
+      ):tab==="allbars"?(
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:10 }}>
+          {bars.map(b=>(
+            <div key={b.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:14 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                <div onClick={()=>{setBarSlug(b.slug);setPage("bar");}} style={{ cursor:"pointer", flex:1 }}>
+                  <div style={{ fontWeight:600, fontSize:14 }}>{b.nom} {b.verifie&&"✅"}</div>
+                  <div style={{ color:C.muted, fontSize:12 }}>📍 {b.ville} · 👁 {b.vues||0}</div>
                 </div>
               </div>
-              <button
-                onClick={() => toggleVerifie(b)}
-                style={{
-                  background: b.verifie ? '#14532d' : '#111',
-                  border: `1px solid ${b.verifie ? C.green : C.border}`,
-                  borderRadius: 6,
-                  color: b.verifie ? C.green : C.muted,
-                  cursor: 'pointer',
-                  fontSize: 11,
-                  padding: '3px 8px',
-                  marginLeft: 8,
-                }}
-              >
-                {b.verifie ? '✅ Vérifié' : 'Vérifier'}
-              </button>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                <button onClick={()=>toggleVerifie(b)} style={{ background:b.verifie?"#14532d":"#111", border:`1px solid ${b.verifie?C.green:C.border}`, borderRadius:6, color:b.verifie?C.green:C.muted, cursor:"pointer", fontSize:11, padding:"3px 8px" }}>{b.verifie?"✅ Vérifié":"Vérifier"}</button>
+                <button onClick={()=>setEditBar(b)} style={{ background:"#1a1200", border:`1px solid ${C.yellow}44`, borderRadius:6, color:C.yellow, cursor:"pointer", fontSize:11, padding:"3px 8px" }}>✏️ Modifier</button>
+                <button onClick={()=>supprimerBar(b.slug)} style={{ background:"#1a0000", border:`1px solid ${C.red}44`, borderRadius:6, color:C.red, cursor:"pointer", fontSize:11, padding:"3px 8px" }}>🗑 Supprimer</button>
+              </div>
             </div>
           ))}
         </div>
-      ) : current?.length === 0 ? (
-        <div
-          style={{ textAlign: 'center', padding: '50px 20px', color: C.muted }}
-        >
-          <div style={{ fontSize: 42, marginBottom: 10 }}>📭</div>
-          <p>Aucune proposition ici.</p>
-        </div>
-      ) : (
-        current?.map((p) => <Row key={p.id} p={p} />)
-      )}
+      ):current?.length===0?(
+        <div style={{ textAlign:"center", padding:"50px 20px", color:C.muted }}><div style={{ fontSize:42, marginBottom:10 }}>📭</div><p>Aucune proposition.</p></div>
+      ):current?.map(p=><Row key={p.id} p={p}/>)}
     </div>
   );
 };
 
 // ── FOOTER ────────────────────────────────────────────────────────────────────
 const Footer = ({ setPage }) => (
-  <footer
-    style={{
-      background: '#111',
-      borderTop: `1px solid ${C.border}`,
-      padding: '24px 20px',
-      marginTop: 40,
-    }}
-  >
-    <div
-      style={{
-        maxWidth: 1100,
-        margin: '0 auto',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: 12,
-      }}
-    >
-      <div>
-        <div
-          style={{
-            fontWeight: 800,
-            fontSize: 16,
-            color: C.accent,
-            marginBottom: 2,
-          }}
-        >
-          🎯 DartPoint
-        </div>
-        <p style={{ color: C.muted, fontSize: 12 }}>
-          Le guide des bars à fléchettes en France
-        </p>
-      </div>
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        {[
-          ['bars', 'Bars'],
-          ['associations', 'Assoc.'],
-          ['tournois', 'Tournois'],
-          ['proposer', 'Proposer'],
-          ['apropos', 'À propos'],
-          ['contact', 'Contact'],
-        ].map(([p, l]) => (
-          <button
-            key={p}
-            onClick={() => setPage(p)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: C.muted,
-              cursor: 'pointer',
-              fontSize: 12,
-            }}
-          >
-            {l}
-          </button>
+  <footer style={{ background:"#111", borderTop:`1px solid ${C.border}`, padding:"24px 20px", marginTop:40 }}>
+    <div style={{ maxWidth:1100, margin:"0 auto", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
+      <div><div style={{ fontWeight:800, fontSize:16, color:C.accent, marginBottom:2 }}>🎯 DartPoint</div><p style={{ color:C.muted, fontSize:12 }}>Le guide des bars à fléchettes en France</p></div>
+      <div style={{ display:"flex", gap:14, flexWrap:"wrap" }}>
+        {[["bars","Bars"],["associations","Assoc."],["tournois","Tournois"],["proposer","Proposer un bar"],["proposer-asso","Proposer une asso"],["apropos","À propos"],["contact","Contact"]].map(([p,l])=>(
+          <button key={p} onClick={()=>setPage(p)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:12 }}>{l}</button>
         ))}
       </div>
     </div>
@@ -3782,144 +1063,47 @@ const Footer = ({ setPage }) => (
 
 // ── APP ───────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [page, setPage] = useState('home');
-  const [barSlug, setBarSlug] = useState(null);
-  const [assoSlug, setAssoSlug] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [bars, setBars] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [villeFilter, setVilleFilter] = useState(null);
+  const [page,setPage]=useState("home");
+  const [barSlug,setBarSlug]=useState(null);
+  const [assoSlug,setAssoSlug]=useState(null);
+  const [isAdmin,setIsAdmin]=useState(false);
+  const [bars,setBars]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [villeFilter,setVilleFilter]=useState(null);
 
-  useEffect(() => {
-    db.getBars()
-      .then((b) => {
-        setBars(b || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+  useEffect(()=>{ db.getBars().then(b=>{setBars(b||[]);setLoading(false);}).catch(()=>setLoading(false)); },[]);
 
-  const handleProposal = async (f) => {
-    const slug = slugify(f.nom + '-' + f.ville);
-    await db.addProposition({
-      ...f,
-      slug,
-      statut: 'en_attente',
-      date: Date.now(),
-    });
-  };
+  const handleProposal = async (f) => { const slug=slugify(f.nom+"-"+f.ville); await db.addProposition({...f,slug,statut:"en_attente",date:Date.now()}); };
+  const handleProposalAsso = async (f) => { await db.addProposition({...f, slug:slugify(f.nom+"-"+f.ville), statut:"en_attente", date:Date.now(), type:"association"}); };
 
-  const nav = (p) => {
-    setPage(p);
-    try {
-      window.scrollTo(0, 0);
-    } catch {}
-  };
+  const nav=p=>{setPage(p);try{window.scrollTo(0,0);}catch{}};
 
-  if (loading)
-    return (
-      <div
-        style={{
-          height: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: C.bg,
-          flexDirection: 'column',
-          gap: 16,
-        }}
-      >
-        <span style={{ fontSize: 48 }}>🎯</span>
-        <Spinner />
-        <p style={{ color: C.muted, fontSize: 14 }}>Chargement de DartPoint…</p>
-      </div>
-    );
+  if(loading) return (
+    <div style={{ height:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:C.bg, flexDirection:"column", gap:16 }}>
+      <span style={{ fontSize:48 }}>🎯</span><Spinner/>
+      <p style={{ color:C.muted, fontSize:14 }}>Chargement de DartPoint…</p>
+    </div>
+  );
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        background: C.bg,
-        color: C.text,
-      }}
-    >
+    <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", background:C.bg, color:C.text }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',sans-serif}input,select,textarea,button{font-family:inherit}::placeholder{color:#94a3b8}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#111}::-webkit-scrollbar-thumb{background:#333;border-radius:3px}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      <Nav page={page} setPage={nav} isAdmin={isAdmin} />
-      <main style={{ flex: 1 }}>
-        {page === 'home' && (
-          <Home
-            bars={bars}
-            setPage={nav}
-            setBarSlug={setBarSlug}
-            setVilleFilter={setVilleFilter}
-          />
-        )}
-        {page === 'bars' && (
-          <Bars
-            bars={bars}
-            setPage={nav}
-            setBarSlug={setBarSlug}
-            villeFilter={villeFilter}
-            setVilleFilter={setVilleFilter}
-          />
-        )}
-        {page === 'bar' && (
-          <BarDetail
-            slug={barSlug}
-            allBars={bars}
-            setBars={setBars}
-            setPage={nav}
-            setAssoSlug={setAssoSlug}
-            isAdmin={isAdmin}
-          />
-        )}
-        {page === 'associations' && (
-          <Associations setPage={nav} setAssoSlug={setAssoSlug} />
-        )}
-        {page === 'asso' && (
-          <AssoDetail
-            slug={assoSlug}
-            bars={bars}
-            setPage={nav}
-            setBarSlug={setBarSlug}
-          />
-        )}
-        {page === 'tournois' && (
-          <Tournois bars={bars} setPage={nav} setBarSlug={setBarSlug} />
-        )}
-        {page === 'apropos' && <APropos bars={bars} setPage={nav} />}
-        {page === 'proposer' && (
-          <Proposer bars={bars} onSubmit={handleProposal} />
-        )}
-        {page === 'contact' && <Contact />}
-        {page === 'adminlogin' && (
-          <AdminLogin
-            onLogin={() => {
-              setIsAdmin(true);
-              nav('admin');
-            }}
-          />
-        )}
-        {page === 'admin' &&
-          (isAdmin ? (
-            <Admin
-              bars={bars}
-              setBars={setBars}
-              setPage={nav}
-              setBarSlug={setBarSlug}
-            />
-          ) : (
-            <AdminLogin
-              onLogin={() => {
-                setIsAdmin(true);
-                nav('admin');
-              }}
-            />
-          ))}
+      <Nav page={page} setPage={nav} isAdmin={isAdmin}/>
+      <main style={{ flex:1 }}>
+        {page==="home"          && <Home bars={bars} setPage={nav} setBarSlug={setBarSlug} setVilleFilter={setVilleFilter}/>}
+        {page==="bars"          && <Bars bars={bars} setPage={nav} setBarSlug={setBarSlug} villeFilter={villeFilter} setVilleFilter={setVilleFilter}/>}
+        {page==="bar"           && <BarDetail slug={barSlug} allBars={bars} setBars={setBars} setPage={nav} setAssoSlug={setAssoSlug} isAdmin={isAdmin}/>}
+        {page==="associations"  && <Associations setPage={nav} setAssoSlug={setAssoSlug}/>}
+        {page==="asso"          && <AssoDetail slug={assoSlug} bars={bars} setPage={nav} setBarSlug={setBarSlug}/>}
+        {page==="tournois"      && <Tournois bars={bars} setPage={nav} setBarSlug={setBarSlug}/>}
+        {page==="apropos"       && <APropos bars={bars} setPage={nav}/>}
+        {page==="proposer"      && <Proposer bars={bars} onSubmit={handleProposal}/>}
+        {page==="proposer-asso" && <ProposerAsso onSubmit={handleProposalAsso}/>}
+        {page==="contact"       && <Contact/>}
+        {page==="adminlogin"    && <AdminLogin onLogin={()=>{setIsAdmin(true);nav("admin");}}/>}
+        {page==="admin"         && (isAdmin?<Admin bars={bars} setBars={setBars} setPage={nav} setBarSlug={setBarSlug}/>:<AdminLogin onLogin={()=>{setIsAdmin(true);nav("admin");}}/>)}
       </main>
-      <Footer setPage={nav} />
+      <Footer setPage={nav}/>
     </div>
   );
 }
