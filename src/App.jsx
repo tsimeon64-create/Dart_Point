@@ -1087,7 +1087,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", background:C.bg, color:C.text }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',sans-serif}input,select,textarea,button{font-family:inherit}::placeholder{color:#94a3b8}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#111}::-webkit-scrollbar-thumb{background:#333;border-radius:3px}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0}html,body,#root{background:#0f0f0f!important;color:#f1f5f9!important;color-scheme:dark}body{font-family:'Inter',sans-serif}input,select,textarea,button{font-family:inherit}::placeholder{color:#94a3b8}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#111}::-webkit-scrollbar-thumb{background:#333;border-radius:3px}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <Nav page={page} setPage={nav} isAdmin={isAdmin}/>
       <main style={{ flex:1 }}>
         {page==="home"          && <Home bars={bars} setPage={nav} setBarSlug={setBarSlug} setVilleFilter={setVilleFilter}/>}
