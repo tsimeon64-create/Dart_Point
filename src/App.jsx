@@ -40,7 +40,9 @@ const db = {
   getSignalements: () => sb("signalements?order=date.desc&select=*"),
   addSignalement: (d) => sb("signalements", { method:"POST", body:JSON.stringify(d) }),
   updateSignalement: (id, d) => sb(`signalements?id=eq.${id}`, { method:"PATCH", body:JSON.stringify(d), prefer:"return=minimal" }),
-  getPhotos: (slug) => sb(`photos?bar_slug=eq.${encodeURIComponent(slug)}&order=date.desc&select=*`),
+  getPhotosAsso: (slug) => sb(`photos_associations?asso_slug=eq.${encodeURIComponent(slug)}&order=date.desc&select=*`),
+  addPhotoAsso: (d) => sb("photos_associations", { method:"POST", body:JSON.stringify(d) }),
+  deletePhotoAsso: (id) => sb(`photos_associations?id=eq.${id}`, { method:"DELETE", prefer:"return=minimal" }),
   addPhoto: (d) => sb("photos", { method:"POST", body:JSON.stringify(d) }),
   deletePhoto: (id) => sb(`photos?id=eq.${id}`, { method:"DELETE", prefer:"return=minimal" }),
 };
@@ -247,8 +249,8 @@ const BarCard = ({ bar, onClick }) => {
   );
 };
 
-// ── GALERIE ───────────────────────────────────────────────────────────────────
-const GalerieSection = ({ barSlug, isAdmin }) => {
+// ── GALERIE GÉNÉRIQUE (bars ET associations) ──────────────────────────────────
+const GalerieSection = ({ slug, type="bar", isAdmin }) => {
   const [photos, setPhotos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lightbox, setLightbox] = useState(null);
@@ -256,7 +258,13 @@ const GalerieSection = ({ barSlug, isAdmin }) => {
   const [pseudo, setPseudo] = useState("");
   const fileRef = useRef(null);
 
-  useEffect(() => { db.getPhotos(barSlug).then(p=>{setPhotos(p||[]);setLoading(false);}).catch(()=>setLoading(false)); }, [barSlug]);
+  const getPhotos = type==="bar" ? ()=>db.getPhotos(slug) : ()=>db.getPhotosAsso(slug);
+  const addPhoto = type==="bar"
+    ? d=>db.addPhoto({...d, bar_slug:slug})
+    : d=>db.addPhotoAsso({...d, asso_slug:slug});
+  const deletePhoto = type==="bar" ? db.deletePhoto : db.deletePhotoAsso;
+
+  useEffect(() => { getPhotos().then(p=>{setPhotos(p||[]);setLoading(false);}).catch(()=>setLoading(false)); }, [slug]);
 
   const handleFile = async (e) => {
     const files = Array.from(e.target.files); if (!files.length) return; setUploading(true);
@@ -268,7 +276,7 @@ const GalerieSection = ({ barSlug, isAdmin }) => {
           img.onload = async () => {
             const MAX=900; let w=img.width,h=img.height; if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
             const canvas=document.createElement("canvas"); canvas.width=w; canvas.height=h; canvas.getContext("2d").drawImage(img,0,0,w,h);
-            try { const r=await db.addPhoto({bar_slug:barSlug,pseudo:pseudo.trim()||"Anonyme",data:canvas.toDataURL("image/jpeg",0.7),date:Date.now()}); if(r?.[0]) setPhotos(p=>[r[0],...p]); } catch {}
+            try { const r=await addPhoto({pseudo:pseudo.trim()||"Anonyme",data:canvas.toDataURL("image/jpeg",0.7),date:Date.now()}); if(r?.[0]) setPhotos(p=>[r[0],...p]); } catch {}
             res();
           }; img.src = ev.target.result;
         }; reader.readAsDataURL(file);
@@ -307,7 +315,7 @@ const GalerieSection = ({ barSlug, isAdmin }) => {
             <div key={p.id} style={{ breakInside:"avoid",marginBottom:10,position:"relative",borderRadius:10,overflow:"hidden",cursor:"zoom-in",border:`1px solid ${C.border}` }} onClick={()=>setLightbox(i)}>
               <img src={p.data} alt="" style={{ width:"100%",display:"block" }}/>
               <div style={{ position:"absolute",bottom:0,left:0,right:0,background:"linear-gradient(transparent,#000a)",padding:"14px 8px 5px",fontSize:11,color:"#ccc" }}>📷 {p.pseudo}</div>
-              {isAdmin&&<button onClick={e=>{e.stopPropagation();db.deletePhoto(p.id);setPhotos(x=>x.filter(y=>y.id!==p.id));}} style={{ position:"absolute",top:5,right:5,background:"#000a",border:"none",color:C.red,cursor:"pointer",borderRadius:5,padding:"2px 6px",fontSize:11 }}>🗑</button>}
+              {isAdmin&&<button onClick={e=>{e.stopPropagation();deletePhoto(p.id);setPhotos(x=>x.filter(y=>y.id!==p.id));}} style={{ position:"absolute",top:5,right:5,background:"#000a",border:"none",color:C.red,cursor:"pointer",borderRadius:5,padding:"2px 6px",fontSize:11 }}>🗑</button>}
             </div>
           ))}
         </div>}
@@ -727,7 +735,7 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
         <Btn variant="dark" onClick={()=>setShowSignal(true)} style={{ fontSize:12 }}>⚠️ Signaler une erreur</Btn>
         {isAdmin&&<Btn variant="ghost" onClick={()=>setShowEdit(true)} style={{ fontSize:12,borderColor:C.yellow,color:C.yellow }}>✏️ Modifier</Btn>}
       </div>
-      <GalerieSection barSlug={bar.slug} isAdmin={isAdmin}/>
+      <GalerieSection slug={bar.slug} type="bar" isAdmin={isAdmin}/>
       <AvisSection barSlug={bar.slug} isAdmin={isAdmin}/>
     </div>
   );
@@ -775,7 +783,7 @@ const Associations = ({ associations, setPage, setAssoSlug }) => {
 };
 
 // ── PAGE ASSO DETAIL ──────────────────────────────────────────────────────────
-const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug }) => {
+const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin }) => {
   const asso = associations.find(a=>a.slug===slug); if(!asso) return null;
   return (
     <div style={{ maxWidth:860,margin:"0 auto",padding:"36px 20px" }}>
@@ -801,7 +809,8 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug }) => {
         <h3 style={{ fontWeight:700,marginBottom:12,color:C.accent,fontSize:14 }}>🍺 Bars partenaires</h3>
         {asso.bars.map(nom=>{const b=bars.find(x=>x.nom===nom);return b?<div key={nom} onClick={()=>{setBarSlug(b.slug);setPage("bar");}} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${C.border}`,cursor:"pointer" }}><span style={{ fontWeight:500,fontSize:14 }}>{nom}</span><span style={{ color:C.muted,fontSize:12 }}>📍 {b.ville} →</span></div>:null;})}
       </div>}
-      {asso.lat&&<LeafletMap associations={[asso]} centerSlug={asso.slug} height={200}/>}
+      {asso.lat&&<div style={{ marginBottom:16 }}><LeafletMap associations={[asso]} centerSlug={asso.slug} height={200}/></div>}
+      <GalerieSection slug={asso.slug} type="asso" isAdmin={isAdmin}/>
     </div>
   );
 };
@@ -1238,7 +1247,7 @@ export default function App() {
         {page==="bars"             && <Bars bars={bars} setPage={nav} setBarSlug={setBarSlug} villeFilter={villeFilter} setVilleFilter={setVilleFilter}/>}
         {page==="bar"              && <BarDetail slug={barSlug} allBars={bars} associations={associations} setBars={setBars} setPage={nav} setAssoSlug={setAssoSlug} isAdmin={isAdmin}/>}
         {page==="associations"     && <Associations associations={associations} setPage={nav} setAssoSlug={setAssoSlug}/>}
-        {page==="asso"             && <AssoDetail slug={assoSlug} associations={associations} bars={bars} setPage={nav} setBarSlug={setBarSlug}/>}
+        {page==="asso"             && <AssoDetail slug={assoSlug} associations={associations} bars={bars} setPage={nav} setBarSlug={setBarSlug} isAdmin={isAdmin}/>}
         {page==="tournois"         && <Tournois tournois={tournois} setPage={nav} setTournoiSlug={setTournoiSlug}/>}
         {page==="tournoi-detail"   && <TournoiDetail slug={tournoiSlug} tournois={tournois} bars={bars} setPage={nav} setBarSlug={setBarSlug}/>}
         {page==="apropos"          && <APropos bars={bars} setPage={nav}/>}
