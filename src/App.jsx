@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Connexion, MonProfil, PageJoueurs, FicheJoueur,
   PresenceSection, MembresBarSection,
+  PageDrix, DrixBadge, HistoriqueDrix,
+  appliquerDrixDuel, getDrixTitre,
   dbJoueurs, todayStr, hashPwd
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
@@ -191,7 +193,7 @@ const Spinner = () => <div style={{ display:"flex",alignItems:"center",justifyCo
 // ── NAV ───────────────────────────────────────────────────────────────────────
 const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount }) => {
   const [open, setOpen] = useState(false);
-  const links = [["bars","🎯 Bars"],["associations","🫂 Associations"],["tournois","🏅 Tournois"],["joueurs","👥 Joueurs"],["scoreur","🎯 Scoreur"],["proposer","➕ Proposer un bar"],["proposer-asso","🫂 Proposer une asso"],["proposer-tournoi","🏅 Proposer un tournoi"],["apropos","ℹ️ À propos"],["contact","✉️ Contact"]];
+  const links = [["bars","🎯 Bars"],["associations","🫂 Associations"],["tournois","🏅 Tournois"],["joueurs","👥 Joueurs"],["drix","💎 Classement DRIX"],["scoreur","🎯 Scoreur"],["proposer","➕ Proposer un bar"],["proposer-asso","🫂 Proposer une asso"],["proposer-tournoi","🏅 Proposer un tournoi"],["apropos","ℹ️ À propos"],["contact","✉️ Contact"]];
   return (
     <nav style={{ background:"#111",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:200 }}>
       <div style={{ maxWidth:1100,margin:"0 auto",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:58 }}>
@@ -1118,7 +1120,7 @@ const Footer = ({ setPage }) => (
     <div style={{ maxWidth:1100,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12 }}>
       <div><div style={{ fontWeight:800,fontSize:16,color:C.accent,marginBottom:2 }}>🎯 DartPoint</div><p style={{ color:C.muted,fontSize:12 }}>Le guide des bars à fléchettes en France</p></div>
       <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
-        {[["bars","Bars"],["associations","Assos"],["tournois","Tournois"],["joueurs","Joueurs"],["scoreur","Scoreur"],["proposer","Proposer"],["apropos","À propos"],["contact","Contact"]].map(([p,l])=>(
+        {[["bars","Bars"],["associations","Assos"],["tournois","Tournois"],["joueurs","Joueurs"],["drix","DRIX"],["scoreur","Scoreur"],["proposer","Proposer"],["apropos","À propos"],["contact","Contact"]].map(([p,l])=>(
           <button key={p} onClick={()=>setPage(p)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:12 }}>{l}</button>
         ))}
       </div>
@@ -1207,6 +1209,7 @@ export default function App() {
         {page==="tournois"         && <Tournois tournois={tournois} setPage={nav} setTournoiSlug={setTournoiSlug}/>}
         {page==="tournoi-detail"   && <TournoiDetail slug={tournoiSlug} tournois={tournois} bars={bars} setPage={nav} setBarSlug={setBarSlug}/>}
         {page==="joueurs"          && <PageJoueurs joueur={joueur} setPage={nav} setJoueurId={setJoueurId}/>}
+        {page==="drix"             && <PageDrix setPage={nav} setJoueurId={setJoueurId} bars={bars} associations={associations}/>}
         {page==="profil-joueur"    && <FicheJoueur joueurId={joueurId} joueur={joueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug}/>}
         {page==="mon-profil"       && joueur && <MonProfil joueur={joueur} setJoueur={setJoueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug}/>}
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav}/>}
