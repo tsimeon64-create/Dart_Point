@@ -75,6 +75,17 @@ const SpinnerJ = () => <div style={{ display:"flex",alignItems:"center",justifyC
 
 const BadgeJ = ({ children, color=CJ.accent }) => <span style={{ background:color+"22",color,border:`1px solid ${color}44`,borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap" }}>{children}</span>;
 
+// Titres DRIX (défini ici pour être accessible dans tout le fichier)
+const getDrixTitreLocal = (drix) => {
+  if (drix < 900)  return { titre:"Novice",    emoji:"🎯",  color:"#94a3b8" };
+  if (drix < 1100) return { titre:"Amateur",   emoji:"🎯🎯", color:"#60a5fa" };
+  if (drix < 1300) return { titre:"Confirmé",  emoji:"⭐",  color:"#22c55e" };
+  if (drix < 1500) return { titre:"Expert",    emoji:"⭐⭐", color:"#f59e0b" };
+  if (drix < 1700) return { titre:"Elite",     emoji:"💎",  color:"#a78bfa" };
+  if (drix < 1900) return { titre:"Master",    emoji:"👑",  color:"#f97316" };
+  return              { titre:"Légende",   emoji:"🏆",  color:"#ef4444" };
+};
+
 // ── CONNEXION / INSCRIPTION ───────────────────────────────────────────────────
 export const Connexion = ({ onLogin, setPage }) => {
   const [mode, setMode] = useState("login");
@@ -232,9 +243,15 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
           <div style={{ width:64,height:64,background:CJ.accent+"33",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,border:`2px solid ${CJ.accent}` }}>🎯</div>
           <div style={{ flex:1 }}>
             <h1 style={{ fontWeight:800, fontSize:24, marginBottom:6 }}>{joueur.pseudo}</h1>
-            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
               {bar ? <BadgeJ color={CJ.accent}>🍺 {bar.nom}</BadgeJ> : <BadgeJ color={CJ.muted}>Pas de bar affilié</BadgeJ>}
               {asso && <BadgeJ color="#7c3aed">🫂 {asso.nom}</BadgeJ>}
+              {/* DRIX Badge */}
+              {(() => { const d = joueur.drix||1000; const {titre,emoji,color} = getDrixTitreLocal(d); return (
+                <span style={{ background:color+"22", color, border:`1px solid ${color}44`, borderRadius:20, padding:"3px 12px", fontSize:12, fontWeight:700, display:"inline-flex", alignItems:"center", gap:5 }}>
+                  {emoji} {d} DRIX · {titre}
+                </span>
+              );})()}
             </div>
           </div>
           {stats && (
@@ -438,20 +455,24 @@ export const PageJoueurs = ({ joueur, setPage, setJoueurId }) => {
         style={{ width:"100%",background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:8,padding:"10px 14px",color:CJ.text,fontSize:14,marginBottom:20 }}/>
       {loading ? <SpinnerJ/> : (
         <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12 }}>
-          {filtered.map(j=>(
-            <div key={j.id} onClick={()=>{setJoueurId(j.id);setPage("profil-joueur");}}
-              style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,padding:16,cursor:"pointer",transition:"border-color .15s" }}
-              onMouseEnter={e=>e.currentTarget.style.borderColor=CJ.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
-              <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:8 }}>
-                <div style={{ width:40,height:40,background:CJ.accent+"22",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,border:`1px solid ${CJ.accent}44` }}>🎯</div>
-                <div>
-                  <div style={{ fontWeight:700,fontSize:14 }}>{j.pseudo}</div>
-                  {j.bar_slug && <div style={{ color:CJ.muted,fontSize:11 }}>🍺 affilié</div>}
+          {filtered.map(j=>{
+            const drix = j.drix||1000;
+            const {titre,emoji,color} = getDrixTitreLocal(drix);
+            return (
+              <div key={j.id} onClick={()=>{setJoueurId(j.id);setPage("profil-joueur");}}
+                style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,padding:16,cursor:"pointer",transition:"border-color .15s" }}
+                onMouseEnter={e=>e.currentTarget.style.borderColor=color} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
+                <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:8 }}>
+                  <div style={{ width:40,height:40,background:color+"22",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,border:`1px solid ${color}44` }}>{emoji}</div>
+                  <div>
+                    <div style={{ fontWeight:700,fontSize:14 }}>{j.pseudo}</div>
+                    <div style={{ color,fontSize:11,fontWeight:600 }}>{drix} DRIX · {titre}</div>
+                  </div>
                 </div>
+                {joueur && joueur.id!==j.id && <div style={{ fontSize:11,color:CJ.accent }}>⚔️ Voir le profil →</div>}
               </div>
-              {joueur && joueur.id!==j.id && <div style={{ fontSize:11,color:CJ.accent }}>⚔️ Voir le profil →</div>}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
       {!joueur && (
@@ -486,14 +507,22 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   return (
     <div style={{ maxWidth:600, margin:"0 auto", padding:"36px 20px" }}>
       <button onClick={()=>setPage("joueurs")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",marginBottom:18,fontSize:13 }}>← Retour</button>
-      <div style={{ background:"linear-gradient(135deg,#1a0800,#1a1a2e)",border:`1px solid ${CJ.border}`,borderRadius:14,padding:28,marginBottom:20,textAlign:"center" }}>
-        <div style={{ width:72,height:72,background:CJ.accent+"33",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,border:`2px solid ${CJ.accent}`,margin:"0 auto 12px" }}>🎯</div>
-        <h1 style={{ fontWeight:800,fontSize:24,marginBottom:8 }}>{j.pseudo}</h1>
-        <div style={{ display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap" }}>
-          {bar && <BadgeJ color={CJ.accent}>🍺 {bar.nom}</BadgeJ>}
-          {asso && <BadgeJ color="#7c3aed">🫂 {asso.nom}</BadgeJ>}
-        </div>
-      </div>
+      {(() => {
+        const drix = j.drix||1000;
+        const {titre,emoji,color} = getDrixTitreLocal(drix);
+        return (
+          <div style={{ background:"linear-gradient(135deg,#1a0800,#1a1a2e)",border:`1px solid ${color}44`,borderRadius:14,padding:28,marginBottom:20,textAlign:"center" }}>
+            <div style={{ width:72,height:72,background:color+"33",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,border:`2px solid ${color}`,margin:"0 auto 12px" }}>{emoji}</div>
+            <h1 style={{ fontWeight:800,fontSize:24,marginBottom:6 }}>{j.pseudo}</h1>
+            <div style={{ fontWeight:900,fontSize:28,color,marginBottom:4 }}>{drix} <span style={{ fontSize:16 }}>DRIX</span></div>
+            <div style={{ color,fontSize:13,fontWeight:600,marginBottom:12 }}>{emoji} {titre}</div>
+            <div style={{ display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap" }}>
+              {bar && <BadgeJ color={CJ.accent}>🍺 {bar.nom}</BadgeJ>}
+              {asso && <BadgeJ color="#7c3aed">🫂 {asso.nom}</BadgeJ>}
+            </div>
+          </div>
+        );
+      })()}
       {stats && (
         <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20 }}>
           {[[stats.victoires,"Victoires",CJ.green],[stats.defaites,"Défaites",CJ.red],[stats.parties,"Parties",CJ.muted],[winRate+"%","Win Rate",CJ.yellow]].map(([v,l,c])=>(
@@ -761,7 +790,7 @@ export const PageDrix = ({ setPage, setJoueurId, bars, associations }) => {
         loading ? <SpinnerJ/> : classementFiltre.length===0
           ? <p style={{ color:CJ.muted, fontSize:13, textAlign:"center", padding:40 }}>Aucun joueur trouvé.</p>
           : classementFiltre.map((j, i) => {
-              const { titre, emoji, color } = getDrixTitre(j.drix || 1000);
+              const { titre, emoji, color } = getDrixTitreLocal(j.drix || 1000);
               const rang = i + 1;
               return (
                 <div key={j.id} onClick={()=>{setJoueurId(j.id);setPage("profil-joueur");}}
@@ -790,7 +819,7 @@ export const PageDrix = ({ setPage, setJoueurId, bars, associations }) => {
 
 // ── BADGE DRIX (utilisé dans profil et défis) ─────────────────────────────────
 export const DrixBadge = ({ drix=1000, size="normal" }) => {
-  const { titre, emoji, color } = getDrixTitre(drix);
+  const { titre, emoji, color } = getDrixTitreLocal(drix);
   const big = size === "big";
   return (
     <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:color+"22", border:`1px solid ${color}44`, borderRadius:20, padding:big?"8px 16px":"4px 12px" }}>
