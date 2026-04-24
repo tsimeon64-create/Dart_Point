@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Connexion, MonProfil, PageJoueurs, FicheJoueur,
-  PresenceSection, MembresBarSection, Scoreur,
+  PresenceSection, MembresBarSection,
   dbJoueurs, todayStr, hashPwd
 } from "./AppJoueurs";
+import { Scoreur } from "./AppJeux";
 
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
