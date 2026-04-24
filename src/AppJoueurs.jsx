@@ -1,4 +1,3 @@
-import { useState, useMemo, useEffect, useRef } from "react";
 // ── AppJoueurs.jsx ────────────────────────────────────────────────────────────
 // Système joueurs DartPoint : inscription, profils, duels, présence, scoreur
 // Importé depuis App.jsx
@@ -609,5 +608,233 @@ export const MembresBarSection = ({ barSlug, setPage, setJoueurId }) => {
   );
 };
 
+// ── SYSTÈME DRIX ─────────────────────────────────────────────────────────────
+
+// Titres selon score DRIX
+export const getDrixTitre = (drix) => {
+  if (drix < 900)  return { titre:"Novice",    emoji:"🎯",  color:"#94a3b8" };
+  if (drix < 1100) return { titre:"Amateur",   emoji:"🎯🎯", color:"#60a5fa" };
+  if (drix < 1300) return { titre:"Confirmé",  emoji:"⭐",  color:"#22c55e" };
+  if (drix < 1500) return { titre:"Expert",    emoji:"⭐⭐", color:"#f59e0b" };
+  if (drix < 1700) return { titre:"Elite",     emoji:"💎",  color:"#a78bfa" };
+  if (drix < 1900) return { titre:"Master",    emoji:"👑",  color:"#f97316" };
+  return              { titre:"Légende",   emoji:"🏆",  color:"#ef4444" };
+};
+
+// Calcul ELO
+export const calculerDrix = (drixA, drixB, aGagne) => {
+  const K = 32;
+  const expectedA = 1 / (1 + Math.pow(10, (drixB - drixA) / 400));
+  const scoreA = aGagne ? 1 : 0;
+  const variationA = Math.round(K * (scoreA - expectedA));
+  return { variationA, variationB: -variationA };
+};
+
+// DB DRIX
+const dbDrix = {
+  updateDrix: (id, drix) => sbJ(`joueurs?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ drix }), prefer:"return=minimal" }),
+  addMouvement: (d) => sbJ("drix_mouvements", { method:"POST", body:JSON.stringify(d) }),
+  getClassement: () => sbJ("joueurs?order=drix.desc&select=id,pseudo,drix,bar_slug,asso_slug"),
+  getClassementBar: (slug) => sbJ(`joueurs?bar_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix`),
+  getClassementAsso: (slug) => sbJ(`joueurs?asso_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix`),
+  getHistorique: (joueur_id) => sbJ(`drix_mouvements?joueur_id=eq.${joueur_id}&order=date.desc&limit=10&select=*`),
+  getHallOfFame: () => sbJ("drix_historique?order=saison.desc,classement.asc&select=*"),
+};
+
+// Application du calcul DRIX après validation d'un duel
+export const appliquerDrixDuel = async (duel) => {
+  try {
+    const [jC, jD] = await Promise.all([dbJ.getJoueur(duel.challenger_id), dbJ.getJoueur(duel.defie_id)]);
+    if (!jC || !jD) return;
+    const drixC = jC.drix || 1000;
+    const drixD = jD.drix || 1000;
+    const challengerGagne = duel.gagnant_id === duel.challenger_id;
+    const { variationA, variationB } = calculerDrix(drixC, drixD, challengerGagne);
+    const newDrixC = Math.max(100, drixC + variationA);
+    const newDrixD = Math.max(100, drixD + variationB);
+    await Promise.all([
+      dbDrix.updateDrix(jC.id, newDrixC),
+      dbDrix.updateDrix(jD.id, newDrixD),
+      dbDrix.addMouvement({ joueur_id:jC.id, joueur_pseudo:jC.pseudo, adversaire_pseudo:jD.pseudo, variation:variationA, drix_avant:drixC, drix_apres:newDrixC, resultat:challengerGagne?"victoire":"defaite", duel_id:duel.id, date:Date.now() }),
+      dbDrix.addMouvement({ joueur_id:jD.id, joueur_pseudo:jD.pseudo, adversaire_pseudo:jC.pseudo, variation:variationB, drix_avant:drixD, drix_apres:newDrixD, resultat:challengerGagne?"defaite":"victoire", duel_id:duel.id, date:Date.now() }),
+    ]);
+  } catch(e) { console.error("Erreur DRIX:", e); }
+};
+
+// ── PAGE CLASSEMENT DRIX ──────────────────────────────────────────────────────
+export const PageDrix = ({ setPage, setJoueurId, bars, associations }) => {
+  const [classement, setClassement] = useState([]);
+  const [hallOfFame, setHallOfFame] = useState([]);
+  const [tab, setTab] = useState("general");
+  const [loading, setLoading] = useState(true);
+  const [barFilter, setBarFilter] = useState("");
+  const [assoFilter, setAssoFilter] = useState("");
+
+  useEffect(() => {
+    Promise.all([dbDrix.getClassement(), dbDrix.getHallOfFame()])
+      .then(([c, h]) => { setClassement(c||[]); setHallOfFame(h||[]); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const classementFiltre = useMemo(() => {
+    if (tab === "bar" && barFilter) return classement.filter(j => j.bar_slug === barFilter);
+    if (tab === "asso" && assoFilter) return classement.filter(j => j.asso_slug === assoFilter);
+    return classement;
+  }, [classement, tab, barFilter, assoFilter]);
+
+  const saisonActuelle = new Date().getFullYear();
+
+  const getMedaille = (rang) => {
+    if (rang === 1) return "🥇";
+    if (rang === 2) return "🥈";
+    if (rang === 3) return "🥉";
+    return `#${rang}`;
+  };
+
+  return (
+    <div style={{ maxWidth:900, margin:"0 auto", padding:"36px 20px" }}>
+      {/* Header */}
+      <div style={{ background:"linear-gradient(135deg,#1a0800,#1a0030)", border:`1px solid #a78bfa44`, borderRadius:14, padding:24, marginBottom:24, textAlign:"center" }}>
+        <div style={{ fontSize:48, marginBottom:8 }}>💎</div>
+        <h1 style={{ fontWeight:900, fontSize:28, marginBottom:4 }}>Classement <span style={{ color:"#a78bfa" }}>DRIX</span></h1>
+        <p style={{ color:CJ.muted, fontSize:14 }}>Saison {saisonActuelle} · Système ELO · Remise à zéro le 1er janvier</p>
+        <div style={{ display:"flex", justifyContent:"center", gap:16, marginTop:16, flexWrap:"wrap" }}>
+          {[["< 900","Novice","#94a3b8"],["900–1099","Amateur","#60a5fa"],["1100–1299","Confirmé","#22c55e"],["1300–1499","Expert","#f59e0b"],["1500–1699","Elite","#a78bfa"],["1700–1899","Master","#f97316"],["1900+","Légende","#ef4444"]].map(([r,t,c])=>(
+            <div key={t} style={{ textAlign:"center" }}>
+              <div style={{ fontSize:11, color:c, fontWeight:700 }}>{t}</div>
+              <div style={{ fontSize:10, color:CJ.muted }}>{r}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Onglets */}
+      <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
+        {[["general","🌍 Général"],["bar","🍺 Par bar"],["asso","🫂 Par asso"],["halloffame","🏆 Hall of Fame"]].map(([t,l])=>(
+          <button key={t} onClick={()=>setTab(t)} style={{ background:tab===t?CJ.accent+"22":"transparent",color:tab===t?CJ.accent:CJ.muted,border:`1px solid ${tab===t?CJ.accent:CJ.border}`,cursor:"pointer",padding:"7px 14px",borderRadius:8,fontSize:13,fontWeight:500 }}>{l}</button>
+        ))}
+      </div>
+
+      {/* Filtres bar/asso */}
+      {tab==="bar" && (
+        <select value={barFilter} onChange={e=>setBarFilter(e.target.value)} style={{ width:"100%",background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:8,padding:"10px 14px",color:CJ.text,fontSize:14,marginBottom:16 }}>
+          <option value="">-- Choisir un bar --</option>
+          {bars.map(b=><option key={b.slug} value={b.slug}>{b.nom} — {b.ville}</option>)}
+        </select>
+      )}
+      {tab==="asso" && (
+        <select value={assoFilter} onChange={e=>setAssoFilter(e.target.value)} style={{ width:"100%",background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:8,padding:"10px 14px",color:CJ.text,fontSize:14,marginBottom:16 }}>
+          <option value="">-- Choisir une association --</option>
+          {associations.map(a=><option key={a.slug} value={a.slug}>{a.nom}</option>)}
+        </select>
+      )}
+
+      {/* Hall of Fame */}
+      {tab==="halloffame" && (
+        <div>
+          <h3 style={{ fontWeight:700, fontSize:16, marginBottom:14, color:CJ.yellow }}>🏆 Hall of Fame — Meilleurs joueurs par saison</h3>
+          {hallOfFame.length===0
+            ? <p style={{ color:CJ.muted, fontSize:13 }}>Aucune saison archivée pour l'instant.</p>
+            : (() => {
+                const saisons = [...new Set(hallOfFame.map(h=>h.saison))].sort((a,b)=>b-a);
+                return saisons.map(s => (
+                  <div key={s} style={{ marginBottom:24 }}>
+                    <h4 style={{ fontWeight:700, fontSize:15, color:CJ.yellow, marginBottom:10 }}>Saison {s}</h4>
+                    {hallOfFame.filter(h=>h.saison===s).slice(0,3).map((h,i)=>(
+                      <div key={h.id} style={{ background:CJ.card,border:`1px solid ${i===0?CJ.yellow:CJ.border}`,borderRadius:10,padding:14,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                        <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+                          <span style={{ fontSize:20 }}>{getMedaille(h.classement)}</span>
+                          <span style={{ fontWeight:700 }}>{h.joueur_pseudo}</span>
+                        </div>
+                        <BadgeJ color={CJ.yellow}>{h.score_final} DRIX</BadgeJ>
+                      </div>
+                    ))}
+                  </div>
+                ));
+              })()
+          }
+        </div>
+      )}
+
+      {/* Classement */}
+      {tab!=="halloffame" && (
+        loading ? <SpinnerJ/> : classementFiltre.length===0
+          ? <p style={{ color:CJ.muted, fontSize:13, textAlign:"center", padding:40 }}>Aucun joueur trouvé.</p>
+          : classementFiltre.map((j, i) => {
+              const { titre, emoji, color } = getDrixTitre(j.drix || 1000);
+              const rang = i + 1;
+              return (
+                <div key={j.id} onClick={()=>{setJoueurId(j.id);setPage("profil-joueur");}}
+                  style={{ background:rang<=3?`${color}11`:CJ.card, border:`1px solid ${rang===1?color:rang<=3?color+"44":CJ.border}`, borderRadius:12, padding:"14px 18px", marginBottom:10, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", transition:"border-color .15s" }}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor=color} onMouseLeave={e=>e.currentTarget.style.borderColor=rang===1?color:rang<=3?color+"44":CJ.border}>
+                  <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                    <span style={{ fontSize:rang<=3?22:16, fontWeight:900, color:rang<=3?color:CJ.muted, minWidth:32, textAlign:"center" }}>{getMedaille(rang)}</span>
+                    <div>
+                      <div style={{ fontWeight:700, fontSize:15 }}>{j.pseudo}</div>
+                      <div style={{ fontSize:12, color }}>
+                        {emoji} {titre}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign:"right" }}>
+                    <div style={{ fontWeight:900, fontSize:20, color }}>{j.drix || 1000}</div>
+                    <div style={{ fontSize:11, color:CJ.muted }}>DRIX</div>
+                  </div>
+                </div>
+              );
+            })
+      )}
+    </div>
+  );
+};
+
+// ── BADGE DRIX (utilisé dans profil et défis) ─────────────────────────────────
+export const DrixBadge = ({ drix=1000, size="normal" }) => {
+  const { titre, emoji, color } = getDrixTitre(drix);
+  const big = size === "big";
+  return (
+    <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:color+"22", border:`1px solid ${color}44`, borderRadius:20, padding:big?"8px 16px":"4px 12px" }}>
+      <span style={{ fontSize:big?18:13 }}>{emoji}</span>
+      <span style={{ fontWeight:700, color, fontSize:big?15:12 }}>{drix}</span>
+      <span style={{ color:color+"99", fontSize:big?12:10 }}>DRIX · {titre}</span>
+    </div>
+  );
+};
+
+// ── HISTORIQUE DRIX (utilisé dans profil joueur) ──────────────────────────────
+export const HistoriqueDrix = ({ joueurId }) => {
+  const [mouvements, setMouvements] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    dbDrix.getHistorique(joueurId)
+      .then(m => { setMouvements(m||[]); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [joueurId]);
+
+  if (loading) return <SpinnerJ/>;
+  if (mouvements.length === 0) return <p style={{ color:CJ.muted, fontSize:13 }}>Aucun mouvement DRIX pour l'instant.</p>;
+
+  return (
+    <div>
+      {mouvements.map(m => (
+        <div key={m.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${CJ.border}` }}>
+          <div>
+            <span style={{ fontWeight:600, fontSize:13 }}>vs {m.adversaire_pseudo}</span>
+            <span style={{ color:CJ.muted, fontSize:11, marginLeft:8 }}>{new Date(m.date).toLocaleDateString("fr-FR")}</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ color:CJ.muted, fontSize:12 }}>{m.drix_avant} → {m.drix_apres}</span>
+            <span style={{ fontWeight:800, fontSize:14, color:m.variation>0?CJ.green:CJ.red }}>
+              {m.variation>0?"+":""}{m.variation}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // Export helper pour compter les défis (utilisé dans App.jsx)
 export { dbJ as dbJoueurs };
+export { dbDrix as dbDrixPublic };
