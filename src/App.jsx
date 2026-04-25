@@ -1243,7 +1243,7 @@ export default function App() {
         {page==="joueurs"          && <PageJoueurs joueur={joueur} setPage={nav} setJoueurId={setJoueurId}/>}
         {page==="drix"             && <PageDrix setPage={nav} setJoueurId={setJoueurId} bars={bars} associations={associations}/>}
         {page==="profil-joueur"    && <FicheJoueur joueurId={joueurId} joueur={joueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug}/>}
-        {page==="mon-profil"       && joueur && <MonProfil joueur={joueur} setJoueur={setJoueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug}/>}
+        {page==="mon-profil"       && joueur && <MonProfil joueur={joueur} setJoueur={setJoueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug} setJoueurId={setJoueurId}/>}
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav}/>}
         {page==="scoreur"          && <Scoreur setPage={nav}/>}
         {page.startsWith("scoreur-duel-") && joueur && <ScoreurDuel duelId={page.replace("scoreur-duel-","")} joueur={joueur} setPage={nav}/>}

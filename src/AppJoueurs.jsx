@@ -150,7 +150,7 @@ export const Connexion = ({ onLogin, setPage }) => {
 };
 
 // ── MON PROFIL ────────────────────────────────────────────────────────────────
-export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setBarSlug }) => {
+export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setBarSlug, setJoueurId }) => {
   const [stats, setStats] = useState(null);
   const [duels, setDuels] = useState([]);
   const [defis, setDefis] = useState([]);
@@ -498,7 +498,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
 
       {/* Amis */}
       {tab==="amis" && (
-        <AmiSection joueur={joueur} setPage={setPage} setJoueurId={(id)=>{}} />
+        <AmiSection joueur={joueur} setPage={setPage} setJoueurId={setJoueurId}/>
       )}
 
       {/* Affiliation */}
