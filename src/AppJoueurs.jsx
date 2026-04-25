@@ -245,7 +245,6 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     const autreValide = isChallenger ? duel.valide_defie : duel.valide_challenger;
 
     if (autreValide) {
-      // Les 2 ont validé → terminer le duel et mettre à jour DRIX + stats
       await dbJ.updateDuel(duel.id, { ...patch, statut:"termine" });
       const gagnantId = duel.gagnant_id;
       const [sC, sD] = await Promise.all([dbJ.getStats(duel.challenger_id), dbJ.getStats(duel.defie_id)]);
@@ -254,11 +253,29 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       // Calcul DRIX
       const [jC, jD] = await Promise.all([dbJ.getJoueur(duel.challenger_id), dbJ.getJoueur(duel.defie_id)]);
       if (jC && jD) {
-        const { calculerDrix, appliquerDrixDuel } = await import("./AppJoueurs");
-        await appliquerDrixDuel({...duel, statut:"termine"});
+        const K = 32;
+        const expectedC = 1 / (1 + Math.pow(10, ((jD.drix||1000) - (jC.drix||1000)) / 400));
+        const varC = Math.round(K * ((gagnantId===jC.id?1:0) - expectedC));
+        const varD = -varC;
+        const newDrixC = Math.max(100, (jC.drix||1000) + varC);
+        const newDrixD = Math.max(100, (jD.drix||1000) + varD);
+        await Promise.all([
+          dbJ.updateJoueur(jC.id, { drix: newDrixC }),
+          dbJ.updateJoueur(jD.id, { drix: newDrixD }),
+        ]);
+        // Mettre à jour le profil local si c'est nous
+        const moi = joueur.id === jC.id ? {...joueur, drix: newDrixC} : joueur.id === jD.id ? {...joueur, drix: newDrixD} : joueur;
+        setJoueur(moi);
+        localStorage.setItem("dp_joueur", JSON.stringify(moi));
       }
     } else {
       await dbJ.updateDuel(duel.id, patch);
+    }
+    // Recharger le joueur depuis Supabase pour avoir les DRIX à jour
+    const joueurFrais = await dbJ.getJoueur(joueur.id);
+    if (joueurFrais) {
+      setJoueur(joueurFrais);
+      localStorage.setItem("dp_joueur", JSON.stringify(joueurFrais));
     }
     const d = await dbJ.getDuels(joueur.id); setDuels(d||[]);
   };
