@@ -626,8 +626,14 @@ const DefiForm = ({ joueur, cible, setPage }) => {
 
   useEffect(() => {
     // Vérifier si déjà ami
-    sbJ(`amis?or=(and(joueur_id.eq.${joueur.id},ami_id.eq.${cible.id}),and(joueur_id.eq.${cible.id},ami_id.eq.${joueur.id}))&select=*`)
-      .then(r => setAmiStatut(r?.[0]?.statut || null))
+    sbJ(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&or=(joueur_id.eq.${cible.id},ami_id.eq.${cible.id})&select=*`)
+      .then(r => {
+        const rel = (r||[]).find(a => 
+          (a.joueur_id===joueur.id && a.ami_id===cible.id) || 
+          (a.joueur_id===cible.id && a.ami_id===joueur.id)
+        );
+        setAmiStatut(rel?.statut || null);
+      })
       .catch(() => {});
   }, [joueur.id, cible.id]);
 
@@ -730,11 +736,10 @@ const DefiForm = ({ joueur, cible, setPage }) => {
 
 // ── SYSTÈME D'AMIS ────────────────────────────────────────────────────────────
 const dbAmis = {
-  getAmis: (id) => sbJ(`amis?or=(and(joueur_id.eq.${id},statut.eq.accepte),and(ami_id.eq.${id},statut.eq.accepte))&select=*`),
+  getAmis: (id) => sbJ(`amis?or=(joueur_id.eq.${id},ami_id.eq.${id})&statut=eq.accepte&select=*`),
   getDemandesRecues: (id) => sbJ(`amis?ami_id=eq.${id}&statut=eq.en_attente&select=*`),
   accepterAmi: (id) => sbJ(`amis?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ statut:"accepte" }), prefer:"return=minimal" }),
   refuserAmi: (id) => sbJ(`amis?id=eq.${id}`, { method:"DELETE", prefer:"return=minimal" }),
-  getNbAmis: (id) => sbJ(`amis?or=(and(joueur_id.eq.${id},statut.eq.accepte),and(ami_id.eq.${id},statut.eq.accepte))&select=id`).then(r=>r?.length||0),
 };
 
 export const AmiSection = ({ joueur, setPage, setJoueurId }) => {
