@@ -45,7 +45,7 @@ export const dbJ = {
   getBarsActifs: () => sbJ(`presences?date_jour=eq.${todayStr()}&select=bar_slug`),
 };
 
-// ── Couleurs (dupliquées pour autonomie du fichier) ───────────────────────────
+// ── Couleurs ──────────────────────────────────────────────────────────────────
 const CJ = {
   bg:"#0f0f0f", card:"#1a1a1a", border:"#2a2a2a",
   accent:"#f97316", text:"#f1f5f9", muted:"#94a3b8",
@@ -77,7 +77,7 @@ const SpinnerJ = () => <div style={{ display:"flex",alignItems:"center",justifyC
 
 const BadgeJ = ({ children, color=CJ.accent }) => <span style={{ background:color+"22",color,border:`1px solid ${color}44`,borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap" }}>{children}</span>;
 
-// Titres DRIX (défini ici pour être accessible dans tout le fichier)
+// Titres DRIX
 const getDrixTitreLocal = (drix) => {
   if (drix < 900)  return { titre:"Novice",    emoji:"🎯",  color:"#94a3b8" };
   if (drix < 1100) return { titre:"Amateur",   emoji:"🎯🎯", color:"#60a5fa" };
@@ -150,14 +150,13 @@ export const Connexion = ({ onLogin, setPage }) => {
 };
 
 // ── MON PROFIL ────────────────────────────────────────────────────────────────
-export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setBarSlug, setJoueurId }) => {
+export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setBarSlug }) => {
   const [stats, setStats] = useState(null);
   const [duels, setDuels] = useState([]);
   const [defis, setDefis] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("profil");
 
-  // Édition profil
   const [editMode, setEditMode] = useState(false);
   const [editAge, setEditAge] = useState(joueur.age||"");
   const [editVille, setEditVille] = useState(joueur.ville||"");
@@ -236,12 +235,9 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     setDefis(x => x.filter(d => d.id !== duel.id));
   };
 
-  // Validation du résultat final après scoreur
   const validerResultat = async (duel) => {
     const isChallenger = duel.challenger_id === joueur.id;
-    const patch = isChallenger
-      ? { valide_challenger: true }
-      : { valide_defie: true };
+    const patch = isChallenger ? { valide_challenger: true } : { valide_defie: true };
     const autreValide = isChallenger ? duel.valide_defie : duel.valide_challenger;
 
     if (autreValide) {
@@ -250,7 +246,6 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       const [sC, sD] = await Promise.all([dbJ.getStats(duel.challenger_id), dbJ.getStats(duel.defie_id)]);
       if (sC) await dbJ.updateStats(sC.id, { parties:sC.parties+1, victoires:gagnantId===duel.challenger_id?sC.victoires+1:sC.victoires, defaites:gagnantId!==duel.challenger_id?sC.defaites+1:sC.defaites });
       if (sD) await dbJ.updateStats(sD.id, { parties:sD.parties+1, victoires:gagnantId===duel.defie_id?sD.victoires+1:sD.victoires, defaites:gagnantId!==duel.defie_id?sD.defaites+1:sD.defaites });
-      // Calcul DRIX
       const [jC, jD] = await Promise.all([dbJ.getJoueur(duel.challenger_id), dbJ.getJoueur(duel.defie_id)]);
       if (jC && jD) {
         const K = 32;
@@ -263,7 +258,6 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
           dbJ.updateJoueur(jC.id, { drix: newDrixC }),
           dbJ.updateJoueur(jD.id, { drix: newDrixD }),
         ]);
-        // Mettre à jour le profil local si c'est nous
         const moi = joueur.id === jC.id ? {...joueur, drix: newDrixC} : joueur.id === jD.id ? {...joueur, drix: newDrixD} : joueur;
         setJoueur(moi);
         localStorage.setItem("dp_joueur", JSON.stringify(moi));
@@ -271,7 +265,6 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     } else {
       await dbJ.updateDuel(duel.id, patch);
     }
-    // Recharger le joueur depuis Supabase pour avoir les DRIX à jour
     const joueurFrais = await dbJ.getJoueur(joueur.id);
     if (joueurFrais) {
       setJoueur(joueurFrais);
@@ -292,7 +285,6 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       <div style={{ background:"linear-gradient(135deg,#1a0800,#1a1a2e)", border:`1px solid ${color}44`, borderRadius:16, padding:24, marginBottom:20 }}>
         <div style={{ display:"flex", alignItems:"flex-start", gap:20, flexWrap:"wrap" }}>
 
-          {/* Photo de profil */}
           <div style={{ position:"relative", flexShrink:0 }}>
             <div onClick={()=>photoRef.current?.click()} style={{ width:80,height:80,borderRadius:"50%",border:`3px solid ${color}`,overflow:"hidden",cursor:"pointer",background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32 }}>
               {joueur.photo
@@ -304,21 +296,18 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             <input ref={photoRef} type="file" accept="image/*" style={{ display:"none" }} onChange={uploadPhoto}/>
           </div>
 
-          {/* Infos principales */}
           <div style={{ flex:1, minWidth:200 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6, flexWrap:"wrap" }}>
               <h1 style={{ fontWeight:900, fontSize:24 }}>{joueur.pseudo}</h1>
               {!editMode && <button onClick={()=>setEditMode(true)} style={{ background:"none",border:`1px solid ${CJ.border}`,color:CJ.muted,cursor:"pointer",borderRadius:6,padding:"3px 10px",fontSize:11 }}>✏️ Modifier</button>}
             </div>
 
-            {/* DRIX */}
             <div style={{ display:"inline-flex",alignItems:"center",gap:8,background:color+"22",border:`1px solid ${color}44`,borderRadius:20,padding:"5px 14px",marginBottom:10 }}>
               <span style={{ fontSize:16 }}>{emoji}</span>
               <span style={{ fontWeight:900,fontSize:18,color }}>{joueur.drix||1000}</span>
               <span style={{ fontSize:12,color,fontWeight:600 }}>DRIX · {titre}</span>
             </div>
 
-            {/* Infos secondaires */}
             {!editMode ? (
               <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                 {joueur.age && <BadgeJ color={CJ.muted}>🎂 {joueur.age} ans</BadgeJ>}
@@ -357,7 +346,6 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             )}
           </div>
 
-          {/* Stats */}
           {stats && (
             <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
               {[[stats.victoires,"V",CJ.green],[stats.defaites,"D",CJ.red],[stats.parties,"Parties",CJ.muted],[winRate+"%","Win",CJ.yellow]].map(([v,l,c])=>(
@@ -381,8 +369,6 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       {/* Défis */}
       {tab==="defis" && (
         <div>
-
-          {/* Duels en attente de validation finale */}
           {duels.filter(d=>d.statut==="en_validation").length>0 && (
             <div style={{ marginBottom:24 }}>
               <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:CJ.yellow }}>⚠️ Résultats à valider</h3>
@@ -413,7 +399,6 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             </div>
           )}
 
-          {/* Duels acceptés — Lancer le scoreur */}
           {duels.filter(d=>d.statut==="accepte").length>0 && (
             <div style={{ marginBottom:24 }}>
               <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:CJ.green }}>🎮 Duels acceptés — Prêts à jouer</h3>
@@ -435,7 +420,6 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             </div>
           )}
 
-          {/* Défis reçus */}
           <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14 }}>⚔️ Défis reçus</h3>
           {defis.length===0
             ? <p style={{ color:CJ.muted,fontSize:13,marginBottom:24 }}>Aucun défi en attente.</p>
@@ -453,7 +437,6 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             ))
           }
 
-          {/* Défis envoyés */}
           <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,marginTop:16 }}>📤 Défis envoyés</h3>
           {duels.filter(d=>d.challenger_id===joueur.id&&d.statut==="en_attente").length===0
             ? <p style={{ color:CJ.muted,fontSize:13,marginBottom:24 }}>Aucun défi envoyé en attente.</p>
@@ -498,7 +481,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
 
       {/* Amis */}
       {tab==="amis" && (
-        <AmiSection joueur={joueur} setPage={setPage} setJoueurId={setJoueurId}/>
+        <AmiSection joueur={joueur} setPage={setPage}/>
       )}
 
       {/* Affiliation */}
@@ -535,31 +518,8 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   );
 };
 
-// Sous-composant pour éviter les hooks dans .map()
-const DuelEnCours = ({ duel, isChallenger, monScore, adversaire, onValider }) => {
-  const [scoreInput, setScoreInput] = useState(monScore||"");
-  return (
-    <div style={{ background:CJ.card,border:`1px solid ${CJ.green}44`,borderRadius:12,padding:16,marginBottom:10 }}>
-      <p style={{ fontWeight:700,marginBottom:8 }}>⚔️ vs <strong>{adversaire}</strong> — {duel.mode}</p>
-      {monScore
-        ? <p style={{ color:CJ.green,fontSize:13 }}>✅ Score soumis : {monScore} — en attente de l'adversaire</p>
-        : (
-          <div style={{ display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap" }}>
-            <div>
-              <label style={{ fontSize:12,color:CJ.muted,display:"block",marginBottom:4 }}>Legs gagnés</label>
-              <input value={scoreInput} onChange={e=>setScoreInput(e.target.value)} placeholder="ex: 3"
-                style={{ background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"8px 12px",color:CJ.text,fontSize:13,width:100 }}/>
-            </div>
-            <BtnJ onClick={()=>onValider(scoreInput)} style={{ fontSize:12,padding:"8px 16px" }} disabled={!scoreInput}>Valider</BtnJ>
-          </div>
-        )
-      }
-    </div>
-  );
-};
-
 // ── PAGE JOUEURS (liste publique) ─────────────────────────────────────────────
-export const PageJoueurs = ({ joueur, setPage, setJoueurId }) => {
+export const PageJoueurs = ({ joueur, setPage }) => {
   const [joueurs, setJoueurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -580,7 +540,7 @@ export const PageJoueurs = ({ joueur, setPage, setJoueurId }) => {
             const drix = j.drix||1000;
             const {titre,emoji,color} = getDrixTitreLocal(drix);
             return (
-              <div key={j.id} onClick={()=>{setJoueurId(j.id);setPage("profil-joueur");}}
+              <div key={j.id} onClick={()=>setPage("profil-joueur-"+j.id)}
                 style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,padding:16,cursor:"pointer",transition:"border-color .15s" }}
                 onMouseEnter={e=>e.currentTarget.style.borderColor=color} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
                 <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:8 }}>
@@ -606,7 +566,7 @@ export const PageJoueurs = ({ joueur, setPage, setJoueurId }) => {
   );
 };
 
-// ── FORMULAIRE DE DÉFI ───────────────────────────────────────────────────────
+// ── FORMULAIRE DE DÉFI ────────────────────────────────────────────────────────
 const DefiForm = ({ joueur, cible, setPage }) => {
   const [mode, setMode] = useState("501");
   const [manches, setManches] = useState(1);
@@ -619,17 +579,15 @@ const DefiForm = ({ joueur, cible, setPage }) => {
   const { titre:titreJ, emoji:emojiJ, color:colorJ } = getDrixTitreLocal(drixJoueur);
   const { titre:titreC, emoji:emojiC, color:colorC } = getDrixTitreLocal(drixCible);
 
-  // Calcul préview gain/perte DRIX
   const expectedJ = 1 / (1 + Math.pow(10, (drixCible - drixJoueur) / 400));
   const gainVictoire = Math.round(32 * (1 - expectedJ));
   const perteDéfaite = Math.round(32 * expectedJ);
 
   useEffect(() => {
-    // Vérifier si déjà ami
     sbJ(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&or=(joueur_id.eq.${cible.id},ami_id.eq.${cible.id})&select=*`)
       .then(r => {
-        const rel = (r||[]).find(a => 
-          (a.joueur_id===joueur.id && a.ami_id===cible.id) || 
+        const rel = (r||[]).find(a =>
+          (a.joueur_id===joueur.id && a.ami_id===cible.id) ||
           (a.joueur_id===cible.id && a.ami_id===joueur.id)
         );
         setAmiStatut(rel?.statut || null);
@@ -670,8 +628,6 @@ const DefiForm = ({ joueur, cible, setPage }) => {
 
   return (
     <div style={{ background:CJ.card,border:`1px solid ${CJ.accent}44`,borderRadius:12,padding:18,marginTop:12 }}>
-
-      {/* Comparaison DRIX */}
       <div style={{ display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",marginBottom:16,background:"#111",borderRadius:10,padding:12 }}>
         <div style={{ textAlign:"center" }}>
           <div style={{ fontSize:11,color:CJ.muted,marginBottom:3 }}>{joueur.pseudo}</div>
@@ -686,7 +642,6 @@ const DefiForm = ({ joueur, cible, setPage }) => {
         </div>
       </div>
 
-      {/* Preview DRIX */}
       <div style={{ display:"flex",gap:8,marginBottom:14 }}>
         <div style={{ flex:1,background:"#14532d33",border:`1px solid ${CJ.green}44`,borderRadius:8,padding:"8px 10px",textAlign:"center" }}>
           <div style={{ fontSize:11,color:CJ.muted }}>Si victoire</div>
@@ -700,7 +655,6 @@ const DefiForm = ({ joueur, cible, setPage }) => {
 
       <h3 style={{ fontWeight:700,fontSize:15,marginBottom:12,color:CJ.accent }}>⚔️ Défier {cible.pseudo}</h3>
 
-      {/* Mode */}
       <div style={{ marginBottom:12 }}>
         <label style={{ fontSize:12,color:CJ.muted,display:"block",marginBottom:6 }}>Mode de jeu</label>
         <div style={{ display:"flex",gap:8 }}>
@@ -710,7 +664,6 @@ const DefiForm = ({ joueur, cible, setPage }) => {
         </div>
       </div>
 
-      {/* Manches */}
       <div style={{ marginBottom:16 }}>
         <label style={{ fontSize:12,color:CJ.muted,display:"block",marginBottom:6 }}>Premier à ... manches</label>
         <div style={{ display:"flex",gap:6 }}>
@@ -742,7 +695,7 @@ const dbAmis = {
   refuserAmi: (id) => sbJ(`amis?id=eq.${id}`, { method:"DELETE", prefer:"return=minimal" }),
 };
 
-export const AmiSection = ({ joueur, setPage, setJoueurId }) => {
+export const AmiSection = ({ joueur, setPage }) => {
   const [amis, setAmis] = useState([]);
   const [demandes, setDemandes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -768,7 +721,6 @@ export const AmiSection = ({ joueur, setPage, setJoueurId }) => {
 
   return (
     <div>
-      {/* Demandes reçues */}
       {demandes.length > 0 && (
         <div style={{ marginBottom:20 }}>
           <h3 style={{ fontWeight:700,fontSize:15,marginBottom:12,color:CJ.yellow }}>👥 Demandes d'amis ({demandes.length})</h3>
@@ -784,7 +736,6 @@ export const AmiSection = ({ joueur, setPage, setJoueurId }) => {
         </div>
       )}
 
-      {/* Liste d'amis */}
       <h3 style={{ fontWeight:700,fontSize:15,marginBottom:12,color:CJ.accent }}>👥 Mes amis ({amis.length})</h3>
       {amis.length === 0
         ? <p style={{ color:CJ.muted,fontSize:13 }}>Aucun ami pour l'instant. Va sur la fiche d'un joueur pour l'ajouter !</p>
@@ -792,7 +743,7 @@ export const AmiSection = ({ joueur, setPage, setJoueurId }) => {
             const amiId = a.joueur_id === joueur.id ? a.ami_id : a.joueur_id;
             const amiPseudo = a.joueur_id === joueur.id ? a.ami_pseudo : a.joueur_pseudo;
             return (
-              <div key={a.id} onClick={()=>{setJoueurId(amiId);setPage("profil-joueur");}}
+              <div key={a.id} onClick={()=>setPage("profil-joueur-"+amiId)}
                 style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:10,padding:14,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onMouseEnter={e=>e.currentTarget.style.borderColor=CJ.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
                 <div style={{ display:"flex",alignItems:"center",gap:10 }}>
@@ -815,6 +766,9 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Guard : ne pas lancer la requête si l'ID est invalide
+    if (!joueurId) { setLoading(false); return; }
+    setLoading(true);
     Promise.all([dbJ.getJoueur(joueurId), dbJ.getStats(joueurId)])
       .then(([j,s]) => { setJ(j); setStats(s); setLoading(false); })
       .catch(() => setLoading(false));
@@ -835,11 +789,18 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
         const {titre,emoji,color} = getDrixTitreLocal(drix);
         return (
           <div style={{ background:"linear-gradient(135deg,#1a0800,#1a1a2e)",border:`1px solid ${color}44`,borderRadius:14,padding:28,marginBottom:20,textAlign:"center" }}>
-            <div style={{ width:72,height:72,background:color+"33",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,border:`2px solid ${color}`,margin:"0 auto 12px" }}>{emoji}</div>
+            <div style={{ width:72,height:72,background:color+"33",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,border:`2px solid ${color}`,margin:"0 auto 12px" }}>
+              {j.photo
+                ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%" }}/>
+                : <span>{emoji}</span>
+              }
+            </div>
             <h1 style={{ fontWeight:800,fontSize:24,marginBottom:6 }}>{j.pseudo}</h1>
             <div style={{ fontWeight:900,fontSize:28,color,marginBottom:4 }}>{drix} <span style={{ fontSize:16 }}>DRIX</span></div>
             <div style={{ color,fontSize:13,fontWeight:600,marginBottom:12 }}>{emoji} {titre}</div>
             <div style={{ display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap" }}>
+              {j.age && <BadgeJ color={CJ.muted}>🎂 {j.age} ans</BadgeJ>}
+              {j.ville && <BadgeJ color={CJ.blue}>📍 {j.ville}</BadgeJ>}
               {bar && <BadgeJ color={CJ.accent}>🍺 {bar.nom}</BadgeJ>}
               {asso && <BadgeJ color="#7c3aed">🫂 {asso.nom}</BadgeJ>}
             </div>
@@ -927,7 +888,7 @@ export const PresenceSection = ({ barSlug, joueur }) => {
 };
 
 // ── MEMBRES DU BAR ────────────────────────────────────────────────────────────
-export const MembresBarSection = ({ barSlug, setPage, setJoueurId }) => {
+export const MembresBarSection = ({ barSlug, setPage }) => {
   const [membres, setMembres] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -949,7 +910,7 @@ export const MembresBarSection = ({ barSlug, setPage, setJoueurId }) => {
       </h3>
       <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
         {membres.map(m=>(
-          <div key={m.id} onClick={()=>{setJoueurId(m.id);setPage("profil-joueur");}}
+          <div key={m.id} onClick={()=>setPage("profil-joueur-"+m.id)}
             style={{ background:"#111",border:`1px solid ${CJ.border}`,borderRadius:20,padding:"5px 14px",cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:6 }}
             onMouseEnter={e=>e.currentTarget.style.borderColor=CJ.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
             🎯 {m.pseudo}
@@ -960,9 +921,7 @@ export const MembresBarSection = ({ barSlug, setPage, setJoueurId }) => {
   );
 };
 
-// ── SYSTÈME DRIX ─────────────────────────────────────────────────────────────
-
-// Titres selon score DRIX
+// ── SYSTÈME DRIX ──────────────────────────────────────────────────────────────
 export const getDrixTitre = (drix) => {
   if (drix < 900)  return { titre:"Novice",    emoji:"🎯",  color:"#94a3b8" };
   if (drix < 1100) return { titre:"Amateur",   emoji:"🎯🎯", color:"#60a5fa" };
@@ -973,7 +932,6 @@ export const getDrixTitre = (drix) => {
   return              { titre:"Légende",   emoji:"🏆",  color:"#ef4444" };
 };
 
-// Calcul ELO
 export const calculerDrix = (drixA, drixB, aGagne) => {
   const K = 32;
   const expectedA = 1 / (1 + Math.pow(10, (drixB - drixA) / 400));
@@ -982,7 +940,6 @@ export const calculerDrix = (drixA, drixB, aGagne) => {
   return { variationA, variationB: -variationA };
 };
 
-// DB DRIX
 const dbDrix = {
   updateDrix: (id, drix) => sbJ(`joueurs?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ drix }), prefer:"return=minimal" }),
   addMouvement: (d) => sbJ("drix_mouvements", { method:"POST", body:JSON.stringify(d) }),
@@ -993,7 +950,6 @@ const dbDrix = {
   getHallOfFame: () => sbJ("drix_historique?order=saison.desc,classement.asc&select=*"),
 };
 
-// Application du calcul DRIX après validation d'un duel
 export const appliquerDrixDuel = async (duel) => {
   try {
     const [jC, jD] = await Promise.all([dbJ.getJoueur(duel.challenger_id), dbJ.getJoueur(duel.defie_id)]);
@@ -1014,7 +970,7 @@ export const appliquerDrixDuel = async (duel) => {
 };
 
 // ── PAGE CLASSEMENT DRIX ──────────────────────────────────────────────────────
-export const PageDrix = ({ setPage, setJoueurId, bars, associations }) => {
+export const PageDrix = ({ setPage, bars, associations }) => {
   const [classement, setClassement] = useState([]);
   const [hallOfFame, setHallOfFame] = useState([]);
   const [tab, setTab] = useState("general");
@@ -1045,7 +1001,6 @@ export const PageDrix = ({ setPage, setJoueurId, bars, associations }) => {
 
   return (
     <div style={{ maxWidth:900, margin:"0 auto", padding:"36px 20px" }}>
-      {/* Header */}
       <div style={{ background:"linear-gradient(135deg,#1a0800,#1a0030)", border:`1px solid #a78bfa44`, borderRadius:14, padding:24, marginBottom:24, textAlign:"center" }}>
         <div style={{ fontSize:48, marginBottom:8 }}>💎</div>
         <h1 style={{ fontWeight:900, fontSize:28, marginBottom:4 }}>Classement <span style={{ color:"#a78bfa" }}>DRIX</span></h1>
@@ -1060,14 +1015,12 @@ export const PageDrix = ({ setPage, setJoueurId, bars, associations }) => {
         </div>
       </div>
 
-      {/* Onglets */}
       <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
         {[["general","🌍 Général"],["bar","🍺 Par bar"],["asso","🫂 Par asso"],["halloffame","🏆 Hall of Fame"]].map(([t,l])=>(
           <button key={t} onClick={()=>setTab(t)} style={{ background:tab===t?CJ.accent+"22":"transparent",color:tab===t?CJ.accent:CJ.muted,border:`1px solid ${tab===t?CJ.accent:CJ.border}`,cursor:"pointer",padding:"7px 14px",borderRadius:8,fontSize:13,fontWeight:500 }}>{l}</button>
         ))}
       </div>
 
-      {/* Filtres bar/asso */}
       {tab==="bar" && (
         <select value={barFilter} onChange={e=>setBarFilter(e.target.value)} style={{ width:"100%",background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:8,padding:"10px 14px",color:CJ.text,fontSize:14,marginBottom:16 }}>
           <option value="">-- Choisir un bar --</option>
@@ -1081,7 +1034,6 @@ export const PageDrix = ({ setPage, setJoueurId, bars, associations }) => {
         </select>
       )}
 
-      {/* Hall of Fame */}
       {tab==="halloffame" && (
         <div>
           <h3 style={{ fontWeight:700, fontSize:16, marginBottom:14, color:CJ.yellow }}>🏆 Hall of Fame — Meilleurs joueurs par saison</h3>
@@ -1108,7 +1060,6 @@ export const PageDrix = ({ setPage, setJoueurId, bars, associations }) => {
         </div>
       )}
 
-      {/* Classement */}
       {tab!=="halloffame" && (
         loading ? <SpinnerJ/> : classementFiltre.length===0
           ? <p style={{ color:CJ.muted, fontSize:13, textAlign:"center", padding:40 }}>Aucun joueur trouvé.</p>
@@ -1116,16 +1067,14 @@ export const PageDrix = ({ setPage, setJoueurId, bars, associations }) => {
               const { titre, emoji, color } = getDrixTitreLocal(j.drix || 1000);
               const rang = i + 1;
               return (
-                <div key={j.id} onClick={()=>{setJoueurId(j.id);setPage("profil-joueur");}}
+                <div key={j.id} onClick={()=>setPage("profil-joueur-"+j.id)}
                   style={{ background:rang<=3?`${color}11`:CJ.card, border:`1px solid ${rang===1?color:rang<=3?color+"44":CJ.border}`, borderRadius:12, padding:"14px 18px", marginBottom:10, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", transition:"border-color .15s" }}
                   onMouseEnter={e=>e.currentTarget.style.borderColor=color} onMouseLeave={e=>e.currentTarget.style.borderColor=rang===1?color:rang<=3?color+"44":CJ.border}>
                   <div style={{ display:"flex", alignItems:"center", gap:14 }}>
                     <span style={{ fontSize:rang<=3?22:16, fontWeight:900, color:rang<=3?color:CJ.muted, minWidth:32, textAlign:"center" }}>{getMedaille(rang)}</span>
                     <div>
                       <div style={{ fontWeight:700, fontSize:15 }}>{j.pseudo}</div>
-                      <div style={{ fontSize:12, color }}>
-                        {emoji} {titre}
-                      </div>
+                      <div style={{ fontSize:12, color }}>{emoji} {titre}</div>
                     </div>
                   </div>
                   <div style={{ textAlign:"right" }}>
@@ -1140,7 +1089,7 @@ export const PageDrix = ({ setPage, setJoueurId, bars, associations }) => {
   );
 };
 
-// ── BADGE DRIX (utilisé dans profil et défis) ─────────────────────────────────
+// ── BADGE DRIX ────────────────────────────────────────────────────────────────
 export const DrixBadge = ({ drix=1000, size="normal" }) => {
   const { titre, emoji, color } = getDrixTitreLocal(drix);
   const big = size === "big";
@@ -1153,7 +1102,7 @@ export const DrixBadge = ({ drix=1000, size="normal" }) => {
   );
 };
 
-// ── HISTORIQUE DRIX (utilisé dans profil joueur) ──────────────────────────────
+// ── HISTORIQUE DRIX ───────────────────────────────────────────────────────────
 export const HistoriqueDrix = ({ joueurId }) => {
   const [mouvements, setMouvements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1187,6 +1136,6 @@ export const HistoriqueDrix = ({ joueurId }) => {
   );
 };
 
-// Export helper pour compter les défis (utilisé dans App.jsx)
 export { dbJ as dbJoueurs };
 export { dbDrix as dbDrixPublic };
+// FIN AppJoueurs.jsx
