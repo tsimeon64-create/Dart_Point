@@ -236,18 +236,27 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     setDefis(x => x.filter(d => d.id !== duel.id));
   };
 
-  const validerScore = async (duel, score) => {
+  // Validation du résultat final après scoreur
+  const validerResultat = async (duel) => {
     const isChallenger = duel.challenger_id === joueur.id;
-    const patch = isChallenger ? { score_challenger:score, valide_challenger:true } : { score_defie:score, valide_defie:true };
+    const patch = isChallenger
+      ? { valide_challenger: true }
+      : { valide_defie: true };
     const autreValide = isChallenger ? duel.valide_defie : duel.valide_challenger;
+
     if (autreValide) {
-      const scoreC = isChallenger ? score : duel.score_challenger;
-      const scoreD = isChallenger ? duel.score_defie : score;
-      const gagnantId = parseInt(scoreC) >= parseInt(scoreD) ? duel.challenger_id : duel.defie_id;
-      await dbJ.updateDuel(duel.id, { ...patch, statut:"termine", gagnant_id:gagnantId });
+      // Les 2 ont validé → terminer le duel et mettre à jour DRIX + stats
+      await dbJ.updateDuel(duel.id, { ...patch, statut:"termine" });
+      const gagnantId = duel.gagnant_id;
       const [sC, sD] = await Promise.all([dbJ.getStats(duel.challenger_id), dbJ.getStats(duel.defie_id)]);
       if (sC) await dbJ.updateStats(sC.id, { parties:sC.parties+1, victoires:gagnantId===duel.challenger_id?sC.victoires+1:sC.victoires, defaites:gagnantId!==duel.challenger_id?sC.defaites+1:sC.defaites });
       if (sD) await dbJ.updateStats(sD.id, { parties:sD.parties+1, victoires:gagnantId===duel.defie_id?sD.victoires+1:sD.victoires, defaites:gagnantId!==duel.defie_id?sD.defaites+1:sD.defaites });
+      // Calcul DRIX
+      const [jC, jD] = await Promise.all([dbJ.getJoueur(duel.challenger_id), dbJ.getJoueur(duel.defie_id)]);
+      if (jC && jD) {
+        const { calculerDrix, appliquerDrixDuel } = await import("./AppJoueurs");
+        await appliquerDrixDuel({...duel, statut:"termine"});
+      }
     } else {
       await dbJ.updateDuel(duel.id, patch);
     }
@@ -347,7 +356,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
 
       {/* Onglets */}
       <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
-        {[["defis",`⚔️ Défis${defis.length>0?" ("+defis.length+")":""}`],["historique","📋 Historique"],["affiliation","🍺 Affiliation"]].map(([t,l])=>(
+        {[["defis",`⚔️ Défis${defis.length>0?" ("+defis.length+")":""}`],["amis","👥 Amis"],["historique","📋 Historique"],["affiliation","🍺 Affiliation"]].map(([t,l])=>(
           <button key={t} onClick={()=>setTab(t)} style={{ background:tab===t?CJ.accent+"22":"transparent",color:tab===t?CJ.accent:CJ.muted,border:`1px solid ${tab===t?CJ.accent:CJ.border}`,cursor:"pointer",padding:"7px 14px",borderRadius:8,fontSize:13,fontWeight:500 }}>{l}</button>
         ))}
       </div>
@@ -355,13 +364,70 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       {/* Défis */}
       {tab==="defis" && (
         <div>
+
+          {/* Duels en attente de validation finale */}
+          {duels.filter(d=>d.statut==="en_validation").length>0 && (
+            <div style={{ marginBottom:24 }}>
+              <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:CJ.yellow }}>⚠️ Résultats à valider</h3>
+              {duels.filter(d=>d.statut==="en_validation").map(d=>{
+                const isChallenger = d.challenger_id===joueur.id;
+                const dejaValide = isChallenger ? d.valide_challenger : d.valide_defie;
+                const adversaire = isChallenger ? d.defie_pseudo : d.challenger_pseudo;
+                const gagnantPseudo = d.gagnant_pseudo;
+                return (
+                  <div key={d.id} style={{ background:CJ.card,border:`2px solid ${CJ.yellow}`,borderRadius:12,padding:18,marginBottom:10 }}>
+                    <p style={{ fontWeight:700,fontSize:15,marginBottom:6 }}>⚔️ vs <strong>{adversaire}</strong> — {d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""}</p>
+                    <div style={{ background:"#111",borderRadius:10,padding:14,marginBottom:12,textAlign:"center" }}>
+                      <div style={{ fontSize:24,marginBottom:4 }}>{gagnantPseudo===joueur.pseudo?"🏆":"😔"}</div>
+                      <p style={{ fontWeight:800,fontSize:16,color:gagnantPseudo===joueur.pseudo?CJ.green:CJ.red }}>
+                        {gagnantPseudo===joueur.pseudo?"Vous avez gagné !":""+gagnantPseudo+" a gagné"}
+                      </p>
+                      <p style={{ color:CJ.muted,fontSize:12,marginTop:4 }}>
+                        {d.score_manches_challenger} – {d.score_manches_defie} manches
+                      </p>
+                    </div>
+                    {dejaValide
+                      ? <p style={{ color:CJ.green,fontSize:13,textAlign:"center" }}>✅ Vous avez validé — en attente de l'adversaire</p>
+                      : <BtnJ onClick={()=>validerResultat(d)} style={{ width:"100%",fontSize:14 }}>✅ Je confirme ce résultat</BtnJ>
+                    }
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Duels acceptés — Lancer le scoreur */}
+          {duels.filter(d=>d.statut==="accepte").length>0 && (
+            <div style={{ marginBottom:24 }}>
+              <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:CJ.green }}>🎮 Duels acceptés — Prêts à jouer</h3>
+              {duels.filter(d=>d.statut==="accepte").map(d=>{
+                const isChallenger = d.challenger_id===joueur.id;
+                const adversaire = isChallenger ? d.defie_pseudo : d.challenger_pseudo;
+                return (
+                  <div key={d.id} style={{ background:CJ.card,border:`1px solid ${CJ.green}44`,borderRadius:12,padding:16,marginBottom:10 }}>
+                    <p style={{ fontWeight:700,marginBottom:4 }}>⚔️ vs <strong>{adversaire}</strong></p>
+                    <p style={{ color:CJ.muted,fontSize:12,marginBottom:12 }}>
+                      {d.mode} · Premier à {d.manches||1} manche{(d.manches||1)>1?"s":""}
+                    </p>
+                    <BtnJ onClick={()=>setPage("scoreur-duel-"+d.id)} style={{ fontSize:13,width:"100%" }}>
+                      🎯 Lancer le scoreur
+                    </BtnJ>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Défis reçus */}
           <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14 }}>⚔️ Défis reçus</h3>
           {defis.length===0
             ? <p style={{ color:CJ.muted,fontSize:13,marginBottom:24 }}>Aucun défi en attente.</p>
             : defis.map(d=>(
               <div key={d.id} style={{ background:CJ.card,border:`1px solid ${CJ.yellow}44`,borderRadius:12,padding:16,marginBottom:10 }}>
-                <p style={{ fontWeight:700,marginBottom:6 }}>⚔️ <strong>{d.challenger_pseudo}</strong> vous défie en <BadgeJ color={CJ.accent}>{d.mode}</BadgeJ></p>
-                <p style={{ color:CJ.muted,fontSize:12,marginBottom:10 }}>{new Date(d.date).toLocaleDateString("fr-FR")}</p>
+                <p style={{ fontWeight:700,marginBottom:4 }}>⚔️ <strong>{d.challenger_pseudo}</strong> vous défie</p>
+                <p style={{ color:CJ.muted,fontSize:12,marginBottom:10 }}>
+                  {d.mode} · Premier à {d.manches||1} manche{(d.manches||1)>1?"s":""} · {new Date(d.date).toLocaleDateString("fr-FR")}
+                </p>
                 <div style={{ display:"flex",gap:8 }}>
                   <BtnJ variant="success" onClick={()=>accepterDefi(d)} style={{ fontSize:12,padding:"7px 14px" }}>✅ Accepter</BtnJ>
                   <BtnJ variant="danger" onClick={()=>refuserDefi(d)} style={{ fontSize:12,padding:"7px 14px" }}>❌ Refuser</BtnJ>
@@ -369,27 +435,18 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
               </div>
             ))
           }
-          <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,marginTop:8 }}>📤 Défis envoyés</h3>
+
+          {/* Défis envoyés */}
+          <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,marginTop:16 }}>📤 Défis envoyés</h3>
           {duels.filter(d=>d.challenger_id===joueur.id&&d.statut==="en_attente").length===0
-            ? <p style={{ color:CJ.muted,fontSize:13,marginBottom:24 }}>Aucun défi en attente.</p>
+            ? <p style={{ color:CJ.muted,fontSize:13,marginBottom:24 }}>Aucun défi envoyé en attente.</p>
             : duels.filter(d=>d.challenger_id===joueur.id&&d.statut==="en_attente").map(d=>(
               <div key={d.id} style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,padding:16,marginBottom:10 }}>
-                <p style={{ fontWeight:600 }}>⚔️ Défi envoyé à <strong>{d.defie_pseudo}</strong> — {d.mode}</p>
-                <p style={{ color:CJ.muted,fontSize:12 }}>En attente de réponse…</p>
+                <p style={{ fontWeight:600 }}>⚔️ Défi envoyé à <strong>{d.defie_pseudo}</strong></p>
+                <p style={{ color:CJ.muted,fontSize:12 }}>{d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""} · En attente…</p>
               </div>
             ))
           }
-          {duels.filter(d=>d.statut==="accepte").length>0 && (
-            <>
-              <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:CJ.green }}>🎮 Duels en cours</h3>
-              {duels.filter(d=>d.statut==="accepte").map(d=>{
-                const isChallenger = d.challenger_id===joueur.id;
-                const monScore = isChallenger ? d.score_challenger : d.score_defie;
-                const adversaire = isChallenger ? d.defie_pseudo : d.challenger_pseudo;
-                return <DuelEnCours key={d.id} duel={d} isChallenger={isChallenger} monScore={monScore} adversaire={adversaire} onValider={(score)=>validerScore(d,score)}/>;
-              })}
-            </>
-          )}
         </div>
       )}
 
@@ -420,6 +477,11 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             })
           }
         </div>
+      )}
+
+      {/* Amis */}
+      {tab==="amis" && (
+        <AmiSection joueur={joueur} setPage={setPage} setJoueurId={(id)=>{}} />
       )}
 
       {/* Affiliation */}
@@ -527,6 +589,203 @@ export const PageJoueurs = ({ joueur, setPage, setJoueurId }) => {
   );
 };
 
+// ── FORMULAIRE DE DÉFI ───────────────────────────────────────────────────────
+const DefiForm = ({ joueur, cible, setPage }) => {
+  const [mode, setMode] = useState("501");
+  const [manches, setManches] = useState(1);
+  const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [amiStatut, setAmiStatut] = useState(null);
+
+  const drixJoueur = joueur.drix || 1000;
+  const drixCible = cible.drix || 1000;
+  const { titre:titreJ, emoji:emojiJ, color:colorJ } = getDrixTitreLocal(drixJoueur);
+  const { titre:titreC, emoji:emojiC, color:colorC } = getDrixTitreLocal(drixCible);
+
+  // Calcul préview gain/perte DRIX
+  const expectedJ = 1 / (1 + Math.pow(10, (drixCible - drixJoueur) / 400));
+  const gainVictoire = Math.round(32 * (1 - expectedJ));
+  const perteDéfaite = Math.round(32 * expectedJ);
+
+  useEffect(() => {
+    // Vérifier si déjà ami
+    sbJ(`amis?or=(and(joueur_id.eq.${joueur.id},ami_id.eq.${cible.id}),and(joueur_id.eq.${cible.id},ami_id.eq.${joueur.id}))&select=*`)
+      .then(r => setAmiStatut(r?.[0]?.statut || null))
+      .catch(() => {});
+  }, [joueur.id, cible.id]);
+
+  const envoyer = async () => {
+    setLoading(true);
+    await dbJ.addDuel({
+      challenger_id: joueur.id,
+      challenger_pseudo: joueur.pseudo,
+      defie_id: cible.id,
+      defie_pseudo: cible.pseudo,
+      statut: "en_attente",
+      mode, manches,
+      date: Date.now(),
+      valide_challenger: false,
+      valide_defie: false,
+      score_manches_challenger: 0,
+      score_manches_defie: 0,
+    });
+    setSent(true);
+    setLoading(false);
+  };
+
+  const ajouterAmi = async () => {
+    await sbJ("amis", { method:"POST", body:JSON.stringify({ joueur_id:joueur.id, ami_id:cible.id, joueur_pseudo:joueur.pseudo, ami_pseudo:cible.pseudo, statut:"en_attente", date:Date.now() }) });
+    setAmiStatut("en_attente");
+  };
+
+  if (sent) return (
+    <div style={{ background:"#14532d",border:`1px solid ${CJ.green}`,borderRadius:12,padding:18,marginTop:12,textAlign:"center" }}>
+      <p style={{ fontWeight:700,color:CJ.green,fontSize:15 }}>✅ Défi envoyé à {cible.pseudo} !</p>
+      <p style={{ color:CJ.muted,fontSize:12,marginTop:4 }}>Il recevra une notification sur son profil.</p>
+    </div>
+  );
+
+  return (
+    <div style={{ background:CJ.card,border:`1px solid ${CJ.accent}44`,borderRadius:12,padding:18,marginTop:12 }}>
+
+      {/* Comparaison DRIX */}
+      <div style={{ display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",marginBottom:16,background:"#111",borderRadius:10,padding:12 }}>
+        <div style={{ textAlign:"center" }}>
+          <div style={{ fontSize:11,color:CJ.muted,marginBottom:3 }}>{joueur.pseudo}</div>
+          <div style={{ fontWeight:900,fontSize:20,color:colorJ }}>{drixJoueur}</div>
+          <div style={{ fontSize:10,color:colorJ }}>{emojiJ} {titreJ}</div>
+        </div>
+        <div style={{ textAlign:"center",color:CJ.muted,fontSize:18,fontWeight:900 }}>⚔️</div>
+        <div style={{ textAlign:"center" }}>
+          <div style={{ fontSize:11,color:CJ.muted,marginBottom:3 }}>{cible.pseudo}</div>
+          <div style={{ fontWeight:900,fontSize:20,color:colorC }}>{drixCible}</div>
+          <div style={{ fontSize:10,color:colorC }}>{emojiC} {titreC}</div>
+        </div>
+      </div>
+
+      {/* Preview DRIX */}
+      <div style={{ display:"flex",gap:8,marginBottom:14 }}>
+        <div style={{ flex:1,background:"#14532d33",border:`1px solid ${CJ.green}44`,borderRadius:8,padding:"8px 10px",textAlign:"center" }}>
+          <div style={{ fontSize:11,color:CJ.muted }}>Si victoire</div>
+          <div style={{ fontWeight:800,color:CJ.green,fontSize:15 }}>+{gainVictoire} DRIX</div>
+        </div>
+        <div style={{ flex:1,background:"#7f1d1d33",border:`1px solid ${CJ.red}44`,borderRadius:8,padding:"8px 10px",textAlign:"center" }}>
+          <div style={{ fontSize:11,color:CJ.muted }}>Si défaite</div>
+          <div style={{ fontWeight:800,color:CJ.red,fontSize:15 }}>-{perteDéfaite} DRIX</div>
+        </div>
+      </div>
+
+      <h3 style={{ fontWeight:700,fontSize:15,marginBottom:12,color:CJ.accent }}>⚔️ Défier {cible.pseudo}</h3>
+
+      {/* Mode */}
+      <div style={{ marginBottom:12 }}>
+        <label style={{ fontSize:12,color:CJ.muted,display:"block",marginBottom:6 }}>Mode de jeu</label>
+        <div style={{ display:"flex",gap:8 }}>
+          {["501","301"].map(m=>(
+            <button key={m} onClick={()=>setMode(m)} style={{ flex:1,padding:"10px",borderRadius:8,border:"none",fontWeight:700,fontSize:16,cursor:"pointer",background:mode===m?CJ.accent:"#111",color:mode===m?"#fff":CJ.muted }}>{m}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Manches */}
+      <div style={{ marginBottom:16 }}>
+        <label style={{ fontSize:12,color:CJ.muted,display:"block",marginBottom:6 }}>Premier à ... manches</label>
+        <div style={{ display:"flex",gap:6 }}>
+          {[1,2,3,4,5].map(n=>(
+            <button key={n} onClick={()=>setManches(n)} style={{ flex:1,padding:"10px 0",borderRadius:8,border:"none",fontWeight:800,fontSize:18,cursor:"pointer",background:manches===n?CJ.accent:"#111",color:manches===n?"#fff":CJ.muted }}>{n}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display:"flex",gap:8 }}>
+        <BtnJ onClick={envoyer} disabled={loading} style={{ flex:1,fontSize:14 }}>
+          {loading?"Envoi…":"⚔️ Envoyer le défi"}
+        </BtnJ>
+        {amiStatut === null && (
+          <BtnJ onClick={ajouterAmi} variant="dark" style={{ fontSize:13,padding:"10px 14px" }}>👥 Ajouter</BtnJ>
+        )}
+        {amiStatut === "en_attente" && <span style={{ color:CJ.muted,fontSize:12,alignSelf:"center" }}>Demande envoyée</span>}
+        {amiStatut === "accepte" && <span style={{ color:CJ.green,fontSize:12,alignSelf:"center" }}>✅ Ami</span>}
+      </div>
+    </div>
+  );
+};
+
+// ── SYSTÈME D'AMIS ────────────────────────────────────────────────────────────
+const dbAmis = {
+  getAmis: (id) => sbJ(`amis?or=(and(joueur_id.eq.${id},statut.eq.accepte),and(ami_id.eq.${id},statut.eq.accepte))&select=*`),
+  getDemandesRecues: (id) => sbJ(`amis?ami_id=eq.${id}&statut=eq.en_attente&select=*`),
+  accepterAmi: (id) => sbJ(`amis?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ statut:"accepte" }), prefer:"return=minimal" }),
+  refuserAmi: (id) => sbJ(`amis?id=eq.${id}`, { method:"DELETE", prefer:"return=minimal" }),
+  getNbAmis: (id) => sbJ(`amis?or=(and(joueur_id.eq.${id},statut.eq.accepte),and(ami_id.eq.${id},statut.eq.accepte))&select=id`).then(r=>r?.length||0),
+};
+
+export const AmiSection = ({ joueur, setPage, setJoueurId }) => {
+  const [amis, setAmis] = useState([]);
+  const [demandes, setDemandes] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([dbAmis.getAmis(joueur.id), dbAmis.getDemandesRecues(joueur.id)])
+      .then(([a,d]) => { setAmis(a||[]); setDemandes(d||[]); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [joueur.id]);
+
+  const accepter = async (d) => {
+    await dbAmis.accepterAmi(d.id);
+    setDemandes(x=>x.filter(x=>x.id!==d.id));
+    setAmis(x=>[...x,{...d,statut:"accepte"}]);
+  };
+
+  const refuser = async (d) => {
+    await dbAmis.refuserAmi(d.id);
+    setDemandes(x=>x.filter(x=>x.id!==d.id));
+  };
+
+  if (loading) return <SpinnerJ/>;
+
+  return (
+    <div>
+      {/* Demandes reçues */}
+      {demandes.length > 0 && (
+        <div style={{ marginBottom:20 }}>
+          <h3 style={{ fontWeight:700,fontSize:15,marginBottom:12,color:CJ.yellow }}>👥 Demandes d'amis ({demandes.length})</h3>
+          {demandes.map(d=>(
+            <div key={d.id} style={{ background:CJ.card,border:`1px solid ${CJ.yellow}44`,borderRadius:10,padding:14,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8 }}>
+              <span style={{ fontWeight:600 }}>👤 {d.joueur_pseudo}</span>
+              <div style={{ display:"flex",gap:6 }}>
+                <BtnJ variant="success" onClick={()=>accepter(d)} style={{ fontSize:12,padding:"6px 12px" }}>✅ Accepter</BtnJ>
+                <BtnJ variant="danger" onClick={()=>refuser(d)} style={{ fontSize:12,padding:"6px 12px" }}>❌ Refuser</BtnJ>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Liste d'amis */}
+      <h3 style={{ fontWeight:700,fontSize:15,marginBottom:12,color:CJ.accent }}>👥 Mes amis ({amis.length})</h3>
+      {amis.length === 0
+        ? <p style={{ color:CJ.muted,fontSize:13 }}>Aucun ami pour l'instant. Va sur la fiche d'un joueur pour l'ajouter !</p>
+        : amis.map(a => {
+            const amiId = a.joueur_id === joueur.id ? a.ami_id : a.joueur_id;
+            const amiPseudo = a.joueur_id === joueur.id ? a.ami_pseudo : a.joueur_pseudo;
+            return (
+              <div key={a.id} onClick={()=>{setJoueurId(amiId);setPage("profil-joueur");}}
+                style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:10,padding:14,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onMouseEnter={e=>e.currentTarget.style.borderColor=CJ.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
+                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                  <div style={{ width:36,height:36,background:CJ.accent+"22",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16 }}>🎯</div>
+                  <span style={{ fontWeight:600 }}>{amiPseudo}</span>
+                </div>
+                <span style={{ color:CJ.accent,fontSize:12 }}>⚔️ Voir le profil →</span>
+              </div>
+            );
+          })
+      }
+    </div>
+  );
+};
+
 // ── FICHE JOUEUR PUBLIC ───────────────────────────────────────────────────────
 export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage, setBarSlug }) => {
   const [j, setJ] = useState(null);
@@ -583,7 +842,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
         </div>
       )}
       {moi && moi.id!==j.id && (
-        <BtnJ onClick={()=>setPage("mon-profil")} style={{ width:"100%",marginTop:8 }}>⚔️ Défier {j.pseudo}</BtnJ>
+        <DefiForm joueur={moi} cible={j} setPage={setPage}/>
       )}
     </div>
   );

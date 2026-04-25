@@ -1,10 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 
 // ── AppJeux.jsx ───────────────────────────────────────────────────────────────
-// Scoreur DartPoint — optimisé mobile
+// Scoreur DartPoint — optimisé mobile — mode libre et mode duel
 // Importé depuis App.jsx
 
-// ── SUGGESTIONS DE FINISH ─────────────────────────────────────────────────────
 const CHECKOUTS = {
   170:"T20 T20 Bull", 167:"T20 T19 Bull", 164:"T20 T18 Bull", 161:"T20 T17 Bull",
   160:"T20 T20 D20", 158:"T20 T20 D19", 156:"T20 T20 D18", 155:"T20 T19 D19",
@@ -39,50 +38,53 @@ const CHECKOUTS = {
   14:"D7",  12:"D6",  10:"D5",   8:"D4",   6:"D3",   4:"D2",  2:"D1",
 };
 
-// ── SCOREUR PRINCIPAL ─────────────────────────────────────────────────────────
-export const Scoreur = () => {
-  const [etape, setEtape] = useState("config"); // config | jeu | fin
-  const [config, setConfig] = useState({ mode:"501", manches:2, nom1:"Joueur 1", nom2:"Joueur 2" });
-  const [input, setInput] = useState("");
+const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
+const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 
-  // État du jeu
-  const [joueurs, setJoueurs] = useState(null);
+// ── SCOREUR ───────────────────────────────────────────────────────────────────
+export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) => {
+  const modeDuel = !!duel;
+
+  const [etape, setEtape] = useState(modeDuel ? "jeu" : "config");
+  const [config, setConfig] = useState({
+    mode: duel?.mode || "501",
+    manches: duel?.manches || 1,
+    nom1: duel?.challenger_pseudo || "Joueur 1",
+    nom2: duel?.defie_pseudo || "Joueur 2",
+  });
+  const [input, setInput] = useState("");
+  const [joueurs, setJoueurs] = useState(modeDuel ? initJoueursFromDuel(duel) : null);
   const [actifIdx, setActifIdx] = useState(0);
   const [gagnant, setGagnant] = useState(null);
+  const [resultEnregistre, setResultEnregistre] = useState(false);
+
+  function initJoueursFromDuel(d) {
+    const sv = parseInt(d?.mode || "501");
+    return [
+      { nom:d?.challenger_pseudo||"Joueur 1", score:sv, manchesGagnees:0, tours:[], flechettes:0, totalPoints:0, scorePrecedent:null },
+      { nom:d?.defie_pseudo||"Joueur 2", score:sv, manchesGagnees:0, tours:[], flechettes:0, totalPoints:0, scorePrecedent:null },
+    ];
+  }
 
   const startVal = parseInt(config.mode);
 
-  const initJoueurs = () => [{
-    nom: config.nom1 || "Joueur 1",
-    score: startVal,
-    manchesGagnees: 0,
-    tours: [],
-    flechettes: 0,
-    totalPoints: 0,
-    scorePrecedent: null,
-  }, {
-    nom: config.nom2 || "Joueur 2",
-    score: startVal,
-    manchesGagnees: 0,
-    tours: [],
-    flechettes: 0,
-    totalPoints: 0,
-    scorePrecedent: null,
-  }];
+  const initJoueurs = () => [
+    { nom:config.nom1||"Joueur 1", score:startVal, manchesGagnees:0, tours:[], flechettes:0, totalPoints:0, scorePrecedent:null },
+    { nom:config.nom2||"Joueur 2", score:startVal, manchesGagnees:0, tours:[], flechettes:0, totalPoints:0, scorePrecedent:null },
+  ];
 
   const demarrer = () => {
     setJoueurs(initJoueurs());
     setActifIdx(0);
     setGagnant(null);
     setInput("");
+    setResultEnregistre(false);
     setEtape("jeu");
   };
 
   const reset = () => {
-    setJoueurs(null);
-    setGagnant(null);
-    setInput("");
-    setEtape("config");
+    if (modeDuel && setPage) { setPage("mon-profil"); return; }
+    setJoueurs(null); setGagnant(null); setInput(""); setResultEnregistre(false); setEtape("config");
   };
 
   const appuyer = (val) => {
@@ -93,7 +95,30 @@ export const Scoreur = () => {
     setInput(next);
   };
 
+  const enregistrerResultatDuel = async (gagnantNom, scoreC, scoreD) => {
+    if (!duel || resultEnregistre) return;
+    const gagnantId = gagnantNom === duel.challenger_pseudo ? duel.challenger_id : duel.defie_id;
+    try {
+      await fetch(`${SB_URL}/rest/v1/duels?id=eq.${duel.id}`, {
+        method: "PATCH",
+        headers: { "apikey":SB_KEY, "Authorization":`Bearer ${SB_KEY}`, "Content-Type":"application/json", "Prefer":"return=minimal" },
+        body: JSON.stringify({
+          statut: "en_validation",
+          gagnant_id: gagnantId,
+          gagnant_pseudo: gagnantNom,
+          score_manches_challenger: scoreC,
+          score_manches_defie: scoreD,
+          valide_challenger: false,
+          valide_defie: false,
+        })
+      });
+      setResultEnregistre(true);
+      if (onDuelTermine) onDuelTermine();
+    } catch(e) { console.error("Erreur enregistrement duel:", e); }
+  };
+
   const envoyer = () => {
+    if (!joueurs) return;
     const val = parseInt(input);
     if (!input || isNaN(val) || val < 0 || val > 180) { setInput(""); return; }
 
@@ -112,24 +137,28 @@ export const Scoreur = () => {
       return;
     }
 
-    // Manche gagnée (score = 0, double out)
+    // Manche gagnée (double out)
     if (nouveau === 0) {
-      const newManchesGagnees = joueur.manchesGagnees + 1;
+      const newManches = joueur.manchesGagnees + 1;
       const updated = joueurs.map((j, i) => i === actifIdx
-        ? { ...j, score: nouveau, manchesGagnees: newManchesGagnees, tours: [...j.tours, val], flechettes: j.flechettes + 3, totalPoints: j.totalPoints + val, scorePrecedent: val }
+        ? { ...j, score: nouveau, manchesGagnees: newManches, tours: [...j.tours, val], flechettes: j.flechettes + 3, totalPoints: j.totalPoints + val, scorePrecedent: val }
         : j
       );
 
-      // Victoire finale
-      if (newManchesGagnees >= config.manches) {
+      const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
+
+      if (newManches >= manchesTotal) {
         setJoueurs(updated);
-        setGagnant(updated[actifIdx]);
+        const scoreC = actifIdx === 0 ? newManches : updated[1].manchesGagnees;
+        const scoreD = actifIdx === 1 ? newManches : updated[0].manchesGagnees;
+        const gagnantObj = {...joueur, manchesGagnees:newManches, tours:[...joueur.tours,val], totalPoints:joueur.totalPoints+val, flechettes:joueur.flechettes+3};
+        setGagnant(gagnantObj);
         setEtape("fin");
+        if (modeDuel) enregistrerResultatDuel(joueur.nom, scoreC, scoreD);
         return;
       }
 
-      // Nouvelle manche
-      const reset_manche = updated.map(j => ({ ...j, score: startVal, scorePrecedent: null }));
+      const reset_manche = updated.map(j => ({ ...j, score: modeDuel ? parseInt(duel?.mode||"501") : startVal, scorePrecedent: null }));
       setJoueurs(reset_manche);
       setActifIdx(1 - actifIdx);
       setInput("");
@@ -146,69 +175,65 @@ export const Scoreur = () => {
     setInput("");
   };
 
-  const moyenne = (j) => {
-    if (!j || j.tours.length === 0) return "0.00";
-    return (j.totalPoints / j.tours.length).toFixed(2);
-  };
-
+  const moyenne = (j) => j && j.tours.length > 0 ? (j.totalPoints / j.tours.length).toFixed(2) : "0.00";
   const checkout = joueurs ? CHECKOUTS[joueurs[actifIdx]?.score] : null;
 
-  // ── ÉCRAN CONFIG ────────────────────────────────────────────────────────────
+  // ── ÉCRAN CONFIG (mode libre uniquement) ─────────────────────────────────
   if (etape === "config") return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"24px 16px", fontFamily:"Inter,sans-serif" }}>
       <h1 style={{ fontWeight:900, fontSize:26, marginBottom:4, color:"#f1f5f9", textAlign:"center" }}>🎯 Scoreur</h1>
-      <p style={{ color:"#94a3b8", fontSize:14, marginBottom:28, textAlign:"center" }}>Configurez votre partie</p>
-
-      {/* Mode */}
-      <div style={{ marginBottom:20 }}>
-        <label style={{ fontSize:13, fontWeight:600, color:"#94a3b8", display:"block", marginBottom:10 }}>MODE DE JEU</label>
-        <div style={{ display:"flex", gap:10 }}>
-          {["301","501"].map(m=>(
-            <button key={m} onClick={()=>setConfig(c=>({...c,mode:m}))}
-              style={{ flex:1, padding:"16px", borderRadius:12, border:"none", fontWeight:900, fontSize:22, cursor:"pointer",
-                background:config.mode===m?"linear-gradient(135deg,#f97316,#ea580c)":"#1a1a1a",
-                color:config.mode===m?"#fff":"#94a3b8" }}>
-              {m}
-            </button>
-          ))}
+      <p style={{ color:"#94a3b8", fontSize:14, marginBottom:28, textAlign:"center" }}>Mode libre</p>
+      <div style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:14, padding:24, display:"flex", flexDirection:"column", gap:14 }}>
+        <div>
+          <label style={{ fontSize:13, fontWeight:600, color:"#94a3b8", display:"block", marginBottom:10 }}>MODE DE JEU</label>
+          <div style={{ display:"flex", gap:8 }}>
+            {["301","501"].map(m=>(
+              <button key={m} onClick={()=>setConfig(c=>({...c,mode:m}))}
+                style={{ flex:1, padding:"16px", borderRadius:12, border:"none", fontWeight:900, fontSize:22, cursor:"pointer",
+                  background:config.mode===m?"linear-gradient(135deg,#f97316,#ea580c)":"#111", color:config.mode===m?"#fff":"#94a3b8" }}>
+                {m}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-
-      {/* Manches */}
-      <div style={{ marginBottom:20 }}>
-        <label style={{ fontSize:13, fontWeight:600, color:"#94a3b8", display:"block", marginBottom:10 }}>PREMIER À ... MANCHES</label>
-        <div style={{ display:"flex", gap:8 }}>
-          {[1,2,3,4,5].map(n=>(
-            <button key={n} onClick={()=>setConfig(c=>({...c,manches:n}))}
-              style={{ flex:1, padding:"14px 0", borderRadius:10, border:"none", fontWeight:800, fontSize:18, cursor:"pointer",
-                background:config.manches===n?"linear-gradient(135deg,#f97316,#ea580c)":"#1a1a1a",
-                color:config.manches===n?"#fff":"#94a3b8" }}>
-              {n}
-            </button>
-          ))}
+        <div>
+          <label style={{ fontSize:13, fontWeight:600, color:"#94a3b8", display:"block", marginBottom:10 }}>PREMIER À ... MANCHES</label>
+          <div style={{ display:"flex", gap:8 }}>
+            {[1,2,3,4,5].map(n=>(
+              <button key={n} onClick={()=>setConfig(c=>({...c,manches:n}))}
+                style={{ flex:1, padding:"14px 0", borderRadius:10, border:"none", fontWeight:800, fontSize:18, cursor:"pointer",
+                  background:config.manches===n?"linear-gradient(135deg,#f97316,#ea580c)":"#111", color:config.manches===n?"#fff":"#94a3b8" }}>
+                {n}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-
-      {/* Noms */}
-      <div style={{ marginBottom:20 }}>
-        <label style={{ fontSize:13, fontWeight:600, color:"#94a3b8", display:"block", marginBottom:10 }}>JOUEURS</label>
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {[["nom1","Joueur 1"],["nom2","Joueur 2"]].map(([k,ph])=>(
-            <input key={k} value={config[k]} onChange={e=>setConfig(c=>({...c,[k]:e.target.value}))} placeholder={ph}
-              style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, padding:"14px 16px", color:"#f1f5f9", fontSize:16, fontWeight:600 }}/>
-          ))}
+        <div>
+          <label style={{ fontSize:13, fontWeight:600, color:"#94a3b8", display:"block", marginBottom:10 }}>JOUEURS</label>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {[["nom1","Joueur 1"],["nom2","Joueur 2"]].map(([k,ph])=>(
+              <input key={k} value={config[k]} onChange={e=>setConfig(c=>({...c,[k]:e.target.value}))} placeholder={ph}
+                style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:10, padding:"14px 16px", color:"#f1f5f9", fontSize:16, fontWeight:600 }}/>
+            ))}
+          </div>
         </div>
+        <button onClick={demarrer}
+          style={{ width:"100%", padding:"18px", borderRadius:14, border:"none", fontWeight:900, fontSize:18, cursor:"pointer",
+            background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", marginTop:4 }}>
+          🎯 DÉMARRER LA PARTIE
+        </button>
       </div>
-
-      <button onClick={demarrer}
-        style={{ width:"100%", padding:"18px", borderRadius:14, border:"none", fontWeight:900, fontSize:18, cursor:"pointer",
-          background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", marginTop:8 }}>
-        🎯 DÉMARRER LA PARTIE
-      </button>
+      <div style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:12, padding:18, marginTop:20 }}>
+        <h3 style={{ fontWeight:700, fontSize:14, marginBottom:10, color:"#f97316" }}>📋 Règles rapides</h3>
+        <p style={{ color:"#94a3b8", fontSize:13, lineHeight:1.7 }}>
+          Partez de {config.mode} et descendez à 0. Le dernier lancer doit finir sur un <strong style={{ color:"#f1f5f9" }}>double</strong>.
+          Si le score descend en dessous de 0 ou égale 1, le tour est <strong style={{ color:"#ef4444" }}>bust</strong>.
+        </p>
+      </div>
     </div>
   );
 
-  // ── ÉCRAN FIN ───────────────────────────────────────────────────────────────
+  // ── ÉCRAN FIN ─────────────────────────────────────────────────────────────
   if (etape === "fin") return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"40px 16px", textAlign:"center", fontFamily:"Inter,sans-serif" }}>
       <div style={{ background:"linear-gradient(135deg,#14532d,#166534)", borderRadius:20, padding:"40px 24px", marginBottom:20 }}>
@@ -230,32 +255,49 @@ export const Scoreur = () => {
           </div>
         </div>
       </div>
+
+      {/* Mode duel : message validation */}
+      {modeDuel && (
+        <div style={{ background:"#1a1200", border:"2px solid #f59e0b", borderRadius:14, padding:20, marginBottom:16 }}>
+          <p style={{ fontWeight:700, fontSize:15, color:"#f59e0b", marginBottom:6 }}>⚠️ Résultat enregistré !</p>
+          <p style={{ color:"#94a3b8", fontSize:13 }}>
+            Les 2 joueurs doivent maintenant valider le résultat depuis leur profil pour que les DRIX soient mis à jour.
+          </p>
+        </div>
+      )}
+
       <div style={{ display:"flex", gap:10 }}>
-        <button onClick={demarrer} style={{ flex:1,padding:"16px",borderRadius:12,border:"none",fontWeight:800,fontSize:16,cursor:"pointer",background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff" }}>🔄 Rejouer</button>
-        <button onClick={reset} style={{ flex:1,padding:"16px",borderRadius:12,border:"1px solid #2a2a2a",fontWeight:800,fontSize:16,cursor:"pointer",background:"#1a1a1a",color:"#94a3b8" }}>⚙️ Config</button>
+        {!modeDuel && <button onClick={demarrer} style={{ flex:1,padding:"16px",borderRadius:12,border:"none",fontWeight:800,fontSize:16,cursor:"pointer",background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff" }}>🔄 Rejouer</button>}
+        <button onClick={reset} style={{ flex:1,padding:"16px",borderRadius:12,border:"1px solid #2a2a2a",fontWeight:800,fontSize:16,cursor:"pointer",background:"#1a1a1a",color:"#94a3b8" }}>
+          {modeDuel?"← Mon profil":"⚙️ Config"}
+        </button>
       </div>
     </div>
   );
 
-  // ── ÉCRAN JEU ───────────────────────────────────────────────────────────────
+  // ── ÉCRAN JEU ─────────────────────────────────────────────────────────────
+  if (!joueurs) return null;
   const j0 = joueurs[0];
   const j1 = joueurs[1];
   const actif = joueurs[actifIdx];
+  const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
 
   return (
     <div style={{ maxWidth:480, margin:"0 auto", fontFamily:"Inter,sans-serif", display:"flex", flexDirection:"column", minHeight:"calc(100vh - 58px)" }}>
 
-      {/* Header manches */}
+      {/* Header */}
       <div style={{ background:"#111", padding:"10px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #2a2a2a" }}>
         <button onClick={reset} style={{ background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:22 }}>←</button>
         <div style={{ textAlign:"center" }}>
-          <div style={{ fontWeight:900, fontSize:14, color:"#f1f5f9", letterSpacing:1 }}>PREMIER À {config.manches} MANCHE{config.manches>1?"S":""}</div>
-          <div style={{ fontSize:12, color:"#94a3b8" }}>{config.mode} · Double out</div>
+          <div style={{ fontWeight:900, fontSize:14, color:"#f1f5f9", letterSpacing:1 }}>
+            {modeDuel ? "⚔️ DUEL" : "PREMIER À"} {manchesTotal} MANCHE{manchesTotal>1?"S":""}
+          </div>
+          <div style={{ fontSize:12, color:"#94a3b8" }}>{modeDuel?duel?.mode:config.mode} · Double out</div>
         </div>
         <div style={{ width:32 }}/>
       </div>
 
-      {/* Scores des 2 joueurs */}
+      {/* Scores */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", flex:"0 0 auto" }}>
         {[j0, j1].map((j, i) => {
           const isActif = i === actifIdx;
@@ -265,37 +307,26 @@ export const Scoreur = () => {
               padding:"18px 14px",
               background: isActif ? "linear-gradient(135deg,#f97316,#ea580c)" : "#c2410c22",
               borderBottom: `3px solid ${isActif ? "#f97316" : "transparent"}`,
-              position:"relative"
             }}>
-              {/* Indicateur actif */}
               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
                 <div style={{ width:10, height:10, borderRadius:"50%", background: isActif ? "#fff" : "transparent", border: isActif ? "none" : "2px solid #f9731644" }}/>
                 <span style={{ fontWeight:700, fontSize:14, color: isActif ? "#fff" : "#f97316aa" }}>{j.nom}</span>
               </div>
-
-              {/* Score principal */}
               <div style={{ fontSize:72, fontWeight:900, color: isActif ? "#fff" : "#f1f5f9aa", lineHeight:1, marginBottom:8 }}>{j.score}</div>
-
-              {/* Manches */}
               <div style={{ display:"flex", gap:4, marginBottom:10 }}>
-                {Array.from({length: config.manches}).map((_,mi)=>(
-                  <div key={mi} style={{ width:18, height:18, borderRadius:4, background: mi < j.manchesGagnees ? (isActif?"#fff":"#f97316") : (isActif?"#ffffff33":"#2a2a2a"), border:`1px solid ${isActif?"#ffffff44":"#3a3a3a"}` }}/>
+                {Array.from({length: manchesTotal}).map((_,mi)=>(
+                  <div key={mi} style={{ width:18, height:18, borderRadius:4, background: mi < j.manchesGagnees ? (isActif?"#fff":"#f97316") : (isActif?"#ffffff33":"#2a2a2a") }}/>
                 ))}
               </div>
-
-              {/* Stats */}
               <div style={{ fontSize:12, color: isActif ? "#fff9" : "#94a3b855" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
-                  <span>Moyenne</span>
-                  <span style={{ fontWeight:700, color: isActif ? "#fff" : "#94a3b8" }}>{moy}</span>
+                  <span>Moyenne</span><span style={{ fontWeight:700, color: isActif?"#fff":"#94a3b8" }}>{moy}</span>
                 </div>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
-                  <span>Score précédent</span>
-                  <span style={{ fontWeight:700, color: isActif ? "#fff" : "#94a3b8" }}>{j.scorePrecedent ?? "—"}</span>
+                  <span>Précédent</span><span style={{ fontWeight:700, color: isActif?"#fff":"#94a3b8" }}>{j.scorePrecedent ?? "—"}</span>
                 </div>
                 <div style={{ display:"flex", justifyContent:"space-between" }}>
-                  <span>Fléchettes jetées</span>
-                  <span style={{ fontWeight:700, color: isActif ? "#fff" : "#94a3b8" }}>{j.flechettes}</span>
+                  <span>Fléchettes</span><span style={{ fontWeight:700, color: isActif?"#fff":"#94a3b8" }}>{j.flechettes}</span>
                 </div>
               </div>
             </div>
@@ -303,7 +334,7 @@ export const Scoreur = () => {
         })}
       </div>
 
-      {/* Message tour + checkout */}
+      {/* Message + checkout */}
       <div style={{ padding:"12px 16px", background:"#0f0f0f", flex:"0 0 auto" }}>
         <p style={{ fontWeight:900, fontSize:15, color:"#f97316", textAlign:"center", marginBottom: checkout ? 4 : 0, letterSpacing:0.5 }}>
           C'EST AU TOUR DE {actif.nom.toUpperCase()} DE LANCER !
@@ -315,7 +346,7 @@ export const Scoreur = () => {
         )}
       </div>
 
-      {/* Champ de saisie */}
+      {/* Saisie */}
       <div style={{ padding:"10px 16px", background:"#0f0f0f", flex:"0 0 auto" }}>
         <div style={{ display:"flex", gap:10, alignItems:"center" }}>
           <div style={{ flex:1, background:"#fff", borderRadius:50, padding:"14px 20px", display:"flex", alignItems:"center", gap:10 }}>
@@ -331,7 +362,7 @@ export const Scoreur = () => {
         </div>
       </div>
 
-      {/* Clavier numérique */}
+      {/* Clavier */}
       <div style={{ padding:"8px 16px 16px", background:"#0f0f0f", flex:1 }}>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:8 }}>
           {["1","2","3","4","5","6","7","8","9"].map(n=>(

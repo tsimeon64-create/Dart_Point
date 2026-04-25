@@ -3,6 +3,7 @@ import {
   Connexion, MonProfil, PageJoueurs, FicheJoueur,
   PresenceSection, MembresBarSection,
   PageDrix, DrixBadge, HistoriqueDrix,
+  AmiSection,
   appliquerDrixDuel, getDrixTitre,
   dbJoueurs, todayStr, hashPwd
 } from "./AppJoueurs";
@@ -1114,6 +1115,23 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
   );
 };
 
+// ── SCOREUR DUEL (charge le duel depuis Supabase) ─────────────────────────────
+const ScoreurDuel = ({ duelId, joueur, setPage }) => {
+  const [duel, setDuel] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    sb(`duels?id=eq.${duelId}&select=*`)
+      .then(r => { setDuel(r?.[0]); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [duelId]);
+
+  if (loading) return <Spinner/>;
+  if (!duel) return <div style={{ textAlign:"center",padding:60,color:C.muted }}>Duel introuvable</div>;
+
+  return <Scoreur duel={duel} onDuelTermine={()=>{}} setPage={setPage}/>;
+};
+
 // ── FOOTER ────────────────────────────────────────────────────────────────────
 const Footer = ({ setPage }) => (
   <footer style={{ background:"#111",borderTop:`1px solid ${C.border}`,padding:"24px 20px",marginTop:40 }}>
@@ -1144,6 +1162,7 @@ export default function App() {
   const [history,setHistory]=useState(["home"]);
   const [joueur,setJoueur]=useState(null);
   const [defisCount,setDefisCount]=useState(0);
+  const [notifCount,setNotifCount]=useState(0);
   const [barsActifs,setBarsActifs]=useState([]);
 
   useEffect(()=>{ try{ const j=localStorage.getItem("dp_joueur"); if(j) setJoueur(JSON.parse(j)); }catch{} },[]);
@@ -1157,8 +1176,21 @@ export default function App() {
   useEffect(()=>{ dbJoueurs.getBarsActifs().then(r=>{ if(r) setBarsActifs([...new Set(r.map(x=>x.bar_slug))]); }).catch(()=>{}); },[]);
 
   useEffect(()=>{
-    if (!joueur) { setDefisCount(0); return; }
-    dbJoueurs.getDuelsEnAttente(joueur.id).then(d=>setDefisCount(d?.length||0)).catch(()=>{});
+    if (!joueur) { setDefisCount(0); setNotifCount(0); return; }
+    Promise.all([
+      dbJoueurs.getDuelsEnAttente(joueur.id),
+      sb(`amis?ami_id=eq.${joueur.id}&statut=eq.en_attente&select=id`),
+      sb(`duels?or=(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id})&statut=eq.en_validation&select=id,valide_challenger,valide_defie,challenger_id,defie_id`),
+    ]).then(([defis, demandesAmis, enValidation]) => {
+      const defisN = defis?.length || 0;
+      const amisN = demandesAmis?.length || 0;
+      const validN = (enValidation||[]).filter(d => {
+        const isChallenger = d.challenger_id === joueur.id;
+        return isChallenger ? !d.valide_challenger : !d.valide_defie;
+      }).length;
+      setDefisCount(defisN);
+      setNotifCount(defisN + amisN + validN);
+    }).catch(()=>{});
   },[joueur]);
 
   const handleLogin=(j)=>{ setJoueur(j); localStorage.setItem("dp_joueur",JSON.stringify(j)); nav("mon-profil"); };
@@ -1199,7 +1231,7 @@ export default function App() {
         ::-webkit-scrollbar-thumb { background:#333; border-radius:3px; }
         @keyframes spin { to { transform:rotate(360deg); } }
       `}</style>
-      <Nav page={page} setPage={nav} isAdmin={isAdmin} joueur={joueur} setJoueur={setJoueur} defisCount={defisCount}/>
+      <Nav page={page} setPage={nav} isAdmin={isAdmin} joueur={joueur} setJoueur={setJoueur} defisCount={notifCount}/>
       <main style={{ flex:1 }}>
         {page==="home"             && <Home bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="bars"             && <Bars bars={bars} setPage={nav} setBarSlug={setBarSlug} villeFilter={villeFilter} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
@@ -1213,7 +1245,8 @@ export default function App() {
         {page==="profil-joueur"    && <FicheJoueur joueurId={joueurId} joueur={joueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug}/>}
         {page==="mon-profil"       && joueur && <MonProfil joueur={joueur} setJoueur={setJoueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug}/>}
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav}/>}
-        {page==="scoreur"          && <Scoreur/>}
+        {page==="scoreur"          && <Scoreur setPage={nav}/>}
+        {page.startsWith("scoreur-duel-") && joueur && <ScoreurDuel duelId={page.replace("scoreur-duel-","")} joueur={joueur} setPage={nav}/>}
         {page==="apropos"          && <APropos bars={bars} setPage={nav}/>}
         {page==="proposer"         && <Proposer bars={bars} onSubmit={handleProposal}/>}
         {page==="proposer-asso"    && <ProposerAsso onSubmit={handleProposalAsso}/>}
