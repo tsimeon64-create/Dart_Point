@@ -1,3 +1,5 @@
+import { useState, useMemo, useEffect, useRef } from "react";
+
 // ── AppJoueurs.jsx ────────────────────────────────────────────────────────────
 // Système joueurs DartPoint : inscription, profils, duels, présence, scoreur
 // Importé depuis App.jsx
@@ -152,27 +154,62 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   const [stats, setStats] = useState(null);
   const [duels, setDuels] = useState([]);
   const [defis, setDefis] = useState([]);
-  const [joueurs, setJoueurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("profil");
-  const [defierPseudo, setDefierPseudo] = useState("");
-  const [defierMode, setDefierMode] = useState("501");
-  const [defierErr, setDefierErr] = useState("");
-  const [defierOk, setDefierOk] = useState(false);
+
+  // Édition profil
+  const [editMode, setEditMode] = useState(false);
+  const [editAge, setEditAge] = useState(joueur.age||"");
+  const [editVille, setEditVille] = useState(joueur.ville||"");
+  const [editStyle, setEditStyle] = useState(joueur.style_jeu||"electronique");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const photoRef = useRef(null);
 
   const bar = bars.find(b => b.slug === joueur.bar_slug);
   const asso = associations.find(a => a.slug === joueur.asso_slug);
+  const { titre, emoji, color } = getDrixTitreLocal(joueur.drix||1000);
 
   useEffect(() => {
     Promise.all([
       dbJ.getStats(joueur.id),
       dbJ.getDuels(joueur.id),
       dbJ.getDuelsEnAttente(joueur.id),
-      dbJ.getJoueurs(),
-    ]).then(([s,d,def,j]) => {
-      setStats(s); setDuels(d||[]); setDefis(def||[]); setJoueurs(j||[]); setLoading(false);
+    ]).then(([s,d,def]) => {
+      setStats(s); setDuels(d||[]); setDefis(def||[]); setLoading(false);
     }).catch(() => setLoading(false));
   }, [joueur.id]);
+
+  const sauvegarderProfil = async () => {
+    setSavingEdit(true);
+    const patch = { age: parseInt(editAge)||null, ville: editVille.trim()||null, style_jeu: editStyle };
+    await dbJ.updateJoueur(joueur.id, patch);
+    const updated = {...joueur, ...patch};
+    setJoueur(updated);
+    localStorage.setItem("dp_joueur", JSON.stringify(updated));
+    setSavingEdit(false);
+    setEditMode(false);
+  };
+
+  const uploadPhoto = async (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const img = new Image();
+      img.onload = async () => {
+        const MAX=300; let w=img.width,h=img.height;
+        if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
+        const canvas=document.createElement("canvas"); canvas.width=w; canvas.height=h;
+        canvas.getContext("2d").drawImage(img,0,0,w,h);
+        const data = canvas.toDataURL("image/jpeg",0.8);
+        await dbJ.updateJoueur(joueur.id, { photo: data });
+        const updated = {...joueur, photo: data};
+        setJoueur(updated);
+        localStorage.setItem("dp_joueur", JSON.stringify(updated));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
 
   const choisirBar = async (slug) => {
     await dbJ.updateJoueur(joueur.id, { bar_slug: slug });
@@ -188,23 +225,10 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     localStorage.setItem("dp_joueur", JSON.stringify(updated));
   };
 
-  const envoyerDefi = async () => {
-    setDefierErr(""); setDefierOk(false);
-    if (!defierPseudo.trim()) return;
-    if (defierPseudo.toLowerCase() === joueur.pseudo.toLowerCase()) { setDefierErr("Vous ne pouvez pas vous défier vous-même"); return; }
-    const cible = joueurs.find(j => j.pseudo.toLowerCase() === defierPseudo.toLowerCase());
-    if (!cible) { setDefierErr("Joueur introuvable"); return; }
-    await dbJ.addDuel({ challenger_id:joueur.id, challenger_pseudo:joueur.pseudo, defie_id:cible.id, defie_pseudo:cible.pseudo, statut:"en_attente", mode:defierMode, date:Date.now() });
-    setDefierOk(true); setDefierPseudo("");
-    const d = await dbJ.getDuels(joueur.id);
-    setDuels(d||[]);
-  };
-
   const accepterDefi = async (duel) => {
     await dbJ.updateDuel(duel.id, { statut:"accepte" });
     setDefis(x => x.filter(d => d.id !== duel.id));
-    const d = await dbJ.getDuels(joueur.id);
-    setDuels(d||[]);
+    const d = await dbJ.getDuels(joueur.id); setDuels(d||[]);
   };
 
   const refuserDefi = async (duel) => {
@@ -227,38 +251,92 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     } else {
       await dbJ.updateDuel(duel.id, patch);
     }
-    const d = await dbJ.getDuels(joueur.id);
-    setDuels(d||[]);
+    const d = await dbJ.getDuels(joueur.id); setDuels(d||[]);
   };
 
   if (loading) return <SpinnerJ/>;
 
   const winRate = stats && stats.parties > 0 ? Math.round((stats.victoires / stats.parties) * 100) : 0;
+  const STYLES = [["electronique","⚡ Électronique"],["traditionnel","🎯 Traditionnel"],["les deux","🎯⚡ Les deux"]];
 
   return (
-    <div style={{ maxWidth:860, margin:"0 auto", padding:"36px 20px" }}>
-      {/* Header */}
-      <div style={{ background:"linear-gradient(135deg,#1a0800,#1a1a2e)", border:`1px solid ${CJ.border}`, borderRadius:14, padding:24, marginBottom:20 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:16, flexWrap:"wrap" }}>
-          <div style={{ width:64,height:64,background:CJ.accent+"33",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,border:`2px solid ${CJ.accent}` }}>🎯</div>
-          <div style={{ flex:1 }}>
-            <h1 style={{ fontWeight:800, fontSize:24, marginBottom:6 }}>{joueur.pseudo}</h1>
-            <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-              {bar ? <BadgeJ color={CJ.accent}>🍺 {bar.nom}</BadgeJ> : <BadgeJ color={CJ.muted}>Pas de bar affilié</BadgeJ>}
-              {asso && <BadgeJ color="#7c3aed">🫂 {asso.nom}</BadgeJ>}
-              {/* DRIX Badge */}
-              {(() => { const d = joueur.drix||1000; const {titre,emoji,color} = getDrixTitreLocal(d); return (
-                <span style={{ background:color+"22", color, border:`1px solid ${color}44`, borderRadius:20, padding:"3px 12px", fontSize:12, fontWeight:700, display:"inline-flex", alignItems:"center", gap:5 }}>
-                  {emoji} {d} DRIX · {titre}
-                </span>
-              );})()}
+    <div style={{ maxWidth:860, margin:"0 auto", padding:"24px 20px" }}>
+
+      {/* ── CARTE PROFIL ── */}
+      <div style={{ background:"linear-gradient(135deg,#1a0800,#1a1a2e)", border:`1px solid ${color}44`, borderRadius:16, padding:24, marginBottom:20 }}>
+        <div style={{ display:"flex", alignItems:"flex-start", gap:20, flexWrap:"wrap" }}>
+
+          {/* Photo de profil */}
+          <div style={{ position:"relative", flexShrink:0 }}>
+            <div onClick={()=>photoRef.current?.click()} style={{ width:80,height:80,borderRadius:"50%",border:`3px solid ${color}`,overflow:"hidden",cursor:"pointer",background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32 }}>
+              {joueur.photo
+                ? <img src={joueur.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
+                : <span>{emoji}</span>
+              }
             </div>
+            <div onClick={()=>photoRef.current?.click()} style={{ position:"absolute",bottom:0,right:0,background:CJ.accent,borderRadius:"50%",width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:12,border:"2px solid #1a0800" }}>📷</div>
+            <input ref={photoRef} type="file" accept="image/*" style={{ display:"none" }} onChange={uploadPhoto}/>
           </div>
+
+          {/* Infos principales */}
+          <div style={{ flex:1, minWidth:200 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6, flexWrap:"wrap" }}>
+              <h1 style={{ fontWeight:900, fontSize:24 }}>{joueur.pseudo}</h1>
+              {!editMode && <button onClick={()=>setEditMode(true)} style={{ background:"none",border:`1px solid ${CJ.border}`,color:CJ.muted,cursor:"pointer",borderRadius:6,padding:"3px 10px",fontSize:11 }}>✏️ Modifier</button>}
+            </div>
+
+            {/* DRIX */}
+            <div style={{ display:"inline-flex",alignItems:"center",gap:8,background:color+"22",border:`1px solid ${color}44`,borderRadius:20,padding:"5px 14px",marginBottom:10 }}>
+              <span style={{ fontSize:16 }}>{emoji}</span>
+              <span style={{ fontWeight:900,fontSize:18,color }}>{joueur.drix||1000}</span>
+              <span style={{ fontSize:12,color,fontWeight:600 }}>DRIX · {titre}</span>
+            </div>
+
+            {/* Infos secondaires */}
+            {!editMode ? (
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                {joueur.age && <BadgeJ color={CJ.muted}>🎂 {joueur.age} ans</BadgeJ>}
+                {joueur.ville && <BadgeJ color={CJ.blue}>📍 {joueur.ville}</BadgeJ>}
+                {joueur.style_jeu && <BadgeJ color={CJ.accent}>{STYLES.find(s=>s[0]===joueur.style_jeu)?.[1]||joueur.style_jeu}</BadgeJ>}
+                {bar ? <BadgeJ color={CJ.accent}>🍺 {bar.nom}</BadgeJ> : <BadgeJ color={CJ.muted}>Pas de bar affilié</BadgeJ>}
+                {asso && <BadgeJ color="#7c3aed">🫂 {asso.nom}</BadgeJ>}
+              </div>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:8 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                  <div>
+                    <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Âge</label>
+                    <input value={editAge} onChange={e=>setEditAge(e.target.value)} placeholder="Ex: 28" type="number"
+                      style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"8px 10px",color:CJ.text,fontSize:13 }}/>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Ville</label>
+                    <input value={editVille} onChange={e=>setEditVille(e.target.value)} placeholder="Ex: Bayonne"
+                      style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"8px 10px",color:CJ.text,fontSize:13 }}/>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Style de jeu</label>
+                  <div style={{ display:"flex",gap:6 }}>
+                    {STYLES.map(([v,l])=>(
+                      <button key={v} onClick={()=>setEditStyle(v)} style={{ flex:1,background:editStyle===v?CJ.accent+"33":"#111",border:`1px solid ${editStyle===v?CJ.accent:CJ.border}`,borderRadius:8,padding:"7px 4px",cursor:"pointer",fontSize:11,color:editStyle===v?CJ.accent:CJ.muted,fontWeight:editStyle===v?700:400 }}>{l}</button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display:"flex",gap:8 }}>
+                  <BtnJ onClick={sauvegarderProfil} disabled={savingEdit} style={{ fontSize:12,padding:"7px 16px" }}>{savingEdit?"…":"💾 Sauvegarder"}</BtnJ>
+                  <BtnJ onClick={()=>setEditMode(false)} variant="dark" style={{ fontSize:12,padding:"7px 16px" }}>Annuler</BtnJ>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Stats */}
           {stats && (
-            <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
               {[[stats.victoires,"V",CJ.green],[stats.defaites,"D",CJ.red],[stats.parties,"Parties",CJ.muted],[winRate+"%","Win",CJ.yellow]].map(([v,l,c])=>(
-                <div key={l} style={{ textAlign:"center" }}>
-                  <div style={{ fontSize:20,fontWeight:800,color:c }}>{v}</div>
+                <div key={l} style={{ textAlign:"center", background:"#ffffff11", borderRadius:10, padding:"10px 14px" }}>
+                  <div style={{ fontSize:22,fontWeight:900,color:c }}>{v}</div>
                   <div style={{ fontSize:11,color:CJ.muted }}>{l}</div>
                 </div>
               ))}
@@ -269,42 +347,10 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
 
       {/* Onglets */}
       <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
-        {[["profil","👤 Profil"],["defis",`⚔️ Défis${defis.length>0?" ("+defis.length+")":""}`],["historique","📋 Historique"],["affiliation","🍺 Affiliation"]].map(([t,l])=>(
+        {[["defis",`⚔️ Défis${defis.length>0?" ("+defis.length+")":""}`],["historique","📋 Historique"],["affiliation","🍺 Affiliation"]].map(([t,l])=>(
           <button key={t} onClick={()=>setTab(t)} style={{ background:tab===t?CJ.accent+"22":"transparent",color:tab===t?CJ.accent:CJ.muted,border:`1px solid ${tab===t?CJ.accent:CJ.border}`,cursor:"pointer",padding:"7px 14px",borderRadius:8,fontSize:13,fontWeight:500 }}>{l}</button>
         ))}
       </div>
-
-      {/* Profil */}
-      {tab==="profil" && (
-        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:12, padding:20 }}>
-            <h3 style={{ fontWeight:700, fontSize:15, marginBottom:14, color:CJ.accent }}>⚔️ Défier un joueur</h3>
-            <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"flex-end" }}>
-              <div style={{ flex:1, minWidth:150 }}>
-                <label style={{ fontSize:12,color:CJ.muted,display:"block",marginBottom:6 }}>Pseudo du joueur</label>
-                <input value={defierPseudo} onChange={e=>setDefierPseudo(e.target.value)} placeholder="Pseudo…"
-                  style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"9px 12px",color:CJ.text,fontSize:13 }}
-                  list="joueurs-list"/>
-                <datalist id="joueurs-list">{joueurs.filter(j=>j.id!==joueur.id).map(j=><option key={j.id} value={j.pseudo}/>)}</datalist>
-              </div>
-              <div>
-                <label style={{ fontSize:12,color:CJ.muted,display:"block",marginBottom:6 }}>Mode</label>
-                <select value={defierMode} onChange={e=>setDefierMode(e.target.value)} style={{ background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"9px 12px",color:CJ.text,fontSize:13 }}>
-                  <option value="501">501</option><option value="301">301</option>
-                </select>
-              </div>
-              <BtnJ onClick={envoyerDefi} style={{ fontSize:13,padding:"9px 18px" }}>⚔️ Défier</BtnJ>
-            </div>
-            {defierErr && <p style={{ color:CJ.red,fontSize:12,marginTop:8 }}>⚠️ {defierErr}</p>}
-            {defierOk && <p style={{ color:CJ.green,fontSize:12,marginTop:8 }}>✅ Défi envoyé !</p>}
-          </div>
-          <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:12, padding:20 }}>
-            <h3 style={{ fontWeight:700, fontSize:15, marginBottom:12, color:CJ.accent }}>🎮 Scoreur libre</h3>
-            <p style={{ color:CJ.muted, fontSize:13, marginBottom:12 }}>Lancez une partie sans compte adverse.</p>
-            <BtnJ onClick={()=>setPage("scoreur")} variant="ghost" style={{ fontSize:13 }}>🎯 Ouvrir le scoreur</BtnJ>
-          </div>
-        </div>
-      )}
 
       {/* Défis */}
       {tab==="defis" && (
@@ -323,10 +369,9 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
               </div>
             ))
           }
-
           <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,marginTop:8 }}>📤 Défis envoyés</h3>
           {duels.filter(d=>d.challenger_id===joueur.id&&d.statut==="en_attente").length===0
-            ? <p style={{ color:CJ.muted,fontSize:13,marginBottom:24 }}>Aucun défi envoyé en attente.</p>
+            ? <p style={{ color:CJ.muted,fontSize:13,marginBottom:24 }}>Aucun défi en attente.</p>
             : duels.filter(d=>d.challenger_id===joueur.id&&d.statut==="en_attente").map(d=>(
               <div key={d.id} style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,padding:16,marginBottom:10 }}>
                 <p style={{ fontWeight:600 }}>⚔️ Défi envoyé à <strong>{d.defie_pseudo}</strong> — {d.mode}</p>
@@ -334,7 +379,6 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
               </div>
             ))
           }
-
           {duels.filter(d=>d.statut==="accepte").length>0 && (
             <>
               <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:CJ.green }}>🎮 Duels en cours</h3>
@@ -342,9 +386,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
                 const isChallenger = d.challenger_id===joueur.id;
                 const monScore = isChallenger ? d.score_challenger : d.score_defie;
                 const adversaire = isChallenger ? d.defie_pseudo : d.challenger_pseudo;
-                return (
-                  <DuelEnCours key={d.id} duel={d} isChallenger={isChallenger} monScore={monScore} adversaire={adversaire} onValider={(score)=>validerScore(d,score)}/>
-                );
+                return <DuelEnCours key={d.id} duel={d} isChallenger={isChallenger} monScore={monScore} adversaire={adversaire} onValider={(score)=>validerScore(d,score)}/>;
               })}
             </>
           )}
