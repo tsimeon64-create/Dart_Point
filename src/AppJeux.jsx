@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // ── AppJeux.jsx ───────────────────────────────────────────────────────────────
 // Scoreur DartPoint — optimisé mobile — mode libre et mode duel
@@ -58,6 +58,40 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
   const [gagnant, setGagnant] = useState(null);
   const [resultEnregistre, setResultEnregistre] = useState(false);
 
+  // ── NOUVEAUX STATES ──
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showConfirmQuitter, setShowConfirmQuitter] = useState(false);
+  // Historique pour annulation : [{joueurs, actifIdx}]
+  const [historique, setHistorique] = useState([]);
+
+  // ── Plein écran API ──
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen?.().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
+  // ── Bloquer le bouton retour téléphone pendant le jeu ──
+  useEffect(() => {
+    if (etape !== "jeu") return;
+    const handlePop = (e) => {
+      e.preventDefault();
+      setShowConfirmQuitter(true);
+      window.history.pushState(null, "", window.location.href);
+    };
+    window.history.pushState(null, "", window.location.href);
+    window.addEventListener("popstate", handlePop);
+    return () => window.removeEventListener("popstate", handlePop);
+  }, [etape]);
+
   function initJoueursFromDuel(d) {
     const sv = parseInt(d?.mode || "501");
     return [
@@ -79,12 +113,24 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
     setGagnant(null);
     setInput("");
     setResultEnregistre(false);
+    setHistorique([]);
     setEtape("jeu");
   };
 
-  const reset = () => {
+  const quitterPartie = () => {
+    setShowConfirmQuitter(false);
     if (modeDuel && setPage) { setPage("mon-profil"); return; }
-    setJoueurs(null); setGagnant(null); setInput(""); setResultEnregistre(false); setEtape("config");
+    setJoueurs(null); setGagnant(null); setInput(""); setResultEnregistre(false);
+    setHistorique([]);
+    setEtape("config");
+  };
+
+  const reset = () => {
+    if (etape === "jeu") {
+      setShowConfirmQuitter(true);
+      return;
+    }
+    quitterPartie();
   };
 
   const appuyer = (val) => {
@@ -93,6 +139,16 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
     const next = input + val;
     if (parseInt(next) > 180) return;
     setInput(next);
+  };
+
+  // ── Annuler le dernier coup ──
+  const annulerDernierCoup = () => {
+    if (historique.length === 0) return;
+    const prev = historique[historique.length - 1];
+    setJoueurs(prev.joueurs);
+    setActifIdx(prev.actifIdx);
+    setHistorique(h => h.slice(0, -1));
+    setInput("");
   };
 
   const enregistrerResultatDuel = async (gagnantNom, scoreC, scoreD) => {
@@ -121,6 +177,9 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
     if (!joueurs) return;
     const val = parseInt(input);
     if (!input || isNaN(val) || val < 0 || val > 180) { setInput(""); return; }
+
+    // Sauvegarder l'état avant ce coup
+    setHistorique(h => [...h, { joueurs: JSON.parse(JSON.stringify(joueurs)), actifIdx }]);
 
     const joueur = joueurs[actifIdx];
     const nouveau = joueur.score - val;
@@ -178,7 +237,30 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
   const moyenne = (j) => j && j.tours.length > 0 ? (j.totalPoints / j.tours.length).toFixed(2) : "0.00";
   const checkout = joueurs ? CHECKOUTS[joueurs[actifIdx]?.score] : null;
 
-  // ── ÉCRAN CONFIG (mode libre uniquement) ─────────────────────────────────
+  // ── MODAL CONFIRMATION QUITTER ────────────────────────────────────────────
+  const ModalConfirmQuitter = () => (
+    <div style={{ position:"fixed", inset:0, background:"#000a", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div style={{ background:"#1a1a1a", border:"2px solid #ef4444", borderRadius:16, padding:28, maxWidth:340, width:"100%", textAlign:"center" }}>
+        <div style={{ fontSize:44, marginBottom:12 }}>⚠️</div>
+        <h3 style={{ fontWeight:800, fontSize:18, color:"#f1f5f9", marginBottom:8 }}>Abandonner la partie ?</h3>
+        <p style={{ color:"#94a3b8", fontSize:14, marginBottom:24, lineHeight:1.6 }}>
+          {modeDuel ? "Le duel sera annulé et les DRIX ne seront pas mis à jour." : "La partie en cours sera perdue."}
+        </p>
+        <div style={{ display:"flex", gap:10 }}>
+          <button onClick={()=>setShowConfirmQuitter(false)}
+            style={{ flex:1, padding:"14px", borderRadius:10, border:"1px solid #2a2a2a", background:"#111", color:"#f1f5f9", fontWeight:700, fontSize:15, cursor:"pointer" }}>
+            ← Continuer
+          </button>
+          <button onClick={quitterPartie}
+            style={{ flex:1, padding:"14px", borderRadius:10, border:"none", background:"#7f1d1d", color:"#ef4444", fontWeight:700, fontSize:15, cursor:"pointer" }}>
+            Quitter
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── ÉCRAN CONFIG (mode libre uniquement) ──────────────────────────────────
   if (etape === "config") return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"24px 16px", fontFamily:"Inter,sans-serif" }}>
       <h1 style={{ fontWeight:900, fontSize:26, marginBottom:4, color:"#f1f5f9", textAlign:"center" }}>🎯 Scoreur</h1>
@@ -256,7 +338,6 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
         </div>
       </div>
 
-      {/* Mode duel : message validation */}
       {modeDuel && (
         <div style={{ background:"#1a1200", border:"2px solid #f59e0b", borderRadius:14, padding:20, marginBottom:16 }}>
           <p style={{ fontWeight:700, fontSize:15, color:"#f59e0b", marginBottom:6 }}>⚠️ Résultat enregistré !</p>
@@ -268,7 +349,7 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
 
       <div style={{ display:"flex", gap:10 }}>
         {!modeDuel && <button onClick={demarrer} style={{ flex:1,padding:"16px",borderRadius:12,border:"none",fontWeight:800,fontSize:16,cursor:"pointer",background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff" }}>🔄 Rejouer</button>}
-        <button onClick={reset} style={{ flex:1,padding:"16px",borderRadius:12,border:"1px solid #2a2a2a",fontWeight:800,fontSize:16,cursor:"pointer",background:"#1a1a1a",color:"#94a3b8" }}>
+        <button onClick={quitterPartie} style={{ flex:1,padding:"16px",borderRadius:12,border:"1px solid #2a2a2a",fontWeight:800,fontSize:16,cursor:"pointer",background:"#1a1a1a",color:"#94a3b8" }}>
           {modeDuel?"← Mon profil":"⚙️ Config"}
         </button>
       </div>
@@ -285,16 +366,27 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
   return (
     <div style={{ maxWidth:480, margin:"0 auto", fontFamily:"Inter,sans-serif", display:"flex", flexDirection:"column", minHeight:"calc(100vh - 58px)" }}>
 
+      {/* Modal confirmation quitter */}
+      {showConfirmQuitter && <ModalConfirmQuitter/>}
+
       {/* Header */}
       <div style={{ background:"#111", padding:"10px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #2a2a2a" }}>
-        <button onClick={reset} style={{ background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:22 }}>←</button>
+        {/* Bouton retour — ouvre la confirmation */}
+        <button onClick={()=>setShowConfirmQuitter(true)}
+          style={{ background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:22 }}>←</button>
+
         <div style={{ textAlign:"center" }}>
           <div style={{ fontWeight:900, fontSize:14, color:"#f1f5f9", letterSpacing:1 }}>
             {modeDuel ? "⚔️ DUEL" : "PREMIER À"} {manchesTotal} MANCHE{manchesTotal>1?"S":""}
           </div>
           <div style={{ fontSize:12, color:"#94a3b8" }}>{modeDuel?duel?.mode:config.mode} · Double out</div>
         </div>
-        <div style={{ width:32 }}/>
+
+        {/* Bouton plein écran */}
+        <button onClick={toggleFullscreen}
+          style={{ background:"none", border:"1px solid #2a2a2a", color:"#94a3b8", cursor:"pointer", fontSize:16, borderRadius:8, padding:"4px 10px", lineHeight:1 }}>
+          {isFullscreen ? "⊠" : "⛶"}
+        </button>
       </div>
 
       {/* Scores */}
@@ -346,7 +438,7 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
         )}
       </div>
 
-      {/* Saisie */}
+      {/* Saisie + bouton annuler coup */}
       <div style={{ padding:"10px 16px", background:"#0f0f0f", flex:"0 0 auto" }}>
         <div style={{ display:"flex", gap:10, alignItems:"center" }}>
           <div style={{ flex:1, background:"#fff", borderRadius:50, padding:"14px 20px", display:"flex", alignItems:"center", gap:10 }}>
@@ -357,9 +449,17 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
           </div>
           <button onClick={envoyer} disabled={!input}
             style={{ background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "#1a1a1a", border:"none", borderRadius:50, padding:"14px 24px", fontWeight:800, fontSize:16, color: input ? "#fff" : "#94a3b8", cursor: input ? "pointer" : "not-allowed" }}>
-            Envoyer
+            ✓
           </button>
         </div>
+
+        {/* Bouton annuler dernier coup */}
+        {historique.length > 0 && (
+          <button onClick={annulerDernierCoup}
+            style={{ width:"100%", marginTop:8, padding:"10px", borderRadius:10, border:"1px solid #f59e0b44", background:"#78350f22", color:"#f59e0b", fontWeight:700, fontSize:13, cursor:"pointer", WebkitTapHighlightColor:"transparent" }}>
+            ↩️ Annuler le dernier coup
+          </button>
+        )}
       </div>
 
       {/* Clavier */}
@@ -388,7 +488,3 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
     </div>
   );
 };
-
-// ── FUTURS JEUX ───────────────────────────────────────────────────────────────
-// export const Cricket = () => { ... };
-// export const AroundTheClock = () => { ... };

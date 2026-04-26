@@ -140,7 +140,7 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
 
   useEffect(() => {
     if (!ready || !mapRef.current || !centerVille || centerVille.trim().length < 2) return;
-    const map = mapRef.current;
+    const L = window.L; const map = mapRef.current;
     const timer = setTimeout(() => {
       map.invalidateSize();
       const q = centerVille.toLowerCase().trim();
@@ -447,7 +447,7 @@ const SignalForm = ({ barSlug, barNom, onClose }) => {
 // ── SHARE ─────────────────────────────────────────────────────────────────────
 const ShareBar = ({ bar }) => {
   const [copied,setCopied]=useState(false);
-  const url=`https://dart-point.vercel.app/bars/${bar.slug}`;
+  const url=`https://dartpoint.netlify.app/bars/${bar.slug}`;
   return (
     <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:20 }}>
       <a href={`https://wa.me/?text=${encodeURIComponent("🎯 "+bar.nom+" — "+bar.ville+" sur DartPoint "+url)}`} target="_blank" rel="noreferrer"><Btn variant="dark" style={{ fontSize:12,padding:"7px 14px" }}>📱 WhatsApp</Btn></a>
@@ -588,6 +588,7 @@ const Home = ({ bars, associations, tournois, setPage, setBarSlug, setAssoSlug, 
 
   return (
     <div>
+      {/* Bandeau */}
       <div style={{ background:`linear-gradient(90deg,${C.accent} 0%,#ea580c 100%)`,padding:"12px 20px",textAlign:"center" }}>
         <div style={{ maxWidth:900,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",gap:14,flexWrap:"wrap" }}>
           <span style={{ fontSize:22 }}>📍</span>
@@ -599,6 +600,7 @@ const Home = ({ bars, associations, tournois, setPage, setBarSlug, setAssoSlug, 
         </div>
       </div>
 
+      {/* Hero */}
       <div style={{ background:"linear-gradient(135deg,#111 0%,#1a0800 100%)",padding:"56px 20px 44px",textAlign:"center" }}>
         <div style={{ maxWidth:680,margin:"0 auto" }}>
           <div style={{ fontSize:50,marginBottom:12 }}>🎯</div>
@@ -638,6 +640,7 @@ const Home = ({ bars, associations, tournois, setPage, setBarSlug, setAssoSlug, 
         </div>
       </div>
 
+      {/* Stats */}
       <div style={{ background:C.accent,padding:"16px 20px" }}>
         <div style={{ maxWidth:1100,margin:"0 auto",display:"flex",justifyContent:"center",gap:"clamp(20px,6vw,80px)",flexWrap:"wrap" }}>
           {[[bars.length,"Bars"],[bars.filter(b=>b.verifie).length,"Vérifiés ✅"],[associations.length,"Associations"],[tournois.filter(t=>new Date(t.date)>=new Date()).length,"Tournois à venir"]].map(([n,l])=>(
@@ -646,11 +649,13 @@ const Home = ({ bars, associations, tournois, setPage, setBarSlug, setAssoSlug, 
         </div>
       </div>
 
+      {/* Carte */}
       <div style={{ maxWidth:1100,margin:"0 auto",padding:"40px 20px 0" }}>
         <h2 style={{ fontWeight:700,fontSize:20,marginBottom:10 }}>🗺️ Carte interactive</h2>
         <HomeMap bars={mapBars} associations={associations} tournois={tournois} setPage={setPage} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} centerVille={search.trim()||null} barsActifs={barsActifs}/>
       </div>
 
+      {/* Top bars */}
       <div style={{ maxWidth:1100,margin:"0 auto",padding:"36px 20px" }}>
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:10 }}>
           <h2 style={{ fontWeight:700,fontSize:20 }}>🔥 Bars les plus consultés</h2>
@@ -661,6 +666,7 @@ const Home = ({ bars, associations, tournois, setPage, setBarSlug, setAssoSlug, 
         </div>
       </div>
 
+      {/* Villes */}
       <div style={{ background:"#111",padding:"32px 20px" }}>
         <div style={{ maxWidth:1100,margin:"0 auto" }}>
           <h2 style={{ fontWeight:700,fontSize:20,marginBottom:14 }}>📍 Explorer par ville</h2>
@@ -675,6 +681,7 @@ const Home = ({ bars, associations, tournois, setPage, setBarSlug, setAssoSlug, 
         </div>
       </div>
 
+      {/* CTAs */}
       <div style={{ maxWidth:1100,margin:"0 auto",padding:"36px 20px" }}>
         <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14 }}>
           {[["📍","Proposer un bar","Vous connaissez un bar ?","proposer",C.accent],["🫂","Proposer une association","Vous connaissez un club ?","proposer-asso","#7c3aed"],["🏅","Proposer un tournoi","Organisez-vous un tournoi ?","proposer-tournoi",C.yellow],["👥","Rejoindre la communauté","Créez votre profil joueur","connexion",C.blue]].map(([e,t,d,p,c])=>(
@@ -725,8 +732,7 @@ const Bars = ({ bars, setPage, setBarSlug, villeFilter, setVilleFilter, barsActi
 };
 
 // ── PAGE BAR DETAIL ───────────────────────────────────────────────────────────
-// ✅ setJoueurId retiré — MembresBarSection utilise setPage("profil-joueur-"+id) directement
-const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug, isAdmin, joueur }) => {
+const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug, isAdmin, joueur, setJoueurId }) => {
   const [bar,setBar]=useState(null); const [loading,setLoading]=useState(true);
   const [showSignal,setShowSignal]=useState(false); const [showEdit,setShowEdit]=useState(false);
   useEffect(()=>{
@@ -752,9 +758,10 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
       <p style={{ color:C.muted,marginBottom:8 }}>📍 {bar.adresse}{bar.adresse?", ":""}{bar.cp} {bar.ville}</p>
       <p style={{ color:C.muted,fontSize:12,marginBottom:20 }}>👁 {bar.vues||0} consultation{(bar.vues||0)>1?"s":""}</p>
 
+      {/* Présence ce soir — depuis AppJoueurs */}
       <PresenceSection barSlug={bar.slug} joueur={joueur}/>
-      {/* ✅ setJoueurId supprimé ici — MembresBarSection gère lui-même la navigation */}
-      <MembresBarSection barSlug={bar.slug} setPage={setPage}/>
+      {/* Membres du bar — depuis AppJoueurs */}
+      <MembresBarSection barSlug={bar.slug} setPage={setPage} setJoueurId={setJoueurId}/>
 
       <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:12,marginBottom:16 }}>
         <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18 }}>
@@ -1108,7 +1115,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
   );
 };
 
-// ── SCOREUR DUEL ──────────────────────────────────────────────────────────────
+// ── SCOREUR DUEL (charge le duel depuis Supabase) ─────────────────────────────
 const ScoreurDuel = ({ duelId, joueur, setPage }) => {
   const [duel, setDuel] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1145,7 +1152,7 @@ export default function App() {
   const [barSlug,setBarSlug]=useState(null);
   const [assoSlug,setAssoSlug]=useState(null);
   const [tournoiSlug,setTournoiSlug]=useState(null);
-  // ✅ joueurId supprimé — l'ID est maintenant embarqué dans la page string
+  const [joueurId,setJoueurId]=useState(null);
   const [isAdmin,setIsAdmin]=useState(false);
   const [bars,setBars]=useState([]);
   const [associations,setAssociations]=useState([]);
@@ -1228,18 +1235,15 @@ export default function App() {
       <main style={{ flex:1 }}>
         {page==="home"             && <Home bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="bars"             && <Bars bars={bars} setPage={nav} setBarSlug={setBarSlug} villeFilter={villeFilter} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
-        {page==="bar"              && <BarDetail slug={barSlug} allBars={bars} associations={associations} setBars={setBars} setPage={nav} setAssoSlug={setAssoSlug} isAdmin={isAdmin} joueur={joueur}/>}
+        {page==="bar"              && <BarDetail slug={barSlug} allBars={bars} associations={associations} setBars={setBars} setPage={nav} setAssoSlug={setAssoSlug} isAdmin={isAdmin} joueur={joueur} setJoueurId={setJoueurId}/>}
         {page==="associations"     && <Associations associations={associations} setPage={nav} setAssoSlug={setAssoSlug}/>}
         {page==="asso"             && <AssoDetail slug={assoSlug} associations={associations} bars={bars} setPage={nav} setBarSlug={setBarSlug} isAdmin={isAdmin}/>}
         {page==="tournois"         && <Tournois tournois={tournois} setPage={nav} setTournoiSlug={setTournoiSlug}/>}
         {page==="tournoi-detail"   && <TournoiDetail slug={tournoiSlug} tournois={tournois} bars={bars} setPage={nav} setBarSlug={setBarSlug}/>}
-        {page==="joueurs"          && <PageJoueurs joueur={joueur} setPage={nav}/>}
-        {page==="drix"             && <PageDrix setPage={nav} bars={bars} associations={associations}/>}
-
-        {/* ✅ FIX RACE CONDITION : l'ID voyage dans la page string, pas dans un state séparé */}
-        {page.startsWith("profil-joueur-") && <FicheJoueur joueurId={page.replace("profil-joueur-","")} joueur={joueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug}/>}
-
-        {page==="mon-profil"       && joueur && <MonProfil joueur={joueur} setJoueur={setJoueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug}/>}
+        {page==="joueurs"          && <PageJoueurs joueur={joueur} setPage={nav} setJoueurId={setJoueurId}/>}
+        {page==="drix"             && <PageDrix setPage={nav} setJoueurId={setJoueurId} bars={bars} associations={associations}/>}
+        {page==="profil-joueur"    && <FicheJoueur joueurId={joueurId} joueur={joueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug}/>}
+        {page==="mon-profil"       && joueur && <MonProfil joueur={joueur} setJoueur={setJoueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug} setJoueurId={setJoueurId}/>}
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav}/>}
         {page==="scoreur"          && <Scoreur setPage={nav}/>}
         {page.startsWith("scoreur-duel-") && joueur && <ScoreurDuel duelId={page.replace("scoreur-duel-","")} joueur={joueur} setPage={nav}/>}
