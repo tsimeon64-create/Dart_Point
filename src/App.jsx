@@ -1202,11 +1202,12 @@ export default function App() {
   const goBack=()=>{ if(history.length>1){ const nh=history.slice(0,-1); setHistory(nh); setPage(nh[nh.length-1]); try{window.scrollTo(0,0);}catch{} } };
 
   useEffect(()=>{
+    if (page === "scoreur" || page.startsWith("scoreur-duel-")) return;
     const handlePop=(e)=>{ e.preventDefault(); goBack(); window.history.pushState(null,"",window.location.href); };
     window.history.pushState(null,"",window.location.href);
     window.addEventListener("popstate",handlePop);
     return ()=>window.removeEventListener("popstate",handlePop);
-  },[history]);
+},[history, page]);
 
   if(loading) return (
     <div style={{ height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,flexDirection:"column",gap:16 }}>
