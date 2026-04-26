@@ -1222,7 +1222,7 @@ export default function App() {
   const goBack=()=>{ if(history.length>1){ const nh=history.slice(0,-1); setHistory(nh); setPage(nh[nh.length-1]); try{window.scrollTo(0,0);}catch{} } };
 
   useEffect(()=>{
-    if (page === "scoreur" || page.startsWith("scoreur-duel-")) return;
+    if (page === "scoreur" || page.startsWith("scoreur-duel-") || page === "jeux") return;
     const handlePop=(e)=>{ e.preventDefault(); goBack(); window.history.pushState(null,"",window.location.href); };
     window.history.pushState(null,"",window.location.href);
     window.addEventListener("popstate",handlePop);
