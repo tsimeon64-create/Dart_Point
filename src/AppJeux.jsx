@@ -1,9 +1,6 @@
 import { useState, useEffect } from "react";
 
 // ── AppJeux.jsx ───────────────────────────────────────────────────────────────
-// Scoreur DartPoint — optimisé mobile — mode libre et mode duel
-// Importé depuis App.jsx
-
 const CHECKOUTS = {
   170:"T20 T20 Bull", 167:"T20 T19 Bull", 164:"T20 T18 Bull", 161:"T20 T17 Bull",
   160:"T20 T20 D20", 158:"T20 T20 D19", 156:"T20 T20 D18", 155:"T20 T19 D19",
@@ -41,7 +38,6 @@ const CHECKOUTS = {
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 
-// ── SCOREUR ───────────────────────────────────────────────────────────────────
 export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) => {
   const modeDuel = !!duel;
 
@@ -57,29 +53,31 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
   const [actifIdx, setActifIdx] = useState(0);
   const [gagnant, setGagnant] = useState(null);
   const [resultEnregistre, setResultEnregistre] = useState(false);
-
-  // ── NOUVEAUX STATES ──
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [showConfirmQuitter, setShowConfirmQuitter] = useState(false);
-  // Historique pour annulation : [{joueurs, actifIdx}]
   const [historique, setHistorique] = useState([]);
 
-  // ── Plein écran API ──
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().then(() => setIsFullscreen(true)).catch(() => {});
-    } else {
-      document.exitFullscreen?.().then(() => setIsFullscreen(false)).catch(() => {});
-    }
-  };
-
+  // ── Plein écran auto + blocage scroll pendant le jeu ──
   useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", handler);
-    return () => document.removeEventListener("fullscreenchange", handler);
-  }, []);
+    if (etape !== "jeu") return;
+    // Plein écran automatique
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    // Bloquer tout scroll
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.width = "100%";
+    document.body.style.height = "100%";
+    document.body.style.touchAction = "none";
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+      document.body.style.height = "";
+      document.body.style.touchAction = "";
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    };
+  }, [etape]);
 
-  // ── Bloquer le bouton retour téléphone pendant le jeu ──
+  // ── Bloquer bouton retour téléphone pendant le jeu ──
   useEffect(() => {
     if (etape !== "jeu") return;
     const handlePop = (e) => {
@@ -120,17 +118,9 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
   const quitterPartie = () => {
     setShowConfirmQuitter(false);
     if (modeDuel && setPage) { setPage("mon-profil"); return; }
-    setJoueurs(null); setGagnant(null); setInput(""); setResultEnregistre(false);
-    setHistorique([]);
+    setJoueurs(null); setGagnant(null); setInput("");
+    setResultEnregistre(false); setHistorique([]);
     setEtape("config");
-  };
-
-  const reset = () => {
-    if (etape === "jeu") {
-      setShowConfirmQuitter(true);
-      return;
-    }
-    quitterPartie();
   };
 
   const appuyer = (val) => {
@@ -141,7 +131,6 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
     setInput(next);
   };
 
-  // ── Annuler le dernier coup ──
   const annulerDernierCoup = () => {
     if (historique.length === 0) return;
     const prev = historique[historique.length - 1];
@@ -158,15 +147,7 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
       await fetch(`${SB_URL}/rest/v1/duels?id=eq.${duel.id}`, {
         method: "PATCH",
         headers: { "apikey":SB_KEY, "Authorization":`Bearer ${SB_KEY}`, "Content-Type":"application/json", "Prefer":"return=minimal" },
-        body: JSON.stringify({
-          statut: "en_validation",
-          gagnant_id: gagnantId,
-          gagnant_pseudo: gagnantNom,
-          score_manches_challenger: scoreC,
-          score_manches_defie: scoreD,
-          valide_challenger: false,
-          valide_defie: false,
-        })
+        body: JSON.stringify({ statut:"en_validation", gagnant_id:gagnantId, gagnant_pseudo:gagnantNom, score_manches_challenger:scoreC, score_manches_defie:scoreD, valide_challenger:false, valide_defie:false })
       });
       setResultEnregistre(true);
       if (onDuelTermine) onDuelTermine();
@@ -177,69 +158,48 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
     if (!joueurs) return;
     const val = parseInt(input);
     if (!input || isNaN(val) || val < 0 || val > 180) { setInput(""); return; }
-
-    // Sauvegarder l'état avant ce coup
     setHistorique(h => [...h, { joueurs: JSON.parse(JSON.stringify(joueurs)), actifIdx }]);
-
     const joueur = joueurs[actifIdx];
     const nouveau = joueur.score - val;
 
-    // Bust
     if (nouveau < 0 || nouveau === 1) {
-      const updated = joueurs.map((j, i) => i === actifIdx
-        ? { ...j, scorePrecedent: val, flechettes: j.flechettes + 3 }
-        : j
-      );
-      setJoueurs(updated);
-      setActifIdx(1 - actifIdx);
-      setInput("");
-      return;
+      const updated = joueurs.map((j, i) => i === actifIdx ? { ...j, scorePrecedent: val, flechettes: j.flechettes + 3 } : j);
+      setJoueurs(updated); setActifIdx(1 - actifIdx); setInput(""); return;
     }
 
-    // Manche gagnée (double out)
     if (nouveau === 0) {
       const newManches = joueur.manchesGagnees + 1;
       const updated = joueurs.map((j, i) => i === actifIdx
         ? { ...j, score: nouveau, manchesGagnees: newManches, tours: [...j.tours, val], flechettes: j.flechettes + 3, totalPoints: j.totalPoints + val, scorePrecedent: val }
         : j
       );
-
       const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
-
       if (newManches >= manchesTotal) {
         setJoueurs(updated);
         const scoreC = actifIdx === 0 ? newManches : updated[1].manchesGagnees;
         const scoreD = actifIdx === 1 ? newManches : updated[0].manchesGagnees;
-        const gagnantObj = {...joueur, manchesGagnees:newManches, tours:[...joueur.tours,val], totalPoints:joueur.totalPoints+val, flechettes:joueur.flechettes+3};
-        setGagnant(gagnantObj);
+        setGagnant({...joueur, manchesGagnees:newManches, tours:[...joueur.tours,val], totalPoints:joueur.totalPoints+val, flechettes:joueur.flechettes+3});
         setEtape("fin");
         if (modeDuel) enregistrerResultatDuel(joueur.nom, scoreC, scoreD);
         return;
       }
-
-      const reset_manche = updated.map(j => ({ ...j, score: modeDuel ? parseInt(duel?.mode||"501") : startVal, scorePrecedent: null }));
-      setJoueurs(reset_manche);
-      setActifIdx(1 - actifIdx);
-      setInput("");
-      return;
+      setJoueurs(updated.map(j => ({ ...j, score: modeDuel ? parseInt(duel?.mode||"501") : startVal, scorePrecedent: null })));
+      setActifIdx(1 - actifIdx); setInput(""); return;
     }
 
-    // Tour normal
-    const updated = joueurs.map((j, i) => i === actifIdx
+    setJoueurs(joueurs.map((j, i) => i === actifIdx
       ? { ...j, score: nouveau, tours: [...j.tours, val], flechettes: j.flechettes + 3, totalPoints: j.totalPoints + val, scorePrecedent: val }
       : j
-    );
-    setJoueurs(updated);
-    setActifIdx(1 - actifIdx);
-    setInput("");
+    ));
+    setActifIdx(1 - actifIdx); setInput("");
   };
 
   const moyenne = (j) => j && j.tours.length > 0 ? (j.totalPoints / j.tours.length).toFixed(2) : "0.00";
   const checkout = joueurs ? CHECKOUTS[joueurs[actifIdx]?.score] : null;
 
-  // ── MODAL CONFIRMATION QUITTER ────────────────────────────────────────────
+  // ── MODAL QUITTER ─────────────────────────────────────────────────────────
   const ModalConfirmQuitter = () => (
-    <div style={{ position:"fixed", inset:0, background:"#000a", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+    <div style={{ position:"fixed", inset:0, background:"#000c", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
       <div style={{ background:"#1a1a1a", border:"2px solid #ef4444", borderRadius:16, padding:28, maxWidth:340, width:"100%", textAlign:"center" }}>
         <div style={{ fontSize:44, marginBottom:12 }}>⚠️</div>
         <h3 style={{ fontWeight:800, fontSize:18, color:"#f1f5f9", marginBottom:8 }}>Abandonner la partie ?</h3>
@@ -260,7 +220,7 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
     </div>
   );
 
-  // ── ÉCRAN CONFIG (mode libre uniquement) ──────────────────────────────────
+  // ── ÉCRAN CONFIG ──────────────────────────────────────────────────────────
   if (etape === "config") return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"24px 16px", fontFamily:"Inter,sans-serif" }}>
       <h1 style={{ fontWeight:900, fontSize:26, marginBottom:4, color:"#f1f5f9", textAlign:"center" }}>🎯 Scoreur</h1>
@@ -323,30 +283,17 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
         <h2 style={{ fontWeight:900, fontSize:32, color:"#22c55e", marginBottom:6 }}>VICTOIRE !</h2>
         <p style={{ fontSize:24, fontWeight:800, color:"#fff", marginBottom:20 }}>{gagnant?.nom}</p>
         <div style={{ display:"flex", justifyContent:"center", gap:24 }}>
-          <div style={{ textAlign:"center" }}>
-            <div style={{ fontSize:22, fontWeight:900, color:"#22c55e" }}>{moyenne(gagnant)}</div>
-            <div style={{ fontSize:12, color:"#86efac" }}>Moyenne</div>
-          </div>
-          <div style={{ textAlign:"center" }}>
-            <div style={{ fontSize:22, fontWeight:900, color:"#22c55e" }}>{gagnant?.flechettes}</div>
-            <div style={{ fontSize:12, color:"#86efac" }}>Fléchettes</div>
-          </div>
-          <div style={{ textAlign:"center" }}>
-            <div style={{ fontSize:22, fontWeight:900, color:"#22c55e" }}>{gagnant?.tours.length}</div>
-            <div style={{ fontSize:12, color:"#86efac" }}>Tours</div>
-          </div>
+          <div><div style={{ fontSize:22, fontWeight:900, color:"#22c55e" }}>{moyenne(gagnant)}</div><div style={{ fontSize:12, color:"#86efac" }}>Moyenne</div></div>
+          <div><div style={{ fontSize:22, fontWeight:900, color:"#22c55e" }}>{gagnant?.flechettes}</div><div style={{ fontSize:12, color:"#86efac" }}>Fléchettes</div></div>
+          <div><div style={{ fontSize:22, fontWeight:900, color:"#22c55e" }}>{gagnant?.tours.length}</div><div style={{ fontSize:12, color:"#86efac" }}>Tours</div></div>
         </div>
       </div>
-
       {modeDuel && (
         <div style={{ background:"#1a1200", border:"2px solid #f59e0b", borderRadius:14, padding:20, marginBottom:16 }}>
           <p style={{ fontWeight:700, fontSize:15, color:"#f59e0b", marginBottom:6 }}>⚠️ Résultat enregistré !</p>
-          <p style={{ color:"#94a3b8", fontSize:13 }}>
-            Les 2 joueurs doivent maintenant valider le résultat depuis leur profil pour que les DRIX soient mis à jour.
-          </p>
+          <p style={{ color:"#94a3b8", fontSize:13 }}>Les 2 joueurs doivent valider le résultat depuis leur profil.</p>
         </div>
       )}
-
       <div style={{ display:"flex", gap:10 }}>
         {!modeDuel && <button onClick={demarrer} style={{ flex:1,padding:"16px",borderRadius:12,border:"none",fontWeight:800,fontSize:16,cursor:"pointer",background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff" }}>🔄 Rejouer</button>}
         <button onClick={quitterPartie} style={{ flex:1,padding:"16px",borderRadius:12,border:"1px solid #2a2a2a",fontWeight:800,fontSize:16,cursor:"pointer",background:"#1a1a1a",color:"#94a3b8" }}>
@@ -356,7 +303,7 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
     </div>
   );
 
-  // ── ÉCRAN JEU ─────────────────────────────────────────────────────────────
+  // ── ÉCRAN JEU — position fixed, plein écran, zero scroll ─────────────────
   if (!joueurs) return null;
   const j0 = joueurs[0];
   const j1 = joueurs[1];
@@ -364,62 +311,58 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
   const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
 
   return (
-    <div style={{ maxWidth:480, margin:"0 auto", fontFamily:"Inter,sans-serif", display:"flex", flexDirection:"column", minHeight:"calc(100vh - 58px)" }}>
-
-      {/* Modal confirmation quitter */}
+    <div style={{
+      position: "fixed",
+      top: 0, left: 0, right: 0, bottom: 0,
+      background: "#0f0f0f",
+      fontFamily: "Inter,sans-serif",
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+      zIndex: 500,
+      touchAction: "none",
+    }}>
       {showConfirmQuitter && <ModalConfirmQuitter/>}
 
       {/* Header */}
-      <div style={{ background:"#111", padding:"10px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #2a2a2a" }}>
-        {/* Bouton retour — ouvre la confirmation */}
+      <div style={{ background:"#111", padding:"10px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #2a2a2a", flexShrink:0 }}>
         <button onClick={()=>setShowConfirmQuitter(true)}
-          style={{ background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:22 }}>←</button>
-
+          style={{ background:"#7f1d1d", border:"none", color:"#ef4444", cursor:"pointer", fontSize:13, fontWeight:700, padding:"6px 12px", borderRadius:8 }}>
+          ⚠️ Quitter
+        </button>
         <div style={{ textAlign:"center" }}>
-          <div style={{ fontWeight:900, fontSize:14, color:"#f1f5f9", letterSpacing:1 }}>
+          <div style={{ fontWeight:900, fontSize:13, color:"#f1f5f9", letterSpacing:1 }}>
             {modeDuel ? "⚔️ DUEL" : "PREMIER À"} {manchesTotal} MANCHE{manchesTotal>1?"S":""}
           </div>
-          <div style={{ fontSize:12, color:"#94a3b8" }}>{modeDuel?duel?.mode:config.mode} · Double out</div>
+          <div style={{ fontSize:11, color:"#94a3b8" }}>{modeDuel?duel?.mode:config.mode} · Double out</div>
         </div>
-
-        {/* Bouton plein écran */}
-        <button onClick={toggleFullscreen}
-          style={{ background:"none", border:"1px solid #2a2a2a", color:"#94a3b8", cursor:"pointer", fontSize:16, borderRadius:8, padding:"4px 10px", lineHeight:1 }}>
-          {isFullscreen ? "⊠" : "⛶"}
-        </button>
+        <div style={{ width:70 }}/>
       </div>
 
       {/* Scores */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", flex:"0 0 auto" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", flexShrink:0 }}>
         {[j0, j1].map((j, i) => {
           const isActif = i === actifIdx;
-          const moy = moyenne(j);
           return (
             <div key={i} style={{
-              padding:"18px 14px",
+              padding:"12px 12px",
               background: isActif ? "linear-gradient(135deg,#f97316,#ea580c)" : "#c2410c22",
               borderBottom: `3px solid ${isActif ? "#f97316" : "transparent"}`,
             }}>
-              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
-                <div style={{ width:10, height:10, borderRadius:"50%", background: isActif ? "#fff" : "transparent", border: isActif ? "none" : "2px solid #f9731644" }}/>
-                <span style={{ fontWeight:700, fontSize:14, color: isActif ? "#fff" : "#f97316aa" }}>{j.nom}</span>
+              <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:4 }}>
+                <div style={{ width:8, height:8, borderRadius:"50%", background: isActif ? "#fff" : "transparent", border: isActif ? "none" : "2px solid #f9731644", flexShrink:0 }}/>
+                <span style={{ fontWeight:700, fontSize:12, color: isActif ? "#fff" : "#f97316aa", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{j.nom}</span>
               </div>
-              <div style={{ fontSize:72, fontWeight:900, color: isActif ? "#fff" : "#f1f5f9aa", lineHeight:1, marginBottom:8 }}>{j.score}</div>
-              <div style={{ display:"flex", gap:4, marginBottom:10 }}>
+              <div style={{ fontSize:56, fontWeight:900, color: isActif ? "#fff" : "#f1f5f9aa", lineHeight:1, marginBottom:4 }}>{j.score}</div>
+              <div style={{ display:"flex", gap:3, marginBottom:6 }}>
                 {Array.from({length: manchesTotal}).map((_,mi)=>(
-                  <div key={mi} style={{ width:18, height:18, borderRadius:4, background: mi < j.manchesGagnees ? (isActif?"#fff":"#f97316") : (isActif?"#ffffff33":"#2a2a2a") }}/>
+                  <div key={mi} style={{ width:14, height:14, borderRadius:3, background: mi < j.manchesGagnees ? (isActif?"#fff":"#f97316") : (isActif?"#ffffff33":"#2a2a2a") }}/>
                 ))}
               </div>
-              <div style={{ fontSize:12, color: isActif ? "#fff9" : "#94a3b855" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
-                  <span>Moyenne</span><span style={{ fontWeight:700, color: isActif?"#fff":"#94a3b8" }}>{moy}</span>
-                </div>
-                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
-                  <span>Précédent</span><span style={{ fontWeight:700, color: isActif?"#fff":"#94a3b8" }}>{j.scorePrecedent ?? "—"}</span>
-                </div>
-                <div style={{ display:"flex", justifyContent:"space-between" }}>
-                  <span>Fléchettes</span><span style={{ fontWeight:700, color: isActif?"#fff":"#94a3b8" }}>{j.flechettes}</span>
-                </div>
+              <div style={{ fontSize:11, color: isActif ? "#fff9" : "#94a3b855", display:"flex", gap:10 }}>
+                <span>Moy. <strong style={{ color: isActif?"#fff":"#94a3b8" }}>{moyenne(j)}</strong></span>
+                <span>Préc. <strong style={{ color: isActif?"#fff":"#94a3b8" }}>{j.scorePrecedent ?? "—"}</strong></span>
+                <span>🎯 <strong style={{ color: isActif?"#fff":"#94a3b8" }}>{j.flechettes}</strong></span>
               </div>
             </div>
           );
@@ -427,60 +370,56 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
       </div>
 
       {/* Message + checkout */}
-      <div style={{ padding:"12px 16px", background:"#0f0f0f", flex:"0 0 auto" }}>
-        <p style={{ fontWeight:900, fontSize:15, color:"#f97316", textAlign:"center", marginBottom: checkout ? 4 : 0, letterSpacing:0.5 }}>
-          C'EST AU TOUR DE {actif.nom.toUpperCase()} DE LANCER !
+      <div style={{ padding:"6px 16px", background:"#0f0f0f", flexShrink:0, textAlign:"center" }}>
+        <p style={{ fontWeight:900, fontSize:13, color:"#f97316", marginBottom: checkout ? 1 : 0 }}>
+          C'EST AU TOUR DE {actif.nom.toUpperCase()} !
         </p>
         {checkout && (
-          <p style={{ textAlign:"center", color:"#f59e0b", fontSize:13, fontWeight:600 }}>
-            💡 Checkout {actif.score} : {checkout}
-          </p>
+          <p style={{ color:"#f59e0b", fontSize:12, fontWeight:600 }}>💡 {actif.score} → {checkout}</p>
         )}
       </div>
 
-      {/* Saisie + bouton annuler coup */}
-      <div style={{ padding:"10px 16px", background:"#0f0f0f", flex:"0 0 auto" }}>
-        <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-          <div style={{ flex:1, background:"#fff", borderRadius:50, padding:"14px 20px", display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontSize:20, color:"#94a3b8" }}>⌨️</span>
-            <span style={{ fontSize:22, fontWeight:700, color: input ? "#111" : "#94a3b8", flex:1 }}>
-              {input || "Entrer un score"}
+      {/* Saisie */}
+      <div style={{ padding:"6px 16px", background:"#0f0f0f", flexShrink:0 }}>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <div style={{ flex:1, background:"#fff", borderRadius:50, padding:"11px 16px", display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:16, color:"#94a3b8" }}>⌨️</span>
+            <span style={{ fontSize:20, fontWeight:700, color: input ? "#111" : "#94a3b8", flex:1 }}>
+              {input || "Score…"}
             </span>
           </div>
           <button onClick={envoyer} disabled={!input}
-            style={{ background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "#1a1a1a", border:"none", borderRadius:50, padding:"14px 24px", fontWeight:800, fontSize:16, color: input ? "#fff" : "#94a3b8", cursor: input ? "pointer" : "not-allowed" }}>
+            style={{ background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "#1a1a1a", border:"none", borderRadius:50, padding:"11px 18px", fontWeight:800, fontSize:16, color: input ? "#fff" : "#94a3b8", cursor: input ? "pointer" : "not-allowed" }}>
             ✓
           </button>
         </div>
-
-        {/* Bouton annuler dernier coup */}
         {historique.length > 0 && (
           <button onClick={annulerDernierCoup}
-            style={{ width:"100%", marginTop:8, padding:"10px", borderRadius:10, border:"1px solid #f59e0b44", background:"#78350f22", color:"#f59e0b", fontWeight:700, fontSize:13, cursor:"pointer", WebkitTapHighlightColor:"transparent" }}>
+            style={{ width:"100%", marginTop:5, padding:"8px", borderRadius:8, border:"1px solid #f59e0b44", background:"#78350f22", color:"#f59e0b", fontWeight:700, fontSize:12, cursor:"pointer", WebkitTapHighlightColor:"transparent" }}>
             ↩️ Annuler le dernier coup
           </button>
         )}
       </div>
 
-      {/* Clavier */}
-      <div style={{ padding:"8px 16px 16px", background:"#0f0f0f", flex:1 }}>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:8 }}>
+      {/* Clavier — prend le reste */}
+      <div style={{ padding:"5px 16px 10px", background:"#0f0f0f", flex:1, display:"flex", flexDirection:"column" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:5, flex:1 }}>
           {["1","2","3","4","5","6","7","8","9"].map(n=>(
             <button key={n} onClick={()=>appuyer(n)}
-              style={{ padding:"20px 0", borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f1f5f9", fontSize:24, fontWeight:700, cursor:"pointer", WebkitTapHighlightColor:"transparent" }}>
+              style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f1f5f9", fontSize:22, fontWeight:700, cursor:"pointer", WebkitTapHighlightColor:"transparent" }}>
               {n}
             </button>
           ))}
           <button onClick={()=>appuyer("del")}
-            style={{ padding:"20px 0", borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f59e0b", fontSize:20, cursor:"pointer", WebkitTapHighlightColor:"transparent" }}>
+            style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f59e0b", fontSize:20, cursor:"pointer", WebkitTapHighlightColor:"transparent" }}>
             ⌫
           </button>
           <button onClick={()=>appuyer("0")}
-            style={{ padding:"20px 0", borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f1f5f9", fontSize:24, fontWeight:700, cursor:"pointer", WebkitTapHighlightColor:"transparent" }}>
+            style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f1f5f9", fontSize:22, fontWeight:700, cursor:"pointer", WebkitTapHighlightColor:"transparent" }}>
             0
           </button>
           <button onClick={envoyer} disabled={!input}
-            style={{ padding:"20px 0", borderRadius:10, border:"none", background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "#1a1a2a", color: input ? "#fff" : "#94a3b8", fontSize:18, fontWeight:800, cursor: input ? "pointer" : "not-allowed", WebkitTapHighlightColor:"transparent" }}>
+            style={{ borderRadius:10, border:"none", background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "#1a1a2a", color: input ? "#fff" : "#94a3b8", fontSize:18, fontWeight:800, cursor: input ? "pointer" : "not-allowed", WebkitTapHighlightColor:"transparent" }}>
             ✓
           </button>
         </div>
