@@ -996,6 +996,29 @@ const APropos = ({ bars, setPage }) => (
 );
 
 const Contact = () => {
+  const MentionsLegales = () => (
+    <div style={{ maxWidth:760, margin:"0 auto", padding:"36px 20px" }}>
+      <h1 style={{ fontWeight:800, fontSize:28, marginBottom:32 }}>⚖️ Mentions légales</h1>
+  
+      {[
+        ["🏢 Éditeur du site", `Le site DartPoint (dart-point.vercel.app) est édité par :\n\nThomas Siméon\n32 Eskolako Bidea\n64480 Larressore\nFrance\nContact : t.simeon64(at)gmail.com`],
+        ["🎯 Propriété intellectuelle", `L'ensemble du contenu de ce site (textes, structure, logo, code, données) est la propriété exclusive de Thomas Siméon et est protégé par les lois françaises et internationales relatives à la propriété intellectuelle.\n\nToute reproduction, représentation, modification ou exploitation, totale ou partielle, sans autorisation écrite préalable de Thomas Siméon est strictement interdite.`],
+        ["⚠️ Responsabilité", `Les informations publiées sur DartPoint (adresses, horaires, équipements des bars) sont fournies à titre indicatif et peuvent ne pas être exhaustives ou à jour.\n\nThomas Siméon ne saurait être tenu responsable des erreurs, omissions ou indisponibilités des informations, ni des dommages directs ou indirects résultant de l'utilisation du site.`],
+        ["👥 Contenu communautaire", `Les photos et avis publiés par les utilisateurs restent leur propriété. En les soumettant sur DartPoint, ils accordent à Thomas Siméon une licence d'utilisation non exclusive pour les afficher sur le site.\n\nTout contenu illicite, diffamatoire ou portant atteinte aux droits de tiers peut être signalé à t.simeon64(at)gmail.com et sera supprimé dans les meilleurs délais.`],
+        ["🔒 Données personnelles", `DartPoint collecte uniquement les données nécessaires au fonctionnement du service (pseudo, mot de passe chiffré).\n\nConformément au Règlement Général sur la Protection des Données (RGPD), vous disposez d'un droit d'accès, de rectification et de suppression de vos données. Pour exercer ce droit, contactez : t.simeon64(at)gmail.com`],
+        ["🌐 Hébergement", `Ce site est hébergé par :\nVercel Inc.\n440 N Barranca Ave #4133\nCovina, CA 91723\nÉtats-Unis\nhttps://vercel.com`],
+      ].map(([titre, texte]) => (
+        <div key={titre} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:22, marginBottom:14 }}>
+          <h2 style={{ fontWeight:700, fontSize:17, marginBottom:12 }}>{titre}</h2>
+          <p style={{ color:C.muted, lineHeight:1.8, fontSize:14, whiteSpace:"pre-line" }}>{texte}</p>
+        </div>
+      ))}
+  
+      <p style={{ color:C.muted, fontSize:12, textAlign:"center", marginTop:20 }}>
+        Dernière mise à jour : avril 2026
+      </p>
+    </div>
+  );
   const [f,setF]=useState({nom:"",email:"",sujet:"",message:""}); const [sent,setSent]=useState(false); const set=k=>v=>setF(p=>({...p,[k]:v}));
   if(sent) return <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}><div style={{ fontSize:50 }}>✉️</div><h2 style={{ fontWeight:700,marginTop:12 }}>Message envoyé !</h2></div>;
   return (
@@ -1138,7 +1161,7 @@ const Footer = ({ setPage }) => (
     <div style={{ maxWidth:1100,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12 }}>
       <div><div style={{ fontWeight:800,fontSize:16,color:C.accent,marginBottom:2 }}>🎯 DartPoint</div><p style={{ color:C.muted,fontSize:12 }}>Le guide des bars à fléchettes en France</p></div>
       <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
-        {[["bars","Bars"],["associations","Assos"],["tournois","Tournois"],["joueurs","Joueurs"],["drix","DRIX"],["scoreur","Scoreur"],["proposer","Proposer"],["apropos","À propos"],["contact","Contact"]].map(([p,l])=>(
+      {[["bars","Bars"],["associations","Assos"],["tournois","Tournois"],["joueurs","Joueurs"],["drix","DRIX"],["scoreur","Scoreur"],["proposer","Proposer"],["apropos","À propos"],["contact","Contact"],["mentions","Mentions légales"]].map(([p,l])=>(
           <button key={p} onClick={()=>setPage(p)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:12 }}>{l}</button>
         ))}
       </div>
@@ -1256,6 +1279,8 @@ export default function App() {
         {page==="proposer-asso"    && <ProposerAsso onSubmit={handleProposalAsso}/>}
         {page==="proposer-tournoi" && <ProposerTournoi onSubmit={handleProposalTournoi}/>}
         {page==="contact"          && <Contact/>}
+      
+        {page==="mentions"         && <MentionsLegales/>}
         {page==="adminlogin"       && <AdminLogin onLogin={()=>{setIsAdmin(true);nav("admin");}}/>}
         {page==="admin"            && (isAdmin?<Admin bars={bars} setBars={setBars} associations={associations} setAssociations={setAssociations} tournois={tournois} setTournois={setTournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug}/>:<AdminLogin onLogin={()=>{setIsAdmin(true);nav("admin");}}/>)}
       </main>
