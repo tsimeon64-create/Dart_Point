@@ -26,9 +26,6 @@ const OBJECTIFS = [
 // ── SETUP ─────────────────────────────────────────────────────────────────────
 const Setup = ({ onStart }) => {
   const [joueurs, setJoueurs] = useState(["", ""]);
-  const ajouterJoueur = () => { if (joueurs.length < 8) setJoueurs(j => [...j, ""]); };
-  const supprimerJoueur = (i) => { if (joueurs.length > 1) setJoueurs(j => j.filter((_,idx) => idx !== i)); };
-  const setNom = (i, v) => setJoueurs(j => j.map((n, idx) => idx === i ? v : n));
   const valid = joueurs.every(j => j.trim().length > 0);
   return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"40px 20px" }}>
@@ -42,22 +39,25 @@ const Setup = ({ onStart }) => {
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           {joueurs.map((nom, i) => (
             <div key={i} style={{ display:"flex", gap:8, alignItems:"center" }}>
-              <input value={nom} onChange={e => setNom(i, e.target.value)} placeholder={`Joueur ${i + 1}`}
+              <input value={nom} onChange={e => setJoueurs(j => j.map((n,idx) => idx===i ? e.target.value : n))}
+                placeholder={`Joueur ${i+1}`}
                 style={{ flex:1, background:"#111", border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 14px", color:C.text, fontSize:14 }}/>
               {joueurs.length > 1 && (
-                <button onClick={() => supprimerJoueur(i)} style={{ background:"#1a0000", border:`1px solid ${C.red}44`, borderRadius:8, color:C.red, cursor:"pointer", fontSize:16, padding:"8px 12px" }}>✕</button>
+                <button onClick={() => setJoueurs(j => j.filter((_,idx) => idx!==i))}
+                  style={{ background:"#1a0000", border:`1px solid ${C.red}44`, borderRadius:8, color:C.red, cursor:"pointer", fontSize:16, padding:"8px 12px" }}>✕</button>
               )}
             </div>
           ))}
         </div>
         {joueurs.length < 8 && (
-          <button onClick={ajouterJoueur} style={{ marginTop:12, width:"100%", background:"transparent", border:`1px dashed ${C.border}`, borderRadius:8, color:C.muted, cursor:"pointer", padding:"10px", fontSize:13 }}>
+          <button onClick={() => setJoueurs(j => [...j, ""])}
+            style={{ marginTop:12, width:"100%", background:"transparent", border:`1px dashed ${C.border}`, borderRadius:8, color:C.muted, cursor:"pointer", padding:"10px", fontSize:13 }}>
             + Ajouter un joueur
           </button>
         )}
       </div>
       <button onClick={() => valid && onStart(joueurs.map(j => j.trim()))} disabled={!valid}
-        style={{ width:"100%", background:valid ? C.accent : "#333", color:"#fff", border:"none", borderRadius:12, padding:"16px", fontSize:16, fontWeight:700, cursor:valid ? "pointer" : "not-allowed", opacity:valid ? 1 : 0.5 }}>
+        style={{ width:"100%", background:valid?C.accent:"#333", color:"#fff", border:"none", borderRadius:12, padding:"16px", fontSize:16, fontWeight:700, cursor:valid?"pointer":"not-allowed", opacity:valid?1:0.5 }}>
         🎮 Lancer la partie
       </button>
     </div>
@@ -67,12 +67,11 @@ const Setup = ({ onStart }) => {
 // ── PAD ───────────────────────────────────────────────────────────────────────
 const Pad = ({ joueur, objectif, onValider, onDiviser, onFermer }) => {
   const [saisie, setSaisie] = useState("");
-  const appuyer = (v) => {
+  const appuyer = v => {
     if (v === "⌫") { setSaisie(s => s.slice(0,-1)); return; }
     if (saisie.length >= 3) return;
     setSaisie(s => s + v);
   };
-  const touches = ["1","2","3","4","5","6","7","8","9","⌫","0",""];
   return (
     <div style={{ position:"fixed", inset:0, background:"#000c", zIndex:500, display:"flex", alignItems:"flex-end", justifyContent:"center" }} onClick={onFermer}>
       <div onClick={e => e.stopPropagation()} style={{ background:"#1a1a1a", border:`1px solid ${C.border}`, borderRadius:"20px 20px 0 0", padding:24, width:"100%", maxWidth:480 }}>
@@ -85,14 +84,17 @@ const Pad = ({ joueur, objectif, onValider, onDiviser, onFermer }) => {
           {saisie || <span style={{ color:"#333" }}>0</span>}
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:12 }}>
-          {touches.map((t, i) => (
-            t === "" ? <div key={i}/> :
-            <button key={i} onClick={() => appuyer(t)} style={{ background:"#111", border:`1px solid ${C.border}`, borderRadius:10, color:C.text, fontSize:20, fontWeight:600, padding:"16px", cursor:"pointer" }}>{t}</button>
+          {["1","2","3","4","5","6","7","8","9","⌫","0",""].map((t,i) => (
+            t===""?<div key={i}/>:
+            <button key={i} onClick={()=>appuyer(t)}
+              style={{ background:"#111", border:`1px solid ${C.border}`, borderRadius:10, color:C.text, fontSize:20, fontWeight:600, padding:"16px", cursor:"pointer" }}>{t}</button>
           ))}
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-          <button onClick={() => { onDiviser(); onFermer(); }} style={{ background:"#1a0f00", border:`1px solid ${C.yellow}`, borderRadius:10, color:C.yellow, fontSize:15, fontWeight:700, padding:"14px", cursor:"pointer" }}>÷2 Raté</button>
-          <button onClick={() => { onValider(parseInt(saisie) || 0); onFermer(); }} style={{ background:C.accent, border:"none", borderRadius:10, color:"#fff", fontSize:15, fontWeight:700, padding:"14px", cursor:"pointer" }}>✅ Valider</button>
+          <button onClick={()=>{onDiviser();onFermer();}}
+            style={{ background:"#1a0f00", border:`1px solid ${C.yellow}`, borderRadius:10, color:C.yellow, fontSize:15, fontWeight:700, padding:"14px", cursor:"pointer" }}>÷2 Raté</button>
+          <button onClick={()=>{onValider(parseInt(saisie)||0);onFermer();}}
+            style={{ background:C.accent, border:"none", borderRadius:10, color:"#fff", fontSize:15, fontWeight:700, padding:"14px", cursor:"pointer" }}>✅ Valider</button>
         </div>
       </div>
     </div>
@@ -107,7 +109,7 @@ const ModalQuitter = ({ onRester, onQuitter }) => (
       <h2 style={{ fontWeight:700, fontSize:18, marginBottom:8 }}>Quitter la partie ?</h2>
       <p style={{ color:C.muted, fontSize:14, marginBottom:24 }}>Les scores en cours seront perdus.</p>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-        <button onClick={onRester} style={{ background:"#14532d", border:`1px solid ${C.green}44`, borderRadius:10, color:C.green, fontSize:14, fontWeight:700, padding:"12px", cursor:"pointer" }}>▶ Rester</button>
+        <button onClick={onRester} style={{ background:"#14532d", border:`1px solid ${C.green}44`, borderRadius:10, color:C.green, fontSize:14, fontWeight:700, padding:"12px", cursor:"pointer" }}>▶ Continuer</button>
         <button onClick={onQuitter} style={{ background:"#7f1d1d", border:`1px solid ${C.red}44`, borderRadius:10, color:C.red, fontSize:14, fontWeight:700, padding:"12px", cursor:"pointer" }}>🚪 Quitter</button>
       </div>
     </div>
@@ -124,32 +126,33 @@ const Capital = ({ joueurs, onFin }) => {
   const [padCible, setPadCible] = useState(null);
   const [fini, setFini] = useState(false);
   const [modalQuitter, setModalQuitter] = useState(false);
-
-  // Ref unique pour le scroll horizontal (noms + cases + scores tous dedans)
-  const scrollRef = useRef(null);
-
   const colWidth = Math.max(90, Math.floor((window.innerWidth - 130) / Math.min(joueurs.length, 5)));
 
-  // Plein écran
+  // ── Plein écran ──
   useEffect(() => {
     const el = document.documentElement;
-    try { (el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen)?.call(el); } catch {}
+    try { (el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen||el.msRequestFullscreen)?.call(el); } catch {}
     document.body.style.overflow = "hidden";
     return () => {
-      try { (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen)?.call(document); } catch {}
+      try { (document.exitFullscreen||document.webkitExitFullscreen||document.mozCancelFullScreen||document.msExitFullscreen)?.call(document); } catch {}
       document.body.style.overflow = "";
     };
   }, []);
 
-  // Bloquer retour
+  // ── Bloquer bouton retour téléphone pendant le jeu ──
   useEffect(() => {
-    const handlePop = () => { setModalQuitter(true); window.history.pushState(null, "", window.location.href); };
+    if (fini) return;
+    const handlePop = (e) => {
+      e.preventDefault();
+      setModalQuitter(true);
+      window.history.pushState(null, "", window.location.href);
+    };
     window.history.pushState(null, "", window.location.href);
     window.addEventListener("popstate", handlePop);
     return () => window.removeEventListener("popstate", handlePop);
-  }, []);
+  }, [fini]);
 
-  const caseActive = (oi, ji) => oi === objIdx && ji === joueurIdx && !fini;
+  const caseActive = (oi, ji) => oi===objIdx && ji===joueurIdx && !fini;
 
   const ouvrirPad = (oi, ji) => {
     if (!caseActive(oi, ji)) return;
@@ -158,61 +161,58 @@ const Capital = ({ joueurs, onFin }) => {
   };
 
   const avancer = (oi, ji) => {
-    let nextJi = ji + 1, nextOi = oi;
-    if (nextJi >= joueurs.length) { nextJi = 0; nextOi = oi + 1; }
+    let nextJi = ji+1, nextOi = oi;
+    if (nextJi >= joueurs.length) { nextJi=0; nextOi=oi+1; }
     if (nextOi >= OBJECTIFS.length) { setFini(true); return; }
     setJoueurIdx(nextJi);
     setObjIdx(nextOi);
   };
 
   const valider = (points) => {
-    const { oi, ji } = padCible;
-    setScores(s => { const n = s.map(r=>[...r]); n[ji][oi] = points; return n; });
-    setTotaux(t => { const n = [...t]; n[ji] += points; return n; });
+    const {oi,ji} = padCible;
+    setScores(s => { const n=s.map(r=>[...r]); n[ji][oi]=points; return n; });
+    setTotaux(t => { const n=[...t]; n[ji]+=points; return n; });
     avancer(oi, ji);
   };
 
   const diviser = () => {
-    const { oi, ji } = padCible;
-    setScores(s => { const n = s.map(r=>[...r]); n[ji][oi] = -1; return n; });
-    setTotaux(t => { const n = [...t]; n[ji] = Math.floor(n[ji] / 2); return n; });
+    const {oi,ji} = padCible;
+    setScores(s => { const n=s.map(r=>[...r]); n[ji][oi]=-1; return n; });
+    setTotaux(t => { const n=[...t]; n[ji]=Math.floor(n[ji]/2); return n; });
     avancer(oi, ji);
   };
 
-  const classement = [...joueurs.map((nom, i) => ({ nom, total: totaux[i] }))].sort((a,b) => b.total - a.total);
-
-  if (fini) {
-    return (
-      <div style={{ maxWidth:480, margin:"0 auto", padding:"40px 20px" }}>
-        <div style={{ textAlign:"center", marginBottom:28 }}>
-          <div style={{ fontSize:50, marginBottom:8 }}>🏆</div>
-          <h1 style={{ fontWeight:800, fontSize:24 }}>Partie terminée !</h1>
-        </div>
-        {classement.map((j, i) => (
-          <div key={j.nom} style={{ background:C.card, border:`1px solid ${i===0?C.yellow:C.border}`, borderRadius:12, padding:"16px 20px", marginBottom:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-              <span style={{ fontSize:22 }}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":"👤"}</span>
-              <span style={{ fontWeight:700, fontSize:16 }}>{j.nom}</span>
-            </div>
-            <span style={{ fontWeight:800, fontSize:20, color:i===0?C.yellow:C.text }}>{j.total} pts</span>
-          </div>
-        ))}
-        <button onClick={onFin} style={{ marginTop:20, width:"100%", background:C.accent, color:"#fff", border:"none", borderRadius:12, padding:"16px", fontSize:15, fontWeight:700, cursor:"pointer" }}>
-          🔄 Nouvelle partie
-        </button>
-      </div>
-    );
-  }
-
+  const classement = [...joueurs.map((nom,i) => ({nom,total:totaux[i]}))].sort((a,b)=>b.total-a.total);
   const totalMinWidth = joueurs.length * colWidth;
 
+  if (fini) return (
+    <div style={{ maxWidth:480, margin:"0 auto", padding:"40px 20px" }}>
+      <div style={{ textAlign:"center", marginBottom:28 }}>
+        <div style={{ fontSize:50, marginBottom:8 }}>🏆</div>
+        <h1 style={{ fontWeight:800, fontSize:24 }}>Partie terminée !</h1>
+      </div>
+      {classement.map((j,i) => (
+        <div key={j.nom} style={{ background:C.card, border:`1px solid ${i===0?C.yellow:C.border}`, borderRadius:12, padding:"16px 20px", marginBottom:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <span style={{ fontSize:22 }}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":"👤"}</span>
+            <span style={{ fontWeight:700, fontSize:16 }}>{j.nom}</span>
+          </div>
+          <span style={{ fontWeight:800, fontSize:20, color:i===0?C.yellow:C.text }}>{j.total} pts</span>
+        </div>
+      ))}
+      <button onClick={onFin} style={{ marginTop:20, width:"100%", background:C.accent, color:"#fff", border:"none", borderRadius:12, padding:"16px", fontSize:15, fontWeight:700, cursor:"pointer" }}>
+        🔄 Nouvelle partie
+      </button>
+    </div>
+  );
+
   return (
-    <div style={{ position:"fixed", inset:0, background:C.bg, display:"flex", flexDirection:"column", zIndex:100, touchAction:"pan-x pan-y" }}>
+    <div style={{ position:"fixed", inset:0, background:C.bg, display:"flex", flexDirection:"column", zIndex:100 }}>
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}`}</style>
 
       {modalQuitter && <ModalQuitter onRester={()=>setModalQuitter(false)} onQuitter={onFin}/>}
 
-      {/* ── HEADER ── */}
+      {/* Header */}
       <div style={{ background:"#111", borderBottom:`1px solid ${C.border}`, padding:"10px 16px", flexShrink:0, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div>
           <h2 style={{ fontWeight:800, fontSize:15, color:C.accent }}>🎯 Le Capital</h2>
@@ -224,51 +224,50 @@ const Capital = ({ joueurs, onFin }) => {
         </div>
       </div>
 
-      {/* ── TABLEAU ── */}
+      {/* Tableau */}
       <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
 
-        {/* Colonne objectifs FIXE (gauche) */}
+        {/* Colonne objectifs FIXE */}
         <div style={{ width:130, flexShrink:0, borderRight:`1px solid ${C.border}`, background:"#111", display:"flex", flexDirection:"column" }}>
-          {/* En-tête */}
           <div style={{ height:44, borderBottom:`1px solid ${C.border}`, flexShrink:0, display:"flex", alignItems:"center", padding:"0 10px" }}>
             <span style={{ fontSize:10, color:C.muted, fontWeight:600 }}>OBJECTIF</span>
           </div>
-          {/* Liste objectifs */}
           <div style={{ flex:1, overflowY:"hidden" }}>
-            {OBJECTIFS.map((obj, oi) => (
+            {OBJECTIFS.map((obj,oi) => (
               <div key={oi} style={{ height:52, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 10px", background:oi===objIdx?"#1a1a1a":"#111" }}>
                 <span style={{ fontSize:11, fontWeight:oi===objIdx?700:400, color:oi===objIdx?C.accent:oi<objIdx?"#444":C.text, lineHeight:1.3 }}>{obj.nom}</span>
               </div>
             ))}
           </div>
-          {/* Ligne TOTAL sous les objectifs */}
+          {/* TOTAL label */}
           <div style={{ height:52, borderTop:`2px solid ${C.yellow}44`, flexShrink:0, display:"flex", alignItems:"center", padding:"0 10px", background:"#0f0f0f" }}>
             <span style={{ fontSize:12, fontWeight:700, color:C.yellow }}>TOTAL</span>
           </div>
         </div>
 
-        {/* Zone joueurs — UN SEUL scroll horizontal qui contient noms + cases + scores */}
-        <div ref={scrollRef} style={{ flex:1, overflowX:"auto", overflowY:"auto", display:"flex", flexDirection:"column" }}>
-          {/* Ligne noms (sticky en haut) */}
+        {/* Zone joueurs — scroll unique X+Y */}
+        <div style={{ flex:1, overflowX:"auto", overflowY:"auto", display:"flex", flexDirection:"column" }}>
+
+          {/* Noms sticky haut */}
           <div style={{ display:"flex", minWidth:totalMinWidth, position:"sticky", top:0, zIndex:10, background:"#111", borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
-            {joueurs.map((nom, ji) => (
+            {joueurs.map((nom,ji) => (
               <div key={ji} style={{ width:colWidth, flexShrink:0, height:44, borderRight:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", background:ji===joueurIdx?"#1a0800":"#111", padding:"0 6px" }}>
                 <span style={{ fontSize:12, fontWeight:700, color:ji===joueurIdx?C.accent:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{nom}</span>
               </div>
             ))}
           </div>
 
-          {/* Cases objectifs */}
+          {/* Cases */}
           <div style={{ display:"flex", minWidth:totalMinWidth, flex:1 }}>
-            {joueurs.map((nom, ji) => (
+            {joueurs.map((nom,ji) => (
               <div key={ji} style={{ width:colWidth, flexShrink:0, borderRight:`1px solid ${C.border}` }}>
-                {OBJECTIFS.map((obj, oi) => {
+                {OBJECTIFS.map((obj,oi) => {
                   const score = scores[ji][oi];
-                  const actif = caseActive(oi, ji);
+                  const actif = caseActive(oi,ji);
                   const joue = score !== null;
                   const rate = score === -1;
                   return (
-                    <div key={oi} onClick={() => ouvrirPad(oi, ji)} style={{
+                    <div key={oi} onClick={()=>ouvrirPad(oi,ji)} style={{
                       height:52, borderBottom:`1px solid ${C.border}`,
                       display:"flex", alignItems:"center", justifyContent:"center",
                       cursor:actif?"pointer":"default",
@@ -287,20 +286,21 @@ const Capital = ({ joueurs, onFin }) => {
             ))}
           </div>
 
-          {/* ── LIGNE SCORES — sticky en bas, dans le même scroll ── */}
+          {/* Scores sticky bas */}
           <div style={{ display:"flex", minWidth:totalMinWidth, position:"sticky", bottom:0, zIndex:10, background:"#0f0f0f", borderTop:`2px solid ${C.yellow}44`, flexShrink:0 }}>
-            {joueurs.map((nom, ji) => (
+            {joueurs.map((nom,ji) => (
               <div key={ji} style={{ width:colWidth, flexShrink:0, borderRight:`1px solid ${C.border}`, height:52, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
                 <span style={{ fontSize:9, color:C.muted, marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:colWidth-10 }}>{nom}</span>
                 <span style={{ fontWeight:800, fontSize:18, color:C.yellow }}>{totaux[ji]}</span>
               </div>
             ))}
           </div>
+
         </div>
       </div>
 
       {padOpen && padCible && (
-        <Pad joueur={joueurs[padCible.ji]} objectif={OBJECTIFS[padCible.oi]} onValider={valider} onDiviser={diviser} onFermer={() => setPadOpen(false)}/>
+        <Pad joueur={joueurs[padCible.ji]} objectif={OBJECTIFS[padCible.oi]} onValider={valider} onDiviser={diviser} onFermer={()=>setPadOpen(false)}/>
       )}
     </div>
   );
@@ -311,5 +311,5 @@ export const JeuCapital = ({ setPage }) => {
   const [phase, setPhase] = useState("setup");
   const [joueurs, setJoueurs] = useState([]);
   if (phase === "setup") return <Setup onStart={j => { setJoueurs(j); setPhase("jeu"); }}/>;
-  return <Capital joueurs={joueurs} onFin={() => setPhase("setup")}/>;
+  return <Capital joueurs={joueurs} onFin={()=>setPhase("setup")}/>;
 };
