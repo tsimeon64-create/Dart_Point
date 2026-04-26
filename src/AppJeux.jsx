@@ -382,9 +382,9 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
       {/* Saisie */}
       <div style={{ padding:"6px 16px", background:"#0f0f0f", flexShrink:0 }}>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <div style={{ flex:1, background:"#fff", borderRadius:50, padding:"11px 16px", display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ flex:1, background:"#f1f5f9", borderRadius:50, padding:"11px 16px", display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ fontSize:16, color:"#94a3b8" }}>⌨️</span>
-            <span style={{ fontSize:20, fontWeight:700, color: input ? "#111" : "#94a3b8", flex:1 }}>
+            <span style={{ fontSize:20, fontWeight:700, color: input ? "#000" : "#94a3b8", flex:1 }}>
               {input || "Score…"}
             </span>
           </div>
