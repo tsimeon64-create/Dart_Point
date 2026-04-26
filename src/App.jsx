@@ -1231,6 +1231,9 @@ export default function App() {
         ::-webkit-scrollbar-track { background:#111; }
         ::-webkit-scrollbar-thumb { background:#333; border-radius:3px; }
         @keyframes spin { to { transform:rotate(360deg); } }
+        .leaflet-popup-content-wrapper { background:#fff !important; color:#111 !important; }
+.leaflet-popup-content { color:#111 !important; -webkit-text-fill-color:#111 !important; }
+.leaflet-popup-tip { background:#fff !important; }
       `}</style>
       <Nav page={page} setPage={nav} isAdmin={isAdmin} joueur={joueur} setJoueur={setJoueur} defisCount={notifCount}/>
       <main style={{ flex:1 }}>
@@ -1243,7 +1246,7 @@ export default function App() {
         {page==="tournoi-detail"   && <TournoiDetail slug={tournoiSlug} tournois={tournois} bars={bars} setPage={nav} setBarSlug={setBarSlug}/>}
         {page==="joueurs"          && <PageJoueurs joueur={joueur} setPage={nav} setJoueurId={setJoueurId}/>}
         {page==="drix"             && <PageDrix setPage={nav} setJoueurId={setJoueurId} bars={bars} associations={associations}/>}
-        {page==="profil-joueur"    && <FicheJoueur joueurId={joueurId} joueur={joueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug}/>}
+        {page.startsWith("profil-joueur-") && <FicheJoueur joueurId={page.replace("profil-joueur-","")} joueur={joueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug}/>}
         {page==="mon-profil"       && joueur && <MonProfil joueur={joueur} setJoueur={setJoueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug} setJoueurId={setJoueurId}/>}
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav}/>}
         {page==="scoreur"          && <Scoreur setPage={nav}/>}
