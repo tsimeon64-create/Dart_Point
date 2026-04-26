@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const C = {
   bg:"#0f0f0f", card:"#1a1a1a", border:"#2a2a2a",
@@ -124,6 +124,10 @@ const Capital = ({ joueurs, onFin }) => {
   const [padCible, setPadCible] = useState(null);
   const [fini, setFini] = useState(false);
   const [modalQuitter, setModalQuitter] = useState(false);
+
+  // Ref unique pour le scroll horizontal (noms + cases + scores tous dedans)
+  const scrollRef = useRef(null);
+
   const colWidth = Math.max(90, Math.floor((window.innerWidth - 130) / Math.min(joueurs.length, 5)));
 
   // Plein écran
@@ -139,7 +143,7 @@ const Capital = ({ joueurs, onFin }) => {
 
   // Bloquer retour
   useEffect(() => {
-    const handlePop = (e) => { e.preventDefault(); setModalQuitter(true); window.history.pushState(null, "", window.location.href); };
+    const handlePop = () => { setModalQuitter(true); window.history.pushState(null, "", window.location.href); };
     window.history.pushState(null, "", window.location.href);
     window.addEventListener("popstate", handlePop);
     return () => window.removeEventListener("popstate", handlePop);
@@ -200,13 +204,15 @@ const Capital = ({ joueurs, onFin }) => {
     );
   }
 
+  const totalMinWidth = joueurs.length * colWidth;
+
   return (
-    <div style={{ position:"fixed", inset:0, background:C.bg, display:"flex", flexDirection:"column", zIndex:100, touchAction:"none" }}>
+    <div style={{ position:"fixed", inset:0, background:C.bg, display:"flex", flexDirection:"column", zIndex:100, touchAction:"pan-x pan-y" }}>
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}`}</style>
 
       {modalQuitter && <ModalQuitter onRester={()=>setModalQuitter(false)} onQuitter={onFin}/>}
 
-      {/* Header */}
+      {/* ── HEADER ── */}
       <div style={{ background:"#111", borderBottom:`1px solid ${C.border}`, padding:"10px 16px", flexShrink:0, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div>
           <h2 style={{ fontWeight:800, fontSize:15, color:C.accent }}>🎯 Le Capital</h2>
@@ -218,14 +224,16 @@ const Capital = ({ joueurs, onFin }) => {
         </div>
       </div>
 
-      {/* Corps scrollable */}
+      {/* ── TABLEAU ── */}
       <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
 
-        {/* Colonne gauche FIXE */}
-        <div style={{ width:130, flexShrink:0, borderRight:`1px solid ${C.border}`, background:"#111", overflowY:"hidden", display:"flex", flexDirection:"column" }}>
+        {/* Colonne objectifs FIXE (gauche) */}
+        <div style={{ width:130, flexShrink:0, borderRight:`1px solid ${C.border}`, background:"#111", display:"flex", flexDirection:"column" }}>
+          {/* En-tête */}
           <div style={{ height:44, borderBottom:`1px solid ${C.border}`, flexShrink:0, display:"flex", alignItems:"center", padding:"0 10px" }}>
             <span style={{ fontSize:10, color:C.muted, fontWeight:600 }}>OBJECTIF</span>
           </div>
+          {/* Liste objectifs */}
           <div style={{ flex:1, overflowY:"hidden" }}>
             {OBJECTIFS.map((obj, oi) => (
               <div key={oi} style={{ height:52, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 10px", background:oi===objIdx?"#1a1a1a":"#111" }}>
@@ -233,18 +241,27 @@ const Capital = ({ joueurs, onFin }) => {
               </div>
             ))}
           </div>
+          {/* Ligne TOTAL sous les objectifs */}
+          <div style={{ height:52, borderTop:`2px solid ${C.yellow}44`, flexShrink:0, display:"flex", alignItems:"center", padding:"0 10px", background:"#0f0f0f" }}>
+            <span style={{ fontSize:12, fontWeight:700, color:C.yellow }}>TOTAL</span>
+          </div>
         </div>
 
-        {/* Cases joueurs — scroll X et Y */}
-        <div style={{ flex:1, overflowX:"auto", overflowY:"auto" }}>
-          <div style={{ display:"inline-flex", minWidth: joueurs.length * colWidth }}>
+        {/* Zone joueurs — UN SEUL scroll horizontal qui contient noms + cases + scores */}
+        <div ref={scrollRef} style={{ flex:1, overflowX:"auto", overflowY:"auto", display:"flex", flexDirection:"column" }}>
+          {/* Ligne noms (sticky en haut) */}
+          <div style={{ display:"flex", minWidth:totalMinWidth, position:"sticky", top:0, zIndex:10, background:"#111", borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
+            {joueurs.map((nom, ji) => (
+              <div key={ji} style={{ width:colWidth, flexShrink:0, height:44, borderRight:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", background:ji===joueurIdx?"#1a0800":"#111", padding:"0 6px" }}>
+                <span style={{ fontSize:12, fontWeight:700, color:ji===joueurIdx?C.accent:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{nom}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Cases objectifs */}
+          <div style={{ display:"flex", minWidth:totalMinWidth, flex:1 }}>
             {joueurs.map((nom, ji) => (
               <div key={ji} style={{ width:colWidth, flexShrink:0, borderRight:`1px solid ${C.border}` }}>
-                {/* Nom sticky */}
-                <div style={{ height:44, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", background:ji===joueurIdx?"#1a0800":"#111", padding:"0 6px", position:"sticky", top:0, zIndex:5 }}>
-                  <span style={{ fontSize:12, fontWeight:700, color:ji===joueurIdx?C.accent:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{nom}</span>
-                </div>
-                {/* Cases */}
                 {OBJECTIFS.map((obj, oi) => {
                   const score = scores[ji][oi];
                   const actif = caseActive(oi, ji);
@@ -269,18 +286,9 @@ const Capital = ({ joueurs, onFin }) => {
               </div>
             ))}
           </div>
-        </div>
-      </div>
 
-      {/* ── LIGNE SCORES FIXE EN BAS ── */}
-      <div style={{ borderTop:`2px solid ${C.yellow}44`, background:"#0f0f0f", flexShrink:0, display:"flex", overflow:"hidden" }}>
-        {/* Label */}
-        <div style={{ width:130, flexShrink:0, borderRight:`1px solid ${C.border}`, height:52, display:"flex", alignItems:"center", padding:"0 14px" }}>
-          <span style={{ fontSize:12, fontWeight:700, color:C.yellow }}>TOTAL</span>
-        </div>
-        {/* Scores — scroll X en sync */}
-        <div style={{ flex:1, overflowX:"auto", display:"flex" }}>
-          <div style={{ display:"inline-flex", minWidth: joueurs.length * colWidth }}>
+          {/* ── LIGNE SCORES — sticky en bas, dans le même scroll ── */}
+          <div style={{ display:"flex", minWidth:totalMinWidth, position:"sticky", bottom:0, zIndex:10, background:"#0f0f0f", borderTop:`2px solid ${C.yellow}44`, flexShrink:0 }}>
             {joueurs.map((nom, ji) => (
               <div key={ji} style={{ width:colWidth, flexShrink:0, borderRight:`1px solid ${C.border}`, height:52, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
                 <span style={{ fontSize:9, color:C.muted, marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:colWidth-10 }}>{nom}</span>
