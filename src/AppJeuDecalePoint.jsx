@@ -23,6 +23,8 @@ const OBJECTIFS = [
   { id:14, nom:"🎱 Le centre",    desc:"Bull (25) ou Bullseye (50)" },
 ];
 
+const ROW_H = 52; // hauteur de chaque ligne en px
+
 // ── SETUP ─────────────────────────────────────────────────────────────────────
 const Setup = ({ onStart }) => {
   const [joueurs, setJoueurs] = useState(["", ""]);
@@ -126,20 +128,64 @@ const Capital = ({ joueurs, onFin }) => {
   const [padCible, setPadCible] = useState(null);
   const [fini, setFini] = useState(false);
   const [modalQuitter, setModalQuitter] = useState(false);
-  const colWidth = Math.max(90, Math.floor((window.innerWidth - 130) / Math.min(joueurs.length, 5)));
+  // Historique pour le bouton annuler
+  const [historique, setHistorique] = useState([]);
 
-  // ── Plein écran ──
+  // Refs pour synchroniser le scroll vertical entre colonne gauche et tableau
+  const leftColRef = useRef(null);
+  const rightColRef = useRef(null);
+  const syncingLeft = useRef(false);
+  const syncingRight = useRef(false);
+
+  const colWidth = Math.max(90, Math.floor((window.innerWidth - 130) / Math.min(joueurs.length, 5)));
+  const totalMinWidth = joueurs.length * colWidth;
+
+  // ── Sync scroll vertical ──
   useEffect(() => {
-    const el = document.documentElement;
-    try { (el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen||el.msRequestFullscreen)?.call(el); } catch {}
-    document.body.style.overflow = "hidden";
+    const left = leftColRef.current;
+    const right = rightColRef.current;
+    if (!left || !right) return;
+
+    const onLeftScroll = () => {
+      if (syncingLeft.current) return;
+      syncingRight.current = true;
+      right.scrollTop = left.scrollTop;
+      syncingRight.current = false;
+    };
+    const onRightScroll = () => {
+      if (syncingRight.current) return;
+      syncingLeft.current = true;
+      left.scrollTop = right.scrollTop;
+      syncingLeft.current = false;
+    };
+
+    left.addEventListener("scroll", onLeftScroll);
+    right.addEventListener("scroll", onRightScroll);
     return () => {
-      try { (document.exitFullscreen||document.webkitExitFullscreen||document.mozCancelFullScreen||document.msExitFullscreen)?.call(document); } catch {}
-      document.body.style.overflow = "";
+      left.removeEventListener("scroll", onLeftScroll);
+      right.removeEventListener("scroll", onRightScroll);
     };
   }, []);
 
-  // ── Bloquer bouton retour téléphone pendant le jeu ──
+  // ── Plein écran + blocage scroll body ──
+  useEffect(() => {
+    document.documentElement.requestFullscreen?.().catch(()=>{});
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.width = "100%";
+    document.body.style.height = "100%";
+    document.body.style.touchAction = "none";
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+      document.body.style.height = "";
+      document.body.style.touchAction = "";
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
+    };
+  }, []);
+
+  // ── Bloquer bouton retour téléphone ──
   useEffect(() => {
     if (fini) return;
     const handlePop = (e) => {
@@ -169,21 +215,35 @@ const Capital = ({ joueurs, onFin }) => {
   };
 
   const valider = (points) => {
-    const {oi,ji} = padCible;
+    const {oi, ji} = padCible;
+    // Sauvegarder l'état avant modification
+    setHistorique(h => [...h, { scores: scores.map(r=>[...r]), totaux:[...totaux], objIdx, joueurIdx }]);
     setScores(s => { const n=s.map(r=>[...r]); n[ji][oi]=points; return n; });
     setTotaux(t => { const n=[...t]; n[ji]+=points; return n; });
     avancer(oi, ji);
   };
 
   const diviser = () => {
-    const {oi,ji} = padCible;
+    const {oi, ji} = padCible;
+    // Sauvegarder l'état avant modification
+    setHistorique(h => [...h, { scores: scores.map(r=>[...r]), totaux:[...totaux], objIdx, joueurIdx }]);
     setScores(s => { const n=s.map(r=>[...r]); n[ji][oi]=-1; return n; });
     setTotaux(t => { const n=[...t]; n[ji]=Math.floor(n[ji]/2); return n; });
     avancer(oi, ji);
   };
 
+  // ── Bouton annuler dernier coup ──
+  const annuler = () => {
+    if (historique.length === 0) return;
+    const prev = historique[historique.length - 1];
+    setScores(prev.scores);
+    setTotaux(prev.totaux);
+    setObjIdx(prev.objIdx);
+    setJoueurIdx(prev.joueurIdx);
+    setHistorique(h => h.slice(0, -1));
+  };
+
   const classement = [...joueurs.map((nom,i) => ({nom,total:totaux[i]}))].sort((a,b)=>b.total-a.total);
-  const totalMinWidth = joueurs.length * colWidth;
 
   if (fini) return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"40px 20px" }}>
@@ -212,44 +272,63 @@ const Capital = ({ joueurs, onFin }) => {
 
       {modalQuitter && <ModalQuitter onRester={()=>setModalQuitter(false)} onQuitter={onFin}/>}
 
-      {/* Header */}
+      {/* ── HEADER ── */}
       <div style={{ background:"#111", borderBottom:`1px solid ${C.border}`, padding:"10px 16px", flexShrink:0, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div>
           <h2 style={{ fontWeight:800, fontSize:15, color:C.accent }}>🎯 Le Capital</h2>
-          <p style={{ color:C.muted, fontSize:11, marginTop:1 }}>Obj. {objIdx+1}/14 — <span style={{ color:C.text, fontWeight:600 }}>{joueurs[joueurIdx]}</span> joue</p>
+          <p style={{ color:C.muted, fontSize:11, marginTop:1 }}>
+            Obj. {objIdx+1}/14 — <span style={{ color:C.text, fontWeight:600 }}>{joueurs[joueurIdx]}</span> joue
+          </p>
         </div>
-        <div style={{ textAlign:"right" }}>
-          <div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>{OBJECTIFS[objIdx].nom}</div>
-          <button onClick={()=>setModalQuitter(true)} style={{ background:"#1a0000", border:`1px solid ${C.red}33`, borderRadius:6, color:C.red, fontSize:11, cursor:"pointer", padding:"3px 10px" }}>⚠️ Quitter</button>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          {/* Bouton annuler */}
+          <button
+            onClick={annuler}
+            disabled={historique.length === 0}
+            style={{ background:"#1a1200", border:`1px solid ${C.yellow}44`, borderRadius:6, color:historique.length>0?C.yellow:"#444", fontSize:11, cursor:historique.length>0?"pointer":"not-allowed", padding:"4px 10px", opacity:historique.length>0?1:0.4 }}>
+            ↩️ Annuler
+          </button>
+          <button onClick={()=>setModalQuitter(true)}
+            style={{ background:"#1a0000", border:`1px solid ${C.red}33`, borderRadius:6, color:C.red, fontSize:11, cursor:"pointer", padding:"4px 10px" }}>
+            ⚠️ Quitter
+          </button>
         </div>
       </div>
 
-      {/* Tableau */}
+      {/* ── TABLEAU ── */}
       <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
 
-        {/* Colonne objectifs FIXE */}
+        {/* ── Colonne gauche FIXE horizontalement, scroll vertical en sync ── */}
         <div style={{ width:130, flexShrink:0, borderRight:`1px solid ${C.border}`, background:"#111", display:"flex", flexDirection:"column" }}>
+          {/* En-tête fixe */}
           <div style={{ height:44, borderBottom:`1px solid ${C.border}`, flexShrink:0, display:"flex", alignItems:"center", padding:"0 10px" }}>
             <span style={{ fontSize:10, color:C.muted, fontWeight:600 }}>OBJECTIF</span>
           </div>
-          <div style={{ flex:1, overflowY:"hidden" }}>
-            {OBJECTIFS.map((obj,oi) => (
-              <div key={oi} style={{ height:52, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 10px", background:oi===objIdx?"#1a1a1a":"#111" }}>
+          {/* Liste objectifs — scroll vertical synchronisé */}
+          <div ref={leftColRef} style={{ flex:1, overflowY:"auto", overflowX:"hidden" }}
+            onScroll={e => {
+              if (syncingLeft.current) return;
+              syncingRight.current = true;
+              if (rightColRef.current) rightColRef.current.scrollTop = e.target.scrollTop;
+              syncingRight.current = false;
+            }}>
+            {OBJECTIFS.map((obj, oi) => (
+              <div key={oi} style={{ height:ROW_H, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 10px", background:oi===objIdx?"#1a1a1a":"#111", flexShrink:0 }}>
                 <span style={{ fontSize:11, fontWeight:oi===objIdx?700:400, color:oi===objIdx?C.accent:oi<objIdx?"#444":C.text, lineHeight:1.3 }}>{obj.nom}</span>
               </div>
             ))}
           </div>
-          {/* TOTAL label */}
+          {/* Label TOTAL */}
           <div style={{ height:52, borderTop:`2px solid ${C.yellow}44`, flexShrink:0, display:"flex", alignItems:"center", padding:"0 10px", background:"#0f0f0f" }}>
             <span style={{ fontSize:12, fontWeight:700, color:C.yellow }}>TOTAL</span>
           </div>
         </div>
 
-        {/* Zone joueurs — scroll unique X+Y */}
-        <div style={{ flex:1, overflowX:"auto", overflowY:"auto", display:"flex", flexDirection:"column" }}>
+        {/* ── Zone joueurs : scroll X + Y, noms sticky haut, scores sticky bas ── */}
+        <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
           {/* Noms sticky haut */}
-          <div style={{ display:"flex", minWidth:totalMinWidth, position:"sticky", top:0, zIndex:10, background:"#111", borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
+          <div style={{ display:"flex", minWidth:totalMinWidth, flexShrink:0, borderBottom:`1px solid ${C.border}`, background:"#111", position:"sticky", top:0, zIndex:10, overflowX:"hidden" }}>
             {joueurs.map((nom,ji) => (
               <div key={ji} style={{ width:colWidth, flexShrink:0, height:44, borderRight:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", background:ji===joueurIdx?"#1a0800":"#111", padding:"0 6px" }}>
                 <span style={{ fontSize:12, fontWeight:700, color:ji===joueurIdx?C.accent:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{nom}</span>
@@ -257,37 +336,46 @@ const Capital = ({ joueurs, onFin }) => {
             ))}
           </div>
 
-          {/* Cases */}
-          <div style={{ display:"flex", minWidth:totalMinWidth, flex:1 }}>
-            {joueurs.map((nom,ji) => (
-              <div key={ji} style={{ width:colWidth, flexShrink:0, borderRight:`1px solid ${C.border}` }}>
-                {OBJECTIFS.map((obj,oi) => {
-                  const score = scores[ji][oi];
-                  const actif = caseActive(oi,ji);
-                  const joue = score !== null;
-                  const rate = score === -1;
-                  return (
-                    <div key={oi} onClick={()=>ouvrirPad(oi,ji)} style={{
-                      height:52, borderBottom:`1px solid ${C.border}`,
-                      display:"flex", alignItems:"center", justifyContent:"center",
-                      cursor:actif?"pointer":"default",
-                      background:actif?"#1a0f00":joue?"#111":"#0f0f0f",
-                      outline:actif?`2px solid ${C.accent}`:"none",
-                      outlineOffset:"-2px",
-                    }}>
-                      {actif && !joue && <span style={{ fontSize:18, animation:"pulse 1s infinite" }}>👆</span>}
-                      {joue && !rate && <span style={{ fontWeight:700, fontSize:14, color:C.green }}>+{score}</span>}
-                      {rate && <span style={{ fontWeight:700, fontSize:12, color:C.red }}>÷2</span>}
-                      {!joue && !actif && <span style={{ color:"#333" }}>—</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+          {/* Cases scrollables X+Y */}
+          <div ref={rightColRef}
+            style={{ flex:1, overflowX:"auto", overflowY:"auto" }}
+            onScroll={e => {
+              if (syncingRight.current) return;
+              syncingLeft.current = true;
+              if (leftColRef.current) leftColRef.current.scrollTop = e.target.scrollTop;
+              syncingLeft.current = false;
+            }}>
+            <div style={{ display:"flex", minWidth:totalMinWidth }}>
+              {joueurs.map((nom,ji) => (
+                <div key={ji} style={{ width:colWidth, flexShrink:0, borderRight:`1px solid ${C.border}` }}>
+                  {OBJECTIFS.map((obj,oi) => {
+                    const score = scores[ji][oi];
+                    const actif = caseActive(oi,ji);
+                    const joue = score !== null;
+                    const rate = score === -1;
+                    return (
+                      <div key={oi} onClick={()=>ouvrirPad(oi,ji)} style={{
+                        height:ROW_H, borderBottom:`1px solid ${C.border}`,
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                        cursor:actif?"pointer":"default",
+                        background:actif?"#1a0f00":joue?"#111":"#0f0f0f",
+                        outline:actif?`2px solid ${C.accent}`:"none",
+                        outlineOffset:"-2px",
+                      }}>
+                        {actif && !joue && <span style={{ fontSize:18, animation:"pulse 1s infinite" }}>👆</span>}
+                        {joue && !rate && <span style={{ fontWeight:700, fontSize:14, color:C.green }}>+{score}</span>}
+                        {rate && <span style={{ fontWeight:700, fontSize:12, color:C.red }}>÷2</span>}
+                        {!joue && !actif && <span style={{ color:"#333" }}>—</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Scores sticky bas */}
-          <div style={{ display:"flex", minWidth:totalMinWidth, position:"sticky", bottom:0, zIndex:10, background:"#0f0f0f", borderTop:`2px solid ${C.yellow}44`, flexShrink:0 }}>
+          <div style={{ display:"flex", minWidth:totalMinWidth, flexShrink:0, borderTop:`2px solid ${C.yellow}44`, background:"#0f0f0f", overflowX:"hidden" }}>
             {joueurs.map((nom,ji) => (
               <div key={ji} style={{ width:colWidth, flexShrink:0, borderRight:`1px solid ${C.border}`, height:52, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
                 <span style={{ fontSize:9, color:C.muted, marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:colWidth-10 }}>{nom}</span>
@@ -295,7 +383,6 @@ const Capital = ({ joueurs, onFin }) => {
               </div>
             ))}
           </div>
-
         </div>
       </div>
 
