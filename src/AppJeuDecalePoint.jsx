@@ -201,7 +201,8 @@ const Capital = ({ joueurs, onFin }) => {
   const caseActive = (oi, ji) => oi===objIdx && ji===joueurIdx && !fini;
 
   const ouvrirPad = (oi, ji) => {
-    if (!caseActive(oi, ji)) return;
+    // Actif = case du joueur courant OU case déjà jouée (modification)
+    if (!caseActive(oi, ji) && scores[ji][oi] === null) return;
     setPadCible({ oi, ji });
     setPadOpen(true);
   };
@@ -216,20 +217,34 @@ const Capital = ({ joueurs, onFin }) => {
 
   const valider = (points) => {
     const {oi, ji} = padCible;
-    // Sauvegarder l'état avant modification
     setHistorique(h => [...h, { scores: scores.map(r=>[...r]), totaux:[...totaux], objIdx, joueurIdx }]);
+    const ancienScore = scores[ji][oi];
+    const ancienPoints = (ancienScore !== null && ancienScore !== -1) ? ancienScore : 0;
+    const ancienDiv = ancienScore === -1 ? true : false;
     setScores(s => { const n=s.map(r=>[...r]); n[ji][oi]=points; return n; });
-    setTotaux(t => { const n=[...t]; n[ji]+=points; return n; });
-    avancer(oi, ji);
+    setTotaux(t => {
+      const n=[...t];
+      if (ancienDiv) n[ji] = n[ji] * 2 + points; // annule la division et ajoute le nouveau score
+      else n[ji] = n[ji] - ancienPoints + points;
+      return n;
+    });
+    // N'avance que si c'est une nouvelle saisie (pas une modification)
+    if (ancienScore === null) avancer(oi, ji);
   };
 
   const diviser = () => {
     const {oi, ji} = padCible;
-    // Sauvegarder l'état avant modification
     setHistorique(h => [...h, { scores: scores.map(r=>[...r]), totaux:[...totaux], objIdx, joueurIdx }]);
+    const ancienScore = scores[ji][oi];
+    const ancienPoints = (ancienScore !== null && ancienScore !== -1) ? ancienScore : 0;
     setScores(s => { const n=s.map(r=>[...r]); n[ji][oi]=-1; return n; });
-    setTotaux(t => { const n=[...t]; n[ji]=Math.floor(n[ji]/2); return n; });
-    avancer(oi, ji);
+    setTotaux(t => {
+      const n=[...t];
+      if (ancienScore === -1) return n; // déjà divisé, rien à faire
+      n[ji] = Math.floor((n[ji] - ancienPoints) / 2);
+      return n;
+    });
+    if (ancienScore === null) avancer(oi, ji);
   };
 
   // ── Bouton annuler dernier coup ──
@@ -399,4 +414,4 @@ export const JeuCapital = ({ setPage }) => {
   const [joueurs, setJoueurs] = useState([]);
   if (phase === "setup") return <Setup onStart={j => { setJoueurs(j); setPhase("jeu"); }}/>;
   return <Capital joueurs={joueurs} onFin={()=>setPhase("setup")}/>;
-};
+};F
