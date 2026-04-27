@@ -769,6 +769,7 @@ export const AmiSection = ({ joueur, setPage }) => {
 export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage, setBarSlug }) => {
   const [j, setJ] = useState(null);
   const [stats, setStats] = useState(null);
+  const [duels, setDuels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [amiStatut, setAmiStatut] = useState(null);
 
@@ -776,8 +777,8 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
     // Guard : ne pas lancer la requête si l'ID est invalide
     if (!joueurId) { setLoading(false); return; }
     setLoading(true);
-    Promise.all([dbJ.getJoueur(joueurId), dbJ.getStats(joueurId)])
-      .then(([j,s]) => { setJ(j); setStats(s); setLoading(false); })
+    Promise.all([dbJ.getJoueur(joueurId), dbJ.getStats(joueurId), dbJ.getDuels(joueurId)])
+      .then(([j,s,d]) => { setJ(j); setStats(s); setDuels((d||[]).filter(x=>x.statut==="termine")); setLoading(false); })
       .catch(() => setLoading(false));
   }, [joueurId]);
 
@@ -859,6 +860,47 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
           <p style={{ color:CJ.muted,fontSize:12 }}>📍 {bar.ville} · Voir la fiche →</p>
         </div>
       )}
+      {/* ── HISTORIQUE DES PARTIES ── */}
+      <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:12, padding:20, marginBottom:16 }}>
+        <h3 style={{ fontWeight:700, fontSize:15, marginBottom:duels.length===0?0:14, color:CJ.accent }}>
+          📋 Historique des parties
+          {duels.length>0 && <span style={{ color:CJ.muted, fontSize:12, fontWeight:400, marginLeft:8 }}>{duels.length} partie{duels.length>1?"s":""}</span>}
+        </h3>
+        {duels.length===0
+          ? <p style={{ color:CJ.muted, fontSize:13, marginTop:10 }}>Aucune partie jouée pour l'instant.</p>
+          : duels.map(d => {
+              const isChallenger = d.challenger_id === joueurId;
+              const adversaire = isChallenger ? d.defie_pseudo : d.challenger_pseudo;
+              const adversaireId = isChallenger ? d.defie_id : d.challenger_id;
+              const monScore = isChallenger ? d.score_manches_challenger : d.score_manches_defie;
+              const sonScore = isChallenger ? d.score_manches_defie : d.score_manches_challenger;
+              const gagne = d.gagnant_id === joueurId;
+              return (
+                <div key={d.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 0", borderBottom:`1px solid ${CJ.border}`, flexWrap:"wrap", gap:8 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                    <span style={{ fontSize:18 }}>{gagne?"🏆":"😔"}</span>
+                    <div>
+                      <div style={{ fontWeight:600, fontSize:14 }}>
+                        vs{" "}
+                        <span onClick={()=>setPage("profil-joueur-"+adversaireId)} style={{ color:CJ.accent, cursor:"pointer", textDecoration:"underline" }}>
+                          {adversaire}
+                        </span>
+                      </div>
+                      <div style={{ color:CJ.muted, fontSize:11 }}>
+                        {d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""} · {new Date(d.date).toLocaleDateString("fr-FR")}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                    <span style={{ fontWeight:800, fontSize:15 }}>{monScore} – {sonScore}</span>
+                    <BadgeJ color={gagne?CJ.green:CJ.red}>{gagne?"Victoire ✅":"Défaite ❌"}</BadgeJ>
+                  </div>
+                </div>
+              );
+            })
+        }
+      </div>
+
       {moi && moi.id!==j.id && (
         <DefiForm joueur={moi} cible={j} setPage={setPage}/>
       )}
