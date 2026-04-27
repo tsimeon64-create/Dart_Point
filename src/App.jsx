@@ -37,6 +37,9 @@ const db = {
   addTournoi: (d) => sb("tournois", { method:"POST", body:JSON.stringify(d) }),
   updateTournoi: (slug, d) => sb(`tournois?slug=eq.${encodeURIComponent(slug)}`, { method:"PATCH", body:JSON.stringify(d), prefer:"return=minimal" }),
   deleteTournoi: (slug) => sb(`tournois?slug=eq.${encodeURIComponent(slug)}`, { method:"DELETE", prefer:"return=minimal" }),
+  getInscrits: (slug) => sb(`tournoi_inscriptions?tournoi_slug=eq.${encodeURIComponent(slug)}&order=date.asc&select=*`),
+  addInscription: (d) => sb("tournoi_inscriptions", { method:"POST", body:JSON.stringify(d) }),
+  deleteInscription: (tournoi_slug, joueur_id) => sb(`tournoi_inscriptions?tournoi_slug=eq.${encodeURIComponent(tournoi_slug)}&joueur_id=eq.${joueur_id}`, { method:"DELETE", prefer:"return=minimal" }),
   getPropositions: () => sb("propositions?order=date.desc&select=*"),
   addProposition: (d) => sb("propositions", { method:"POST", body:JSON.stringify(d) }),
   updateProposition: (id, d) => sb(`propositions?id=eq.${id}`, { method:"PATCH", body:JSON.stringify(d), prefer:"return=minimal" }),
@@ -893,14 +896,52 @@ const Tournois = ({ tournois, setPage, setTournoiSlug }) => {
   );
 };
 
-const TournoiDetail = ({ slug, tournois, bars, setPage, setBarSlug }) => {
-  const t=tournois.find(x=>x.slug===slug); if(!t) return null;
-  const d=new Date(t.date); const isPast=d<new Date(); const bar=bars.find(b=>b.nom===t.bar);
+const TournoiDetail = ({ slug, tournois, setTournois, bars, setPage, setBarSlug, joueur }) => {
+  const [inscrits, setInscrits] = useState([]);
+  const [monInscription, setMonInscription] = useState(null);
+  const [loadingInscription, setLoadingInscription] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const t = tournois.find(x=>x.slug===slug);
+  if (!t) return null;
+  const d = new Date(t.date); const isPast = d < new Date(); const bar = bars.find(b=>b.nom===t.bar);
+  const isCreateur = joueur && t.createur_id && joueur.id === t.createur_id;
+  const placesMax = parseInt(t.places) || null;
+  const complet = placesMax && inscrits.length >= placesMax;
+
+  useEffect(() => {
+    db.getInscrits(slug).then(r => {
+      setInscrits(r||[]);
+      if (joueur) setMonInscription((r||[]).find(i => i.joueur_id === joueur.id) || null);
+    }).catch(()=>{});
+  }, [slug, joueur?.id]);
+
+  const sInscrire = async () => {
+    if (!joueur || loadingInscription) return;
+    setLoadingInscription(true);
+    const r = await db.addInscription({ tournoi_slug: slug, joueur_id: joueur.id, joueur_pseudo: joueur.pseudo, date: Date.now() });
+    if (r?.[0]) { setInscrits(x=>[...x,r[0]]); setMonInscription(r[0]); }
+    setLoadingInscription(false);
+  };
+
+  const seDesinscrire = async () => {
+    if (!joueur || loadingInscription) return;
+    setLoadingInscription(true);
+    await db.deleteInscription(slug, joueur.id);
+    setInscrits(x=>x.filter(i=>i.joueur_id!==joueur.id));
+    setMonInscription(null);
+    setLoadingInscription(false);
+  };
+
   return (
     <div style={{ maxWidth:860,margin:"0 auto",padding:"36px 20px" }}>
-      <button onClick={()=>setPage("tournois")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:18,fontSize:13 }}>← Retour</button>
+      {showEdit && <EditTournoiModal tournoi={t} onSave={u=>{setTournois(ts=>ts.map(x=>x.slug===u.slug?{...x,...u}:x));setShowEdit(false);}} onClose={()=>setShowEdit(false)}/>}
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:18 }}>
+        <button onClick={()=>setPage("tournois")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13 }}>← Retour</button>
+        {isCreateur && <Btn onClick={()=>setShowEdit(true)} style={{ fontSize:12,background:"transparent",border:`1px solid ${C.yellow}`,color:C.yellow,padding:"6px 14px" }}>✏️ Modifier le tournoi</Btn>}
+      </div>
       <div style={{ display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:6 }}><h1 style={{ fontWeight:800,fontSize:28 }}>{t.nom}</h1><Badge color={isPast?C.muted:C.green}>{isPast?"Passé":"À venir"}</Badge></div>
       <p style={{ color:C.yellow,fontWeight:600,fontSize:16,marginBottom:20 }}>📅 {d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</p>
+      {t.createur_pseudo && <p style={{ color:C.muted,fontSize:12,marginBottom:16 }}>🎯 Organisé par <strong style={{ color:C.text }}>{t.createur_pseudo}</strong></p>}
       <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:12,marginBottom:16 }}>
         <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18 }}>
           {[["📍","Ville",t.ville],["🍺","Bar",t.bar||"—"],["📞","Contact",t.contact||"—"]].map(([i,l,v])=>(
@@ -908,7 +949,7 @@ const TournoiDetail = ({ slug, tournois, bars, setPage, setBarSlug }) => {
           ))}
         </div>
         <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18 }}>
-          {[["Format",t.format||"—"],["Niveau",t.niveau==="tous"?"Tous niveaux":t.niveau||"—"],["Prix",t.prix||"Gratuit"],["Places",t.places||"Non limité"]].map(([l,v])=>(
+          {[["Format",t.format||"—"],["Niveau",t.niveau==="tous"?"Tous niveaux":t.niveau||"—"],["Prix",t.prix||"Gratuit"],["Places",placesMax?`${inscrits.length} / ${placesMax}`:"Non limité"]].map(([l,v])=>(
             <div key={l} style={{ display:"flex",justifyContent:"space-between",borderBottom:`1px solid ${C.border}`,paddingBottom:7,marginBottom:7 }}><span style={{ color:C.muted,fontSize:12 }}>{l}</span><span style={{ fontWeight:500,fontSize:13 }}>{v}</span></div>
           ))}
         </div>
@@ -917,7 +958,35 @@ const TournoiDetail = ({ slug, tournois, bars, setPage, setBarSlug }) => {
       {bar&&<div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18,marginBottom:16,cursor:"pointer" }} onClick={()=>{setBarSlug(bar.slug);setPage("bar");}}><p style={{ fontWeight:600 }}>🍺 {bar.nom} — {bar.ville} →</p></div>}
       {t.lat&&<div style={{ marginBottom:16 }}><LeafletMap tournois={[t]} centerSlug={t.slug} height={200}/></div>}
       {t.lien&&<a href={t.lien} target="_blank" rel="noreferrer"><Btn style={{ marginBottom:16 }}>🔗 Plus d'infos</Btn></a>}
-      {!isPast&&t.contact&&<div style={{ background:"#0f1a0f",border:`1px solid ${C.green}44`,borderRadius:12,padding:18 }}><h3 style={{ fontWeight:700,marginBottom:6,color:C.green,fontSize:14 }}>✅ S'inscrire</h3><p style={{ color:C.muted,fontSize:14 }}>{t.contact}</p></div>}
+
+      {/* ── INSCRIPTIONS ── */}
+      {!isPast && (
+        <div style={{ background:C.card,border:`1px solid ${C.yellow}44`,borderRadius:12,padding:20,marginBottom:16 }}>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:14 }}>
+            <h3 style={{ fontWeight:700,fontSize:15,color:C.yellow }}>🏅 Inscriptions{inscrits.length>0?` (${inscrits.length}${placesMax?" / "+placesMax:""})`:""}</h3>
+            {joueur
+              ? monInscription
+                ? <button onClick={seDesinscrire} disabled={loadingInscription} style={{ background:"#7f1d1d",border:`1px solid #ef444444`,color:"#ef4444",borderRadius:8,padding:"7px 14px",cursor:"pointer",fontWeight:600,fontSize:13 }}>
+                    {loadingInscription?"…":"❌ Se désinscrire"}
+                  </button>
+                : <button onClick={sInscrire} disabled={loadingInscription||complet} style={{ background:complet?"#1a1a1a":"#14532d",border:`1px solid ${complet?"#555":"#22c55e44"}`,color:complet?C.muted:"#22c55e",borderRadius:8,padding:"7px 14px",cursor:complet?"not-allowed":"pointer",fontWeight:600,fontSize:13 }}>
+                    {loadingInscription?"…":complet?"Complet":"✅ S'inscrire"}
+                  </button>
+              : <span style={{ color:C.muted,fontSize:12 }}>Connectez-vous pour vous inscrire</span>
+            }
+          </div>
+          {inscrits.length===0
+            ? <p style={{ color:C.muted,fontSize:13 }}>Aucune inscription pour l'instant.</p>
+            : <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
+                {inscrits.map((i,idx)=>(
+                  <div key={i.id} style={{ background:i.joueur_id===joueur?.id?"#14532d":"#111",border:`1px solid ${i.joueur_id===joueur?.id?"#22c55e44":C.border}`,borderRadius:20,padding:"5px 14px",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:6 }}>
+                    <span style={{ color:C.muted,fontSize:11 }}>#{idx+1}</span> {i.joueur_pseudo}
+                  </div>
+                ))}
+              </div>
+          }
+        </div>
+      )}
     </div>
   );
 };
@@ -964,13 +1033,39 @@ const ProposerAsso = ({ onSubmit }) => {
   );
 };
 
-const ProposerTournoi = ({ onSubmit }) => {
+const ProposerTournoi = ({ onSubmit, joueur, onCreated }) => {
   const [f,setF]=useState({nom:"",ville:"",date:"",bar:"",association:"",type:"electronique",format:"individuel",niveau:"tous",prix:"",dotations:"",places:"",description:"",contact:"",lien:""});
-  const [sent,setSent]=useState(false); const set=k=>v=>setF(p=>({...p,[k]:v})); const valid=f.nom.trim()&&f.ville.trim()&&f.date;
-  if(sent) return <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}><div style={{ fontSize:50 }}>✅</div><h2 style={{ fontWeight:700,marginTop:12 }}>Merci !</h2></div>;
+  const [sent,setSent]=useState(false); const [loading,setLoading]=useState(false);
+  const set=k=>v=>setF(p=>({...p,[k]:v})); const valid=f.nom.trim()&&f.ville.trim()&&f.date;
+
+  const soumettre = async () => {
+    if (!valid || loading) return;
+    setLoading(true);
+    if (joueur) {
+      // Joueur connecté → enregistrement direct dans tournois
+      const slug = slugify(f.nom+"-"+f.ville+"-"+f.date);
+      const r = await db.addTournoi({ ...f, slug, createur_id: joueur.id, createur_pseudo: joueur.pseudo, source:"user", lat:null, lng:null });
+      if (r?.[0] && onCreated) onCreated(r[0]);
+    } else {
+      // Non connecté → proposition admin
+      await onSubmit({...f, type_prop:"tournoi"});
+    }
+    setLoading(false);
+    setSent(true);
+  };
+
+  if (sent) return (
+    <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}>
+      <div style={{ fontSize:50 }}>✅</div>
+      <h2 style={{ fontWeight:700,marginTop:12 }}>{joueur?"Tournoi créé !":"Merci !"}</h2>
+      <p style={{ color:C.muted,marginTop:8 }}>{joueur?"Votre tournoi est en ligne. Vous pouvez le modifier depuis sa page.":"Votre proposition est en attente de validation."}</p>
+    </div>
+  );
+
   return (
     <div style={{ maxWidth:660,margin:"0 auto",padding:"36px 20px" }}>
-      <h1 style={{ fontWeight:800,fontSize:26,marginBottom:24 }}>🏅 Proposer un tournoi</h1>
+      <h1 style={{ fontWeight:800,fontSize:26,marginBottom:joueur?8:24 }}>🏅 {joueur?"Créer un tournoi":"Proposer un tournoi"}</h1>
+      {joueur && <p style={{ color:C.green,fontSize:13,marginBottom:20 }}>✅ Connecté en tant que <strong>{joueur.pseudo}</strong> — le tournoi sera publié directement.</p>}
       <div style={{ display:"flex",flexDirection:"column",gap:13 }}>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Open Bayonne 2025"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/></div>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Date *" value={f.date} onChange={set("date")} type="date" placeholder=""/><Field label="Bar organisateur" value={f.bar} onChange={set("bar")} placeholder="Le Central"/></div>
@@ -982,7 +1077,9 @@ const ProposerTournoi = ({ onSubmit }) => {
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Prix" value={f.prix} onChange={set("prix")} placeholder="5€"/><Field label="Places" value={f.places} onChange={set("places")} placeholder="32"/></div>
         <Field label="Description" value={f.description} onChange={set("description")} placeholder="Présentez votre tournoi…" as="textarea"/>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Contact" value={f.contact} onChange={set("contact")} placeholder="email ou tél"/><Field label="Lien" value={f.lien} onChange={set("lien")} placeholder="https://..."/></div>
-        <Btn onClick={()=>{if(valid){onSubmit({...f,type_prop:"tournoi"});setSent(true);}}} disabled={!valid} style={{ marginTop:4,padding:"13px 22px",fontSize:15,background:C.yellow,color:"#000" }}>Envoyer →</Btn>
+        <Btn onClick={soumettre} disabled={!valid||loading} style={{ marginTop:4,padding:"13px 22px",fontSize:15,background:C.yellow,color:"#000" }}>
+          {loading?"Création…":joueur?"🏅 Créer le tournoi →":"Envoyer →"}
+        </Btn>
       </div>
     </div>
   );
@@ -1296,7 +1393,7 @@ export default function App() {
         {page==="associations"     && <Associations associations={associations} setPage={nav} setAssoSlug={setAssoSlug}/>}
         {page==="asso"             && <AssoDetail slug={assoSlug} associations={associations} bars={bars} setPage={nav} setBarSlug={setBarSlug} isAdmin={isAdmin}/>}
         {page==="tournois"         && <Tournois tournois={tournois} setPage={nav} setTournoiSlug={setTournoiSlug}/>}
-        {page==="tournoi-detail"   && <TournoiDetail slug={tournoiSlug} tournois={tournois} bars={bars} setPage={nav} setBarSlug={setBarSlug}/>}
+        {page==="tournoi-detail"   && <TournoiDetail slug={tournoiSlug} tournois={tournois} setTournois={setTournois} bars={bars} setPage={nav} setBarSlug={setBarSlug} joueur={joueur}/>}
         {page==="joueurs"          && <PageJoueurs joueur={joueur} setPage={nav} setJoueurId={setJoueurId}/>}
         {page==="drix"             && <PageDrix setPage={nav} setJoueurId={setJoueurId} bars={bars} associations={associations}/>}
         {page.startsWith("profil-joueur-") && <FicheJoueur joueurId={page.replace("profil-joueur-","")} joueur={joueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug}/>}
@@ -1308,7 +1405,7 @@ export default function App() {
         {page==="apropos"          && <APropos bars={bars} setPage={nav}/>}
         {page==="proposer"         && <Proposer bars={bars} onSubmit={handleProposal}/>}
         {page==="proposer-asso"    && <ProposerAsso onSubmit={handleProposalAsso}/>}
-        {page==="proposer-tournoi" && <ProposerTournoi onSubmit={handleProposalTournoi}/>}
+        {page==="proposer-tournoi" && <ProposerTournoi onSubmit={handleProposalTournoi} joueur={joueur} onCreated={t=>{setTournois(ts=>[...ts,t]);nav("tournoi-detail");setTournoiSlug(t.slug);}}/>}
         {page==="contact"          && <Contact/>}
       
         {page==="mentions"         && <MentionsLegales/>}
