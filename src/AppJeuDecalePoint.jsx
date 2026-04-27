@@ -248,11 +248,11 @@ const Capital = ({ joueurs, onFin }) => {
     }]);
     // Mettre à jour le score — les totaux seront recalculés automatiquement
     setScores(s => {
-      const n = s.map(r => [...r]);
+      const n = s.map((r, idx) => idx === ji ? [...r] : [...r]);
+      n[ji] = [...n[ji]];
       n[ji][oi] = nouvelleValeur;
-      return n;
+      return [...n];
     });
-  };
 
   const valider = points => {
     const { oi, ji } = padCible;
