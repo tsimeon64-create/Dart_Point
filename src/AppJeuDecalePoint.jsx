@@ -360,7 +360,7 @@ function Capital({ joueurs, onFin }) {
               {joueurs.map((nom, ji) => (
                 <div key={ji} style={{ width:colWidth, flexShrink:0, borderRight:`1px solid ${C.border}` }}>
                   {OBJECTIFS.map((obj, oi) => {
-                    const score = getScore(ji, oi);
+                    const score = scores[ji * NB_OBJ + oi];
                     const actif = caseActive(oi, ji);
                     const cliquable = caseCliquable(oi, ji);
                     const joue = score !== null;
