@@ -704,11 +704,23 @@ const dbAmis = {
 export const AmiSection = ({ joueur, setPage }) => {
   const [amis, setAmis] = useState([]);
   const [demandes, setDemandes] = useState([]);
+  const [photosAmis, setPhotosAmis] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([dbAmis.getAmis(joueur.id), dbAmis.getDemandesRecues(joueur.id)])
-      .then(([a,d]) => { setAmis(a||[]); setDemandes(d||[]); setLoading(false); })
+      .then(async ([a,d]) => {
+        setAmis(a||[]); setDemandes(d||[]);
+        // Charger les photos des amis
+        const ids = (a||[]).map(x => x.joueur_id===joueur.id ? x.ami_id : x.joueur_id);
+        if (ids.length > 0) {
+          const profils = await sbJ(`joueurs?id=in.(${ids.join(",")})&select=id,photo,drix`).catch(()=>[]);
+          const map = {};
+          (profils||[]).forEach(p => { map[p.id] = p; });
+          setPhotosAmis(map);
+        }
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, [joueur.id]);
 
@@ -748,12 +760,19 @@ export const AmiSection = ({ joueur, setPage }) => {
         : amis.map(a => {
             const amiId = a.joueur_id === joueur.id ? a.ami_id : a.joueur_id;
             const amiPseudo = a.joueur_id === joueur.id ? a.ami_pseudo : a.joueur_pseudo;
+            const profil = photosAmis[amiId];
+            const { emoji, color } = getDrixTitreLocal(profil?.drix||1000);
             return (
               <div key={a.id} onClick={()=>setPage("profil-joueur-"+amiId)}
-                style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:10,padding:14,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:10,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onMouseEnter={e=>e.currentTarget.style.borderColor=CJ.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
-                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                  <div style={{ width:36,height:36,background:CJ.accent+"22",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16 }}>🎯</div>
+                <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+                  <div style={{ width:40,height:40,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:`2px solid ${color}`,background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>
+                    {profil?.photo
+                      ? <img src={profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
+                      : <span>{emoji}</span>
+                    }
+                  </div>
                   <span style={{ fontWeight:600 }}>{amiPseudo}</span>
                 </div>
                 <span style={{ color:CJ.accent,fontSize:12 }}>⚔️ Voir le profil →</span>
