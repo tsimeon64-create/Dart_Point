@@ -169,13 +169,21 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   const asso = associations.find(a => a.slug === joueur.asso_slug);
   const { titre, emoji, color } = getDrixTitreLocal(joueur.drix||1000);
 
+  const [moyDrix, setMoyDrix] = useState(null);
+
   useEffect(() => {
     Promise.all([
       dbJ.getStats(joueur.id),
       dbJ.getDuels(joueur.id),
       dbJ.getDuelsEnAttente(joueur.id),
-    ]).then(([s,d,def]) => {
-      setStats(s); setDuels(d||[]); setDefis(def||[]); setLoading(false);
+      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&select=variation`),
+    ]).then(([s,d,def,mv]) => {
+      setStats(s); setDuels(d||[]); setDefis(def||[]);
+      if (mv && mv.length > 0) {
+        const moy = mv.reduce((acc,x)=>acc+x.variation,0) / mv.length;
+        setMoyDrix(Math.round(moy * 10) / 10);
+      }
+      setLoading(false);
     }).catch(() => setLoading(false));
   }, [joueur.id]);
 
@@ -289,6 +297,11 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
 
   const winRate = stats && stats.parties > 0 ? Math.round((stats.victoires / stats.parties) * 100) : 0;
   const STYLES = [["electronique","⚡ Électronique"],["traditionnel","🎯 Traditionnel"],["les deux","🎯⚡ Les deux"]];
+  const moyenneDuels = (() => {
+    const termines = duels.filter(d => d.statut === "termine");
+    const scores = termines.map(d => d.challenger_id === joueur.id ? d.score_challenger : d.score_defie).filter(s => s != null && s > 0);
+    return scores.length > 0 ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : null;
+  })();
 
   return (
     <div style={{ maxWidth:860, margin:"0 auto", padding:"24px 20px" }}>
@@ -366,6 +379,12 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
                   <div style={{ fontSize:11,color:CJ.muted }}>{l}</div>
                 </div>
               ))}
+              {moyenneDuels && (
+                <div style={{ textAlign:"center", background:"#ffffff11", borderRadius:10, padding:"10px 14px" }}>
+                  <div style={{ fontSize:22,fontWeight:900,color:CJ.blue }}>{moyenneDuels}</div>
+                  <div style={{ fontSize:11,color:CJ.muted }}>Moy. pts</div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -828,6 +847,10 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const bar = bars.find(b=>b.slug===j.bar_slug);
   const asso = associations.find(a=>a.slug===j.asso_slug);
   const winRate = stats && stats.parties>0 ? Math.round((stats.victoires/stats.parties)*100) : 0;
+  const moyenneDuels = (() => {
+    const scores = duels.map(d => d.challenger_id === joueurId ? d.score_challenger : d.score_defie).filter(s => s != null && s > 0);
+    return scores.length > 0 ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : null;
+  })();
 
   return (
     <div style={{ maxWidth:600, margin:"0 auto", padding:"36px 20px" }}>
@@ -865,8 +888,8 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
         );
       })()}
       {stats && (
-        <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20 }}>
-          {[[stats.victoires,"Victoires",CJ.green],[stats.defaites,"Défaites",CJ.red],[stats.parties,"Parties",CJ.muted],[winRate+"%","Win Rate",CJ.yellow]].map(([v,l,c])=>(
+        <div style={{ display:"grid",gridTemplateColumns:`repeat(${moyenneDuels?5:4},1fr)`,gap:10,marginBottom:20 }}>
+          {[[stats.victoires,"Victoires",CJ.green],[stats.defaites,"Défaites",CJ.red],[stats.parties,"Parties",CJ.muted],[winRate+"%","Win Rate",CJ.yellow],...(moyenneDuels?[[moyenneDuels,"Moy. pts",CJ.blue]]:[])].map(([v,l,c])=>(
             <div key={l} style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:10,padding:14,textAlign:"center" }}>
               <div style={{ fontSize:20,fontWeight:800,color:c }}>{v}</div>
               <div style={{ fontSize:11,color:CJ.muted }}>{l}</div>

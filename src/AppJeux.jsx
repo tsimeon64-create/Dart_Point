@@ -140,14 +140,14 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
     setInput("");
   };
 
-  const enregistrerResultatDuel = async (gagnantNom, scoreC, scoreD) => {
+  const enregistrerResultatDuel = async (gagnantNom, scoreC, scoreD, moyC, moyD) => {
     if (!duel || resultEnregistre) return;
     const gagnantId = gagnantNom === duel.challenger_pseudo ? duel.challenger_id : duel.defie_id;
     try {
       await fetch(`${SB_URL}/rest/v1/duels?id=eq.${duel.id}`, {
         method: "PATCH",
         headers: { "apikey":SB_KEY, "Authorization":`Bearer ${SB_KEY}`, "Content-Type":"application/json", "Prefer":"return=minimal" },
-        body: JSON.stringify({ statut:"en_validation", gagnant_id:gagnantId, gagnant_pseudo:gagnantNom, score_manches_challenger:scoreC, score_manches_defie:scoreD, valide_challenger:false, valide_defie:false })
+        body: JSON.stringify({ statut:"en_validation", gagnant_id:gagnantId, gagnant_pseudo:gagnantNom, score_manches_challenger:scoreC, score_manches_defie:scoreD, score_challenger:moyC, score_defie:moyD, valide_challenger:false, valide_defie:false })
       });
       setResultEnregistre(true);
       if (onDuelTermine) onDuelTermine();
@@ -178,9 +178,11 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
         setJoueurs(updated);
         const scoreC = actifIdx === 0 ? newManches : updated[1].manchesGagnees;
         const scoreD = actifIdx === 1 ? newManches : updated[0].manchesGagnees;
+        const moyC = parseFloat(moyenne(updated[0]));
+        const moyD = parseFloat(moyenne(updated[1]));
         setGagnant({...joueur, manchesGagnees:newManches, tours:[...joueur.tours,val], totalPoints:joueur.totalPoints+val, flechettes:joueur.flechettes+3});
         setEtape("fin");
-        if (modeDuel) enregistrerResultatDuel(joueur.nom, scoreC, scoreD);
+        if (modeDuel) enregistrerResultatDuel(joueur.nom, scoreC, scoreD, moyC, moyD);
         return;
       }
       setJoueurs(updated.map(j => ({ ...j, score: modeDuel ? parseInt(duel?.mode||"501") : startVal, scorePrecedent: null })));
