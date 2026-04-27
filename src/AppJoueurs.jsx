@@ -38,6 +38,7 @@ export const dbJ = {
   addDuel: (d) => sbJ("duels", { method: "POST", body: JSON.stringify(d) }),
   updateDuel: (id, d) => sbJ(`duels?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(d), prefer: "return=minimal" }),
   getDuelsEnAttente: (joueur_id) => sbJ(`duels?defie_id=eq.${joueur_id}&statut=eq.en_attente&select=*`),
+  deleteDuel: (id) => sbJ(`duels?id=eq.${id}`, { method: "DELETE", prefer: "return=minimal" }),
   getPresences: (bar_slug) => sbJ(`presences?bar_slug=eq.${encodeURIComponent(bar_slug)}&date_jour=eq.${todayStr()}&select=*`),
   addPresence: (d) => sbJ("presences", { method: "POST", body: JSON.stringify(d) }),
   deletePresence: (id) => sbJ(`presences?id=eq.${id}`, { method: "DELETE", prefer: "return=minimal" }),
@@ -233,6 +234,11 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   const refuserDefi = async (duel) => {
     await dbJ.updateDuel(duel.id, { statut:"refuse" });
     setDefis(x => x.filter(d => d.id !== duel.id));
+  };
+
+  const annulerDefi = async (duel) => {
+    await dbJ.deleteDuel(duel.id);
+    setDuels(x => x.filter(d => d.id !== duel.id));
   };
 
   const validerResultat = async (duel) => {
@@ -442,8 +448,9 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             ? <p style={{ color:CJ.muted,fontSize:13,marginBottom:24 }}>Aucun défi envoyé en attente.</p>
             : duels.filter(d=>d.challenger_id===joueur.id&&d.statut==="en_attente").map(d=>(
               <div key={d.id} style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,padding:16,marginBottom:10 }}>
-                <p style={{ fontWeight:600 }}>⚔️ Défi envoyé à <strong>{d.defie_pseudo}</strong></p>
-                <p style={{ color:CJ.muted,fontSize:12 }}>{d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""} · En attente…</p>
+                <p style={{ fontWeight:600,marginBottom:4 }}>⚔️ Défi envoyé à <strong>{d.defie_pseudo}</strong></p>
+                <p style={{ color:CJ.muted,fontSize:12,marginBottom:10 }}>{d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""} · En attente…</p>
+                <BtnJ variant="danger" onClick={()=>annulerDefi(d)} style={{ fontSize:12,padding:"7px 14px" }}>❌ Annuler le défi</BtnJ>
               </div>
             ))
           }
