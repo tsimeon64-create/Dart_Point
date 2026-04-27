@@ -24,26 +24,29 @@ const OBJECTIFS = [
 ];
 
 const ROW_H = 52;
+const NB_OBJ = OBJECTIFS.length;
 
 // Recalcule tous les totaux depuis les scores bruts
-const calculerTotaux = (scores, nbJoueurs) => {
-  return Array.from({ length: nbJoueurs }, (_, ji) => {
+function calculerTotaux(scores, nbJoueurs) {
+  const result = [];
+  for (let ji = 0; ji < nbJoueurs; ji++) {
     let total = 0;
-    for (let oi = 0; oi < OBJECTIFS.length; oi++) {
-      const s = scores[ji][oi];
-      if (s === null) continue;
+    for (let oi = 0; oi < NB_OBJ; oi++) {
+      const s = scores[ji * NB_OBJ + oi];
+      if (s === undefined || s === null) continue;
       if (s === -1) {
         total = Math.floor(total / 2);
       } else {
         total += s;
       }
     }
-    return total;
-  });
-};
+    result.push(total);
+  }
+  return result;
+}
 
 // ── SETUP ─────────────────────────────────────────────────────────────────────
-const Setup = ({ onStart }) => {
+function Setup({ onStart }) {
   const [joueurs, setJoueurs] = useState(["", ""]);
   const valid = joueurs.every(j => j.trim().length > 0);
   return (
@@ -65,42 +68,36 @@ const Setup = ({ onStart }) => {
                 style={{ flex:1, background:"#111", border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 14px", color:C.text, fontSize:14 }}
               />
               {joueurs.length > 1 && (
-                <button
-                  onClick={() => setJoueurs(j => j.filter((_,idx) => idx!==i))}
-                  style={{ background:"#1a0000", border:`1px solid ${C.red}44`, borderRadius:8, color:C.red, cursor:"pointer", fontSize:16, padding:"8px 12px" }}>
-                  ✕
-                </button>
+                <button onClick={() => setJoueurs(j => j.filter((_,idx) => idx!==i))}
+                  style={{ background:"#1a0000", border:`1px solid ${C.red}44`, borderRadius:8, color:C.red, cursor:"pointer", fontSize:16, padding:"8px 12px" }}>✕</button>
               )}
             </div>
           ))}
         </div>
         {joueurs.length < 8 && (
-          <button
-            onClick={() => setJoueurs(j => [...j, ""])}
+          <button onClick={() => setJoueurs(j => [...j, ""])}
             style={{ marginTop:12, width:"100%", background:"transparent", border:`1px dashed ${C.border}`, borderRadius:8, color:C.muted, cursor:"pointer", padding:"10px", fontSize:13 }}>
             + Ajouter un joueur
           </button>
         )}
       </div>
-      <button
-        onClick={() => valid && onStart(joueurs.map(j => j.trim()))}
-        disabled={!valid}
+      <button onClick={() => valid && onStart(joueurs.map(j => j.trim()))} disabled={!valid}
         style={{ width:"100%", background:valid?C.accent:"#333", color:"#fff", border:"none", borderRadius:12, padding:"16px", fontSize:16, fontWeight:700, cursor:valid?"pointer":"not-allowed", opacity:valid?1:0.5 }}>
         🎮 Lancer la partie
       </button>
     </div>
   );
-};
+}
 
 // ── PAD ───────────────────────────────────────────────────────────────────────
-const Pad = ({ joueur, objectif, scoreActuel, onValider, onDiviser, onFermer }) => {
+function Pad({ joueur, objectif, scoreActuel, onValider, onDiviser, onFermer }) {
   const [saisie, setSaisie] = useState("");
-  const estModif = scoreActuel !== null;
-  const appuyer = v => {
+  const estModif = scoreActuel !== null && scoreActuel !== undefined;
+  function appuyer(v) {
     if (v === "⌫") { setSaisie(s => s.slice(0,-1)); return; }
     if (saisie.length >= 3) return;
     setSaisie(s => s + v);
-  };
+  }
   return (
     <div style={{ position:"fixed", inset:0, background:"#000c", zIndex:500, display:"flex", alignItems:"flex-end", justifyContent:"center" }} onClick={onFermer}>
       <div onClick={e => e.stopPropagation()} style={{ background:"#1a1a1a", border:`1px solid ${C.border}`, borderRadius:"20px 20px 0 0", padding:24, width:"100%", maxWidth:480 }}>
@@ -108,9 +105,7 @@ const Pad = ({ joueur, objectif, scoreActuel, onValider, onDiviser, onFermer }) 
           <div style={{ fontWeight:700, fontSize:16, color:C.accent }}>{joueur}</div>
           <div style={{ color:C.muted, fontSize:13, marginTop:2 }}>{objectif.nom}</div>
           <div style={{ color:"#555", fontSize:11, marginTop:2 }}>
-            {estModif
-              ? `Score actuel : ${scoreActuel === -1 ? "÷2" : "+"+scoreActuel} — modifier ?`
-              : objectif.desc}
+            {estModif ? `Score actuel : ${scoreActuel === -1 ? "÷2" : "+"+scoreActuel} — modifier ?` : objectif.desc}
           </div>
         </div>
         <div style={{ background:"#111", border:`1px solid ${C.border}`, borderRadius:10, padding:"14px 20px", textAlign:"center", fontSize:32, fontWeight:800, color:C.text, marginBottom:16, minHeight:60 }}>
@@ -138,27 +133,31 @@ const Pad = ({ joueur, objectif, scoreActuel, onValider, onDiviser, onFermer }) 
       </div>
     </div>
   );
-};
+}
 
 // ── MODAL QUITTER ─────────────────────────────────────────────────────────────
-const ModalQuitter = ({ onRester, onQuitter }) => (
-  <div style={{ position:"fixed", inset:0, background:"#000c", zIndex:600, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-    <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:28, maxWidth:340, width:"100%", textAlign:"center" }}>
-      <div style={{ fontSize:40, marginBottom:12 }}>⚠️</div>
-      <h2 style={{ fontWeight:700, fontSize:18, marginBottom:8 }}>Quitter la partie ?</h2>
-      <p style={{ color:C.muted, fontSize:14, marginBottom:24 }}>Les scores en cours seront perdus.</p>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-        <button onClick={onRester} style={{ background:"#14532d", border:`1px solid ${C.green}44`, borderRadius:10, color:C.green, fontSize:14, fontWeight:700, padding:"12px", cursor:"pointer" }}>▶ Continuer</button>
-        <button onClick={onQuitter} style={{ background:"#7f1d1d", border:`1px solid ${C.red}44`, borderRadius:10, color:C.red, fontSize:14, fontWeight:700, padding:"12px", cursor:"pointer" }}>🚪 Quitter</button>
+function ModalQuitter({ onRester, onQuitter }) {
+  return (
+    <div style={{ position:"fixed", inset:0, background:"#000c", zIndex:600, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:28, maxWidth:340, width:"100%", textAlign:"center" }}>
+        <div style={{ fontSize:40, marginBottom:12 }}>⚠️</div>
+        <h2 style={{ fontWeight:700, fontSize:18, marginBottom:8 }}>Quitter la partie ?</h2>
+        <p style={{ color:C.muted, fontSize:14, marginBottom:24 }}>Les scores en cours seront perdus.</p>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          <button onClick={onRester} style={{ background:"#14532d", border:`1px solid ${C.green}44`, borderRadius:10, color:C.green, fontSize:14, fontWeight:700, padding:"12px", cursor:"pointer" }}>▶ Continuer</button>
+          <button onClick={onQuitter} style={{ background:"#7f1d1d", border:`1px solid ${C.red}44`, borderRadius:10, color:C.red, fontSize:14, fontWeight:700, padding:"12px", cursor:"pointer" }}>🚪 Quitter</button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+}
 
 // ── JEU CAPITAL ───────────────────────────────────────────────────────────────
-const Capital = ({ joueurs, onFin }) => {
-  // scores[joueurIdx][objectifIdx] = null | points | -1 (÷2)
-  const [scores, setScores] = useState(() => joueurs.map(() => Array(OBJECTIFS.length).fill(null)));
+// On stocke les scores dans un tableau plat 1D : scores[ji * NB_OBJ + oi]
+// Cela garantit que React détecte tous les changements correctement
+function Capital({ joueurs, onFin }) {
+  const nbJ = joueurs.length;
+  const [scores, setScores] = useState(() => new Array(nbJ * NB_OBJ).fill(null));
   const [objIdx, setObjIdx] = useState(0);
   const [joueurIdx, setJoueurIdx] = useState(0);
   const [padOpen, setPadOpen] = useState(false);
@@ -171,11 +170,18 @@ const Capital = ({ joueurs, onFin }) => {
   const rightColRef = useRef(null);
   const syncing = useRef(false);
 
-  const colWidth = Math.max(90, Math.floor((window.innerWidth - 130) / Math.min(joueurs.length, 5)));
-  const totalMinWidth = joueurs.length * colWidth;
+  const colWidth = Math.max(90, Math.floor((window.innerWidth - 130) / Math.min(nbJ, 5)));
+  const totalMinWidth = nbJ * colWidth;
+  const totaux = calculerTotaux(scores, nbJ);
 
-  // Totaux recalculés depuis les scores bruts — source unique de vérité
-  const totaux = calculerTotaux(scores, joueurs.length);
+  const getScore = (ji, oi) => scores[ji * NB_OBJ + oi];
+  const setScore = (ji, oi, val) => {
+    setScores(prev => {
+      const next = [...prev];
+      next[ji * NB_OBJ + oi] = val;
+      return next;
+    });
+  };
 
   // Plein écran + blocage scroll body
   useEffect(() => {
@@ -195,7 +201,7 @@ const Capital = ({ joueurs, onFin }) => {
     };
   }, []);
 
-  // Bloquer bouton retour téléphone
+  // Bloquer bouton retour
   useEffect(() => {
     if (fini) return;
     const handlePop = e => {
@@ -208,7 +214,7 @@ const Capital = ({ joueurs, onFin }) => {
     return () => window.removeEventListener("popstate", handlePop);
   }, [fini]);
 
-  // Sync scroll vertical colonne gauche ↔ tableau
+  // Sync scroll vertical
   const onLeftScroll = e => {
     if (syncing.current) return;
     syncing.current = true;
@@ -223,7 +229,7 @@ const Capital = ({ joueurs, onFin }) => {
   };
 
   const caseActive = (oi, ji) => oi === objIdx && ji === joueurIdx && !fini;
-  const caseCliquable = (oi, ji) => caseActive(oi, ji) || scores[ji][oi] !== null;
+  const caseCliquable = (oi, ji) => caseActive(oi, ji) || getScore(ji, oi) !== null;
 
   const ouvrirPad = (oi, ji) => {
     if (!caseCliquable(oi, ji)) return;
@@ -232,39 +238,27 @@ const Capital = ({ joueurs, onFin }) => {
   };
 
   const avancer = (oi, ji) => {
-    let nextJi = ji + 1, nextOi = oi;
-    if (nextJi >= joueurs.length) { nextJi = 0; nextOi = oi + 1; }
-    if (nextOi >= OBJECTIFS.length) { setFini(true); return; }
+    let nextJi = ji + 1;
+    let nextOi = oi;
+    if (nextJi >= nbJ) { nextJi = 0; nextOi = oi + 1; }
+    if (nextOi >= NB_OBJ) { setFini(true); return; }
     setJoueurIdx(nextJi);
     setObjIdx(nextOi);
   };
 
-  const appliquerScore = (oi, ji, nouvelleValeur) => {
-    // Sauvegarder l'état complet avant modification
-    setHistorique(h => [...h, {
-      scores: scores.map(r => [...r]),
-      objIdx,
-      joueurIdx,
-    }]);
-    // Mettre à jour le score — les totaux seront recalculés automatiquement
-    setScores(s => {
-      const n = s.map((r, idx) => idx === ji ? [...r] : [...r]);
-      n[ji] = [...n[ji]];
-      n[ji][oi] = nouvelleValeur;
-      return [...n];
-    });
-
   const valider = points => {
     const { oi, ji } = padCible;
-    const estModif = scores[ji][oi] !== null;
-    appliquerScore(oi, ji, points);
+    const estModif = getScore(ji, oi) !== null;
+    setHistorique(h => [...h, { scores: [...scores], objIdx, joueurIdx }]);
+    setScore(ji, oi, points);
     if (!estModif) avancer(oi, ji);
   };
 
   const diviser = () => {
     const { oi, ji } = padCible;
-    const estModif = scores[ji][oi] !== null;
-    appliquerScore(oi, ji, -1);
+    const estModif = getScore(ji, oi) !== null;
+    setHistorique(h => [...h, { scores: [...scores], objIdx, joueurIdx }]);
+    setScore(ji, oi, -1);
     if (!estModif) avancer(oi, ji);
   };
 
@@ -277,7 +271,7 @@ const Capital = ({ joueurs, onFin }) => {
     setHistorique(h => h.slice(0, -1));
   };
 
-  const classement = [...joueurs.map((nom, i) => ({ nom, total: totaux[i] }))].sort((a,b) => b.total - a.total);
+  const classement = joueurs.map((nom, i) => ({ nom, total: totaux[i] })).sort((a,b) => b.total - a.total);
 
   if (fini) return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"40px 20px" }}>
@@ -315,14 +309,11 @@ const Capital = ({ joueurs, onFin }) => {
           </p>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <button
-            onClick={annuler}
-            disabled={historique.length === 0}
+          <button onClick={annuler} disabled={historique.length === 0}
             style={{ background:"#1a1200", border:`1px solid ${C.yellow}44`, borderRadius:6, color:historique.length>0?C.yellow:"#444", fontSize:11, cursor:historique.length>0?"pointer":"not-allowed", padding:"4px 10px", opacity:historique.length>0?1:0.4 }}>
             ↩️ Annuler
           </button>
-          <button
-            onClick={() => setModalQuitter(true)}
+          <button onClick={() => setModalQuitter(true)}
             style={{ background:"#1a0000", border:`1px solid ${C.red}33`, borderRadius:6, color:C.red, fontSize:11, cursor:"pointer", padding:"4px 10px" }}>
             ⚠️ Quitter
           </button>
@@ -369,26 +360,23 @@ const Capital = ({ joueurs, onFin }) => {
               {joueurs.map((nom, ji) => (
                 <div key={ji} style={{ width:colWidth, flexShrink:0, borderRight:`1px solid ${C.border}` }}>
                   {OBJECTIFS.map((obj, oi) => {
-                    const score = scores[ji][oi];
+                    const score = getScore(ji, oi);
                     const actif = caseActive(oi, ji);
                     const cliquable = caseCliquable(oi, ji);
                     const joue = score !== null;
                     const rate = score === -1;
                     return (
-                      <div
-                        key={oi}
-                        onClick={() => ouvrirPad(oi, ji)}
-                        style={{
-                          height:ROW_H,
-                          borderBottom:`1px solid ${C.border}`,
-                          display:"flex",
-                          alignItems:"center",
-                          justifyContent:"center",
-                          cursor:cliquable?"pointer":"default",
-                          background:actif?"#1a0f00":joue?"#111":"#0f0f0f",
-                          outline:actif?`2px solid ${C.accent}`:"none",
-                          outlineOffset:"-2px",
-                        }}>
+                      <div key={oi} onClick={() => ouvrirPad(oi, ji)} style={{
+                        height:ROW_H,
+                        borderBottom:`1px solid ${C.border}`,
+                        display:"flex",
+                        alignItems:"center",
+                        justifyContent:"center",
+                        cursor:cliquable?"pointer":"default",
+                        background:actif?"#1a0f00":joue?"#111":"#0f0f0f",
+                        outline:actif?`2px solid ${C.accent}`:"none",
+                        outlineOffset:"-2px",
+                      }}>
                         {actif && !joue && <span style={{ fontSize:18, animation:"pulse 1s infinite" }}>👆</span>}
                         {joue && !rate && <span style={{ fontWeight:700, fontSize:14, color:C.green }}>+{score}</span>}
                         {rate && <span style={{ fontWeight:700, fontSize:12, color:C.red }}>÷2</span>}
@@ -417,7 +405,7 @@ const Capital = ({ joueurs, onFin }) => {
         <Pad
           joueur={joueurs[padCible.ji]}
           objectif={OBJECTIFS[padCible.oi]}
-          scoreActuel={scores[padCible.ji][padCible.oi]}
+          scoreActuel={getScore(padCible.ji, padCible.oi)}
           onValider={valider}
           onDiviser={diviser}
           onFermer={() => setPadOpen(false)}
@@ -425,12 +413,12 @@ const Capital = ({ joueurs, onFin }) => {
       )}
     </div>
   );
-};
+}
 
 // ── EXPORT ────────────────────────────────────────────────────────────────────
-export const JeuCapital = ({ setPage }) => {
+export function JeuCapital({ setPage }) {
   const [phase, setPhase] = useState("setup");
   const [joueurs, setJoueurs] = useState([]);
   if (phase === "setup") return <Setup onStart={j => { setJoueurs(j); setPhase("jeu"); }}/>;
   return <Capital joueurs={joueurs} onFin={() => setPhase("setup")}/>;
-};
+}
