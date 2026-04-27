@@ -246,7 +246,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount }) => {
 )}
     </nav>
   );
-};
+}; 
 
 // ── BAR CARD ──────────────────────────────────────────────────────────────────
 const BarCard = ({ bar, onClick, barsActifs=[] }) => {
