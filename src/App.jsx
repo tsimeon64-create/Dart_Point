@@ -1127,6 +1127,22 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
           <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
             <button onClick={()=>db.toggleVerifie(b.slug,!b.verifie).then(()=>setBars(x=>x.map(y=>y.slug===b.slug?{...y,verifie:!y.verifie}:y)))} style={{ background:b.verifie?"#14532d":"#111",border:`1px solid ${b.verifie?C.green:C.border}`,borderRadius:6,color:b.verifie?C.green:C.muted,cursor:"pointer",fontSize:11,padding:"3px 8px" }}>{b.verifie?"✅":"Vérifier"}</button>
             <button onClick={()=>setEditBar(b)} style={{ background:"#1a1200",border:`1px solid ${C.yellow}44`,borderRadius:6,color:C.yellow,cursor:"pointer",fontSize:11,padding:"3px 8px" }}>✏️</button>
+<button onClick={async()=>{
+  let lat=null,lng=null;
+  try{
+    const q=encodeURIComponent(`${b.adresse||b.nom}, ${b.ville}, France`);
+    const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
+    const geoData=await geo.json();
+    if(geoData?.[0]){lat=parseFloat(geoData[0].lat);lng=parseFloat(geoData[0].lon);}
+    if(!lat){
+      const q2=encodeURIComponent(`${b.ville}, France`);
+      const geo2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);
+      const geoData2=await geo2.json();
+      if(geoData2?.[0]){lat=parseFloat(geoData2[0].lat);lng=parseFloat(geoData2[0].lon);}
+    }
+  }catch(e){console.error("GPS échoué",e);}
+  if(lat){await db.updateBar(b.slug,{lat,lng});setBars(x=>x.map(y=>y.slug===b.slug?{...y,lat,lng}:y));alert("✅ GPS mis à jour !");}else{alert("❌ Adresse introuvable");}
+}} style={{ background:"#0f1a0f",border:`1px solid ${C.green}44`,borderRadius:6,color:C.green,cursor:"pointer",fontSize:11,padding:"3px 8px" }}>🔄 GPS</button>
             <button onClick={async()=>{ if(!window.confirm("Supprimer ?")) return; await db.deleteBar(b.slug); setBars(x=>x.filter(y=>y.slug!==b.slug)); }} style={{ background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"3px 8px" }}>🗑</button>
           </div>
         </div>
