@@ -198,9 +198,8 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount }) => {
   return (
     <nav style={{ background:"#111",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:200 }}>
       <div style={{ maxWidth:1100,margin:"0 auto",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:58 }}>
-        <div onClick={()=>{setPage("home");setOpen(false);}} style={{ cursor:"pointer",display:"flex",alignItems:"center",gap:8,flexShrink:0 }}>
-          <span style={{ fontSize:22 }}>🎯</span>
-          <span style={{ fontWeight:800,fontSize:19,color:C.accent }}>Dart<span style={{ color:C.text }}>Point</span></span>
+      <div onClick={()=>{setPage("home");setOpen(false);}} style={{ cursor:"pointer",display:"flex",alignItems:"center",gap:8,flexShrink:0 }}>
+          <img src="/logo-banner.png" alt="DartPoint" style={{ height:38,objectFit:"contain",filter:"drop-shadow(0 2px 8px rgba(0,0,0,0.5))" }}/>
         </div>
         <div style={{ display:"flex",gap:8,alignItems:"center" }}>
           {joueur && (
