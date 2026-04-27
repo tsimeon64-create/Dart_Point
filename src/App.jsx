@@ -215,17 +215,35 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount }) => {
         </div>
       </div>
       {open && (
-        <div style={{ background:"#111",borderTop:`1px solid ${C.border}`,padding:"8px 16px 16px" }}>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:6 }}>
-            {links.map(([p,l]) => <button key={p} onClick={()=>{setPage(p);setOpen(false);}} style={{ background:page===p?C.accent+"22":"#1a1a1a",color:page===p?C.accent:C.text,border:`1px solid ${page===p?C.accent:C.border}`,cursor:"pointer",padding:"10px 12px",borderRadius:8,fontSize:13,fontWeight:500,textAlign:"left" }}>{l}</button>)}
-            {joueur
-              ? <button onClick={()=>{setJoueur(null);localStorage.removeItem("dp_joueur");setOpen(false);setPage("home");}} style={{ background:"#1a1a1a",color:C.red,border:`1px solid ${C.border}`,cursor:"pointer",padding:"10px 12px",borderRadius:8,fontSize:13,textAlign:"left" }}>🚪 Déconnexion</button>
-              : <button onClick={()=>{setPage("connexion");setOpen(false);}} style={{ background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,cursor:"pointer",padding:"10px 12px",borderRadius:8,fontSize:13,textAlign:"left" }}>🔑 Connexion</button>
-            }
-            <button onClick={()=>{setPage("adminlogin");setOpen(false);}} style={{ background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,cursor:"pointer",padding:"10px 12px",borderRadius:8,fontSize:13,textAlign:"left" }}>🔐 Admin</button>
-          </div>
+  <div style={{ background:"#111",borderTop:`1px solid ${C.border}`,padding:"12px 16px 20px" }}>
+    {[
+      ["🗺️ Découvrir", [["bars","🎯 Bars"],["associations","🫂 Associations"],["tournois","🏅 Tournois"]]],
+      ["👥 Communauté", [["joueurs","👥 Joueurs"],["drix","💎 Classement DRIX"]]],
+      ["🎯 Jouer", [["scoreur","🎯 Scoreur"],["jeux","🎮 Jeux"]]],
+      ["➕ Proposer", [["proposer","➕ Proposer un bar"],["proposer-asso","🫂 Proposer une asso"],["proposer-tournoi","🏅 Proposer un tournoi"]]],
+      ["ℹ️ Infos", [["apropos","ℹ️ À propos"],["contact","✉️ Contact"]]],
+    ].map(([titre, items]) => (
+      <div key={titre} style={{ marginBottom:14 }}>
+        <div style={{ fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6,paddingLeft:2 }}>{titre}</div>
+        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:5 }}>
+          {items.map(([p,l]) => (
+            <button key={p} onClick={()=>{setPage(p);setOpen(false);}} style={{ background:page===p?C.accent+"22":"#1a1a1a",color:page===p?C.accent:C.text,border:`1px solid ${page===p?C.accent:C.border}`,cursor:"pointer",padding:"9px 12px",borderRadius:8,fontSize:13,fontWeight:500,textAlign:"left" }}>{l}</button>
+          ))}
         </div>
-      )}
+      </div>
+    ))}
+    <div style={{ borderTop:`1px solid ${C.border}`,paddingTop:12,marginTop:4 }}>
+      <div style={{ fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6,paddingLeft:2 }}>🔒 Compte</div>
+      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:5 }}>
+        {joueur
+          ? <button onClick={()=>{setJoueur(null);localStorage.removeItem("dp_joueur");setOpen(false);setPage("home");}} style={{ background:"#1a1a1a",color:C.red,border:`1px solid ${C.border}`,cursor:"pointer",padding:"9px 12px",borderRadius:8,fontSize:13,textAlign:"left" }}>🚪 Déconnexion</button>
+          : <button onClick={()=>{setPage("connexion");setOpen(false);}} style={{ background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,cursor:"pointer",padding:"9px 12px",borderRadius:8,fontSize:13,textAlign:"left" }}>🔑 Connexion</button>
+        }
+        <button onClick={()=>{setPage("adminlogin");setOpen(false);}} style={{ background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,cursor:"pointer",padding:"9px 12px",borderRadius:8,fontSize:13,textAlign:"left" }}>🔐 Admin</button>
+      </div>
+    </div>
+  </div>
+)}
     </nav>
   );
 };
