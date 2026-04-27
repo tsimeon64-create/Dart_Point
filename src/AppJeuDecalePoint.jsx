@@ -366,7 +366,7 @@ function Capital({ joueurs, onFin }) {
                     const joue = score !== null;
                     const rate = score === -1;
                     return (
-                      <div key={oi} onClick={() => ouvrirPad(oi, ji)} style={{
+                      <div key={`${oi}-${score}`} onClick={() => ouvrirPad(oi, ji)} style={{
                         height:ROW_H,
                         borderBottom:`1px solid ${C.border}`,
                         display:"flex",
