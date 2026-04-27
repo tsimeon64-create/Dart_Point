@@ -25,6 +25,23 @@ const OBJECTIFS = [
 
 const ROW_H = 52;
 
+// Recalcule tous les totaux depuis les scores bruts
+const calculerTotaux = (scores, nbJoueurs) => {
+  return Array.from({ length: nbJoueurs }, (_, ji) => {
+    let total = 0;
+    for (let oi = 0; oi < OBJECTIFS.length; oi++) {
+      const s = scores[ji][oi];
+      if (s === null) continue;
+      if (s === -1) {
+        total = Math.floor(total / 2);
+      } else {
+        total += s;
+      }
+    }
+    return total;
+  });
+};
+
 // ── SETUP ─────────────────────────────────────────────────────────────────────
 const Setup = ({ onStart }) => {
   const [joueurs, setJoueurs] = useState(["", ""]);
@@ -78,12 +95,12 @@ const Setup = ({ onStart }) => {
 // ── PAD ───────────────────────────────────────────────────────────────────────
 const Pad = ({ joueur, objectif, scoreActuel, onValider, onDiviser, onFermer }) => {
   const [saisie, setSaisie] = useState("");
+  const estModif = scoreActuel !== null;
   const appuyer = v => {
     if (v === "⌫") { setSaisie(s => s.slice(0,-1)); return; }
     if (saisie.length >= 3) return;
     setSaisie(s => s + v);
   };
-  const estModif = scoreActuel !== null;
   return (
     <div style={{ position:"fixed", inset:0, background:"#000c", zIndex:500, display:"flex", alignItems:"flex-end", justifyContent:"center" }} onClick={onFermer}>
       <div onClick={e => e.stopPropagation()} style={{ background:"#1a1a1a", border:`1px solid ${C.border}`, borderRadius:"20px 20px 0 0", padding:24, width:"100%", maxWidth:480 }}>
@@ -91,7 +108,9 @@ const Pad = ({ joueur, objectif, scoreActuel, onValider, onDiviser, onFermer }) 
           <div style={{ fontWeight:700, fontSize:16, color:C.accent }}>{joueur}</div>
           <div style={{ color:C.muted, fontSize:13, marginTop:2 }}>{objectif.nom}</div>
           <div style={{ color:"#555", fontSize:11, marginTop:2 }}>
-            {estModif ? `Score actuel : ${scoreActuel === -1 ? "÷2" : "+"+scoreActuel} — modifier ?` : objectif.desc}
+            {estModif
+              ? `Score actuel : ${scoreActuel === -1 ? "÷2" : "+"+scoreActuel} — modifier ?`
+              : objectif.desc}
           </div>
         </div>
         <div style={{ background:"#111", border:`1px solid ${C.border}`, borderRadius:10, padding:"14px 20px", textAlign:"center", fontSize:32, fontWeight:800, color:C.text, marginBottom:16, minHeight:60 }}>
@@ -107,13 +126,11 @@ const Pad = ({ joueur, objectif, scoreActuel, onValider, onDiviser, onFermer }) 
           ))}
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-          <button
-            onClick={() => { onDiviser(); onFermer(); }}
+          <button onClick={() => { onDiviser(); onFermer(); }}
             style={{ background:"#1a0f00", border:`1px solid ${C.yellow}`, borderRadius:10, color:C.yellow, fontSize:15, fontWeight:700, padding:"14px", cursor:"pointer" }}>
             ÷2 Raté
           </button>
-          <button
-            onClick={() => { onValider(parseInt(saisie) || 0); onFermer(); }}
+          <button onClick={() => { onValider(parseInt(saisie) || 0); onFermer(); }}
             style={{ background:C.accent, border:"none", borderRadius:10, color:"#fff", fontSize:15, fontWeight:700, padding:"14px", cursor:"pointer" }}>
             ✅ Valider
           </button>
@@ -140,8 +157,8 @@ const ModalQuitter = ({ onRester, onQuitter }) => (
 
 // ── JEU CAPITAL ───────────────────────────────────────────────────────────────
 const Capital = ({ joueurs, onFin }) => {
+  // scores[joueurIdx][objectifIdx] = null | points | -1 (÷2)
   const [scores, setScores] = useState(() => joueurs.map(() => Array(OBJECTIFS.length).fill(null)));
-  const [totaux, setTotaux] = useState(() => joueurs.map(() => 0));
   const [objIdx, setObjIdx] = useState(0);
   const [joueurIdx, setJoueurIdx] = useState(0);
   const [padOpen, setPadOpen] = useState(false);
@@ -152,25 +169,13 @@ const Capital = ({ joueurs, onFin }) => {
 
   const leftColRef = useRef(null);
   const rightColRef = useRef(null);
-  const syncingLeft = useRef(false);
-  const syncingRight = useRef(false);
+  const syncing = useRef(false);
 
   const colWidth = Math.max(90, Math.floor((window.innerWidth - 130) / Math.min(joueurs.length, 5)));
   const totalMinWidth = joueurs.length * colWidth;
 
-  // Sync scroll vertical
-  const onLeftScroll = e => {
-    if (syncingLeft.current) return;
-    syncingRight.current = true;
-    if (rightColRef.current) rightColRef.current.scrollTop = e.target.scrollTop;
-    syncingRight.current = false;
-  };
-  const onRightScroll = e => {
-    if (syncingRight.current) return;
-    syncingLeft.current = true;
-    if (leftColRef.current) leftColRef.current.scrollTop = e.target.scrollTop;
-    syncingLeft.current = false;
-  };
+  // Totaux recalculés depuis les scores bruts — source unique de vérité
+  const totaux = calculerTotaux(scores, joueurs.length);
 
   // Plein écran + blocage scroll body
   useEffect(() => {
@@ -203,12 +208,22 @@ const Capital = ({ joueurs, onFin }) => {
     return () => window.removeEventListener("popstate", handlePop);
   }, [fini]);
 
-  const caseCliquable = (oi, ji) => {
-    // Cliquable si c'est la case active OU si le score a déjà été saisi
-    const actif = oi === objIdx && ji === joueurIdx && !fini;
-    const dejaJoue = scores[ji][oi] !== null;
-    return actif || dejaJoue;
+  // Sync scroll vertical colonne gauche ↔ tableau
+  const onLeftScroll = e => {
+    if (syncing.current) return;
+    syncing.current = true;
+    if (rightColRef.current) rightColRef.current.scrollTop = e.target.scrollTop;
+    syncing.current = false;
   };
+  const onRightScroll = e => {
+    if (syncing.current) return;
+    syncing.current = true;
+    if (leftColRef.current) leftColRef.current.scrollTop = e.target.scrollTop;
+    syncing.current = false;
+  };
+
+  const caseActive = (oi, ji) => oi === objIdx && ji === joueurIdx && !fini;
+  const caseCliquable = (oi, ji) => caseActive(oi, ji) || scores[ji][oi] !== null;
 
   const ouvrirPad = (oi, ji) => {
     if (!caseCliquable(oi, ji)) return;
@@ -217,83 +232,52 @@ const Capital = ({ joueurs, onFin }) => {
   };
 
   const avancer = (oi, ji) => {
-    let nextJi = ji + 1;
-    let nextOi = oi;
+    let nextJi = ji + 1, nextOi = oi;
     if (nextJi >= joueurs.length) { nextJi = 0; nextOi = oi + 1; }
     if (nextOi >= OBJECTIFS.length) { setFini(true); return; }
     setJoueurIdx(nextJi);
     setObjIdx(nextOi);
   };
 
-  const valider = points => {
-    const { oi, ji } = padCible;
-    const ancienScore = scores[ji][oi];
-    const estModif = ancienScore !== null;
-
-    // Sauvegarder l'état avant modification
-    setHistorique(h => [...h, { scores: scores.map(r => [...r]), totaux: [...totaux], objIdx, joueurIdx }]);
-
-    // Recalculer le total
-    setTotaux(t => {
-      const n = [...t];
-      if (!estModif) {
-        // Nouvelle saisie
-        n[ji] += points;
-      } else if (ancienScore === -1) {
-        // Était ÷2, on annule la division et on ajoute le score
-        n[ji] = n[ji] * 2 + points;
-      } else {
-        // Modification d'un score existant
-        n[ji] = n[ji] - ancienScore + points;
-      }
+  const appliquerScore = (oi, ji, nouvelleValeur) => {
+    // Sauvegarder l'état complet avant modification
+    setHistorique(h => [...h, {
+      scores: scores.map(r => [...r]),
+      objIdx,
+      joueurIdx,
+    }]);
+    // Mettre à jour le score — les totaux seront recalculés automatiquement
+    setScores(s => {
+      const n = s.map(r => [...r]);
+      n[ji][oi] = nouvelleValeur;
       return n;
     });
+  };
 
-    setScores(s => { const n = s.map(r => [...r]); n[ji][oi] = points; return n; });
-
-    // N'avance que si c'est une nouvelle saisie
+  const valider = points => {
+    const { oi, ji } = padCible;
+    const estModif = scores[ji][oi] !== null;
+    appliquerScore(oi, ji, points);
     if (!estModif) avancer(oi, ji);
   };
 
   const diviser = () => {
     const { oi, ji } = padCible;
-    const ancienScore = scores[ji][oi];
-    const estModif = ancienScore !== null;
-
-    setHistorique(h => [...h, { scores: scores.map(r => [...r]), totaux: [...totaux], objIdx, joueurIdx }]);
-
-    setTotaux(t => {
-      const n = [...t];
-      if (!estModif) {
-        // Nouvelle saisie ÷2
-        n[ji] = Math.floor(n[ji] / 2);
-      } else if (ancienScore === -1) {
-        // Déjà ÷2, rien à faire
-      } else {
-        // Remplacement d'un score par ÷2
-        n[ji] = Math.floor((n[ji] - ancienScore) / 2);
-      }
-      return n;
-    });
-
-    setScores(s => { const n = s.map(r => [...r]); n[ji][oi] = -1; return n; });
-
+    const estModif = scores[ji][oi] !== null;
+    appliquerScore(oi, ji, -1);
     if (!estModif) avancer(oi, ji);
   };
 
-  // Annuler le dernier coup
   const annuler = () => {
     if (historique.length === 0) return;
     const prev = historique[historique.length - 1];
     setScores(prev.scores);
-    setTotaux(prev.totaux);
     setObjIdx(prev.objIdx);
     setJoueurIdx(prev.joueurIdx);
     setHistorique(h => h.slice(0, -1));
   };
 
   const classement = [...joueurs.map((nom, i) => ({ nom, total: totaux[i] }))].sort((a,b) => b.total - a.total);
-  const caseActive = (oi, ji) => oi === objIdx && ji === joueurIdx && !fini;
 
   if (fini) return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"40px 20px" }}>
@@ -348,12 +332,11 @@ const Capital = ({ joueurs, onFin }) => {
       {/* TABLEAU */}
       <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
 
-        {/* Colonne gauche FIXE horizontalement */}
+        {/* Colonne gauche FIXE */}
         <div style={{ width:130, flexShrink:0, borderRight:`1px solid ${C.border}`, background:"#111", display:"flex", flexDirection:"column" }}>
           <div style={{ height:44, borderBottom:`1px solid ${C.border}`, flexShrink:0, display:"flex", alignItems:"center", padding:"0 10px" }}>
             <span style={{ fontSize:10, color:C.muted, fontWeight:600 }}>OBJECTIF</span>
           </div>
-          {/* Scroll vertical synchronisé */}
           <div ref={leftColRef} style={{ flex:1, overflowY:"auto", overflowX:"hidden" }} onScroll={onLeftScroll}>
             {OBJECTIFS.map((obj, oi) => (
               <div key={oi} style={{ height:ROW_H, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 10px", background:oi===objIdx?"#1a1a1a":"#111", flexShrink:0 }}>
@@ -363,7 +346,6 @@ const Capital = ({ joueurs, onFin }) => {
               </div>
             ))}
           </div>
-          {/* Label TOTAL */}
           <div style={{ height:52, borderTop:`2px solid ${C.yellow}44`, flexShrink:0, display:"flex", alignItems:"center", padding:"0 10px", background:"#0f0f0f" }}>
             <span style={{ fontSize:12, fontWeight:700, color:C.yellow }}>TOTAL</span>
           </div>
@@ -372,7 +354,7 @@ const Capital = ({ joueurs, onFin }) => {
         {/* Zone joueurs */}
         <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
-          {/* Noms sticky haut */}
+          {/* Noms */}
           <div style={{ display:"flex", minWidth:totalMinWidth, flexShrink:0, borderBottom:`1px solid ${C.border}`, background:"#111" }}>
             {joueurs.map((nom, ji) => (
               <div key={ji} style={{ width:colWidth, flexShrink:0, height:44, borderRight:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", background:ji===joueurIdx?"#1a0800":"#111", padding:"0 6px" }}>
@@ -381,7 +363,7 @@ const Capital = ({ joueurs, onFin }) => {
             ))}
           </div>
 
-          {/* Cases — scroll X + Y synchronisé avec colonne gauche */}
+          {/* Cases */}
           <div ref={rightColRef} style={{ flex:1, overflowX:"auto", overflowY:"auto" }} onScroll={onRightScroll}>
             <div style={{ display:"flex", minWidth:totalMinWidth }}>
               {joueurs.map((nom, ji) => (
@@ -404,7 +386,7 @@ const Capital = ({ joueurs, onFin }) => {
                           justifyContent:"center",
                           cursor:cliquable?"pointer":"default",
                           background:actif?"#1a0f00":joue?"#111":"#0f0f0f",
-                          outline:actif?`2px solid ${C.accent}`:joue?`1px solid ${C.border}`:"none",
+                          outline:actif?`2px solid ${C.accent}`:"none",
                           outlineOffset:"-2px",
                         }}>
                         {actif && !joue && <span style={{ fontSize:18, animation:"pulse 1s infinite" }}>👆</span>}
@@ -419,7 +401,7 @@ const Capital = ({ joueurs, onFin }) => {
             </div>
           </div>
 
-          {/* Scores sticky bas */}
+          {/* Scores */}
           <div style={{ display:"flex", minWidth:totalMinWidth, flexShrink:0, borderTop:`2px solid ${C.yellow}44`, background:"#0f0f0f" }}>
             {joueurs.map((nom, ji) => (
               <div key={ji} style={{ width:colWidth, flexShrink:0, borderRight:`1px solid ${C.border}`, height:52, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
@@ -428,7 +410,6 @@ const Capital = ({ joueurs, onFin }) => {
               </div>
             ))}
           </div>
-
         </div>
       </div>
 
