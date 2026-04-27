@@ -686,16 +686,9 @@ const DefiForm = ({ joueur, cible, setPage }) => {
         </div>
       </div>
 
-      <div style={{ display:"flex",gap:8 }}>
-        <BtnJ onClick={envoyer} disabled={loading} style={{ flex:1,fontSize:14 }}>
-          {loading?"Envoi…":"⚔️ Envoyer le défi"}
-        </BtnJ>
-        {amiStatut === null && (
-          <BtnJ onClick={ajouterAmi} variant="dark" style={{ fontSize:13,padding:"10px 14px" }}>👥 Ajouter</BtnJ>
-        )}
-        {amiStatut === "en_attente" && <span style={{ color:CJ.muted,fontSize:12,alignSelf:"center" }}>Demande envoyée</span>}
-        {amiStatut === "accepte" && <span style={{ color:CJ.green,fontSize:12,alignSelf:"center" }}>✅ Ami</span>}
-      </div>
+      <BtnJ onClick={envoyer} disabled={loading} style={{ width:"100%",fontSize:14 }}>
+        {loading?"Envoi…":"⚔️ Envoyer le défi"}
+      </BtnJ>
     </div>
   );
 };
@@ -777,6 +770,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const [j, setJ] = useState(null);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [amiStatut, setAmiStatut] = useState(null);
 
   useEffect(() => {
     // Guard : ne pas lancer la requête si l'ID est invalide
@@ -786,6 +780,25 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       .then(([j,s]) => { setJ(j); setStats(s); setLoading(false); })
       .catch(() => setLoading(false));
   }, [joueurId]);
+
+  useEffect(() => {
+    if (!moi || !joueurId || moi.id === joueurId) return;
+    sbJ(`amis?or=(joueur_id.eq.${moi.id},ami_id.eq.${moi.id})&or=(joueur_id.eq.${joueurId},ami_id.eq.${joueurId})&select=*`)
+      .then(r => {
+        const rel = (r||[]).find(a =>
+          (a.joueur_id===moi.id && a.ami_id===joueurId) ||
+          (a.joueur_id===joueurId && a.ami_id===moi.id)
+        );
+        setAmiStatut(rel?.statut || null);
+      })
+      .catch(() => {});
+  }, [moi?.id, joueurId]);
+
+  const ajouterAmi = async () => {
+    if (!moi || !j) return;
+    await sbJ("amis", { method:"POST", body:JSON.stringify({ joueur_id:moi.id, ami_id:j.id, joueur_pseudo:moi.pseudo, ami_pseudo:j.pseudo, statut:"en_attente", date:Date.now() }) });
+    setAmiStatut("en_attente");
+  };
 
   if (loading) return <SpinnerJ/>;
   if (!j) return <div style={{ textAlign:"center",padding:60,color:CJ.muted }}>Joueur introuvable</div>;
@@ -808,7 +821,16 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                 : <span>{emoji}</span>
               }
             </div>
-            <h1 style={{ fontWeight:800,fontSize:24,marginBottom:6 }}>{j.pseudo}</h1>
+            <div style={{ display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:6,flexWrap:"wrap" }}>
+              <h1 style={{ fontWeight:800,fontSize:24,margin:0 }}>{j.pseudo}</h1>
+              {moi && moi.id!==j.id && (
+                amiStatut===null
+                  ? <button onClick={ajouterAmi} style={{ background:"#1a1a1a",border:`1px solid ${CJ.accent}`,color:CJ.accent,borderRadius:20,padding:"4px 12px",cursor:"pointer",fontSize:12,fontWeight:600,whiteSpace:"nowrap" }}>👥 Ajouter ami(e)</button>
+                  : amiStatut==="en_attente"
+                    ? <span style={{ background:"#78350f33",border:`1px solid ${CJ.yellow}44`,color:CJ.yellow,borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:600 }}>⏳ Demande envoyée</span>
+                    : <span style={{ background:"#14532d33",border:`1px solid ${CJ.green}44`,color:CJ.green,borderRadius:20,padding:"4px 12px",fontSize:12,fontWeight:600 }}>✅ Ami(e)</span>
+              )}
+            </div>
             <div style={{ fontWeight:900,fontSize:28,color,marginBottom:4 }}>{drix} <span style={{ fontSize:16 }}>DRIX</span></div>
             <div style={{ color,fontSize:13,fontWeight:600,marginBottom:12 }}>{emoji} {titre}</div>
             <div style={{ display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap" }}>
