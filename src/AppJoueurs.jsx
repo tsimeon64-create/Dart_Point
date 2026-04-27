@@ -299,7 +299,9 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   const STYLES = [["electronique","⚡ Électronique"],["traditionnel","🎯 Traditionnel"],["les deux","🎯⚡ Les deux"]];
   const moyenneDuels = (() => {
     const termines = duels.filter(d => d.statut === "termine");
-    const scores = termines.map(d => d.challenger_id === joueur.id ? d.score_challenger : d.score_defie).filter(s => s != null && s > 0);
+    const scores = termines
+      .map(d => parseFloat(d.challenger_id === joueur.id ? d.score_challenger : d.score_defie))
+      .filter(s => !isNaN(s) && s > 0);
     return scores.length > 0 ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : null;
   })();
 
@@ -491,8 +493,10 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             : duels.filter(d=>d.statut==="termine").map(d=>{
               const isChallenger = d.challenger_id===joueur.id;
               const adversaire = isChallenger ? d.defie_pseudo : d.challenger_pseudo;
-              const monScore = isChallenger ? d.score_challenger : d.score_defie;
-              const sonScore = isChallenger ? d.score_defie : d.score_challenger;
+              const monManche = isChallenger ? d.score_manches_challenger : d.score_manches_defie;
+              const sonManche = isChallenger ? d.score_manches_defie : d.score_manches_challenger;
+              const monMoy = isChallenger ? d.score_challenger : d.score_defie;
+              const sonMoy = isChallenger ? d.score_defie : d.score_challenger;
               const gagne = d.gagnant_id===joueur.id;
               return (
                 <div key={d.id} style={{ background:CJ.card,border:`1px solid ${gagne?CJ.green+"44":CJ.red+"44"}`,borderRadius:10,padding:14,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8 }}>
@@ -500,8 +504,12 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
                     <span style={{ fontWeight:600 }}>vs {adversaire}</span>
                     <span style={{ color:CJ.muted,fontSize:12,marginLeft:8 }}>{d.mode} · {new Date(d.date).toLocaleDateString("fr-FR")}</span>
                   </div>
-                  <div style={{ display:"flex",gap:8,alignItems:"center" }}>
-                    <span style={{ fontWeight:700,fontSize:14 }}>{monScore} – {sonScore}</span>
+                  <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
+                    <div style={{ textAlign:"right" }}>
+                      <div style={{ fontWeight:700,fontSize:14 }}>{monManche ?? "?"} – {sonManche ?? "?"}</div>
+                      {monMoy && <div style={{ fontSize:11,color:CJ.accent }}>Moi : {monMoy} pts</div>}
+                      {sonMoy && <div style={{ fontSize:11,color:CJ.muted }}>Adv. : {sonMoy} pts</div>}
+                    </div>
                     <BadgeJ color={gagne?CJ.green:CJ.red}>{gagne?"Victoire ✅":"Défaite ❌"}</BadgeJ>
                   </div>
                 </div>
@@ -848,7 +856,9 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const asso = associations.find(a=>a.slug===j.asso_slug);
   const winRate = stats && stats.parties>0 ? Math.round((stats.victoires/stats.parties)*100) : 0;
   const moyenneDuels = (() => {
-    const scores = duels.map(d => d.challenger_id === joueurId ? d.score_challenger : d.score_defie).filter(s => s != null && s > 0);
+    const scores = duels
+      .map(d => parseFloat(d.challenger_id === joueurId ? d.score_challenger : d.score_defie))
+      .filter(s => !isNaN(s) && s > 0);
     return scores.length > 0 ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : null;
   })();
 
@@ -942,8 +952,10 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                 const isChallenger = d.challenger_id === joueurId;
                 const adversaire = isChallenger ? d.defie_pseudo : d.challenger_pseudo;
                 const adversaireId = isChallenger ? d.defie_id : d.challenger_id;
-                const monScore = isChallenger ? d.score_manches_challenger : d.score_manches_defie;
-                const sonScore = isChallenger ? d.score_manches_defie : d.score_manches_challenger;
+                const monManche = isChallenger ? d.score_manches_challenger : d.score_manches_defie;
+                const sonManche = isChallenger ? d.score_manches_defie : d.score_manches_challenger;
+                const monMoy = isChallenger ? d.score_challenger : d.score_defie;
+                const sonMoy = isChallenger ? d.score_defie : d.score_challenger;
                 const gagne = d.gagnant_id === joueurId;
                 return (
                   <div key={d.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 0", borderBottom:`1px solid ${CJ.border}`, flexWrap:"wrap", gap:8 }}>
@@ -961,8 +973,12 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                         </div>
                       </div>
                     </div>
-                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                      <span style={{ fontWeight:800, fontSize:15 }}>{monScore} – {sonScore}</span>
+                    <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                      <div style={{ textAlign:"right" }}>
+                        <div style={{ fontWeight:800, fontSize:15 }}>{monManche ?? "?"} – {sonManche ?? "?"}</div>
+                        {monMoy && <div style={{ fontSize:11, color:CJ.accent }}>{j.pseudo} : {monMoy} pts</div>}
+                        {sonMoy && <div style={{ fontSize:11, color:CJ.muted }}>{adversaire} : {sonMoy} pts</div>}
+                      </div>
                       <BadgeJ color={gagne?CJ.green:CJ.red}>{gagne?"Victoire ✅":"Défaite ❌"}</BadgeJ>
                     </div>
                   </div>
