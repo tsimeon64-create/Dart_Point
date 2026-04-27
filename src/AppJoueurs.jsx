@@ -772,6 +772,8 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const [duels, setDuels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [amiStatut, setAmiStatut] = useState(null);
+  const [showHistorique, setShowHistorique] = useState(false);
+  const [showDefi, setShowDefi] = useState(false);
 
   useEffect(() => {
     // Guard : ne pas lancer la requête si l'ID est invalide
@@ -860,49 +862,72 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
           <p style={{ color:CJ.muted,fontSize:12 }}>📍 {bar.ville} · Voir la fiche →</p>
         </div>
       )}
+      {/* ── BOUTONS ACTIONS ── */}
+      {moi && moi.id!==j.id && (
+        <div style={{ display:"flex", gap:10, marginBottom:12 }}>
+          <button onClick={()=>{ setShowDefi(v=>!v); setShowHistorique(false); }}
+            style={{ flex:1, background:showDefi?CJ.accent:"#1a1a1a", border:`1px solid ${showDefi?CJ.accent:CJ.border}`, color:showDefi?"#fff":CJ.text, borderRadius:10, padding:"12px 0", cursor:"pointer", fontWeight:700, fontSize:14, transition:"all .15s" }}>
+            ⚔️ Lancer un défi
+          </button>
+          <button onClick={()=>{ setShowHistorique(v=>!v); setShowDefi(false); }}
+            style={{ flex:1, background:showHistorique?"#1e3a5f":"#1a1a1a", border:`1px solid ${showHistorique?CJ.blue:CJ.border}`, color:showHistorique?CJ.blue:CJ.text, borderRadius:10, padding:"12px 0", cursor:"pointer", fontWeight:700, fontSize:14, transition:"all .15s" }}>
+            📋 Historique{duels.length>0?` (${duels.length})`:""}
+          </button>
+        </div>
+      )}
+      {(!moi || moi.id===j.id) && (
+        <button onClick={()=>setShowHistorique(v=>!v)}
+          style={{ width:"100%", background:showHistorique?"#1e3a5f":"#1a1a1a", border:`1px solid ${showHistorique?CJ.blue:CJ.border}`, color:showHistorique?CJ.blue:CJ.text, borderRadius:10, padding:"12px 0", cursor:"pointer", fontWeight:700, fontSize:14, marginBottom:12, transition:"all .15s" }}>
+          📋 Historique{duels.length>0?` (${duels.length})`:""}
+        </button>
+      )}
+
+      {/* ── FORMULAIRE DÉFI ── */}
+      {showDefi && moi && moi.id!==j.id && (
+        <DefiForm joueur={moi} cible={j} setPage={setPage}/>
+      )}
+
       {/* ── HISTORIQUE DES PARTIES ── */}
-      <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:12, padding:20, marginBottom:16 }}>
-        <h3 style={{ fontWeight:700, fontSize:15, marginBottom:duels.length===0?0:14, color:CJ.accent }}>
-          📋 Historique des parties
-          {duels.length>0 && <span style={{ color:CJ.muted, fontSize:12, fontWeight:400, marginLeft:8 }}>{duels.length} partie{duels.length>1?"s":""}</span>}
-        </h3>
-        {duels.length===0
-          ? <p style={{ color:CJ.muted, fontSize:13, marginTop:10 }}>Aucune partie jouée pour l'instant.</p>
-          : duels.map(d => {
-              const isChallenger = d.challenger_id === joueurId;
-              const adversaire = isChallenger ? d.defie_pseudo : d.challenger_pseudo;
-              const adversaireId = isChallenger ? d.defie_id : d.challenger_id;
-              const monScore = isChallenger ? d.score_manches_challenger : d.score_manches_defie;
-              const sonScore = isChallenger ? d.score_manches_defie : d.score_manches_challenger;
-              const gagne = d.gagnant_id === joueurId;
-              return (
-                <div key={d.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 0", borderBottom:`1px solid ${CJ.border}`, flexWrap:"wrap", gap:8 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                    <span style={{ fontSize:18 }}>{gagne?"🏆":"😔"}</span>
-                    <div>
-                      <div style={{ fontWeight:600, fontSize:14 }}>
-                        vs{" "}
-                        <span onClick={()=>setPage("profil-joueur-"+adversaireId)} style={{ color:CJ.accent, cursor:"pointer", textDecoration:"underline" }}>
-                          {adversaire}
-                        </span>
-                      </div>
-                      <div style={{ color:CJ.muted, fontSize:11 }}>
-                        {d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""} · {new Date(d.date).toLocaleDateString("fr-FR")}
+      {showHistorique && (
+        <div style={{ background:CJ.card, border:`1px solid ${CJ.blue}44`, borderRadius:12, padding:20, marginBottom:16 }}>
+          <h3 style={{ fontWeight:700, fontSize:15, marginBottom:duels.length===0?0:14, color:CJ.blue }}>
+            📋 Historique des parties
+            {duels.length>0 && <span style={{ color:CJ.muted, fontSize:12, fontWeight:400, marginLeft:8 }}>{duels.length} partie{duels.length>1?"s":""}</span>}
+          </h3>
+          {duels.length===0
+            ? <p style={{ color:CJ.muted, fontSize:13, marginTop:10 }}>Aucune partie jouée pour l'instant.</p>
+            : duels.map(d => {
+                const isChallenger = d.challenger_id === joueurId;
+                const adversaire = isChallenger ? d.defie_pseudo : d.challenger_pseudo;
+                const adversaireId = isChallenger ? d.defie_id : d.challenger_id;
+                const monScore = isChallenger ? d.score_manches_challenger : d.score_manches_defie;
+                const sonScore = isChallenger ? d.score_manches_defie : d.score_manches_challenger;
+                const gagne = d.gagnant_id === joueurId;
+                return (
+                  <div key={d.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 0", borderBottom:`1px solid ${CJ.border}`, flexWrap:"wrap", gap:8 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                      <span style={{ fontSize:18 }}>{gagne?"🏆":"😔"}</span>
+                      <div>
+                        <div style={{ fontWeight:600, fontSize:14 }}>
+                          vs{" "}
+                          <span onClick={()=>setPage("profil-joueur-"+adversaireId)} style={{ color:CJ.accent, cursor:"pointer", textDecoration:"underline" }}>
+                            {adversaire}
+                          </span>
+                        </div>
+                        <div style={{ color:CJ.muted, fontSize:11 }}>
+                          {d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""} · {new Date(d.date).toLocaleDateString("fr-FR")}
+                        </div>
                       </div>
                     </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                      <span style={{ fontWeight:800, fontSize:15 }}>{monScore} – {sonScore}</span>
+                      <BadgeJ color={gagne?CJ.green:CJ.red}>{gagne?"Victoire ✅":"Défaite ❌"}</BadgeJ>
+                    </div>
                   </div>
-                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                    <span style={{ fontWeight:800, fontSize:15 }}>{monScore} – {sonScore}</span>
-                    <BadgeJ color={gagne?CJ.green:CJ.red}>{gagne?"Victoire ✅":"Défaite ❌"}</BadgeJ>
-                  </div>
-                </div>
-              );
-            })
-        }
-      </div>
-
-      {moi && moi.id!==j.id && (
-        <DefiForm joueur={moi} cible={j} setPage={setPage}/>
+                );
+              })
+          }
+        </div>
       )}
     </div>
   );
