@@ -244,10 +244,18 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   const validerResultat = async (duel) => {
     const isChallenger = duel.challenger_id === joueur.id;
     const patch = isChallenger ? { valide_challenger: true } : { valide_defie: true };
-    const autreValide = isChallenger ? duel.valide_defie : duel.valide_challenger;
 
-    if (autreValide) {
-      await dbJ.updateDuel(duel.id, { ...patch, statut:"termine" });
+    // On enregistre d'abord notre validation en base
+    await dbJ.updateDuel(duel.id, patch);
+
+    // Puis on relit le duel depuis Supabase pour avoir l'état réel (évite la race condition)
+    const duelFrais = await sbJ(`duels?id=eq.${duel.id}&select=*`).then(r => r?.[0]);
+    const autreValide = duelFrais
+      ? (isChallenger ? duelFrais.valide_defie : duelFrais.valide_challenger)
+      : (isChallenger ? duel.valide_defie : duel.valide_challenger);
+
+    if (autreValide && duelFrais?.statut !== "termine") {
+      await dbJ.updateDuel(duel.id, { statut:"termine" });
       const gagnantId = duel.gagnant_id;
       const [sC, sD] = await Promise.all([dbJ.getStats(duel.challenger_id), dbJ.getStats(duel.defie_id)]);
       if (sC) await dbJ.updateStats(sC.id, { parties:sC.parties+1, victoires:gagnantId===duel.challenger_id?sC.victoires+1:sC.victoires, defaites:gagnantId!==duel.challenger_id?sC.defaites+1:sC.defaites });
@@ -268,8 +276,6 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
         setJoueur(moi);
         localStorage.setItem("dp_joueur", JSON.stringify(moi));
       }
-    } else {
-      await dbJ.updateDuel(duel.id, patch);
     }
     const joueurFrais = await dbJ.getJoueur(joueur.id);
     if (joueurFrais) {
