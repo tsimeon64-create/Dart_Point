@@ -38,7 +38,7 @@ const CHECKOUTS = {
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 
-export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) => {
+export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onResultat = null }) => {
   const modeDuel = !!duel;
 
   const [etape, setEtape] = useState(modeDuel ? "jeu" : "config");
@@ -141,6 +141,12 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null }) =
   };
 
   const enregistrerResultatDuel = async (gagnantNom, scoreC, scoreD, moyC, moyD) => {
+    if (onResultat) {
+      onResultat({ gagnantNom, scoreC, scoreD, moyC, moyD });
+      setResultEnregistre(true);
+      if (onDuelTermine) onDuelTermine();
+      return;
+    }
     if (!duel || resultEnregistre) return;
     const gagnantId = gagnantNom === duel.challenger_pseudo ? duel.challenger_id : duel.defie_id;
     try {

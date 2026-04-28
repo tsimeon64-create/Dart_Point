@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Scoreur } from "./AppJeux";
 
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -92,7 +93,7 @@ const genPouleMatchs=(joueurs,groupe,tournoi_id)=>{
   const matchs=[];
   for(let i=0;i<joueurs.length;i++){
     for(let j=i+1;j<joueurs.length;j++){
-      matchs.push({tournoi_id,joueur1_id:joueurs[i].id,joueur2_id:joueurs[j].id,score1:0,score2:0,phase:"poules",groupe,statut:"en_attente",round_bracket:0,position_bracket:i*100+j,manches_max:3});
+      matchs.push({tournoi_id,joueur1_id:joueurs[i].id,joueur2_id:joueurs[j].id,score1:0,score2:0,phase:"poules",groupe,statut:"en_attente",round_bracket:0,position_bracket:i*100+j,manches_max:2});
     }
   }
   return matchs;
@@ -109,14 +110,14 @@ const genBracketMatchs=(seeded,tournoi_id)=>{
     const j2=seeded[pos*2+1];
     const phase=phaseName(1,totalRounds);
     const statut=j1&&j2?"en_attente":j1?"bye_j2":j2?"bye_j1":"vide";
-    matchs.push({tournoi_id,joueur1_id:j1?.id||null,joueur2_id:j2?.id||null,score1:0,score2:0,gagnant_id:j1&&!j2?j1.id:j2&&!j1?j2.id:null,phase,groupe:0,statut,round_bracket:1,position_bracket:pos,manches_max:3});
+    matchs.push({tournoi_id,joueur1_id:j1?.id||null,joueur2_id:j2?.id||null,score1:0,score2:0,gagnant_id:j1&&!j2?j1.id:j2&&!j1?j2.id:null,phase,groupe:0,statut,round_bracket:1,position_bracket:pos,manches_max:2});
   }
   // Subsequent rounds (empty placeholders)
   for(let r=2;r<=totalRounds;r++){
     const nb=n/Math.pow(2,r);
     const phase=phaseName(r,totalRounds);
     for(let pos=0;pos<nb;pos++){
-      matchs.push({tournoi_id,joueur1_id:null,joueur2_id:null,score1:0,score2:0,gagnant_id:null,phase,groupe:0,statut:"attente_avancement",round_bracket:r,position_bracket:pos,manches_max:r===totalRounds?5:3});
+      matchs.push({tournoi_id,joueur1_id:null,joueur2_id:null,score1:0,score2:0,gagnant_id:null,phase,groupe:0,statut:"attente_avancement",round_bracket:r,position_bracket:pos,manches_max:r===totalRounds?5:2});
     }
   }
   return matchs;
@@ -132,8 +133,8 @@ const rankGroup=(joueurs)=>[...joueurs].sort((a,b)=>{
 const MatchModal=({match,joueurs,onSave,onClose})=>{
   const j1=joueurs.find(j=>j.id===match.joueur1_id);
   const j2=joueurs.find(j=>j.id===match.joueur2_id);
-  const max=match.manches_max||3;
-  const win=Math.ceil(max/2); // manches needed to win: 2 for BO3, 3 for BO5
+  const max=match.manches_max||2;
+  const win=max; // manches_max = cible à atteindre (2 manches gagnantes, ou 5 en finale)
   const [s1,setS1]=useState(0);
   const [s2,setS2]=useState(0);
   const [saving,setSaving]=useState(false);
@@ -221,7 +222,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
     setAddingAmi(null);
   };
 
-  const lien=`${window.location.origin}${window.location.pathname}?tournoi=${tournoi.code}`;
+  const lien=`${window.location.origin}${window.location.pathname}#t=${tournoi.id}`;
   const [copied,setCopied]=useState(false);
   const copyLien=()=>{navigator.clipboard.writeText(lien).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});};
 
@@ -308,7 +309,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
 };
 
 // ── VUE POULES ────────────────────────────────────────────────────────────────
-const PoulesView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onLancerEliminatoires})=>{
+const PoulesView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,onLancerEliminatoires})=>{
   const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
   const groupes=Array.from({length:nbGroupes},(_,i)=>i+1);
   const termines=matchs.filter(m=>m.phase==="poules"&&m.statut==="termine");
@@ -361,7 +362,12 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onLancerElimi
                       {done?`${m.score1}–${m.score2}`:"vs"}
                     </span>
                     <span style={{flex:1,fontSize:13,fontWeight:done&&m.gagnant_id===j2?.id?700:400,color:done&&m.gagnant_id===j2?.id?CT.green:CT.text,textAlign:"right"}}>{j2?.nom||"?"}</span>
-                    {!done&&isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="ghost" small>Saisir</Btn>}
+                    {!done&&(
+                      <div style={{display:"flex",gap:6}}>
+                        <Btn onClick={()=>onJouerMatch(m)} variant="primary" small>▶ Jouer</Btn>
+                        <Btn onClick={()=>onSaisirScore(m)} variant="dark" small>✏️</Btn>
+                      </div>
+                    )}
                     {done&&<Badge color={CT.green}>✅</Badge>}
                   </div>
                 );
@@ -382,7 +388,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onLancerElimi
 };
 
 // ── VUE BRACKET ───────────────────────────────────────────────────────────────
-const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore})=>{
+const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch})=>{
   const j1=joueurs.find(j=>j.id===match.joueur1_id);
   const j2=joueurs.find(j=>j.id===match.joueur2_id);
   const done=match.statut==="termine";
@@ -408,9 +414,10 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore})=>{
         <span style={{fontSize:13,fontWeight:done&&match.gagnant_id===j2?.id?700:400}}>{j2?.nom||<span style={{color:CT.muted}}>À définir</span>}</span>
         {done&&<span style={{fontWeight:800,color:match.gagnant_id===j2?.id?CT.green:CT.muted}}>{match.score2}</span>}
       </div>
-      {!done&&!bye&&j1&&j2&&isCreateur&&(
-        <div style={{padding:"6px 10px",borderTop:`1px solid ${CT.border}`}}>
-          <Btn onClick={()=>onSaisirScore(match)} variant="ghost" small style={{width:"100%",fontSize:11}}>Saisir le score</Btn>
+      {!done&&!bye&&j1&&j2&&(
+        <div style={{padding:"6px 10px",borderTop:`1px solid ${CT.border}`,display:"flex",gap:6}}>
+          <Btn onClick={()=>onJouerMatch(match)} variant="primary" small style={{flex:1,fontSize:11}}>▶ Jouer</Btn>
+          {isCreateur&&<Btn onClick={()=>onSaisirScore(match)} variant="dark" small style={{fontSize:11}}>✏️</Btn>}
         </div>
       )}
       {bye&&<div style={{padding:"4px 10px",fontSize:10,color:CT.muted}}>Bye automatique</div>}
@@ -418,7 +425,7 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore})=>{
   );
 };
 
-const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore})=>{
+const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch})=>{
   const rounds=[...new Set(matchs.filter(m=>m.phase!=="poules").map(m=>m.round_bracket))].sort((a,b)=>a-b);
 
   return(
@@ -434,7 +441,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore})=>{
                   {phase==="finale"?"🏆 Finale":phase==="demi"?"Demi-finales":phase==="quart"?"Quarts":phase==="huitieme"?"Huitièmes":"Tour "+r}
                 </div>
                 {rm.map(m=>(
-                  <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore}/>
+                  <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch}/>
                 ))}
               </div>
             );
@@ -722,12 +729,15 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       )}
       {tournoi.statut==="poules"&&(
         <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} isCreateur={isCreateur}
-          onSaisirScore={m=>setMatchModal(m)} onLancerEliminatoires={lancerEliminatoires}/>
+          onSaisirScore={m=>setMatchModal(m)}
+          onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
+          onLancerEliminatoires={lancerEliminatoires}/>
       )}
       {tournoi.statut==="eliminatoires"&&(
         <EliminatoiresView tournoi={tournoi} joueurs={joueurs}
           matchs={matchs.filter(m=>m.phase!=="poules")} isCreateur={isCreateur}
-          onSaisirScore={m=>setMatchModal(m)}/>
+          onSaisirScore={m=>setMatchModal(m)}
+          onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}/>
       )}
       {tournoi.statut==="termine"&&(
         <ResultatsView tournoi={tournoi} joueurs={joueurs} matchs={matchs} onRejouer={rejouer}/>
@@ -792,7 +802,7 @@ export const TournoiPotesPage=({joueur,setPage})=>{
 
       {/* Tabs */}
       <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
-        {[["liste","📋 Mes tournois"],["creer","➕ Créer"],["rejoindre","🔗 Rejoindre"]].map(([v,l])=>(
+        {[["liste","📋 Mes tournois"],["creer","➕ Créer"]].map(([v,l])=>(
           <button key={v} onClick={()=>setVue(v)} style={{background:vue===v?CT.accent+"22":"transparent",color:vue===v?CT.accent:CT.muted,border:`1px solid ${vue===v?CT.accent:CT.border}`,cursor:"pointer",padding:"8px 16px",borderRadius:8,fontSize:13,fontWeight:600}}>{l}</button>
         ))}
       </div>
@@ -872,20 +882,78 @@ export const TournoiPotesPage=({joueur,setPage})=>{
         </Card>
       )}
 
-      {/* Rejoindre */}
-      {vue==="rejoindre"&&(
-        <Card>
-          <h3 style={{fontWeight:700,fontSize:15,marginBottom:12}}>🔗 Rejoindre via code</h3>
-          <p style={{fontSize:13,color:CT.muted,marginBottom:14}}>Entre le code à 6 lettres partagé par le créateur du tournoi.</p>
-          <div style={{display:"flex",gap:8,marginBottom:8}}>
-            <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&rejoindreParCode()} placeholder="Ex : AB3X7Z" maxLength={6} style={{flex:1,background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:"10px 14px",color:CT.text,fontSize:18,fontWeight:700,letterSpacing:3,fontFamily:"monospace",textTransform:"uppercase"}}/>
-            <Btn onClick={rejoindreParCode} disabled={code.length<6||joining}>
-              {joining?"…":"Rejoindre"}
-            </Btn>
-          </div>
-          {joinErr&&<p style={{color:CT.red,fontSize:13}}>{joinErr}</p>}
-        </Card>
-      )}
     </div>
+  );
+};
+
+// ── SCOREUR WRAPPER TOURNOI ───────────────────────────────────────────────────
+export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
+  const [data,setData]=useState(null);
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    sbTP(`tournois_potes_matchs?id=eq.${matchId}&select=*`).then(async rows=>{
+      const match=rows?.[0];
+      if(!match){setLoading(false);return;}
+      const [joueurs,tournoi]=await Promise.all([dbTP.getJoueurs(match.tournoi_id),dbTP.getTournoi(match.tournoi_id)]);
+      const j1=joueurs?.find(j=>j.id===match.joueur1_id);
+      const j2=joueurs?.find(j=>j.id===match.joueur2_id);
+      setData({match,j1,j2,tournoi,joueurs:joueurs||[]});
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  },[matchId]);
+
+  if(loading)return<div style={{padding:40,background:CT.bg,minHeight:"100vh"}}><Spinner/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>;
+  if(!data||!data.j1||!data.j2)return<div style={{padding:40,textAlign:"center",color:CT.muted}}>Match introuvable ou joueurs manquants.</div>;
+
+  const{match,j1,j2,tournoi,joueurs}=data;
+
+  const fakeDuel={
+    id:"potes-"+matchId,
+    mode:tournoi.mode||"501",
+    manches:match.manches_max||2,
+    challenger_pseudo:j1.nom,
+    defie_pseudo:j2.nom,
+    challenger_id:j1.id,
+    defie_id:j2.id,
+  };
+
+  const handleResultat=async({gagnantNom,scoreC,scoreD})=>{
+    const gagnant_id=gagnantNom===j1.nom?j1.id:j2.id;
+    const perdant_id=gagnant_id===j1.id?j2.id:j1.id;
+    // scoreC = manches won by challenger (j1), scoreD by defie (j2)
+    const score1=gagnant_id===j1.id?Math.max(scoreC,scoreD):Math.min(scoreC,scoreD);
+    const score2=gagnant_id===j2.id?Math.max(scoreC,scoreD):Math.min(scoreC,scoreD);
+    try{
+      await dbTP.updateMatch(match.id,{score1,score2,gagnant_id,statut:"termine",date_fin:new Date().toISOString()});
+      // Update joueur stats in tournament
+      const gJ=joueurs.find(j=>j.id===gagnant_id);
+      const lJ=joueurs.find(j=>j.id===perdant_id);
+      if(gJ)await dbTP.updateJoueur(gJ.id,{victoires:gJ.victoires+1,points:gJ.points+2,manches_pour:gJ.manches_pour+score1,manches_contre:gJ.manches_contre+score2});
+      if(lJ)await dbTP.updateJoueur(lJ.id,{defaites:lJ.defaites+1,points:lJ.points+(Math.min(score1,score2)>0?1:0),manches_pour:lJ.manches_pour+score2,manches_contre:lJ.manches_contre+score1});
+      // If bracket → advance winner
+      if(match.phase!=="poules"&&match.round_bracket>0){
+        const allMatchs=await dbTP.getMatchs(match.tournoi_id);
+        const nextRound=match.round_bracket+1;
+        const nextPos=Math.floor(match.position_bracket/2);
+        const isJ1Slot=match.position_bracket%2===0;
+        const nextMatch=allMatchs.find(m=>m.round_bracket===nextRound&&m.position_bracket===nextPos&&m.phase!=="poules");
+        if(nextMatch){
+          const patch=isJ1Slot?{joueur1_id:gagnant_id}:{joueur2_id:gagnant_id};
+          const otherFilled=isJ1Slot?nextMatch.joueur2_id:nextMatch.joueur1_id;
+          await dbTP.updateMatch(nextMatch.id,{...patch,statut:otherFilled?"en_attente":"attente_avancement"});
+        }
+        if(match.phase==="finale")await dbTP.updateTournoi(match.tournoi_id,{statut:"termine"});
+      }
+    }catch(e){console.error("Erreur save match:",e);}
+  };
+
+  return(
+    <Scoreur
+      duel={fakeDuel}
+      onResultat={handleResultat}
+      onDuelTermine={()=>setPage("tournoi-potes-"+match.tournoi_id)}
+      setPage={setPage}
+    />
   );
 };

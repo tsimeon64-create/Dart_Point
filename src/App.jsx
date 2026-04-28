@@ -9,7 +9,7 @@ import {
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
 import { JeuCapital } from "./AppJeuDecalePoint";
-import { TournoiPotesPage, TournoiPotesDetail } from "./AppTournoiPotes";
+import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper } from "./AppTournoiPotes";
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
@@ -1318,6 +1318,16 @@ export default function App() {
 
   useEffect(()=>{ try{ const j=localStorage.getItem("dp_joueur"); if(j) setJoueur(JSON.parse(j)); }catch{} },[]);
 
+  // Lien de partage tournoi entre potes (#t=UUID)
+  useEffect(()=>{
+    const hash=window.location.hash;
+    if(hash.startsWith("#t=")){
+      const tid=hash.replace("#t=","");
+      if(tid)nav("tournoi-potes-"+tid);
+      window.history.replaceState(null,"",window.location.pathname);
+    }
+  },[]);
+
   useEffect(()=>{
     Promise.all([db.getBars(),db.getAssociations(),db.getTournois()])
       .then(([b,a,t])=>{ setBars(b||[]); setAssociations(a||[]); setTournois(t||[]); setLoading(false); })
@@ -1404,6 +1414,7 @@ export default function App() {
         {page==="jeux"             && <JeuCapital setPage={nav}/>}
         {page==="tournois-potes"   && <TournoiPotesPage joueur={joueur} setPage={nav}/>}
         {page.startsWith("tournoi-potes-") && <TournoiPotesDetail tournoiId={page.replace("tournoi-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
+        {page.startsWith("scoreur-potes-") && <ScoreurPotesWrapper matchId={page.replace("scoreur-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
         {page.startsWith("scoreur-duel-") && joueur && <ScoreurDuel duelId={page.replace("scoreur-duel-","")} joueur={joueur} setPage={nav}/>}
         {page==="apropos"          && <APropos bars={bars} setPage={nav}/>}
         {page==="proposer"         && <Proposer bars={bars} onSubmit={handleProposal}/>}
