@@ -752,16 +752,36 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   );
 };
 
+// ── CARTE TOURNOI (définie HORS du render pour éviter le remount React) ────────
+const TournoiCard=({t,onOpen})=>{
+  const s={attente:CT.yellow,poules:CT.blue,eliminatoires:CT.accent,termine:CT.green}[t.statut]||CT.muted;
+  const sl={attente:"⏳ Lobby",poules:"🏟️ Poules",eliminatoires:"⚔️ Éliminatoires",termine:"🏆 Terminé"}[t.statut];
+  return(
+    <div onClick={()=>onOpen(t.id)} style={{background:CT.card,border:`2px solid ${t.statut!=="termine"?CT.accent+"55":CT.border}`,borderRadius:12,padding:16,marginBottom:10,cursor:"pointer",transition:"border-color .15s"}}
+      onMouseEnter={e=>e.currentTarget.style.borderColor=CT.accent}
+      onMouseLeave={e=>e.currentTarget.style.borderColor=t.statut!=="termine"?CT.accent+"55":CT.border}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+        <div>
+          <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>🏓 {t.nom}</div>
+          <div style={{fontSize:12,color:CT.muted}}>{new Date(t.date).toLocaleDateString("fr-FR")} · {t.mode}</div>
+        </div>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <Badge color={s}>{sl}</Badge>
+          {t.statut!=="termine"&&<span style={{fontSize:12,color:CT.accent,fontWeight:700}}>Reprendre →</span>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── PAGE LISTE + CRÉATION ─────────────────────────────────────────────────────
 export const TournoiPotesPage=({joueur,setPage})=>{
-  const [vue,setVue]=useState("liste"); // liste | creer | rejoindre
+  const [vue,setVue]=useState("liste");    // liste | creer
+  const [filtre,setFiltre]=useState("en_cours"); // en_cours | passes
   const [mesT,setMesT]=useState([]);
   const [loading,setLoading]=useState(true);
   const [form,setForm]=useState({nom:"",mode:"501"});
   const [creating,setSaving]=useState(false);
-  const [code,setCode]=useState("");
-  const [joining,setJoining]=useState(false);
-  const [joinErr,setJoinErr]=useState("");
 
   useEffect(()=>{
     if(!joueur){setLoading(false);return;}
@@ -774,23 +794,15 @@ export const TournoiPotesPage=({joueur,setPage})=>{
     try{
       const t=await dbTP.createTournoi({nom:form.nom.trim(),mode:form.mode,createur_id:joueur.id,createur_pseudo:joueur.pseudo,statut:"attente",code:genCode(),date:new Date().toISOString()});
       if(!t)throw new Error("Création échouée");
-      // Auto-add creator as player
       await dbTP.addJoueur({tournoi_id:t.id,nom:joueur.pseudo,joueur_id:joueur.id,groupe:1,ordre:0,points:0,victoires:0,defaites:0,manches_pour:0,manches_contre:0});
       setPage("tournoi-potes-"+t.id);
     }catch(e){alert("Erreur : "+e.message);}
     setSaving(false);
   };
 
-  const rejoindreParCode=async()=>{
-    if(!code.trim())return;
-    setJoining(true);setJoinErr("");
-    try{
-      const t=await dbTP.getTournoiByCode(code.trim().toUpperCase());
-      if(!t){setJoinErr("Code invalide. Vérifie le code partagé.");setJoining(false);return;}
-      setPage("tournoi-potes-"+t.id);
-    }catch(e){setJoinErr("Erreur : "+e.message);}
-    setJoining(false);
-  };
+  const enCours=mesT.filter(t=>t.statut!=="termine");
+  const passes=mesT.filter(t=>t.statut==="termine");
+  const listeAffichee=filtre==="en_cours"?enCours:passes;
 
   return(
     <div style={{maxWidth:700,margin:"0 auto",padding:"24px 16px"}}>
@@ -800,63 +812,46 @@ export const TournoiPotesPage=({joueur,setPage})=>{
         <p style={{color:CT.muted,fontSize:14}}>Mode local et convivial — sans impact sur les stats DRIX</p>
       </div>
 
-      {/* Tabs */}
+      {/* Onglets principaux */}
       <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
         {[["liste","📋 Mes tournois"],["creer","➕ Créer"]].map(([v,l])=>(
           <button key={v} onClick={()=>setVue(v)} style={{background:vue===v?CT.accent+"22":"transparent",color:vue===v?CT.accent:CT.muted,border:`1px solid ${vue===v?CT.accent:CT.border}`,cursor:"pointer",padding:"8px 16px",borderRadius:8,fontSize:13,fontWeight:600}}>{l}</button>
         ))}
       </div>
 
-      {/* Liste */}
+      {/* VUE LISTE */}
       {vue==="liste"&&(
         <div>
           {!joueur&&<Card><p style={{color:CT.muted,fontSize:14,textAlign:"center"}}>Connecte-toi pour voir tes tournois.</p></Card>}
           {joueur&&loading&&<Spinner/>}
-          {joueur&&!loading&&mesT.length===0&&(
-            <Card><p style={{color:CT.muted,fontSize:14,textAlign:"center"}}>Aucun tournoi pour l'instant. Crées-en un !</p></Card>
-          )}
-          {joueur&&!loading&&mesT.length>0&&(()=>{
-            const enCours=mesT.filter(t=>t.statut!=="termine");
-            const passes=mesT.filter(t=>t.statut==="termine");
-            const TournoiCard=({t})=>{
-              const s={attente:CT.yellow,poules:CT.blue,eliminatoires:CT.accent,termine:CT.green}[t.statut]||CT.muted;
-              const sl={attente:"⏳ Lobby",poules:"🏟️ Poules",eliminatoires:"⚔️ Éliminatoires",termine:"🏆 Terminé"}[t.statut];
-              return(
-                <Card style={{marginBottom:10,cursor:"pointer",border:`1px solid ${t.statut!=="termine"?CT.accent+"44":CT.border}`}} onClick={()=>setPage("tournoi-potes-"+t.id)}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
-                    <div>
-                      <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>🏓 {t.nom}</div>
-                      <div style={{fontSize:12,color:CT.muted}}>{new Date(t.date).toLocaleDateString("fr-FR")} · {t.mode}</div>
-                    </div>
-                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                      <Badge color={s}>{sl}</Badge>
-                      <span style={{fontSize:11,color:CT.muted,fontFamily:"monospace"}}>#{t.code}</span>
-                    </div>
-                  </div>
+          {joueur&&!loading&&(
+            <>
+              {/* Sous-onglets En cours / Passés */}
+              <div style={{display:"flex",gap:6,marginBottom:16,background:"#111",borderRadius:10,padding:4}}>
+                <button onClick={()=>setFiltre("en_cours")} style={{flex:1,background:filtre==="en_cours"?CT.card:"transparent",color:filtre==="en_cours"?CT.accent:CT.muted,border:"none",cursor:"pointer",padding:"8px 12px",borderRadius:8,fontSize:13,fontWeight:600,transition:"all .15s"}}>
+                  ⚡ En cours {enCours.length>0&&<span style={{background:CT.accent,color:"#fff",borderRadius:20,padding:"1px 7px",fontSize:11,marginLeft:4}}>{enCours.length}</span>}
+                </button>
+                <button onClick={()=>setFiltre("passes")} style={{flex:1,background:filtre==="passes"?CT.card:"transparent",color:filtre==="passes"?CT.text:CT.muted,border:"none",cursor:"pointer",padding:"8px 12px",borderRadius:8,fontSize:13,fontWeight:600,transition:"all .15s"}}>
+                  🏆 Passés {passes.length>0&&<span style={{background:CT.border,color:CT.muted,borderRadius:20,padding:"1px 7px",fontSize:11,marginLeft:4}}>{passes.length}</span>}
+                </button>
+              </div>
+
+              {listeAffichee.length===0&&(
+                <Card>
+                  <p style={{color:CT.muted,fontSize:14,textAlign:"center"}}>
+                    {filtre==="en_cours"?"Aucun tournoi en cours. Lance-en un !":"Aucun tournoi terminé pour l'instant."}
+                  </p>
                 </Card>
-              );
-            };
-            return(
-              <>
-                {enCours.length>0&&(
-                  <div style={{marginBottom:20}}>
-                    <div style={{fontSize:11,fontWeight:700,color:CT.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>⚡ En cours ({enCours.length})</div>
-                    {enCours.map(t=><TournoiCard key={t.id} t={t}/>)}
-                  </div>
-                )}
-                {passes.length>0&&(
-                  <div>
-                    <div style={{fontSize:11,fontWeight:700,color:CT.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>🏆 Tournois passés ({passes.length})</div>
-                    {passes.map(t=><TournoiCard key={t.id} t={t}/>)}
-                  </div>
-                )}
-              </>
-            );
-          })()}
+              )}
+              {listeAffichee.map(t=>(
+                <TournoiCard key={t.id} t={t} onOpen={id=>setPage("tournoi-potes-"+id)}/>
+              ))}
+            </>
+          )}
         </div>
       )}
 
-      {/* Créer */}
+      {/* VUE CRÉER */}
       {vue==="creer"&&(
         <Card>
           {!joueur&&<p style={{color:CT.muted,fontSize:14,textAlign:"center",marginBottom:12}}>Connecte-toi pour créer un tournoi.</p>}
@@ -881,7 +876,6 @@ export const TournoiPotesPage=({joueur,setPage})=>{
           )}
         </Card>
       )}
-
     </div>
   );
 };
