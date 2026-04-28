@@ -392,6 +392,15 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
         </div>
       </div>
 
+      {/* Raccourci tournois entre potes */}
+      <div style={{ marginBottom:14 }}>
+        <button onClick={()=>setPage("tournois-potes")} style={{ background:"#f9731611",border:`1px solid ${CJ.accent}44`,color:CJ.accent,cursor:"pointer",padding:"9px 16px",borderRadius:10,fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:8,width:"100%" }}>
+          <span style={{ fontSize:18 }}>🍺</span>
+          <span>Tournoi entre potes</span>
+          <span style={{ marginLeft:"auto",fontSize:11,color:CJ.muted }}>Voir mes tournois →</span>
+        </button>
+      </div>
+
       {/* Onglets */}
       <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
         {[["defis",`⚔️ Défis${defis.length>0?" ("+defis.length+")":""}`],["amis","👥 Amis"],["historique","📋 Historique"],["affiliation","🍺 Affiliation"]].map(([t,l])=>(

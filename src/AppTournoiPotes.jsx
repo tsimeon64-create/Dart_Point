@@ -27,6 +27,7 @@ export const dbTP = {
   addMatchs:(arr)=>sbTP("tournois_potes_matchs",{method:"POST",body:JSON.stringify(arr)}),
   updateMatch:(id,d)=>sbTP(`tournois_potes_matchs?id=eq.${id}`,{method:"PATCH",body:JSON.stringify(d),prefer:"return=minimal"}),
   getAmis:(id)=>sbTP(`amis?or=(joueur_id.eq.${id},ami_id.eq.${id})&statut=eq.accepte&select=*`),
+  deleteTournoi:(id)=>sbTP(`tournois_potes?id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
 };
 
 // ── COULEURS ─────────────────────────────────────────────────────────────────
@@ -664,6 +665,16 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     setSaving(false);
   };
 
+  // ── Supprimer le tournoi
+  const supprimerTournoi=async()=>{
+    const ok=window.confirm(`⚠️ Supprimer "${tournoi.nom}" ?\n\nTous les matchs et résultats seront perdus. Cette action est irréversible.`);
+    if(!ok)return;
+    try{
+      await dbTP.deleteTournoi(tournoiId);
+      setPage("tournois-potes");
+    }catch(e){alert("Erreur lors de la suppression : "+e.message);}
+  };
+
   const addJoueur=async(nom,joueur_id=null)=>{
     const j=await dbTP.addJoueur({tournoi_id:tournoiId,nom,joueur_id,groupe:1,ordre:joueurs.length,points:0,victoires:0,defaites:0,manches_pour:0,manches_contre:0});
     if(j)setJoueurs(jj=>[...jj,j]);
@@ -685,7 +696,12 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       {/* Header */}
       <div style={{marginBottom:20}}>
-        <button onClick={()=>setPage("tournois-potes")} style={{background:"none",border:"none",color:CT.muted,cursor:"pointer",fontSize:13,marginBottom:8,padding:0}}>← Retour</button>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <button onClick={()=>setPage("tournois-potes")} style={{background:"none",border:"none",color:CT.muted,cursor:"pointer",fontSize:13,padding:0}}>← Retour</button>
+          {isCreateur&&tournoi.statut!=="termine"&&(
+            <button onClick={supprimerTournoi} style={{background:"none",border:`1px solid ${CT.red}44`,color:CT.red,cursor:"pointer",fontSize:12,padding:"5px 12px",borderRadius:8,fontWeight:600}}>🗑 Supprimer</button>
+          )}
+        </div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
           <div>
             <h1 style={{fontWeight:800,fontSize:22,marginBottom:4}}>🏓 {tournoi.nom}</h1>
@@ -786,25 +802,47 @@ export const TournoiPotesPage=({joueur,setPage})=>{
         <div>
           {!joueur&&<Card><p style={{color:CT.muted,fontSize:14,textAlign:"center"}}>Connecte-toi pour voir tes tournois.</p></Card>}
           {joueur&&loading&&<Spinner/>}
-          {joueur&&!loading&&mesT.length===0&&<Card><p style={{color:CT.muted,fontSize:14,textAlign:"center"}}>Aucun tournoi pour l'instant. Crées-en un !</p></Card>}
-          {joueur&&mesT.map(t=>{
-            const s={attente:CT.yellow,poules:CT.blue,eliminatoires:CT.accent,termine:CT.green}[t.statut]||CT.muted;
-            const sl={attente:"⏳ Lobby",poules:"🏟️ Poules",eliminatoires:"⚔️ Éliminatoires",termine:"🏆 Terminé"}[t.statut];
+          {joueur&&!loading&&mesT.length===0&&(
+            <Card><p style={{color:CT.muted,fontSize:14,textAlign:"center"}}>Aucun tournoi pour l'instant. Crées-en un !</p></Card>
+          )}
+          {joueur&&!loading&&mesT.length>0&&(()=>{
+            const enCours=mesT.filter(t=>t.statut!=="termine");
+            const passes=mesT.filter(t=>t.statut==="termine");
+            const TournoiCard=({t})=>{
+              const s={attente:CT.yellow,poules:CT.blue,eliminatoires:CT.accent,termine:CT.green}[t.statut]||CT.muted;
+              const sl={attente:"⏳ Lobby",poules:"🏟️ Poules",eliminatoires:"⚔️ Éliminatoires",termine:"🏆 Terminé"}[t.statut];
+              return(
+                <Card style={{marginBottom:10,cursor:"pointer",border:`1px solid ${t.statut!=="termine"?CT.accent+"44":CT.border}`}} onClick={()=>setPage("tournoi-potes-"+t.id)}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>🏓 {t.nom}</div>
+                      <div style={{fontSize:12,color:CT.muted}}>{new Date(t.date).toLocaleDateString("fr-FR")} · {t.mode}</div>
+                    </div>
+                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                      <Badge color={s}>{sl}</Badge>
+                      <span style={{fontSize:11,color:CT.muted,fontFamily:"monospace"}}>#{t.code}</span>
+                    </div>
+                  </div>
+                </Card>
+              );
+            };
             return(
-              <Card key={t.id} style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setPage("tournoi-potes-"+t.id)}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+              <>
+                {enCours.length>0&&(
+                  <div style={{marginBottom:20}}>
+                    <div style={{fontSize:11,fontWeight:700,color:CT.accent,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>⚡ En cours ({enCours.length})</div>
+                    {enCours.map(t=><TournoiCard key={t.id} t={t}/>)}
+                  </div>
+                )}
+                {passes.length>0&&(
                   <div>
-                    <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>🏓 {t.nom}</div>
-                    <div style={{fontSize:12,color:CT.muted}}>{new Date(t.date).toLocaleDateString("fr-FR")} · {t.mode}</div>
+                    <div style={{fontSize:11,fontWeight:700,color:CT.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>🏆 Tournois passés ({passes.length})</div>
+                    {passes.map(t=><TournoiCard key={t.id} t={t}/>)}
                   </div>
-                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                    <Badge color={s}>{sl}</Badge>
-                    <span style={{fontSize:12,color:CT.muted,fontFamily:"monospace"}}>#{t.code}</span>
-                  </div>
-                </div>
-              </Card>
+                )}
+              </>
             );
-          })}
+          })()}
         </div>
       )}
 
