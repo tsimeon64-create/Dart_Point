@@ -170,6 +170,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   const { titre, emoji, color } = getDrixTitreLocal(joueur.drix||1000);
 
   const [moyDrix, setMoyDrix] = useState(null);
+  const [tournoisPotes, setTournoisPotes] = useState([]);
 
   useEffect(() => {
     Promise.all([
@@ -185,6 +186,18 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       }
       setLoading(false);
     }).catch(() => setLoading(false));
+  }, [joueur.id]);
+
+  // Tournois entre potes où ce joueur est inscrit
+  useEffect(() => {
+    sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id,tournois_potes(id,nom,statut,createur_pseudo)`)
+      .then(rows => {
+        if (!rows) return;
+        const actifs = rows
+          .map(r => r.tournois_potes)
+          .filter(t => t && t.statut !== "termine");
+        setTournoisPotes(actifs);
+      }).catch(() => {});
   }, [joueur.id]);
 
   const sauvegarderProfil = async () => {
@@ -392,13 +405,36 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
         </div>
       </div>
 
-      {/* Raccourci tournois entre potes */}
+      {/* Tournois entre potes */}
       <div style={{ marginBottom:14 }}>
-        <button onClick={()=>setPage("tournois-potes")} style={{ background:"#f9731611",border:`1px solid ${CJ.accent}44`,color:CJ.accent,cursor:"pointer",padding:"9px 16px",borderRadius:10,fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:8,width:"100%" }}>
-          <span style={{ fontSize:18 }}>🍺</span>
-          <span>Tournoi entre potes</span>
-          <span style={{ marginLeft:"auto",fontSize:11,color:CJ.muted }}>Voir mes tournois →</span>
-        </button>
+        {tournoisPotes.length > 0 ? (
+          <div style={{ background:"#f9731611", border:`1px solid ${CJ.accent}55`, borderRadius:12, padding:14 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+              <span style={{ fontWeight:700, fontSize:13, color:CJ.accent }}>🍺 Tournois en cours</span>
+              <button onClick={()=>setPage("tournois-potes")} style={{ background:"none", border:"none", color:CJ.muted, cursor:"pointer", fontSize:11 }}>Voir tous →</button>
+            </div>
+            {tournoisPotes.map(t => {
+              const sl = { attente:"⏳ Lobby", poules:"🏟️ Poules", eliminatoires:"⚔️ Élim." }[t.statut] || t.statut;
+              return (
+                <div key={t.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#ffffff0d", borderRadius:8, padding:"9px 12px", marginBottom:6, gap:8 }}>
+                  <div>
+                    <div style={{ fontWeight:600, fontSize:13 }}>🏓 {t.nom}</div>
+                    <div style={{ fontSize:11, color:CJ.muted }}>par {t.createur_pseudo} · {sl}</div>
+                  </div>
+                  <button onClick={()=>setPage("tournoi-potes-"+t.id)} style={{ background:CJ.accent, color:"#fff", border:"none", cursor:"pointer", padding:"6px 14px", borderRadius:8, fontSize:12, fontWeight:700, whiteSpace:"nowrap" }}>
+                    Rejoindre →
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <button onClick={()=>setPage("tournois-potes")} style={{ background:"#f9731611", border:`1px solid ${CJ.accent}44`, color:CJ.accent, cursor:"pointer", padding:"9px 16px", borderRadius:10, fontSize:13, fontWeight:600, display:"flex", alignItems:"center", gap:8, width:"100%" }}>
+            <span style={{ fontSize:18 }}>🍺</span>
+            <span>Tournoi entre potes</span>
+            <span style={{ marginLeft:"auto", fontSize:11, color:CJ.muted }}>Voir mes tournois →</span>
+          </button>
+        )}
       </div>
 
       {/* Onglets */}
