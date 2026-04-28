@@ -9,6 +9,7 @@ import {
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
 import { JeuCapital } from "./AppJeuDecalePoint";
+import { TournoiPotesPage, TournoiPotesDetail } from "./AppTournoiPotes";
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
@@ -221,7 +222,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount }) => {
     {[
       ["🗺️ Découvrir", [["bars","🎯 Bars"],["associations","🫂 Associations"],["tournois","🏅 Tournois"]]],
       ["👥 Communauté", [["joueurs","👥 Joueurs"],["drix","💎 Classement DRIX"]]],
-      ["🎯 Jouer", [["scoreur","🎯 Scoreur"],["jeux","🎮 Jeux"]]],
+      ["🎯 Jouer", [["scoreur","🎯 Scoreur"],["jeux","🎮 Jeux"],["tournois-potes","🍺 Tournoi entre potes"]]],
       ["➕ Proposer", [["proposer","➕ Proposer un bar"],["proposer-asso","🫂 Proposer une asso"],["proposer-tournoi","🏅 Proposer un tournoi"]]],
       ["ℹ️ Infos", [["apropos","ℹ️ À propos"],["contact","✉️ Contact"]]],
     ].map(([titre, items]) => (
@@ -1401,6 +1402,8 @@ export default function App() {
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav}/>}
         {page==="scoreur"          && <Scoreur setPage={nav}/>}
         {page==="jeux"             && <JeuCapital setPage={nav}/>}
+        {page==="tournois-potes"   && <TournoiPotesPage joueur={joueur} setPage={nav}/>}
+        {page.startsWith("tournoi-potes-") && <TournoiPotesDetail tournoiId={page.replace("tournoi-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
         {page.startsWith("scoreur-duel-") && joueur && <ScoreurDuel duelId={page.replace("scoreur-duel-","")} joueur={joueur} setPage={nav}/>}
         {page==="apropos"          && <APropos bars={bars} setPage={nav}/>}
         {page==="proposer"         && <Proposer bars={bars} onSubmit={handleProposal}/>}
