@@ -26,6 +26,7 @@ export const dbTP = {
   getMatchs:(tid)=>sbTP(`tournois_potes_matchs?tournoi_id=eq.${tid}&order=round_bracket.asc,position_bracket.asc&select=*`),
   addMatchs:(arr)=>sbTP("tournois_potes_matchs",{method:"POST",body:JSON.stringify(arr)}),
   updateMatch:(id,d)=>sbTP(`tournois_potes_matchs?id=eq.${id}`,{method:"PATCH",body:JSON.stringify(d),prefer:"return=minimal"}),
+  getAmis:(id)=>sbTP(`amis?or=(joueur_id.eq.${id},ami_id.eq.${id})&statut=eq.accepte&select=*`),
 };
 
 // ── COULEURS ─────────────────────────────────────────────────────────────────
@@ -188,18 +189,42 @@ const MatchModal=({match,joueurs,onSave,onClose})=>{
 const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,joueurConnecte})=>{
   const [nom,setNom]=useState("");
   const [adding,setAdding]=useState(false);
+  const [amis,setAmis]=useState([]);
+  const [addingAmi,setAddingAmi]=useState(null); // id de l'ami en cours d'ajout
+
+  // Charger la liste d'amis
+  useEffect(()=>{
+    if(!joueurConnecte||!isCreateur)return;
+    dbTP.getAmis(joueurConnecte.id).then(rows=>{
+      if(!rows)return;
+      const parsed=rows.map(r=>{
+        const estSender=r.joueur_id===joueurConnecte.id;
+        return{id:estSender?r.ami_id:r.joueur_id,pseudo:estSender?r.ami_pseudo:r.joueur_pseudo};
+      });
+      setAmis(parsed);
+    }).catch(()=>{});
+  },[joueurConnecte,isCreateur]);
 
   const handleAdd=async()=>{
     if(!nom.trim()||joueurs.length>=25)return;
     setAdding(true);
-    await onAddJoueur(nom.trim());
+    await onAddJoueur(nom.trim(),null);
     setNom("");
     setAdding(false);
+  };
+
+  const handleAddAmi=async(ami)=>{
+    if(joueurs.length>=25)return;
+    setAddingAmi(ami.id);
+    await onAddJoueur(ami.pseudo,ami.id);
+    setAddingAmi(null);
   };
 
   const lien=`${window.location.origin}${window.location.pathname}?tournoi=${tournoi.code}`;
   const [copied,setCopied]=useState(false);
   const copyLien=()=>{navigator.clipboard.writeText(lien).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});};
+
+  const amiDejaAjoute=(amiId)=>joueurs.some(j=>j.joueur_id===amiId);
 
   return(
     <div>
@@ -216,10 +241,34 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
         <div style={{marginTop:10,fontSize:12,color:CT.muted}}>Code : <b style={{color:CT.yellow,fontSize:16,letterSpacing:2}}>{tournoi.code}</b></div>
       </Card>
 
+      {/* Inviter mes amis (si créateur connecté) */}
+      {isCreateur&&amis.length>0&&(
+        <Card style={{marginBottom:16}}>
+          <h3 style={{fontWeight:700,fontSize:14,marginBottom:12,color:CT.blue}}>👥 Inviter mes amis</h3>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {amis.map(ami=>{
+              const deja=amiDejaAjoute(ami.id);
+              return(
+                <div key={ami.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#111",borderRadius:8,border:`1px solid ${deja?CT.green+"44":CT.border}`}}>
+                  <span style={{fontSize:18}}>👤</span>
+                  <span style={{flex:1,fontWeight:500,fontSize:14}}>{ami.pseudo}</span>
+                  {deja
+                    ?<Badge color={CT.green}>✅ Ajouté</Badge>
+                    :<Btn onClick={()=>handleAddAmi(ami)} disabled={addingAmi===ami.id||joueurs.length>=25} small variant="ghost">
+                      {addingAmi===ami.id?"…":"+ Inviter"}
+                    </Btn>
+                  }
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
       {/* Players list */}
       <Card style={{marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-          <h3 style={{fontWeight:700,fontSize:15}}>👥 Joueurs ({joueurs.length}/25)</h3>
+          <h3 style={{fontWeight:700,fontSize:15}}>🎯 Joueurs inscrits ({joueurs.length}/25)</h3>
           <Badge color={joueurs.length>=2?CT.green:CT.muted}>{joueurs.length>=2?"Prêt à lancer":"Ajoutez des joueurs"}</Badge>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
@@ -227,18 +276,21 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
             <div key={j.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#111",borderRadius:8,border:`1px solid ${CT.border}`}}>
               <span style={{width:24,height:24,borderRadius:"50%",background:CT.accent+"22",color:CT.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{i+1}</span>
               <span style={{flex:1,fontWeight:500}}>{j.nom}</span>
-              {j.joueur_id&&<Badge color={CT.blue} small>Compte</Badge>}
+              {j.joueur_id&&<Badge color={CT.blue}>Compte 🔗</Badge>}
               {isCreateur&&<button onClick={()=>onRemoveJoueur(j.id)} style={{background:"none",border:"none",color:CT.muted,cursor:"pointer",fontSize:16,padding:"0 4px"}} title="Retirer">✕</button>}
             </div>
           ))}
           {joueurs.length===0&&<p style={{color:CT.muted,fontSize:13,textAlign:"center",padding:12}}>Aucun joueur ajouté</p>}
         </div>
 
-        {/* Add player */}
+        {/* Add manual player */}
         {isCreateur&&joueurs.length<25&&(
-          <div style={{display:"flex",gap:8}}>
-            <input value={nom} onChange={e=>setNom(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleAdd()} placeholder="Nom du joueur…" style={{flex:1,background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:"9px 13px",color:CT.text,fontSize:14}}/>
-            <Btn onClick={handleAdd} disabled={!nom.trim()||adding} small>+ Ajouter</Btn>
+          <div>
+            <div style={{fontSize:12,color:CT.muted,marginBottom:6,fontWeight:500}}>Ajouter un joueur sans compte :</div>
+            <div style={{display:"flex",gap:8}}>
+              <input value={nom} onChange={e=>setNom(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleAdd()} placeholder="Nom du joueur…" style={{flex:1,background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:"9px 13px",color:CT.text,fontSize:14}}/>
+              <Btn onClick={handleAdd} disabled={!nom.trim()||adding} small>+ Ajouter</Btn>
+            </div>
           </div>
         )}
       </Card>
@@ -612,8 +664,8 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     setSaving(false);
   };
 
-  const addJoueur=async(nom)=>{
-    const j=await dbTP.addJoueur({tournoi_id:tournoiId,nom,joueur_id:null,groupe:1,ordre:joueurs.length,points:0,victoires:0,defaites:0,manches_pour:0,manches_contre:0});
+  const addJoueur=async(nom,joueur_id=null)=>{
+    const j=await dbTP.addJoueur({tournoi_id:tournoiId,nom,joueur_id,groupe:1,ordre:joueurs.length,points:0,victoires:0,defaites:0,manches_pour:0,manches_contre:0});
     if(j)setJoueurs(jj=>[...jj,j]);
   };
 
