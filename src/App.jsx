@@ -1,15 +1,16 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import {
   Connexion, MonProfil, PageJoueurs, FicheJoueur,
   PresenceSection, MembresBarSection,
   PageDrix, DrixBadge, HistoriqueDrix,
   AmiSection,
-  appliquerDrixDuel, getDrixTitre,
+  appliquerDrixDuel, getDrixTitre, calculerDrix,
   dbJoueurs, todayStr, hashPwd
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
 import { JeuCapital } from "./AppJeuDecalePoint";
 import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper } from "./AppTournoiPotes";
+import { MessagesPage, dbM } from "./AppMessages";
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
@@ -196,16 +197,37 @@ const Field = ({ label, value, onChange, placeholder, type="text", as="input", o
 const Spinner = () => <div style={{ display:"flex",alignItems:"center",justifyContent:"center",padding:40 }}><div style={{ width:32,height:32,border:`3px solid ${C.border}`,borderTop:`3px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite" }}/></div>;
 
 // ── NAV ───────────────────────────────────────────────────────────────────────
-const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount }) => {
+const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, unreadMessages, onBack, canGoBack }) => {
   const [open, setOpen] = useState(false);
   const links = [["bars","🎯 Bars"],["associations","🫂 Associations"],["tournois","🏅 Tournois"],["joueurs","👥 Joueurs"],["drix","💎 Classement DRIX"],["scoreur","🎯 Scoreur"],["jeux","🎮 Jeux"],["proposer","➕ Proposer un bar"],["proposer-asso","🫂 Proposer une asso"],["proposer-tournoi","🏅 Proposer un tournoi"],["apropos","ℹ️ À propos"],["contact","✉️ Contact"]];
+  const navBtnStyle = { background:"none",border:"1px solid #2a2a2a",color:"#94a3b8",cursor:"pointer",borderRadius:8,padding:"4px 10px",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:4,touchAction:"manipulation",transition:"all .15s",whiteSpace:"nowrap" };
   return (
     <nav style={{ background:"#111",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:200 }}>
       <div style={{ maxWidth:1100,margin:"0 auto",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:58 }}>
-      <div onClick={()=>{setPage("home");setOpen(false);}} style={{ cursor:"pointer",display:"flex",alignItems:"center",gap:8,flexShrink:0 }}>
-          <img src="/logo-banner.png" alt="DartPoint" style={{ height:38,objectFit:"contain",filter:"drop-shadow(0 2px 8px rgba(0,0,0,0.5))" }}/>
+        <div style={{ display:"flex",alignItems:"center",gap:8,flexShrink:0 }}>
+          <div onClick={()=>{setPage("home");setOpen(false);}} style={{ cursor:"pointer",display:"flex",alignItems:"center",flexShrink:0 }}>
+            <img src="/logo-banner.png" alt="DartPoint" style={{ height:38,objectFit:"contain",filter:"drop-shadow(0 2px 8px rgba(0,0,0,0.5))" }}/>
+          </div>
+          <button onClick={()=>{setPage("home");setOpen(false);}} style={{ ...navBtnStyle,color:"#f97316",borderColor:"#f9731633" }}
+            onMouseEnter={e=>{e.currentTarget.style.background="#f9731611";e.currentTarget.style.borderColor="#f97316";}}
+            onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.borderColor="#f9731633";}}>
+            🏠 Accueil
+          </button>
+          {canGoBack && (
+            <button onClick={()=>{onBack();setOpen(false);}} style={{ ...navBtnStyle }}
+              onMouseEnter={e=>{e.currentTarget.style.background="#ffffff11";e.currentTarget.style.borderColor="#555";e.currentTarget.style.color="#f1f5f9";}}
+              onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.borderColor="#2a2a2a";e.currentTarget.style.color="#94a3b8";}}>
+              ← Retour
+            </button>
+          )}
         </div>
         <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+          {joueur && (
+            <button onClick={()=>{setPage("messagerie");setOpen(false);}} style={{ background:"#1a1a1a",color:"#60a5fa",border:`1px solid #60a5fa44`,cursor:"pointer",padding:"5px 10px",borderRadius:8,fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:6 }}>
+              💬
+              {unreadMessages>0 && <span style={{ background:"#60a5fa",color:"#fff",borderRadius:"50%",width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800 }}>{unreadMessages>9?"9+":unreadMessages}</span>}
+            </button>
+          )}
           {joueur && (
             <button onClick={()=>{setPage("mon-profil");setOpen(false);}} style={{ background:"#1a1a1a",color:C.text,border:`1px solid ${C.border}`,cursor:"pointer",padding:"5px 10px",borderRadius:8,fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:6 }}>
               👤 {joueur.pseudo}
@@ -221,7 +243,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount }) => {
   <div style={{ background:"#111",borderTop:`1px solid ${C.border}`,padding:"12px 16px 20px" }}>
     {[
       ["🗺️ Découvrir", [["bars","🎯 Bars"],["associations","🫂 Associations"],["tournois","🏅 Tournois"]]],
-      ["👥 Communauté", [["joueurs","👥 Joueurs"],["drix","💎 Classement DRIX"]]],
+      ["👥 Communauté", [["joueurs","👥 Joueurs"],["drix","💎 Classement DRIX"],["messagerie","💬 Messages"]]],
       ["🎯 Jouer", [["scoreur","🎯 Scoreur"],["jeux","🎮 Jeux"],["tournois-potes","🍺 Tournoi entre potes"]]],
       ["➕ Proposer", [["proposer","➕ Proposer un bar"],["proposer-asso","🫂 Proposer une asso"],["proposer-tournoi","🏅 Proposer un tournoi"]]],
       ["ℹ️ Infos", [["apropos","ℹ️ À propos"],["contact","✉️ Contact"]]],
@@ -230,7 +252,10 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount }) => {
         <div style={{ fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6,paddingLeft:2 }}>{titre}</div>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:5 }}>
           {items.map(([p,l]) => (
-            <button key={p} onClick={()=>{setPage(p);setOpen(false);}} style={{ background:page===p?C.accent+"22":"#1a1a1a",color:page===p?C.accent:C.text,border:`1px solid ${page===p?C.accent:C.border}`,cursor:"pointer",padding:"9px 12px",borderRadius:8,fontSize:13,fontWeight:500,textAlign:"left" }}>{l}</button>
+            <button key={p} onClick={()=>{setPage(p);setOpen(false);}} style={{ background:page===p?C.accent+"22":"#1a1a1a",color:page===p?C.accent:C.text,border:`1px solid ${page===p?C.accent:C.border}`,cursor:"pointer",padding:"9px 12px",borderRadius:8,fontSize:13,fontWeight:500,textAlign:"left",display:"flex",alignItems:"center",gap:6 }}>
+              {l}
+              {p==="messagerie"&&unreadMessages>0&&<span style={{ background:"#60a5fa",color:"#fff",borderRadius:"50%",minWidth:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,padding:"0 2px" }}>{unreadMessages>9?"9+":unreadMessages}</span>}
+            </button>
           ))}
         </div>
       </div>
@@ -583,8 +608,868 @@ const HomeMap = ({ bars, associations, tournois, setPage, setBarSlug, setAssoSlu
   );
 };
 
+// ── DASHBOARD (joueur connecté) ───────────────────────────────────────────────
+const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, associations=[], tournois=[], barsActifs=[], setBarSlug=()=>{}, setAssoSlug=()=>{}, setTournoiSlug=()=>{} }) => {
+  const [stats, setStats] = useState(null);
+  const [joueurFrais, setJoueurFrais] = useState(joueur);
+  const [showMap, setShowMap] = useState(false);
+
+  useEffect(() => {
+    // Rafraîchissement des données depuis la DB à chaque affichage
+    Promise.all([
+      dbJoueurs.getJoueur(joueur.id),
+      dbJoueurs.getStats(joueur.id),
+    ]).then(([j, s]) => {
+      if (j) {
+        setJoueurFrais(j);
+        // Mise à jour du state parent + localStorage pour que la nav soit aussi à jour
+        if (setJoueur) {
+          setJoueur(j);
+          localStorage.setItem("dp_joueur", JSON.stringify(j));
+        }
+      }
+      if (s) setStats(s);
+    }).catch(() => {
+      // Fallback : charger juste les stats si le joueur échoue
+      dbJoueurs.getStats(joueur.id).then(setStats).catch(() => {});
+    });
+  }, [joueur.id]);
+
+  const j = joueurFrais;
+  const bar = bars.find(b => b.slug === j.bar_slug);
+  const { titre, emoji, color } = getDrixTitre(j.drix || 1000);
+  const winRate = stats && stats.parties > 0 ? Math.round((stats.victoires / stats.parties) * 100) : 0;
+
+  const BigBtn = ({ icon, label, sub, onClick, col="#f97316", badge=0 }) => (
+    <div onClick={onClick} style={{ background:`linear-gradient(145deg,${col}dd 0%,${col}88 50%,#0f0f0f 100%)`,border:`2px solid ${col}66`,borderRadius:16,padding:"22px 18px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:6,transition:"all .15s",position:"relative",userSelect:"none",textAlign:"center" }}
+      onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow=`0 10px 28px ${col}55`;e.currentTarget.style.borderColor=col;}}
+      onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";e.currentTarget.style.borderColor=col+"66";}}>
+      {badge>0&&<div style={{position:"absolute",top:10,right:10,background:"#fff",color:col,borderRadius:"50%",minWidth:20,height:20,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,padding:"0 3px"}}>{badge>9?"9+":badge}</div>}
+      <div style={{fontSize:36}}>{icon}</div>
+      <div style={{fontWeight:800,fontSize:17,color:"#fff",marginTop:4}}>{label}</div>
+      <div style={{fontSize:12,color:"#ffffffaa",lineHeight:1.5}}>{sub}</div>
+      <div style={{fontSize:12,color:"#fff",fontWeight:600,marginTop:4}}>Accéder →</div>
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth:700,margin:"0 auto",padding:"20px 16px" }}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+
+      {/* ── Carte profil ── */}
+      <div style={{ background:`linear-gradient(135deg,#1a0800,#1a1a2e)`,border:`1px solid ${color}44`,borderRadius:16,padding:"18px 20px",marginBottom:20,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap" }}>
+        <div style={{ width:62,height:62,borderRadius:"50%",background:color+"33",border:`3px solid ${color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0,overflow:"hidden" }}>
+          {j.photo?<img src={j.photo} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span>{emoji}</span>}
+        </div>
+        <div style={{ flex:1,minWidth:130 }}>
+          <div style={{ fontWeight:900,fontSize:20,marginBottom:2 }}>{j.pseudo}</div>
+          <div style={{ color,fontWeight:600,fontSize:12 }}>{emoji} {titre}</div>
+          {bar&&<div style={{ color:"#94a3b8",fontSize:11,marginTop:2 }}>🍺 {bar.nom}</div>}
+        </div>
+        <div style={{ display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
+          <div style={{ textAlign:"center",background:color+"22",border:`1px solid ${color}44`,borderRadius:10,padding:"8px 14px" }}>
+            <div style={{ fontSize:20,fontWeight:900,color }}>{j.drix||1000}</div>
+            <div style={{ fontSize:10,color:"#94a3b8" }}>DRIX</div>
+          </div>
+          {stats&&[[stats.victoires,"V","#22c55e"],[stats.defaites,"D","#ef4444"],[winRate+"%","Win","#f59e0b"]].map(([v,l,c])=>(
+            <div key={l} style={{ textAlign:"center",background:"#ffffff11",borderRadius:10,padding:"8px 10px" }}>
+              <div style={{ fontSize:17,fontWeight:800,color:c }}>{v}</div>
+              <div style={{ fontSize:10,color:"#94a3b8" }}>{l}</div>
+            </div>
+          ))}
+          <button onClick={()=>setPage("mon-profil")} style={{ background:"none",border:`1px solid #2a2a2a`,color:"#94a3b8",cursor:"pointer",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:600 }}>✏️ Profil</button>
+        </div>
+      </div>
+
+      {/* ── 4 gros boutons ── */}
+      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16 }}>
+        <BigBtn icon="👥" label="Communauté" sub="Activité de tes amis, classements" onClick={()=>setPage("communaute")} col="#1d4ed8"/>
+        <BigBtn icon="⚔️" label="Défi" sub="Défier un ami, gérer tes matchs" onClick={()=>setPage("defi")} col="#7c3aed" badge={defisCount}/>
+        <BigBtn icon="🎯" label="Scoreur" sub="Lancer une partie libre" onClick={()=>setPage("scoreur")} col="#f97316"/>
+        <BigBtn icon="🎮" label="Mode Jeu" sub="Entraînements & jeux spéciaux" onClick={()=>setPage("jeux")} col="#16a34a"/>
+      </div>
+
+      {/* ── Trouve ton bar près de toi ── */}
+      <div style={{ marginTop:4 }}>
+        {/* Bouton principal */}
+        <div
+          onClick={() => setShowMap(s => !s)}
+          style={{ background:"linear-gradient(145deg,#713f12 0%,#92400e 40%,#0f0f0f 100%)",border:`2px solid ${showMap?"#d97706":"#d9770666"}`,borderRadius:showMap?"16px 16px 0 0":16,padding:"18px 20px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",touchAction:"manipulation",userSelect:"none",transition:"border-color .2s" }}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor="#d97706";}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor=showMap?"#d97706":"#d9770666";}}>
+          <div style={{ display:"flex",alignItems:"center",gap:14 }}>
+            <span style={{ fontSize:30 }}>🗺️</span>
+            <div>
+              <div style={{ fontWeight:800,fontSize:16,color:"#fff" }}>Trouve ton bar près de toi</div>
+              <div style={{ fontSize:12,color:"#fcd34d",marginTop:2 }}>{bars.length} bars · {associations.length} associations · carte interactive</div>
+            </div>
+          </div>
+          <span style={{ fontSize:20,color:"#d97706",transition:"transform .25s",transform:showMap?"rotate(180deg)":"rotate(0deg)",display:"block" }}>▼</span>
+        </div>
+
+        {/* Contenu dépliable */}
+        {showMap && (
+          <div style={{ background:"#1a1000",border:"2px solid #d9770666",borderTop:"none",borderRadius:"0 0 16px 16px",padding:"16px 14px 20px" }}>
+
+            {/* Accès rapide */}
+            <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:16 }}>
+              {[["🎯 Bars","bars"],["🫂 Assos","associations"],["🏅 Tournois","tournois"],["👥 Joueurs","joueurs"],["🍺 Potes","tournois-potes"],["💬 Messages","messagerie"]].map(([l,p])=>(
+                <button key={p} onClick={()=>setPage(p)}
+                  style={{ background:"#111",border:"1px solid #3a2e00",color:"#fcd34d",cursor:"pointer",borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:600,touchAction:"manipulation",transition:"all .1s" }}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="#d97706";e.currentTarget.style.background="#d9770622";}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="#3a2e00";e.currentTarget.style.background="#111";}}>
+                  {l}
+                </button>
+              ))}
+            </div>
+
+            {/* Carte */}
+            <HomeMap
+              bars={bars}
+              associations={associations}
+              tournois={tournois}
+              setPage={setPage}
+              setBarSlug={setBarSlug}
+              setAssoSlug={setAssoSlug}
+              setTournoiSlug={setTournoiSlug}
+              barsActifs={barsActifs}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── CARTE MATCH ACTIF (composant séparé pour pouvoir utiliser useState) ──────
+const MatchActifCard = ({ d, joueur, setPage, onAbandon }) => {
+  const [confirmAbandon, setConfirmAbandon] = useState(false);
+  const adversaire = d.challenger_id===joueur.id ? d.defie_pseudo : d.challenger_pseudo;
+  const abandonner = async () => {
+    await sb(`duels?id=eq.${d.id}`, { method:"PATCH", body:JSON.stringify({ statut:"abandonne" }), prefer:"return=minimal" });
+    onAbandon();
+  };
+  return (
+    <div style={{ background:C.card,border:`2px solid ${confirmAbandon?C.red:C.green}`,borderRadius:12,padding:16,marginBottom:10,transition:"border-color .2s" }}>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:confirmAbandon?12:0 }}>
+        <div>
+          <div style={{ fontWeight:700,fontSize:15 }}>⚔️ vs {adversaire}</div>
+          <div style={{ color:C.muted,fontSize:12 }}>{d.mode} · {d.manches} manche{d.manches>1?"s":""}</div>
+        </div>
+        <div style={{ display:"flex",gap:8 }}>
+          <Btn onClick={()=>setPage("scoreur-duel-"+d.id)} style={{ fontSize:13 }}>🎯 Reprendre</Btn>
+          {!confirmAbandon && <Btn onClick={()=>setConfirmAbandon(true)} variant="danger" style={{ fontSize:13 }}>🏳 Abandonner</Btn>}
+        </div>
+      </div>
+      {confirmAbandon && (
+        <div style={{ background:"#1a0000",border:"1px solid #ef444444",borderRadius:10,padding:"12px 14px" }}>
+          <p style={{ color:"#f1f5f9",fontSize:13,marginBottom:10,fontWeight:600 }}>Confirmer l'abandon ? Le match sera annulé sans attribution de DRIX.</p>
+          <div style={{ display:"flex",gap:8 }}>
+            <Btn onClick={abandonner} variant="danger" style={{ flex:1,fontSize:13 }}>✅ Confirmer</Btn>
+            <Btn onClick={()=>setConfirmAbandon(false)} variant="dark" style={{ fontSize:13 }}>← Annuler</Btn>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── PAGE DÉFI ─────────────────────────────────────────────────────────────────
+const PageDefi = ({ joueur, setPage }) => {
+  const [amis, setAmis] = useState([]);
+  const [amisData, setAmisData] = useState({}); // { [joueurId]: { photo, drix, pseudo } }
+  const [matchsActifs, setMatchsActifs] = useState([]);
+  const [resultsAContester, setResultsAContester] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+  const [form, setForm] = useState({ mode:"501", manches:1 });
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const charger = () => {
+    if (!joueur) { setLoading(false); return; }
+    const now = Date.now();
+    const h24 = 86400000;
+    Promise.all([
+      sb(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&statut=eq.accepte&select=*`),
+      sb(`duels?or=(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id})&statut=eq.accepte&select=*`),
+      // Résultats à contester : je suis le défié, match terminé, je n'ai pas encore validé, dans les 24h
+      sb(`duels?defie_id=eq.${joueur.id}&statut=eq.termine&valide_defie=eq.false&select=*`),
+    ]).then(async ([a, ma, rc]) => {
+      setAmis(a||[]);
+      setMatchsActifs(ma||[]);
+      setResultsAContester((rc||[]).filter(d => now - (d.date||0) < h24));
+      // Charger photos + DRIX des amis
+      const ids = (a||[]).map(x => x.joueur_id===joueur.id ? x.ami_id : x.joueur_id);
+      if (ids.length > 0) {
+        const profils = await sb(`joueurs?id=in.(${ids.join(",")})&select=id,pseudo,photo,drix`).catch(()=>[]);
+        const map = {};
+        (profils||[]).forEach(p => { map[p.id] = p; });
+        setAmisData(map);
+      }
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  };
+  useEffect(charger, [joueur?.id]);
+
+  const envoyerDefi = async () => {
+    if (!selected || sending) return;
+    setSending(true);
+    const amiId = selected.joueur_id === joueur.id ? selected.ami_id : selected.joueur_id;
+    const amiPseudo = selected.joueur_id === joueur.id ? selected.ami_pseudo : selected.joueur_pseudo;
+    // Défi direct : statut "accepte" immédiatement, lance le scoreur
+    const res = await sb("duels", { method:"POST", body:JSON.stringify({ challenger_id:joueur.id, challenger_pseudo:joueur.pseudo, defie_id:amiId, defie_pseudo:amiPseudo, statut:"accepte", mode:form.mode, manches:form.manches, date:Date.now(), valide_challenger:false, valide_defie:false, score_manches_challenger:0, score_manches_defie:0 }) });
+    setSending(false);
+    const newDuel = Array.isArray(res) ? res[0] : res;
+    if (newDuel?.id) { setPage("scoreur-duel-" + newDuel.id); return; }
+    // fallback si l'ID n'est pas retourné
+    setSent(true); setSelected(null); setTimeout(() => setSent(false), 3000);
+  };
+
+  if (!joueur) return <div style={{ textAlign:"center",padding:60 }}><p style={{ color:C.muted }}>Connecte-toi pour accéder aux défis.</p><Btn onClick={()=>setPage("connexion")}>Se connecter</Btn></div>;
+  if (loading) return <Spinner/>;
+
+  const couleurAmi = (pseudo) => { const cols=["#f97316","#60a5fa","#22c55e","#a78bfa","#f59e0b","#ec4899"]; let h=0; for(const c of pseudo||"") h=(h*31+c.charCodeAt(0))%cols.length; return cols[h]; };
+
+  return (
+    <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
+      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Accueil</button>
+      <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>⚔️ Défis</h1>
+      <p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>Défie tes amis, gère tes matchs</p>
+
+      {/* Résultats à contester (24h) */}
+      {resultsAContester.length > 0 && (
+        <div style={{ marginBottom:24 }}>
+          <h2 style={{ fontWeight:700,fontSize:16,marginBottom:12,color:C.red }}>⚠️ Résultats à contester ({resultsAContester.length})</h2>
+          <p style={{ color:C.muted,fontSize:12,marginBottom:12 }}>Tu n'étais peut-être pas présent — tu peux contester dans les 24h.</p>
+          {resultsAContester.map(d => {
+            const heuresRestantes = Math.max(0, Math.floor((86400000 - (Date.now() - (d.date||0))) / 3600000));
+            const { sc, sd } = (() => {
+              let sc = d.score_manches_challenger ?? 0, sd = d.score_manches_defie ?? 0;
+              if (sc === sd && sc > 0 && d.gagnant_id) { if (d.gagnant_id === d.challenger_id) sd = 0; else sc = 0; }
+              return { sc, sd };
+            })();
+            return (
+              <div key={d.id} style={{ background:C.card,border:`2px solid ${C.red}44`,borderRadius:12,padding:16,marginBottom:10 }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8 }}>
+                  <div>
+                    <div style={{ fontWeight:700,fontSize:15 }}>⚔️ vs {d.challenger_pseudo}</div>
+                    <div style={{ color:C.muted,fontSize:12 }}>{d.mode} · Résultat : {sc}-{sd} pour {d.gagnant_pseudo}</div>
+                  </div>
+                  <span style={{ background:C.red+"22",color:C.red,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700 }}>⏱ {heuresRestantes}h</span>
+                </div>
+                <div style={{ display:"flex",gap:8 }}>
+                  <Btn onClick={async ()=>{ await sb(`duels?id=eq.${d.id}`,{method:"PATCH",body:JSON.stringify({valide_defie:true}),prefer:"return=minimal"}); setResultsAContester(x=>x.filter(r=>r.id!==d.id)); }} style={{ flex:1,fontSize:13,background:C.green }}>✅ J'accepte le résultat</Btn>
+                  <Btn onClick={async ()=>{ await sb(`duels?id=eq.${d.id}`,{method:"PATCH",body:JSON.stringify({statut:"conteste"}),prefer:"return=minimal"}); setResultsAContester(x=>x.filter(r=>r.id!==d.id)); }} style={{ fontSize:13,background:"#2a2a2a",color:C.red }}>⚡ Contester</Btn>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Matchs actifs */}
+      {matchsActifs.length > 0 && (
+        <div style={{ marginBottom:24 }}>
+          <h2 style={{ fontWeight:700,fontSize:16,marginBottom:12,color:C.green }}>🎯 Match en cours — Lance le scoreur !</h2>
+          {matchsActifs.map(d => (
+            <MatchActifCard key={d.id} d={d} joueur={joueur} setPage={setPage} onAbandon={()=>setMatchsActifs(x=>x.filter(m=>m.id!==d.id))}/>
+          ))}
+        </div>
+      )}
+
+      {/* Défier un ami */}
+      <h2 style={{ fontWeight:700,fontSize:16,marginBottom:12 }}>👥 Défier un ami</h2>
+      {amis.length === 0 ? (
+        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:24,textAlign:"center" }}>
+          <p style={{ color:C.muted,fontSize:14,marginBottom:12 }}>Tu n'as pas encore d'amis sur DartPoint.</p>
+          <Btn onClick={()=>setPage("joueurs")} style={{ fontSize:13 }}>👥 Trouver des joueurs</Btn>
+        </div>
+      ) : (
+        <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
+          {amis.map(a => {
+            const amiId = a.joueur_id===joueur.id?a.ami_id:a.joueur_id;
+            const amiPseudo = a.joueur_id===joueur.id?a.ami_pseudo:a.joueur_pseudo;
+            const profil = amisData[amiId];
+            const col = couleurAmi(amiPseudo);
+            const { emoji:amiEmoji, color:amiColor } = getDrixTitre(profil?.drix||1000);
+            const isSelected = selected?.joueur_id===a.joueur_id&&selected?.ami_id===a.ami_id;
+
+            // Calcul DRIX estimé
+            const myDrix = joueur.drix || 1000;
+            const hisDrix = profil?.drix || 1000;
+            const expectedMe = 1 / (1 + Math.pow(10, (hisDrix - myDrix) / 400));
+            const gainVictoire = Math.round(32 * (1 - expectedMe));
+            const perteDefaite = Math.round(32 * expectedMe);
+
+            return (
+              <div key={amiId}>
+                <div onClick={()=>setSelected(isSelected?null:a)} style={{ background:isSelected?C.accent+"22":C.card,border:`2px solid ${isSelected?C.accent:C.border}`,borderRadius:12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"all .12s" }}>
+                  {/* Photo de profil */}
+                  <div style={{ width:44,height:44,borderRadius:"50%",background:amiColor+"22",border:`2px solid ${amiColor}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:col,flexShrink:0,overflow:"hidden" }}>
+                    {profil?.photo ? <img src={profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{amiEmoji}</span>}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:700,fontSize:15 }}>{amiPseudo}</div>
+                    <div style={{ fontSize:11,color:amiColor,fontWeight:600 }}>{amiEmoji} {profil?.drix||1000} DRIX</div>
+                  </div>
+                  <span style={{ color:isSelected?C.accent:C.muted,fontSize:13,fontWeight:600 }}>{isSelected?"✕":"⚔️"}</span>
+                </div>
+                {isSelected && (
+                  <div style={{ background:"#111",border:`1px solid ${C.accent}44`,borderRadius:"0 0 12px 12px",padding:"14px 16px",marginTop:-4 }}>
+                    {/* Aperçu DRIX */}
+                    <div style={{ display:"flex",gap:8,marginBottom:14,padding:"10px 12px",background:"#1a1a1a",borderRadius:10,alignItems:"center",flexWrap:"wrap" }}>
+                      <div style={{ flex:1,textAlign:"center" }}>
+                        <div style={{ fontSize:10,color:C.muted,marginBottom:3 }}>TOI</div>
+                        <div style={{ fontWeight:800,fontSize:16,color:"#f97316" }}>{myDrix}</div>
+                        <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
+                      </div>
+                      <div style={{ textAlign:"center",padding:"0 6px" }}>
+                        <div style={{ fontSize:16,fontWeight:900,color:C.muted }}>⚔️</div>
+                        <div style={{ fontSize:10,color:C.muted }}>vs</div>
+                      </div>
+                      <div style={{ flex:1,textAlign:"center" }}>
+                        <div style={{ fontSize:10,color:C.muted,marginBottom:3 }}>{amiPseudo.toUpperCase()}</div>
+                        <div style={{ fontWeight:800,fontSize:16,color:amiColor }}>{hisDrix}</div>
+                        <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
+                      </div>
+                      <div style={{ width:"100%",display:"flex",gap:6,justifyContent:"center",marginTop:6 }}>
+                        <span style={{ background:"#14532d",color:"#22c55e",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700 }}>+{gainVictoire} si victoire</span>
+                        <span style={{ background:"#7f1d1d",color:"#ef4444",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700 }}>-{perteDefaite} si défaite</span>
+                      </div>
+                    </div>
+                    <div style={{ display:"flex",gap:8,marginBottom:12,flexWrap:"wrap" }}>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Mode</div>
+                        <div style={{ display:"flex",gap:6 }}>
+                          {["501","301"].map(m=><button key={m} onClick={()=>setForm(f=>({...f,mode:m}))} style={{ flex:1,padding:"8px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:form.mode===m?C.accent:"#222",color:form.mode===m?"#fff":C.muted,fontSize:14 }}>{m}</button>)}
+                        </div>
+                      </div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Manches</div>
+                        <div style={{ display:"flex",gap:4 }}>
+                          {[1,2,3,4,5].map(n=><button key={n} onClick={()=>setForm(f=>({...f,manches:n}))} style={{ flex:1,padding:"8px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:form.manches===n?C.accent:"#222",color:form.manches===n?"#fff":C.muted,fontSize:14 }}>{n}</button>)}
+                        </div>
+                      </div>
+                    </div>
+                    <Btn onClick={envoyerDefi} disabled={sending} style={{ width:"100%",fontSize:14 }}>{sending?"Lancement…":"⚔️ Jouer contre "+amiPseudo+" maintenant !"}</Btn>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── COMPOSANTS COMMUNAUTÉ ─────────────────────────────────────────────────────
+const tempsDepuis = (ts) => {
+  const diff = Date.now() - ts;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `il y a ${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `il y a ${d}j`;
+  return new Date(ts).toLocaleDateString("fr-FR", { day:"numeric", month:"short" });
+};
+
+const FeedAvatar = ({ photo, pseudo, size=40 }) => {
+  const cols = ["#f97316","#3b82f6","#10b981","#a855f7","#ec4899","#eab308"];
+  const col = cols[pseudo ? pseudo.charCodeAt(0) % cols.length : 0];
+  return (
+    <div style={{ width:size,height:size,borderRadius:"50%",background:col,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:Math.round(size*0.4),color:"#fff",position:"relative" }}>
+      {photo && <img src={photo} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} onError={e=>{e.currentTarget.style.display="none";}}/>}
+      <span style={{ position:"relative",zIndex:1 }}>{(pseudo?.[0]||"?").toUpperCase()}</span>
+    </div>
+  );
+};
+
+// Bouton like
+const LikeButton = ({ refId, joueur, initialCount=0, initialMyLike=false }) => {
+  const [count, setCount] = useState(initialCount);
+  const [liked, setLiked] = useState(initialMyLike);
+  const [busy, setBusy] = useState(false);
+  const toggle = async () => {
+    if (!joueur || busy) return;
+    setBusy(true);
+    try {
+      if (liked) {
+        await sb(`wall_likes?ref_id=eq.${refId}&joueur_id=eq.${joueur.id}`, { method:"DELETE", prefer:"return=minimal" });
+        setCount(c=>c-1); setLiked(false);
+      } else {
+        await sb("wall_likes", { method:"POST", body:JSON.stringify({ ref_id:refId, joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, date:Date.now() }) });
+        setCount(c=>c+1); setLiked(true);
+      }
+    } catch{}
+    setBusy(false);
+  };
+  return (
+    <button onClick={toggle} style={{ background:"none", border:`1px solid ${liked?"#f97316":"#2a2a2a"}`, borderRadius:20, padding:"4px 14px", color:liked?"#f97316":"#94a3b8", fontSize:12, fontWeight:600, cursor:joueur?"pointer":"default", display:"flex", alignItems:"center", gap:5, touchAction:"manipulation", transition:"all .15s" }}>
+      👍 {count>0?count:""}
+    </button>
+  );
+};
+
+// Section commentaires
+const CommentSection = ({ refId, joueur, initialComments=[] }) => {
+  const [open, setOpen] = useState(false);
+  const [comments, setComments] = useState(initialComments);
+  const [texte, setTexte] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const publier = async () => {
+    if (!texte.trim() || !joueur || busy) return;
+    setBusy(true);
+    try {
+      const r = await sb("wall_comments", { method:"POST", body:JSON.stringify({ ref_id:refId, joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, joueur_photo:joueur.photo||null, contenu:texte.trim(), date:Date.now() }) });
+      if (r?.[0]) setComments(c=>[...c, r[0]]);
+      setTexte("");
+    } catch{}
+    setBusy(false);
+  };
+
+  const totalComments = comments.length;
+  return (
+    <div style={{ marginTop:10, borderTop:`1px solid ${C.border}`, paddingTop:8 }}>
+      <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+        <button onClick={()=>setOpen(o=>!o)} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:20, padding:"4px 14px", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer", touchAction:"manipulation" }}>
+          💬 {totalComments>0?`${totalComments} commentaire${totalComments>1?"s":""}` : "Commenter"}
+        </button>
+      </div>
+      {open && (
+        <div style={{ marginTop:10 }}>
+          {comments.map((c,i) => (
+            <div key={c.id||i} style={{ display:"flex", gap:8, marginBottom:8, alignItems:"flex-start" }}>
+              <FeedAvatar photo={c.joueur_photo} pseudo={c.joueur_pseudo} size={28}/>
+              <div style={{ background:"#0f0f0f", borderRadius:10, padding:"6px 10px", flex:1 }}>
+                <span style={{ fontWeight:700, fontSize:12, color:C.text }}>{c.joueur_pseudo} </span>
+                <span style={{ fontSize:13, color:C.text }}>{c.contenu}</span>
+                <div style={{ fontSize:10, color:C.muted, marginTop:2 }}>{tempsDepuis(c.date)}</div>
+              </div>
+            </div>
+          ))}
+          {joueur && (
+            <div style={{ display:"flex", gap:8, alignItems:"center", marginTop:6 }}>
+              <FeedAvatar photo={joueur.photo} pseudo={joueur.pseudo} size={28}/>
+              <input value={texte} onChange={e=>setTexte(e.target.value)} onKeyDown={e=>e.key==="Enter"&&publier()}
+                placeholder="Écrire un commentaire…" maxLength={300}
+                style={{ flex:1, background:"#0f0f0f", border:`1px solid ${C.border}`, borderRadius:20, padding:"7px 14px", color:C.text, fontSize:13, outline:"none", fontFamily:"inherit" }}/>
+              <button onClick={publier} disabled={!texte.trim()||busy} style={{ background:texte.trim()?C.accent:"#2a2a2a", color:texte.trim()?"#fff":C.muted, border:"none", borderRadius:20, padding:"7px 14px", fontWeight:700, fontSize:12, cursor:texte.trim()?"pointer":"default", touchAction:"manipulation" }}>
+                {busy?"…":"Envoyer"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Détail des manches
+const MancheDetail = ({ manches, joueur0, joueur1 }) => {
+  const [open, setOpen] = useState(false);
+  if (!manches || manches.length === 0) return null;
+  return (
+    <div style={{ marginTop:10, borderTop:`1px solid ${C.border}`, paddingTop:8 }}>
+      <button onClick={()=>setOpen(o=>!o)} style={{ background:"none", border:"none", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer", padding:0, touchAction:"manipulation" }}>
+        {open?"▾":"▸"} Détail manche par manche ({manches.length})
+      </button>
+      {open && (
+        <div style={{ marginTop:8, display:"flex", flexDirection:"column", gap:6 }}>
+          {manches.map((m, i) => (
+            <div key={i} style={{ background:"#0f0f0f", borderRadius:10, padding:"10px 12px" }}>
+              <div style={{ fontWeight:700, fontSize:12, color:C.accent, marginBottom:6 }}>Manche {i+1} — {m.winner} 🏆</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, fontSize:11 }}>
+                <div>
+                  <div style={{ fontWeight:700, color:"#10b981", marginBottom:2 }}>{m.winner}</div>
+                  <div style={{ color:C.muted }}>{m.winner_volees} volée{m.winner_volees>1?"s":""}</div>
+                  <div style={{ color:C.muted }}>moy. {m.winner_moy} pts/volée</div>
+                </div>
+                <div>
+                  <div style={{ fontWeight:700, color:"#ef4444", marginBottom:2 }}>{m.loser}</div>
+                  <div style={{ color:C.muted }}>{m.loser_volees} volée{m.loser_volees>1?"s":""}</div>
+                  <div style={{ color:C.muted }}>moy. {m.loser_moy} pts/volée</div>
+                  <div style={{ color:"#f59e0b", fontWeight:600 }}>reste : {m.reste_loser} pts</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── PAGE COMMUNAUTÉ ────────────────────────────────────────────────────────────
+const PageCommunaute = ({ joueur, setPage, bars }) => {
+  const [feed, setFeed] = useState([]);
+  const [photosMap, setPhotosMap] = useState({});
+  const [likesMap, setLikesMap] = useState({});
+  const [commentsMap, setCommentsMap] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [texte, setTexte] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [erreur, setErreur] = useState(null);
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  const chargerFeed = useCallback(async () => {
+    if (!joueur?.id) return;
+    setErreur(null);
+    try {
+      // 1. Récupérer les IDs amis
+      const [amisA, amisB] = await Promise.all([
+        sb(`amis?joueur_id=eq.${joueur.id}&statut=eq.accepte&select=ami_id`),
+        sb(`amis?ami_id=eq.${joueur.id}&statut=eq.accepte&select=joueur_id`),
+      ]);
+      const amiIds = [
+        joueur.id,
+        ...(amisA||[]).map(a=>a.ami_id),
+        ...(amisB||[]).map(a=>a.joueur_id),
+      ].filter((v,i,arr)=>arr.indexOf(v)===i);
+
+      const inList = amiIds.join(",");
+
+      // 2. Charger toutes les données en parallèle (+ photos des joueurs)
+      const [posts, duels, drixMvts, presences, joueursData] = await Promise.all([
+        sb(`wall_posts?joueur_id=in.(${inList})&order=date.desc&limit=30&select=*`).catch(()=>[]),
+        sb(`duels?or=(challenger_id.in.(${inList}),defie_id.in.(${inList}))&statut=eq.termine&order=date.desc&limit=40&select=*`).catch(()=>[]),
+        sb(`drix_mouvements?joueur_id=in.(${inList})&order=date.desc&limit=40&select=*`).catch(()=>[]),
+        sb(`presences?joueur_id=in.(${inList})&order=heure.desc&limit=20&select=*`).catch(()=>[]),
+        sb(`joueurs?id=in.(${inList})&select=id,photo`).catch(()=>[]),
+      ]);
+
+      // Construire la map id → photo
+      const pMap = {};
+      (joueursData||[]).forEach(j => { if (j.photo) pMap[j.id] = j.photo; });
+      setPhotosMap(pMap);
+
+      const items = [];
+
+      // Posts texte
+      (posts||[]).forEach(p => {
+        if (p?.date) items.push({ type:"post", date:p.date, data:p });
+      });
+
+      // Matchs terminés (dédoublonnés)
+      const seenDuels = new Set();
+      (duels||[]).forEach(d => {
+        if (!d?.id || seenDuels.has(d.id)) return;
+        seenDuels.add(d.id);
+        const ts = typeof d.date === "number" ? d.date : new Date(d.date).getTime();
+        items.push({ type:"match", date:ts, data:d });
+      });
+
+      // Mouvements DRIX — seulement les passages de palier
+      const PALIERS = [800,900,1000,1100,1200,1300,1500,1800,2000,2500,3000];
+      (drixMvts||[]).forEach(m => {
+        if (!m?.date) return;
+        const avant = m.drix_avant || 1000;
+        const apres = m.drix_apres || 1000;
+        const franchisUp = PALIERS.filter(t => t > avant && t <= apres);
+        const franchisDown = PALIERS.filter(t => t < avant && t >= apres);
+        if (franchisUp.length > 0 || franchisDown.length > 0) {
+          const ts = typeof m.date === "number" ? m.date : new Date(m.date).getTime();
+          const direction = franchisUp.length > 0 ? "up" : "down";
+          const palier = direction === "up" ? franchisUp[franchisUp.length-1] : franchisDown[0];
+          items.push({ type:"drix_milestone", date:ts, data:{ ...m, direction, palier } });
+        }
+      });
+
+      // Présences bar
+      (presences||[]).forEach(p => {
+        if (!p) return;
+        const ts = typeof p.heure === "number" ? p.heure
+          : p.heure ? new Date(`${p.date_jour}T${p.heure}`).getTime()
+          : new Date(p.date_jour).getTime();
+        items.push({ type:"presence", date:ts, data:p });
+      });
+
+      // Tri par date décroissante
+      items.sort((a,b) => b.date - a.date);
+      const sliced = items.slice(0, 60);
+      setFeed(sliced);
+
+      // 3. Charger les likes et commentaires pour tous les items du fil
+      const allIds = sliced.map(item => item.data?.id).filter(Boolean);
+      if (allIds.length > 0) {
+        const idList = allIds.join(",");
+        const [likesData, commentsData] = await Promise.all([
+          sb(`wall_likes?ref_id=in.(${idList})&select=*`).catch(()=>[]),
+          sb(`wall_comments?ref_id=in.(${idList})&order=date.asc&select=*`).catch(()=>[]),
+        ]);
+        // Construire likesMap: ref_id → { count, myLike }
+        const lMap = {};
+        (likesData||[]).forEach(l => {
+          if (!lMap[l.ref_id]) lMap[l.ref_id] = { count:0, myLike:false };
+          lMap[l.ref_id].count++;
+          if (l.joueur_id === joueur?.id) lMap[l.ref_id].myLike = true;
+        });
+        setLikesMap(lMap);
+        // Construire commentsMap: ref_id → comments[]
+        const cMap = {};
+        (commentsData||[]).forEach(c => {
+          if (!cMap[c.ref_id]) cMap[c.ref_id] = [];
+          cMap[c.ref_id].push(c);
+        });
+        setCommentsMap(cMap);
+      }
+    } catch(e) {
+      console.error("Feed error", e);
+      setErreur("Impossible de charger le fil d'actualité.");
+    } finally {
+      setLoading(false);
+    }
+  }, [joueur?.id, refreshTick]);
+
+  useEffect(() => { chargerFeed(); }, [chargerFeed]);
+
+  const publier = async () => {
+    if (!texte.trim() || posting) return;
+    setPosting(true);
+    setErreur(null);
+    try {
+      await sb("wall_posts", {
+        method:"POST",
+        body:JSON.stringify({
+          joueur_id: joueur.id,
+          joueur_pseudo: joueur.pseudo,
+          joueur_photo: joueur.photo || null,
+          contenu: texte.trim(),
+          date: Date.now(),
+        }),
+      });
+      setTexte("");
+      setRefreshTick(t => t+1);
+    } catch(e) {
+      setErreur("Erreur lors de la publication. Vérifie la table wall_posts dans Supabase.");
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  // ─── Renderers ────────────────────────────────────────────────────────────
+  const cardBase = { background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"14px 16px", marginBottom:10 };
+
+  const renderPost = (item) => {
+    const p = item.data;
+    return (
+      <div key={`post-${p.id}`} style={cardBase}>
+        <div style={{ display:"flex",gap:10,alignItems:"flex-start",marginBottom:10 }}>
+          <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={42}/>
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:700,fontSize:14,color:C.text }}>{p.joueur_pseudo}</div>
+            <div style={{ fontSize:11,color:C.muted }}>{tempsDepuis(p.date)}</div>
+          </div>
+        </div>
+        <div style={{ fontSize:14,lineHeight:1.65,color:C.text,whiteSpace:"pre-wrap",paddingLeft:52 }}>{p.contenu}</div>
+        <div style={{ display:"flex",gap:8,marginTop:10,paddingLeft:52 }}>
+          <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
+        </div>
+        <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
+      </div>
+    );
+  };
+
+  const renderMatch = (item) => {
+    const d = item.data;
+    const cScore = d.score_manches_challenger ?? 0;
+    const dScore = d.score_manches_defie ?? 0;
+    const moyC = d.score_challenger ? Math.round(d.score_challenger) : null;
+    const moyD = d.score_defie ? Math.round(d.score_defie) : null;
+    const cWin = cScore > dScore;
+    const dWin = dScore > cScore;
+    const draw = cScore === dScore;
+    return (
+      <div key={`match-${d.id}`} style={{ ...cardBase, borderColor:"#f9731622" }}>
+        <div style={{ fontSize:11,color:C.accent,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6 }}>
+          ⚔️ Match terminé
+          <span style={{ color:C.muted,fontWeight:400 }}>· {tempsDepuis(item.date)}</span>
+        </div>
+        {[
+          { id:d.challenger_id, pseudo:d.challenger_pseudo, score:cScore, moy:moyC, win:cWin },
+          { id:d.defie_id, pseudo:d.defie_pseudo, score:dScore, moy:moyD, win:dWin },
+        ].map((p,i) => (
+          <div key={i} style={{ display:"flex",alignItems:"center",gap:10,marginBottom:i===0?8:0 }}>
+            <FeedAvatar photo={photosMap[p.id]||null} pseudo={p.pseudo} size={36}/>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:700,fontSize:14,color:p.win?"#10b981":draw?"#eab308":C.muted }}>
+                {p.pseudo} {p.win?"🏆":""}
+              </div>
+              {p.moy!==null && <div style={{ fontSize:11,color:C.muted }}>moy. {p.moy} pts/volée</div>}
+            </div>
+            <div style={{ fontWeight:800,fontSize:22,color:p.win?"#10b981":draw?"#eab308":"#ef4444",minWidth:28,textAlign:"right" }}>{p.score}</div>
+          </div>
+        ))}
+        <MancheDetail manches={d.manches_detail}/>
+        <div style={{ display:"flex",gap:8,marginTop:10 }}>
+          <LikeButton refId={d.id} joueur={joueur} initialCount={likesMap[d.id]?.count||0} initialMyLike={likesMap[d.id]?.myLike||false}/>
+        </div>
+        <CommentSection refId={d.id} joueur={joueur} initialComments={commentsMap[d.id]||[]}/>
+      </div>
+    );
+  };
+
+  const renderMilestone = (item) => {
+    const m = item.data;
+    const up = m.direction === "up";
+    const { emoji, titre } = getDrixTitre(m.drix_apres || 1000);
+    return (
+      <div key={`drix-${m.id||item.date}`} style={{ ...cardBase, borderColor: up?"#10b98133":"#ef444433", background: up?"#10b98108":"#ef444408" }}>
+        <div style={{ display:"flex",gap:10,alignItems:"center" }}>
+          <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={42}/>
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:700,fontSize:14,color:C.text }}>{m.joueur_pseudo}</div>
+            <div style={{ fontSize:13,color: up?"#10b981":"#ef4444",fontWeight:600,marginTop:3 }}>
+              {up ? "⬆️ Nouveau palier DRIX !" : "⬇️ Palier perdu"}
+            </div>
+            <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>{emoji} {titre} — {m.drix_apres} DRIX</div>
+          </div>
+          <div style={{ fontSize:34 }}>{emoji}</div>
+        </div>
+        <div style={{ display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",marginTop:8 }}>
+          <span style={{ fontSize:11,color:C.muted }}>{tempsDepuis(item.date)}</span>
+          <LikeButton refId={m.id} joueur={joueur} initialCount={likesMap[m.id]?.count||0} initialMyLike={likesMap[m.id]?.myLike||false}/>
+        </div>
+        <CommentSection refId={m.id} joueur={joueur} initialComments={commentsMap[m.id]||[]}/>
+      </div>
+    );
+  };
+
+  const renderPresence = (item) => {
+    const p = item.data;
+    const bar = bars?.find(b=>b.slug===p.bar_slug);
+    return (
+      <div key={`pres-${p.id||item.date}`} style={{ ...cardBase, borderColor:"#3b82f633" }}>
+        <div style={{ display:"flex",gap:10,alignItems:"center" }}>
+          <FeedAvatar photo={photosMap[p.joueur_id]||null} pseudo={p.joueur_pseudo} size={42}/>
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:700,fontSize:14,color:C.text }}>{p.joueur_pseudo}</div>
+            <div style={{ fontSize:13,color:"#60a5fa",fontWeight:600,marginTop:3 }}>
+              🍺 Est au bar{bar ? ` — ${bar.nom}` : p.bar_slug ? ` (${p.bar_slug})` : ""}
+            </div>
+          </div>
+        </div>
+        <div style={{ display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",marginTop:8 }}>
+          <span style={{ fontSize:11,color:C.muted }}>{tempsDepuis(item.date)}</span>
+          <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
+        </div>
+        <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
+      </div>
+    );
+  };
+
+  const renderItem = (item, idx) => {
+    if (item.type==="post") return renderPost(item);
+    if (item.type==="match") return renderMatch(item);
+    if (item.type==="drix_milestone") return renderMilestone(item);
+    if (item.type==="presence") return renderPresence(item);
+    return null;
+  };
+
+  return (
+    <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
+      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Accueil</button>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4 }}>
+        <h1 style={{ fontWeight:800,fontSize:22,margin:0 }}>👥 Communauté</h1>
+        <button onClick={()=>{ setLoading(true); setRefreshTick(t=>t+1); }} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:18,padding:4 }} title="Rafraîchir">🔄</button>
+      </div>
+      <p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>L'actualité de tes amis</p>
+
+      {/* Compositeur de post */}
+      {joueur && (
+        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:16,marginBottom:20 }}>
+          <div style={{ display:"flex",gap:10,alignItems:"flex-start" }}>
+            <FeedAvatar photo={joueur.photo} pseudo={joueur.pseudo} size={42}/>
+            <div style={{ flex:1 }}>
+              <textarea
+                value={texte}
+                onChange={e=>setTexte(e.target.value)}
+                onKeyDown={e=>{ if(e.key==="Enter"&&e.ctrlKey) publier(); }}
+                placeholder="Quoi de neuf ? Partage quelque chose avec tes amis… (Ctrl+Entrée pour publier)"
+                style={{ width:"100%",background:"#0f0f0f",border:`1px solid ${texte.trim()?C.accent:C.border}`,borderRadius:10,padding:"10px 12px",color:C.text,fontSize:14,resize:"vertical",minHeight:76,fontFamily:"inherit",outline:"none",boxSizing:"border-box",transition:"border-color .15s" }}
+                maxLength={500}
+              />
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8 }}>
+                <span style={{ fontSize:11,color:C.muted }}>{texte.length}/500</span>
+                <button onClick={publier} disabled={!texte.trim()||posting}
+                  style={{ background:texte.trim()?C.accent:"#2a2a2a",color:texte.trim()?"#fff":C.muted,border:"none",borderRadius:8,padding:"8px 20px",fontWeight:700,fontSize:14,cursor:texte.trim()?"pointer":"default",transition:"all .15s" }}>
+                  {posting ? "⏳" : "Publier"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {erreur && (
+        <div style={{ background:"#ef444422",border:"1px solid #ef444455",borderRadius:10,padding:"10px 14px",color:"#ef4444",fontSize:13,marginBottom:16 }}>
+          ⚠️ {erreur}
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ textAlign:"center",color:C.muted,padding:48,fontSize:14 }}>⏳ Chargement du fil…</div>
+      ) : feed.length === 0 ? (
+        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:40,textAlign:"center" }}>
+          <div style={{ fontSize:52,marginBottom:14 }}>👥</div>
+          <h2 style={{ fontWeight:700,fontSize:18,marginBottom:8 }}>Fil vide pour l'instant</h2>
+          <p style={{ color:C.muted,fontSize:14,lineHeight:1.6,maxWidth:300,margin:"0 auto" }}>
+            Ajoute des amis et jouez des matchs pour voir l'activité ici.
+          </p>
+        </div>
+      ) : (
+        <div>{feed.map((item,idx) => renderItem(item,idx))}</div>
+      )}
+    </div>
+  );
+};
+
+// ── PAGE MODE JEU ─────────────────────────────────────────────────────────────
+const PageModeJeu = ({ joueur, setPage }) => {
+  const ModeBtn = ({ icon, label, sub, onClick, col }) => (
+    <div onClick={onClick} style={{ background:"linear-gradient(135deg,#1a1a1a,#141414)",border:`2px solid ${col}33`,borderRadius:16,padding:"28px 22px",cursor:"pointer",display:"flex",flexDirection:"column",gap:8,transition:"all .15s",userSelect:"none" }}
+      onMouseEnter={e=>{e.currentTarget.style.borderColor=col;e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow=`0 10px 28px ${col}22`;}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor=col+"33";e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
+      <div style={{ fontSize:48 }}>{icon}</div>
+      <div style={{ fontWeight:800,fontSize:20,color:"#f1f5f9" }}>{label}</div>
+      <div style={{ fontSize:13,color:"#94a3b8",lineHeight:1.5 }}>{sub}</div>
+      <div style={{ fontSize:13,color:col,fontWeight:700,marginTop:4 }}>Jouer →</div>
+    </div>
+  );
+  return (
+    <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
+      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Accueil</button>
+      <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🎮 Mode Jeu</h1>
+      <p style={{ color:C.muted,fontSize:13,marginBottom:24 }}>Entraînements & jeux spéciaux</p>
+      <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
+        <ModeBtn
+          icon="🏙️"
+          label="Capital"
+          sub="Jeu de précision : descends ton score en visant des zones précises. Chaque cible = une ville à conquérir !"
+          onClick={()=>setPage("jeux-capital")}
+          col="#f59e0b"
+        />
+        <ModeBtn
+          icon="🍺"
+          label="Tournoi entre potes"
+          sub="Organise un tournoi avec tes amis autour d'une bière. Format libre, ambiance garantie."
+          onClick={()=>setPage("tournois-potes")}
+          col="#22c55e"
+        />
+      </div>
+    </div>
+  );
+};
+
 // ── PAGE HOME ─────────────────────────────────────────────────────────────────
-const Home = ({ bars, associations, tournois, setPage, setBarSlug, setAssoSlug, setTournoiSlug, setVilleFilter, barsActifs }) => {
+const Home = ({ joueur, setJoueur, defisCount, bars, associations, tournois, setPage, setBarSlug, setAssoSlug, setTournoiSlug, setVilleFilter, barsActifs }) => {
+  if (joueur) return <HomeDashboard joueur={joueur} setJoueur={setJoueur} setPage={setPage} bars={bars} defisCount={defisCount} associations={associations} tournois={tournois} barsActifs={barsActifs} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug}/>;
+  // Version découverte pour les non-connectés ↓
+  const HomeDiscovery = () => {
   const [search,setSearch]=useState("");
   const [showSugg,setShowSugg]=useState(false);
   const searchRef=useRef(null);
@@ -717,6 +1602,8 @@ const Home = ({ bars, associations, tournois, setPage, setBarSlug, setAssoSlug, 
       </div>
     </div>
   );
+  };
+  return <HomeDiscovery/>;
 };
 
 // ── PAGE BARS ─────────────────────────────────────────────────────────────────
@@ -1314,7 +2201,30 @@ export default function App() {
   const [joueur,setJoueur]=useState(null);
   const [defisCount,setDefisCount]=useState(0);
   const [notifCount,setNotifCount]=useState(0);
+  const [unreadMessages,setUnreadMessages]=useState(0);
   const [barsActifs,setBarsActifs]=useState([]);
+  const [installPrompt,setInstallPrompt]=useState(null);
+  const [isInstalled,setIsInstalled]=useState(false);
+
+  // PWA install detection
+  useEffect(()=>{
+    // Déjà installé si lancé en standalone
+    if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone) {
+      setIsInstalled(true); return;
+    }
+    const onPrompt = (e) => { e.preventDefault(); setInstallPrompt(e); };
+    const onInstalled = () => { setInstallPrompt(null); setIsInstalled(true); };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => { window.removeEventListener("beforeinstallprompt", onPrompt); window.removeEventListener("appinstalled", onInstalled); };
+  },[]);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === "accepted") { setInstallPrompt(null); setIsInstalled(true); }
+  };
 
   useEffect(()=>{ try{ const j=localStorage.getItem("dp_joueur"); if(j) setJoueur(JSON.parse(j)); }catch{} },[]);
 
@@ -1337,22 +2247,29 @@ export default function App() {
   useEffect(()=>{ dbJoueurs.getBarsActifs().then(r=>{ if(r) setBarsActifs([...new Set(r.map(x=>x.bar_slug))]); }).catch(()=>{}); },[]);
 
   useEffect(()=>{
-    if (!joueur) { setDefisCount(0); setNotifCount(0); return; }
-    Promise.all([
-      dbJoueurs.getDuelsEnAttente(joueur.id),
-      sb(`amis?ami_id=eq.${joueur.id}&statut=eq.en_attente&select=id`),
-      sb(`duels?or=(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id})&statut=eq.en_validation&select=id,valide_challenger,valide_defie,challenger_id,defie_id`),
-    ]).then(([defis, demandesAmis, enValidation]) => {
-      const defisN = defis?.length || 0;
-      const amisN = demandesAmis?.length || 0;
-      const validN = (enValidation||[]).filter(d => {
-        const isChallenger = d.challenger_id === joueur.id;
-        return isChallenger ? !d.valide_challenger : !d.valide_defie;
-      }).length;
-      setDefisCount(defisN);
-      setNotifCount(defisN + amisN + validN);
-    }).catch(()=>{});
-  },[joueur]);
+    if (!joueur) { setDefisCount(0); setNotifCount(0); setUnreadMessages(0); return; }
+    const fetchNotifs = () => {
+      const now = Date.now();
+      Promise.all([
+        sb(`duels?or=(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id})&statut=eq.accepte&select=id`),
+        sb(`amis?ami_id=eq.${joueur.id}&statut=eq.en_attente&select=id`),
+        // Résultats à contester : je suis défié, terminé, non validé
+        sb(`duels?defie_id=eq.${joueur.id}&statut=eq.termine&valide_defie=eq.false&select=id,date`),
+        dbM.getUnreadCount(joueur.id),
+      ]).then(([matchsActifs, demandesAmis, aContester, unread]) => {
+        const matchsN = matchsActifs?.length || 0;
+        const amisN = demandesAmis?.length || 0;
+        const contestN = (aContester||[]).filter(d => now - (d.date||0) < 86400000).length;
+        const msgN = unread?.length || 0;
+        setDefisCount(matchsN + contestN);
+        setNotifCount(matchsN + amisN + contestN);
+        setUnreadMessages(msgN);
+      }).catch(()=>{});
+    };
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 10000);
+    return () => clearInterval(interval);
+  },[joueur?.id]);
 
   const handleLogin=(j)=>{ setJoueur(j); localStorage.setItem("dp_joueur",JSON.stringify(j)); nav("mon-profil"); };
   const handleProposal=async f=>{ await db.addProposition({...f,slug:slugify(f.nom+"-"+f.ville),statut:"en_attente",date:Date.now()}); };
@@ -1396,9 +2313,31 @@ export default function App() {
 .leaflet-popup-content { color:#111 !important; -webkit-text-fill-color:#111 !important; }
 .leaflet-popup-tip { background:#fff !important; }
       `}</style>
-      <Nav page={page} setPage={nav} isAdmin={isAdmin} joueur={joueur} setJoueur={setJoueur} defisCount={notifCount}/>
+      {/* Bannière installation PWA */}
+      {installPrompt && !isInstalled && (
+        <div style={{ position:"fixed",bottom:64,left:"50%",transform:"translateX(-50%)",zIndex:999,width:"calc(100% - 32px)",maxWidth:420 }}>
+          <div style={{ background:"linear-gradient(135deg,#1a1a1a,#111)",border:`1px solid ${C.accent}55`,borderRadius:16,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,boxShadow:"0 8px 32px #00000088" }}>
+            <span style={{ fontSize:28,flexShrink:0 }}>🎯</span>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:700,fontSize:14,color:C.text }}>Installer DartPoint</div>
+              <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>Accès rapide depuis ton écran d'accueil</div>
+            </div>
+            <button onClick={handleInstall}
+              style={{ background:C.accent,color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontWeight:700,fontSize:13,cursor:"pointer",flexShrink:0,touchAction:"manipulation" }}>
+              Installer
+            </button>
+            <button onClick={()=>setInstallPrompt(null)}
+              style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:18,padding:4,flexShrink:0,lineHeight:1,touchAction:"manipulation" }}>
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+      <Nav page={page} setPage={nav} isAdmin={isAdmin} joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} unreadMessages={unreadMessages} onBack={goBack} canGoBack={history.length>1}/>
       <main style={{ flex:1 }}>
-        {page==="home"             && <Home bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
+        {page==="home"             && <Home joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
+        {page==="defi"             && joueur && <PageDefi joueur={joueur} setPage={nav}/>}
+        {page==="communaute"       && <PageCommunaute joueur={joueur} setPage={nav} bars={bars}/>}
         {page==="bars"             && <Bars bars={bars} setPage={nav} setBarSlug={setBarSlug} villeFilter={villeFilter} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="bar"              && <BarDetail slug={barSlug} allBars={bars} associations={associations} setBars={setBars} setPage={nav} setAssoSlug={setAssoSlug} isAdmin={isAdmin} joueur={joueur} setJoueurId={setJoueurId}/>}
         {page==="associations"     && <Associations associations={associations} setPage={nav} setAssoSlug={setAssoSlug}/>}
@@ -1411,10 +2350,13 @@ export default function App() {
         {page==="mon-profil"       && joueur && <MonProfil joueur={joueur} setJoueur={setJoueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug} setJoueurId={setJoueurId}/>}
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav}/>}
         {page==="scoreur"          && <Scoreur setPage={nav}/>}
-        {page==="jeux"             && <JeuCapital setPage={nav}/>}
+        {page==="jeux"             && <PageModeJeu joueur={joueur} setPage={nav}/>}
+        {page==="jeux-capital"     && <JeuCapital setPage={nav}/>}
         {page==="tournois-potes"   && <TournoiPotesPage joueur={joueur} setPage={nav}/>}
         {page.startsWith("tournoi-potes-") && <TournoiPotesDetail tournoiId={page.replace("tournoi-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
         {page.startsWith("scoreur-potes-") && <ScoreurPotesWrapper matchId={page.replace("scoreur-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
+        {page==="messagerie"       && <MessagesPage joueur={joueur} setPage={nav}/>}
+        {page.startsWith("messages-") && (()=>{ const str=page.replace("messages-",""); const parts=str.split("-"); const tid=parts.slice(0,5).join("-"); const tpseudo=decodeURIComponent(parts.slice(5).join("-")); return <MessagesPage joueur={joueur} setPage={nav} targetId={tid} targetPseudo={tpseudo}/>; })()}
         {page.startsWith("scoreur-duel-") && joueur && <ScoreurDuel duelId={page.replace("scoreur-duel-","")} joueur={joueur} setPage={nav}/>}
         {page==="apropos"          && <APropos bars={bars} setPage={nav}/>}
         {page==="proposer"         && <Proposer bars={bars} onSubmit={handleProposal}/>}

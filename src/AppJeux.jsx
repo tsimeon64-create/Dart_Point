@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { finaliserDuel } from "./AppJoueurs";
 
 // ── AppJeux.jsx ───────────────────────────────────────────────────────────────
 const CHECKOUTS = {
@@ -41,7 +42,7 @@ const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onResultat = null }) => {
   const modeDuel = !!duel;
 
-  const [etape, setEtape] = useState(modeDuel ? "jeu" : "config");
+  const [etape, setEtape] = useState(modeDuel ? "bulle" : "config");
   const [config, setConfig] = useState({
     mode: duel?.mode || "501",
     manches: duel?.manches || 1,
@@ -49,12 +50,34 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
     nom2: duel?.defie_pseudo || "Joueur 2",
   });
   const [input, setInput] = useState("");
-  const [joueurs, setJoueurs] = useState(modeDuel ? initJoueursFromDuel(duel) : null);
+  const [joueurs, setJoueurs] = useState(null);
   const [actifIdx, setActifIdx] = useState(0);
+  const [bulleStartIdx, setBulleStartIdx] = useState(0); // qui commence la manche 1
+  const [mancheEnCours, setMancheEnCours] = useState(0); // 0-based
   const [gagnant, setGagnant] = useState(null);
   const [resultEnregistre, setResultEnregistre] = useState(false);
   const [showConfirmQuitter, setShowConfirmQuitter] = useState(false);
   const [historique, setHistorique] = useState([]);
+  const [manchesHistory, setManchesHistory] = useState([]);
+  // Valeurs cumulatives au début de la manche courante (tours/flechettes/points sont cumulatifs)
+  const [mancheStart, setMancheStart] = useState({ vol:[0,0], pts:[0,0], nbtours:[0,0] });
+
+  // ── Wake Lock : empêche la mise en veille pendant le jeu ──
+  useEffect(() => {
+    if (etape !== "jeu") return;
+    let wakeLock = null;
+    const requestWakeLock = async () => {
+      try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+    };
+    requestWakeLock();
+    // Re-acquérir si l'onglet revient au premier plan (le wake lock est libéré en arrière-plan)
+    const onVisibility = () => { if (document.visibilityState === "visible") requestWakeLock(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      wakeLock?.release().catch(() => {});
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [etape]);
 
   // ── Plein écran auto + blocage scroll pendant le jeu ──
   useEffect(() => {
@@ -105,15 +128,47 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
     { nom:config.nom2||"Joueur 2", score:startVal, manchesGagnees:0, tours:[], flechettes:0, totalPoints:0, scorePrecedent:null },
   ];
 
-  const demarrer = () => {
-    setJoueurs(initJoueurs());
-    setActifIdx(0);
+  const demarrerAvecBulle = (startIdx) => {
+    const sv = modeDuel ? parseInt(duel?.mode || "501") : startVal;
+    const noms = modeDuel
+      ? [duel?.challenger_pseudo || "Joueur 1", duel?.defie_pseudo || "Joueur 2"]
+      : [config.nom1 || "Joueur 1", config.nom2 || "Joueur 2"];
+    setJoueurs([
+      { nom:noms[0], score:sv, manchesGagnees:0, tours:[], flechettes:0, totalPoints:0, scorePrecedent:null },
+      { nom:noms[1], score:sv, manchesGagnees:0, tours:[], flechettes:0, totalPoints:0, scorePrecedent:null },
+    ]);
+    setBulleStartIdx(startIdx);
+    setMancheEnCours(0);
+    setActifIdx(startIdx);
     setGagnant(null);
     setInput("");
     setResultEnregistre(false);
     setHistorique([]);
+    setManchesHistory([]);
+    setMancheStart({ vol:[0,0], pts:[0,0], nbtours:[0,0] });
     setEtape("jeu");
   };
+
+  // Construit le détail d'une manche à partir des données courantes vs. début de manche
+  const buildMancheDetail = (updated, winnerIdx, start) => {
+    const w = updated[winnerIdx];
+    const l = updated[1-winnerIdx];
+    const wVol = Math.round(w.flechettes/3) - start.vol[winnerIdx];
+    const lVol = Math.round(l.flechettes/3) - start.vol[1-winnerIdx];
+    const wPts = w.totalPoints - start.pts[winnerIdx];
+    const lPts = l.totalPoints - start.pts[1-winnerIdx];
+    const wTours = w.tours.length - start.nbtours[winnerIdx];
+    const lTours = l.tours.length - start.nbtours[1-winnerIdx];
+    return {
+      winner: w.nom, loser: l.nom,
+      winner_volees: wVol, loser_volees: lVol,
+      winner_moy: wTours > 0 ? Math.round(wPts/wTours) : 0,
+      loser_moy: lTours > 0 ? Math.round(lPts/lTours) : 0,
+      reste_loser: l.score,
+    };
+  };
+
+  const demarrer = () => demarrerAvecBulle(0);
 
   const quitterPartie = () => {
     setShowConfirmQuitter(false);
@@ -140,7 +195,7 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
     setInput("");
   };
 
-  const enregistrerResultatDuel = async (gagnantNom, scoreC, scoreD, moyC, moyD) => {
+  const enregistrerResultatDuel = async (gagnantNom, scoreC, scoreD, moyC, moyD, manchesDetail=[]) => {
     if (onResultat) {
       onResultat({ gagnantNom, scoreC, scoreD, moyC, moyD });
       setResultEnregistre(true);
@@ -149,12 +204,26 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
     }
     if (!duel || resultEnregistre) return;
     const gagnantId = gagnantNom === duel.challenger_pseudo ? duel.challenger_id : duel.defie_id;
+    const gagnantIsChallenger = gagnantId === duel.challenger_id;
     try {
       await fetch(`${SB_URL}/rest/v1/duels?id=eq.${duel.id}`, {
         method: "PATCH",
         headers: { "apikey":SB_KEY, "Authorization":`Bearer ${SB_KEY}`, "Content-Type":"application/json", "Prefer":"return=minimal" },
-        body: JSON.stringify({ statut:"en_validation", gagnant_id:gagnantId, gagnant_pseudo:gagnantNom, score_manches_challenger:scoreC, score_manches_defie:scoreD, score_challenger:moyC, score_defie:moyD, valide_challenger:false, valide_defie:false })
+        body: JSON.stringify({
+          statut: "termine",
+          gagnant_id: gagnantId,
+          gagnant_pseudo: gagnantNom,
+          score_manches_challenger: scoreC,
+          score_manches_defie: scoreD,
+          score_challenger: moyC,
+          score_defie: moyD,
+          manches_detail: manchesDetail,
+          valide_challenger: gagnantIsChallenger,
+          valide_defie: !gagnantIsChallenger,
+          date: Date.now(),
+        })
       });
+      await finaliserDuel({ ...duel, gagnant_id: gagnantId });
       setResultEnregistre(true);
       if (onDuelTermine) onDuelTermine();
     } catch(e) { console.error("Erreur enregistrement duel:", e); }
@@ -180,19 +249,32 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
         : j
       );
       const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
+      // Capturer le détail de cette manche
+      const mancheDetail = buildMancheDetail(updated, actifIdx, mancheStart);
       if (newManches >= manchesTotal) {
+        const allManches = [...manchesHistory, mancheDetail];
         setJoueurs(updated);
-        const scoreC = actifIdx === 0 ? newManches : updated[1].manchesGagnees;
-        const scoreD = actifIdx === 1 ? newManches : updated[0].manchesGagnees;
+        const scoreC = actifIdx === 0 ? newManches : updated[0].manchesGagnees;
+        const scoreD = actifIdx === 1 ? newManches : updated[1].manchesGagnees;
         const moyC = parseFloat(moyenne(updated[0]));
         const moyD = parseFloat(moyenne(updated[1]));
         setGagnant({...joueur, manchesGagnees:newManches, tours:[...joueur.tours,val], totalPoints:joueur.totalPoints+val, flechettes:joueur.flechettes+3});
         setEtape("fin");
-        if (modeDuel) enregistrerResultatDuel(joueur.nom, scoreC, scoreD, moyC, moyD);
+        if (modeDuel) enregistrerResultatDuel(joueur.nom, scoreC, scoreD, moyC, moyD, allManches);
         return;
       }
+      // Nouvelle manche : sauvegarder le détail + mettre à jour le point de départ
+      setManchesHistory(h => [...h, mancheDetail]);
+      setMancheStart({
+        vol: [Math.round(updated[0].flechettes/3), Math.round(updated[1].flechettes/3)],
+        pts: [updated[0].totalPoints, updated[1].totalPoints],
+        nbtours: [updated[0].tours.length, updated[1].tours.length],
+      });
+      const nextManche = mancheEnCours + 1;
+      const nextStart = (bulleStartIdx + nextManche) % 2;
+      setMancheEnCours(nextManche);
       setJoueurs(updated.map(j => ({ ...j, score: modeDuel ? parseInt(duel?.mode||"501") : startVal, scorePrecedent: null })));
-      setActifIdx(1 - actifIdx); setInput(""); return;
+      setActifIdx(nextStart); setInput(""); return;
     }
 
     setJoueurs(joueurs.map((j, i) => i === actifIdx
@@ -227,6 +309,38 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
       </div>
     </div>
   );
+
+  // ── ÉCRAN BULLE (duel uniquement) ─────────────────────────────────────────────
+  if (etape === "bulle") {
+    const n0 = duel?.challenger_pseudo || "Joueur 1";
+    const n1 = duel?.defie_pseudo || "Joueur 2";
+    return (
+      <div style={{ maxWidth:480, margin:"0 auto", padding:"40px 20px", fontFamily:"Inter,sans-serif", textAlign:"center" }}>
+        <div style={{ fontSize:60, marginBottom:16 }}>🎯</div>
+        <h2 style={{ fontWeight:900, fontSize:24, color:"#f1f5f9", marginBottom:8 }}>Qui commence ?</h2>
+        <p style={{ color:"#94a3b8", fontSize:14, marginBottom:32, lineHeight:1.6 }}>
+          Le joueur qui a gagné la bulle commence la première manche.<br/>
+          <span style={{ fontSize:12 }}>L'adversaire commencera la manche suivante, et ainsi de suite.</span>
+        </p>
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          {[n0, n1].map((nom, idx) => (
+            <button key={idx} onClick={() => demarrerAvecBulle(idx)}
+              style={{ padding:"22px 20px", borderRadius:16, border:`2px solid ${idx===0?"#f97316":"#60a5fa"}`, background:`${idx===0?"#f97316":"#60a5fa"}22`, color:"#f1f5f9", fontWeight:800, fontSize:20, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:12, transition:"all .15s" }}
+              onMouseEnter={e=>{e.currentTarget.style.background=`${idx===0?"#f97316":"#60a5fa"}44`;}}
+              onMouseLeave={e=>{e.currentTarget.style.background=`${idx===0?"#f97316":"#60a5fa"}22`;}}>
+              <span style={{ fontSize:28 }}>{idx===0?"🟠":"🔵"}</span>
+              {nom}
+              <span style={{ fontSize:14, color:"#94a3b8", fontWeight:500 }}>commence</span>
+            </button>
+          ))}
+        </div>
+        <button onClick={()=>{ if(setPage) setPage("defi"); }}
+          style={{ marginTop:24, background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13 }}>
+          ← Annuler
+        </button>
+      </div>
+    );
+  }
 
   // ── ÉCRAN CONFIG ──────────────────────────────────────────────────────────
   if (etape === "config") return (
@@ -297,9 +411,9 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
         </div>
       </div>
       {modeDuel && (
-        <div style={{ background:"#1a1200", border:"2px solid #f59e0b", borderRadius:14, padding:20, marginBottom:16 }}>
-          <p style={{ fontWeight:700, fontSize:15, color:"#f59e0b", marginBottom:6 }}>⚠️ Résultat enregistré !</p>
-          <p style={{ color:"#94a3b8", fontSize:13 }}>Les 2 joueurs doivent valider le résultat depuis leur profil.</p>
+        <div style={{ background:"#14532d33", border:"2px solid #22c55e55", borderRadius:14, padding:20, marginBottom:16 }}>
+          <p style={{ fontWeight:700, fontSize:15, color:"#22c55e", marginBottom:6 }}>✅ Résultat enregistré !</p>
+          <p style={{ color:"#94a3b8", fontSize:13 }}>DRIX mis à jour automatiquement. L'adversaire peut contester dans les 24h s'il n'était pas présent.</p>
         </div>
       )}
       <div style={{ display:"flex", gap:10 }}>
@@ -313,13 +427,13 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
 
   // ── ÉCRAN JEU — position fixed, plein écran, zero scroll ─────────────────
   if (!joueurs) return null;
-  const j0 = joueurs[0];
-  const j1 = joueurs[1];
+  // Le joueur qui a gagné la bulle est TOUJOURS affiché à gauche (index 0 dans l'affichage)
+  const displayOrder = [bulleStartIdx, 1 - bulleStartIdx];
   const actif = joueurs[actifIdx];
   const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
 
   return (
-    <div style={{
+    <div className="scoreur-wrap" style={{
       position: "fixed",
       top: 0, left: 0, right: 0, bottom: 0,
       background: "#0f0f0f",
@@ -330,6 +444,7 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
       zIndex: 500,
       touchAction: "none",
     }}>
+      <style>{`.scoreur-wrap button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }`}</style>
       {showConfirmQuitter && <ModalConfirmQuitter/>}
 
       {/* Header */}
@@ -347,12 +462,13 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
         <div style={{ width:70 }}/>
       </div>
 
-      {/* Scores */}
+      {/* Scores — joueur bulle toujours à gauche */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", flexShrink:0 }}>
-        {[j0, j1].map((j, i) => {
-          const isActif = i === actifIdx;
+        {displayOrder.map((realIdx, displayI) => {
+          const j = joueurs[realIdx];
+          const isActif = realIdx === actifIdx;
           return (
-            <div key={i} style={{
+            <div key={displayI} style={{
               padding:"12px 12px",
               background: isActif ? "linear-gradient(135deg,#f97316,#ea580c)" : "#c2410c22",
               borderBottom: `3px solid ${isActif ? "#f97316" : "transparent"}`,

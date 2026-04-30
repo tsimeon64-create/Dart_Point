@@ -7,6 +7,7 @@ const C = {
 };
 
 const OBJECTIFS = [
+  { id:0,  nom:"💰 Capital",       desc:"3 fléchettes — marquer le maximum de points" },
   { id:1,  nom:"🎯 Le 20",        desc:"Toucher le 20" },
   { id:2,  nom:"↔️ Côte à côte",  desc:"3 fléchettes dans segments adjacents" },
   { id:3,  nom:"🎯 Le 19",        desc:"Toucher le 19" },
@@ -54,7 +55,7 @@ function Setup({ onStart }) {
       <div style={{ textAlign:"center", marginBottom:32 }}>
         <div style={{ fontSize:48, marginBottom:8 }}>🎯</div>
         <h1 style={{ fontWeight:800, fontSize:26, color:C.accent }}>Le Capital</h1>
-        <p style={{ color:C.muted, fontSize:14, marginTop:6 }}>14 objectifs · une volée chacun · meilleur score gagne</p>
+        <p style={{ color:C.muted, fontSize:14, marginTop:6 }}>15 objectifs · une volée chacun · meilleur score gagne</p>
       </div>
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:24, marginBottom:20 }}>
         <h2 style={{ fontWeight:700, fontSize:16, marginBottom:16 }}>👥 Joueurs</h2>
@@ -168,6 +169,8 @@ function Capital({ joueurs, onFin }) {
 
   const leftColRef = useRef(null);
   const rightColRef = useRef(null);
+  const headerRef  = useRef(null);
+  const footerRef  = useRef(null);
   const syncing = useRef(false);
 
   const colWidth = Math.max(90, Math.floor((window.innerWidth - 130) / Math.min(nbJ, 5)));
@@ -224,7 +227,9 @@ function Capital({ joueurs, onFin }) {
   const onRightScroll = e => {
     if (syncing.current) return;
     syncing.current = true;
-    if (leftColRef.current) leftColRef.current.scrollTop = e.target.scrollTop;
+    if (leftColRef.current) leftColRef.current.scrollTop  = e.target.scrollTop;
+    if (headerRef.current)  headerRef.current.scrollLeft  = e.target.scrollLeft;
+    if (footerRef.current)  footerRef.current.scrollLeft  = e.target.scrollLeft;
     syncing.current = false;
   };
 
@@ -305,7 +310,7 @@ function Capital({ joueurs, onFin }) {
         <div>
           <h2 style={{ fontWeight:800, fontSize:15, color:C.accent }}>🎯 Le Capital</h2>
           <p style={{ color:C.muted, fontSize:11, marginTop:1 }}>
-            Obj. {objIdx+1}/14 — <span style={{ color:C.text, fontWeight:600 }}>{joueurs[joueurIdx]}</span> joue
+            Obj. {objIdx+1}/{OBJECTIFS.length} — <span style={{ color:C.text, fontWeight:600 }}>{joueurs[joueurIdx]}</span> joue
           </p>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
@@ -346,7 +351,7 @@ function Capital({ joueurs, onFin }) {
         <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
           {/* Noms */}
-          <div style={{ display:"flex", minWidth:totalMinWidth, flexShrink:0, borderBottom:`1px solid ${C.border}`, background:"#111" }}>
+          <div ref={headerRef} style={{ display:"flex", minWidth:totalMinWidth, flexShrink:0, borderBottom:`1px solid ${C.border}`, background:"#111", overflowX:"hidden" }}>
             {joueurs.map((nom, ji) => (
               <div key={ji} style={{ width:colWidth, flexShrink:0, height:44, borderRight:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", background:ji===joueurIdx?"#1a0800":"#111", padding:"0 6px" }}>
                 <span style={{ fontSize:12, fontWeight:700, color:ji===joueurIdx?C.accent:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{nom}</span>
@@ -390,7 +395,7 @@ function Capital({ joueurs, onFin }) {
           </div>
 
           {/* Scores */}
-          <div style={{ display:"flex", minWidth:totalMinWidth, flexShrink:0, borderTop:`2px solid ${C.yellow}44`, background:"#0f0f0f" }}>
+          <div ref={footerRef} style={{ display:"flex", minWidth:totalMinWidth, flexShrink:0, borderTop:`2px solid ${C.yellow}44`, background:"#0f0f0f", overflowX:"hidden" }}>
             {joueurs.map((nom, ji) => (
               <div key={ji} style={{ width:colWidth, flexShrink:0, borderRight:`1px solid ${C.border}`, height:52, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
                 <span style={{ fontSize:9, color:C.muted, marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:colWidth-10 }}>{nom}</span>
