@@ -17,6 +17,7 @@ const sbTP = async (path, opts={}) => {
 export const dbTP = {
   getTournoi:(id)=>sbTP(`tournois_potes?id=eq.${id}&select=*`).then(r=>r?.[0]),
   getTournois:(createur_id)=>sbTP(`tournois_potes?createur_id=eq.${createur_id}&order=date.desc&select=*`),
+  getTournoisParticipant:(joueur_id)=>sbTP(`tournois_potes_joueurs?joueur_id=eq.${joueur_id}&select=tournoi_id,tournois_potes(*)`).then(r=>(r||[]).map(x=>x.tournois_potes).filter(Boolean)),
   getTournoiByCode:(code)=>sbTP(`tournois_potes?code=eq.${encodeURIComponent(code)}&select=*`).then(r=>r?.[0]),
   createTournoi:(d)=>sbTP("tournois_potes",{method:"POST",body:JSON.stringify(d)}).then(r=>r?.[0]),
   updateTournoi:(id,d)=>sbTP(`tournois_potes?id=eq.${id}`,{method:"PATCH",body:JSON.stringify(d),prefer:"return=minimal"}),
@@ -785,8 +786,16 @@ export const TournoiPotesPage=({joueur,setPage})=>{
 
   useEffect(()=>{
     if(!joueur){setLoading(false);return;}
-    dbTP.getTournois(joueur.id).then(r=>{setMesT(r||[]);setLoading(false);}).catch(()=>setLoading(false));
-  },[joueur]);
+    Promise.all([
+      dbTP.getTournois(joueur.id),
+      dbTP.getTournoisParticipant(joueur.id),
+    ]).then(([crees,participe])=>{
+      const tous=[...(crees||[]),...(participe||[])];
+      const map=new Map(); tous.forEach(t=>{if(t)map.set(t.id,t);});
+      setMesT([...map.values()].sort((a,b)=>new Date(b.date)-new Date(a.date)));
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  },[joueur?.id]);
 
   const creerTournoi=async()=>{
     if(!form.nom.trim()||!joueur)return;

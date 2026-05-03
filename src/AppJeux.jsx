@@ -100,18 +100,7 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
     };
   }, [etape]);
 
-  // ── Bloquer bouton retour téléphone pendant le jeu ──
-  useEffect(() => {
-    if (etape !== "jeu") return;
-    const handlePop = (e) => {
-      e.preventDefault();
-      setShowConfirmQuitter(true);
-      window.history.pushState(null, "", window.location.href);
-    };
-    window.history.pushState(null, "", window.location.href);
-    window.addEventListener("popstate", handlePop);
-    return () => window.removeEventListener("popstate", handlePop);
-  }, [etape]);
+  // Bouton retour téléphone géré par App.jsx (modale globale)
 
   function initJoueursFromDuel(d) {
     const sv = parseInt(d?.mode || "501");
@@ -444,7 +433,7 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
       zIndex: 500,
       touchAction: "none",
     }}>
-      <style>{`.scoreur-wrap button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }`}</style>
+      <style>{`.scoreur-wrap button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; } .scoreur-wrap button:active { opacity: 0.7; transform: scale(0.95); }`}</style>
       {showConfirmQuitter && <ModalConfirmQuitter/>}
 
       {/* Header */}
@@ -512,14 +501,17 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
               {input || "Score…"}
             </span>
           </div>
-          <button onClick={envoyer} disabled={!input}
-            style={{ background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "#1a1a1a", border:"none", borderRadius:50, padding:"11px 18px", fontWeight:800, fontSize:16, color: input ? "#fff" : "#94a3b8", cursor: input ? "pointer" : "not-allowed" }}>
+          <button
+            onPointerDown={e=>{ e.preventDefault(); !input || envoyer(); }}
+            disabled={!input}
+            style={{ background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "#1a1a1a", border:"none", borderRadius:50, padding:"11px 18px", fontWeight:800, fontSize:16, color: input ? "#fff" : "#94a3b8", cursor: input ? "pointer" : "not-allowed", touchAction:"manipulation" }}>
             ✓
           </button>
         </div>
         {historique.length > 0 && (
-          <button onClick={annulerDernierCoup}
-            style={{ width:"100%", marginTop:5, padding:"8px", borderRadius:8, border:"1px solid #f59e0b44", background:"#78350f22", color:"#f59e0b", fontWeight:700, fontSize:12, cursor:"pointer", WebkitTapHighlightColor:"transparent" }}>
+          <button
+            onPointerDown={e=>{ e.preventDefault(); annulerDernierCoup(); }}
+            style={{ width:"100%", marginTop:5, padding:"8px", borderRadius:8, border:"1px solid #f59e0b44", background:"#78350f22", color:"#f59e0b", fontWeight:700, fontSize:12, cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
             ↩️ Annuler le dernier coup
           </button>
         )}
@@ -529,21 +521,26 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
       <div style={{ padding:"5px 16px 10px", background:"#0f0f0f", flex:1, display:"flex", flexDirection:"column" }}>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:5, flex:1 }}>
           {["1","2","3","4","5","6","7","8","9"].map(n=>(
-            <button key={n} onClick={()=>appuyer(n)}
-              style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f1f5f9", fontSize:22, fontWeight:700, cursor:"pointer", WebkitTapHighlightColor:"transparent" }}>
+            <button key={n}
+              onPointerDown={e=>{ e.preventDefault(); appuyer(n); }}
+              style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f1f5f9", fontSize:22, fontWeight:700, cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
               {n}
             </button>
           ))}
-          <button onClick={()=>appuyer("del")}
-            style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f59e0b", fontSize:20, cursor:"pointer", WebkitTapHighlightColor:"transparent" }}>
+          <button
+            onPointerDown={e=>{ e.preventDefault(); appuyer("del"); }}
+            style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f59e0b", fontSize:20, cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
             ⌫
           </button>
-          <button onClick={()=>appuyer("0")}
-            style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f1f5f9", fontSize:22, fontWeight:700, cursor:"pointer", WebkitTapHighlightColor:"transparent" }}>
+          <button
+            onPointerDown={e=>{ e.preventDefault(); appuyer("0"); }}
+            style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f1f5f9", fontSize:22, fontWeight:700, cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
             0
           </button>
-          <button onClick={envoyer} disabled={!input}
-            style={{ borderRadius:10, border:"none", background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "#1a1a2a", color: input ? "#fff" : "#94a3b8", fontSize:18, fontWeight:800, cursor: input ? "pointer" : "not-allowed", WebkitTapHighlightColor:"transparent" }}>
+          <button
+            onPointerDown={e=>{ e.preventDefault(); !input || envoyer(); }}
+            disabled={!input}
+            style={{ borderRadius:10, border:"none", background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "#1a1a2a", color: input ? "#fff" : "#94a3b8", fontSize:18, fontWeight:800, cursor: input ? "pointer" : "not-allowed", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
             ✓
           </button>
         </div>

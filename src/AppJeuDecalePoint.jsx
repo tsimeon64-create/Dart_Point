@@ -204,18 +204,7 @@ function Capital({ joueurs, onFin }) {
     };
   }, []);
 
-  // Bloquer bouton retour
-  useEffect(() => {
-    if (fini) return;
-    const handlePop = e => {
-      e.preventDefault();
-      setModalQuitter(true);
-      window.history.pushState(null, "", window.location.href);
-    };
-    window.history.pushState(null, "", window.location.href);
-    window.addEventListener("popstate", handlePop);
-    return () => window.removeEventListener("popstate", handlePop);
-  }, [fini]);
+  // Bouton retour téléphone géré par App.jsx (modale globale)
 
   // Sync scroll vertical
   const onLeftScroll = e => {
@@ -351,12 +340,14 @@ function Capital({ joueurs, onFin }) {
         <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
           {/* Noms */}
-          <div ref={headerRef} style={{ display:"flex", minWidth:totalMinWidth, flexShrink:0, borderBottom:`1px solid ${C.border}`, background:"#111", overflowX:"hidden" }}>
-            {joueurs.map((nom, ji) => (
-              <div key={ji} style={{ width:colWidth, flexShrink:0, height:44, borderRight:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", background:ji===joueurIdx?"#1a0800":"#111", padding:"0 6px" }}>
-                <span style={{ fontSize:12, fontWeight:700, color:ji===joueurIdx?C.accent:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{nom}</span>
-              </div>
-            ))}
+          <div ref={headerRef} style={{ flexShrink:0, borderBottom:`1px solid ${C.border}`, background:"#111", overflowX:"hidden" }}>
+            <div style={{ display:"flex", minWidth:totalMinWidth }}>
+              {joueurs.map((nom, ji) => (
+                <div key={ji} style={{ width:colWidth, flexShrink:0, height:44, borderRight:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", background:ji===joueurIdx?"#1a0800":"#111", padding:"0 6px" }}>
+                  <span style={{ fontSize:12, fontWeight:700, color:ji===joueurIdx?C.accent:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{nom}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Cases */}
@@ -395,13 +386,15 @@ function Capital({ joueurs, onFin }) {
           </div>
 
           {/* Scores */}
-          <div ref={footerRef} style={{ display:"flex", minWidth:totalMinWidth, flexShrink:0, borderTop:`2px solid ${C.yellow}44`, background:"#0f0f0f", overflowX:"hidden" }}>
-            {joueurs.map((nom, ji) => (
-              <div key={ji} style={{ width:colWidth, flexShrink:0, borderRight:`1px solid ${C.border}`, height:52, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
-                <span style={{ fontSize:9, color:C.muted, marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:colWidth-10 }}>{nom}</span>
-                <span style={{ fontWeight:800, fontSize:18, color:C.yellow }}>{totaux[ji]}</span>
-              </div>
-            ))}
+          <div ref={footerRef} style={{ flexShrink:0, borderTop:`2px solid ${C.yellow}44`, background:"#0f0f0f", overflowX:"hidden" }}>
+            <div style={{ display:"flex", minWidth:totalMinWidth }}>
+              {joueurs.map((nom, ji) => (
+                <div key={ji} style={{ width:colWidth, flexShrink:0, borderRight:`1px solid ${C.border}`, height:52, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+                  <span style={{ fontSize:9, color:C.muted, marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:colWidth-10 }}>{nom}</span>
+                  <span style={{ fontWeight:800, fontSize:18, color:C.yellow }}>{totaux[ji]}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
