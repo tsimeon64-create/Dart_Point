@@ -452,9 +452,9 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       {/* ── BOUTONS IMAGE PROFIL ── */}
       <div style={{ display:"flex", gap:10, marginBottom:16 }}>
         {[
-          { src:"/profil/stat.png",  label:"Stats",  action:()=>setTab("historique") },
-          { src:"/profil/amis.png",  label:"Amis",   action:()=>setTab("amis") },
-          { src:"/profil/badge.png", label:"Badges", action:()=>setBadgeModal(true) },
+          { src:"/profil/stat.png",  label:"Stats",  action:()=>setPage("profil-stats") },
+          { src:"/profil/amis.png",  label:"Amis",   action:()=>setPage("profil-amis") },
+          { src:"/profil/badge.png", label:"Badges", action:()=>setPage("profil-badges") },
         ].map(({ src, label, action }) => (
           <div key={label} onClick={action} style={{ flex:1,cursor:"pointer",borderRadius:12,overflow:"hidden",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s" }}
             onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 20px #0008";}}
@@ -629,6 +629,208 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     </div>
   );
 };
+
+// ── PAGE STATS ────────────────────────────────────────────────────────────────
+export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage }) => {
+  const [stats, setStats] = useState(null);
+  const [duels, setDuels] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editMode, setEditMode] = useState(false);
+  const [editAge, setEditAge] = useState(joueur.age||"");
+  const [editVille, setEditVille] = useState(joueur.ville||"");
+  const [editStyle, setEditStyle] = useState(joueur.style_jeu||"electronique");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const bar = bars.find(b => b.slug === joueur.bar_slug);
+  const asso = associations.find(a => a.slug === joueur.asso_slug);
+  const STYLES = [["electronique","⚡ Électronique"],["traditionnel","🎯 Traditionnel"],["les deux","🎯⚡ Les deux"]];
+
+  useEffect(() => {
+    Promise.all([dbJ.getStats(joueur.id), dbJ.getDuels(joueur.id)])
+      .then(([s,d]) => { setStats(s); setDuels(d||[]); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [joueur.id]);
+
+  const sauvegarderProfil = async () => {
+    setSavingEdit(true);
+    const patch = { age: parseInt(editAge)||null, ville: editVille.trim()||null, style_jeu: editStyle };
+    await dbJ.updateJoueur(joueur.id, patch);
+    const updated = {...joueur, ...patch};
+    setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
+    setSavingEdit(false); setEditMode(false);
+  };
+
+  const choisirBar = async (slug) => {
+    await dbJ.updateJoueur(joueur.id, { bar_slug: slug });
+    const updated = {...joueur, bar_slug: slug};
+    setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
+  };
+  const choisirAsso = async (slug) => {
+    await dbJ.updateJoueur(joueur.id, { asso_slug: slug });
+    const updated = {...joueur, asso_slug: slug};
+    setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
+  };
+
+  if (loading) return <SpinnerJ/>;
+
+  const winRate = stats && stats.parties > 0 ? Math.round((stats.victoires / stats.parties) * 100) : 0;
+  const moyenneDuels = (() => {
+    const termines = duels.filter(d => d.statut === "termine");
+    const scores = termines.map(d => parseFloat(d.challenger_id === joueur.id ? d.score_challenger : d.score_defie)).filter(s => !isNaN(s) && s > 0);
+    return scores.length > 0 ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : null;
+  })();
+
+  return (
+    <div style={{ maxWidth:860, margin:"0 auto", padding:"24px 20px" }}>
+      <button onClick={()=>setPage("mon-profil")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:20,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
+
+      {/* Stats */}
+      {stats && (
+        <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:14,padding:20,marginBottom:16 }}>
+          <h2 style={{ fontWeight:800,fontSize:18,marginBottom:16,color:CJ.accent }}>📊 Mes statistiques</h2>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(80px,1fr))",gap:10,marginBottom:8 }}>
+            {[[stats.victoires,"Victoires",CJ.green],[stats.defaites,"Défaites",CJ.red],[stats.parties,"Parties",CJ.muted],[winRate+"%","Win Rate",CJ.yellow],...(moyenneDuels?[[moyenneDuels,"Moy. pts",CJ.blue]]:[])].map(([v,l,c])=>(
+              <div key={l} style={{ textAlign:"center",background:"#ffffff0d",borderRadius:10,padding:"14px 8px" }}>
+                <div style={{ fontSize:24,fontWeight:900,color:c }}>{v}</div>
+                <div style={{ fontSize:11,color:CJ.muted,marginTop:3 }}>{l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Infos personnelles */}
+      <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:14,padding:20,marginBottom:16 }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+          <h2 style={{ fontWeight:800,fontSize:18,color:"#f1f5f9" }}>👤 Mes informations</h2>
+          {!editMode && <button onClick={()=>setEditMode(true)} style={{ background:"none",border:`1px solid ${CJ.border}`,color:CJ.muted,cursor:"pointer",borderRadius:6,padding:"4px 12px",fontSize:12,touchAction:"manipulation" }}>✏️ Modifier</button>}
+        </div>
+        {!editMode ? (
+          <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+            {joueur.age && <BadgeJ color={CJ.muted}>🎂 {joueur.age} ans</BadgeJ>}
+            {joueur.ville && <BadgeJ color={CJ.blue}>📍 {joueur.ville}</BadgeJ>}
+            {joueur.style_jeu && <BadgeJ color={CJ.accent}>{STYLES.find(s=>s[0]===joueur.style_jeu)?.[1]||joueur.style_jeu}</BadgeJ>}
+            {bar ? <BadgeJ color={CJ.accent}>🍺 {bar.nom}</BadgeJ> : <BadgeJ color={CJ.muted}>Pas de bar affilié</BadgeJ>}
+            {asso && <BadgeJ color="#7c3aed">🫂 {asso.nom}</BadgeJ>}
+          </div>
+        ) : (
+          <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+              <div><label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Âge</label>
+                <input value={editAge} onChange={e=>setEditAge(e.target.value)} type="number" placeholder="Ex: 28"
+                  style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"8px 10px",color:CJ.text,fontSize:13 }}/></div>
+              <div><label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Ville</label>
+                <input value={editVille} onChange={e=>setEditVille(e.target.value)} placeholder="Ex: Bayonne"
+                  style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"8px 10px",color:CJ.text,fontSize:13 }}/></div>
+            </div>
+            <div><label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Style de jeu</label>
+              <div style={{ display:"flex",gap:6 }}>
+                {STYLES.map(([v,l])=>(<button key={v} onClick={()=>setEditStyle(v)} style={{ flex:1,background:editStyle===v?CJ.accent+"33":"#111",border:`1px solid ${editStyle===v?CJ.accent:CJ.border}`,borderRadius:8,padding:"7px 4px",cursor:"pointer",fontSize:11,color:editStyle===v?CJ.accent:CJ.muted,fontWeight:editStyle===v?700:400,touchAction:"manipulation" }}>{l}</button>))}
+              </div>
+            </div>
+            <div style={{ display:"flex",gap:8 }}>
+              <BtnJ onClick={sauvegarderProfil} disabled={savingEdit} style={{ fontSize:12,padding:"7px 16px" }}>{savingEdit?"…":"💾 Sauvegarder"}</BtnJ>
+              <BtnJ onClick={()=>setEditMode(false)} variant="dark" style={{ fontSize:12,padding:"7px 16px" }}>Annuler</BtnJ>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Historique duels */}
+      <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:14,padding:20,marginBottom:16 }}>
+        <h2 style={{ fontWeight:800,fontSize:18,marginBottom:16,color:"#f1f5f9" }}>📋 Historique des duels</h2>
+        {duels.filter(d=>d.statut==="termine").length===0
+          ? <p style={{ color:CJ.muted,fontSize:13 }}>Aucun duel terminé pour l'instant.</p>
+          : duels.filter(d=>d.statut==="termine").map(d=>{
+            const isC = d.challenger_id===joueur.id;
+            const adv = isC?d.defie_pseudo:d.challenger_pseudo;
+            const {sc,sd} = fixManches(d);
+            const monM = isC?sc:sd; const sonM = isC?sd:sc;
+            const monMoy = isC?d.score_challenger:d.score_defie;
+            const gagne = d.gagnant_id===joueur.id;
+            return (
+              <div key={d.id} style={{ background:"#ffffff0d",border:`1px solid ${gagne?CJ.green+"44":CJ.red+"44"}`,borderRadius:10,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8 }}>
+                <div>
+                  <span style={{ fontWeight:600,fontSize:13 }}>vs {adv}</span>
+                  <span style={{ color:CJ.muted,fontSize:11,marginLeft:8 }}>{d.mode} · {new Date(d.date).toLocaleDateString("fr-FR")}</span>
+                </div>
+                <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+                  <span style={{ fontWeight:700,fontSize:13 }}>{monM ?? "?"} – {sonM ?? "?"}</span>
+                  {monMoy && <span style={{ fontSize:11,color:CJ.accent }}>Moy. {monMoy}</span>}
+                  <BadgeJ color={gagne?CJ.green:CJ.red}>{gagne?"✅ Victoire":"❌ Défaite"}</BadgeJ>
+                </div>
+              </div>
+            );
+          })
+        }
+      </div>
+
+      {/* Affiliation */}
+      <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
+        <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:14,padding:20 }}>
+          <h2 style={{ fontWeight:800,fontSize:18,marginBottom:14,color:CJ.accent }}>🍺 Bar affilié</h2>
+          {bar && <p style={{ color:CJ.green,fontSize:13,marginBottom:12 }}>Actuellement : <strong>{bar.nom}</strong> à {bar.ville}</p>}
+          <div style={{ display:"flex",flexDirection:"column",gap:7,maxHeight:260,overflowY:"auto" }}>
+            {bars.map(b=>(
+              <div key={b.slug} onClick={()=>choisirBar(b.slug)} style={{ background:joueur.bar_slug===b.slug?"#1a0800":"#111",border:`1px solid ${joueur.bar_slug===b.slug?CJ.accent:CJ.border}`,borderRadius:8,padding:"10px 14px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",touchAction:"manipulation" }}>
+                <span style={{ fontWeight:joueur.bar_slug===b.slug?700:400,fontSize:13 }}>{b.nom}</span>
+                <span style={{ color:CJ.muted,fontSize:12 }}>📍 {b.ville}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:14,padding:20 }}>
+          <h2 style={{ fontWeight:800,fontSize:18,marginBottom:14,color:"#7c3aed" }}>🫂 Association affiliée</h2>
+          {asso && <p style={{ color:CJ.green,fontSize:13,marginBottom:12 }}>Actuellement : <strong>{asso.nom}</strong></p>}
+          <div style={{ display:"flex",flexDirection:"column",gap:7,maxHeight:200,overflowY:"auto" }}>
+            {associations.map(a=>(
+              <div key={a.slug} onClick={()=>choisirAsso(a.slug)} style={{ background:joueur.asso_slug===a.slug?"#1a0f1a":"#111",border:`1px solid ${joueur.asso_slug===a.slug?"#7c3aed":CJ.border}`,borderRadius:8,padding:"10px 14px",cursor:"pointer",display:"flex",justifyContent:"space-between",touchAction:"manipulation" }}>
+                <span style={{ fontWeight:joueur.asso_slug===a.slug?700:400,fontSize:13 }}>{a.nom}</span>
+                <span style={{ color:CJ.muted,fontSize:12 }}>📍 {a.ville}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── PAGE AMIS (nouvelle page) ──────────────────────────────────────────────────
+export const PageProfilAmis = ({ joueur, setPage }) => (
+  <div style={{ maxWidth:860, margin:"0 auto", padding:"24px 20px" }}>
+    <button onClick={()=>setPage("mon-profil")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:20,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
+    <h2 style={{ fontWeight:800,fontSize:22,marginBottom:20 }}>👥 Mes amis</h2>
+    <AmiSection joueur={joueur} setPage={setPage}/>
+  </div>
+);
+
+// ── PAGE BADGES (en construction) ─────────────────────────────────────────────
+export const PageProfilBadges = ({ setPage }) => (
+  <div style={{ maxWidth:500, margin:"0 auto", padding:"60px 20px", textAlign:"center" }}>
+    <button onClick={()=>setPage("mon-profil")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:40,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
+    <div style={{ fontSize:80,marginBottom:24 }}>🏅</div>
+    <h1 style={{ fontWeight:900,fontSize:28,marginBottom:10 }}>Badges</h1>
+    <p style={{ color:CJ.muted,fontSize:15,marginBottom:32,lineHeight:1.7 }}>
+      Débloque des badges en jouant,<br/>en gagnant des défis et en participant aux tournois.
+    </p>
+    <div style={{ background:"linear-gradient(135deg,#1a1a1a,#111)",border:`1px solid #f9731644`,borderRadius:20,padding:32,marginBottom:24 }}>
+      <div style={{ fontSize:36,marginBottom:12 }}>🚧</div>
+      <div style={{ fontWeight:900,fontSize:18,color:"#f97316",marginBottom:8 }}>En construction</div>
+      <div style={{ color:CJ.muted,fontSize:13,lineHeight:1.6 }}>
+        Les badges arrivent bientôt !<br/>Continue à jouer pour être parmi les premiers à en débloquer.
+      </div>
+    </div>
+    <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,opacity:0.3 }}>
+      {["🎯","🏆","⚔️","🔥","💎","👑"].map((e,i)=>(
+        <div key={i} style={{ background:CJ.card,borderRadius:14,padding:20,textAlign:"center" }}>
+          <div style={{ fontSize:32,marginBottom:6 }}>{e}</div>
+          <div style={{ fontSize:11,color:CJ.muted }}>???</div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 // ── PAGE JOUEURS (liste publique) ─────────────────────────────────────────────
 export const PageJoueurs = ({ joueur, setPage }) => {
