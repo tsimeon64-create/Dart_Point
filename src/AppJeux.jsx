@@ -60,7 +60,8 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
   const [historique, setHistorique] = useState([]);
   const [manchesHistory, setManchesHistory] = useState([]);
   // Valeurs cumulatives au début de la manche courante (tours/flechettes/points sont cumulatifs)
-  const [mancheStart, setMancheStart] = useState({ vol:[0,0], pts:[0,0], nbtours:[0,0] });
+  const [mancheStart, setMancheStart] = useState({ vol:[0,0], pts:[0,0], nbtours:[0,0], flechettes:[0,0] });
+  const [pendingVolee, setPendingVolee] = useState(null); // { val, type:"finish"|"zero" }
 
   // ── Wake Lock : empêche la mise en veille pendant le jeu ──
   useEffect(() => {
@@ -134,7 +135,7 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
     setResultEnregistre(false);
     setHistorique([]);
     setManchesHistory([]);
-    setMancheStart({ vol:[0,0], pts:[0,0], nbtours:[0,0] });
+    setMancheStart({ vol:[0,0], pts:[0,0], nbtours:[0,0], flechettes:[0,0] });
     setEtape("jeu");
   };
 
@@ -142,17 +143,15 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
   const buildMancheDetail = (updated, winnerIdx, start) => {
     const w = updated[winnerIdx];
     const l = updated[1-winnerIdx];
-    const wVol = Math.round(w.flechettes/3) - start.vol[winnerIdx];
-    const lVol = Math.round(l.flechettes/3) - start.vol[1-winnerIdx];
+    const wFlech = w.flechettes - (start.flechettes?.[winnerIdx] ?? start.vol[winnerIdx]*3);
+    const lFlech = l.flechettes - (start.flechettes?.[1-winnerIdx] ?? start.vol[1-winnerIdx]*3);
     const wPts = w.totalPoints - start.pts[winnerIdx];
     const lPts = l.totalPoints - start.pts[1-winnerIdx];
-    const wTours = w.tours.length - start.nbtours[winnerIdx];
-    const lTours = l.tours.length - start.nbtours[1-winnerIdx];
     return {
       winner: w.nom, loser: l.nom,
-      winner_volees: wVol, loser_volees: lVol,
-      winner_moy: wTours > 0 ? Math.round(wPts/wTours) : 0,
-      loser_moy: lTours > 0 ? Math.round(lPts/lTours) : 0,
+      winner_volees: Math.round(wFlech/3), loser_volees: Math.round(lFlech/3),
+      winner_moy: wFlech > 0 ? Math.round((wPts/wFlech)*3) : 0,
+      loser_moy: lFlech > 0 ? Math.round((lPts/lFlech)*3) : 0,
       reste_loser: l.score,
     };
   };
@@ -222,50 +221,26 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
     if (!joueurs) return;
     const val = parseInt(input);
     if (!input || isNaN(val) || val < 0 || val > 180) { setInput(""); return; }
-    setHistorique(h => [...h, { joueurs: JSON.parse(JSON.stringify(joueurs)), actifIdx }]);
+
     const joueur = joueurs[actifIdx];
     const nouveau = joueur.score - val;
 
+    // Bust
     if (nouveau < 0 || nouveau === 1) {
+      setHistorique(h => [...h, { joueurs: JSON.parse(JSON.stringify(joueurs)), actifIdx }]);
       const updated = joueurs.map((j, i) => i === actifIdx ? { ...j, scorePrecedent: val, flechettes: j.flechettes + 3 } : j);
       setJoueurs(updated); setActifIdx(1 - actifIdx); setInput(""); return;
     }
 
-    if (nouveau === 0) {
-      const newManches = joueur.manchesGagnees + 1;
-      const updated = joueurs.map((j, i) => i === actifIdx
-        ? { ...j, score: nouveau, manchesGagnees: newManches, tours: [...j.tours, val], flechettes: j.flechettes + 3, totalPoints: j.totalPoints + val, scorePrecedent: val }
-        : j
-      );
-      const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
-      // Capturer le détail de cette manche
-      const mancheDetail = buildMancheDetail(updated, actifIdx, mancheStart);
-      if (newManches >= manchesTotal) {
-        const allManches = [...manchesHistory, mancheDetail];
-        setJoueurs(updated);
-        const scoreC = actifIdx === 0 ? newManches : updated[0].manchesGagnees;
-        const scoreD = actifIdx === 1 ? newManches : updated[1].manchesGagnees;
-        const moyC = parseFloat(moyenne(updated[0]));
-        const moyD = parseFloat(moyenne(updated[1]));
-        setGagnant({...joueur, manchesGagnees:newManches, tours:[...joueur.tours,val], totalPoints:joueur.totalPoints+val, flechettes:joueur.flechettes+3});
-        setEtape("fin");
-        if (modeDuel) enregistrerResultatDuel(joueur.nom, scoreC, scoreD, moyC, moyD, allManches);
-        return;
-      }
-      // Nouvelle manche : sauvegarder le détail + mettre à jour le point de départ
-      setManchesHistory(h => [...h, mancheDetail]);
-      setMancheStart({
-        vol: [Math.round(updated[0].flechettes/3), Math.round(updated[1].flechettes/3)],
-        pts: [updated[0].totalPoints, updated[1].totalPoints],
-        nbtours: [updated[0].tours.length, updated[1].tours.length],
-      });
-      const nextManche = mancheEnCours + 1;
-      const nextStart = (bulleStartIdx + nextManche) % 2;
-      setMancheEnCours(nextManche);
-      setJoueurs(updated.map(j => ({ ...j, score: modeDuel ? parseInt(duel?.mode||"501") : startVal, scorePrecedent: null })));
-      setActifIdx(nextStart); setInput(""); return;
+    // Finish (score → 0) ou zéro pointé → popup fléchettes
+    if (nouveau === 0 || val === 0) {
+      setHistorique(h => [...h, { joueurs: JSON.parse(JSON.stringify(joueurs)), actifIdx }]);
+      setPendingVolee({ val, type: nouveau === 0 ? "finish" : "zero" });
+      setInput(""); return;
     }
 
+    // Volée normale
+    setHistorique(h => [...h, { joueurs: JSON.parse(JSON.stringify(joueurs)), actifIdx }]);
     setJoueurs(joueurs.map((j, i) => i === actifIdx
       ? { ...j, score: nouveau, tours: [...j.tours, val], flechettes: j.flechettes + 3, totalPoints: j.totalPoints + val, scorePrecedent: val }
       : j
@@ -273,7 +248,61 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
     setActifIdx(1 - actifIdx); setInput("");
   };
 
-  const moyenne = (j) => j && j.tours.length > 0 ? (j.totalPoints / j.tours.length).toFixed(2) : "0.00";
+  // Appelé après sélection du nb de fléchettes dans la popup
+  const confirmerVolee = (nbFlechettes) => {
+    if (!pendingVolee || !joueurs) return;
+    const { val, type } = pendingVolee;
+    const joueur = joueurs[actifIdx];
+    setPendingVolee(null);
+
+    if (type === "finish") {
+      const newManches = joueur.manchesGagnees + 1;
+      const updated = joueurs.map((j, i) => i === actifIdx
+        ? { ...j, score: 0, manchesGagnees: newManches, tours: [...j.tours, val], flechettes: j.flechettes + nbFlechettes, totalPoints: j.totalPoints + val, scorePrecedent: val }
+        : j
+      );
+      const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
+      const mancheDetail = buildMancheDetail(updated, actifIdx, mancheStart);
+      if (newManches >= manchesTotal) {
+        const allManches = [...manchesHistory, mancheDetail];
+        setJoueurs(updated);
+        const scoreC = actifIdx === 0 ? newManches : updated[0].manchesGagnees;
+        const scoreD = actifIdx === 1 ? newManches : updated[1].manchesGagnees;
+        const moyC = parseFloat(moyenneCalc(updated[0]));
+        const moyD = parseFloat(moyenneCalc(updated[1]));
+        setGagnant({ ...joueur, manchesGagnees:newManches, tours:[...joueur.tours,val], totalPoints:joueur.totalPoints+val, flechettes:joueur.flechettes+nbFlechettes });
+        setEtape("fin");
+        if (modeDuel) enregistrerResultatDuel(joueur.nom, scoreC, scoreD, moyC, moyD, allManches);
+        return;
+      }
+      setManchesHistory(h => [...h, mancheDetail]);
+      setMancheStart({
+        vol: [Math.round(updated[0].flechettes/3), Math.round(updated[1].flechettes/3)],
+        pts: [updated[0].totalPoints, updated[1].totalPoints],
+        nbtours: [updated[0].tours.length, updated[1].tours.length],
+        flechettes: [updated[0].flechettes, updated[1].flechettes],
+      });
+      const nextManche = mancheEnCours + 1;
+      const nextStart = (bulleStartIdx + nextManche) % 2;
+      setMancheEnCours(nextManche);
+      setJoueurs(updated.map(j => ({ ...j, score: modeDuel ? parseInt(duel?.mode||"501") : startVal, scorePrecedent: null })));
+      setActifIdx(nextStart); return;
+    }
+
+    // type === "zero" : volée à 0 point avec nb de fléchettes réel
+    const updated = joueurs.map((j, i) => i === actifIdx
+      ? { ...j, tours: [...j.tours, 0], flechettes: j.flechettes + nbFlechettes, scorePrecedent: 0 }
+      : j
+    );
+    setJoueurs(updated); setActifIdx(1 - actifIdx);
+  };
+
+  // Moyenne 3-fléchettes basée sur le nombre RÉEL de fléchettes lancées
+  const moyenneCalc = (j) => {
+    if (!j || j.flechettes === 0) return "0.00";
+    return ((j.totalPoints / j.flechettes) * 3).toFixed(2);
+  };
+  const moyenne = moyenneCalc;
   const checkout = joueurs ? CHECKOUTS[joueurs[actifIdx]?.score] : null;
 
   // ── MODAL QUITTER ─────────────────────────────────────────────────────────
@@ -435,6 +464,45 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
     }}>
       <style>{`.scoreur-wrap button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; } .scoreur-wrap button:active { opacity: 0.7; transform: scale(0.95); }`}</style>
       {showConfirmQuitter && <ModalConfirmQuitter/>}
+
+      {/* ── POPUP FLÉCHETTES ── */}
+      {pendingVolee && (
+        <div style={{ position:"fixed",inset:0,background:"#000000dd",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24 }}>
+          <div style={{ background:"#1a1a1a",border:`2px solid ${pendingVolee.type==="finish"?"#22c55e":"#f59e0b"}`,borderRadius:20,padding:28,maxWidth:340,width:"100%",textAlign:"center" }}>
+            <div style={{ fontSize:48,marginBottom:10 }}>{pendingVolee.type==="finish"?"🎯":"🎯"}</div>
+            <h3 style={{ fontWeight:900,fontSize:19,color:"#f1f5f9",marginBottom:8 }}>
+              {pendingVolee.type==="finish" ? "🏆 FINISH !" : "Volée à 0 point"}
+            </h3>
+            <p style={{ color:"#94a3b8",fontSize:14,marginBottom:24,lineHeight:1.6 }}>
+              {pendingVolee.type==="finish"
+                ? "Combien de fléchettes as-tu utilisées pour finir ?"
+                : "Combien de fléchettes as-tu réellement lancées ?"
+              }
+            </p>
+            <div style={{ display:"flex",gap:10,justifyContent:"center" }}>
+              {[1,2,3].map(n => (
+                <button key={n}
+                  onPointerDown={e=>{ e.preventDefault(); confirmerVolee(n); }}
+                  style={{
+                    flex:1, padding:"18px 0", borderRadius:14, border:"none", fontWeight:900, fontSize:24, cursor:"pointer",
+                    background: pendingVolee.type==="finish"
+                      ? "linear-gradient(135deg,#14532d,#16a34a)"
+                      : "linear-gradient(135deg,#78350f,#d97706)",
+                    color:"#fff", touchAction:"manipulation",
+                    WebkitTapHighlightColor:"transparent",
+                  }}
+                  onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
+                  onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+                  {n}
+                </button>
+              ))}
+            </div>
+            <p style={{ color:"#4b5563",fontSize:11,marginTop:16 }}>
+              Appuie sur le nombre de fléchettes utilisées
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ background:"#111", padding:"10px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #2a2a2a", flexShrink:0 }}>
