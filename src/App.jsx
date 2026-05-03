@@ -207,7 +207,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, unreadMess
       <div style={{ maxWidth:1100,margin:"0 auto",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:58 }}>
         <div style={{ display:"flex",alignItems:"center",gap:8,flexShrink:0 }}>
           <div onClick={()=>{setPage("home");setOpen(false);}} style={{ cursor:"pointer",display:"flex",alignItems:"center",flexShrink:0 }}>
-            <img src="/logo-banner.png" alt="DartPoint" style={{ height:38,objectFit:"contain",filter:"drop-shadow(0 2px 8px rgba(0,0,0,0.5))" }}/>
+            <img src="/logo dart point/logo bandeau.png" alt="DartPoint" style={{ height:44,objectFit:"contain",filter:"drop-shadow(0 2px 8px rgba(0,0,0,0.5))" }}/>
           </div>
           <button onClick={()=>{setPage("home");setOpen(false);}} style={{ ...navBtnStyle,color:"#f97316",borderColor:"#f9731633" }}
             onMouseEnter={e=>{e.currentTarget.style.background="#f9731611";e.currentTarget.style.borderColor="#f97316";}}
