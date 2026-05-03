@@ -316,6 +316,8 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     const d = await dbJ.getDuels(joueur.id); setDuels(d||[]);
   };
 
+  const [badgeModal, setBadgeModal] = useState(false);
+
   if (loading) return <SpinnerJ/>;
 
   const winRate = stats && stats.parties > 0 ? Math.round((stats.victoires / stats.parties) * 100) : 0;
@@ -446,6 +448,35 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
           </button>
         )}
       </div>
+
+      {/* ── BOUTONS IMAGE PROFIL ── */}
+      <div style={{ display:"flex", gap:10, marginBottom:16 }}>
+        {[
+          { src:"/profil/stat.png",  label:"Stats",  action:()=>setTab("historique") },
+          { src:"/profil/amis.png",  label:"Amis",   action:()=>setTab("amis") },
+          { src:"/profil/badge.png", label:"Badges", action:()=>setBadgeModal(true) },
+        ].map(({ src, label, action }) => (
+          <div key={label} onClick={action} style={{ flex:1,cursor:"pointer",borderRadius:12,overflow:"hidden",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s" }}
+            onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 20px #0008";}}
+            onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
+            <img src={src} alt={label} style={{ width:"100%",display:"block",borderRadius:12 }}/>
+          </div>
+        ))}
+      </div>
+
+      {/* Badge modal */}
+      {badgeModal && (
+        <div style={{ position:"fixed",inset:0,background:"#000000cc",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }} onClick={()=>setBadgeModal(false)}>
+          <div style={{ background:"#1a1a1a",border:`1px solid ${CJ.border}`,borderRadius:20,padding:32,maxWidth:300,textAlign:"center",width:"100%" }} onClick={e=>e.stopPropagation()}>
+            <div style={{ fontSize:52,marginBottom:12 }}>🏅</div>
+            <h2 style={{ fontWeight:900,fontSize:20,marginBottom:8 }}>Badges</h2>
+            <p style={{ color:CJ.muted,fontSize:14,marginBottom:20 }}>Cette fonctionnalité arrive bientôt !<br/>Débloque des badges selon tes performances.</p>
+            <div style={{ background:"#f97316",color:"#fff",fontWeight:700,fontSize:12,padding:"5px 16px",borderRadius:20,display:"inline-block",marginBottom:20 }}>🚧 En construction</div>
+            <br/>
+            <button onClick={()=>setBadgeModal(false)} style={{ background:"#2a2a2a",border:"none",color:"#f1f5f9",cursor:"pointer",padding:"10px 28px",borderRadius:10,fontSize:14,fontWeight:700,touchAction:"manipulation" }}>Fermer</button>
+          </div>
+        </div>
+      )}
 
       {/* Onglets */}
       <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
