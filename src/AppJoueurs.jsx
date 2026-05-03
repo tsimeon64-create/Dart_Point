@@ -73,7 +73,7 @@ const BtnJ = ({ children, onClick, variant="primary", style={}, disabled=false }
     success:{ background:"#14532d", color:CJ.green, border:`1px solid ${CJ.green}44` },
     yellow:{ background:"#78350f", color:CJ.yellow, border:`1px solid ${CJ.yellow}44` },
   };
-  return <button onClick={disabled?undefined:onClick} style={{ cursor:disabled?"not-allowed":"pointer",borderRadius:8,fontWeight:600,fontSize:14,padding:"10px 20px",transition:"all .15s",opacity:disabled?.5:1,...variants[variant],...style }}>{children}</button>;
+  return <button onPointerDown={disabled?undefined:(e)=>{e.preventDefault();onClick&&onClick(e);}} style={{ cursor:disabled?"not-allowed":"pointer",borderRadius:8,fontWeight:600,fontSize:14,padding:"10px 20px",transition:"all .15s",opacity:disabled?.5:1,touchAction:"manipulation",WebkitTapHighlightColor:"transparent",...variants[variant],...style }}>{children}</button>;
 };
 
 const FieldJ = ({ label, value, onChange, placeholder, type="text", as="input", options }) => (
@@ -1095,7 +1095,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const [loading, setLoading] = useState(true);
   const [amiStatut, setAmiStatut] = useState(null);
   const [showHistorique, setShowHistorique] = useState(false);
-  const [showDefi, setShowDefi] = useState(false);
+  const [showDefi, setShowDefi] = useState(true); // ouvert par défaut
 
   useEffect(() => {
     // Guard : ne pas lancer la requête si l'ID est invalide
@@ -1192,24 +1192,20 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       )}
       {/* ── BOUTONS ACTIONS ── */}
       {moi && moi.id!==j.id && (
-        <div style={{ display:"flex", gap:10, marginBottom:12, flexWrap:"wrap" }}>
-          <button onClick={()=>{ setShowDefi(v=>!v); setShowHistorique(false); }}
-            style={{ flex:1, minWidth:130, background:showDefi?CJ.accent:"#1a1a1a", border:`1px solid ${showDefi?CJ.accent:CJ.border}`, color:showDefi?"#fff":CJ.text, borderRadius:10, padding:"12px 0", cursor:"pointer", fontWeight:700, fontSize:14, transition:"all .15s" }}>
-            ⚔️ Lancer un défi
-          </button>
-          <button onClick={()=>setPage("messages-"+j.id+"-"+encodeURIComponent(j.pseudo))}
-            style={{ background:"#1e3a5f", border:`1px solid ${CJ.blue}44`, color:CJ.blue, borderRadius:10, padding:"12px 16px", cursor:"pointer", fontWeight:700, fontSize:14, transition:"all .15s", whiteSpace:"nowrap" }}>
+        <div style={{ display:"flex", gap:10, marginBottom:12 }}>
+          <button onPointerDown={()=>setPage("messages-"+j.id+"-"+encodeURIComponent(j.pseudo))}
+            style={{ flex:1, background:"#1e3a5f", border:`1px solid ${CJ.blue}44`, color:CJ.blue, borderRadius:10, padding:"12px 0", cursor:"pointer", fontWeight:700, fontSize:14, touchAction:"manipulation", WebkitTapHighlightColor:"transparent" }}>
             💬 Message
           </button>
-          <button onClick={()=>{ setShowHistorique(v=>!v); setShowDefi(false); }}
-            style={{ flex:1, minWidth:130, background:showHistorique?"#1e3a5f":"#1a1a1a", border:`1px solid ${showHistorique?CJ.blue:CJ.border}`, color:showHistorique?CJ.blue:CJ.text, borderRadius:10, padding:"12px 0", cursor:"pointer", fontWeight:700, fontSize:14, transition:"all .15s" }}>
+          <button onPointerDown={()=>setShowHistorique(v=>!v)}
+            style={{ flex:1, background:showHistorique?"#1e3a5f":"#1a1a1a", border:`1px solid ${showHistorique?CJ.blue:CJ.border}`, color:showHistorique?CJ.blue:CJ.text, borderRadius:10, padding:"12px 0", cursor:"pointer", fontWeight:700, fontSize:14, touchAction:"manipulation", WebkitTapHighlightColor:"transparent" }}>
             📋 Historique{duels.length>0?` (${duels.length})`:""}
           </button>
         </div>
       )}
       {(!moi || moi.id===j.id) && (
-        <button onClick={()=>setShowHistorique(v=>!v)}
-          style={{ width:"100%", background:showHistorique?"#1e3a5f":"#1a1a1a", border:`1px solid ${showHistorique?CJ.blue:CJ.border}`, color:showHistorique?CJ.blue:CJ.text, borderRadius:10, padding:"12px 0", cursor:"pointer", fontWeight:700, fontSize:14, marginBottom:12, transition:"all .15s" }}>
+        <button onPointerDown={()=>setShowHistorique(v=>!v)}
+          style={{ width:"100%", background:showHistorique?"#1e3a5f":"#1a1a1a", border:`1px solid ${showHistorique?CJ.blue:CJ.border}`, color:showHistorique?CJ.blue:CJ.text, borderRadius:10, padding:"12px 0", cursor:"pointer", fontWeight:700, fontSize:14, marginBottom:12, touchAction:"manipulation" }}>
           📋 Historique{duels.length>0?` (${duels.length})`:""}
         </button>
       )}
