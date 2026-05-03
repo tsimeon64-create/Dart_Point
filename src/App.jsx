@@ -2159,37 +2159,33 @@ export default function App() {
   const [barsActifs,setBarsActifs]=useState([]);
   const [installPrompt,setInstallPrompt]=useState(null);
   const [isInstalled,setIsInstalled]=useState(false);
-  const [swWaiting,setSwWaiting]=useState(null); // SW en attente de mise à jour
+  const [updateDisponible,setUpdateDisponible]=useState(false);
 
-  // PWA update detection
+  // Vérification de version — détecte les nouveaux déploiements
   useEffect(()=>{
-    if (!("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.getRegistration().then(reg => {
-      if (!reg) return;
-      // Déjà un SW en attente au chargement
-      if (reg.waiting) { setSwWaiting(reg.waiting); }
-      // Nouveau SW qui s'installe
-      reg.addEventListener("updatefound", () => {
-        const newSW = reg.installing;
-        if (!newSW) return;
-        newSW.addEventListener("statechange", () => {
-          if (newSW.state === "installed" && navigator.serviceWorker.controller) {
-            setSwWaiting(newSW);
-          }
-        });
-      });
-    });
-    // Recharger quand le nouveau SW prend le contrôle
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (!refreshing) { refreshing = true; window.location.reload(); }
-    });
+    const VERSION_KEY = "dp_version";
+    const check = async () => {
+      try {
+        const res = await fetch("/version.txt?t=" + Date.now(), { cache:"no-store" });
+        if (!res.ok) return;
+        const remote = (await res.text()).trim();
+        const local = localStorage.getItem(VERSION_KEY);
+        if (!local) { localStorage.setItem(VERSION_KEY, remote); return; }
+        if (remote !== local) setUpdateDisponible(true);
+      } catch {}
+    };
+    check();
+    // Revérifier toutes les 2 minutes
+    const interval = setInterval(check, 2 * 60 * 1000);
+    return () => clearInterval(interval);
   },[]);
 
   const appliquerMiseAJour = () => {
-    if (!swWaiting) return;
-    swWaiting.postMessage("SKIP_WAITING");
-    setSwWaiting(null);
+    const VERSION_KEY = "dp_version";
+    fetch("/version.txt?t=" + Date.now(), { cache:"no-store" })
+      .then(r => r.text()).then(v => { localStorage.setItem(VERSION_KEY, v.trim()); })
+      .catch(()=>{})
+      .finally(()=>{ window.location.reload(); });
   };
 
   // PWA install detection
@@ -2362,7 +2358,7 @@ export default function App() {
         </div>
       )}
       {/* ── BANDEAU MISE À JOUR ── */}
-      {swWaiting && (
+      {updateDisponible && (
         <div style={{ position:"fixed",bottom:0,left:0,right:0,zIndex:9999,background:"linear-gradient(135deg,#1a0800,#111)",borderTop:"2px solid #f97316",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,boxShadow:"0 -4px 24px #0008" }}>
           <div style={{ display:"flex",alignItems:"center",gap:10 }}>
             <span style={{ fontSize:24 }}>🆕</span>
