@@ -1,8 +1,8 @@
-// Service Worker DartPoint — minimal pour activer l'installation PWA
-const CACHE = "dartpoint-v1";
+// Service Worker DartPoint
+const CACHE = "dartpoint-v2";
 
-self.addEventListener("install", e => {
-  self.skipWaiting();
+self.addEventListener("install", () => {
+  // Ne pas skipWaiting automatiquement — attendre l'action utilisateur
 });
 
 self.addEventListener("activate", e => {
@@ -10,6 +10,12 @@ self.addEventListener("activate", e => {
 });
 
 self.addEventListener("fetch", e => {
-  // Laisser passer toutes les requêtes réseau normalement
   e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+});
+
+// Écoute le message "SKIP_WAITING" envoyé depuis l'app
+self.addEventListener("message", e => {
+  if (e.data === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });

@@ -2159,6 +2159,38 @@ export default function App() {
   const [barsActifs,setBarsActifs]=useState([]);
   const [installPrompt,setInstallPrompt]=useState(null);
   const [isInstalled,setIsInstalled]=useState(false);
+  const [swWaiting,setSwWaiting]=useState(null); // SW en attente de mise à jour
+
+  // PWA update detection
+  useEffect(()=>{
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.getRegistration().then(reg => {
+      if (!reg) return;
+      // Déjà un SW en attente au chargement
+      if (reg.waiting) { setSwWaiting(reg.waiting); }
+      // Nouveau SW qui s'installe
+      reg.addEventListener("updatefound", () => {
+        const newSW = reg.installing;
+        if (!newSW) return;
+        newSW.addEventListener("statechange", () => {
+          if (newSW.state === "installed" && navigator.serviceWorker.controller) {
+            setSwWaiting(newSW);
+          }
+        });
+      });
+    });
+    // Recharger quand le nouveau SW prend le contrôle
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!refreshing) { refreshing = true; window.location.reload(); }
+    });
+  },[]);
+
+  const appliquerMiseAJour = () => {
+    if (!swWaiting) return;
+    swWaiting.postMessage("SKIP_WAITING");
+    setSwWaiting(null);
+  };
 
   // PWA install detection
   useEffect(()=>{
@@ -2327,6 +2359,21 @@ export default function App() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {/* ── BANDEAU MISE À JOUR ── */}
+      {swWaiting && (
+        <div style={{ position:"fixed",bottom:0,left:0,right:0,zIndex:9999,background:"linear-gradient(135deg,#1a0800,#111)",borderTop:"2px solid #f97316",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,boxShadow:"0 -4px 24px #0008" }}>
+          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+            <span style={{ fontSize:24 }}>🆕</span>
+            <div>
+              <div style={{ fontWeight:800,fontSize:14,color:"#f1f5f9" }}>Mise à jour disponible</div>
+              <div style={{ fontSize:12,color:"#94a3b8" }}>Une nouvelle version de Dart Point est prête.</div>
+            </div>
+          </div>
+          <button onPointerDown={appliquerMiseAJour} style={{ background:"linear-gradient(135deg,#f97316,#ea580c)",border:"none",color:"#fff",fontWeight:800,fontSize:14,padding:"10px 20px",borderRadius:12,cursor:"pointer",whiteSpace:"nowrap",touchAction:"manipulation",flexShrink:0 }}>
+            ↻ Mettre à jour
+          </button>
         </div>
       )}
       <Nav page={page} setPage={navSafe} isAdmin={isAdmin} joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} unreadMessages={unreadMessages} onBack={goBack} canGoBack={history.length>1}/>
