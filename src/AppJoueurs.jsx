@@ -351,28 +351,31 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     <div style={{ maxWidth:700, margin:"0 auto", padding:"16px 12px 24px" }}>
 
       {/* ── CARTE PROFIL ── */}
-      <div style={{ position:"relative", marginBottom:14, borderRadius:16, overflow:"hidden" }}>
-        <img src="/profil.png" alt="" style={{ width:"100%", display:"block", borderRadius:16 }}/>
+      <div style={{ display:"flex",alignItems:"center",gap:16,background:`linear-gradient(135deg,#1a0800,#1a1a2e)`,border:`1px solid ${color}55`,borderRadius:16,padding:"14px 18px",marginBottom:14 }}>
 
-        {/* Cercle photo + crayon */}
-        <div style={{ position:"absolute",left:"22%",top:"47%",transform:"translate(-50%,-50%)",width:"27%",aspectRatio:"1",borderRadius:"50%",overflow:"hidden",border:"2px solid #f97316" }}>
-          {joueur.photo
-            ? <img src={joueur.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
-            : <div style={{ width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"clamp(18px,6vw,38px)",background:"#1a1a1a" }}>{emoji}</div>
-          }
-        </div>
-        <div onClick={()=>photoRef.current?.click()} style={{ position:"absolute",left:"33%",top:"78%",transform:"translate(-50%,-50%)",background:CJ.accent,borderRadius:"50%",width:"7%",aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:"clamp(10px,2.5vw,16px)",border:"2px solid #0f0f0f",zIndex:2 }}>📷</div>
-        <input ref={photoRef} type="file" accept="image/*" style={{ display:"none" }} onChange={uploadPhoto}/>
-
-        {/* Pseudo + titre */}
-        <div style={{ position:"absolute",left:"42%",top:"50%",transform:"translateY(-50%)" }}>
-          <div style={{ fontWeight:900,fontSize:"clamp(14px,3.8vw,22px)",color:"#fff",textShadow:"0 2px 6px #000",lineHeight:1.2 }}>{joueur.pseudo}</div>
-          <div style={{ color:"#f97316",fontWeight:700,fontSize:"clamp(10px,2.5vw,14px)",marginTop:2 }}>{titre}</div>
+        {/* Photo + crayon */}
+        <div style={{ position:"relative",flexShrink:0 }}>
+          <div onClick={()=>photoRef.current?.click()} style={{ width:72,height:72,borderRadius:"50%",border:`3px solid ${color}`,overflow:"hidden",cursor:"pointer",background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30 }}>
+            {joueur.photo
+              ? <img src={joueur.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
+              : <span>{emoji}</span>
+            }
+          </div>
+          <div onClick={()=>photoRef.current?.click()} style={{ position:"absolute",bottom:0,right:0,background:CJ.accent,borderRadius:"50%",width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:12,border:`2px solid #1a0800` }}>📷</div>
+          <input ref={photoRef} type="file" accept="image/*" style={{ display:"none" }} onChange={uploadPhoto}/>
         </div>
 
-        {/* DRIX score */}
-        <div style={{ position:"absolute",left:"83%",top:"36%",transform:"translate(-50%,-50%)",textAlign:"center" }}>
-          <div style={{ fontWeight:900,fontSize:"clamp(15px,4vw,26px)",color:"#f97316",textShadow:"0 2px 8px #000",lineHeight:1 }}>{joueur.drix||1000}</div>
+        {/* Infos */}
+        <div style={{ flex:1,minWidth:0 }}>
+          <div style={{ fontWeight:900,fontSize:"clamp(16px,4.5vw,22px)",color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{joueur.pseudo}</div>
+          <div style={{ color,fontWeight:700,fontSize:"clamp(11px,3vw,14px)",marginTop:2 }}>{emoji} {titre}</div>
+          {stats && <div style={{ color:CJ.muted,fontSize:11,marginTop:3 }}>{stats.victoires}V · {stats.defaites}D · {stats.parties>0?Math.round(stats.victoires/stats.parties*100):0}% winrate</div>}
+        </div>
+
+        {/* DRIX */}
+        <div style={{ textAlign:"center",flexShrink:0,background:color+"18",border:`1px solid ${color}44`,borderRadius:12,padding:"10px 16px" }}>
+          <div style={{ fontWeight:900,fontSize:"clamp(18px,5vw,26px)",color,lineHeight:1 }}>{joueur.drix||1000}</div>
+          <div style={{ fontSize:10,color,fontWeight:700,marginTop:3,letterSpacing:1 }}>DRIX</div>
         </div>
       </div>
 

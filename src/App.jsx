@@ -650,26 +650,29 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, associati
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
       {/* ── Carte profil ── */}
-      <div onClick={()=>setPage("mon-profil")} style={{ position:"relative",marginBottom:12,cursor:"pointer",borderRadius:16,overflow:"hidden",userSelect:"none",touchAction:"manipulation" }}>
-        <img src="/profil.png" alt="" style={{ width:"100%",display:"block",borderRadius:16 }}/>
+      <div onClick={()=>setPage("mon-profil")} style={{ display:"flex",alignItems:"center",gap:16,background:"linear-gradient(135deg,#1a1a1a,#111)",border:`1px solid ${color}55`,borderRadius:16,padding:"14px 18px",marginBottom:12,cursor:"pointer",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s" }}
+        onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 28px #0008";}}
+        onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
 
-        {/* Cercle photo */}
-        <div style={{ position:"absolute",left:"22%",top:"47%",transform:"translate(-50%,-50%)",width:"27%",aspectRatio:"1",borderRadius:"50%",overflow:"hidden" }}>
+        {/* Photo */}
+        <div style={{ width:68,height:68,borderRadius:"50%",border:`3px solid ${color}`,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:color+"22",fontSize:28 }}>
           {j.photo
             ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
-            : <div style={{ width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"clamp(18px,5vw,32px)" }}>{emoji}</div>
+            : emoji
           }
         </div>
 
-        {/* Nom + niveau */}
-        <div style={{ position:"absolute",left:"42%",top:"50%",transform:"translateY(-50%)" }}>
-          <div style={{ fontWeight:900,fontSize:"clamp(15px,4vw,24px)",color:"#fff",textShadow:"0 2px 10px #000",whiteSpace:"nowrap" }}>{j.pseudo}</div>
-          <div style={{ color:"#f97316",fontWeight:700,fontSize:"clamp(10px,2.8vw,15px)",marginTop:3,textShadow:"0 1px 4px #000" }}>{titre}</div>
+        {/* Infos */}
+        <div style={{ flex:1,minWidth:0 }}>
+          <div style={{ fontWeight:900,fontSize:"clamp(16px,4.5vw,22px)",color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{j.pseudo}</div>
+          <div style={{ color,fontWeight:700,fontSize:"clamp(11px,3vw,14px)",marginTop:2 }}>{emoji} {titre}</div>
+          {stats && <div style={{ color:"#94a3b8",fontSize:11,marginTop:3 }}>{stats.victoires}V · {stats.defaites}D · {stats.parties > 0 ? Math.round(stats.victoires/stats.parties*100) : 0}% winrate</div>}
         </div>
 
-        {/* DRIX — dans le carré doré */}
-        <div style={{ position:"absolute",left:"83%",top:"36%",transform:"translate(-50%,-50%)",textAlign:"center" }}>
-          <div style={{ fontWeight:900,fontSize:"clamp(15px,4vw,24px)",color:"#f97316",textShadow:"0 2px 8px #000",lineHeight:1 }}>{j.drix||1000}</div>
+        {/* DRIX */}
+        <div style={{ textAlign:"center",flexShrink:0,background:color+"18",border:`1px solid ${color}44`,borderRadius:12,padding:"10px 16px" }}>
+          <div style={{ fontWeight:900,fontSize:"clamp(18px,5vw,26px)",color,lineHeight:1 }}>{j.drix||1000}</div>
+          <div style={{ fontSize:10,color,fontWeight:700,marginTop:3,letterSpacing:1 }}>DRIX</div>
         </div>
       </div>
 
