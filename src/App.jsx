@@ -1463,7 +1463,7 @@ const Home = ({ joueur, setJoueur, defisCount, bars, associations, tournois, set
       {/* Hero */}
       <div style={{ background:"linear-gradient(135deg,#111 0%,#1a0800 100%)",padding:"56px 20px 44px",textAlign:"center" }}>
         <div style={{ maxWidth:680,margin:"0 auto" }}>
-        <img src="/logo.png" alt="DartPoint" style={{ width:"clamp(180px,40vw,320px)",marginBottom:16,filter:"drop-shadow(0 4px 24px rgba(249,115,22,0.3))" }}/>
+        <img src="/logo dart point/logo 2 accueil.png" alt="DartPoint" style={{ width:"clamp(140px,35vw,260px)",marginBottom:16,filter:"drop-shadow(0 4px 24px rgba(249,115,22,0.4))",borderRadius:24 }}/>
 <h1 style={{ fontSize:"clamp(22px,5vw,42px)",fontWeight:800,marginBottom:10 }}>Trouvez où jouer aux <span style={{ color:C.accent }}>fléchettes</span> près de chez vous</h1>
           <p style={{ color:C.muted,fontSize:15,marginBottom:28,lineHeight:1.7 }}>Bars équipés, associations, tournois — tout le réseau fléchettes.</p>
           <div ref={searchRef} style={{ position:"relative",maxWidth:460,margin:"0 auto" }}>
