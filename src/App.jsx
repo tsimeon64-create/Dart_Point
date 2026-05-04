@@ -2536,7 +2536,7 @@ export default function App() {
         {page==="joueurs"          && <PageJoueurs joueur={joueur} setPage={nav} setJoueurId={setJoueurId}/>}
         {page==="drix"             && <PageDrix setPage={nav} setJoueurId={setJoueurId} bars={bars} associations={associations}/>}
         {page.startsWith("profil-joueur-") && <FicheJoueur joueurId={page.replace("profil-joueur-","")} joueur={joueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug}/>}
-        {page==="mon-profil"       && joueur && <MonProfil joueur={joueur} setJoueur={setJoueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug} setJoueurId={setJoueurId}/>}
+        {page==="mon-profil"       && joueur && <MonProfil joueur={joueur} setJoueur={setJoueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug} setJoueurId={setJoueurId} demandesAmisCount={demandesAmisCount}/>}
         {page==="profil-stats"     && joueur && <PageProfilStats joueur={joueur} setJoueur={setJoueur} bars={bars} associations={associations} setPage={nav}/>}
         {page==="profil-amis"      && joueur && <PageProfilAmis joueur={joueur} setPage={nav}/>}
         {page==="profil-badges"    && joueur && <PageProfilBadges setPage={nav}/>}

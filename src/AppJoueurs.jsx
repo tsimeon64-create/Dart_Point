@@ -214,7 +214,7 @@ export const Connexion = ({ onLogin, setPage }) => {
 };
 
 // ── MON PROFIL ────────────────────────────────────────────────────────────────
-export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setBarSlug }) => {
+export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setBarSlug, demandesAmisCount=0 }) => {
   const [stats, setStats] = useState(null);
   const [duels, setDuels] = useState([]);
   const [defis, setDefis] = useState([]);
@@ -490,14 +490,19 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       {/* ── BOUTONS IMAGE PROFIL ── */}
       <div style={{ display:"flex", gap:10, marginBottom:16 }}>
         {[
-          { src:"/profil/stat.png",  label:"Stats",  action:()=>setPage("profil-stats") },
-          { src:"/profil/amis.png",  label:"Amis",   action:()=>setPage("profil-amis") },
-          { src:"/profil/badge.png", label:"Badges", action:()=>setPage("profil-badges") },
-        ].map(({ src, label, action }) => (
-          <div key={label} onClick={action} style={{ flex:1,cursor:"pointer",borderRadius:12,overflow:"hidden",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s" }}
+          { src:"/profil/stat.png",  label:"Stats",  action:()=>setPage("profil-stats"), badge:0 },
+          { src:"/profil/amis.png",  label:"Amis",   action:()=>setPage("profil-amis"),  badge:demandesAmisCount },
+          { src:"/profil/badge.png", label:"Badges", action:()=>setPage("profil-badges"),badge:0 },
+        ].map(({ src, label, action, badge }) => (
+          <div key={label} onClick={action} style={{ flex:1,cursor:"pointer",borderRadius:12,overflow:"hidden",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s",position:"relative" }}
             onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 20px #0008";}}
             onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
             <img src={src} alt={label} style={{ width:"100%",display:"block",borderRadius:12 }}/>
+            {badge > 0 && (
+              <div style={{ position:"absolute",top:8,right:8,background:"#10b981",color:"#fff",borderRadius:"50%",minWidth:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,boxShadow:"0 2px 10px #00000099",border:"2px solid #0a0a0a",zIndex:2 }}>
+                {badge > 9 ? "9+" : badge}
+              </div>
+            )}
           </div>
         ))}
       </div>
