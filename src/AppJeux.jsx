@@ -2,35 +2,75 @@ import { useState, useEffect } from "react";
 import { finaliserDuel } from "./AppJoueurs";
 
 // ── AppJeux.jsx ───────────────────────────────────────────────────────────────
+// Table de checkout exacte — source : darts501.com
 const CHECKOUTS = {
-  170:"T20 T20 Bull", 167:"T20 T19 Bull", 164:"T20 T18 Bull", 161:"T20 T17 Bull",
-  160:"T20 T20 D20", 158:"T20 T20 D19", 156:"T20 T20 D18", 155:"T20 T19 D19",
-  154:"T20 T18 D20", 153:"T20 T19 D18", 152:"T20 T20 D16", 151:"T20 T17 D20",
-  150:"T20 T18 D18", 149:"T20 T19 D16", 148:"T20 T16 D20", 147:"T20 T17 D18",
-  146:"T20 T18 D16", 145:"T20 T15 D20", 144:"T20 T20 D12", 143:"T20 T17 D16",
-  142:"T20 T14 D20", 141:"T20 T15 D18", 140:"T20 T16 D16", 139:"T20 T13 D20",
-  138:"T20 T14 D18", 137:"T20 T15 D16", 136:"T20 T20 D8",  135:"T20 T17 D12",
-  134:"T20 T14 D16", 133:"T20 T19 D8",  132:"T20 T16 D12", 131:"T20 T13 D16",
-  130:"T20 T18 D8",  129:"T19 T16 D12", 128:"T18 T14 D16", 127:"T20 T17 D8",
-  126:"T19 T15 D12", 125:"T20 T15 D10", 124:"T20 T16 D8",  123:"T19 T16 D9",
-  122:"T18 T16 D10", 121:"T20 T11 D14", 120:"T20 S20 D20", 119:"T19 T12 D13",
-  118:"T20 S18 D20", 117:"T20 S17 D20", 116:"T20 S16 D20", 115:"T20 S15 D20",
-  114:"T20 S14 D20", 113:"T20 S13 D20", 112:"T20 S12 D20", 111:"T20 S11 D20",
-  110:"T20 S10 D20", 109:"T20 S9 D20",  108:"T20 S8 D20",  107:"T19 S10 D20",
-  106:"T20 S6 D20",  105:"T20 S5 D20",  104:"T20 S4 D20",  103:"T20 S3 D20",
-  102:"T20 S2 D20",  101:"T20 S1 D20",  100:"T20 D20",     99:"T19 S10 D16",
-  98:"T20 D19",  97:"T19 D20",  96:"T20 D18",  95:"T19 D19", 94:"T18 D20",
-  93:"T19 D18",  92:"T20 D16",  91:"T17 D20",  90:"T18 D18", 89:"T19 D16",
-  88:"T20 D14",  87:"T17 D18",  86:"T18 D16",  85:"T15 D20", 84:"T20 D12",
-  83:"T17 D16",  82:"T14 D20",  81:"T19 D12",  80:"T20 D10", 79:"T13 D20",
-  78:"T18 D12",  77:"T19 D10",  76:"T20 D8",   75:"T17 D12", 74:"T14 D16",
-  73:"T19 D8",   72:"T16 D12",  71:"T13 D16",  70:"T18 D8",  69:"T19 D6",
-  68:"T20 D4",   67:"T17 D8",   66:"T10 D18",  65:"T19 D4",  64:"T16 D8",
-  63:"T17 D6",   62:"T10 D16",  61:"T15 D8",   60:"S20 D20", 59:"S19 D20",
-  58:"S18 D20",  57:"S17 D20",  56:"S16 D20",  55:"S15 D20", 54:"S14 D20",
-  53:"S13 D20",  52:"S12 D20",  51:"S11 D20",  50:"Bull",
-  49:"S9 D20",   48:"S8 D20",   47:"S7 D20",   46:"S6 D20",  45:"S5 D20",
-  44:"S4 D20",   43:"S3 D20",   42:"S2 D20",   41:"S1 D20",  40:"D20",
+  // ── 3 fléchettes ──────────────────────────────────────────────────────────
+  170:"T20 T20 Bull",                                          // 60+60+50
+  167:"T20 T19 Bull", 164:"T20 T18 Bull", 161:"T20 T17 Bull", // Bull finishes
+  160:"T20 T20 D20",                                          // 60+60+40
+  158:"T20 T20 D19", 157:"T20 T19 D20",                       // 60+60+38 | 60+57+40
+  156:"T20 T20 D18", 155:"T20 T19 D19", 154:"T20 T18 D20",
+  153:"T20 T19 D18", 152:"T20 T20 D16", 151:"T20 T17 D20",
+  150:"T20 T18 D18", 149:"T20 T19 D16", 148:"T20 T16 D20",
+  147:"T20 T17 D18", 146:"T20 T18 D16", 145:"T20 T15 D20",
+  144:"T20 T20 D12", 143:"T20 T17 D16", 142:"T20 T14 D20",
+  141:"T20 T19 D12",                                          // 60+57+24
+  140:"T20 T16 D16", 139:"T19 T14 D20",                       // 57+42+40
+  138:"T20 T18 D12",                                          // 60+54+24
+  137:"T19 T16 D16",                                          // 57+48+32
+  136:"T20 T20 D8",  135:"T20 T17 D12", 134:"T20 T14 D16",
+  133:"T20 T19 D8",  132:"T20 T16 D12", 131:"T20 T13 D16",
+  130:"T20 20 Bull",                                          // 60+20+50
+  129:"T19 T16 D12", 128:"T18 T14 D16",                       // 57+48+24 | 54+42+32
+  127:"T20 T17 D8",                                           // 60+51+16
+  126:"T19 T19 D6",                                           // 57+57+12
+  125:"25 T20 D20",                                           // 25+60+40 (Bull simple)
+  124:"T20 T16 D8",  123:"T19 T16 D9",                        // 60+48+16 | 57+48+18
+  122:"T18 T20 D4",                                           // 54+60+8
+  121:"T17 T10 D20",                                          // 51+30+40
+  120:"T20 20 D20",                                           // 60+20+40
+  119:"T19 T10 D16",                                          // 57+30+32
+  118:"T20 18 D20",  117:"T20 17 D20",  116:"T20 16 D20",
+  115:"T20 15 D20",  114:"T20 14 D20",  113:"T20 13 D20",
+  112:"T20 12 D20",
+  111:"T20 19 D16",                                           // 60+19+32
+  110:"T20 18 D16",                                           // 60+18+32
+  109:"T19 20 D16",                                           // 57+20+32
+  108:"T20 16 D16",                                           // 60+16+32
+  107:"T19 18 D16",                                           // 57+18+32
+  106:"T20 14 D16",                                           // 60+14+32
+  105:"T19 16 D16",                                           // 57+16+32
+  104:"T18 18 D16",                                           // 54+18+32
+  103:"T20 3 D20",                                            // 60+3+40
+  102:"T20 10 D16",                                           // 60+10+32
+  101:"T20 1 D20",                                            // 60+1+40
+  99:"T19 10 D16",                                            // 57+10+32
+  // ── 2 fléchettes ──────────────────────────────────────────────────────────
+  100:"T20 D20",
+  98:"T20 D19",  97:"T19 D20",  96:"T20 D18",  95:"T19 D19",
+  94:"T18 D20",  93:"T19 D18",  92:"T20 D16",  91:"T17 D20",
+  90:"T20 D15",                                               // 60+30
+  89:"T19 D16",
+  88:"T16 D20",                                               // 48+40
+  87:"T17 D18",  86:"T18 D16",  85:"T15 D20",  84:"T20 D12",
+  83:"T17 D16",  82:"T14 D20",  81:"T19 D12",  80:"T20 D10",
+  79:"T13 D20",  78:"T18 D12",  77:"T19 D10",  76:"T20 D8",
+  75:"T17 D12",  74:"T14 D16",  73:"T19 D8",   72:"T16 D12",
+  71:"T13 D16",
+  70:"T10 D20",                                               // 30+40
+  69:"T15 D12",                                               // 45+24
+  68:"T20 D4",   67:"T17 D8",   66:"T10 D18",  65:"T19 D4",
+  64:"T16 D8",
+  63:"T13 D12",                                               // 39+24
+  62:"T10 D16",  61:"T15 D8",
+  60:"20 D20",                                                // 20+40
+  // ── 1–2 fléchettes (simple + double) ─────────────────────────────────────
+  59:"19 D20",  58:"18 D20",  57:"17 D20",  56:"16 D20",
+  55:"15 D20",  54:"14 D20",  53:"13 D20",  52:"12 D20",
+  51:"11 D20",  50:"Bull",
+  49:"9 D20",   48:"8 D20",   47:"7 D20",   46:"6 D20",
+  45:"5 D20",   44:"4 D20",   43:"3 D20",   42:"2 D20",
+  41:"1 D20",   40:"D20",
   38:"D19", 36:"D18", 34:"D17", 32:"D16", 30:"D15", 28:"D14",
   26:"D13", 24:"D12", 22:"D11", 20:"D10", 18:"D9",  16:"D8",
   14:"D7",  12:"D6",  10:"D5",   8:"D4",   6:"D3",   4:"D2",  2:"D1",
@@ -39,7 +79,7 @@ const CHECKOUTS = {
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 
-export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onResultat = null }) => {
+export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, setPage = null, onResultat = null }) => {
   const modeDuel = !!duel;
 
   const [etape, setEtape] = useState(modeDuel ? "bulle" : "config");
@@ -147,12 +187,32 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
     const lFlech = l.flechettes - (start.flechettes?.[1-winnerIdx] ?? start.vol[1-winnerIdx]*3);
     const wPts = w.totalPoints - start.pts[winnerIdx];
     const lPts = l.totalPoints - start.pts[1-winnerIdx];
+
+    // Volées de cette manche uniquement (slice depuis le début de manche)
+    const wTours = w.tours.slice(start.nbtours[winnerIdx]);
+    const lTours = l.tours.slice(start.nbtours[1-winnerIdx]);
+    const cnt = (arr, min, max=Infinity) => arr.filter(v=>v>=min&&v<=max).length;
+
     return {
       winner: w.nom, loser: l.nom,
       winner_volees: Math.round(wFlech/3), loser_volees: Math.round(lFlech/3),
       winner_moy: wFlech > 0 ? Math.round((wPts/wFlech)*3) : 0,
       loser_moy: lFlech > 0 ? Math.round((lPts/lFlech)*3) : 0,
       reste_loser: l.score,
+      // Scoring stats par manche
+      winner_180:    cnt(wTours, 180),
+      winner_140plus: cnt(wTours, 140, 179),
+      winner_100plus: cnt(wTours, 100, 139),
+      winner_80plus:  cnt(wTours, 80, 99),
+      winner_60plus:  cnt(wTours, 60, 79),
+      winner_max:     wTours.length > 0 ? Math.max(...wTours) : 0,
+      winner_finish:  wTours.length > 0 ? wTours[wTours.length-1] : 0,
+      loser_180:     cnt(lTours, 180),
+      loser_140plus:  cnt(lTours, 140, 179),
+      loser_100plus:  cnt(lTours, 100, 139),
+      loser_80plus:   cnt(lTours, 80, 99),
+      loser_60plus:   cnt(lTours, 60, 79),
+      loser_max:      lTours.length > 0 ? Math.max(...lTours) : 0,
     };
   };
 
@@ -297,12 +357,20 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
     setJoueurs(updated); setActifIdx(1 - actifIdx);
   };
 
-  // Moyenne 3-fléchettes basée sur le nombre RÉEL de fléchettes lancées
+  // Moyenne globale (pour écran fin)
   const moyenneCalc = (j) => {
     if (!j || j.flechettes === 0) return "0.00";
     return ((j.totalPoints / j.flechettes) * 3).toFixed(2);
   };
   const moyenne = moyenneCalc;
+
+  // Moyenne par manche en cours (repart à 0 à chaque nouvelle manche)
+  const moyenneManche = (j, idx) => {
+    const flech = j.flechettes - (mancheStart.flechettes?.[idx] ?? 0);
+    const pts   = j.totalPoints - mancheStart.pts[idx];
+    if (flech === 0) return "—";
+    return ((pts / flech) * 3).toFixed(1);
+  };
   const checkout = joueurs ? CHECKOUTS[joueurs[actifIdx]?.score] : null;
 
   // ── MODAL QUITTER ─────────────────────────────────────────────────────────
@@ -428,12 +496,32 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
           <div><div style={{ fontSize:22, fontWeight:900, color:"#22c55e" }}>{gagnant?.tours.length}</div><div style={{ fontSize:12, color:"#86efac" }}>Tours</div></div>
         </div>
       </div>
-      {modeDuel && (
-        <div style={{ background:"#14532d33", border:"2px solid #22c55e55", borderRadius:14, padding:20, marginBottom:16 }}>
-          <p style={{ fontWeight:700, fontSize:15, color:"#22c55e", marginBottom:6 }}>✅ Résultat enregistré !</p>
-          <p style={{ color:"#94a3b8", fontSize:13 }}>DRIX mis à jour automatiquement. L'adversaire peut contester dans les 24h s'il n'était pas présent.</p>
-        </div>
-      )}
+      {modeDuel && (() => {
+        const gagnantIsChallenger = gagnant?.nom === duel?.challenger_pseudo;
+        const perdantNom   = gagnantIsChallenger ? duel?.defie_pseudo       : duel?.challenger_pseudo;
+        const dxGagnant    = drixData ? (gagnantIsChallenger ? drixData.challenger : drixData.defie)    : null;
+        const dxPerdant    = drixData ? (gagnantIsChallenger ? drixData.defie      : drixData.challenger) : null;
+        return (
+          <div style={{ background:"#0f1a0f", border:"2px solid #22c55e44", borderRadius:14, padding:20, marginBottom:16 }}>
+            <p style={{ fontWeight:700, fontSize:15, color:"#22c55e", marginBottom:12, textAlign:"center" }}>✅ Résultat enregistré !</p>
+            {drixData && (
+              <div style={{ display:"flex", gap:10, marginBottom:12 }}>
+                <div style={{ flex:1, background:"#14532d", borderRadius:12, padding:"12px 10px", textAlign:"center" }}>
+                  <div style={{ fontSize:11, color:"#86efac", marginBottom:4 }}>🏆 {gagnant?.nom}</div>
+                  <div style={{ fontWeight:900, fontSize:22, color:"#22c55e" }}>+{dxGagnant?.gain}</div>
+                  <div style={{ fontSize:10, color:"#86efac" }}>DRIX gagnés</div>
+                </div>
+                <div style={{ flex:1, background:"#7f1d1d", borderRadius:12, padding:"12px 10px", textAlign:"center" }}>
+                  <div style={{ fontSize:11, color:"#fca5a5", marginBottom:4 }}>💔 {perdantNom}</div>
+                  <div style={{ fontWeight:900, fontSize:22, color:"#ef4444" }}>−{dxPerdant?.perte}</div>
+                  <div style={{ fontSize:10, color:"#fca5a5" }}>DRIX perdus</div>
+                </div>
+              </div>
+            )}
+            <p style={{ color:"#94a3b8", fontSize:12, textAlign:"center" }}>L'adversaire peut contester dans les 24h s'il n'était pas présent.</p>
+          </div>
+        );
+      })()}
       <div style={{ display:"flex", gap:10 }}>
         {!modeDuel && <button onClick={demarrer} style={{ flex:1,padding:"16px",borderRadius:12,border:"none",fontWeight:800,fontSize:16,cursor:"pointer",background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff" }}>🔄 Rejouer</button>}
         <button onClick={quitterPartie} style={{ flex:1,padding:"16px",borderRadius:12,border:"1px solid #2a2a2a",fontWeight:800,fontSize:16,cursor:"pointer",background:"#1a1a1a",color:"#94a3b8" }}>
@@ -540,11 +628,21 @@ export const Scoreur = ({ duel = null, onDuelTermine = null, setPage = null, onR
                   <div key={mi} style={{ width:14, height:14, borderRadius:3, background: mi < j.manchesGagnees ? (isActif?"#fff":"#f97316") : (isActif?"#ffffff33":"#2a2a2a") }}/>
                 ))}
               </div>
-              <div style={{ fontSize:11, color: isActif ? "#fff9" : "#94a3b855", display:"flex", gap:10 }}>
-                <span>Moy. <strong style={{ color: isActif?"#fff":"#94a3b8" }}>{moyenne(j)}</strong></span>
+              <div style={{ fontSize:11, color: isActif ? "#fff9" : "#94a3b855", display:"flex", gap:8, flexWrap:"wrap" }}>
+                <span>Moy. <strong style={{ color: isActif?"#fff":"#94a3b8" }}>{moyenneManche(j, realIdx)}</strong></span>
                 <span>Préc. <strong style={{ color: isActif?"#fff":"#94a3b8" }}>{j.scorePrecedent ?? "—"}</strong></span>
                 <span>🎯 <strong style={{ color: isActif?"#fff":"#94a3b8" }}>{j.flechettes}</strong></span>
               </div>
+              {modeDuel && drixData && (() => {
+                const d = realIdx === 0 ? drixData.challenger : drixData.defie;
+                return (
+                  <div style={{ fontSize:11, marginTop:4, display:"flex", gap:6 }}>
+                    <span style={{ background:"#14532d", color:"#22c55e", borderRadius:6, padding:"1px 6px", fontWeight:800 }}>+{d.gain}</span>
+                    <span style={{ background:"#7f1d1d", color:"#ef4444", borderRadius:6, padding:"1px 6px", fontWeight:800 }}>-{d.perte}</span>
+                    <span style={{ color: isActif?"#ffffff99":"#94a3b866", fontSize:10, alignSelf:"center" }}>DRIX</span>
+                  </div>
+                );
+              })()}
             </div>
           );
         })}

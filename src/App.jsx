@@ -11,6 +11,7 @@ import {
 import { Scoreur } from "./AppJeux";
 import { JeuCapital } from "./AppJeuDecalePoint";
 import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper } from "./AppTournoiPotes";
+import { EntrainementFinish } from "./AppEntrainementFinish";
 import { MessagesPage, dbM } from "./AppMessages";
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -848,13 +849,14 @@ const PageDefi = ({ joueur, setPage }) => {
             const { emoji:amiEmoji, color:amiColor } = getDrixTitre(profil?.drix||1000);
             const isSelected = selected?.joueur_id===a.joueur_id&&selected?.ami_id===a.ami_id;
 
-            // Calcul DRIX estimé (K varie selon le nombre de manches choisi)
+            // Calcul DRIX estimé — K = 32 × manches, formule asymétrique
             const myDrix = joueur.drix || 1000;
             const hisDrix = profil?.drix || 1000;
-            const expectedMe = 1 / (1 + Math.pow(10, (hisDrix - myDrix) / 400));
-            const kPreview = 32 * Math.min(form.manches || 3, 3);
-            const gainVictoire = Math.round(kPreview * (1 - expectedMe));
-            const perteDefaite = Math.round(kPreview * expectedMe);
+            const K  = 32 * Math.max(1, form.manches || 1);
+            const EA = 1 / (1 + Math.pow(10, (hisDrix - myDrix) / 400)); // P(moi gagne)
+            const EB = 1 - EA;                                             // P(lui gagne)
+            const gainVictoire = Math.round(K * EB); // victoire : +K × P(lui gagnait)
+            const perteDefaite = Math.round(K * EA); // défaite  : −K × P(moi gagnais)
 
             return (
               <div key={amiId}>
@@ -1087,14 +1089,30 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
 
       const inList = amiIds.join(",");
 
-      // 2. Charger toutes les données en parallèle (+ photos des joueurs)
-      const [posts, duels, drixMvts, presences, joueursData] = await Promise.all([
+      // 2. Charger posts, duels, presences, photos en parallèle
+      const [posts, duels, presences, joueursData] = await Promise.all([
         sb(`wall_posts?joueur_id=in.(${inList})&order=date.desc&limit=30&select=*`).catch(()=>[]),
         sb(`duels?or=(challenger_id.in.(${inList}),defie_id.in.(${inList}))&statut=eq.termine&order=date.desc&limit=40&select=*`).catch(()=>[]),
-        sb(`drix_mouvements?joueur_id=in.(${inList})&order=date.desc&limit=40&select=*`).catch(()=>[]),
         sb(`presences?joueur_id=in.(${inList})&order=heure.desc&limit=20&select=*`).catch(()=>[]),
         sb(`joueurs?id=in.(${inList})&select=id,photo`).catch(()=>[]),
       ]);
+
+      // 3. Charger drix_mouvements pour les amis (paliers) ET pour tous les participants des duels
+      const duelIds = (duels||[]).filter(d=>d?.id).map(d=>d.id);
+      const [friendDrixMvts, duelDrixMvts] = await Promise.all([
+        sb(`drix_mouvements?joueur_id=in.(${inList})&order=date.desc&limit=60&select=*`).catch(()=>[]),
+        duelIds.length > 0
+          ? sb(`drix_mouvements?duel_id=in.(${duelIds.join(",")})&select=*`).catch(()=>[])
+          : Promise.resolve([]),
+      ]);
+      // Fusionner et dédoublonner par id
+      const seenMvt = new Set();
+      const drixMvts = [...(friendDrixMvts||[]), ...(duelDrixMvts||[])].filter(m => {
+        const key = m?.joueur_id + "_" + m?.duel_id + "_" + m?.date;
+        if (!m || seenMvt.has(key)) return false;
+        seenMvt.add(key);
+        return true;
+      });
 
       // Construire la map id → photo
       const pMap = {};
@@ -1108,19 +1126,33 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         if (p?.date) items.push({ type:"post", date:p.date, data:p });
       });
 
+      // Map duel_id → { joueur_id: variation } pour afficher DRIX dans les matchs
+      const mvtMap = {};
+      (drixMvts||[]).forEach(m => {
+        if (!m?.duel_id) return;
+        if (!mvtMap[m.duel_id]) mvtMap[m.duel_id] = {};
+        mvtMap[m.duel_id][m.joueur_id] = m.variation;
+      });
+
       // Matchs terminés (dédoublonnés)
       const seenDuels = new Set();
       (duels||[]).forEach(d => {
         if (!d?.id || seenDuels.has(d.id)) return;
         seenDuels.add(d.id);
         const ts = typeof d.date === "number" ? d.date : new Date(d.date).getTime();
-        items.push({ type:"match", date:ts, data:d });
+        items.push({ type:"match", date:ts, data:d, drixMvts: mvtMap[d.id] || {} });
       });
 
       // Mouvements DRIX — seulement les passages de palier
       const PALIERS = [800,900,1000,1100,1200,1300,1500,1800,2000,2500,3000];
       (drixMvts||[]).forEach(m => {
         if (!m?.date) return;
+        // Mouvements d'entraînement (Comptage de finish)
+        if (m.adversaire_pseudo === "Comptage de finish" && !m.duel_id) {
+          const ts = typeof m.date === "number" ? m.date : new Date(m.date).getTime();
+          items.push({ type:"training_drix", date:ts, data:m });
+          return;
+        }
         const avant = m.drix_avant || 1000;
         const apres = m.drix_apres || 1000;
         const franchisUp = PALIERS.filter(t => t > avant && t <= apres);
@@ -1230,6 +1262,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
 
   const renderMatch = (item) => {
     const d = item.data;
+    const drixMap = item.drixMvts || {};
     const cScore = d.score_manches_challenger ?? 0;
     const dScore = d.score_manches_defie ?? 0;
     const moyC = d.score_challenger ? Math.round(d.score_challenger) : null;
@@ -1246,7 +1279,9 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         {[
           { id:d.challenger_id, pseudo:d.challenger_pseudo, score:cScore, moy:moyC, win:cWin },
           { id:d.defie_id, pseudo:d.defie_pseudo, score:dScore, moy:moyD, win:dWin },
-        ].map((p,i) => (
+        ].map((p,i) => {
+          const variation = drixMap[p.id];
+          return (
           <div key={i} style={{ display:"flex",alignItems:"center",gap:10,marginBottom:i===0?8:0 }}>
             <FeedAvatar photo={photosMap[p.id]||null} pseudo={p.pseudo} size={36}/>
             <div style={{ flex:1 }}>
@@ -1255,10 +1290,45 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
               </div>
               {p.moy!==null && <div style={{ fontSize:11,color:C.muted }}>moy. {p.moy} pts/volée</div>}
             </div>
-            <div style={{ fontWeight:800,fontSize:22,color:p.win?"#10b981":draw?"#eab308":"#ef4444",minWidth:28,textAlign:"right" }}>{p.score}</div>
+            <div style={{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2 }}>
+              <div style={{ fontWeight:800,fontSize:22,color:p.win?"#10b981":draw?"#eab308":"#ef4444",minWidth:28,textAlign:"right" }}>{p.score}</div>
+              {variation !== undefined && (
+                <div style={{ fontWeight:800,fontSize:12,color:variation>0?"#22c55e":"#ef4444",background:variation>0?"#14532d":"#7f1d1d",borderRadius:6,padding:"1px 7px",whiteSpace:"nowrap" }}>
+                  {variation>0?"+":""}{variation} DRIX
+                </div>
+              )}
+            </div>
           </div>
-        ))}
+          );
+        })}
         <MancheDetail manches={d.manches_detail}/>
+        {/* ── Récap DRIX ── */}
+        {(drixMap[d.challenger_id] !== undefined || drixMap[d.defie_id] !== undefined) && (() => {
+          const vC = drixMap[d.challenger_id];
+          const vD = drixMap[d.defie_id];
+          const gagnantId = d.gagnant_id;
+          const [gagnantPseudo, perdantPseudo, vGain, vPerte] =
+            gagnantId === d.challenger_id
+              ? [d.challenger_pseudo, d.defie_pseudo, vC, vD]
+              : [d.defie_pseudo, d.challenger_pseudo, vD, vC];
+          return (
+            <div style={{ marginTop:10, background:"#0f0f0f", borderRadius:10, padding:"8px 12px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
+              <span style={{ fontSize:11, color:"#64748b", fontWeight:600 }}>💎 DRIX</span>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                {vGain !== undefined && (
+                  <span style={{ background:"#14532d", color:"#22c55e", borderRadius:20, padding:"3px 10px", fontSize:12, fontWeight:800 }}>
+                    🏆 {gagnantPseudo} <b>+{vGain}</b>
+                  </span>
+                )}
+                {vPerte !== undefined && (
+                  <span style={{ background:"#7f1d1d", color:"#ef4444", borderRadius:20, padding:"3px 10px", fontSize:12, fontWeight:800 }}>
+                    {perdantPseudo} <b>{vPerte}</b>
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })()}
         <div style={{ display:"flex",gap:8,marginTop:10 }}>
           <LikeButton refId={d.id} joueur={joueur} initialCount={likesMap[d.id]?.count||0} initialMyLike={likesMap[d.id]?.myLike||false}/>
         </div>
@@ -1283,6 +1353,33 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
             <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>{emoji} {titre} — {m.drix_apres} DRIX</div>
           </div>
           <div style={{ fontSize:34 }}>{emoji}</div>
+        </div>
+        <div style={{ display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",marginTop:8 }}>
+          <span style={{ fontSize:11,color:C.muted }}>{tempsDepuis(item.date)}</span>
+          <LikeButton refId={m.id} joueur={joueur} initialCount={likesMap[m.id]?.count||0} initialMyLike={likesMap[m.id]?.myLike||false}/>
+        </div>
+        <CommentSection refId={m.id} joueur={joueur} initialComments={commentsMap[m.id]||[]}/>
+      </div>
+    );
+  };
+
+  const renderTrainingDrix = (item) => {
+    const m = item.data;
+    const gain = m.variation > 0;
+    return (
+      <div key={`tdrix-${m.id||item.date}`} style={{ ...cardBase, borderColor: gain?"#f97316aa":"#ef444433", background: gain?"#f9731608":"#ef444408" }}>
+        <div style={{ display:"flex",gap:10,alignItems:"center" }}>
+          <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={42}/>
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:700,fontSize:14,color:C.text }}>{m.joueur_pseudo}</div>
+            <div style={{ fontSize:13,color: gain?"#f97316":"#ef4444",fontWeight:600,marginTop:3 }}>
+              🎯 {gain ? `+${m.variation} DRIX gagnés` : `${m.variation} DRIX perdus`} en Comptage de finish
+            </div>
+            <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>
+              {m.drix_apres} DRIX au total
+            </div>
+          </div>
+          <div style={{ fontSize:30 }}>{gain ? "🔥" : "💥"}</div>
         </div>
         <div style={{ display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",marginTop:8 }}>
           <span style={{ fontSize:11,color:C.muted }}>{tempsDepuis(item.date)}</span>
@@ -1320,6 +1417,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     if (item.type==="post") return renderPost(item);
     if (item.type==="match") return renderMatch(item);
     if (item.type==="drix_milestone") return renderMilestone(item);
+    if (item.type==="training_drix") return renderTrainingDrix(item);
     if (item.type==="presence") return renderPresence(item);
     return null;
   };
@@ -1400,6 +1498,13 @@ const PageModeJeu = ({ joueur, setPage }) => {
       <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🎮 Mode Jeu</h1>
       <p style={{ color:C.muted,fontSize:13,marginBottom:24 }}>Entraînements & jeux spéciaux</p>
       <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
+        <ModeBtn
+          icon="🎯"
+          label="Comptage de finish"
+          sub="Entraîne-toi à construire tes finishes. Le système génère un score, tu trouves la combinaison en 1, 2 ou 3 fléchettes."
+          onClick={()=>setPage("entrainement-finish")}
+          col="#f97316"
+        />
         <ModeBtn
           icon="🏙️"
           label="Capital"
@@ -2110,18 +2215,44 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
 // ── SCOREUR DUEL (charge le duel depuis Supabase) ─────────────────────────────
 const ScoreurDuel = ({ duelId, joueur, setPage }) => {
   const [duel, setDuel] = useState(null);
+  const [drixData, setDrixData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     sb(`duels?id=eq.${duelId}&select=*`)
-      .then(r => { setDuel(r?.[0]); setLoading(false); })
+      .then(async r => {
+        const d = r?.[0];
+        if (d) {
+          setDuel(d);
+          // Calcul DRIX — fallback 1000 si fetch échoue
+          let drix1 = 1000, drix2 = 1000;
+          try {
+            const players = await sb(`joueurs?id=in.(${d.challenger_id},${d.defie_id})&select=id,drix`);
+            if (players?.length) {
+              const p1 = players.find(p => p.id === d.challenger_id);
+              const p2 = players.find(p => p.id === d.defie_id);
+              drix1 = p1?.drix || 1000;
+              drix2 = p2?.drix || 1000;
+            }
+          } catch {}
+          const K   = 32 * Math.max(1, d.manches || 1);
+          const EA1 = 1 / (1 + Math.pow(10, (drix2 - drix1) / 400)); // P(challenger gagne)
+          const EA2 = 1 - EA1;                                         // P(défié gagne)
+          // gain = K × P(adversaire gagnait) | perte = K × P(soi-même gagnait)
+          setDrixData({
+            challenger: { gain: Math.round(K * EA2), perte: Math.round(K * EA1) },
+            defie:      { gain: Math.round(K * EA1), perte: Math.round(K * EA2) },
+          });
+        }
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, [duelId]);
 
   if (loading) return <Spinner/>;
   if (!duel) return <div style={{ textAlign:"center",padding:60,color:C.muted }}>Duel introuvable</div>;
 
-  return <Scoreur duel={duel} onDuelTermine={()=>{}} setPage={setPage}/>;
+  return <Scoreur duel={duel} drixData={drixData} onDuelTermine={()=>{}} setPage={setPage}/>;
 };
 
 // ── FOOTER ────────────────────────────────────────────────────────────────────
@@ -2159,9 +2290,7 @@ export default function App() {
   const [barsActifs,setBarsActifs]=useState([]);
   const [installPrompt,setInstallPrompt]=useState(null);
   const [isInstalled,setIsInstalled]=useState(false);
-  const [updateDisponible,setUpdateDisponible]=useState(false);
-
-  // Vérification de version — détecte les nouveaux déploiements
+  // Vérification de version — mise à jour automatique sans bandeau
   useEffect(()=>{
     const VERSION_KEY = "dp_version";
     const check = async () => {
@@ -2171,7 +2300,10 @@ export default function App() {
         const remote = (await res.text()).trim();
         const local = localStorage.getItem(VERSION_KEY);
         if (!local) { localStorage.setItem(VERSION_KEY, remote); return; }
-        if (remote !== local) setUpdateDisponible(true);
+        if (remote !== local) {
+          localStorage.setItem(VERSION_KEY, remote);
+          window.location.reload();
+        }
       } catch {}
     };
     check();
@@ -2179,14 +2311,6 @@ export default function App() {
     const interval = setInterval(check, 2 * 60 * 1000);
     return () => clearInterval(interval);
   },[]);
-
-  const appliquerMiseAJour = () => {
-    const VERSION_KEY = "dp_version";
-    fetch("/version.txt?t=" + Date.now(), { cache:"no-store" })
-      .then(r => r.text()).then(v => { localStorage.setItem(VERSION_KEY, v.trim()); })
-      .catch(()=>{})
-      .finally(()=>{ window.location.reload(); });
-  };
 
   // PWA install detection
   useEffect(()=>{
@@ -2357,21 +2481,6 @@ export default function App() {
           </div>
         </div>
       )}
-      {/* ── BANDEAU MISE À JOUR ── */}
-      {updateDisponible && (
-        <div style={{ position:"fixed",bottom:0,left:0,right:0,zIndex:9999,background:"linear-gradient(135deg,#1a0800,#111)",borderTop:"2px solid #f97316",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,boxShadow:"0 -4px 24px #0008" }}>
-          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-            <span style={{ fontSize:24 }}>🆕</span>
-            <div>
-              <div style={{ fontWeight:800,fontSize:14,color:"#f1f5f9" }}>Mise à jour disponible</div>
-              <div style={{ fontSize:12,color:"#94a3b8" }}>Une nouvelle version de Dart Point est prête.</div>
-            </div>
-          </div>
-          <button onPointerDown={appliquerMiseAJour} style={{ background:"linear-gradient(135deg,#f97316,#ea580c)",border:"none",color:"#fff",fontWeight:800,fontSize:14,padding:"10px 20px",borderRadius:12,cursor:"pointer",whiteSpace:"nowrap",touchAction:"manipulation",flexShrink:0 }}>
-            ↻ Mettre à jour
-          </button>
-        </div>
-      )}
       <Nav page={page} setPage={navSafe} isAdmin={isAdmin} joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} unreadMessages={unreadMessages} onBack={goBack} canGoBack={history.length>1}/>
       <main style={{ flex:1 }}>
         {page==="home"             && <Home joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
@@ -2393,7 +2502,8 @@ export default function App() {
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav}/>}
         {page==="scoreur"          && <Scoreur setPage={nav}/>}
         {page==="jeux"             && <PageModeJeu joueur={joueur} setPage={nav}/>}
-        {page==="jeux-capital"     && <JeuCapital setPage={nav}/>}
+        {page==="jeux-capital"          && <JeuCapital setPage={nav}/>}
+        {page==="entrainement-finish"   && <EntrainementFinish setPage={nav} joueur={joueur}/>}
         {page==="tournois-potes"   && <TournoiPotesPage joueur={joueur} setPage={nav}/>}
         {page.startsWith("tournoi-potes-") && <TournoiPotesDetail tournoiId={page.replace("tournoi-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
         {page.startsWith("scoreur-potes-") && <ScoreurPotesWrapper matchId={page.replace("scoreur-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
