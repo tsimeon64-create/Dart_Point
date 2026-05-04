@@ -2129,7 +2129,7 @@ const AdminJoueurs = () => {
   const chercher = async () => {
     if (!recherche.trim()) return;
     setLoading(true);
-    const res = await sb(`joueurs?pseudo=ilike.%25${encodeURIComponent(recherche.trim())}%25&select=id,pseudo,email,drix,created_at&limit=20`).catch(()=>[]);
+    const res = await sb(`joueurs?pseudo=ilike.%25${encodeURIComponent(recherche.trim())}%25&select=id,pseudo,drix,date_inscription&limit=20`).catch(()=>[]);
     setJoueurs(res || []);
     setLoading(false);
   };
@@ -2192,8 +2192,7 @@ const AdminJoueurs = () => {
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
             <div>
               <div style={{ fontWeight:800, fontSize:16, color:C.text }}>{j.pseudo}</div>
-              <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>{j.email || "Pas d'email"}</div>
-              <div style={{ fontSize:12, color:C.muted }}>Compte créé : {j.created_at ? new Date(j.created_at).toLocaleDateString("fr-FR") : "—"}</div>
+              <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>Inscription : {j.date_inscription ? new Date(j.date_inscription).toLocaleDateString("fr-FR") : "—"}</div>
             </div>
             <div style={{ textAlign:"right" }}>
               <div style={{ fontSize:22, fontWeight:900, color:C.accent }}>{j.drix ?? 1000}</div>
