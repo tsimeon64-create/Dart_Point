@@ -1097,18 +1097,19 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         sb(`joueurs?id=in.(${inList})&select=id,photo`).catch(()=>[]),
       ]);
 
-      // 3. Charger drix_mouvements pour les amis (paliers) ET pour tous les participants des duels
+      // 3. Charger drix_mouvements : paliers amis + tous participants duels + entraînements amis
       const duelIds = (duels||[]).filter(d=>d?.id).map(d=>d.id);
-      const [friendDrixMvts, duelDrixMvts] = await Promise.all([
-        sb(`drix_mouvements?joueur_id=in.(${inList})&order=date.desc&limit=60&select=*`).catch(()=>[]),
+      const [friendDrixMvts, duelDrixMvts, trainingDrixMvts] = await Promise.all([
+        sb(`drix_mouvements?joueur_id=in.(${inList})&order=date.desc&limit=100&select=*`).catch(()=>[]),
         duelIds.length > 0
           ? sb(`drix_mouvements?duel_id=in.(${duelIds.join(",")})&select=*`).catch(()=>[])
           : Promise.resolve([]),
+        sb(`drix_mouvements?duel_id=is.null&joueur_id=in.(${inList})&order=date.desc&limit=40&select=*`).catch(()=>[]),
       ]);
       // Fusionner et dédoublonner par id
       const seenMvt = new Set();
-      const drixMvts = [...(friendDrixMvts||[]), ...(duelDrixMvts||[])].filter(m => {
-        const key = m?.joueur_id + "_" + m?.duel_id + "_" + m?.date;
+      const drixMvts = [...(friendDrixMvts||[]), ...(duelDrixMvts||[]), ...(trainingDrixMvts||[])].filter(m => {
+        const key = m?.id ?? (m?.joueur_id + "_" + m?.duel_id + "_" + m?.date);
         if (!m || seenMvt.has(key)) return false;
         seenMvt.add(key);
         return true;
