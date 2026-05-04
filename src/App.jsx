@@ -199,7 +199,7 @@ const Field = ({ label, value, onChange, placeholder, type="text", as="input", o
 const Spinner = () => <div style={{ display:"flex",alignItems:"center",justifyContent:"center",padding:40 }}><div style={{ width:32,height:32,border:`3px solid ${C.border}`,borderTop:`3px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite" }}/></div>;
 
 // ── NAV ───────────────────────────────────────────────────────────────────────
-const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, unreadMessages, onBack, canGoBack }) => {
+const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAmisCount=0, unreadMessages, onBack, canGoBack }) => {
   const [open, setOpen] = useState(false);
   const links = [["bars","🎯 Bars"],["associations","🫂 Associations"],["tournois","🏅 Tournois"],["joueurs","👥 Joueurs"],["drix","💎 Classement DRIX"],["scoreur","🎯 Scoreur"],["jeux","🎮 Jeux"],["proposer","➕ Proposer un bar"],["proposer-asso","🫂 Proposer une asso"],["proposer-tournoi","🏅 Proposer un tournoi"],["apropos","ℹ️ À propos"],["contact","✉️ Contact"]];
   const navBtnStyle = { background:"none",border:"1px solid #2a2a2a",color:"#94a3b8",cursor:"pointer",borderRadius:8,padding:"4px 10px",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:4,touchAction:"manipulation",transition:"all .15s",whiteSpace:"nowrap" };
@@ -224,9 +224,10 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, unreadMess
             </button>
           )}
           {joueur && (
-            <button onClick={()=>{setPage("mon-profil");setOpen(false);}} style={{ background:"#1a1a1a",color:C.text,border:`1px solid ${C.border}`,cursor:"pointer",padding:"5px 10px",borderRadius:8,fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:6 }}>
+            <button onClick={()=>{setPage("mon-profil");setOpen(false);}} style={{ background:"#1a1a1a",color:C.text,border:`1px solid ${C.border}`,cursor:"pointer",padding:"5px 10px",borderRadius:8,fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:6,position:"relative" }}>
               👤 {joueur.pseudo}
               {defisCount>0 && <span style={{ background:C.red,color:"#fff",borderRadius:"50%",width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800 }}>{defisCount}</span>}
+              {demandesAmisCount>0 && <span style={{ background:"#10b981",color:"#fff",borderRadius:"50%",width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800 }}>{demandesAmisCount>9?"9+":demandesAmisCount}</span>}
             </button>
           )}
           {!joueur && <button onClick={()=>{setPage("connexion");setOpen(false);}} style={{ background:C.accent,color:"#fff",border:"none",cursor:"pointer",padding:"5px 12px",borderRadius:8,fontSize:12,fontWeight:600 }}>Connexion</button>}
@@ -604,7 +605,7 @@ const HomeMap = ({ bars, associations, tournois, setPage, setBarSlug, setAssoSlu
 };
 
 // ── DASHBOARD (joueur connecté) ───────────────────────────────────────────────
-const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, associations=[], tournois=[], barsActifs=[], setBarSlug=()=>{}, setAssoSlug=()=>{}, setTournoiSlug=()=>{} }) => {
+const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesAmisCount=0, associations=[], tournois=[], barsActifs=[], setBarSlug=()=>{}, setAssoSlug=()=>{}, setTournoiSlug=()=>{} }) => {
   const [stats, setStats] = useState(null);
   const [joueurFrais, setJoueurFrais] = useState(joueur);
   const [showMap, setShowMap] = useState(false);
@@ -652,9 +653,16 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, associati
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
       {/* ── Carte profil ── */}
-      <div onClick={()=>setPage("mon-profil")} style={{ display:"flex",alignItems:"center",gap:16,background:"linear-gradient(135deg,#1a1a1a,#111)",border:`1px solid ${color}55`,borderRadius:16,padding:"14px 18px",marginBottom:12,cursor:"pointer",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s" }}
+      <div onClick={()=>setPage("mon-profil")} style={{ position:"relative",display:"flex",alignItems:"center",gap:16,background:"linear-gradient(135deg,#1a1a1a,#111)",border:`1px solid ${color}55`,borderRadius:16,padding:"14px 18px",marginBottom:12,cursor:"pointer",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s" }}
         onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 28px #0008";}}
         onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
+
+        {/* Badge demandes d'amis */}
+        {demandesAmisCount > 0 && (
+          <div style={{ position:"absolute",top:-8,right:-8,background:"#10b981",color:"#fff",borderRadius:"50%",minWidth:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,boxShadow:"0 2px 8px #00000066",border:"2px solid #0a0a0a",zIndex:2 }}>
+            {demandesAmisCount > 9 ? "9+" : demandesAmisCount}
+          </div>
+        )}
 
         {/* Photo */}
         <div style={{ width:68,height:68,borderRadius:"50%",border:`3px solid ${color}`,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:color+"22",fontSize:28 }}>
@@ -1526,8 +1534,8 @@ const PageModeJeu = ({ joueur, setPage }) => {
 };
 
 // ── PAGE HOME ─────────────────────────────────────────────────────────────────
-const Home = ({ joueur, setJoueur, defisCount, bars, associations, tournois, setPage, setBarSlug, setAssoSlug, setTournoiSlug, setVilleFilter, barsActifs }) => {
-  if (joueur) return <HomeDashboard joueur={joueur} setJoueur={setJoueur} setPage={setPage} bars={bars} defisCount={defisCount} associations={associations} tournois={tournois} barsActifs={barsActifs} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug}/>;
+const Home = ({ joueur, setJoueur, defisCount, demandesAmisCount=0, bars, associations, tournois, setPage, setBarSlug, setAssoSlug, setTournoiSlug, setVilleFilter, barsActifs }) => {
+  if (joueur) return <HomeDashboard joueur={joueur} setJoueur={setJoueur} setPage={setPage} bars={bars} defisCount={defisCount} demandesAmisCount={demandesAmisCount} associations={associations} tournois={tournois} barsActifs={barsActifs} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug}/>;
   // Version découverte pour les non-connectés ↓
   const HomeDiscovery = () => {
   const [search,setSearch]=useState("");
@@ -2287,7 +2295,9 @@ export default function App() {
   const [joueur,setJoueur]=useState(null);
   const [defisCount,setDefisCount]=useState(0);
   const [notifCount,setNotifCount]=useState(0);
+  const [demandesAmisCount,setDemandesAmisCount]=useState(0);
   const [unreadMessages,setUnreadMessages]=useState(0);
+  const prevDemandesRef = useRef(0);
   const [barsActifs,setBarsActifs]=useState([]);
   const [installPrompt,setInstallPrompt]=useState(null);
   const [isInstalled,setIsInstalled]=useState(false);
@@ -2354,13 +2364,16 @@ export default function App() {
   useEffect(()=>{ dbJoueurs.getBarsActifs().then(r=>{ if(r) setBarsActifs([...new Set(r.map(x=>x.bar_slug))]); }).catch(()=>{}); },[]);
 
   useEffect(()=>{
-    if (!joueur) { setDefisCount(0); setNotifCount(0); setUnreadMessages(0); return; }
+    if (!joueur) { setDefisCount(0); setNotifCount(0); setDemandesAmisCount(0); setUnreadMessages(0); prevDemandesRef.current=0; return; }
+    // Demander la permission de notifications au navigateur
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
     const fetchNotifs = () => {
       const now = Date.now();
       Promise.all([
         sb(`duels?or=(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id})&statut=eq.accepte&select=id`),
         sb(`amis?ami_id=eq.${joueur.id}&statut=eq.en_attente&select=id`),
-        // Résultats à contester : je suis défié, terminé, non validé
         sb(`duels?defie_id=eq.${joueur.id}&statut=eq.termine&valide_defie=eq.false&select=id,date`),
         dbM.getUnreadCount(joueur.id),
       ]).then(([matchsActifs, demandesAmis, aContester, unread]) => {
@@ -2370,7 +2383,34 @@ export default function App() {
         const msgN = unread?.length || 0;
         setDefisCount(matchsN + contestN);
         setNotifCount(matchsN + amisN + contestN);
+        setDemandesAmisCount(amisN);
         setUnreadMessages(msgN);
+        // Notification navigateur si nouvelle demande d'ami détectée
+        if (amisN > prevDemandesRef.current && prevDemandesRef.current >= 0) {
+          const nouvelles = amisN - prevDemandesRef.current;
+          if ("Notification" in window && Notification.permission === "granted") {
+            try {
+              navigator.serviceWorker?.ready.then(reg => {
+                reg.showNotification("🎯 Dart Point", {
+                  body: nouvelles === 1
+                    ? "Tu as une nouvelle demande d'ami !"
+                    : `Tu as ${nouvelles} nouvelles demandes d'ami !`,
+                  icon: "/icon-192.png",
+                  badge: "/icon-192.png",
+                  tag: "demande-ami",
+                });
+              }).catch(()=>{
+                new Notification("🎯 Dart Point", {
+                  body: nouvelles === 1
+                    ? "Tu as une nouvelle demande d'ami !"
+                    : `Tu as ${nouvelles} nouvelles demandes d'ami !`,
+                  icon: "/icon-192.png",
+                });
+              });
+            } catch(e) {}
+          }
+        }
+        prevDemandesRef.current = amisN;
       }).catch(()=>{});
     };
     fetchNotifs();
@@ -2482,9 +2522,9 @@ export default function App() {
           </div>
         </div>
       )}
-      <Nav page={page} setPage={navSafe} isAdmin={isAdmin} joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} unreadMessages={unreadMessages} onBack={goBack} canGoBack={history.length>1}/>
+      <Nav page={page} setPage={navSafe} isAdmin={isAdmin} joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} unreadMessages={unreadMessages} onBack={goBack} canGoBack={history.length>1}/>
       <main style={{ flex:1 }}>
-        {page==="home"             && <Home joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
+        {page==="home"             && <Home joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="defi"             && joueur && <PageDefi joueur={joueur} setPage={nav}/>}
         {page==="communaute"       && <PageCommunaute joueur={joueur} setPage={nav} bars={bars}/>}
         {page==="bars"             && <Bars bars={bars} setPage={nav} setBarSlug={setBarSlug} villeFilter={villeFilter} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
