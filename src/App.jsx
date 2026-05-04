@@ -2129,7 +2129,7 @@ const AdminJoueurs = () => {
   const chercher = async () => {
     if (!recherche.trim()) return;
     setLoading(true);
-    const res = await sb(`joueurs?pseudo=ilike.*${encodeURIComponent(recherche.trim())}*&select=id,pseudo,email,drix,created_at&limit=20`).catch(()=>[]);
+    const res = await sb(`joueurs?pseudo=ilike.%25${encodeURIComponent(recherche.trim())}%25&select=id,pseudo,email,drix,created_at&limit=20`).catch(()=>[]);
     setJoueurs(res || []);
     setLoading(false);
   };
