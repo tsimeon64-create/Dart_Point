@@ -2117,6 +2117,135 @@ const AdminLogin = ({ onLogin }) => {
   );
 };
 
+// ── ADMIN JOUEURS ─────────────────────────────────────────────────────────────
+const AdminJoueurs = () => {
+  const [recherche, setRecherche] = useState("");
+  const [joueurs, setJoueurs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [drixInputs, setDrixInputs] = useState({});   // { [id]: valeur saisie }
+  const [saving, setSaving] = useState({});            // { [id]: bool }
+  const [msg, setMsg] = useState({});                  // { [id]: message feedback }
+
+  const chercher = async () => {
+    if (!recherche.trim()) return;
+    setLoading(true);
+    const res = await sb(`joueurs?pseudo=ilike.*${encodeURIComponent(recherche.trim())}*&select=id,pseudo,email,drix,created_at&limit=20`).catch(()=>[]);
+    setJoueurs(res || []);
+    setLoading(false);
+  };
+
+  const supprimerCompte = async (j) => {
+    if (!window.confirm(`⚠️ Supprimer définitivement le compte de ${j.pseudo} ? Cette action est irréversible.`)) return;
+    setSaving(s => ({ ...s, [j.id]: true }));
+    await sb(`joueurs?id=eq.${j.id}`, { method:"DELETE", prefer:"return=minimal" }).catch(()=>{});
+    setJoueurs(x => x.filter(p => p.id !== j.id));
+    setSaving(s => ({ ...s, [j.id]: false }));
+  };
+
+  const appliquerDrix = async (j, delta) => {
+    if (!delta || isNaN(delta)) return;
+    setSaving(s => ({ ...s, [j.id]: true }));
+    const newDrix = Math.max(0, (j.drix || 1000) + Number(delta));
+    await sb(`joueurs?id=eq.${j.id}`, { method:"PATCH", body: JSON.stringify({ drix: newDrix }), prefer:"return=minimal" }).catch(()=>{});
+    await sb("drix_mouvements", { method:"POST", body: JSON.stringify({
+      joueur_id: j.id,
+      joueur_pseudo: j.pseudo,
+      adversaire_pseudo: "Admin",
+      variation: Number(delta),
+      drix_avant: j.drix || 1000,
+      drix_apres: newDrix,
+      resultat: Number(delta) > 0 ? "victoire" : "defaite",
+      date: Date.now(),
+    })}).catch(()=>{});
+    setJoueurs(x => x.map(p => p.id === j.id ? { ...p, drix: newDrix } : p));
+    setMsg(m => ({ ...m, [j.id]: `✅ DRIX mis à jour : ${newDrix}` }));
+    setDrixInputs(d => ({ ...d, [j.id]: "" }));
+    setTimeout(() => setMsg(m => ({ ...m, [j.id]: "" })), 3000);
+    setSaving(s => ({ ...s, [j.id]: false }));
+  };
+
+  return (
+    <div>
+      {/* Recherche */}
+      <div style={{ display:"flex", gap:8, marginBottom:20 }}>
+        <input
+          value={recherche}
+          onChange={e => setRecherche(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && chercher()}
+          placeholder="Rechercher un pseudo…"
+          style={{ flex:1, background:"#111", border:`1px solid ${C.border}`, borderRadius:8, padding:"8px 12px", color:C.text, fontSize:14 }}
+        />
+        <button onClick={chercher} style={{ background:C.accent, color:"#fff", border:"none", borderRadius:8, padding:"8px 16px", cursor:"pointer", fontWeight:700, fontSize:14 }}>
+          🔍 Chercher
+        </button>
+      </div>
+
+      {loading && <Spinner/>}
+
+      {!loading && joueurs.length === 0 && recherche && (
+        <div style={{ textAlign:"center", padding:40, color:C.muted }}>Aucun joueur trouvé.</div>
+      )}
+
+      {joueurs.map(j => (
+        <div key={j.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:18, marginBottom:12 }}>
+          {/* Infos joueur */}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+            <div>
+              <div style={{ fontWeight:800, fontSize:16, color:C.text }}>{j.pseudo}</div>
+              <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>{j.email || "Pas d'email"}</div>
+              <div style={{ fontSize:12, color:C.muted }}>Compte créé : {j.created_at ? new Date(j.created_at).toLocaleDateString("fr-FR") : "—"}</div>
+            </div>
+            <div style={{ textAlign:"right" }}>
+              <div style={{ fontSize:22, fontWeight:900, color:C.accent }}>{j.drix ?? 1000}</div>
+              <div style={{ fontSize:10, color:C.muted, letterSpacing:1 }}>DRIX</div>
+            </div>
+          </div>
+
+          {/* Modifier DRIX */}
+          <div style={{ marginBottom:12 }}>
+            <div style={{ fontSize:12, color:C.muted, marginBottom:6, fontWeight:600 }}>Modifier les DRIX (ex: +50 ou -30)</div>
+            <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+              <input
+                type="number"
+                value={drixInputs[j.id] ?? ""}
+                onChange={e => setDrixInputs(d => ({ ...d, [j.id]: e.target.value }))}
+                placeholder="+50 ou -30"
+                style={{ width:120, background:"#111", border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 10px", color:C.text, fontSize:13 }}
+              />
+              <button
+                onClick={() => appliquerDrix(j, drixInputs[j.id])}
+                disabled={saving[j.id]}
+                style={{ background:"#10b98122", color:"#10b981", border:`1px solid #10b98155`, borderRadius:8, padding:"6px 14px", cursor:"pointer", fontWeight:700, fontSize:13 }}
+              >
+                💎 Appliquer
+              </button>
+              {/* Boutons rapides */}
+              {[-100,-50,-10,10,50,100].map(v => (
+                <button key={v} onClick={() => appliquerDrix(j, v)}
+                  style={{ background: v>0 ? "#10b98118":"#ef444418", color: v>0 ? "#10b981":"#ef4444", border:`1px solid ${v>0?"#10b98133":"#ef444433"}`, borderRadius:6, padding:"4px 9px", cursor:"pointer", fontSize:12, fontWeight:700 }}>
+                  {v>0?"+":""}{v}
+                </button>
+              ))}
+            </div>
+            {msg[j.id] && <div style={{ fontSize:12, color:"#10b981", marginTop:6 }}>{msg[j.id]}</div>}
+          </div>
+
+          {/* Supprimer compte */}
+          <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:12 }}>
+            <button
+              onClick={() => supprimerCompte(j)}
+              disabled={saving[j.id]}
+              style={{ background:"#1a0000", color:C.red, border:`1px solid ${C.red}44`, borderRadius:8, padding:"6px 14px", cursor:"pointer", fontWeight:700, fontSize:13 }}
+            >
+              🗑 Supprimer le compte
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTournois, setPage, setBarSlug, setAssoSlug, setTournoiSlug }) => {
   const [tab,setTab]=useState("pending");
   const [propositions,setPropositions]=useState([]);
@@ -2135,7 +2264,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
 
   const allPending=propositions.filter(p=>p.statut==="en_attente");
   const sigPending=signalements.filter(s=>!s.traite);
-  const tabs=[["pending",`⏳ En attente (${allPending.length})`],["avismod","💬 Avis"],["allbars",`🎯 Bars (${bars.length})`],["allassos",`🫂 Assos`],["alltournois",`🏅 Tournois`],["signalements",`⚠️ Signalements (${sigPending.length})`]];
+  const tabs=[["pending",`⏳ En attente (${allPending.length})`],["avismod","💬 Avis"],["allbars",`🎯 Bars (${bars.length})`],["allassos",`🫂 Assos`],["alltournois",`🏅 Tournois`],["signalements",`⚠️ Signalements (${sigPending.length})`],["joueurs","👤 Profil joueur"]];
 
   return (
     <div style={{ maxWidth:980,margin:"0 auto",padding:"36px 20px" }}>
@@ -2216,7 +2345,9 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
             <button onClick={async()=>{ if(!window.confirm("Supprimer ?")) return; await db.deleteTournoi(t.slug); setTournois(x=>x.filter(y=>y.slug!==t.slug)); }} style={{ background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"3px 8px" }}>🗑</button>
           </div>
         </div>
-      ))}</div>:null}
+      ))}</div>
+      :tab==="joueurs"?<AdminJoueurs/>
+      :null}
     </div>
   );
 };
