@@ -12,6 +12,7 @@ import { Scoreur } from "./AppJeux";
 import { JeuCapital } from "./AppJeuDecalePoint";
 import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper } from "./AppTournoiPotes";
 import { EntrainementFinish } from "./AppEntrainementFinish";
+import { RushMode } from "./AppRushMode";
 import { MessagesPage, dbM } from "./AppMessages";
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -1508,6 +1509,13 @@ const PageModeJeu = ({ joueur, setPage }) => {
       <p style={{ color:C.muted,fontSize:13,marginBottom:24 }}>Entraînements & jeux spéciaux</p>
       <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
         <ModeBtn
+          icon="⚡"
+          label="Rush Mode"
+          sub="Calcul mental sous pression : score, finishes, bust detection, routes optimales. 3 niveaux de difficulté, système de combo et badges !"
+          onClick={()=>setPage("rush-mode")}
+          col="#ef4444"
+        />
+        <ModeBtn
           icon="🎯"
           label="Comptage de finish"
           sub="Entraîne-toi à construire tes finishes. Le système génère un score, tu trouves la combinaison en 1, 2 ou 3 fléchettes."
@@ -2675,6 +2683,7 @@ export default function App() {
         {page==="jeux"             && <PageModeJeu joueur={joueur} setPage={nav}/>}
         {page==="jeux-capital"          && <JeuCapital setPage={nav}/>}
         {page==="entrainement-finish"   && <EntrainementFinish setPage={nav} joueur={joueur}/>}
+        {page==="rush-mode"             && <RushMode setPage={nav} joueur={joueur}/>}
         {page==="tournois-potes"   && <TournoiPotesPage joueur={joueur} setPage={nav}/>}
         {page.startsWith("tournoi-potes-") && <TournoiPotesDetail tournoiId={page.replace("tournoi-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
         {page.startsWith("scoreur-potes-") && <ScoreurPotesWrapper matchId={page.replace("scoreur-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
