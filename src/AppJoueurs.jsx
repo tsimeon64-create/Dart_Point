@@ -1654,12 +1654,13 @@ export const calculerDrix = (drixA, drixB, aGagne, options = {}) => {
   const EB = 1 - EA;                                         // P(B gagne)
 
   // Gagnant reçoit K × P(adversaire gagnait) — perdant perd K × P(lui-même gagnait)
+  // Formule zéro-somme : gains + pertes = 0 à chaque match
   const variationA = aGagne
-    ? +Math.round(K * EB) + bonusA   // A gagne : +K×EB
-    : -Math.round(K * EB) + bonusA;  // A perd  : −K×EB
+    ? +Math.round(K * EB) + bonusA   // A gagne : +K×EB (gagne selon proba adversaire)
+    : -Math.round(K * EA) + bonusA;  // A perd  : −K×EA (perd selon sa propre proba)
   const variationB = aGagne
-    ? -Math.round(K * EA) + bonusB   // B perd  : −K×EA
-    : +Math.round(K * EA) + bonusB;  // B gagne : +K×EA
+    ? -Math.round(K * EB) + bonusB   // B perd  : −K×EB (perd selon sa propre proba)
+    : +Math.round(K * EA) + bonusB;  // B gagne : +K×EA (gagne selon proba adversaire)
 
   console.log("🎯 DRIX:", {
     drixA, drixB, aGagne, K,
