@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 const C = {
   bg:"#0f0f0f", card:"#1a1a1a", card2:"#141414", border:"#2a2a2a",
@@ -160,6 +160,12 @@ const SelectionMode = ({ onSelect, setPage, joueur }) => (
                 Aucune aide — le total est caché, à toi de calculer !
               </span>
             </div>
+            <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
+              <span style={{ fontSize:18, flexShrink:0 }}>⏱</span>
+              <span style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>
+                <b style={{ color:C.yellow }}>1 min 20</b> pour répondre — le temps s'écoule, dépêche-toi !
+              </span>
+            </div>
           </div>
         </div>
 
@@ -195,6 +201,13 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
   const [drixFlash, setDrixFlash]       = useState(null); // "+5 DRIX" ou "−5 DRIX"
   const [savingDrix, setSavingDrix]     = useState(false);
 
+  // Minuteur DRIX (80 secondes)
+  const [timer, setTimer]               = useState(80);
+  const [timeOut, setTimeOut]           = useState(false);
+  const timeOutHandledRef               = useRef(false);
+  const drixSerieRef                    = useRef(drixSerie);
+  useEffect(() => { drixSerieRef.current = drixSerie; }, [drixSerie]);
+
   const isDrix = mode === "drix";
   const diffCurrent = DIFFICULTES.find(d => d.id === diffId);
 
@@ -205,9 +218,36 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
     setMultSel(null);
     setPhase("jeu");
     setErrMsg("");
+    // Réinitialise le minuteur DRIX
+    setTimer(80);
+    setTimeOut(false);
+    timeOutHandledRef.current = false;
   }, [diffId]);
 
   useEffect(() => { nouveauFinish(); }, []);
+
+  // ── Compte à rebours (DRIX uniquement, pendant la phase "jeu") ──
+  useEffect(() => {
+    if (!isDrix || phase !== "jeu" || timeOut) return;
+    if (timer <= 0) {
+      if (!timeOutHandledRef.current) {
+        timeOutHandledRef.current = true;
+        setTimeOut(true);
+        setPhase("timeout");
+        setStats(s => ({ ...s, nok: s.nok + 1, serie: 0 }));
+        if (drixSerieRef.current > 0) {
+          setDrixSerie(0);
+          applyDrix(-5);
+        } else {
+          setDrixSerie(0);
+        }
+      }
+      return;
+    }
+    const id = setTimeout(() => setTimer(t => Math.max(0, t - 1)), 1000);
+    return () => clearTimeout(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDrix, timer, timeOut, phase]);
 
   // Met à jour le DRIX en BDD + flash
   const applyDrix = async (delta) => {
@@ -303,6 +343,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
 
   return (
     <div style={{ position:"fixed", inset:0, zIndex:200, background:C.bg, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+      <style>{`@keyframes pulse{from{opacity:1}to{opacity:0.4}}`}</style>
 
       {/* ── Flash DRIX ── */}
       {drixFlash && (
@@ -495,6 +536,30 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
           </div>
         )}
 
+        {/* ── Temps écoulé ── */}
+        {phase === "timeout" && (
+          <div style={{ flex:1,background:"#1a0a1a",border:`2px solid ${C.purple}`,borderRadius:12,padding:"14px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,minHeight:0 }}>
+            <div style={{ fontSize:36 }}>⏰</div>
+            <div style={{ fontWeight:900,fontSize:18,color:C.purple }}>Temps écoulé !</div>
+            <div style={{ background:"#0f0a1a",borderRadius:10,padding:"8px 14px",textAlign:"center",width:"100%" }}>
+              <div style={{ fontSize:12,color:C.muted,marginBottom:3 }}>Tu avais {80 - timer} secondes de retard</div>
+              {drixSerieRef.current > 0
+                ? <div style={{ fontWeight:800,color:"#fca5a5",fontSize:14 }}>💥 Série brisée — −5 DRIX</div>
+                : <div style={{ fontWeight:700,color:C.muted,fontSize:13 }}>Série à zéro — aucun DRIX perdu</div>
+              }
+              <div style={{ fontSize:11,color:C.muted,marginTop:4 }}>💡 La bonne combinaison était : <b style={{ color:C.purple }}>{optSol}</b></div>
+            </div>
+            <button onClick={()=>nouveauFinish()}
+              style={{ width:"100%",background:`linear-gradient(135deg,${C.accent},#ea580c)`,color:"#fff",border:"none",borderRadius:10,padding:"13px",fontWeight:900,fontSize:15,cursor:"pointer" }}>
+              ⚡ Continuer →
+            </button>
+            <button onClick={()=>setPage("entrainement-finish")}
+              style={{ width:"100%",background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px",fontWeight:600,fontSize:13,cursor:"pointer" }}>
+              ← Quitter
+            </button>
+          </div>
+        )}
+
         {/* ── Clavier ── */}
         {phase === "jeu" && (
           <div style={{ flex:1,display:"flex",flexDirection:"column",gap:5,minHeight:0 }}>
@@ -528,6 +593,30 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
                 style={{ borderRadius:8,fontWeight:800,fontSize:12,border:`1px solid ${multSel===3?"#333":C.yellow+"66"}`,background:multSel===3?"#111":C.yellow+"11",color:multSel===3?C.border:C.yellow,cursor:multSel===3?"default":"pointer",opacity:multSel===3?0.3:1,display:"flex",alignItems:"center",justifyContent:"center" }}>
                 {multSel===2?"Bull":"25"}
               </button>
+
+              {/* ── Minuteur DRIX (colonnes 2-5 de la dernière ligne) ── */}
+              {isDrix && (
+                <div style={{
+                  gridColumn:"span 4",
+                  borderRadius:8,
+                  border:`2px solid ${timer <= 10 ? C.red : timer <= 30 ? C.accent : C.border}`,
+                  background: timer <= 10 ? "#450a0a" : timer <= 30 ? "#1a0800" : C.card,
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+                  transition:"background .3s, border-color .3s",
+                }}>
+                  <span style={{ fontSize:11, color: timer <= 10 ? C.red : timer <= 30 ? C.accent : C.muted }}>⏱</span>
+                  <span style={{
+                    fontWeight:900,
+                    fontSize: timer <= 10 ? 20 : 17,
+                    color: timer <= 10 ? C.red : timer <= 30 ? C.accent : C.text,
+                    fontVariantNumeric:"tabular-nums",
+                    letterSpacing:1,
+                    animation: timer <= 10 ? "pulse 0.5s ease-in-out infinite alternate" : "none",
+                  }}>
+                    {Math.floor(timer / 60)}:{String(timer % 60).padStart(2, "0")}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Actions */}
