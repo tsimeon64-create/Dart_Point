@@ -102,12 +102,17 @@ const genFinishQ = () => {
 };
 
 // 3. Bust : cette volée bust-elle ?
+// La dernière fléchette est toujours un double (comme en vrai)
+const DOUBLES_BULL = [...DOUBLES, {mult:2,num:25,value:50,label:"Bull"}];
 const genBustQ = () => {
   const remaining = Math.floor(Math.random()*91)+30; // 30-120
-  const darts     = [randDart(), randDart(), randDart()];
+  const dart3     = randFrom(DOUBLES_BULL); // toujours un double
+  const darts     = [randDart(), randDart(), dart3];
   const sum       = darts.reduce((s,d)=>s+d.value,0);
-  const lastIsD   = darts[2].mult===2;
-  const isBust    = sum>remaining || (sum===remaining&&!lastIsD);
+  // Avec double final : bust = dépasse le score restant
+  // sum === remaining + double = checkout valide
+  // sum < remaining = continue (valide)
+  const isBust = sum > remaining;
   return { type:"bust", remaining, darts, answer:isBust?"BUST":"VALIDE" };
 };
 
