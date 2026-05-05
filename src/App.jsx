@@ -1492,50 +1492,102 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
 
 // ── PAGE MODE JEU ─────────────────────────────────────────────────────────────
 const PageModeJeu = ({ joueur, setPage }) => {
+  const [categorie, setCategorie] = useState(null); // null | "fleche" | "sans"
+
   const ModeBtn = ({ icon, label, sub, onClick, col }) => (
-    <div onClick={onClick} style={{ background:"linear-gradient(135deg,#1a1a1a,#141414)",border:`2px solid ${col}33`,borderRadius:16,padding:"28px 22px",cursor:"pointer",display:"flex",flexDirection:"column",gap:8,transition:"all .15s",userSelect:"none" }}
+    <div onClick={onClick} style={{ background:"linear-gradient(135deg,#1a1a1a,#141414)",border:`2px solid ${col}33`,borderRadius:16,padding:"20px 18px",cursor:"pointer",display:"flex",flexDirection:"column",gap:6,transition:"all .15s",userSelect:"none" }}
       onMouseEnter={e=>{e.currentTarget.style.borderColor=col;e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow=`0 10px 28px ${col}22`;}}
       onMouseLeave={e=>{e.currentTarget.style.borderColor=col+"33";e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
-      <div style={{ fontSize:48 }}>{icon}</div>
-      <div style={{ fontWeight:800,fontSize:20,color:"#f1f5f9" }}>{label}</div>
-      <div style={{ fontSize:13,color:"#94a3b8",lineHeight:1.5 }}>{sub}</div>
-      <div style={{ fontSize:13,color:col,fontWeight:700,marginTop:4 }}>Jouer →</div>
+      <div style={{ fontSize:40 }}>{icon}</div>
+      <div style={{ fontWeight:800,fontSize:18,color:"#f1f5f9" }}>{label}</div>
+      <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.5 }}>{sub}</div>
+      <div style={{ fontSize:12,color:col,fontWeight:700,marginTop:4 }}>Jouer →</div>
     </div>
   );
-  return (
+
+  const CatBtn = ({ icon, label, sub, id, col }) => (
+    <div onClick={()=>setCategorie(id)}
+      style={{ background:`linear-gradient(135deg,${col}18,${col}08)`,border:`2px solid ${col}55`,borderRadius:20,padding:"28px 22px",cursor:"pointer",transition:"all .15s",userSelect:"none",textAlign:"center" }}
+      onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-4px)";e.currentTarget.style.boxShadow=`0 14px 32px ${col}33`;}}
+      onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
+      <div style={{ fontSize:52,marginBottom:10 }}>{icon}</div>
+      <div style={{ fontWeight:900,fontSize:20,color:col,marginBottom:6 }}>{label}</div>
+      <div style={{ fontSize:13,color:C.muted,lineHeight:1.6 }}>{sub}</div>
+      <div style={{ marginTop:14,background:col,borderRadius:10,padding:"10px",fontWeight:800,fontSize:14,color:"#fff" }}>
+        Accéder →
+      </div>
+    </div>
+  );
+
+  // Écran de sélection de catégorie
+  if (!categorie) return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
       <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Accueil</button>
       <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🎮 Mode Jeu</h1>
-      <p style={{ color:C.muted,fontSize:13,marginBottom:24 }}>Entraînements & jeux spéciaux</p>
-      <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
-        <ModeBtn
-          icon="⚡"
-          label="Rush Mode"
-          sub="Calcul mental sous pression : score, finishes, bust detection, routes optimales. 3 niveaux de difficulté, système de combo et badges !"
-          onClick={()=>setPage("rush-mode")}
-          col="#ef4444"
-        />
-        <ModeBtn
+      <p style={{ color:C.muted,fontSize:13,marginBottom:24 }}>Choisis ta catégorie de jeu</p>
+      <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
+        <CatBtn
+          id="fleche"
           icon="🎯"
-          label="Comptage de finish"
-          sub="Entraîne-toi à construire tes finishes. Le système génère un score, tu trouves la combinaison en 1, 2 ou 3 fléchettes."
-          onClick={()=>setPage("entrainement-finish")}
-          col="#f97316"
-        />
-        <ModeBtn
-          icon="🏙️"
-          label="Capital"
-          sub="Jeu de précision : descends ton score en visant des zones précises. Chaque cible = une ville à conquérir !"
-          onClick={()=>setPage("jeux-capital")}
+          label="Jeux avec fléchettes"
+          sub={"Capital · Tournoi entre potes\nJoue avec ta cible et tes fléchettes."}
           col="#f59e0b"
         />
-        <ModeBtn
-          icon="🍺"
-          label="Tournoi entre potes"
-          sub="Organise un tournoi avec tes amis autour d'une bière. Format libre, ambiance garantie."
-          onClick={()=>setPage("tournois-potes")}
-          col="#22c55e"
+        <CatBtn
+          id="sans"
+          icon="🧠"
+          label="Jeux sans fléchettes"
+          sub={"Rush Mode · Comptage de finish\nEntraîne ton mental et ta connaissance des finishes."}
+          col="#ef4444"
         />
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
+      <button onClick={()=>setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Catégories</button>
+      {categorie==="fleche" && <>
+        <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🎯 Jeux avec fléchettes</h1>
+        <p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>Prends ta cible, on joue !</p>
+      </>}
+      {categorie==="sans" && <>
+        <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🧠 Jeux sans fléchettes</h1>
+        <p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>Entraîne ta tête, n'importe où !</p>
+      </>}
+      <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
+        {categorie==="fleche" && <>
+          <ModeBtn
+            icon="🏙️"
+            label="Capital"
+            sub="Jeu de précision : descends ton score en visant des zones précises. Chaque cible = une ville à conquérir !"
+            onClick={()=>setPage("jeux-capital")}
+            col="#f59e0b"
+          />
+          <ModeBtn
+            icon="🍺"
+            label="Tournoi entre potes"
+            sub="Organise un tournoi avec tes amis autour d'une bière. Format libre, ambiance garantie."
+            onClick={()=>setPage("tournois-potes")}
+            col="#22c55e"
+          />
+        </>}
+        {categorie==="sans" && <>
+          <ModeBtn
+            icon="⚡"
+            label="Rush Mode"
+            sub="Calcul mental sous pression : score, finishes, bust detection, routes optimales. 3 niveaux de difficulté, système de combo et badges !"
+            onClick={()=>setPage("rush-mode")}
+            col="#ef4444"
+          />
+          <ModeBtn
+            icon="🎯"
+            label="Comptage de finish"
+            sub="Entraîne-toi à construire tes finishes. Le système génère un score, tu trouves la combinaison en 1, 2 ou 3 fléchettes."
+            onClick={()=>setPage("entrainement-finish")}
+            col="#f97316"
+          />
+        </>}
       </div>
     </div>
   );
