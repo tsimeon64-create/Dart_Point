@@ -151,7 +151,6 @@ const SelectionMode = ({ onSelect, setPage, joueur, setJoueur }) => {
             <div style={{ fontWeight:900, fontSize:20, color:C.green }}>Mode Paisible</div>
             <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>Entraînement sans enjeu</div>
           </div>
-          <div style={{ background:"#0a1f0a",border:"1px solid #22c55e66",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:800,color:"#22c55e",flexShrink:0 }}>Gratuit</div>
         </div>
         <ul style={{ margin:0, padding:"0 0 0 18px", color:"#86efac", fontSize:13, lineHeight:1.8 }}>
           <li>Aide affichable (total courant)</li>

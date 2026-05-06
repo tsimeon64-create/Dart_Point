@@ -1533,11 +1533,7 @@ const PageModeJeu = ({ joueur, setJoueur, setPage }) => {
     <span style={{ display:"inline-flex",alignItems:"center",gap:3,background:"#1a0f00",border:"1px solid #f97316aa",borderRadius:20,padding:"2px 9px",fontSize:11,fontWeight:800,color:"#f97316" }}>
       🐂 {cost} BULL
     </span>
-  ) : (
-    <span style={{ display:"inline-flex",alignItems:"center",gap:3,background:"#0a1f0a",border:"1px solid #22c55e66",borderRadius:20,padding:"2px 9px",fontSize:11,fontWeight:800,color:"#22c55e" }}>
-      Gratuit
-    </span>
-  );
+  ) : null;
 
   const ModeBtn = ({ icon, label, sub, onClick, col, cost }) => {
     const hasBull = !joueur || bull >= cost;
