@@ -251,8 +251,8 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
   const [drixFlash, setDrixFlash]       = useState(null); // "+5 DRIX" ou "−5 DRIX"
   const [savingDrix, setSavingDrix]     = useState(false);
 
-  // Minuteur DRIX (7 secondes)
-  const [timer, setTimer]               = useState(7);
+  // Minuteur DRIX (12 secondes)
+  const [timer, setTimer]               = useState(12);
   const [timeOut, setTimeOut]           = useState(false);
   const timeOutHandledRef               = useRef(false);
   const drixSerieRef                    = useRef(drixSerie);
@@ -269,7 +269,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
     setPhase("jeu");
     setErrMsg("");
     // Réinitialise le minuteur DRIX
-    setTimer(7);
+    setTimer(12);
     setTimeOut(false);
     timeOutHandledRef.current = false;
   }, [diffId]);
@@ -485,6 +485,30 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
       {/* ── Zone principale ── */}
       <div style={{ flex:1, display:"flex", flexDirection:"column", padding:"6px 10px", gap:5, overflow:"hidden", minHeight:0 }}>
 
+        {/* ── Minuteur DRIX (au-dessus du finish) ── */}
+        {isDrix && phase === "jeu" && (
+          <div style={{
+            flexShrink:0, borderRadius:10,
+            border:`2px solid ${timer <= 4 ? C.red : timer <= 7 ? C.accent : C.border}`,
+            background: timer <= 4 ? "#450a0a" : timer <= 7 ? "#1a0800" : C.card,
+            padding:"6px 12px", display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+            transition:"background .3s, border-color .3s",
+          }}>
+            <span style={{ fontSize:12, color: timer <= 4 ? C.red : timer <= 7 ? C.accent : C.muted }}>⏱</span>
+            <span style={{
+              fontWeight:900, fontSize: timer <= 4 ? 22 : 18,
+              color: timer <= 4 ? C.red : timer <= 7 ? C.accent : C.text,
+              fontVariantNumeric:"tabular-nums", letterSpacing:2,
+              animation: timer <= 4 ? "pulse 0.5s ease-in-out infinite alternate" : "none",
+            }}>{timer}s</span>
+            <div style={{ flex:1, height:4, background:"#2a2a2a", borderRadius:2, overflow:"hidden" }}>
+              <div style={{ height:"100%", width:`${(timer/12)*100}%`, borderRadius:2, transition:"width 1s linear",
+                background: timer <= 4 ? C.red : timer <= 7 ? C.accent : C.green,
+              }}/>
+            </div>
+          </div>
+        )}
+
         {/* Finish */}
         <div style={{ background: isDrix ? "linear-gradient(135deg,#1a0800,#0f0a00)" : "linear-gradient(135deg,#1a0800,#1a1a2e)", border:`2px solid ${isDrix ? C.accent : C.accent+"44"}`, borderRadius:12, padding:"6px 12px", textAlign:"center", flexShrink:0 }}>
           <div style={{ fontSize:9, color:C.muted, letterSpacing:2 }}>FINISH À RÉALISER</div>
@@ -592,7 +616,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
             <div style={{ fontSize:36 }}>⏰</div>
             <div style={{ fontWeight:900,fontSize:18,color:C.purple }}>Temps écoulé !</div>
             <div style={{ background:"#0f0a1a",borderRadius:10,padding:"8px 14px",textAlign:"center",width:"100%" }}>
-              <div style={{ fontSize:12,color:C.muted,marginBottom:3 }}>Temps écoulé en 7 secondes !</div>
+              <div style={{ fontSize:12,color:C.muted,marginBottom:3 }}>Temps écoulé en 12 secondes !</div>
               {drixSerieRef.current > 0
                 ? <div style={{ fontWeight:800,color:"#fca5a5",fontSize:14 }}>💥 Série brisée — −5 DRIX</div>
                 : <div style={{ fontWeight:700,color:C.muted,fontSize:13 }}>Série à zéro — aucun DRIX perdu</div>
@@ -644,44 +668,17 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
                 {multSel===2?"Bull":"25"}
               </button>
 
-              {/* ── Minuteur DRIX (colonnes 2-5 de la dernière ligne) ── */}
-              {isDrix && (
-                <div style={{
-                  gridColumn:"span 4",
-                  borderRadius:8,
-                  border:`2px solid ${timer <= 3 ? C.red : timer <= 5 ? C.accent : C.border}`,
-                  background: timer <= 3 ? "#450a0a" : timer <= 5 ? "#1a0800" : C.card,
-                  display:"flex", alignItems:"center", justifyContent:"center", gap:6,
-                  transition:"background .3s, border-color .3s",
-                }}>
-                  <span style={{ fontSize:11, color: timer <= 3 ? C.red : timer <= 5 ? C.accent : C.muted }}>⏱</span>
-                  <span style={{
-                    fontWeight:900,
-                    fontSize: timer <= 3 ? 20 : 17,
-                    color: timer <= 3 ? C.red : timer <= 5 ? C.accent : C.text,
-                    fontVariantNumeric:"tabular-nums",
-                    letterSpacing:1,
-                    animation: timer <= 3 ? "pulse 0.5s ease-in-out infinite alternate" : "none",
-                  }}>
-                    {timer}s
-                  </span>
-                </div>
-              )}
+              {/* ── Annuler / Réinitialiser (dernière ligne grille) ── */}
+              <button onClick={annulerDernier} disabled={!darts.length}
+                style={{ gridColumn:"span 2",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:darts.length?C.text:C.muted,fontWeight:700,fontSize:15,cursor:darts.length?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center" }}>↩</button>
+              <button onClick={reinitialiser} disabled={!darts.length}
+                style={{ gridColumn:"span 2",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:darts.length?C.text:C.muted,fontWeight:700,fontSize:15,cursor:darts.length?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center" }}>🔄</button>
             </div>
 
-            {/* Actions */}
-            <div style={{ display:"flex",gap:5,flexShrink:0 }}>
-              <button onClick={annulerDernier} disabled={!darts.length}
-                style={{ flex:1,padding:"10px 4px",borderRadius:9,border:`1px solid ${C.border}`,background:C.card,color:darts.length?C.text:C.muted,fontWeight:600,fontSize:12,cursor:darts.length?"pointer":"default" }}>↩</button>
-              <button onClick={reinitialiser} disabled={!darts.length}
-                style={{ flex:1,padding:"10px 4px",borderRadius:9,border:`1px solid ${C.border}`,background:C.card,color:darts.length?C.text:C.muted,fontWeight:600,fontSize:12,cursor:darts.length?"pointer":"default" }}>🔄</button>
-              <button onClick={()=>{ if(isDrix && drixSerie > 0){ setDrixSerie(0); applyDrix(-5); } setStats(s=>({...s,nok:s.nok+1,serie:0})); nouveauFinish(); }}
-                style={{ flex:1,padding:"10px 4px",borderRadius:9,border:`1px solid ${C.border}`,background:C.card,color:C.muted,fontWeight:600,fontSize:12,cursor:"pointer" }}>⏭</button>
-              <button onClick={valider} disabled={!darts.length}
-                style={{ flex:3,padding:"10px",borderRadius:9,border:"none",background:darts.length?C.accent:"#222",color:darts.length?"#fff":C.muted,fontWeight:900,fontSize:14,cursor:darts.length?"pointer":"default",boxShadow:darts.length?`0 3px 14px ${C.accent}55`:"none" }}>
-                ✅ Valider
-              </button>
-            </div>
+            {/* Valider */}
+            <button onClick={valider} disabled={!darts.length} style={{ flexShrink:0,padding:"10px",borderRadius:9,border:"none",background:darts.length?C.accent:"#222",color:darts.length?"#fff":C.muted,fontWeight:900,fontSize:14,cursor:darts.length?"pointer":"default",boxShadow:darts.length?`0 3px 14px ${C.accent}55`:"none" }}>
+              ✅ Valider
+            </button>
           </div>
         )}
       </div>
