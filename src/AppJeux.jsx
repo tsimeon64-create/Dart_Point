@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { finaliserDuel } from "./AppJoueurs";
+import { finaliserDuel, appliquerBullDuel } from "./AppJoueurs";
 
 // ── AppJeux.jsx ───────────────────────────────────────────────────────────────
 // Table de checkout exacte — source : darts501.com
@@ -271,9 +271,13 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           date: Date.now(),
         })
       });
-      await finaliserDuel({ ...duel, gagnant_id: gagnantId });
+      if (duel.type === "bull") {
+        await appliquerBullDuel({ ...duel, gagnant_id: gagnantId });
+      } else {
+        await finaliserDuel({ ...duel, gagnant_id: gagnantId });
+      }
       setResultEnregistre(true);
-      if (onDuelTermine) onDuelTermine();
+      if (onDuelTermine) onDuelTermine({ gagnantId, bullMise: duel.bull_mise || 0, type: duel.type });
     } catch(e) { console.error("Erreur enregistrement duel:", e); }
   };
 
@@ -499,12 +503,27 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       {modeDuel && (() => {
         const gagnantIsChallenger = gagnant?.nom === duel?.challenger_pseudo;
         const perdantNom   = gagnantIsChallenger ? duel?.defie_pseudo       : duel?.challenger_pseudo;
+        const isBull       = duel?.type === "bull";
+        const bullMise     = duel?.bull_mise || 0;
         const dxGagnant    = drixData ? (gagnantIsChallenger ? drixData.challenger : drixData.defie)    : null;
         const dxPerdant    = drixData ? (gagnantIsChallenger ? drixData.defie      : drixData.challenger) : null;
         return (
-          <div style={{ background:"#0f1a0f", border:"2px solid #22c55e44", borderRadius:14, padding:20, marginBottom:16 }}>
-            <p style={{ fontWeight:700, fontSize:15, color:"#22c55e", marginBottom:12, textAlign:"center" }}>✅ Résultat enregistré !</p>
-            {drixData && (
+          <div style={{ background:"#0f1a0f", border:`2px solid ${isBull?"#f9731644":"#22c55e44"}`, borderRadius:14, padding:20, marginBottom:16 }}>
+            <p style={{ fontWeight:700, fontSize:15, color:isBull?"#f97316":"#22c55e", marginBottom:12, textAlign:"center" }}>✅ Résultat enregistré !</p>
+            {isBull ? (
+              <div style={{ display:"flex", gap:10, marginBottom:12 }}>
+                <div style={{ flex:1, background:"#1a0f00", borderRadius:12, padding:"12px 10px", textAlign:"center", border:"1px solid #f9731644" }}>
+                  <div style={{ fontSize:11, color:"#fdba74", marginBottom:4 }}>🏆 {gagnant?.nom}</div>
+                  <div style={{ fontWeight:900, fontSize:22, color:"#f97316" }}>+{bullMise} 🪙</div>
+                  <div style={{ fontSize:10, color:"#fdba74" }}>BULLS gagnés</div>
+                </div>
+                <div style={{ flex:1, background:"#7f1d1d", borderRadius:12, padding:"12px 10px", textAlign:"center" }}>
+                  <div style={{ fontSize:11, color:"#fca5a5", marginBottom:4 }}>💔 {perdantNom}</div>
+                  <div style={{ fontWeight:900, fontSize:22, color:"#ef4444" }}>−{bullMise} 🪙</div>
+                  <div style={{ fontSize:10, color:"#fca5a5" }}>BULLS perdus</div>
+                </div>
+              </div>
+            ) : drixData && (
               <div style={{ display:"flex", gap:10, marginBottom:12 }}>
                 <div style={{ flex:1, background:"#14532d", borderRadius:12, padding:"12px 10px", textAlign:"center" }}>
                   <div style={{ fontSize:11, color:"#86efac", marginBottom:4 }}>🏆 {gagnant?.nom}</div>
@@ -518,7 +537,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                 </div>
               </div>
             )}
-            <p style={{ color:"#94a3b8", fontSize:12, textAlign:"center" }}>L'adversaire peut contester dans les 24h s'il n'était pas présent.</p>
+            {!isBull && <p style={{ color:"#94a3b8", fontSize:12, textAlign:"center" }}>L'adversaire peut contester dans les 24h s'il n'était pas présent.</p>}
           </div>
         );
       })()}

@@ -68,6 +68,7 @@ export const dbJ = {
   getMyPresence: (joueur_id, bar_slug) => sbJ(`presences?joueur_id=eq.${joueur_id}&bar_slug=eq.${encodeURIComponent(bar_slug)}&date_jour=eq.${todayStr()}&select=*`).then(r => r?.[0]),
   getBarsActifs: () => sbJ(`presences?date_jour=eq.${todayStr()}&select=bar_slug`),
   updateBull: (id, bull, date) => sbJ(`joueurs?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ bull_balance:bull, last_daily_reward:date }), prefer:"return=minimal" }),
+  updateBullReserved: (id, bull_balance, bull_reserved) => sbJ(`joueurs?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ bull_balance, bull_reserved }), prefer:"return=minimal" }),
 };
 
 // ── Fonctions BULL ────────────────────────────────────────────────────────────
@@ -96,6 +97,39 @@ export const spendBull = async (joueur, amount) => {
   const newBal = bal - amount;
   await dbJ.updateBull(joueur.id, newBal, joueur.last_daily_reward ?? todayStr());
   return { ...joueur, bull_balance: newBal };
+};
+
+// Réserve des BULL pour un défi (balance -= mise, reserved += mise).
+export const reserverBull = async (joueurId, mise) => {
+  const j = await dbJ.getJoueur(joueurId);
+  if (!j) throw new Error("Joueur introuvable");
+  const balance  = j.bull_balance  ?? BULL_INIT;
+  const reserved = j.bull_reserved ?? 0;
+  if (balance < mise) throw new Error("Solde insuffisant");
+  await dbJ.updateBullReserved(joueurId, balance - mise, reserved + mise);
+};
+
+// Applique le transfert BULL après un duel de type "bull".
+// Le gagnant récupère les 2 mises (les 2 ont été déduites à l'acceptation).
+export const appliquerBullDuel = async (duel) => {
+  try {
+    const mise = duel.bull_mise || 0;
+    if (!mise) return;
+    const gagnantId = duel.gagnant_id;
+    if (!gagnantId) return;
+    const perdantId = gagnantId === duel.challenger_id ? duel.defie_id : duel.challenger_id;
+    const [jG, jP] = await Promise.all([dbJ.getJoueur(gagnantId), dbJ.getJoueur(perdantId)]);
+    if (!jG || !jP) return;
+    const gBull = jG.bull_balance ?? BULL_INIT;
+    const gRes  = jG.bull_reserved ?? 0;
+    const pRes  = jP.bull_reserved ?? 0;
+    await Promise.all([
+      // Gagnant : reçoit les 2 mises (+2×mise), libère sa réservation
+      dbJ.updateBullReserved(gagnantId, Math.min(BULL_MAX, gBull + mise * 2), Math.max(0, gRes - mise)),
+      // Perdant : sa mise était déjà déduite — on libère seulement la réservation
+      dbJ.updateBullReserved(perdantId, jP.bull_balance ?? BULL_INIT, Math.max(0, pRes - mise)),
+    ]);
+  } catch(e) { console.error("Erreur BULL duel:", e); }
 };
 
 // ── Couleurs ──────────────────────────────────────────────────────────────────
