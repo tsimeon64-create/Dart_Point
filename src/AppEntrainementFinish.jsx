@@ -219,11 +219,11 @@ const SelectionMode = ({ onSelect, setPage, joueur, setJoueur }) => {
             </div>
           : bull < BULL_COST_DRIX
             ? <div style={{ marginTop:4, background:"#450a0a", border:"1px solid #ef4444", borderRadius:10, padding:"11px", textAlign:"center", fontSize:13, color:"#fca5a5", fontWeight:700 }}>
-                🐂 Solde insuffisant ({bull}/2 BULL)
+                🐂 Solde insuffisant ({bull}/{BULL_COST_DRIX} BULL)
               </div>
             : <div style={{ marginTop:4, background:`linear-gradient(135deg,${C.accent},#ea580c)`, borderRadius:10, padding:"11px", textAlign:"center", fontWeight:800, fontSize:15, color:"#fff", display:"flex",alignItems:"center",justifyContent:"center",gap:8 }}>
                 <span>⚡ Jouer pour les DRIX →</span>
-                <span style={{ background:"#00000033",borderRadius:20,padding:"2px 8px",fontSize:11 }}>🐂 2 BULL</span>
+                <span style={{ background:"#00000033",borderRadius:20,padding:"2px 8px",fontSize:11 }}>🐂 {BULL_COST_DRIX} BULL</span>
               </div>
         }
       </div>
