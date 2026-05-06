@@ -83,7 +83,7 @@ const randFrom     = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 // ── Constantes BULL (locales, cohérentes avec AppJoueurs) ────────────────────
 const BULL_COST_PAISIBLE = 1;
-const BULL_COST_DRIX     = 2;
+const BULL_COST_DRIX     = 25;
 const BULL_INIT_LOCAL    = 250;
 
 const SB_URL_EF = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -248,6 +248,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
   // Mode DRIX
   const [drixSerie, setDrixSerie]       = useState(0);    // finishes corrects en cours (0–9)
   const [drixLocal, setDrixLocal]       = useState(joueur?.drix || 1000);
+  const [bullLocal, setBullLocal]       = useState(joueur?.bull_balance ?? BULL_INIT_LOCAL);
   const [drixFlash, setDrixFlash]       = useState(null); // "+5 DRIX" ou "−5 DRIX"
   const [savingDrix, setSavingDrix]     = useState(false);
 
@@ -257,6 +258,9 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
   const timeOutHandledRef               = useRef(false);
   const drixSerieRef                    = useRef(drixSerie);
   useEffect(() => { drixSerieRef.current = drixSerie; }, [drixSerie]);
+  // Synchronise les compteurs locaux si le joueur change
+  useEffect(() => { if (joueur?.drix) setDrixLocal(joueur.drix); }, [joueur?.drix]);
+  useEffect(() => { if (joueur?.bull_balance != null) setBullLocal(joueur.bull_balance); }, [joueur?.bull_balance]);
 
   const isDrix = mode === "drix";
   const diffCurrent = DIFFICULTES.find(d => d.id === diffId);
@@ -415,8 +419,13 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
           {isDrix ? "⚡ Chasse aux DRIX" : "😌 Mode Paisible"}
         </div>
         {isDrix && joueur && (
-          <div style={{ background:C.card2, border:`1px solid ${C.border}`, borderRadius:8, padding:"3px 10px", fontSize:12, fontWeight:800, color:C.purple }}>
-            💎 {drixLocal}
+          <div style={{ display:"flex", gap:5, alignItems:"center" }}>
+            <div style={{ background:C.card2, border:`1px solid ${C.purple}44`, borderRadius:8, padding:"3px 9px", fontSize:12, fontWeight:800, color:C.purple }}>
+              💎 {drixLocal}
+            </div>
+            <div style={{ background:"#1a0f00", border:"1px solid #f9731644", borderRadius:8, padding:"3px 9px", fontSize:12, fontWeight:800, color:"#f97316" }}>
+              🐂 {bullLocal}
+            </div>
           </div>
         )}
         {!isDrix && (
