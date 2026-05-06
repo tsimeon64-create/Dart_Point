@@ -40,11 +40,11 @@ export const BULL_MAX   = 500;   // plafond maximum
 export const BULL_DAILY = 50;    // recharge quotidienne
 export const BULL_INIT  = 250;   // solde initial à la création du compte
 export const BULL_COST  = {
-  paisible : 1,  // Comptage de finish — Mode Paisible
+  paisible : 0,  // Comptage de finish — Mode Paisible (gratuit)
   drix     : 25, // Comptage de finish — Chasse aux DRIX
   rush     : 2,  // Rush Mode
-  capital  : 2,  // Jeu Capital
-  tournoi  : 3,  // Tournoi entre potes
+  capital  : 0,  // Jeu Capital (gratuit)
+  tournoi  : 0,  // Tournoi entre potes (gratuit)
 };
 
 export const dbJ = {

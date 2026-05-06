@@ -82,7 +82,7 @@ const isFinishDart = (mult) => mult === 2;
 const randFrom     = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 // ── Constantes BULL (locales, cohérentes avec AppJoueurs) ────────────────────
-const BULL_COST_PAISIBLE = 1;
+const BULL_COST_PAISIBLE = 0;
 const BULL_COST_DRIX     = 25;
 const BULL_INIT_LOCAL    = 250;
 
@@ -151,7 +151,7 @@ const SelectionMode = ({ onSelect, setPage, joueur, setJoueur }) => {
             <div style={{ fontWeight:900, fontSize:20, color:C.green }}>Mode Paisible</div>
             <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>Entraînement sans enjeu</div>
           </div>
-          <div style={{ background:"#1a0f00",border:"1px solid #f9731644",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:800,color:"#f97316",flexShrink:0 }}>🐂 1 BULL</div>
+          <div style={{ background:"#0a1f0a",border:"1px solid #22c55e66",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:800,color:"#22c55e",flexShrink:0 }}>Gratuit</div>
         </div>
         <ul style={{ margin:0, padding:"0 0 0 18px", color:"#86efac", fontSize:13, lineHeight:1.8 }}>
           <li>Aide affichable (total courant)</li>
@@ -159,9 +159,7 @@ const SelectionMode = ({ onSelect, setPage, joueur, setJoueur }) => {
           <li>Stats de série et record perso</li>
           <li>Aucun DRIX en jeu — juste de la pratique !</li>
         </ul>
-        {joueur && bull < BULL_COST_PAISIBLE
-          ? <div style={{ marginTop:14,background:"#450a0a",border:"1px solid #ef4444",borderRadius:10,padding:"10px",textAlign:"center",fontSize:13,color:"#fca5a5",fontWeight:700 }}>🐂 Solde insuffisant ({bull}/1 BULL)</div>
-          : <div style={{ marginTop:14, background:C.green, borderRadius:10, padding:"11px", textAlign:"center", fontWeight:800, fontSize:15, color:"#fff" }}>Commencer →</div>
+        <div style={{ marginTop:14, background:C.green, borderRadius:10, padding:"11px", textAlign:"center", fontWeight:800, fontSize:15, color:"#fff" }}>Commencer →</div>
         }
       </div>
 
