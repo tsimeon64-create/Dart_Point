@@ -201,8 +201,8 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
   const [drixFlash, setDrixFlash]       = useState(null); // "+5 DRIX" ou "−5 DRIX"
   const [savingDrix, setSavingDrix]     = useState(false);
 
-  // Minuteur DRIX (80 secondes)
-  const [timer, setTimer]               = useState(80);
+  // Minuteur DRIX (7 secondes)
+  const [timer, setTimer]               = useState(7);
   const [timeOut, setTimeOut]           = useState(false);
   const timeOutHandledRef               = useRef(false);
   const drixSerieRef                    = useRef(drixSerie);
@@ -219,7 +219,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
     setPhase("jeu");
     setErrMsg("");
     // Réinitialise le minuteur DRIX
-    setTimer(80);
+    setTimer(7);
     setTimeOut(false);
     timeOutHandledRef.current = false;
   }, [diffId]);
@@ -542,7 +542,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
             <div style={{ fontSize:36 }}>⏰</div>
             <div style={{ fontWeight:900,fontSize:18,color:C.purple }}>Temps écoulé !</div>
             <div style={{ background:"#0f0a1a",borderRadius:10,padding:"8px 14px",textAlign:"center",width:"100%" }}>
-              <div style={{ fontSize:12,color:C.muted,marginBottom:3 }}>Tu avais {80 - timer} secondes de retard</div>
+              <div style={{ fontSize:12,color:C.muted,marginBottom:3 }}>Temps écoulé en 7 secondes !</div>
               {drixSerieRef.current > 0
                 ? <div style={{ fontWeight:800,color:"#fca5a5",fontSize:14 }}>💥 Série brisée — −5 DRIX</div>
                 : <div style={{ fontWeight:700,color:C.muted,fontSize:13 }}>Série à zéro — aucun DRIX perdu</div>
@@ -599,21 +599,21 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
                 <div style={{
                   gridColumn:"span 4",
                   borderRadius:8,
-                  border:`2px solid ${timer <= 10 ? C.red : timer <= 30 ? C.accent : C.border}`,
-                  background: timer <= 10 ? "#450a0a" : timer <= 30 ? "#1a0800" : C.card,
+                  border:`2px solid ${timer <= 3 ? C.red : timer <= 5 ? C.accent : C.border}`,
+                  background: timer <= 3 ? "#450a0a" : timer <= 5 ? "#1a0800" : C.card,
                   display:"flex", alignItems:"center", justifyContent:"center", gap:6,
                   transition:"background .3s, border-color .3s",
                 }}>
-                  <span style={{ fontSize:11, color: timer <= 10 ? C.red : timer <= 30 ? C.accent : C.muted }}>⏱</span>
+                  <span style={{ fontSize:11, color: timer <= 3 ? C.red : timer <= 5 ? C.accent : C.muted }}>⏱</span>
                   <span style={{
                     fontWeight:900,
-                    fontSize: timer <= 10 ? 20 : 17,
-                    color: timer <= 10 ? C.red : timer <= 30 ? C.accent : C.text,
+                    fontSize: timer <= 3 ? 20 : 17,
+                    color: timer <= 3 ? C.red : timer <= 5 ? C.accent : C.text,
                     fontVariantNumeric:"tabular-nums",
                     letterSpacing:1,
-                    animation: timer <= 10 ? "pulse 0.5s ease-in-out infinite alternate" : "none",
+                    animation: timer <= 3 ? "pulse 0.5s ease-in-out infinite alternate" : "none",
                   }}>
-                    {Math.floor(timer / 60)}:{String(timer % 60).padStart(2, "0")}
+                    {timer}s
                   </span>
                 </div>
               )}
