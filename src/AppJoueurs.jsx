@@ -35,6 +35,18 @@ export const hashPwd = async (pwd) => {
 
 export const todayStr = () => new Date().toISOString().slice(0, 10);
 
+// ── SYSTÈME BULL ──────────────────────────────────────────────────────────────
+export const BULL_MAX   = 500;   // plafond maximum
+export const BULL_DAILY = 50;    // recharge quotidienne
+export const BULL_INIT  = 250;   // solde initial à la création du compte
+export const BULL_COST  = {
+  paisible : 1,  // Comptage de finish — Mode Paisible
+  drix     : 2,  // Comptage de finish — Chasse aux DRIX
+  rush     : 2,  // Rush Mode
+  capital  : 2,  // Jeu Capital
+  tournoi  : 3,  // Tournoi entre potes
+};
+
 export const dbJ = {
   getJoueurs: () => sbJ("joueurs?order=pseudo.asc&select=*"),
   getJoueur: (id) => sbJ(`joueurs?id=eq.${id}&select=*`).then(r => r?.[0]),
@@ -55,6 +67,29 @@ export const dbJ = {
   deletePresence: (id) => sbJ(`presences?id=eq.${id}`, { method: "DELETE", prefer: "return=minimal" }),
   getMyPresence: (joueur_id, bar_slug) => sbJ(`presences?joueur_id=eq.${joueur_id}&bar_slug=eq.${encodeURIComponent(bar_slug)}&date_jour=eq.${todayStr()}&select=*`).then(r => r?.[0]),
   getBarsActifs: () => sbJ(`presences?date_jour=eq.${todayStr()}&select=bar_slug`),
+  updateBull: (id, bull, date) => sbJ(`joueurs?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ bull_balance:bull, last_daily_reward:date }), prefer:"return=minimal" }),
+};
+
+// ── Fonctions BULL ────────────────────────────────────────────────────────────
+// Vérifie à chaque connexion si la recharge quotidienne doit être appliquée.
+// Garanti côté serveur : compare last_daily_reward avec today, sans rétroactivité.
+export const checkDailyBull = async (joueur) => {
+  if (!joueur?.id) return joueur;
+  const today = todayStr();
+  if (joueur.last_daily_reward === today) return joueur; // déjà rechargé aujourd'hui
+  const current = joueur.bull_balance ?? BULL_INIT;
+  const bull = Math.min(BULL_MAX, current + BULL_DAILY); // plafond à 500
+  await dbJ.updateBull(joueur.id, bull, today).catch(() => {});
+  return { ...joueur, bull_balance: bull, last_daily_reward: today };
+};
+
+// Déduit des BULL et met à jour le serveur. Lance une erreur si solde insuffisant.
+export const spendBull = async (joueur, amount) => {
+  const bal = joueur.bull_balance ?? BULL_INIT;
+  if (bal < amount) throw new Error(`insuffisant`);
+  const newBal = bal - amount;
+  await dbJ.updateBull(joueur.id, newBal, joueur.last_daily_reward ?? today);
+  return { ...joueur, bull_balance: newBal };
 };
 
 // ── Couleurs ──────────────────────────────────────────────────────────────────
@@ -392,10 +427,13 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
               {!editMode && <button onClick={()=>setEditMode(true)} style={{ background:"none",border:`1px solid ${CJ.border}`,color:CJ.muted,cursor:"pointer",borderRadius:6,padding:"3px 10px",fontSize:11 }}>✏️ Modifier</button>}
             </div>
 
-            <div style={{ display:"inline-flex",alignItems:"center",gap:8,background:color+"22",border:`1px solid ${color}44`,borderRadius:20,padding:"5px 14px",marginBottom:10 }}>
-              <span style={{ fontSize:16 }}>{emoji}</span>
-              <span style={{ fontWeight:900,fontSize:18,color }}>{joueur.drix||1000}</span>
-              <span style={{ fontSize:12,color,fontWeight:600 }}>DRIX · {titre}</span>
+            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+              <div style={{ display:"inline-flex",alignItems:"center",gap:8,background:color+"22",border:`1px solid ${color}44`,borderRadius:20,padding:"5px 14px" }}>
+                <span style={{ fontSize:16 }}>{emoji}</span>
+                <span style={{ fontWeight:900,fontSize:18,color }}>{joueur.drix||1000}</span>
+                <span style={{ fontSize:12,color,fontWeight:600 }}>DRIX · {titre}</span>
+              </div>
+              <BullBadge bull={joueur.bull_balance} size="normal"/>
             </div>
 
             {!editMode ? (
@@ -1843,6 +1881,28 @@ export const DrixBadge = ({ drix=1000, size="normal" }) => {
       <span style={{ fontSize:big?18:13 }}>{emoji}</span>
       <span style={{ fontWeight:700, color, fontSize:big?15:12 }}>{drix}</span>
       <span style={{ color:color+"99", fontSize:big?12:10 }}>DRIX · {titre}</span>
+    </div>
+  );
+};
+
+// ── BADGE BULL ────────────────────────────────────────────────────────────────
+export const BullBadge = ({ bull, size="normal", flash=false }) => {
+  const balance = bull ?? BULL_INIT;
+  const big = size === "big";
+  const col = balance <= 10 ? "#ef4444" : balance <= 50 ? "#f59e0b" : "#f97316";
+  return (
+    <div style={{
+      display:"inline-flex", alignItems:"center", gap:big?6:4,
+      background: flash ? "#78350f" : "#1a0f00",
+      border:`1px solid ${col}44`,
+      borderRadius:big?12:8,
+      padding:big?"8px 14px":"3px 10px",
+      transition:"background .3s",
+      boxShadow: flash ? `0 0 14px ${col}66` : "none",
+    }}>
+      <span style={{ fontSize:big?18:13 }}>🐂</span>
+      <span style={{ fontWeight:900, fontSize:big?18:13, color:col, fontVariantNumeric:"tabular-nums" }}>{balance}</span>
+      <span style={{ fontSize:big?11:10, color:"#a16207", fontWeight:700 }}>BULL</span>
     </div>
   );
 };

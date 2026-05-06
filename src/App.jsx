@@ -6,7 +6,8 @@ import {
   PageDrix, DrixBadge, HistoriqueDrix,
   AmiSection,
   appliquerDrixDuel, getDrixTitre, calculerDrix,
-  dbJoueurs, todayStr, hashPwd
+  dbJoueurs, todayStr, hashPwd,
+  checkDailyBull, spendBull, BullBadge, BULL_COST, BULL_INIT,
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
 import { JeuCapital } from "./AppJeuDecalePoint";
@@ -610,24 +611,29 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
   const [stats, setStats] = useState(null);
   const [joueurFrais, setJoueurFrais] = useState(joueur);
   const [showMap, setShowMap] = useState(false);
+  const [bullFlash, setBullFlash] = useState(false); // animation recharge quotidienne
 
   useEffect(() => {
-    // Rafraîchissement des données depuis la DB à chaque affichage
+    // Rafraîchissement des données + vérification recharge BULL quotidienne
     Promise.all([
       dbJoueurs.getJoueur(joueur.id),
       dbJoueurs.getStats(joueur.id),
-    ]).then(([j, s]) => {
+    ]).then(async ([j, s]) => {
       if (j) {
-        setJoueurFrais(j);
-        // Mise à jour du state parent + localStorage pour que la nav soit aussi à jour
+        const jAvec = await checkDailyBull(j);
+        // Si la recharge a été appliquée, flash animation
+        if (jAvec.bull_balance !== j.bull_balance) {
+          setBullFlash(true);
+          setTimeout(() => setBullFlash(false), 3000);
+        }
+        setJoueurFrais(jAvec);
         if (setJoueur) {
-          setJoueur(j);
-          localStorage.setItem("dp_joueur", JSON.stringify(j));
+          setJoueur(jAvec);
+          localStorage.setItem("dp_joueur", JSON.stringify(jAvec));
         }
       }
       if (s) setStats(s);
     }).catch(() => {
-      // Fallback : charger juste les stats si le joueur échoue
       dbJoueurs.getStats(joueur.id).then(setStats).catch(() => {});
     });
   }, [joueur.id]);
@@ -651,7 +657,7 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
 
   return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"16px 12px 24px" }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes slideUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}} @keyframes bullPop{0%{transform:scale(1)}50%{transform:scale(1.3)}100%{transform:scale(1)}}`}</style>
 
       {/* ── Carte profil ── */}
       <div onClick={()=>setPage("mon-profil")} style={{ position:"relative",display:"flex",alignItems:"center",gap:16,background:"linear-gradient(135deg,#1a1a1a,#111)",border:`1px solid ${color}55`,borderRadius:16,padding:"14px 18px",marginBottom:12,cursor:"pointer",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s" }}
@@ -680,10 +686,20 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
           {stats && <div style={{ color:"#94a3b8",fontSize:11,marginTop:3 }}>{stats.victoires}V · {stats.defaites}D · {stats.parties > 0 ? Math.round(stats.victoires/stats.parties*100) : 0}% winrate</div>}
         </div>
 
-        {/* DRIX */}
-        <div style={{ textAlign:"center",flexShrink:0,background:color+"18",border:`1px solid ${color}44`,borderRadius:12,padding:"10px 16px" }}>
-          <div style={{ fontWeight:900,fontSize:"clamp(18px,5vw,26px)",color,lineHeight:1 }}>{j.drix||1000}</div>
-          <div style={{ fontSize:10,color,fontWeight:700,marginTop:3,letterSpacing:1 }}>DRIX</div>
+        {/* DRIX + BULL */}
+        <div style={{ display:"flex",flexDirection:"column",gap:6,flexShrink:0 }}>
+          <div style={{ textAlign:"center",background:color+"18",border:`1px solid ${color}44`,borderRadius:12,padding:"8px 14px" }}>
+            <div style={{ fontWeight:900,fontSize:"clamp(16px,4.5vw,24px)",color,lineHeight:1 }}>{j.drix||1000}</div>
+            <div style={{ fontSize:9,color,fontWeight:700,marginTop:2,letterSpacing:1 }}>DRIX</div>
+          </div>
+          <div style={{ position:"relative" }}>
+            <BullBadge bull={j.bull_balance} size="normal" flash={bullFlash}/>
+            {bullFlash && (
+              <div style={{ position:"absolute",top:-22,right:0,background:"#f97316",color:"#fff",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:800,whiteSpace:"nowrap",animation:"slideUp .3s ease-out" }}>
+                +50 🐂
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1491,19 +1507,54 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
 };
 
 // ── PAGE MODE JEU ─────────────────────────────────────────────────────────────
-const PageModeJeu = ({ joueur, setPage }) => {
-  const [categorie, setCategorie] = useState(null); // null | "fleche" | "sans"
+const PageModeJeu = ({ joueur, setJoueur, setPage }) => {
+  const [categorie, setCategorie] = useState(null);
+  const [bullErr, setBullErr] = useState(null); // message insuffisant
+  const bull = joueur?.bull_balance ?? BULL_INIT;
 
-  const ModeBtn = ({ icon, label, sub, onClick, col }) => (
-    <div onClick={onClick} style={{ background:"linear-gradient(135deg,#1a1a1a,#141414)",border:`2px solid ${col}33`,borderRadius:16,padding:"20px 18px",cursor:"pointer",display:"flex",flexDirection:"column",gap:6,transition:"all .15s",userSelect:"none" }}
-      onMouseEnter={e=>{e.currentTarget.style.borderColor=col;e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow=`0 10px 28px ${col}22`;}}
-      onMouseLeave={e=>{e.currentTarget.style.borderColor=col+"33";e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
-      <div style={{ fontSize:40 }}>{icon}</div>
-      <div style={{ fontWeight:800,fontSize:18,color:"#f1f5f9" }}>{label}</div>
-      <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.5 }}>{sub}</div>
-      <div style={{ fontSize:12,color:col,fontWeight:700,marginTop:4 }}>Jouer →</div>
-    </div>
+  const lancerMode = async (page, cost, needLogin=false) => {
+    if (needLogin && !joueur) { setPage("connexion"); return; }
+    if (joueur && cost > 0) {
+      if (bull < cost) {
+        setBullErr(`Pas assez de BULL pour ce mode (${bull}/${cost} 🐂)`);
+        setTimeout(() => setBullErr(null), 3000);
+        return;
+      }
+      try {
+        const jUpdated = await spendBull(joueur, cost);
+        setJoueur(jUpdated);
+        localStorage.setItem("dp_joueur", JSON.stringify(jUpdated));
+      } catch { return; }
+    }
+    setPage(page);
+  };
+
+  const CostTag = ({ cost }) => (
+    <span style={{ display:"inline-flex",alignItems:"center",gap:3,background:"#1a0f00",border:"1px solid #f97316aa",borderRadius:20,padding:"2px 9px",fontSize:11,fontWeight:800,color:"#f97316" }}>
+      🐂 {cost} BULL
+    </span>
   );
+
+  const ModeBtn = ({ icon, label, sub, onClick, col, cost }) => {
+    const hasBull = !joueur || bull >= cost;
+    return (
+      <div onClick={onClick}
+        style={{ background:"linear-gradient(135deg,#1a1a1a,#141414)",border:`2px solid ${hasBull?col+"33":C.border}`,borderRadius:16,padding:"20px 18px",cursor:"pointer",display:"flex",flexDirection:"column",gap:6,transition:"all .15s",userSelect:"none",opacity:hasBull?1:0.7 }}
+        onMouseEnter={e=>{e.currentTarget.style.borderColor=hasBull?col:C.border;e.currentTarget.style.transform="translateY(-3px)";}}
+        onMouseLeave={e=>{e.currentTarget.style.borderColor=hasBull?col+"33":C.border;e.currentTarget.style.transform="translateY(0)";}}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
+          <div style={{ fontSize:40 }}>{icon}</div>
+          <CostTag cost={cost}/>
+        </div>
+        <div style={{ fontWeight:800,fontSize:18,color:"#f1f5f9" }}>{label}</div>
+        <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.5 }}>{sub}</div>
+        {!hasBull
+          ? <div style={{ fontSize:12,color:C.red,fontWeight:700,marginTop:4 }}>🐂 Solde insuffisant ({bull} BULL)</div>
+          : <div style={{ fontSize:12,color:col,fontWeight:700,marginTop:4 }}>Jouer →</div>
+        }
+      </div>
+    );
+  };
 
   const CatBtn = ({ icon, label, sub, id, col }) => (
     <div onClick={()=>setCategorie(id)}
@@ -1513,80 +1564,59 @@ const PageModeJeu = ({ joueur, setPage }) => {
       <div style={{ fontSize:52,marginBottom:10 }}>{icon}</div>
       <div style={{ fontWeight:900,fontSize:20,color:col,marginBottom:6 }}>{label}</div>
       <div style={{ fontSize:13,color:C.muted,lineHeight:1.6 }}>{sub}</div>
-      <div style={{ marginTop:14,background:col,borderRadius:10,padding:"10px",fontWeight:800,fontSize:14,color:"#fff" }}>
-        Accéder →
-      </div>
+      <div style={{ marginTop:14,background:col,borderRadius:10,padding:"10px",fontWeight:800,fontSize:14,color:"#fff" }}>Accéder →</div>
     </div>
   );
 
-  // Écran de sélection de catégorie
   if (!categorie) return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
       <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Accueil</button>
-      <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🎮 Mode Jeu</h1>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4 }}>
+        <h1 style={{ fontWeight:800,fontSize:22,margin:0 }}>🎮 Mode Jeu</h1>
+        {joueur && <div style={{ display:"flex",alignItems:"center",gap:6,background:"#1a0f00",border:"1px solid #f9731644",borderRadius:10,padding:"5px 12px" }}>
+          <span style={{ fontSize:14 }}>🐂</span>
+          <span style={{ fontWeight:900,fontSize:16,color:"#f97316" }}>{bull}</span>
+          <span style={{ fontSize:10,color:"#a16207",fontWeight:700 }}>BULL</span>
+        </div>}
+      </div>
       <p style={{ color:C.muted,fontSize:13,marginBottom:24 }}>Choisis ta catégorie de jeu</p>
+      {bullErr && <div style={{ background:"#450a0a",border:"1px solid #ef4444",borderRadius:10,padding:"10px 14px",marginBottom:16,color:"#fca5a5",fontSize:13,fontWeight:600 }}>⚠️ {bullErr}</div>}
       <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
-        <CatBtn
-          id="fleche"
-          icon="🎯"
-          label="Jeux avec fléchettes"
-          sub={"Capital · Tournoi entre potes\nJoue avec ta cible et tes fléchettes."}
-          col="#f59e0b"
-        />
-        <CatBtn
-          id="sans"
-          icon="🧠"
-          label="Jeux sans fléchettes"
-          sub={"Rush Mode · Comptage de finish\nEntraîne ton mental et ta connaissance des finishes."}
-          col="#ef4444"
-        />
+        <CatBtn id="fleche" icon="🎯" label="Jeux avec fléchettes" sub={"Capital · Tournoi entre potes\nJoue avec ta cible et tes fléchettes."} col="#f59e0b"/>
+        <CatBtn id="sans"   icon="🧠" label="Jeux sans fléchettes"  sub={"Rush Mode · Comptage de finish\nEntraîne ton mental et ta connaissance des finishes."} col="#ef4444"/>
       </div>
     </div>
   );
 
   return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
-      <button onClick={()=>setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Catégories</button>
-      {categorie==="fleche" && <>
-        <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🎯 Jeux avec fléchettes</h1>
-        <p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>Prends ta cible, on joue !</p>
-      </>}
-      {categorie==="sans" && <>
-        <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🧠 Jeux sans fléchettes</h1>
-        <p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>Entraîne ta tête, n'importe où !</p>
-      </>}
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+        <button onClick={()=>setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}>← Catégories</button>
+        {joueur && <div style={{ display:"flex",alignItems:"center",gap:5,background:"#1a0f00",border:"1px solid #f9731644",borderRadius:10,padding:"4px 10px" }}>
+          <span style={{ fontSize:13 }}>🐂</span>
+          <span style={{ fontWeight:900,fontSize:14,color:"#f97316" }}>{bull}</span>
+          <span style={{ fontSize:10,color:"#a16207",fontWeight:700 }}>BULL</span>
+        </div>}
+      </div>
+      {bullErr && <div style={{ background:"#450a0a",border:"1px solid #ef4444",borderRadius:10,padding:"10px 14px",marginBottom:14,color:"#fca5a5",fontSize:13,fontWeight:600 }}>⚠️ {bullErr}</div>}
+      {categorie==="fleche" && <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🎯 Jeux avec fléchettes</h1><p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>Prends ta cible, on joue !</p></>}
+      {categorie==="sans"   && <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🧠 Jeux sans fléchettes</h1><p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>Entraîne ta tête, n'importe où !</p></>}
       <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
         {categorie==="fleche" && <>
-          <ModeBtn
-            icon="🏙️"
-            label="Capital"
-            sub="Jeu de précision : descends ton score en visant des zones précises. Chaque cible = une ville à conquérir !"
-            onClick={()=>setPage("jeux-capital")}
-            col="#f59e0b"
-          />
-          <ModeBtn
-            icon="🍺"
-            label="Tournoi entre potes"
-            sub="Organise un tournoi avec tes amis autour d'une bière. Format libre, ambiance garantie."
-            onClick={()=>setPage("tournois-potes")}
-            col="#22c55e"
-          />
+          <ModeBtn icon="🏙️" label="Capital" cost={BULL_COST.capital}
+            sub="Jeu de précision : descends ton score en visant des zones précises."
+            onClick={()=>lancerMode("jeux-capital", BULL_COST.capital)} col="#f59e0b"/>
+          <ModeBtn icon="🍺" label="Tournoi entre potes" cost={BULL_COST.tournoi}
+            sub="Organise un tournoi avec tes amis. Format libre, ambiance garantie."
+            onClick={()=>lancerMode("tournois-potes", BULL_COST.tournoi)} col="#22c55e"/>
         </>}
         {categorie==="sans" && <>
-          <ModeBtn
-            icon="⚡"
-            label="Rush Mode"
-            sub="Calcul mental sous pression : score, finishes, bust detection, routes optimales. 3 niveaux de difficulté, système de combo et badges !"
-            onClick={()=>setPage("rush-mode")}
-            col="#ef4444"
-          />
-          <ModeBtn
-            icon="🎯"
-            label="Comptage de finish"
-            sub="Entraîne-toi à construire tes finishes. Le système génère un score, tu trouves la combinaison en 1, 2 ou 3 fléchettes."
-            onClick={()=>setPage("entrainement-finish")}
-            col="#f97316"
-          />
+          <ModeBtn icon="⚡" label="Rush Mode" cost={BULL_COST.rush}
+            sub="Calcul mental sous pression : score, finishes, bust, routes. 3 niveaux, combos et badges !"
+            onClick={()=>lancerMode("rush-mode", BULL_COST.rush)} col="#ef4444"/>
+          <ModeBtn icon="🎯" label="Comptage de finish" cost={BULL_COST.paisible}
+            sub="Entraîne-toi à construire tes finishes en 1, 2 ou 3 fléchettes. (2 BULL en mode DRIX)"
+            onClick={()=>lancerMode("entrainement-finish", 0)} col="#f97316"/>
         </>}
       </div>
     </div>
@@ -2732,10 +2762,10 @@ export default function App() {
         {page==="profil-badges"    && joueur && <PageProfilBadges setPage={nav}/>}
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav}/>}
         {page==="scoreur"          && <Scoreur setPage={nav}/>}
-        {page==="jeux"             && <PageModeJeu joueur={joueur} setPage={nav}/>}
+        {page==="jeux"             && <PageModeJeu joueur={joueur} setJoueur={setJoueur} setPage={nav}/>}
         {page==="jeux-capital"          && <JeuCapital setPage={nav}/>}
-        {page==="entrainement-finish"   && <EntrainementFinish setPage={nav} joueur={joueur}/>}
-        {page==="rush-mode"             && <RushMode setPage={nav} joueur={joueur}/>}
+        {page==="entrainement-finish"   && <EntrainementFinish setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
+        {page==="rush-mode"             && <RushMode setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="tournois-potes"   && <TournoiPotesPage joueur={joueur} setPage={nav}/>}
         {page.startsWith("tournoi-potes-") && <TournoiPotesDetail tournoiId={page.replace("tournoi-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
         {page.startsWith("scoreur-potes-") && <ScoreurPotesWrapper matchId={page.replace("scoreur-potes-","")} joueurConnecte={joueur} setPage={nav}/>}

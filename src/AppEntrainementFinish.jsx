@@ -81,8 +81,44 @@ const dartValue    = (mult, num) => mult * num;
 const isFinishDart = (mult) => mult === 2;
 const randFrom     = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
+// ── Constantes BULL (locales, cohérentes avec AppJoueurs) ────────────────────
+const BULL_COST_PAISIBLE = 1;
+const BULL_COST_DRIX     = 2;
+const BULL_INIT_LOCAL    = 250;
+
+const SB_URL_EF = "https://secuyejzngzhnnuweuwm.supabase.co";
+const SB_KEY_EF = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
+const todayStrEF = () => new Date().toISOString().slice(0, 10);
+const patchBull = (id, bull) =>
+  fetch(`${SB_URL_EF}/rest/v1/joueurs?id=eq.${id}`, {
+    method:"PATCH",
+    headers:{ "apikey":SB_KEY_EF,"Authorization":`Bearer ${SB_KEY_EF}`,"Content-Type":"application/json","Prefer":"return=minimal" },
+    body: JSON.stringify({ bull_balance: bull }),
+  });
+
 // ── Écran de sélection de mode ────────────────────────────────────────────────
-const SelectionMode = ({ onSelect, setPage, joueur }) => (
+const SelectionMode = ({ onSelect, setPage, joueur, setJoueur }) => {
+  const [bullErr, setBullErr] = useState(null);
+  const bull = joueur?.bull_balance ?? BULL_INIT_LOCAL;
+
+  const lancer = async (mode) => {
+    const cost = mode === "drix" ? BULL_COST_DRIX : BULL_COST_PAISIBLE;
+    if (joueur) {
+      if (bull < cost) {
+        setBullErr(`Pas assez de BULL (${bull}/${cost} 🐂)`);
+        setTimeout(() => setBullErr(null), 3000);
+        return;
+      }
+      const newBull = bull - cost;
+      await patchBull(joueur.id, newBull).catch(() => {});
+      const updated = { ...joueur, bull_balance: newBull };
+      setJoueur?.(updated);
+      localStorage.setItem("dp_joueur", JSON.stringify(updated));
+    }
+    onSelect(mode);
+  };
+
+  return (
   <div style={{
     position:"fixed", inset:0, zIndex:200, background:C.bg,
     display:"flex", flexDirection:"column", overflow:"hidden",
@@ -91,6 +127,11 @@ const SelectionMode = ({ onSelect, setPage, joueur }) => (
     <div style={{ background:C.card, borderBottom:`1px solid ${C.border}`, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
       <button onClick={()=>setPage("jeux")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}>← Retour</button>
       <div style={{ flex:1, fontWeight:800, fontSize:16, color:C.text }}>🎯 Comptage de finish</div>
+      {joueur && <div style={{ display:"flex",alignItems:"center",gap:4,background:"#1a0f00",border:"1px solid #f9731644",borderRadius:8,padding:"3px 10px" }}>
+        <span style={{ fontSize:13 }}>🐂</span>
+        <span style={{ fontWeight:900,fontSize:13,color:"#f97316" }}>{bull}</span>
+        <span style={{ fontSize:10,color:"#a16207",fontWeight:700 }}>BULL</span>
+      </div>}
     </div>
 
     <div style={{ flex:1, overflowY:"auto", padding:"20px 14px", display:"flex", flexDirection:"column", gap:14 }}>
@@ -98,17 +139,19 @@ const SelectionMode = ({ onSelect, setPage, joueur }) => (
       {/* Titre */}
       <div style={{ textAlign:"center", marginBottom:6 }}>
         <div style={{ fontSize:13, color:C.muted }}>Choisis ton mode de jeu</div>
+        {bullErr && <div style={{ marginTop:8,background:"#450a0a",border:"1px solid #ef4444",borderRadius:8,padding:"8px 12px",color:"#fca5a5",fontSize:13,fontWeight:600 }}>⚠️ {bullErr}</div>}
       </div>
 
       {/* ── Mode Paisible ── */}
-      <div onClick={()=>onSelect("paisible")}
-        style={{ background:"linear-gradient(135deg,#1a2a1a,#141414)", border:`2px solid ${C.green}44`, borderRadius:20, padding:"22px 18px", cursor:"pointer", transition:"all .15s", active:{opacity:0.8} }}>
+      <div onClick={()=>lancer("paisible")}
+        style={{ background:"linear-gradient(135deg,#1a2a1a,#141414)", border:`2px solid ${C.green}44`, borderRadius:20, padding:"22px 18px", cursor:"pointer", transition:"all .15s" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12 }}>
           <div style={{ fontSize:40 }}>😌</div>
-          <div>
+          <div style={{ flex:1 }}>
             <div style={{ fontWeight:900, fontSize:20, color:C.green }}>Mode Paisible</div>
             <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>Entraînement sans enjeu</div>
           </div>
+          <div style={{ background:"#1a0f00",border:"1px solid #f9731644",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:800,color:"#f97316",flexShrink:0 }}>🐂 1 BULL</div>
         </div>
         <ul style={{ margin:0, padding:"0 0 0 18px", color:"#86efac", fontSize:13, lineHeight:1.8 }}>
           <li>Aide affichable (total courant)</li>
@@ -116,13 +159,14 @@ const SelectionMode = ({ onSelect, setPage, joueur }) => (
           <li>Stats de série et record perso</li>
           <li>Aucun DRIX en jeu — juste de la pratique !</li>
         </ul>
-        <div style={{ marginTop:14, background:C.green, borderRadius:10, padding:"11px", textAlign:"center", fontWeight:800, fontSize:15, color:"#fff" }}>
-          Commencer →
-        </div>
+        {joueur && bull < BULL_COST_PAISIBLE
+          ? <div style={{ marginTop:14,background:"#450a0a",border:"1px solid #ef4444",borderRadius:10,padding:"10px",textAlign:"center",fontSize:13,color:"#fca5a5",fontWeight:700 }}>🐂 Solde insuffisant ({bull}/1 BULL)</div>
+          : <div style={{ marginTop:14, background:C.green, borderRadius:10, padding:"11px", textAlign:"center", fontWeight:800, fontSize:15, color:"#fff" }}>Commencer →</div>
+        }
       </div>
 
       {/* ── Mode DRIX ── */}
-      <div onClick={()=>joueur ? onSelect("drix") : null}
+      <div onClick={()=>joueur ? lancer("drix") : null}
         style={{ background:"linear-gradient(135deg,#1a0a00,#1a1a00)", border:`2px solid ${C.accent}`, borderRadius:20, padding:"22px 18px", cursor:"pointer", transition:"all .15s" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:6 }}>
           <div style={{ fontSize:40 }}>⚡</div>
@@ -169,19 +213,25 @@ const SelectionMode = ({ onSelect, setPage, joueur }) => (
           </div>
         </div>
 
-        {joueur
-          ? <div style={{ marginTop:4, background:`linear-gradient(135deg,${C.accent},#ea580c)`, borderRadius:10, padding:"11px", textAlign:"center", fontWeight:800, fontSize:15, color:"#fff" }}>
-              ⚡ Jouer pour les DRIX →
-            </div>
-          : <div style={{ marginTop:4, background:"#1a1a1a", border:`1px solid ${C.border}`, borderRadius:10, padding:"11px", textAlign:"center", fontSize:13, color:C.muted }}>
+        {!joueur
+          ? <div style={{ marginTop:4, background:"#1a1a1a", border:`1px solid ${C.border}`, borderRadius:10, padding:"11px", textAlign:"center", fontSize:13, color:C.muted }}>
               🔒 Connecte-toi pour jouer ce mode
             </div>
+          : bull < BULL_COST_DRIX
+            ? <div style={{ marginTop:4, background:"#450a0a", border:"1px solid #ef4444", borderRadius:10, padding:"11px", textAlign:"center", fontSize:13, color:"#fca5a5", fontWeight:700 }}>
+                🐂 Solde insuffisant ({bull}/2 BULL)
+              </div>
+            : <div style={{ marginTop:4, background:`linear-gradient(135deg,${C.accent},#ea580c)`, borderRadius:10, padding:"11px", textAlign:"center", fontWeight:800, fontSize:15, color:"#fff", display:"flex",alignItems:"center",justifyContent:"center",gap:8 }}>
+                <span>⚡ Jouer pour les DRIX →</span>
+                <span style={{ background:"#00000033",borderRadius:20,padding:"2px 8px",fontSize:11 }}>🐂 2 BULL</span>
+              </div>
         }
       </div>
 
     </div>
   </div>
-);
+  );
+};
 
 // ── Jeu principal (Paisible + DRIX) ──────────────────────────────────────────
 const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
@@ -640,7 +690,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
 };
 
 // ── Export principal ──────────────────────────────────────────────────────────
-export const EntrainementFinish = ({ setPage, joueur }) => {
+export const EntrainementFinish = ({ setPage, joueur, setJoueur }) => {
   const [mode, setMode] = useState(null); // null = sélection | "paisible" | "drix"
 
   // Retour à la sélection quand on clique "← Modes"
@@ -649,6 +699,6 @@ export const EntrainementFinish = ({ setPage, joueur }) => {
     setPage(p);
   };
 
-  if (!mode) return <SelectionMode onSelect={setMode} setPage={setPage} joueur={joueur} />;
+  if (!mode) return <SelectionMode onSelect={setMode} setPage={setPage} joueur={joueur} setJoueur={setJoueur}/>;
   return <Jeu mode={mode} setPage={handleSetPage} joueur={joueur} />;
 };

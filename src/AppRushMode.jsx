@@ -293,11 +293,16 @@ const AnswerButtons = ({ q, onAnswer, disabled }) => {
 };
 
 // ── Écran de sélection de niveau ──────────────────────────────────────────────
-const SelectNiveau = ({ onSelect, onBack }) => (
+const SelectNiveau = ({ onSelect, onBack, bull }) => (
   <div style={{position:"fixed",inset:0,background:C.bg,display:"flex",flexDirection:"column",zIndex:200}}>
     <div style={{background:C.card,borderBottom:`1px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
       <button onClick={onBack} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0}}>← Retour</button>
       <div style={{flex:1,fontWeight:800,fontSize:16,color:C.text}}>⚡ Rush Mode — Niveau</div>
+      {bull != null && <div style={{display:"flex",alignItems:"center",gap:4,background:"#1a0f00",border:"1px solid #f9731644",borderRadius:8,padding:"3px 10px"}}>
+        <span style={{fontSize:13}}>🐂</span>
+        <span style={{fontWeight:900,fontSize:13,color:"#f97316"}}>{bull}</span>
+        <span style={{fontSize:10,color:"#a16207",fontWeight:700}}>BULL</span>
+      </div>}
     </div>
     <div style={{flex:1,overflowY:"auto",padding:"24px 16px",display:"flex",flexDirection:"column",gap:14}}>
       {Object.values(NIVEAUX).map(n=>(
@@ -645,7 +650,7 @@ const MenuRush = ({ onStart, setPage }) => {
 };
 
 // ── Export principal ──────────────────────────────────────────────────────────
-export const RushMode = ({ setPage, joueur }) => {
+export const RushMode = ({ setPage, joueur, setJoueur }) => {
   const [screen,  setScreen]  = useState("menu");   // menu | select | game | summary
   const [niveauId, setNiveauId] = useState(null);
   const [session, setSession] = useState(null);
@@ -660,7 +665,7 @@ export const RushMode = ({ setPage, joueur }) => {
   }, []);
 
   if (screen==="menu")    return <MenuRush    onStart={()=>setScreen("select")} setPage={setPage}/>;
-  if (screen==="select")  return <SelectNiveau onSelect={n=>{setNiveauId(n);setScreen("game");}} onBack={()=>setScreen("menu")}/>;
+  if (screen==="select")  return <SelectNiveau onSelect={n=>{setNiveauId(n);setScreen("game");}} onBack={()=>setScreen("menu")} bull={joueur?.bull_balance}/>;
   if (screen==="game")    return <GameRush    niveauId={niveauId} setPage={setPage} joueur={joueur} onEnd={handleEnd}/>;
   if (screen==="summary") return <SummaryRush session={session} newStats={newStats} onReplay={()=>setScreen("game")} onMenu={()=>setScreen("menu")} setPage={setPage}/>;
   return null;
