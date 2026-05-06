@@ -72,15 +72,21 @@ export const dbJ = {
 
 // ── Fonctions BULL ────────────────────────────────────────────────────────────
 // Vérifie à chaque connexion si la recharge quotidienne doit être appliquée.
-// Garanti côté serveur : compare last_daily_reward avec today, sans rétroactivité.
+// La recharge n'est appliquée QUE si l'écriture en base réussit (évite les doublons).
 export const checkDailyBull = async (joueur) => {
   if (!joueur?.id) return joueur;
   const today = todayStr();
   if (joueur.last_daily_reward === today) return joueur; // déjà rechargé aujourd'hui
   const current = joueur.bull_balance ?? BULL_INIT;
   const bull = Math.min(BULL_MAX, current + BULL_DAILY); // plafond à 500
-  await dbJ.updateBull(joueur.id, bull, today).catch(() => {});
-  return { ...joueur, bull_balance: bull, last_daily_reward: today };
+  try {
+    await dbJ.updateBull(joueur.id, bull, today);
+    // L'écriture a réussi → on met à jour l'état local
+    return { ...joueur, bull_balance: bull, last_daily_reward: today };
+  } catch {
+    // L'écriture a échoué (colonnes manquantes ?) → on ne touche pas à l'état local
+    return joueur;
+  }
 };
 
 // Déduit des BULL et met à jour le serveur. Lance une erreur si solde insuffisant.
@@ -88,7 +94,7 @@ export const spendBull = async (joueur, amount) => {
   const bal = joueur.bull_balance ?? BULL_INIT;
   if (bal < amount) throw new Error(`insuffisant`);
   const newBal = bal - amount;
-  await dbJ.updateBull(joueur.id, newBal, joueur.last_daily_reward ?? today);
+  await dbJ.updateBull(joueur.id, newBal, joueur.last_daily_reward ?? todayStr());
   return { ...joueur, bull_balance: newBal };
 };
 
