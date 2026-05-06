@@ -160,7 +160,6 @@ const SelectionMode = ({ onSelect, setPage, joueur, setJoueur }) => {
           <li>Aucun DRIX en jeu — juste de la pratique !</li>
         </ul>
         <div style={{ marginTop:14, background:C.green, borderRadius:10, padding:"11px", textAlign:"center", fontWeight:800, fontSize:15, color:"#fff" }}>Commencer →</div>
-        }
       </div>
 
       {/* ── Mode DRIX ── */}
