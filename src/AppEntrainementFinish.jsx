@@ -105,7 +105,7 @@ const SelectionMode = ({ onSelect, setPage, joueur, setJoueur }) => {
     const cost = mode === "drix" ? BULL_COST_DRIX : BULL_COST_PAISIBLE;
     if (joueur) {
       if (bull < cost) {
-        setBullErr(`Pas assez de BULL (${bull}/${cost} 🐂)`);
+        setBullErr(`Pas assez de BULLS (${bull}/${cost} 🪙)`);
         setTimeout(() => setBullErr(null), 3000);
         return;
       }
@@ -128,7 +128,7 @@ const SelectionMode = ({ onSelect, setPage, joueur, setJoueur }) => {
       <button onClick={()=>setPage("jeux")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}>← Retour</button>
       <div style={{ flex:1, fontWeight:800, fontSize:16, color:C.text }}>🎯 Comptage de finish</div>
       {joueur && <div style={{ display:"flex",alignItems:"center",gap:4,background:"#1a0f00",border:"1px solid #f9731644",borderRadius:8,padding:"3px 10px" }}>
-        <span style={{ fontSize:13 }}>🐂</span>
+        <span style={{ fontSize:13 }}>🪙</span>
         <span style={{ fontWeight:900,fontSize:13,color:"#f97316" }}>{bull}</span>
         <span style={{ fontSize:10,color:"#a16207",fontWeight:700 }}>BULL</span>
       </div>}
@@ -215,11 +215,11 @@ const SelectionMode = ({ onSelect, setPage, joueur, setJoueur }) => {
             </div>
           : bull < BULL_COST_DRIX
             ? <div style={{ marginTop:4, background:"#450a0a", border:"1px solid #ef4444", borderRadius:10, padding:"11px", textAlign:"center", fontSize:13, color:"#fca5a5", fontWeight:700 }}>
-                🐂 Solde insuffisant ({bull}/{BULL_COST_DRIX} BULL)
+                🪙 Solde insuffisant ({bull}/{BULL_COST_DRIX} BULLS)
               </div>
             : <div style={{ marginTop:4, background:`linear-gradient(135deg,${C.accent},#ea580c)`, borderRadius:10, padding:"11px", textAlign:"center", fontWeight:800, fontSize:15, color:"#fff", display:"flex",alignItems:"center",justifyContent:"center",gap:8 }}>
                 <span>⚡ Jouer pour les DRIX →</span>
-                <span style={{ background:"#00000033",borderRadius:20,padding:"2px 8px",fontSize:11 }}>🐂 {BULL_COST_DRIX} BULL</span>
+                <span style={{ background:"#00000033",borderRadius:20,padding:"2px 8px",fontSize:11 }}>🪙 {BULL_COST_DRIX} BULLS</span>
               </div>
         }
       </div>
@@ -420,7 +420,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
               💎 {drixLocal}
             </div>
             <div style={{ background:"#1a0f00", border:"1px solid #f9731644", borderRadius:8, padding:"3px 9px", fontSize:12, fontWeight:800, color:"#f97316" }}>
-              🐂 {bullLocal}
+              🪙 {bullLocal}
             </div>
           </div>
         )}

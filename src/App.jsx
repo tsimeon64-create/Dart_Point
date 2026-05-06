@@ -696,7 +696,7 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
             <BullBadge bull={j.bull_balance} size="normal" flash={bullFlash}/>
             {bullFlash && (
               <div style={{ position:"absolute",top:-22,right:0,background:"#f97316",color:"#fff",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:800,whiteSpace:"nowrap",animation:"slideUp .3s ease-out" }}>
-                +50 🐂
+                +50 🪙
               </div>
             )}
           </div>
@@ -1516,7 +1516,7 @@ const PageModeJeu = ({ joueur, setJoueur, setPage }) => {
     if (needLogin && !joueur) { setPage("connexion"); return; }
     if (joueur && cost > 0) {
       if (bull < cost) {
-        setBullErr(`Pas assez de BULL pour ce mode (${bull}/${cost} 🐂)`);
+        setBullErr(`Pas assez de BULLS pour ce mode (${bull}/${cost} 🪙)`);
         setTimeout(() => setBullErr(null), 3000);
         return;
       }
@@ -1531,7 +1531,7 @@ const PageModeJeu = ({ joueur, setJoueur, setPage }) => {
 
   const CostTag = ({ cost }) => cost > 0 ? (
     <span style={{ display:"inline-flex",alignItems:"center",gap:3,background:"#1a0f00",border:"1px solid #f97316aa",borderRadius:20,padding:"2px 9px",fontSize:11,fontWeight:800,color:"#f97316" }}>
-      🐂 {cost} BULL
+      🪙 {cost} BULLS
     </span>
   ) : null;
 
@@ -1549,7 +1549,7 @@ const PageModeJeu = ({ joueur, setJoueur, setPage }) => {
         <div style={{ fontWeight:800,fontSize:18,color:"#f1f5f9" }}>{label}</div>
         <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.5 }}>{sub}</div>
         {!hasBull
-          ? <div style={{ fontSize:12,color:C.red,fontWeight:700,marginTop:4 }}>🐂 Solde insuffisant ({bull} BULL)</div>
+          ? <div style={{ fontSize:12,color:C.red,fontWeight:700,marginTop:4 }}>🪙 Solde insuffisant ({bull} BULLS)</div>
           : <div style={{ fontSize:12,color:col,fontWeight:700,marginTop:4 }}>Jouer →</div>
         }
       </div>
@@ -1574,9 +1574,9 @@ const PageModeJeu = ({ joueur, setJoueur, setPage }) => {
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4 }}>
         <h1 style={{ fontWeight:800,fontSize:22,margin:0 }}>🎮 Mode Jeu</h1>
         {joueur && <div style={{ display:"flex",alignItems:"center",gap:6,background:"#1a0f00",border:"1px solid #f9731644",borderRadius:10,padding:"5px 12px" }}>
-          <span style={{ fontSize:14 }}>🐂</span>
+          <span style={{ fontSize:14 }}>🪙</span>
           <span style={{ fontWeight:900,fontSize:16,color:"#f97316" }}>{bull}</span>
-          <span style={{ fontSize:10,color:"#a16207",fontWeight:700 }}>BULL</span>
+          <span style={{ fontSize:10,color:"#a16207",fontWeight:700 }}>BULLS</span>
         </div>}
       </div>
       <p style={{ color:C.muted,fontSize:13,marginBottom:24 }}>Choisis ta catégorie de jeu</p>
@@ -1593,9 +1593,9 @@ const PageModeJeu = ({ joueur, setJoueur, setPage }) => {
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
         <button onClick={()=>setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}>← Catégories</button>
         {joueur && <div style={{ display:"flex",alignItems:"center",gap:5,background:"#1a0f00",border:"1px solid #f9731644",borderRadius:10,padding:"4px 10px" }}>
-          <span style={{ fontSize:13 }}>🐂</span>
+          <span style={{ fontSize:13 }}>🪙</span>
           <span style={{ fontWeight:900,fontSize:14,color:"#f97316" }}>{bull}</span>
-          <span style={{ fontSize:10,color:"#a16207",fontWeight:700 }}>BULL</span>
+          <span style={{ fontSize:10,color:"#a16207",fontWeight:700 }}>BULLS</span>
         </div>}
       </div>
       {bullErr && <div style={{ background:"#450a0a",border:"1px solid #ef4444",borderRadius:10,padding:"10px 14px",marginBottom:14,color:"#fca5a5",fontSize:13,fontWeight:600 }}>⚠️ {bullErr}</div>}

@@ -1464,7 +1464,14 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
               )}
             </div>
             <div style={{ fontWeight:900,fontSize:28,color,marginBottom:4 }}>{drix} <span style={{ fontSize:16 }}>DRIX</span></div>
-            <div style={{ color,fontSize:13,fontWeight:600,marginBottom:12 }}>{emoji} {titre}</div>
+            <div style={{ color,fontSize:13,fontWeight:600,marginBottom:8 }}>{emoji} {titre}</div>
+            {j.bull_balance != null && (
+              <div style={{ display:"inline-flex",alignItems:"center",gap:5,background:"#1a0f00",border:"1px solid #f9731644",borderRadius:8,padding:"3px 12px",marginBottom:12 }}>
+                <span style={{ fontSize:14 }}>🪙</span>
+                <span style={{ fontWeight:900,fontSize:14,color:"#f97316" }}>{j.bull_balance}</span>
+                <span style={{ fontSize:10,color:"#a16207",fontWeight:700 }}>BULLS</span>
+              </div>
+            )}
             <div style={{ display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap" }}>
               {j.age && <BadgeJ color={CJ.muted}>🎂 {j.age} ans</BadgeJ>}
               {j.ville && <BadgeJ color={CJ.blue}>📍 {j.ville}</BadgeJ>}
@@ -1906,9 +1913,9 @@ export const BullBadge = ({ bull, size="normal", flash=false }) => {
       transition:"background .3s",
       boxShadow: flash ? `0 0 14px ${col}66` : "none",
     }}>
-      <span style={{ fontSize:big?18:13 }}>🐂</span>
+      <span style={{ fontSize:big?18:13 }}>🪙</span>
       <span style={{ fontWeight:900, fontSize:big?18:13, color:col, fontVariantNumeric:"tabular-nums" }}>{balance}</span>
-      <span style={{ fontSize:big?11:10, color:"#a16207", fontWeight:700 }}>BULL</span>
+      <span style={{ fontSize:big?11:10, color:"#a16207", fontWeight:700 }}>BULLS</span>
     </div>
   );
 };

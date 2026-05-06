@@ -299,9 +299,9 @@ const SelectNiveau = ({ onSelect, onBack, bull }) => (
       <button onClick={onBack} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0}}>← Retour</button>
       <div style={{flex:1,fontWeight:800,fontSize:16,color:C.text}}>⚡ Rush Mode — Niveau</div>
       {bull != null && <div style={{display:"flex",alignItems:"center",gap:4,background:"#1a0f00",border:"1px solid #f9731644",borderRadius:8,padding:"3px 10px"}}>
-        <span style={{fontSize:13}}>🐂</span>
+        <span style={{fontSize:13}}>🪙</span>
         <span style={{fontWeight:900,fontSize:13,color:"#f97316"}}>{bull}</span>
-        <span style={{fontSize:10,color:"#a16207",fontWeight:700}}>BULL</span>
+        <span style={{fontSize:10,color:"#a16207",fontWeight:700}}>BULLS</span>
       </div>}
     </div>
     <div style={{flex:1,overflowY:"auto",padding:"24px 16px",display:"flex",flexDirection:"column",gap:14}}>
