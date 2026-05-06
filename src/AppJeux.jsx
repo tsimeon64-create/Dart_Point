@@ -271,7 +271,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           date: Date.now(),
         })
       });
-      if (duel.type === "bull") {
+      const isBullDuel = duel.type === "bull" || (duel.bull_mise > 0 && duel.type !== "drix");
+      if (isBullDuel) {
         await appliquerBullDuel({ ...duel, gagnant_id: gagnantId });
       } else {
         await finaliserDuel({ ...duel, gagnant_id: gagnantId });

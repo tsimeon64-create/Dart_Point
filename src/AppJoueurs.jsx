@@ -419,7 +419,12 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       if (sC) await dbJ.updateStats(sC.id, { parties:sC.parties+1, victoires:gagnantId===duel.challenger_id?sC.victoires+1:sC.victoires, defaites:gagnantId!==duel.challenger_id?sC.defaites+1:sC.defaites });
       if (sD) await dbJ.updateStats(sD.id, { parties:sD.parties+1, victoires:gagnantId===duel.defie_id?sD.victoires+1:sD.victoires, defaites:gagnantId!==duel.defie_id?sD.defaites+1:sD.defaites });
       // Utilise appliquerDrixDuel : K variable par niveau + écriture drix_mouvements (badge feed)
-      await appliquerDrixDuel(duelFrais);
+      const isBull = duelFrais?.type === "bull" || (duelFrais?.bull_mise > 0 && duelFrais?.type !== "drix");
+      if (isBull) {
+        await appliquerBullDuel(duelFrais);
+      } else {
+        await appliquerDrixDuel(duelFrais);
+      }
     }
     const joueurFrais = await dbJ.getJoueur(joueur.id);
     if (joueurFrais) {
