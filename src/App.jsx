@@ -8,7 +8,7 @@ import {
   appliquerDrixDuel, getDrixTitre, calculerDrix,
   dbJoueurs, todayStr, hashPwd,
   checkDailyBull, spendBull, BullBadge, BULL_COST, BULL_INIT,
-  reserverBull, appliquerBullDuel, BULL_MAX,
+  reserverBull, appliquerBullDuel,
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
 import { JeuCapital } from "./AppJeuDecalePoint";

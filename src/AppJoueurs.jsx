@@ -36,9 +36,9 @@ export const hashPwd = async (pwd) => {
 export const todayStr = () => new Date().toISOString().slice(0, 10);
 
 // ── SYSTÈME BULL ──────────────────────────────────────────────────────────────
-export const BULL_MAX   = 500;   // plafond maximum
-export const BULL_DAILY = 50;    // recharge quotidienne
-export const BULL_INIT  = 250;   // solde initial à la création du compte
+export const BULL_MAX   = Infinity; // pas de plafond
+export const BULL_DAILY = 50;       // recharge quotidienne
+export const BULL_INIT  = 250;      // solde initial à la création du compte
 export const BULL_COST  = {
   paisible : 0,  // Comptage de finish — Mode Paisible (gratuit)
   drix     : 25, // Comptage de finish — Chasse aux DRIX
@@ -79,7 +79,7 @@ export const checkDailyBull = async (joueur) => {
   const today = todayStr();
   if (joueur.last_daily_reward === today) return joueur; // déjà rechargé aujourd'hui
   const current = joueur.bull_balance ?? BULL_INIT;
-  const bull = Math.min(BULL_MAX, current + BULL_DAILY); // plafond à 500
+  const bull = current + BULL_DAILY;
   try {
     await dbJ.updateBull(joueur.id, bull, today);
     // L'écriture a réussi → on met à jour l'état local
@@ -125,9 +125,9 @@ export const appliquerBullDuel = async (duel) => {
     const pRes  = jP.bull_reserved ?? 0;
     await Promise.all([
       // Gagnant : reçoit les 2 mises (+2×mise), libère sa réservation
-      dbJ.updateBullReserved(gagnantId, Math.min(BULL_MAX, gBull + mise * 2), Math.max(0, gRes - mise)),
+      dbJ.updateBullReserved(gagnantId, gBull + mise * 2, Math.max(0, gRes - mise)),
       // Perdant : sa mise était déjà déduite — on libère seulement la réservation
-      dbJ.updateBullReserved(perdantId, jP.bull_balance ?? BULL_INIT, Math.max(0, pRes - mise)),
+      dbJ.updateBullReserved(perdantId, jP.bull_balance ?? 0, Math.max(0, pRes - mise)),
     ]);
   } catch(e) { console.error("Erreur BULL duel:", e); }
 };
