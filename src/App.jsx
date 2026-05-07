@@ -1868,142 +1868,99 @@ const PageModeJeu = ({ joueur, setJoueur, setPage }) => {
 // ── PAGE HOME ─────────────────────────────────────────────────────────────────
 const Home = ({ joueur, setJoueur, defisCount, demandesAmisCount=0, bars, associations, tournois, setPage, setBarSlug, setAssoSlug, setTournoiSlug, setVilleFilter, barsActifs }) => {
   if (joueur) return <HomeDashboard joueur={joueur} setJoueur={setJoueur} setPage={setPage} bars={bars} defisCount={defisCount} demandesAmisCount={demandesAmisCount} associations={associations} tournois={tournois} barsActifs={barsActifs} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug}/>;
-  // Version découverte pour les non-connectés ↓
-  const HomeDiscovery = () => {
-  const [search,setSearch]=useState("");
-  const [showSugg,setShowSugg]=useState(false);
-  const searchRef=useRef(null);
 
-  const suggestions=useMemo(()=>{
-    const q=search.toLowerCase().trim();
-    if (!q||q.length<2) return [];
-    const vAvecBars=[...new Set(bars.map(b=>b.ville))].filter(v=>v.toLowerCase().includes(q)).map(v=>({ label:v,count:bars.filter(b=>b.ville===v).length,type:"base" }));
-    const vFR=Object.keys(VILLES_FR).filter(k=>k.includes(q)&&!vAvecBars.find(v=>v.label.toLowerCase()===k)).slice(0,3).map(k=>({ label:k.split("-").map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join("-"),count:0,type:"fr" }));
-    const bMatch=bars.filter(b=>b.nom.toLowerCase().includes(q)).slice(0,3).map(b=>({ label:b.nom,subtitle:b.ville,slug:b.slug,type:"bar" }));
-    return [...vAvecBars.slice(0,4),...vFR,...bMatch].slice(0,7);
-  },[search,bars]);
-
-  useEffect(()=>{
-    const h=(e)=>{ if(searchRef.current&&!searchRef.current.contains(e.target)) setShowSugg(false); };
-    document.addEventListener("mousedown",h); return ()=>document.removeEventListener("mousedown",h);
-  },[]);
-
-  const mapBars=useMemo(()=>{ if(!search.trim()) return bars; const q=search.toLowerCase(); return bars.filter(b=>b.ville.toLowerCase().includes(q)||b.nom.toLowerCase().includes(q)); },[search,bars]);
-  const topBars=useMemo(()=>[...bars].sort((a,b)=>(b.vues||0)-(a.vues||0)).slice(0,3),[bars]);
-  const villes=useMemo(()=>[...new Set(bars.map(b=>b.ville))].sort(),[bars]);
-
+  // ── Landing page publique ─────────────────────────────────────────────────────
   return (
-    <div>
-      {/* Bandeau */}
-      <div style={{ background:`linear-gradient(90deg,${C.accent} 0%,#ea580c 100%)`,padding:"12px 20px",textAlign:"center" }}>
-        <div style={{ maxWidth:900,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",gap:14,flexWrap:"wrap" }}>
-          <span style={{ fontSize:22 }}>📍</span>
-          <span style={{ color:"#fff",fontWeight:700,fontSize:15 }}>Vous connaissez un bar à fléchettes pas encore référencé ?</span>
-          <button onClick={()=>setPage("proposer")} style={{ background:"#fff",color:"#c2410c",WebkitTextFillColor:"#c2410c",border:"none",borderRadius:20,padding:"7px 20px",fontWeight:800,fontSize:14,cursor:"pointer",whiteSpace:"nowrap",boxShadow:"0 2px 8px rgba(0,0,0,0.2)",transition:"transform .15s" }}
-            onMouseEnter={e=>e.currentTarget.style.transform="scale(1.05)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
-            ➕ Proposer un bar
-          </button>
-        </div>
+    <div style={{
+      minHeight:"100vh",
+      background:"linear-gradient(160deg,#0a0a0a 0%,#1a0800 50%,#0a0a10 100%)",
+      display:"flex", flexDirection:"column", alignItems:"center",
+      justifyContent:"center", padding:"32px 20px",
+      fontFamily:"Inter,sans-serif",
+    }}>
+      <style>{`
+        @keyframes fadeUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes glow   { 0%,100% { filter:drop-shadow(0 0 18px #f9731655); } 50% { filter:drop-shadow(0 0 36px #f97316aa); } }
+        .lp-btn { transition: transform .15s, box-shadow .15s; }
+        .lp-btn:active { transform:scale(0.97) !important; }
+      `}</style>
+
+      {/* Logo */}
+      <div style={{ animation:"fadeUp .5s ease-out both", marginBottom:40 }}>
+        <img
+          src="/logo dart point/logo 2 accueil.png"
+          alt="DartPoint"
+          style={{ width:"clamp(160px,42vw,240px)", borderRadius:22, animation:"glow 3s ease-in-out infinite" }}
+        />
       </div>
 
-      {/* Hero */}
-      <div style={{ background:"linear-gradient(135deg,#111 0%,#1a0800 100%)",padding:"56px 20px 44px",textAlign:"center" }}>
-        <div style={{ maxWidth:680,margin:"0 auto" }}>
-        <img src="/logo dart point/logo 2 accueil.png" alt="DartPoint" style={{ width:"clamp(140px,35vw,260px)",marginBottom:16,filter:"drop-shadow(0 4px 24px rgba(249,115,22,0.4))",borderRadius:24 }}/>
-<h1 style={{ fontSize:"clamp(22px,5vw,42px)",fontWeight:800,marginBottom:10 }}>Trouvez où jouer aux <span style={{ color:C.accent }}>fléchettes</span> près de chez vous</h1>
-          <p style={{ color:C.muted,fontSize:15,marginBottom:28,lineHeight:1.7 }}>Bars équipés, associations, tournois — tout le réseau fléchettes.</p>
-          <div ref={searchRef} style={{ position:"relative",maxWidth:460,margin:"0 auto" }}>
-            <input value={search} onChange={e=>{setSearch(e.target.value);setShowSugg(true);}} onFocus={()=>search.length>=2&&setShowSugg(true)}
-              placeholder="Rechercher une ville ou un bar…" style={{ width:"100%",background:"#1a1a1a",border:`2px solid ${C.accent}`,borderRadius:12,padding:"13px 48px 13px 18px",color:C.text,fontSize:15 }}/>
-            <span style={{ position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",fontSize:20 }}>🔍</span>
-            {showSugg&&suggestions.length>0&&(
-              <div style={{ position:"absolute",top:"calc(100% + 6px)",left:0,right:0,background:"#1a1a1a",border:`1px solid ${C.border}`,borderRadius:10,zIndex:50,overflow:"hidden",boxShadow:"0 8px 24px rgba(0,0,0,0.4)" }}>
-                {suggestions.map((s,i)=>(
-                  <div key={i} onClick={()=>{ if(s.type==="bar"){setBarSlug(s.slug);setPage("bar");}else{setSearch(s.label);setShowSugg(false);} }}
-                    style={{ padding:"10px 16px",cursor:"pointer",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center" }}
-                    onMouseEnter={e=>e.currentTarget.style.background="#222"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                      <span>{s.type==="bar"?"🎯":s.type==="base"?"📍":"🏙️"}</span>
-                      <div><div style={{ fontSize:14,fontWeight:500 }}>{s.label}</div>{s.subtitle&&<div style={{ fontSize:11,color:C.muted }}>{s.subtitle}</div>}</div>
-                    </div>
-                    {s.type==="base"&&<span style={{ background:C.accent+"22",color:C.accent,borderRadius:10,padding:"2px 8px",fontSize:11,fontWeight:700 }}>{s.count} bar{s.count>1?"s":""}</span>}
-                    {s.type==="fr"&&<span style={{ color:C.muted,fontSize:11 }}>voir carte</span>}
-                    {s.type==="bar"&&<span style={{ color:C.muted,fontSize:11 }}>fiche →</span>}
-                  </div>
-                ))}
-                <div onClick={()=>{setVilleFilter(search);setPage("bars");setShowSugg(false);}} style={{ padding:"10px 16px",cursor:"pointer",background:"#111" }}
-                  onMouseEnter={e=>e.currentTarget.style.background="#1a1a1a"} onMouseLeave={e=>e.currentTarget.style.background="#111"}>
-                  <span style={{ fontSize:13,color:C.accent,fontWeight:600 }}>🔍 Tous les résultats pour "{search}"</span>
-                </div>
+      {/* Boutons */}
+      <div style={{ width:"100%", maxWidth:420, display:"flex", flexDirection:"column", gap:16, animation:"fadeUp .5s .1s ease-out both" }}>
+
+        {/* Bouton 1 — Trouve un bar */}
+        <div
+          className="lp-btn"
+          onClick={() => setPage("bars")}
+          style={{
+            background:"linear-gradient(135deg,#f97316,#ea580c)",
+            borderRadius:18, padding:"26px 24px",
+            cursor:"pointer", userSelect:"none",
+            boxShadow:"0 8px 32px #f9731644",
+          }}
+          onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 14px 40px #f9731666"; }}
+          onMouseLeave={e=>{ e.currentTarget.style.transform="translateY(0)";    e.currentTarget.style.boxShadow="0 8px 32px #f9731644"; }}
+        >
+          <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+            <div style={{ fontSize:42, lineHeight:1 }}>🎯</div>
+            <div>
+              <div style={{ fontWeight:900, fontSize:"clamp(17px,4.5vw,20px)", color:"#fff", marginBottom:4 }}>
+                Trouve un bar pour jouer
               </div>
-            )}
-          </div>
-          <div style={{ display:"flex",gap:10,justifyContent:"center",marginTop:18,flexWrap:"wrap" }}>
-            <Btn onClick={()=>setPage("bars")}>🎯 Voir les bars</Btn>
-            <Btn onClick={()=>setPage("associations")} variant="ghost">🫂 Associations</Btn>
-            <Btn onClick={()=>setPage("scoreur")} variant="dark" style={{ fontSize:13 }}>🎯 Scoreur</Btn>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div style={{ background:C.accent,padding:"16px 20px" }}>
-        <div style={{ maxWidth:1100,margin:"0 auto",display:"flex",justifyContent:"center",gap:"clamp(20px,6vw,80px)",flexWrap:"wrap" }}>
-          {[[bars.length,"Bars"],[bars.filter(b=>b.verifie).length,"Vérifiés ✅"],[associations.length,"Associations"],[tournois.filter(t=>new Date(t.date)>=new Date()).length,"Tournois à venir"]].map(([n,l])=>(
-            <div key={l} style={{ textAlign:"center" }}><div style={{ fontSize:22,fontWeight:800,color:"#fff" }}>{n}</div><div style={{ fontSize:12,color:"#fff9" }}>{l}</div></div>
-          ))}
-        </div>
-      </div>
-
-      {/* Carte */}
-      <div style={{ maxWidth:1100,margin:"0 auto",padding:"40px 20px 0" }}>
-        <h2 style={{ fontWeight:700,fontSize:20,marginBottom:10 }}>🗺️ Carte interactive</h2>
-        <HomeMap bars={mapBars} associations={associations} tournois={tournois} setPage={setPage} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} centerVille={search.trim()||null} barsActifs={barsActifs}/>
-      </div>
-
-      {/* Top bars */}
-      <div style={{ maxWidth:1100,margin:"0 auto",padding:"36px 20px" }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:10 }}>
-          <h2 style={{ fontWeight:700,fontSize:20 }}>🔥 Bars les plus consultés</h2>
-          <Btn onClick={()=>setPage("bars")} variant="ghost" style={{ fontSize:12 }}>Voir tous →</Btn>
-        </div>
-        <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12 }}>
-          {topBars.map(b=><BarCard key={b.id} bar={b} onClick={()=>{setBarSlug(b.slug);setPage("bar");}} barsActifs={barsActifs}/>)}
-        </div>
-      </div>
-
-      {/* Villes */}
-      <div style={{ background:"#111",padding:"32px 20px" }}>
-        <div style={{ maxWidth:1100,margin:"0 auto" }}>
-          <h2 style={{ fontWeight:700,fontSize:20,marginBottom:14 }}>📍 Explorer par ville</h2>
-          <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
-            {villes.map(v=>{ const nb=bars.filter(b=>b.ville===v).length; return (
-              <button key={v} onClick={()=>{setSearch(v);setShowSugg(false);}} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:20,padding:"7px 15px",color:C.text,cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:6 }}
-                onMouseEnter={e=>e.currentTarget.style.borderColor=C.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
-                {v} <span style={{ background:C.accent+"33",color:C.accent,borderRadius:10,padding:"0 7px",fontSize:11,fontWeight:700 }}>{nb}</span>
-              </button>
-            );})}
-          </div>
-        </div>
-      </div>
-
-      {/* CTAs */}
-      <div style={{ maxWidth:1100,margin:"0 auto",padding:"36px 20px" }}>
-        <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14 }}>
-          {[["📍","Proposer un bar","Vous connaissez un bar ?","proposer",C.accent],["🫂","Proposer une association","Vous connaissez un club ?","proposer-asso","#7c3aed"],["🏅","Proposer un tournoi","Organisez-vous un tournoi ?","proposer-tournoi",C.yellow],["👥","Rejoindre la communauté","Créez votre profil joueur","connexion",C.blue]].map(([e,t,d,p,c])=>(
-            <div key={p} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"24px 18px",textAlign:"center" }}>
-              <div style={{ fontSize:32,marginBottom:8 }}>{e}</div>
-              <h3 style={{ fontWeight:700,fontSize:16,marginBottom:6 }}>{t}</h3>
-              <p style={{ color:C.muted,marginBottom:14,fontSize:13 }}>{d}</p>
-              <Btn onClick={()=>setPage(p)} style={{ fontSize:13,background:c,color:c===C.yellow?"#000":"#fff",border:"none" }}>C'est parti</Btn>
+              <div style={{ fontSize:13, color:"#ffffffbb", lineHeight:1.5 }}>
+                Trouve un bar près de toi<br/>
+                Une association ou un tournoi
+              </div>
             </div>
-          ))}
+            <div style={{ marginLeft:"auto", fontSize:22, color:"#ffffffaa" }}>›</div>
+          </div>
         </div>
+
+        {/* Bouton 2 — Mon profil DRIX */}
+        <div
+          className="lp-btn"
+          onClick={() => setPage("connexion")}
+          style={{
+            background:"linear-gradient(135deg,#1a1a2e,#0f0f1a)",
+            border:"2px solid #a78bfa55",
+            borderRadius:18, padding:"26px 24px",
+            cursor:"pointer", userSelect:"none",
+            boxShadow:"0 8px 32px #a78bfa22",
+          }}
+          onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.borderColor="#a78bfaaa"; e.currentTarget.style.boxShadow="0 14px 40px #a78bfa44"; }}
+          onMouseLeave={e=>{ e.currentTarget.style.transform="translateY(0)";    e.currentTarget.style.borderColor="#a78bfa55"; e.currentTarget.style.boxShadow="0 8px 32px #a78bfa22"; }}
+        >
+          <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+            <div style={{ fontSize:42, lineHeight:1 }}>💎</div>
+            <div>
+              <div style={{ fontWeight:900, fontSize:"clamp(17px,4.5vw,20px)", color:"#fff", marginBottom:4 }}>
+                Mon profil DRIX
+              </div>
+              <div style={{ fontSize:13, color:"#ffffffbb", lineHeight:1.5 }}>
+                Affronte tes amis<br/>
+                Suis ta progression
+              </div>
+            </div>
+            <div style={{ marginLeft:"auto", fontSize:22, color:"#a78bfaaa" }}>›</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Signature discrète */}
+      <div style={{ marginTop:40, color:"#ffffff22", fontSize:11, letterSpacing:1, animation:"fadeUp .5s .2s ease-out both" }}>
+        DART POINT · Le réseau fléchettes
       </div>
     </div>
   );
-  };
-  return <HomeDiscovery/>;
 };
 
 // ── PAGE BARS ─────────────────────────────────────────────────────────────────
