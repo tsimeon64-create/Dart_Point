@@ -81,43 +81,9 @@ const dartValue    = (mult, num) => mult * num;
 const isFinishDart = (mult) => mult === 2;
 const randFrom     = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-// ── Constantes BULL (locales, cohérentes avec AppJoueurs) ────────────────────
-const BULL_COST_PAISIBLE = 0;
-const BULL_COST_DRIX     = 25;
-const BULL_INIT_LOCAL    = 250;
-
-const SB_URL_EF = "https://secuyejzngzhnnuweuwm.supabase.co";
-const SB_KEY_EF = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
-const todayStrEF = () => new Date().toISOString().slice(0, 10);
-const patchBull = (id, bull) =>
-  fetch(`${SB_URL_EF}/rest/v1/joueurs?id=eq.${id}`, {
-    method:"PATCH",
-    headers:{ "apikey":SB_KEY_EF,"Authorization":`Bearer ${SB_KEY_EF}`,"Content-Type":"application/json","Prefer":"return=minimal" },
-    body: JSON.stringify({ bull_balance: bull }),
-  });
 
 // ── Écran de sélection de mode ────────────────────────────────────────────────
-const SelectionMode = ({ onSelect, setPage, joueur, setJoueur }) => {
-  const [bullErr, setBullErr] = useState(null);
-  const bull = joueur?.bull_balance ?? BULL_INIT_LOCAL;
-
-  const lancer = async (mode) => {
-    const cost = mode === "drix" ? BULL_COST_DRIX : BULL_COST_PAISIBLE;
-    if (joueur) {
-      if (bull < cost) {
-        setBullErr(`Pas assez de BULLS (${bull}/${cost} 🪙)`);
-        setTimeout(() => setBullErr(null), 3000);
-        return;
-      }
-      const newBull = bull - cost;
-      await patchBull(joueur.id, newBull).catch(() => {});
-      const updated = { ...joueur, bull_balance: newBull };
-      setJoueur?.(updated);
-      localStorage.setItem("dp_joueur", JSON.stringify(updated));
-    }
-    onSelect(mode);
-  };
-
+const SelectionMode = ({ onSelect, setPage, joueur }) => {
   return (
   <div style={{
     position:"fixed", inset:0, zIndex:200, background:C.bg,
@@ -127,11 +93,6 @@ const SelectionMode = ({ onSelect, setPage, joueur, setJoueur }) => {
     <div style={{ background:C.card, borderBottom:`1px solid ${C.border}`, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
       <button onClick={()=>setPage("jeux")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}>← Retour</button>
       <div style={{ flex:1, fontWeight:800, fontSize:16, color:C.text }}>🎯 Comptage de finish</div>
-      {joueur && <div style={{ display:"flex",alignItems:"center",gap:4,background:"#1a0f00",border:"1px solid #f9731644",borderRadius:8,padding:"3px 10px" }}>
-        <span style={{ fontSize:13 }}>🪙</span>
-        <span style={{ fontWeight:900,fontSize:13,color:"#f97316" }}>{bull}</span>
-        <span style={{ fontSize:10,color:"#a16207",fontWeight:700 }}>BULL</span>
-      </div>}
     </div>
 
     <div style={{ flex:1, overflowY:"auto", padding:"20px 14px", display:"flex", flexDirection:"column", gap:14 }}>
@@ -139,11 +100,10 @@ const SelectionMode = ({ onSelect, setPage, joueur, setJoueur }) => {
       {/* Titre */}
       <div style={{ textAlign:"center", marginBottom:6 }}>
         <div style={{ fontSize:13, color:C.muted }}>Choisis ton mode de jeu</div>
-        {bullErr && <div style={{ marginTop:8,background:"#450a0a",border:"1px solid #ef4444",borderRadius:8,padding:"8px 12px",color:"#fca5a5",fontSize:13,fontWeight:600 }}>⚠️ {bullErr}</div>}
       </div>
 
       {/* ── Mode Paisible ── */}
-      <div onClick={()=>lancer("paisible")}
+      <div onClick={()=>onSelect("paisible")}
         style={{ background:"linear-gradient(135deg,#1a2a1a,#141414)", border:`2px solid ${C.green}44`, borderRadius:20, padding:"22px 18px", cursor:"pointer", transition:"all .15s" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12 }}>
           <div style={{ fontSize:40 }}>😌</div>
@@ -162,7 +122,7 @@ const SelectionMode = ({ onSelect, setPage, joueur, setJoueur }) => {
       </div>
 
       {/* ── Mode DRIX ── */}
-      <div onClick={()=>joueur ? lancer("drix") : null}
+      <div onClick={()=>joueur ? onSelect("drix") : null}
         style={{ background:"linear-gradient(135deg,#1a0a00,#1a1a00)", border:`2px solid ${C.accent}`, borderRadius:20, padding:"22px 18px", cursor:"pointer", transition:"all .15s" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:6 }}>
           <div style={{ fontSize:40 }}>⚡</div>
@@ -213,14 +173,9 @@ const SelectionMode = ({ onSelect, setPage, joueur, setJoueur }) => {
           ? <div style={{ marginTop:4, background:"#1a1a1a", border:`1px solid ${C.border}`, borderRadius:10, padding:"11px", textAlign:"center", fontSize:13, color:C.muted }}>
               🔒 Connecte-toi pour jouer ce mode
             </div>
-          : bull < BULL_COST_DRIX
-            ? <div style={{ marginTop:4, background:"#450a0a", border:"1px solid #ef4444", borderRadius:10, padding:"11px", textAlign:"center", fontSize:13, color:"#fca5a5", fontWeight:700 }}>
-                🪙 Solde insuffisant ({bull}/{BULL_COST_DRIX} BULLS)
-              </div>
-            : <div style={{ marginTop:4, background:`linear-gradient(135deg,${C.accent},#ea580c)`, borderRadius:10, padding:"11px", textAlign:"center", fontWeight:800, fontSize:15, color:"#fff", display:"flex",alignItems:"center",justifyContent:"center",gap:8 }}>
-                <span>⚡ Jouer pour les DRIX →</span>
-                <span style={{ background:"#00000033",borderRadius:20,padding:"2px 8px",fontSize:11 }}>🪙 {BULL_COST_DRIX} BULLS</span>
-              </div>
+          : <div style={{ marginTop:4, background:`linear-gradient(135deg,${C.accent},#ea580c)`, borderRadius:10, padding:"11px", textAlign:"center", fontWeight:800, fontSize:15, color:"#fff" }}>
+              ⚡ Jouer pour les DRIX →
+            </div>
         }
       </div>
 
@@ -244,7 +199,6 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
   // Mode DRIX
   const [drixSerie, setDrixSerie]       = useState(0);    // finishes corrects en cours (0–9)
   const [drixLocal, setDrixLocal]       = useState(joueur?.drix || 1000);
-  const [bullLocal, setBullLocal]       = useState(joueur?.bull_balance ?? BULL_INIT_LOCAL);
   const [drixFlash, setDrixFlash]       = useState(null); // "+5 DRIX" ou "−5 DRIX"
   const [savingDrix, setSavingDrix]     = useState(false);
 
@@ -256,7 +210,6 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
   useEffect(() => { drixSerieRef.current = drixSerie; }, [drixSerie]);
   // Synchronise les compteurs locaux si le joueur change
   useEffect(() => { if (joueur?.drix) setDrixLocal(joueur.drix); }, [joueur?.drix]);
-  useEffect(() => { if (joueur?.bull_balance != null) setBullLocal(joueur.bull_balance); }, [joueur?.bull_balance]);
 
   const isDrix = mode === "drix";
   const diffCurrent = DIFFICULTES.find(d => d.id === diffId);
@@ -415,13 +368,8 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
           {isDrix ? "⚡ Chasse aux DRIX" : "😌 Mode Paisible"}
         </div>
         {isDrix && joueur && (
-          <div style={{ display:"flex", gap:5, alignItems:"center" }}>
-            <div style={{ background:C.card2, border:`1px solid ${C.purple}44`, borderRadius:8, padding:"3px 9px", fontSize:12, fontWeight:800, color:C.purple }}>
-              💎 {drixLocal}
-            </div>
-            <div style={{ background:"#1a0f00", border:"1px solid #f9731644", borderRadius:8, padding:"3px 9px", fontSize:12, fontWeight:800, color:"#f97316" }}>
-              🪙 {bullLocal}
-            </div>
+          <div style={{ background:C.card2, border:`1px solid ${C.purple}44`, borderRadius:8, padding:"3px 9px", fontSize:12, fontWeight:800, color:C.purple }}>
+            💎 {drixLocal}
           </div>
         )}
         {!isDrix && (
@@ -701,6 +649,6 @@ export const EntrainementFinish = ({ setPage, joueur, setJoueur }) => {
     setPage(p);
   };
 
-  if (!mode) return <SelectionMode onSelect={setMode} setPage={setPage} joueur={joueur} setJoueur={setJoueur}/>;
+  if (!mode) return <SelectionMode onSelect={setMode} setPage={setPage} joueur={joueur}/>;
   return <Jeu mode={mode} setPage={handleSetPage} joueur={joueur} />;
 };

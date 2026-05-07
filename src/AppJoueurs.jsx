@@ -419,12 +419,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       if (sC) await dbJ.updateStats(sC.id, { parties:sC.parties+1, victoires:gagnantId===duel.challenger_id?sC.victoires+1:sC.victoires, defaites:gagnantId!==duel.challenger_id?sC.defaites+1:sC.defaites });
       if (sD) await dbJ.updateStats(sD.id, { parties:sD.parties+1, victoires:gagnantId===duel.defie_id?sD.victoires+1:sD.victoires, defaites:gagnantId!==duel.defie_id?sD.defaites+1:sD.defaites });
       // Utilise appliquerDrixDuel : K variable par niveau + écriture drix_mouvements (badge feed)
-      const isBull = duelFrais?.type === "bull" || (duelFrais?.bull_mise > 0 && duelFrais?.type !== "drix");
-      if (isBull) {
-        await appliquerBullDuel(duelFrais);
-      } else {
-        await appliquerDrixDuel(duelFrais);
-      }
+      await appliquerDrixDuel(duelFrais);
     }
     const joueurFrais = await dbJ.getJoueur(joueur.id);
     if (joueurFrais) {
@@ -478,7 +473,6 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
                 <span style={{ fontWeight:900,fontSize:18,color }}>{joueur.drix||1000}</span>
                 <span style={{ fontSize:12,color,fontWeight:600 }}>DRIX · {titre}</span>
               </div>
-              <BullBadge bull={joueur.bull_balance} size="normal"/>
             </div>
 
             {!editMode ? (
@@ -1504,13 +1498,6 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
             </div>
             <div style={{ fontWeight:900,fontSize:28,color,marginBottom:4 }}>{drix} <span style={{ fontSize:16 }}>DRIX</span></div>
             <div style={{ color,fontSize:13,fontWeight:600,marginBottom:8 }}>{emoji} {titre}</div>
-            {j.bull_balance != null && (
-              <div style={{ display:"inline-flex",alignItems:"center",gap:5,background:"#1a0f00",border:"1px solid #f9731644",borderRadius:8,padding:"3px 12px",marginBottom:12 }}>
-                <span style={{ fontSize:14 }}>🪙</span>
-                <span style={{ fontWeight:900,fontSize:14,color:"#f97316" }}>{j.bull_balance}</span>
-                <span style={{ fontSize:10,color:"#a16207",fontWeight:700 }}>BULLS</span>
-              </div>
-            )}
             <div style={{ display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap" }}>
               {j.age && <BadgeJ color={CJ.muted}>🎂 {j.age} ans</BadgeJ>}
               {j.ville && <BadgeJ color={CJ.blue}>📍 {j.ville}</BadgeJ>}

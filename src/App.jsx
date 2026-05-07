@@ -7,8 +7,6 @@ import {
   AmiSection,
   appliquerDrixDuel, getDrixTitre, calculerDrix,
   dbJoueurs, todayStr, hashPwd,
-  checkDailyBull, spendBull, BullBadge, BULL_COST, BULL_INIT,
-  reserverBull, appliquerBullDuel,
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
 import { JeuCapital } from "./AppJeuDecalePoint";
@@ -612,25 +610,17 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
   const [stats, setStats] = useState(null);
   const [joueurFrais, setJoueurFrais] = useState(joueur);
   const [showMap, setShowMap] = useState(false);
-  const [bullFlash, setBullFlash] = useState(false); // animation recharge quotidienne
 
   useEffect(() => {
-    // Rafraîchissement des données + vérification recharge BULL quotidienne
     Promise.all([
       dbJoueurs.getJoueur(joueur.id),
       dbJoueurs.getStats(joueur.id),
-    ]).then(async ([j, s]) => {
+    ]).then(([j, s]) => {
       if (j) {
-        const jAvec = await checkDailyBull(j);
-        // Si la recharge a été appliquée, flash animation
-        if (jAvec.bull_balance !== j.bull_balance) {
-          setBullFlash(true);
-          setTimeout(() => setBullFlash(false), 3000);
-        }
-        setJoueurFrais(jAvec);
+        setJoueurFrais(j);
         if (setJoueur) {
-          setJoueur(jAvec);
-          localStorage.setItem("dp_joueur", JSON.stringify(jAvec));
+          setJoueur(j);
+          localStorage.setItem("dp_joueur", JSON.stringify(j));
         }
       }
       if (s) setStats(s);
@@ -658,7 +648,7 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
 
   return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"16px 12px 24px" }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes slideUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}} @keyframes bullPop{0%{transform:scale(1)}50%{transform:scale(1.3)}100%{transform:scale(1)}}`}</style>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes slideUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
       {/* ── Carte profil ── */}
       <div onClick={()=>setPage("mon-profil")} style={{ position:"relative",display:"flex",alignItems:"center",gap:16,background:"linear-gradient(135deg,#1a1a1a,#111)",border:`1px solid ${color}55`,borderRadius:16,padding:"14px 18px",marginBottom:12,cursor:"pointer",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s" }}
@@ -687,20 +677,10 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
           {stats && <div style={{ color:"#94a3b8",fontSize:11,marginTop:3 }}>{stats.victoires}V · {stats.defaites}D · {stats.parties > 0 ? Math.round(stats.victoires/stats.parties*100) : 0}% winrate</div>}
         </div>
 
-        {/* DRIX + BULL */}
-        <div style={{ display:"flex",flexDirection:"column",gap:6,flexShrink:0 }}>
-          <div style={{ textAlign:"center",background:color+"18",border:`1px solid ${color}44`,borderRadius:12,padding:"8px 14px" }}>
-            <div style={{ fontWeight:900,fontSize:"clamp(16px,4.5vw,24px)",color,lineHeight:1 }}>{j.drix||1000}</div>
-            <div style={{ fontSize:9,color,fontWeight:700,marginTop:2,letterSpacing:1 }}>DRIX</div>
-          </div>
-          <div style={{ position:"relative" }}>
-            <BullBadge bull={j.bull_balance} size="normal" flash={bullFlash}/>
-            {bullFlash && (
-              <div style={{ position:"absolute",top:-22,right:0,background:"#f97316",color:"#fff",borderRadius:8,padding:"2px 8px",fontSize:11,fontWeight:800,whiteSpace:"nowrap",animation:"slideUp .3s ease-out" }}>
-                +50 🪙
-              </div>
-            )}
-          </div>
+        {/* DRIX */}
+        <div style={{ textAlign:"center",background:color+"18",border:`1px solid ${color}44`,borderRadius:12,padding:"8px 14px",flexShrink:0 }}>
+          <div style={{ fontWeight:900,fontSize:"clamp(16px,4.5vw,24px)",color,lineHeight:1 }}>{j.drix||1000}</div>
+          <div style={{ fontSize:9,color,fontWeight:700,marginTop:2,letterSpacing:1 }}>DRIX</div>
         </div>
       </div>
 
@@ -726,11 +706,6 @@ const MatchActifCard = ({ d, joueur, setPage, onAbandon }) => {
   const [confirmAbandon, setConfirmAbandon] = useState(false);
   const adversaire = d.challenger_id===joueur.id ? d.defie_pseudo : d.challenger_pseudo;
   const abandonner = async () => {
-    // Pour les défis BULL : l'abandonnant perd — appliquer le transfert BULL avec l'adversaire comme gagnant
-    if (d.type === "bull" && d.bull_mise > 0) {
-      const adversaireId = d.challenger_id===joueur.id ? d.defie_id : d.challenger_id;
-      await appliquerBullDuel({ ...d, gagnant_id: adversaireId });
-    }
     await sb(`duels?id=eq.${d.id}`, { method:"PATCH", body:JSON.stringify({ statut:"abandonne" }), prefer:"return=minimal" });
     onAbandon();
   };
@@ -741,8 +716,7 @@ const MatchActifCard = ({ d, joueur, setPage, onAbandon }) => {
           <div style={{ fontWeight:700,fontSize:15 }}>⚔️ vs {adversaire}</div>
           <div style={{ color:C.muted,fontSize:12,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
             <span>{d.mode} · {d.manches} manche{d.manches>1?"s":""}</span>
-            {d.type==="bull" && d.bull_mise > 0 && <span style={{ background:"#1a0f00",color:"#f97316",borderRadius:20,padding:"1px 8px",fontSize:11,fontWeight:700,border:"1px solid #f9731633" }}>🪙 Mise : {d.bull_mise} BULLS</span>}
-            {(!d.type||d.type==="drix") && <span style={{ background:"#1a0030",color:"#a78bfa",borderRadius:20,padding:"1px 8px",fontSize:11,fontWeight:700,border:"1px solid #a78bfa33" }}>💎 DRIX</span>}
+            <span style={{ background:"#1a0030",color:"#a78bfa",borderRadius:20,padding:"1px 8px",fontSize:11,fontWeight:700,border:"1px solid #a78bfa33" }}>💎 DRIX</span>
           </div>
         </div>
         <div style={{ display:"flex",gap:8 }}>
@@ -753,7 +727,7 @@ const MatchActifCard = ({ d, joueur, setPage, onAbandon }) => {
       {confirmAbandon && (
         <div style={{ background:"#1a0000",border:"1px solid #ef444444",borderRadius:10,padding:"12px 14px" }}>
           <p style={{ color:"#f1f5f9",fontSize:13,marginBottom:10,fontWeight:600 }}>
-            {d.type==="bull" ? `Confirmer l'abandon ? Tu perds la mise de ${d.bull_mise} 🪙 BULLS.` : "Confirmer l'abandon ? Le match sera annulé sans attribution de DRIX."}
+            Confirmer l'abandon ? Le match sera annulé sans attribution de DRIX.
           </p>
           <div style={{ display:"flex",gap:8 }}>
             <Btn onClick={abandonner} variant="danger" style={{ flex:1,fontSize:13 }}>✅ Confirmer</Btn>
@@ -766,23 +740,16 @@ const MatchActifCard = ({ d, joueur, setPage, onAbandon }) => {
 };
 
 // ── PAGE DÉFI ─────────────────────────────────────────────────────────────────
-const PageDefi = ({ joueur, setPage, setJoueur }) => {
+const PageDefi = ({ joueur, setPage }) => {
   const [amis, setAmis] = useState([]);
-  const [amisData, setAmisData] = useState({}); // { [joueurId]: { photo, drix, pseudo, bull_balance } }
+  const [amisData, setAmisData] = useState({}); // { [joueurId]: { photo, drix, pseudo } }
   const [matchsActifs, setMatchsActifs] = useState([]);
   const [resultsAContester, setResultsAContester] = useState([]);
-  const [bullDefisRecus, setBullDefisRecus] = useState([]);   // défis BULL en attente reçus
-  const [bullDefisEnvoyes, setBullDefisEnvoyes] = useState([]); // défis BULL en attente envoyés
   const [loading, setLoading] = useState(true);
   // ── sélection ami ──
   const [selected, setSelected] = useState(null); // ami row sélectionné
-  const [defiMode, setDefiMode] = useState(null); // null | "drix" | "bull"
   // ── config DRIX ──
   const [form, setForm] = useState({ mode:"501", manches:1 });
-  // ── mise BULL ──
-  const [bullMise, setBullMise] = useState(20);
-  const [bullMiseCustom, setBullMiseCustom] = useState("");
-  const [bullErr, setBullErr] = useState(null);
   const [sending, setSending] = useState(false);
 
   const charger = () => {
@@ -793,20 +760,14 @@ const PageDefi = ({ joueur, setPage, setJoueur }) => {
       sb(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&statut=eq.accepte&select=*`),
       sb(`duels?or=(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id})&statut=eq.accepte&select=*`),
       sb(`duels?defie_id=eq.${joueur.id}&statut=eq.termine&valide_defie=eq.false&select=*`),
-      // Défis BULL en attente reçus
-      sb(`duels?defie_id=eq.${joueur.id}&statut=eq.en_attente&type=eq.bull&select=*`).catch(()=>[]),
-      // Défis BULL en attente envoyés
-      sb(`duels?challenger_id=eq.${joueur.id}&statut=eq.en_attente&type=eq.bull&select=*`).catch(()=>[]),
-    ]).then(async ([a, ma, rc, bRecus, bEnvoyes]) => {
+    ]).then(async ([a, ma, rc]) => {
       setAmis(a||[]);
       setMatchsActifs(ma||[]);
       setResultsAContester((rc||[]).filter(d => now - (d.date||0) < h24));
-      setBullDefisRecus(bRecus||[]);
-      setBullDefisEnvoyes(bEnvoyes||[]);
-      // Charger photos + DRIX + BULL des amis
+      // Charger photos + DRIX des amis
       const ids = (a||[]).map(x => x.joueur_id===joueur.id ? x.ami_id : x.joueur_id);
       if (ids.length > 0) {
-        const profils = await sb(`joueurs?id=in.(${ids.join(",")})&select=id,pseudo,photo,drix,bull_balance`).catch(()=>[]);
+        const profils = await sb(`joueurs?id=in.(${ids.join(",")})&select=id,pseudo,photo,drix`).catch(()=>[]);
         const map = {};
         (profils||[]).forEach(p => { map[p.id] = p; });
         setAmisData(map);
@@ -827,127 +788,16 @@ const PageDefi = ({ joueur, setPage, setJoueur }) => {
     if (newDuel?.id) { setPage("scoreur-duel-" + newDuel.id); return; }
   };
 
-  const envoyerDefiBull = async () => {
-    if (!selected || sending) return;
-    const mise = bullMise === "custom" ? parseInt(bullMiseCustom) : bullMise;
-    if (!mise || isNaN(mise) || mise <= 0) { setBullErr("Montant invalide"); return; }
-    const myBull = joueur.bull_balance ?? BULL_INIT;
-    const amiId = selected.joueur_id === joueur.id ? selected.ami_id : selected.joueur_id;
-    const amiPseudo = selected.joueur_id === joueur.id ? selected.ami_pseudo : selected.joueur_pseudo;
-    const amiBull = amisData[amiId]?.bull_balance ?? BULL_INIT;
-    if (mise > myBull) { setBullErr(`Solde insuffisant — tu as ${myBull} BULLS`); return; }
-    if (mise > amiBull) { setBullErr(`${amiPseudo} n'a que ${amiBull} BULLS`); return; }
-    setSending(true);
-    setBullErr(null);
-    try {
-      const res = await sb("duels", { method:"POST", body:JSON.stringify({ challenger_id:joueur.id, challenger_pseudo:joueur.pseudo, defie_id:amiId, defie_pseudo:amiPseudo, statut:"en_attente", type:"bull", bull_mise:mise, mode:form.mode, manches:form.manches, date:Date.now(), valide_challenger:false, valide_defie:false, score_manches_challenger:0, score_manches_defie:0 }) });
-      const newDuel = Array.isArray(res) ? res[0] : res;
-      if (newDuel) {
-        setBullDefisEnvoyes(x => [...x, newDuel]);
-        setSelected(null); setDefiMode(null);
-      }
-    } catch { setBullErr("Erreur lors de l'envoi"); }
-    setSending(false);
-  };
-
-  const accepterBullDefi = async (d) => {
-    const mise = d.bull_mise || 0;
-    const myBull = joueur.bull_balance ?? BULL_INIT;
-    if (myBull < mise) { alert(`Solde insuffisant — tu as ${myBull} BULLS, la mise est de ${mise}`); return; }
-    try {
-      // Réserver les BULL des deux joueurs
-      await Promise.all([
-        reserverBull(joueur.id, mise),
-        reserverBull(d.challenger_id, mise),
-      ]);
-      await sb(`duels?id=eq.${d.id}`, { method:"PATCH", body:JSON.stringify({ statut:"accepte" }), prefer:"return=minimal" });
-      // Mettre à jour le joueur local
-      if (setJoueur) {
-        const jFrais = await sb(`joueurs?id=eq.${joueur.id}&select=*`).then(r => r?.[0]);
-        if (jFrais) { setJoueur(jFrais); localStorage.setItem("dp_joueur", JSON.stringify(jFrais)); }
-      }
-      setBullDefisRecus(x => x.filter(r => r.id !== d.id));
-      setPage("scoreur-duel-" + d.id);
-    } catch(e) { alert("Erreur lors de l'acceptation : " + e.message); }
-  };
-
-  const refuserBullDefi = async (d) => {
-    await sb(`duels?id=eq.${d.id}`, { method:"PATCH", body:JSON.stringify({ statut:"refuse" }), prefer:"return=minimal" });
-    setBullDefisRecus(x => x.filter(r => r.id !== d.id));
-  };
-
-  const annulerBullDefi = async (d) => {
-    await sb(`duels?id=eq.${d.id}`, { method:"PATCH", body:JSON.stringify({ statut:"refuse" }), prefer:"return=minimal" });
-    setBullDefisEnvoyes(x => x.filter(r => r.id !== d.id));
-  };
-
   if (!joueur) return <div style={{ textAlign:"center",padding:60 }}><p style={{ color:C.muted }}>Connecte-toi pour accéder aux défis.</p><Btn onClick={()=>setPage("connexion")}>Se connecter</Btn></div>;
   if (loading) return <Spinner/>;
 
   const couleurAmi = (pseudo) => { const cols=["#f97316","#60a5fa","#22c55e","#a78bfa","#f59e0b","#ec4899"]; let h=0; for(const c of pseudo||"") h=(h*31+c.charCodeAt(0))%cols.length; return cols[h]; };
-  const miseFinale = bullMise === "custom" ? parseInt(bullMiseCustom)||0 : bullMise;
-  const myBull = joueur.bull_balance ?? BULL_INIT;
 
   return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
       <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Accueil</button>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4 }}>
-        <h1 style={{ fontWeight:800,fontSize:22,margin:0 }}>⚔️ Défis</h1>
-        <div style={{ display:"flex",alignItems:"center",gap:5,background:"#1a0f00",border:"1px solid #f9731644",borderRadius:10,padding:"4px 12px" }}>
-          <span>🪙</span>
-          <span style={{ fontWeight:900,fontSize:15,color:"#f97316" }}>{myBull}</span>
-          <span style={{ fontSize:10,color:"#a16207",fontWeight:700 }}>BULLS</span>
-        </div>
-      </div>
-      <p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>Défie tes amis, gagne des DRIX ou des BULLS</p>
-
-      {/* ── Défis BULL reçus ── */}
-      {bullDefisRecus.length > 0 && (
-        <div style={{ marginBottom:24 }}>
-          <h2 style={{ fontWeight:700,fontSize:16,marginBottom:12,color:"#f97316" }}>🪙 Défis BULLS reçus ({bullDefisRecus.length})</h2>
-          {bullDefisRecus.map(d => (
-            <div key={d.id} style={{ background:"#1a0f00",border:"2px solid #f9731655",borderRadius:12,padding:16,marginBottom:10 }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
-                <div>
-                  <div style={{ fontWeight:700,fontSize:15 }}>⚔️ {d.challenger_pseudo} te défie !</div>
-                  <div style={{ color:C.muted,fontSize:12,marginTop:2 }}>{d.mode} · {d.manches} manche{d.manches>1?"s":""}</div>
-                </div>
-                <div style={{ textAlign:"center" }}>
-                  <div style={{ fontWeight:900,fontSize:22,color:"#f97316" }}>🪙 {d.bull_mise}</div>
-                  <div style={{ fontSize:10,color:"#a16207" }}>BULLS en jeu</div>
-                </div>
-              </div>
-              {myBull < d.bull_mise && (
-                <div style={{ background:"#450a0a",border:"1px solid #ef4444",borderRadius:8,padding:"8px 12px",marginBottom:8,fontSize:12,color:"#fca5a5",fontWeight:600 }}>
-                  ⚠️ Solde insuffisant — tu as {myBull} BULLS, la mise est de {d.bull_mise}
-                </div>
-              )}
-              <div style={{ display:"flex",gap:8 }}>
-                <Btn onClick={()=>accepterBullDefi(d)} disabled={myBull < d.bull_mise} style={{ flex:1,fontSize:13,background:"#f97316" }}>✅ Accepter — Miser {d.bull_mise} 🪙</Btn>
-                <Btn onClick={()=>refuserBullDefi(d)} style={{ fontSize:13,background:"#2a2a2a",color:C.red }}>✕ Refuser</Btn>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── Défis BULL envoyés en attente ── */}
-      {bullDefisEnvoyes.length > 0 && (
-        <div style={{ marginBottom:24 }}>
-          <h2 style={{ fontWeight:700,fontSize:16,marginBottom:12,color:C.muted }}>⏳ Défis BULLS envoyés</h2>
-          {bullDefisEnvoyes.map(d => (
-            <div key={d.id} style={{ background:C.card,border:`1px solid #f9731633`,borderRadius:12,padding:16,marginBottom:10 }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-                <div>
-                  <div style={{ fontWeight:700,fontSize:14 }}>⏳ En attente de {d.defie_pseudo}</div>
-                  <div style={{ color:C.muted,fontSize:12,marginTop:2 }}>{d.mode} · {d.manches} manche{d.manches>1?"s":""} · Mise : {d.bull_mise} 🪙</div>
-                </div>
-                <button onClick={()=>annulerBullDefi(d)} style={{ background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:8,padding:"6px 12px",fontSize:12 }}>Annuler</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>⚔️ Défis</h1>
+      <p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>Défie tes amis et gagne des DRIX</p>
 
       {/* ── Résultats à contester (24h) ── */}
       {resultsAContester.length > 0 && (
@@ -1003,10 +853,8 @@ const PageDefi = ({ joueur, setPage, setJoueur }) => {
             const amiId = a.joueur_id===joueur.id?a.ami_id:a.joueur_id;
             const amiPseudo = a.joueur_id===joueur.id?a.ami_pseudo:a.joueur_pseudo;
             const profil = amisData[amiId];
-            const col = couleurAmi(amiPseudo);
             const { emoji:amiEmoji, color:amiColor } = getDrixTitre(profil?.drix||1000);
             const isSelected = selected?.joueur_id===a.joueur_id&&selected?.ami_id===a.ami_id;
-            const amiBull = profil?.bull_balance ?? BULL_INIT;
 
             // Calcul DRIX estimé
             const myDrix = joueur.drix || 1000;
@@ -1020,7 +868,7 @@ const PageDefi = ({ joueur, setPage, setJoueur }) => {
             return (
               <div key={amiId}>
                 {/* Carte ami */}
-                <div onClick={()=>{ setSelected(isSelected?null:a); setDefiMode(null); setBullErr(null); setBullMise(20); setBullMiseCustom(""); }}
+                <div onClick={()=>setSelected(isSelected?null:a)}
                   style={{ background:isSelected?C.accent+"22":C.card,border:`2px solid ${isSelected?C.accent:C.border}`,borderRadius:isSelected?"12px 12px 0 0":12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"all .12s" }}>
                   <div style={{ width:44,height:44,borderRadius:"50%",background:amiColor+"22",border:`2px solid ${amiColor}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,overflow:"hidden" }}>
                     {profil?.photo ? <img src={profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{amiEmoji}</span>}
@@ -1029,7 +877,6 @@ const PageDefi = ({ joueur, setPage, setJoueur }) => {
                     <div style={{ fontWeight:700,fontSize:15 }}>{amiPseudo}</div>
                     <div style={{ display:"flex",gap:8,marginTop:2 }}>
                       <span style={{ fontSize:11,color:amiColor,fontWeight:600 }}>{amiEmoji} {hisDrix} DRIX</span>
-                      <span style={{ fontSize:11,color:"#f97316",fontWeight:600 }}>🪙 {amiBull} BULLS</span>
                     </div>
                   </div>
                   <span style={{ color:isSelected?C.accent:C.muted,fontSize:13,fontWeight:600 }}>{isSelected?"✕":"⚔️"}</span>
@@ -1037,145 +884,44 @@ const PageDefi = ({ joueur, setPage, setJoueur }) => {
 
                 {isSelected && (
                   <div style={{ background:"#111",border:`1px solid ${C.accent}44`,borderTop:"none",borderRadius:"0 0 12px 12px",padding:"14px 16px" }}>
-
-                    {/* ── Choix du mode (si pas encore choisi) ── */}
-                    {!defiMode && (
-                      <div>
-                        <div style={{ fontSize:12,color:C.muted,marginBottom:10,textAlign:"center" }}>Quel type de défi ?</div>
-                        <div style={{ display:"flex",gap:10 }}>
-                          <div onClick={()=>setDefiMode("drix")}
-                            style={{ flex:1,background:"linear-gradient(135deg,#1a0030,#1a1a2e)",border:"2px solid #a78bfa55",borderRadius:12,padding:"16px 10px",cursor:"pointer",textAlign:"center",transition:"all .12s" }}
-                            onMouseEnter={e=>e.currentTarget.style.borderColor="#a78bfa"}
-                            onMouseLeave={e=>e.currentTarget.style.borderColor="#a78bfa55"}>
-                            <div style={{ fontSize:28,marginBottom:6 }}>💎</div>
-                            <div style={{ fontWeight:800,fontSize:15,color:"#a78bfa" }}>DRIX</div>
-                            <div style={{ fontSize:11,color:C.muted,marginTop:4 }}>Joue pour ton classement ELO</div>
-                          </div>
-                          <div onClick={()=>setDefiMode("bull")}
-                            style={{ flex:1,background:"linear-gradient(135deg,#1a0f00,#1a1a00)",border:"2px solid #f9731655",borderRadius:12,padding:"16px 10px",cursor:"pointer",textAlign:"center",transition:"all .12s" }}
-                            onMouseEnter={e=>e.currentTarget.style.borderColor="#f97316"}
-                            onMouseLeave={e=>e.currentTarget.style.borderColor="#f9731655"}>
-                            <div style={{ fontSize:28,marginBottom:6 }}>🪙</div>
-                            <div style={{ fontWeight:800,fontSize:15,color:"#f97316" }}>BULLS</div>
-                            <div style={{ fontSize:11,color:C.muted,marginTop:4 }}>Mise des BULLS, fun & rapide</div>
-                          </div>
+                    {/* Aperçu DRIX */}
+                    <div style={{ display:"flex",gap:8,marginBottom:14,padding:"10px 12px",background:"#1a1a1a",borderRadius:10,alignItems:"center",flexWrap:"wrap" }}>
+                      <div style={{ flex:1,textAlign:"center" }}>
+                        <div style={{ fontSize:10,color:C.muted,marginBottom:3 }}>TOI</div>
+                        <div style={{ fontWeight:800,fontSize:16,color:"#f97316" }}>{myDrix}</div>
+                        <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
+                      </div>
+                      <div style={{ textAlign:"center",padding:"0 6px" }}>
+                        <div style={{ fontSize:16,fontWeight:900,color:C.muted }}>⚔️</div>
+                        <div style={{ fontSize:10,color:C.muted }}>vs</div>
+                      </div>
+                      <div style={{ flex:1,textAlign:"center" }}>
+                        <div style={{ fontSize:10,color:C.muted,marginBottom:3 }}>{amiPseudo.toUpperCase()}</div>
+                        <div style={{ fontWeight:800,fontSize:16,color:amiColor }}>{hisDrix}</div>
+                        <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
+                      </div>
+                      <div style={{ width:"100%",display:"flex",gap:6,justifyContent:"center",marginTop:6 }}>
+                        <span style={{ background:"#14532d",color:"#22c55e",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700 }}>+{gainVictoire} si victoire</span>
+                        <span style={{ background:"#7f1d1d",color:"#ef4444",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700 }}>-{perteDefaite} si défaite</span>
+                      </div>
+                    </div>
+                    <div style={{ display:"flex",gap:8,marginBottom:12,flexWrap:"wrap" }}>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Mode</div>
+                        <div style={{ display:"flex",gap:6 }}>
+                          {["501","301"].map(m=><button key={m} onClick={()=>setForm(f=>({...f,mode:m}))} style={{ flex:1,padding:"8px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:form.mode===m?C.accent:"#222",color:form.mode===m?"#fff":C.muted,fontSize:14 }}>{m}</button>)}
                         </div>
                       </div>
-                    )}
-
-                    {/* ── Mode DRIX ── */}
-                    {defiMode === "drix" && (
-                      <>
-                        <button onClick={()=>setDefiMode(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:12,padding:0,marginBottom:12 }}>← Changer de mode</button>
-                        {/* Aperçu DRIX */}
-                        <div style={{ display:"flex",gap:8,marginBottom:14,padding:"10px 12px",background:"#1a1a1a",borderRadius:10,alignItems:"center",flexWrap:"wrap" }}>
-                          <div style={{ flex:1,textAlign:"center" }}>
-                            <div style={{ fontSize:10,color:C.muted,marginBottom:3 }}>TOI</div>
-                            <div style={{ fontWeight:800,fontSize:16,color:"#f97316" }}>{myDrix}</div>
-                            <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
-                          </div>
-                          <div style={{ textAlign:"center",padding:"0 6px" }}>
-                            <div style={{ fontSize:16,fontWeight:900,color:C.muted }}>⚔️</div>
-                            <div style={{ fontSize:10,color:C.muted }}>vs</div>
-                          </div>
-                          <div style={{ flex:1,textAlign:"center" }}>
-                            <div style={{ fontSize:10,color:C.muted,marginBottom:3 }}>{amiPseudo.toUpperCase()}</div>
-                            <div style={{ fontWeight:800,fontSize:16,color:amiColor }}>{hisDrix}</div>
-                            <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
-                          </div>
-                          <div style={{ width:"100%",display:"flex",gap:6,justifyContent:"center",marginTop:6 }}>
-                            <span style={{ background:"#14532d",color:"#22c55e",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700 }}>+{gainVictoire} si victoire</span>
-                            <span style={{ background:"#7f1d1d",color:"#ef4444",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700 }}>-{perteDefaite} si défaite</span>
-                          </div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Manches</div>
+                        <div style={{ display:"flex",gap:4 }}>
+                          {[1,2,3,4,5].map(n=><button key={n} onClick={()=>setForm(f=>({...f,manches:n}))} style={{ flex:1,padding:"8px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:form.manches===n?C.accent:"#222",color:form.manches===n?"#fff":C.muted,fontSize:14 }}>{n}</button>)}
                         </div>
-                        <div style={{ display:"flex",gap:8,marginBottom:12,flexWrap:"wrap" }}>
-                          <div style={{ flex:1 }}>
-                            <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Mode</div>
-                            <div style={{ display:"flex",gap:6 }}>
-                              {["501","301"].map(m=><button key={m} onClick={()=>setForm(f=>({...f,mode:m}))} style={{ flex:1,padding:"8px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:form.mode===m?C.accent:"#222",color:form.mode===m?"#fff":C.muted,fontSize:14 }}>{m}</button>)}
-                            </div>
-                          </div>
-                          <div style={{ flex:1 }}>
-                            <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Manches</div>
-                            <div style={{ display:"flex",gap:4 }}>
-                              {[1,2,3,4,5].map(n=><button key={n} onClick={()=>setForm(f=>({...f,manches:n}))} style={{ flex:1,padding:"8px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:form.manches===n?C.accent:"#222",color:form.manches===n?"#fff":C.muted,fontSize:14 }}>{n}</button>)}
-                            </div>
-                          </div>
-                        </div>
-                        <Btn onClick={envoyerDefiDrix} disabled={sending} style={{ width:"100%",fontSize:14 }}>
-                          {sending?"Lancement…":"💎 Jouer des DRIX contre "+amiPseudo+" !"}
-                        </Btn>
-                      </>
-                    )}
-
-                    {/* ── Mode BULL ── */}
-                    {defiMode === "bull" && (
-                      <>
-                        <button onClick={()=>setDefiMode(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:12,padding:0,marginBottom:12 }}>← Changer de mode</button>
-                        {/* Config mode/manches */}
-                        <div style={{ display:"flex",gap:8,marginBottom:14,flexWrap:"wrap" }}>
-                          <div style={{ flex:1 }}>
-                            <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Mode</div>
-                            <div style={{ display:"flex",gap:6 }}>
-                              {["501","301"].map(m=><button key={m} onClick={()=>setForm(f=>({...f,mode:m}))} style={{ flex:1,padding:"8px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:form.mode===m?"#f97316":"#222",color:form.mode===m?"#fff":C.muted,fontSize:14 }}>{m}</button>)}
-                            </div>
-                          </div>
-                          <div style={{ flex:1 }}>
-                            <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Manches</div>
-                            <div style={{ display:"flex",gap:4 }}>
-                              {[1,2,3,4,5].map(n=><button key={n} onClick={()=>setForm(f=>({...f,manches:n}))} style={{ flex:1,padding:"8px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:form.manches===n?"#f97316":"#222",color:form.manches===n?"#fff":C.muted,fontSize:14 }}>{n}</button>)}
-                            </div>
-                          </div>
-                        </div>
-                        {/* Soldes */}
-                        <div style={{ display:"flex",gap:8,marginBottom:14,padding:"10px 12px",background:"#1a0f00",borderRadius:10,border:"1px solid #f9731633" }}>
-                          <div style={{ flex:1,textAlign:"center" }}>
-                            <div style={{ fontSize:10,color:"#fdba74",marginBottom:3 }}>TOI</div>
-                            <div style={{ fontWeight:900,fontSize:18,color:"#f97316" }}>🪙 {myBull}</div>
-                            <div style={{ fontSize:10,color:"#a16207" }}>BULLS</div>
-                          </div>
-                          <div style={{ textAlign:"center",padding:"0 10px",display:"flex",alignItems:"center",color:C.muted }}>vs</div>
-                          <div style={{ flex:1,textAlign:"center" }}>
-                            <div style={{ fontSize:10,color:"#fdba74",marginBottom:3 }}>{amiPseudo.toUpperCase()}</div>
-                            <div style={{ fontWeight:900,fontSize:18,color:"#f97316" }}>🪙 {amiBull}</div>
-                            <div style={{ fontSize:10,color:"#a16207" }}>BULLS</div>
-                          </div>
-                        </div>
-                        {/* Mise */}
-                        <div style={{ marginBottom:12 }}>
-                          <div style={{ fontSize:11,color:C.muted,marginBottom:8 }}>Montant à miser</div>
-                          <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:8 }}>
-                            {[10,20,50,100].map(v => (
-                              <button key={v} onClick={()=>{ setBullMise(v); setBullMiseCustom(""); }}
-                                style={{ flex:"1 0 40px",padding:"10px 0",borderRadius:8,border:"none",fontWeight:800,cursor:"pointer",
-                                  background:bullMise===v&&bullMise!=="custom"?"#f97316":"#222",
-                                  color:bullMise===v&&bullMise!=="custom"?"#fff":C.muted,fontSize:15,
-                                  opacity: v > Math.min(myBull, amiBull) ? 0.4 : 1 }}>{v}</button>
-                            ))}
-                            <button onClick={()=>setBullMise("custom")}
-                              style={{ flex:"1 0 70px",padding:"10px 0",borderRadius:8,border:"none",fontWeight:800,cursor:"pointer",background:bullMise==="custom"?"#f97316":"#222",color:bullMise==="custom"?"#fff":C.muted,fontSize:13 }}>Autre</button>
-                          </div>
-                          {bullMise === "custom" && (
-                            <input type="number" min={1} max={Math.min(myBull,amiBull)} value={bullMiseCustom}
-                              onChange={e=>setBullMiseCustom(e.target.value)} placeholder="Montant personnalisé…"
-                              style={{ width:"100%",boxSizing:"border-box",background:"#1a1a1a",border:`1px solid ${bullErr?"#ef4444":C.border}`,borderRadius:8,padding:"10px 12px",color:"#f1f5f9",fontSize:15,outline:"none" }}/>
-                          )}
-                        </div>
-                        {/* Validation mise */}
-                        {miseFinale > 0 && (
-                          <div style={{ display:"flex",justifyContent:"center",marginBottom:10 }}>
-                            <div style={{ background:"#1a0f00",border:"1px solid #f9731644",borderRadius:20,padding:"5px 18px",fontSize:13,fontWeight:700,color:"#f97316" }}>
-                              Mise : {miseFinale} 🪙 — {miseFinale > Math.min(myBull,amiBull) ? "⚠️ Trop élevée":"✅ OK"}
-                            </div>
-                          </div>
-                        )}
-                        {bullErr && <div style={{ background:"#450a0a",border:"1px solid #ef4444",borderRadius:8,padding:"8px 12px",marginBottom:10,color:"#fca5a5",fontSize:13,fontWeight:600 }}>⚠️ {bullErr}</div>}
-                        <Btn onClick={envoyerDefiBull} disabled={sending||miseFinale<=0||miseFinale>Math.min(myBull,amiBull)}
-                          style={{ width:"100%",fontSize:14,background:miseFinale>0&&miseFinale<=Math.min(myBull,amiBull)?"linear-gradient(135deg,#f97316,#ea580c)":undefined }}>
-                          {sending?"Envoi…":`🪙 Défier ${amiPseudo} — Mise ${miseFinale||"?"} BULLS`}
-                        </Btn>
-                      </>
-                    )}
+                      </div>
+                    </div>
+                    <Btn onClick={envoyerDefiDrix} disabled={sending} style={{ width:"100%",fontSize:14 }}>
+                      {sending?"Lancement…":"💎 Jouer des DRIX contre "+amiPseudo+" !"}
+                    </Btn>
                   </div>
                 )}
               </div>
@@ -1749,54 +1495,20 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
 };
 
 // ── PAGE MODE JEU ─────────────────────────────────────────────────────────────
-const PageModeJeu = ({ joueur, setJoueur, setPage }) => {
+const PageModeJeu = ({ joueur, setPage }) => {
   const [categorie, setCategorie] = useState(null);
-  const [bullErr, setBullErr] = useState(null); // message insuffisant
-  const bull = joueur?.bull_balance ?? BULL_INIT;
 
-  const lancerMode = async (page, cost, needLogin=false) => {
-    if (needLogin && !joueur) { setPage("connexion"); return; }
-    if (joueur && cost > 0) {
-      if (bull < cost) {
-        setBullErr(`Pas assez de BULLS pour ce mode (${bull}/${cost} 🪙)`);
-        setTimeout(() => setBullErr(null), 3000);
-        return;
-      }
-      try {
-        const jUpdated = await spendBull(joueur, cost);
-        setJoueur(jUpdated);
-        localStorage.setItem("dp_joueur", JSON.stringify(jUpdated));
-      } catch { return; }
-    }
-    setPage(page);
-  };
-
-  const CostTag = ({ cost }) => cost > 0 ? (
-    <span style={{ display:"inline-flex",alignItems:"center",gap:3,background:"#1a0f00",border:"1px solid #f97316aa",borderRadius:20,padding:"2px 9px",fontSize:11,fontWeight:800,color:"#f97316" }}>
-      🪙 {cost} BULLS
-    </span>
-  ) : null;
-
-  const ModeBtn = ({ icon, label, sub, onClick, col, cost }) => {
-    const hasBull = !joueur || bull >= cost;
-    return (
-      <div onClick={onClick}
-        style={{ background:"linear-gradient(135deg,#1a1a1a,#141414)",border:`2px solid ${hasBull?col+"33":C.border}`,borderRadius:16,padding:"20px 18px",cursor:"pointer",display:"flex",flexDirection:"column",gap:6,transition:"all .15s",userSelect:"none",opacity:hasBull?1:0.7 }}
-        onMouseEnter={e=>{e.currentTarget.style.borderColor=hasBull?col:C.border;e.currentTarget.style.transform="translateY(-3px)";}}
-        onMouseLeave={e=>{e.currentTarget.style.borderColor=hasBull?col+"33":C.border;e.currentTarget.style.transform="translateY(0)";}}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
-          <div style={{ fontSize:40 }}>{icon}</div>
-          <CostTag cost={cost}/>
-        </div>
-        <div style={{ fontWeight:800,fontSize:18,color:"#f1f5f9" }}>{label}</div>
-        <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.5 }}>{sub}</div>
-        {!hasBull
-          ? <div style={{ fontSize:12,color:C.red,fontWeight:700,marginTop:4 }}>🪙 Solde insuffisant ({bull} BULLS)</div>
-          : <div style={{ fontSize:12,color:col,fontWeight:700,marginTop:4 }}>Jouer →</div>
-        }
-      </div>
-    );
-  };
+  const ModeBtn = ({ icon, label, sub, onClick, col }) => (
+    <div onClick={onClick}
+      style={{ background:"linear-gradient(135deg,#1a1a1a,#141414)",border:`2px solid ${col}33`,borderRadius:16,padding:"20px 18px",cursor:"pointer",display:"flex",flexDirection:"column",gap:6,transition:"all .15s",userSelect:"none" }}
+      onMouseEnter={e=>{e.currentTarget.style.borderColor=col;e.currentTarget.style.transform="translateY(-3px)";}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor=col+"33";e.currentTarget.style.transform="translateY(0)";}}>
+      <div style={{ fontSize:40 }}>{icon}</div>
+      <div style={{ fontWeight:800,fontSize:18,color:"#f1f5f9" }}>{label}</div>
+      <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.5 }}>{sub}</div>
+      <div style={{ fontSize:12,color:col,fontWeight:700,marginTop:4 }}>Jouer →</div>
+    </div>
+  );
 
   const CatBtn = ({ icon, label, sub, id, col }) => (
     <div onClick={()=>setCategorie(id)}
@@ -1813,16 +1525,8 @@ const PageModeJeu = ({ joueur, setJoueur, setPage }) => {
   if (!categorie) return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
       <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Accueil</button>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4 }}>
-        <h1 style={{ fontWeight:800,fontSize:22,margin:0 }}>🎮 Mode Jeu</h1>
-        {joueur && <div style={{ display:"flex",alignItems:"center",gap:6,background:"#1a0f00",border:"1px solid #f9731644",borderRadius:10,padding:"5px 12px" }}>
-          <span style={{ fontSize:14 }}>🪙</span>
-          <span style={{ fontWeight:900,fontSize:16,color:"#f97316" }}>{bull}</span>
-          <span style={{ fontSize:10,color:"#a16207",fontWeight:700 }}>BULLS</span>
-        </div>}
-      </div>
+      <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🎮 Mode Jeu</h1>
       <p style={{ color:C.muted,fontSize:13,marginBottom:24 }}>Choisis ta catégorie de jeu</p>
-      {bullErr && <div style={{ background:"#450a0a",border:"1px solid #ef4444",borderRadius:10,padding:"10px 14px",marginBottom:16,color:"#fca5a5",fontSize:13,fontWeight:600 }}>⚠️ {bullErr}</div>}
       <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
         <CatBtn id="fleche" icon="🎯" label="Jeux avec fléchettes" sub={"Capital · Tournoi entre potes\nJoue avec ta cible et tes fléchettes."} col="#f59e0b"/>
         <CatBtn id="sans"   icon="🧠" label="Jeux sans fléchettes"  sub={"Rush Mode · Comptage de finish\nEntraîne ton mental et ta connaissance des finishes."} col="#ef4444"/>
@@ -1832,33 +1536,25 @@ const PageModeJeu = ({ joueur, setJoueur, setPage }) => {
 
   return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
-        <button onClick={()=>setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}>← Catégories</button>
-        {joueur && <div style={{ display:"flex",alignItems:"center",gap:5,background:"#1a0f00",border:"1px solid #f9731644",borderRadius:10,padding:"4px 10px" }}>
-          <span style={{ fontSize:13 }}>🪙</span>
-          <span style={{ fontWeight:900,fontSize:14,color:"#f97316" }}>{bull}</span>
-          <span style={{ fontSize:10,color:"#a16207",fontWeight:700 }}>BULLS</span>
-        </div>}
-      </div>
-      {bullErr && <div style={{ background:"#450a0a",border:"1px solid #ef4444",borderRadius:10,padding:"10px 14px",marginBottom:14,color:"#fca5a5",fontSize:13,fontWeight:600 }}>⚠️ {bullErr}</div>}
+      <button onClick={()=>setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,padding:0 }}>← Catégories</button>
       {categorie==="fleche" && <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🎯 Jeux avec fléchettes</h1><p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>Prends ta cible, on joue !</p></>}
       {categorie==="sans"   && <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🧠 Jeux sans fléchettes</h1><p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>Entraîne ta tête, n'importe où !</p></>}
       <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
         {categorie==="fleche" && <>
-          <ModeBtn icon="🏙️" label="Capital" cost={BULL_COST.capital}
+          <ModeBtn icon="🏙️" label="Capital"
             sub="Jeu de précision : descends ton score en visant des zones précises."
-            onClick={()=>lancerMode("jeux-capital", BULL_COST.capital)} col="#f59e0b"/>
-          <ModeBtn icon="🍺" label="Tournoi entre potes" cost={BULL_COST.tournoi}
+            onClick={()=>setPage("jeux-capital")} col="#f59e0b"/>
+          <ModeBtn icon="🍺" label="Tournoi entre potes"
             sub="Organise un tournoi avec tes amis. Format libre, ambiance garantie."
-            onClick={()=>lancerMode("tournois-potes", BULL_COST.tournoi)} col="#22c55e"/>
+            onClick={()=>setPage("tournois-potes")} col="#22c55e"/>
         </>}
         {categorie==="sans" && <>
-          <ModeBtn icon="⚡" label="Rush Mode" cost={BULL_COST.rush}
+          <ModeBtn icon="⚡" label="Rush Mode"
             sub="Calcul mental sous pression : score, finishes, bust, routes. 3 niveaux, combos et badges !"
-            onClick={()=>lancerMode("rush-mode", BULL_COST.rush)} col="#ef4444"/>
-          <ModeBtn icon="🎯" label="Comptage de finish" cost={BULL_COST.paisible}
-            sub="Entraîne-toi à construire tes finishes en 1, 2 ou 3 fléchettes. (2 BULL en mode DRIX)"
-            onClick={()=>lancerMode("entrainement-finish", 0)} col="#f97316"/>
+            onClick={()=>setPage("rush-mode")} col="#ef4444"/>
+          <ModeBtn icon="🎯" label="Comptage de finish"
+            sub="Entraîne-toi à construire tes finishes en 1, 2 ou 3 fléchettes."
+            onClick={()=>setPage("entrainement-finish")} col="#f97316"/>
         </>}
       </div>
     </div>
@@ -2795,15 +2491,13 @@ export default function App() {
         sb(`amis?ami_id=eq.${joueur.id}&statut=eq.en_attente&select=id`),
         sb(`duels?defie_id=eq.${joueur.id}&statut=eq.termine&valide_defie=eq.false&select=id,date`),
         dbM.getUnreadCount(joueur.id),
-        sb(`duels?defie_id=eq.${joueur.id}&statut=eq.en_attente&type=eq.bull&select=id`).catch(()=>[]),
-      ]).then(([matchsActifs, demandesAmis, aContester, unread, bullRecus]) => {
+      ]).then(([matchsActifs, demandesAmis, aContester, unread]) => {
         const matchsN = matchsActifs?.length || 0;
         const amisN = demandesAmis?.length || 0;
         const contestN = (aContester||[]).filter(d => now - (d.date||0) < 86400000).length;
         const msgN = unread?.length || 0;
-        const bullN = bullRecus?.length || 0;
-        setDefisCount(matchsN + contestN + bullN);
-        setNotifCount(matchsN + amisN + contestN + bullN);
+        setDefisCount(matchsN + contestN);
+        setNotifCount(matchsN + amisN + contestN);
         setDemandesAmisCount(amisN);
         setUnreadMessages(msgN);
         // Notification navigateur si nouvelle demande d'ami détectée
@@ -2946,7 +2640,7 @@ export default function App() {
       <Nav page={page} setPage={navSafe} isAdmin={isAdmin} joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} unreadMessages={unreadMessages} onBack={goBack} canGoBack={history.length>1}/>
       <main style={{ flex:1 }}>
         {page==="home"             && <Home joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
-        {page==="defi"             && joueur && <PageDefi joueur={joueur} setPage={nav} setJoueur={setJoueur}/>}
+        {page==="defi"             && joueur && <PageDefi joueur={joueur} setPage={nav}/>}
         {page==="communaute"       && <PageCommunaute joueur={joueur} setPage={nav} bars={bars}/>}
         {page==="bars"             && <Bars bars={bars} setPage={nav} setBarSlug={setBarSlug} villeFilter={villeFilter} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="bar"              && <BarDetail slug={barSlug} allBars={bars} associations={associations} setBars={setBars} setPage={nav} setAssoSlug={setAssoSlug} isAdmin={isAdmin} joueur={joueur} setJoueurId={setJoueurId}/>}
@@ -2963,7 +2657,7 @@ export default function App() {
         {page==="profil-badges"    && joueur && <PageProfilBadges setPage={nav}/>}
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav}/>}
         {page==="scoreur"          && <Scoreur setPage={nav}/>}
-        {page==="jeux"             && <PageModeJeu joueur={joueur} setJoueur={setJoueur} setPage={nav}/>}
+        {page==="jeux"             && <PageModeJeu joueur={joueur} setPage={nav}/>}
         {page==="jeux-capital"          && <JeuCapital setPage={nav}/>}
         {page==="entrainement-finish"   && <EntrainementFinish setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="rush-mode"             && <RushMode setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
