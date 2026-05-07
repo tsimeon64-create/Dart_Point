@@ -125,19 +125,19 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
     bars.forEach(bar => {
       if (!bar.lat || !bar.lng) return;
       const isHL = bar.slug===centerSlug; const isActif = barsActifs.includes(bar.slug);
-      const m = L.marker([bar.lat,bar.lng], { icon:mkIcon("🎯", isHL?"#fff":C.accent, isHL?38:30, isActif) }).addTo(map);
+      const m = L.marker([bar.lat,bar.lng], { icon:mkIcon("🍺", isHL?"#fff":C.accent, isHL?40:32, isActif) }).addTo(map);
       m.bindPopup(popup(`<strong>${bar.nom}</strong><br><span style="color:#555;font-size:12px">📍 ${bar.ville}</span>${isActif?'<br><span style="color:#16a34a;font-size:11px">🟢 Joueurs ce soir</span>':""}<br><button style="margin-top:8px;background:#f97316;color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600" onclick="window.__dpBar('${bar.slug}')">Voir →</button>`));
       markersRef.current.push(m);
     });
     associations.forEach(asso => {
       if (!asso.lat || !asso.lng) return;
-      const m = L.marker([asso.lat,asso.lng], { icon:mkIcon("🫂","#7c3aed", asso.slug===centerSlug?38:28) }).addTo(map);
+      const m = L.marker([asso.lat,asso.lng], { icon:mkIcon("👥","#7c3aed", asso.slug===centerSlug?38:28) }).addTo(map);
       m.bindPopup(popup(`<strong>${asso.nom}</strong><br><span style="color:#555;font-size:12px">📍 ${asso.ville}</span>${onAssoClick?`<br><button style="margin-top:8px;background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600" onclick="window.__dpAsso('${asso.slug}')">Voir →</button>`:""}`));
       markersRef.current.push(m);
     });
     tournois.forEach(t => {
       if (!t.lat || !t.lng) return;
-      const m = L.marker([t.lat,t.lng], { icon:mkIcon("🏅",C.yellow,28) }).addTo(map);
+      const m = L.marker([t.lat,t.lng], { icon:mkIcon("🏆",C.yellow,30) }).addTo(map);
       m.bindPopup(popup(`<strong>${t.nom}</strong><br><span style="color:#555;font-size:12px">📍 ${t.ville}</span>${onTournoiClick?`<br><button style="margin-top:8px;background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600" onclick="window.__dpTournoi('${t.slug}')">Voir →</button>`:""}`));
       markersRef.current.push(m);
     });
@@ -297,18 +297,33 @@ const haversine = (lat1,lon1,lat2,lon2) => {
 const BarCard = ({ bar, onClick, barsActifs=[], dist }) => {
   const ti = typeInfo(bar.type); const isActif = barsActifs.includes(bar.slug);
   return (
-    <div onClick={onClick} style={{ background:C.card,border:`1px solid ${isActif?C.green:C.border}`,borderRadius:12,padding:18,cursor:"pointer",transition:"border-color .15s",display:"flex",flexDirection:"column",gap:9 }}
-      onMouseEnter={e=>e.currentTarget.style.borderColor=C.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=isActif?C.green:C.border}>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6 }}>
-        <h3 style={{ fontWeight:700,fontSize:15 }}>{bar.nom} {bar.verifie&&<span style={{ color:C.green,fontSize:12 }}>✅</span>}</h3>
-        <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>{dist!=null&&<Badge color="#60a5fa">📍 {dist<1?(dist*1000).toFixed(0)+" m":dist.toFixed(1)+" km"}</Badge>}{isActif&&<Badge color={C.green}>🟢 Ce soir</Badge>}<Badge color={ti.color}>{ti.l}</Badge></div>
+    <div onClick={onClick}
+      style={{ background:C.card, border:`1px solid ${isActif?C.green:C.border}`, borderRadius:14, padding:"13px 16px", cursor:"pointer", display:"flex", alignItems:"center", gap:14, transition:"all .15s" }}
+      onMouseEnter={e=>{ e.currentTarget.style.borderColor=C.accent; e.currentTarget.style.background="#1f1f1f"; }}
+      onMouseLeave={e=>{ e.currentTarget.style.borderColor=isActif?C.green:C.border; e.currentTarget.style.background=C.card; }}>
+      {/* Icône type */}
+      <div style={{ width:46,height:46,borderRadius:12,background:ti.color+"18",border:`1px solid ${ti.color}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0 }}>🍺</div>
+      {/* Infos */}
+      <div style={{ flex:1,minWidth:0 }}>
+        <div style={{ display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",marginBottom:3 }}>
+          <span style={{ fontWeight:700,fontSize:15,color:C.text }}>{bar.nom}</span>
+          {bar.verifie&&<span style={{ color:C.green,fontSize:11 }}>✅</span>}
+          {isActif&&<span style={{ background:C.green+"22",color:C.green,fontSize:10,padding:"1px 8px",borderRadius:20,fontWeight:700 }}>🟢 Ce soir</span>}
+        </div>
+        <div style={{ color:C.muted,fontSize:12,marginBottom:6 }}>
+          {bar.ville}{bar.adresse?` · ${bar.adresse}`:""}
+        </div>
+        <div style={{ display:"flex",gap:5,flexWrap:"wrap" }}>
+          <span style={{ background:"#a78bfa18",color:"#a78bfa",border:"1px solid #a78bfa33",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>🎯 {bar.cibles} cible{bar.cibles>1?"s":""}</span>
+          {bar.tournois&&<span style={{ background:C.green+"18",color:C.green,border:`1px solid ${C.green}33`,fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>🏆 Tournois</span>}
+          {bar.association&&<span style={{ background:"#7c3aed18",color:"#a78bfa",border:"1px solid #7c3aed33",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>👥 Asso</span>}
+          <span style={{ background:ti.color+"18",color:ti.color,border:`1px solid ${ti.color}33`,fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>{ti.l}</span>
+        </div>
       </div>
-      <p style={{ color:C.muted,fontSize:12 }}>📍 {bar.adresse?bar.adresse+", ":""}{bar.ville}</p>
-      {bar.description&&<p style={{ color:C.muted,fontSize:12,lineHeight:1.5 }}>{bar.description.slice(0,85)}…</p>}
-      <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
-        <Badge color="#a78bfa">🎯 {bar.cibles} cible{bar.cibles>1?"s":""}</Badge>
-        {bar.tournois&&<Badge color={C.green}>🏆 Tournois</Badge>}
-        {bar.vues>0&&<Badge color={C.muted}>👁 {bar.vues}</Badge>}
+      {/* Distance + CTA */}
+      <div style={{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:7,flexShrink:0 }}>
+        {dist!=null&&<span style={{ color:"#60a5fa",fontWeight:700,fontSize:14,lineHeight:1 }}>{dist<1?(dist*1000).toFixed(0)+" m":dist.toFixed(1)+" km"}</span>}
+        <span style={{ background:C.accent,color:"#fff",padding:"6px 13px",borderRadius:8,fontSize:12,fontWeight:700,letterSpacing:.3 }}>Voir →</span>
       </div>
     </div>
   );
@@ -1682,13 +1697,19 @@ const Home = ({ joueur, setJoueur, defisCount, demandesAmisCount=0, bars, associ
 // ── PAGE BARS ─────────────────────────────────────────────────────────────────
 const Bars = ({ bars, setPage, setBarSlug, villeFilter, setVilleFilter, barsActifs }) => {
   const [search,setSearch]=useState("");
-  const [type,setType]=useState("tous");
-  const [view,setView]=useState("liste");
+  const [view,setView]=useState("carte");
   const [userPos,setUserPos]=useState(null);
   const [geoLoading,setGeoLoading]=useState(false);
   const [geoErr,setGeoErr]=useState("");
+  const [filtersOpen,setFiltersOpen]=useState(false);
+  const [filterType,setFilterType]=useState("tous");
+  const [filterCibles,setFilterCibles]=useState(0);
+  const [filterAsso,setFilterAsso]=useState(false);
+  const [filterTournoi,setFilterTournoi]=useState(false);
+  const [filterDist,setFilterDist]=useState(0);
+
   useEffect(()=>{ if(villeFilter){setSearch(villeFilter);setVilleFilter(null);} },[villeFilter]);
-  const villes=useMemo(()=>[...new Set(bars.map(b=>b.ville))].sort(),[bars]);
+
   const geolocate=()=>{
     if(!navigator.geolocation){setGeoErr("Géolocalisation non supportée par ce navigateur");return;}
     if(userPos){setUserPos(null);setGeoErr("");return;}
@@ -1698,37 +1719,145 @@ const Bars = ({ bars, setPage, setBarSlug, villeFilter, setVilleFilter, barsActi
       ()=>{setGeoErr("Position non disponible — vérifiez les permissions");setGeoLoading(false);}
     );
   };
+
+  const resetFilters=()=>{setFilterType("tous");setFilterCibles(0);setFilterAsso(false);setFilterTournoi(false);setFilterDist(0);};
+  const activeFilters=[filterType!=="tous",filterCibles>0,filterAsso,filterTournoi,filterDist>0].filter(Boolean).length;
+
   const filtered=useMemo(()=>{
     const q=search.toLowerCase();
-    let list=bars.filter(b=>(!q||b.ville.toLowerCase().includes(q)||b.nom.toLowerCase().includes(q))&&(type==="tous"||b.type===type));
+    let list=bars.filter(b=>{
+      if(q&&!b.ville.toLowerCase().includes(q)&&!b.nom.toLowerCase().includes(q)) return false;
+      if(filterType!=="tous"&&b.type!==filterType) return false;
+      if(filterCibles>0&&(b.cibles||0)<filterCibles) return false;
+      if(filterAsso&&!b.association) return false;
+      if(filterTournoi&&!b.tournois) return false;
+      return true;
+    });
     if(userPos){
       list=list.map(b=>({...b,_dist:b.lat&&b.lng?haversine(userPos.lat,userPos.lng,b.lat,b.lng):Infinity})).sort((a,b)=>a._dist-b._dist);
+      if(filterDist>0) list=list.filter(b=>b._dist<=filterDist);
     }
     return list;
-  },[bars,search,type,userPos]);
+  },[bars,search,filterType,filterCibles,filterAsso,filterTournoi,filterDist,userPos]);
+
   return (
-    <div style={{ maxWidth:1100,margin:"0 auto",padding:"36px 20px" }}>
-      <h1 style={{ fontWeight:800,fontSize:26,marginBottom:6 }}>🎯 Bars à fléchettes</h1>
-      <p style={{ color:C.muted,marginBottom:20 }}>{filtered.length} lieu{filtered.length>1?"x":""} trouvé{filtered.length>1?"s":""}{userPos&&" · triés par distance"}</p>
-      <div style={{ display:"flex",gap:10,marginBottom:14,flexWrap:"wrap" }}>
-        <div style={{ position:"relative",flex:1,minWidth:180 }}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Ville ou nom…" style={{ width:"100%",background:C.card,border:`1px solid ${search?C.accent:C.border}`,borderRadius:8,padding:"9px 36px 9px 12px",color:C.text,fontSize:14 }}/>
-          {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:15 }}>✕</button>}
+    <div style={{ maxWidth:980,margin:"0 auto",padding:"24px 16px 88px" }}>
+
+      {/* HEADER */}
+      <div style={{ marginBottom:20 }}>
+        <h1 style={{ fontWeight:800,fontSize:24,marginBottom:4 }}>Bars à fléchettes près de toi</h1>
+        <p style={{ color:C.muted,fontSize:13 }}>
+          {filtered.length} lieu{filtered.length>1?"x":""} trouvé{filtered.length>1?"s":""}
+          {userPos&&<span style={{ color:"#22c55e" }}> · triés par distance</span>}
+        </p>
+      </div>
+
+      {/* SEARCH + GEO fusionnés */}
+      <div style={{ display:"flex",gap:8,marginBottom:12 }}>
+        <div style={{ position:"relative",flex:1 }}>
+          <span style={{ position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",fontSize:15,pointerEvents:"none",color:C.muted }}>🔍</span>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher un bar ou une ville…"
+            style={{ width:"100%",background:C.card,border:`1px solid ${search?C.accent:C.border}`,borderRadius:10,padding:"11px 38px 11px 38px",color:C.text,fontSize:14,boxSizing:"border-box" }}/>
+          {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16 }}>✕</button>}
         </div>
-        <select value={type} onChange={e=>setType(e.target.value)} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:14 }}>
-          <option value="tous">Tous les types</option>{TYPES.map(t=><option key={t.v} value={t.v}>{t.l}</option>)}
-        </select>
-        <button onClick={geolocate} disabled={geoLoading} title={userPos?"Désactiver la géolocalisation":"Trouver les bars près de moi"} style={{ background:userPos?"#22c55e22":"transparent",color:userPos?"#22c55e":C.muted,border:`1px solid ${userPos?"#22c55e":C.border}`,borderRadius:8,padding:"9px 14px",cursor:geoLoading?"default":"pointer",fontSize:13,whiteSpace:"nowrap",transition:"all .2s" }}>{geoLoading?"⏳ Localisation…":userPos?"📍 Autour de moi ✕":"📍 Près de moi"}</button>
-        <div style={{ display:"flex",gap:4 }}>{[["liste","☰"],["carte","🗺️"]].map(([vv,ll])=><button key={vv} onClick={()=>setView(vv)} style={{ background:view===vv?C.accent:"transparent",color:view===vv?"#fff":C.muted,border:`1px solid ${view===vv?C.accent:C.border}`,borderRadius:8,padding:"9px 14px",cursor:"pointer",fontSize:15 }}>{ll}</button>)}</div>
+        <button onClick={geolocate} disabled={geoLoading}
+          style={{ background:userPos?"#22c55e22":C.card,color:userPos?"#22c55e":C.text,border:`1px solid ${userPos?"#22c55e":C.border}`,borderRadius:10,padding:"0 16px",cursor:geoLoading?"default":"pointer",fontSize:13,fontWeight:600,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,transition:"all .2s",flexShrink:0 }}>
+          <span style={{ fontSize:16 }}>{geoLoading?"⏳":"📍"}</span>
+          <span>{geoLoading?"…":userPos?"Actif ✕":"Autour de moi"}</span>
+        </button>
       </div>
       {geoErr&&<p style={{ color:"#f87171",fontSize:12,marginBottom:10 }}>⚠️ {geoErr}</p>}
-      <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:18 }}>
-        <button onClick={()=>setSearch("")} style={{ background:!search?C.accent+"22":"transparent",color:!search?C.accent:C.muted,border:`1px solid ${!search?C.accent:C.border}`,borderRadius:20,padding:"4px 13px",cursor:"pointer",fontSize:12 }}>Toutes</button>
-        {villes.map(v=><button key={v} onClick={()=>setSearch(v)} style={{ background:search===v?C.accent+"22":"transparent",color:search===v?C.accent:C.muted,border:`1px solid ${search===v?C.accent:C.border}`,borderRadius:20,padding:"4px 13px",cursor:"pointer",fontSize:12 }}>{v} ({bars.filter(b=>b.ville===v).length})</button>)}
+
+      {/* TOGGLE + FILTRES */}
+      <div style={{ display:"flex",gap:8,marginBottom:filtersOpen?0:14,alignItems:"stretch" }}>
+        <div style={{ display:"flex",background:C.card,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden",flex:1 }}>
+          {[["carte","🗺️ Carte"],["liste","📋 Liste"]].map(([v,l])=>(
+            <button key={v} onClick={()=>setView(v)} style={{ flex:1,padding:"9px 0",background:view===v?C.accent:"transparent",color:view===v?"#fff":C.muted,border:"none",cursor:"pointer",fontWeight:view===v?700:400,fontSize:13,transition:"all .15s" }}>{l}</button>
+          ))}
+        </div>
+        <button onClick={()=>setFiltersOpen(o=>!o)}
+          style={{ background:activeFilters>0?C.accent+"22":C.card,color:activeFilters>0?C.accent:C.muted,border:`1px solid ${activeFilters>0?C.accent:C.border}`,borderRadius:10,padding:"9px 14px",cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",gap:7,flexShrink:0,fontWeight:activeFilters>0?700:400 }}>
+          Filtres ⚙️{activeFilters>0&&<span style={{ background:C.accent,color:"#fff",borderRadius:"50%",width:18,height:18,fontSize:10,display:"inline-flex",alignItems:"center",justifyContent:"center",fontWeight:700 }}>{activeFilters}</span>}
+        </button>
       </div>
-      {view==="carte"?<LeafletMap bars={filtered} onBarClick={s=>{setBarSlug(s);setPage("bar");}} centerVille={search||null} height={500} barsActifs={barsActifs} userPos={userPos}/>
-      :filtered.length===0?<div style={{ textAlign:"center",padding:"50px 20px",color:C.muted }}><div style={{ fontSize:44,marginBottom:10 }}>🔍</div><p>Aucun bar trouvé.</p></div>
-      :<div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12 }}>{filtered.map(b=><BarCard key={b.id} bar={b} onClick={()=>{setBarSlug(b.slug);setPage("bar");}} barsActifs={barsActifs} dist={b._dist!=null&&b._dist!==Infinity?b._dist:null}/>)}</div>}
+
+      {/* PANEL FILTRES */}
+      {filtersOpen&&(
+        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16,marginBottom:14,marginTop:8 }}>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:12 }}>
+            <div>
+              <label style={{ fontSize:11,color:C.muted,fontWeight:700,display:"block",marginBottom:6,letterSpacing:.5 }}>TYPE DE LIEU</label>
+              <select value={filterType} onChange={e=>setFilterType(e.target.value)} style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:13 }}>
+                <option value="tous">Tous</option>
+                {TYPES.map(t=><option key={t.v} value={t.v}>{t.l}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize:11,color:C.muted,fontWeight:700,display:"block",marginBottom:6,letterSpacing:.5 }}>CIBLES MIN.</label>
+              <select value={filterCibles} onChange={e=>setFilterCibles(+e.target.value)} style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:13 }}>
+                <option value={0}>Toutes</option>
+                {[1,2,3,4].map(n=><option key={n} value={n}>{n}+</option>)}
+              </select>
+            </div>
+            {userPos&&(
+              <div>
+                <label style={{ fontSize:11,color:C.muted,fontWeight:700,display:"block",marginBottom:6,letterSpacing:.5 }}>DISTANCE MAX</label>
+                <select value={filterDist} onChange={e=>setFilterDist(+e.target.value)} style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:13 }}>
+                  <option value={0}>Toutes</option>
+                  {[5,10,25,50].map(d=><option key={d} value={d}>{d} km</option>)}
+                </select>
+              </div>
+            )}
+            <div>
+              <label style={{ fontSize:11,color:C.muted,fontWeight:700,display:"block",marginBottom:8,letterSpacing:.5 }}>OPTIONS</label>
+              <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+                <label style={{ display:"flex",alignItems:"center",gap:9,cursor:"pointer",fontSize:13 }}>
+                  <input type="checkbox" checked={filterTournoi} onChange={e=>setFilterTournoi(e.target.checked)} style={{ accentColor:C.accent,width:15,height:15 }}/>
+                  🏆 Avec tournois
+                </label>
+                <label style={{ display:"flex",alignItems:"center",gap:9,cursor:"pointer",fontSize:13 }}>
+                  <input type="checkbox" checked={filterAsso} onChange={e=>setFilterAsso(e.target.checked)} style={{ accentColor:C.accent,width:15,height:15 }}/>
+                  👥 Avec association
+                </label>
+              </div>
+            </div>
+          </div>
+          {activeFilters>0&&<button onClick={resetFilters} style={{ marginTop:12,background:"none",border:"none",color:"#f87171",cursor:"pointer",fontSize:12 }}>✕ Réinitialiser les filtres</button>}
+        </div>
+      )}
+
+      {/* CARTE — priorité visuelle */}
+      {view==="carte"&&(
+        <div style={{ marginBottom:16 }}>
+          <LeafletMap bars={filtered} onBarClick={s=>{setBarSlug(s);setPage("bar");}} centerVille={search||null} height="55vh" barsActifs={barsActifs} userPos={userPos}/>
+        </div>
+      )}
+
+      {/* LÉGENDE */}
+      <div style={{ display:"flex",gap:14,marginBottom:14,flexWrap:"wrap" }}>
+        {[["🍺","Bar"],["👥","Association"],["🏆","Tournoi"]].map(([e,l])=>(
+          <span key={l} style={{ display:"flex",alignItems:"center",gap:5,fontSize:12,color:C.muted }}><span style={{ fontSize:14 }}>{e}</span>{l}</span>
+        ))}
+      </div>
+
+      {/* RÉSULTATS */}
+      {filtered.length===0?(
+        <div style={{ textAlign:"center",padding:"40px 20px",color:C.muted }}>
+          <div style={{ fontSize:44,marginBottom:10 }}>🔍</div>
+          <p style={{ marginBottom:10 }}>Aucun bar trouvé.</p>
+          {activeFilters>0&&<button onClick={resetFilters} style={{ background:"none",border:"none",color:C.accent,cursor:"pointer",fontSize:13 }}>Effacer les filtres</button>}
+        </div>
+      ):(
+        <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+          {filtered.map(b=><BarCard key={b.id} bar={b} onClick={()=>{setBarSlug(b.slug);setPage("bar");}} barsActifs={barsActifs} dist={b._dist!=null&&b._dist!==Infinity?b._dist:null}/>)}
+        </div>
+      )}
+
+      {/* FAB */}
+      <button onClick={()=>setPage("proposer")}
+        style={{ position:"fixed",bottom:24,right:24,zIndex:500,background:C.accent,color:"#fff",border:"none",borderRadius:50,padding:"13px 20px",cursor:"pointer",fontSize:14,fontWeight:700,boxShadow:"0 4px 24px rgba(249,115,22,.45)",display:"flex",alignItems:"center",gap:8,letterSpacing:.3 }}>
+        <span style={{ fontSize:18,lineHeight:1 }}>+</span> Ajouter un bar
+      </button>
     </div>
   );
 };
