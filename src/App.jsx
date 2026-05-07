@@ -96,10 +96,11 @@ const C = {
 };
 
 // ── LEAFLET ───────────────────────────────────────────────────────────────────
-function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoClick, onTournoiClick, centerSlug=null, centerVille=null, height=400, barsActifs=[] }) {
+function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoClick, onTournoiClick, centerSlug=null, centerVille=null, height=400, barsActifs=[], userPos=null }) {
   const divRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
+  const userMarkerRef = useRef(null);
   const [ready, setReady] = useState(!!window.L);
 
   useEffect(() => {
@@ -160,6 +161,18 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
     }, 400);
     return () => clearTimeout(timer);
   }, [ready, centerVille, bars, associations, tournois]);
+
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    const L = window.L; const map = mapRef.current;
+    if (userMarkerRef.current) { userMarkerRef.current.remove(); userMarkerRef.current=null; }
+    if (!userPos) return;
+    const icon = L.divIcon({ className:"", html:`<div style="width:22px;height:22px;background:#60a5fa;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.5);position:relative"><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:8px;height:8px;background:#fff;border-radius:50%"></div></div>`, iconSize:[22,22], iconAnchor:[11,11] });
+    const m = L.marker([userPos.lat,userPos.lng],{icon,zIndexOffset:1000}).addTo(map);
+    m.bindPopup(`<div style="font-family:Inter,sans-serif;color:#111;font-size:12px;font-weight:600">📍 Vous êtes ici</div>`);
+    userMarkerRef.current = m;
+    map.flyTo([userPos.lat,userPos.lng],13,{duration:0.8});
+  }, [ready, userPos]);
 
   useEffect(() => { if (mapRef.current) setTimeout(()=>mapRef.current.invalidateSize(),100); });
 
@@ -273,15 +286,22 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
   );
 }; 
 
+// ── HAVERSINE ─────────────────────────────────────────────────────────────────
+const haversine = (lat1,lon1,lat2,lon2) => {
+  const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+};
+
 // ── BAR CARD ──────────────────────────────────────────────────────────────────
-const BarCard = ({ bar, onClick, barsActifs=[] }) => {
+const BarCard = ({ bar, onClick, barsActifs=[], dist }) => {
   const ti = typeInfo(bar.type); const isActif = barsActifs.includes(bar.slug);
   return (
     <div onClick={onClick} style={{ background:C.card,border:`1px solid ${isActif?C.green:C.border}`,borderRadius:12,padding:18,cursor:"pointer",transition:"border-color .15s",display:"flex",flexDirection:"column",gap:9 }}
       onMouseEnter={e=>e.currentTarget.style.borderColor=C.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=isActif?C.green:C.border}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6 }}>
         <h3 style={{ fontWeight:700,fontSize:15 }}>{bar.nom} {bar.verifie&&<span style={{ color:C.green,fontSize:12 }}>✅</span>}</h3>
-        <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>{isActif&&<Badge color={C.green}>🟢 Ce soir</Badge>}<Badge color={ti.color}>{ti.l}</Badge></div>
+        <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>{dist!=null&&<Badge color="#60a5fa">📍 {dist<1?(dist*1000).toFixed(0)+" m":dist.toFixed(1)+" km"}</Badge>}{isActif&&<Badge color={C.green}>🟢 Ce soir</Badge>}<Badge color={ti.color}>{ti.l}</Badge></div>
       </div>
       <p style={{ color:C.muted,fontSize:12 }}>📍 {bar.adresse?bar.adresse+", ":""}{bar.ville}</p>
       {bar.description&&<p style={{ color:C.muted,fontSize:12,lineHeight:1.5 }}>{bar.description.slice(0,85)}…</p>}
@@ -1664,13 +1684,32 @@ const Bars = ({ bars, setPage, setBarSlug, villeFilter, setVilleFilter, barsActi
   const [search,setSearch]=useState("");
   const [type,setType]=useState("tous");
   const [view,setView]=useState("liste");
+  const [userPos,setUserPos]=useState(null);
+  const [geoLoading,setGeoLoading]=useState(false);
+  const [geoErr,setGeoErr]=useState("");
   useEffect(()=>{ if(villeFilter){setSearch(villeFilter);setVilleFilter(null);} },[villeFilter]);
   const villes=useMemo(()=>[...new Set(bars.map(b=>b.ville))].sort(),[bars]);
-  const filtered=useMemo(()=>bars.filter(b=>{ const q=search.toLowerCase(); return (!q||b.ville.toLowerCase().includes(q)||b.nom.toLowerCase().includes(q))&&(type==="tous"||b.type===type); }),[bars,search,type]);
+  const geolocate=()=>{
+    if(!navigator.geolocation){setGeoErr("Géolocalisation non supportée par ce navigateur");return;}
+    if(userPos){setUserPos(null);setGeoErr("");return;}
+    setGeoLoading(true);setGeoErr("");
+    navigator.geolocation.getCurrentPosition(
+      pos=>{setUserPos({lat:pos.coords.latitude,lng:pos.coords.longitude});setGeoLoading(false);setSearch("");},
+      ()=>{setGeoErr("Position non disponible — vérifiez les permissions");setGeoLoading(false);}
+    );
+  };
+  const filtered=useMemo(()=>{
+    const q=search.toLowerCase();
+    let list=bars.filter(b=>(!q||b.ville.toLowerCase().includes(q)||b.nom.toLowerCase().includes(q))&&(type==="tous"||b.type===type));
+    if(userPos){
+      list=list.map(b=>({...b,_dist:b.lat&&b.lng?haversine(userPos.lat,userPos.lng,b.lat,b.lng):Infinity})).sort((a,b)=>a._dist-b._dist);
+    }
+    return list;
+  },[bars,search,type,userPos]);
   return (
     <div style={{ maxWidth:1100,margin:"0 auto",padding:"36px 20px" }}>
       <h1 style={{ fontWeight:800,fontSize:26,marginBottom:6 }}>🎯 Bars à fléchettes</h1>
-      <p style={{ color:C.muted,marginBottom:20 }}>{filtered.length} lieu{filtered.length>1?"x":""} trouvé{filtered.length>1?"s":""}</p>
+      <p style={{ color:C.muted,marginBottom:20 }}>{filtered.length} lieu{filtered.length>1?"x":""} trouvé{filtered.length>1?"s":""}{userPos&&" · triés par distance"}</p>
       <div style={{ display:"flex",gap:10,marginBottom:14,flexWrap:"wrap" }}>
         <div style={{ position:"relative",flex:1,minWidth:180 }}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Ville ou nom…" style={{ width:"100%",background:C.card,border:`1px solid ${search?C.accent:C.border}`,borderRadius:8,padding:"9px 36px 9px 12px",color:C.text,fontSize:14 }}/>
@@ -1679,15 +1718,17 @@ const Bars = ({ bars, setPage, setBarSlug, villeFilter, setVilleFilter, barsActi
         <select value={type} onChange={e=>setType(e.target.value)} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:14 }}>
           <option value="tous">Tous les types</option>{TYPES.map(t=><option key={t.v} value={t.v}>{t.l}</option>)}
         </select>
+        <button onClick={geolocate} disabled={geoLoading} title={userPos?"Désactiver la géolocalisation":"Trouver les bars près de moi"} style={{ background:userPos?"#22c55e22":"transparent",color:userPos?"#22c55e":C.muted,border:`1px solid ${userPos?"#22c55e":C.border}`,borderRadius:8,padding:"9px 14px",cursor:geoLoading?"default":"pointer",fontSize:13,whiteSpace:"nowrap",transition:"all .2s" }}>{geoLoading?"⏳ Localisation…":userPos?"📍 Autour de moi ✕":"📍 Près de moi"}</button>
         <div style={{ display:"flex",gap:4 }}>{[["liste","☰"],["carte","🗺️"]].map(([vv,ll])=><button key={vv} onClick={()=>setView(vv)} style={{ background:view===vv?C.accent:"transparent",color:view===vv?"#fff":C.muted,border:`1px solid ${view===vv?C.accent:C.border}`,borderRadius:8,padding:"9px 14px",cursor:"pointer",fontSize:15 }}>{ll}</button>)}</div>
       </div>
+      {geoErr&&<p style={{ color:"#f87171",fontSize:12,marginBottom:10 }}>⚠️ {geoErr}</p>}
       <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:18 }}>
         <button onClick={()=>setSearch("")} style={{ background:!search?C.accent+"22":"transparent",color:!search?C.accent:C.muted,border:`1px solid ${!search?C.accent:C.border}`,borderRadius:20,padding:"4px 13px",cursor:"pointer",fontSize:12 }}>Toutes</button>
         {villes.map(v=><button key={v} onClick={()=>setSearch(v)} style={{ background:search===v?C.accent+"22":"transparent",color:search===v?C.accent:C.muted,border:`1px solid ${search===v?C.accent:C.border}`,borderRadius:20,padding:"4px 13px",cursor:"pointer",fontSize:12 }}>{v} ({bars.filter(b=>b.ville===v).length})</button>)}
       </div>
-      {view==="carte"?<LeafletMap bars={filtered} onBarClick={s=>{setBarSlug(s);setPage("bar");}} centerVille={search||null} height={500} barsActifs={barsActifs}/>
+      {view==="carte"?<LeafletMap bars={filtered} onBarClick={s=>{setBarSlug(s);setPage("bar");}} centerVille={search||null} height={500} barsActifs={barsActifs} userPos={userPos}/>
       :filtered.length===0?<div style={{ textAlign:"center",padding:"50px 20px",color:C.muted }}><div style={{ fontSize:44,marginBottom:10 }}>🔍</div><p>Aucun bar trouvé.</p></div>
-      :<div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12 }}>{filtered.map(b=><BarCard key={b.id} bar={b} onClick={()=>{setBarSlug(b.slug);setPage("bar");}} barsActifs={barsActifs}/>)}</div>}
+      :<div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12 }}>{filtered.map(b=><BarCard key={b.id} bar={b} onClick={()=>{setBarSlug(b.slug);setPage("bar");}} barsActifs={barsActifs} dist={b._dist!=null&&b._dist!==Infinity?b._dist:null}/>)}</div>}
     </div>
   );
 };
