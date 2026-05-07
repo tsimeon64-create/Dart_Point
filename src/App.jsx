@@ -1862,63 +1862,214 @@ const Bars = ({ bars, setPage, setBarSlug, villeFilter, setVilleFilter, barsActi
   );
 };
 
+// ── BAR SCORE BLOCK ───────────────────────────────────────────────────────────
+const BarScoreBlock = ({ barSlug }) => {
+  const [reactions,setReactions]=useState({});
+  useEffect(()=>{ db.getReactions(barSlug).then(r=>setReactions(r?.counts||{})).catch(()=>{}); },[barSlug]);
+  const total=Object.values(reactions).reduce((a,b)=>a+b,0);
+  if(!total) return null;
+  const scores=[
+    {id:"ambiance",label:"Ambiance",emoji:"🔥"},
+    {id:"accueil",label:"Accueil",emoji:"😊"},
+    {id:"equipement",label:"Équipement",emoji:"🎯"},
+    {id:"soirees",label:"Soirées",emoji:"🏆"},
+    {id:"accessibilite",label:"Accès",emoji:"📍"},
+  ].map(s=>({...s,count:reactions[s.id]||0})).filter(s=>s.count>0).sort((a,b)=>b.count-a.count).slice(0,4);
+  if(!scores.length) return null;
+  const max=scores[0].count;
+  return (
+    <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18,marginBottom:16 }}>
+      <h3 style={{ fontWeight:700,fontSize:16,marginBottom:16,color:C.accent }}>⭐ Score du spot</h3>
+      <div style={{ display:"flex",flexDirection:"column",gap:11 }}>
+        {scores.map(({id,label,emoji,count})=>(
+          <div key={id} style={{ display:"flex",alignItems:"center",gap:12 }}>
+            <span style={{ fontSize:17,width:22,flexShrink:0 }}>{emoji}</span>
+            <span style={{ fontSize:13,color:C.muted,flexShrink:0,width:84 }}>{label}</span>
+            <div style={{ flex:1,height:7,background:"#222",borderRadius:4,overflow:"hidden" }}>
+              <div style={{ height:"100%",width:`${Math.round(count/max*100)}%`,background:`linear-gradient(to right,${C.accent},#fbbf24)`,borderRadius:4 }}/>
+            </div>
+            <span style={{ fontSize:12,fontWeight:700,minWidth:30,textAlign:"right",color:C.text }}>×{count}</span>
+          </div>
+        ))}
+      </div>
+      <p style={{ color:C.muted,fontSize:11,marginTop:12 }}>{total} vote{total>1?"s":""} de la communauté</p>
+    </div>
+  );
+};
+
 // ── PAGE BAR DETAIL ───────────────────────────────────────────────────────────
 const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug, isAdmin, joueur, setJoueurId }) => {
   const [bar,setBar]=useState(null); const [loading,setLoading]=useState(true);
   const [showSignal,setShowSignal]=useState(false); const [showEdit,setShowEdit]=useState(false);
+  const [userDist,setUserDist]=useState(null);
+  const [cover,setCover]=useState(null);
+  const [copied,setCopied]=useState(false);
+  const presenceRef=useRef(null);
+
   useEffect(()=>{
-    setLoading(true);
-    db.getBar(slug).then(b=>{ if(b){ const nv=(b.vues||0)+1; db.updateBarVues(slug,b.vues||0); setBar({...b,vues:nv}); setBars(p=>p.map(x=>x.slug===slug?{...x,vues:nv}:x)); } setLoading(false); }).catch(()=>setLoading(false));
+    setLoading(true); setCover(null); setUserDist(null);
+    db.getBar(slug).then(b=>{
+      if(b){ const nv=(b.vues||0)+1; db.updateBarVues(slug,b.vues||0); setBar({...b,vues:nv}); setBars(p=>p.map(x=>x.slug===slug?{...x,vues:nv}:x)); }
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+    db.getPhotos(slug).then(p=>{ if(p?.[0]) setCover(p[0].data); }).catch(()=>{});
   },[slug]);
+
+  useEffect(()=>{
+    if(!bar?.lat||!bar?.lng) return;
+    if(navigator.geolocation) navigator.geolocation.getCurrentPosition(
+      pos=>setUserDist(haversine(pos.coords.latitude,pos.coords.longitude,bar.lat,bar.lng)),()=>{}
+    );
+  },[bar]);
+
   if(loading) return <Spinner/>;
   if(!bar) return <div style={{ maxWidth:860,margin:"0 auto",padding:"36px 20px",textAlign:"center" }}><Btn onClick={()=>setPage("bars")}>← Retour</Btn></div>;
+
   const asso=associations.find(a=>a.nom===bar.association);
   const ti=typeInfo(bar.type);
+  const mapsUrl=`https://www.google.com/maps/search/${encodeURIComponent((bar.adresse||bar.nom)+" "+bar.ville)}`;
+  const shareUrl=`https://dartpoint.netlify.app/bars/${bar.slug}`;
+  const handleShare=()=>{
+    if(navigator.share){ navigator.share({title:bar.nom,text:`${bar.nom} sur DartPoint`,url:shareUrl}).catch(()=>{}); }
+    else { try{navigator.clipboard.writeText(shareUrl);}catch{} setCopied(true); setTimeout(()=>setCopied(false),2000); }
+  };
+
   return (
-    <div style={{ maxWidth:860,margin:"0 auto",padding:"36px 20px" }}>
+    <div style={{ maxWidth:860,margin:"0 auto",paddingBottom:100 }}>
       {showSignal&&<SignalForm barSlug={bar.slug} barNom={bar.nom} onClose={()=>setShowSignal(false)}/>}
       {showEdit&&<EditBarModal bar={bar} onSave={u=>{setBar(u);setBars(p=>p.map(x=>x.slug===slug?u:x));}} onClose={()=>setShowEdit(false)}/>}
-      <button onClick={()=>setPage("bars")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:18,fontSize:13 }}>← Retour aux bars</button>
-      <div style={{ display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:6 }}>
-        <div style={{ display:"flex",alignItems:"center",gap:10,flexWrap:"wrap" }}>
-          <h1 style={{ fontWeight:800,fontSize:28 }}>{bar.nom}</h1>
-          {bar.verifie&&<Badge color={C.green}>✅ Vérifié</Badge>}
-        </div>
-        <Badge color={ti.color}>{ti.l}</Badge>
+
+      {/* ── HERO COVER ── */}
+      <div style={{ position:"relative",height:220,overflow:"hidden" }}>
+        {cover
+          ? <img src={cover} alt={bar.nom} style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
+          : <div style={{ width:"100%",height:"100%",background:`linear-gradient(135deg,${ti.color}44 0%,#111 65%)`,display:"flex",alignItems:"center",justifyContent:"center" }}>
+              <span style={{ fontSize:80,opacity:.15 }}>🍺</span>
+            </div>
+        }
+        <div style={{ position:"absolute",inset:0,background:"linear-gradient(to bottom,rgba(0,0,0,.5) 0%,transparent 45%,rgba(15,15,15,.97) 100%)" }}/>
+        <button onClick={()=>setPage("bars")} style={{ position:"absolute",top:16,left:16,background:"rgba(0,0,0,.55)",border:"none",color:"#fff",cursor:"pointer",borderRadius:10,padding:"7px 14px",fontSize:13,backdropFilter:"blur(10px)",fontWeight:500 }}>← Bars</button>
+        {isAdmin&&<button onClick={()=>setShowEdit(true)} style={{ position:"absolute",top:16,right:16,background:"rgba(0,0,0,.55)",border:`1px solid ${C.yellow}66`,color:C.yellow,cursor:"pointer",borderRadius:10,padding:"7px 13px",fontSize:12,backdropFilter:"blur(10px)" }}>✏️ Modifier</button>}
       </div>
-      <p style={{ color:C.muted,marginBottom:8 }}>📍 {bar.adresse}{bar.adresse?", ":""}{bar.cp} {bar.ville}</p>
-      <p style={{ color:C.muted,fontSize:12,marginBottom:20 }}>👁 {bar.vues||0} consultation{(bar.vues||0)>1?"s":""}</p>
 
-      {/* Présence ce soir — depuis AppJoueurs */}
-      <PresenceSection barSlug={bar.slug} joueur={joueur}/>
-      {/* Membres du bar — depuis AppJoueurs */}
-      <MembresBarSection barSlug={bar.slug} setPage={setPage} setJoueurId={setJoueurId}/>
+      <div style={{ padding:"0 16px" }}>
 
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:12,marginBottom:16 }}>
-        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18 }}>
-          <h3 style={{ fontWeight:700,marginBottom:12,color:C.accent,fontSize:14 }}>📋 Infos pratiques</h3>
-          {[["📍","Adresse",(bar.adresse||"—")+", "+bar.ville],["⏰","Horaires",bar.horaires||"Non renseignés"],["📞","Téléphone",bar.tel||"Non renseigné"]].map(([i,l,v])=>(
-            <div key={l} style={{ display:"flex",gap:8,marginBottom:10 }}><span style={{ fontSize:15 }}>{i}</span><div><div style={{ fontSize:11,color:C.muted,marginBottom:1 }}>{l}</div><div style={{ fontSize:13 }}>{v}</div></div></div>
+        {/* ── IDENTITY CARD (overlap hero) ── */}
+        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"16px 18px",marginTop:-44,position:"relative",zIndex:10,marginBottom:12 }}>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,flexWrap:"wrap" }}>
+            <div style={{ flex:1,minWidth:0 }}>
+              <h1 style={{ fontWeight:800,fontSize:22,marginBottom:8,lineHeight:1.2 }}>{bar.nom}</h1>
+              <div style={{ display:"flex",gap:6,flexWrap:"wrap",alignItems:"center" }}>
+                {bar.verifie&&<Badge color={C.green}>✅ Vérifié</Badge>}
+                <Badge color={ti.color}>{ti.l}</Badge>
+                {userDist!=null&&<Badge color="#60a5fa">📍 {userDist<1?(userDist*1000).toFixed(0)+" m":userDist.toFixed(1)+" km"}</Badge>}
+              </div>
+            </div>
+            <span style={{ fontSize:11,color:C.muted,flexShrink:0,marginTop:4 }}>👁 {bar.vues||0} vues</span>
+          </div>
+          <p style={{ color:C.muted,fontSize:12,marginTop:10 }}>📍 {bar.adresse}{bar.adresse?", ":""}{bar.cp} {bar.ville}</p>
+        </div>
+
+        {/* ── ACTIONS RAPIDES ── */}
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:20 }}>
+          {[
+            {icon:"📍",label:"Itinéraire",fn:()=>window.open(mapsUrl,"_blank")},
+            {icon:"📞",label:"Appeler",fn:()=>{if(bar.tel)window.open(`tel:${bar.tel}`);},off:!bar.tel},
+            {icon:"📤",label:"Partager",fn:handleShare},
+            {icon:"🗺️",label:"Maps",fn:()=>window.open(mapsUrl,"_blank")},
+          ].map((b,i)=>(
+            <button key={i} onClick={b.fn} disabled={b.off}
+              style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 6px",cursor:b.off?"default":"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:5,opacity:b.off?.35:1,transition:"border-color .15s" }}
+              onMouseEnter={e=>{ if(!b.off) e.currentTarget.style.borderColor=C.accent; }}
+              onMouseLeave={e=>{ e.currentTarget.style.borderColor=C.border; }}>
+              <span style={{ fontSize:22 }}>{b.icon}</span>
+              <span style={{ fontSize:11,color:C.muted,fontWeight:500 }}>{b.label}</span>
+            </button>
           ))}
         </div>
-        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18 }}>
-          <h3 style={{ fontWeight:700,marginBottom:12,color:C.accent,fontSize:14 }}>🎯 Équipement</h3>
-          {[["Type",ti.l],["Cibles",bar.cibles+" cible"+(bar.cibles>1?"s":"")],["Tournois",bar.tournois?"✅ Oui":"❌ Non"]].map(([l,v])=>(
-            <div key={l} style={{ display:"flex",justifyContent:"space-between",borderBottom:`1px solid ${C.border}`,paddingBottom:7,marginBottom:7 }}><span style={{ color:C.muted,fontSize:12 }}>{l}</span><span style={{ fontWeight:500,fontSize:13 }}>{v}</span></div>
-          ))}
+        {copied&&<p style={{ textAlign:"center",color:C.green,fontSize:12,marginTop:-12,marginBottom:12 }}>✅ Lien copié !</p>}
+
+        {/* ── PRÉSENCE CE SOIR ── */}
+        <div ref={presenceRef}>
+          <PresenceSection barSlug={bar.slug} joueur={joueur}/>
+        </div>
+
+        {/* ── TOP JOUEURS DU SPOT ── */}
+        <MembresBarSection barSlug={bar.slug} setPage={setPage} setJoueurId={setJoueurId}/>
+
+        {/* ── PHOTOS COMMUNAUTÉ ── */}
+        <GalerieSection slug={bar.slug} type="bar" isAdmin={isAdmin}/>
+
+        {/* ── SCORE DU SPOT ── */}
+        <BarScoreBlock barSlug={bar.slug}/>
+
+        {/* ── AVIS ── */}
+        <AvisSection barSlug={bar.slug} isAdmin={isAdmin}/>
+
+        {/* ── INFOS DU SPOT (fusionné) ── */}
+        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18,marginBottom:16 }}>
+          <h3 style={{ fontWeight:700,fontSize:16,marginBottom:16,color:C.accent }}>📋 Infos du spot</h3>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
+            {[
+              ["📍","Adresse",(bar.adresse||"—")+(bar.cp?" · "+bar.cp:"")+" "+bar.ville],
+              ["⏰","Horaires",bar.horaires||"Non renseignés"],
+              ["📞","Téléphone",bar.tel||"Non renseigné"],
+              ["🎯","Cibles",bar.cibles+" cible"+(bar.cibles>1?"s":"")],
+              ["🏆","Tournois",bar.tournois?"✅ Tournois réguliers":"Non"],
+              ["🍺","Type de jeu",ti.l],
+            ].map(([icon,label,value])=>(
+              <div key={label} style={{ display:"flex",gap:10,alignItems:"flex-start" }}>
+                <span style={{ fontSize:15,marginTop:1,flexShrink:0 }}>{icon}</span>
+                <div>
+                  <div style={{ fontSize:10,color:C.muted,marginBottom:2,letterSpacing:.5,fontWeight:700 }}>{label.toUpperCase()}</div>
+                  <div style={{ fontSize:13,color:C.text }}>{value}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── DESCRIPTION ── */}
+        {bar.description&&<div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18,marginBottom:16 }}>
+          <h3 style={{ fontWeight:700,fontSize:14,marginBottom:10,color:C.accent }}>💬 Description</h3>
+          <p style={{ color:C.muted,lineHeight:1.7,fontSize:13 }}>{bar.description}</p>
+        </div>}
+
+        {/* ── ASSOCIATION PARTENAIRE ── */}
+        {asso&&<div onClick={()=>{setAssoSlug(asso.slug);setPage("asso");}}
+          style={{ background:"#120a1a",border:`1px solid #f472b644`,borderRadius:14,padding:16,marginBottom:16,cursor:"pointer",display:"flex",alignItems:"center",gap:14 }}>
+          <span style={{ fontSize:30,flexShrink:0 }}>👥</span>
+          <div>
+            <div style={{ fontSize:10,color:"#f472b6",fontWeight:700,marginBottom:4,letterSpacing:.5 }}>ASSOCIATION PARTENAIRE</div>
+            <div style={{ fontWeight:700,fontSize:14,marginBottom:2 }}>{asso.nom}</div>
+            <div style={{ color:C.muted,fontSize:12 }}>{asso.jours} · Voir la fiche →</div>
+          </div>
+        </div>}
+
+        {/* ── CARTE (secondaire, réduite) ── */}
+        {bar.lat&&<div style={{ marginBottom:16 }}>
+          <h3 style={{ fontWeight:600,fontSize:13,marginBottom:10,color:C.muted }}>🗺️ Localisation</h3>
+          <LeafletMap bars={allBars} onBarClick={()=>{}} centerSlug={bar.slug} height={180}/>
+        </div>}
+
+        {/* ── SIGNALER ── */}
+        <div style={{ textAlign:"center",paddingTop:4,paddingBottom:16 }}>
+          <button onClick={()=>setShowSignal(true)} style={{ background:"none",border:`1px solid ${C.border}`,borderRadius:10,color:C.muted,cursor:"pointer",fontSize:12,padding:"8px 20px" }}>⚠️ Signaler une erreur</button>
         </div>
       </div>
-      {bar.description&&<div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18,marginBottom:12 }}><h3 style={{ fontWeight:700,marginBottom:10,color:C.accent,fontSize:14 }}>💬 Description</h3><p style={{ color:C.muted,lineHeight:1.7,fontSize:14 }}>{bar.description}</p></div>}
-      {asso&&<div style={{ background:"#1a0f1a",border:`1px solid #f472b644`,borderRadius:12,padding:18,marginBottom:12,cursor:"pointer" }} onClick={()=>{setAssoSlug(asso.slug);setPage("asso");}}><h3 style={{ fontWeight:700,marginBottom:6,color:"#f472b6",fontSize:14 }}>🤝 Association partenaire</h3><div style={{ fontWeight:600,marginBottom:3,fontSize:14 }}>{asso.nom}</div><p style={{ color:C.muted,fontSize:12 }}>{asso.jours} · Voir la fiche →</p></div>}
-      {bar.lat&&<div style={{ marginBottom:16 }}><LeafletMap bars={allBars} onBarClick={()=>{}} centerSlug={bar.slug} height={220}/></div>}
-      <ShareBar bar={bar}/>
-      <div style={{ display:"flex",gap:10,flexWrap:"wrap",marginBottom:28 }}>
-        <a href={`https://www.google.com/maps/search/${encodeURIComponent((bar.adresse||bar.nom)+" "+bar.ville)}`} target="_blank" rel="noreferrer"><Btn variant="ghost" style={{ fontSize:12 }}>🗺️ Ouvrir dans Maps</Btn></a>
-        <Btn variant="dark" onClick={()=>setShowSignal(true)} style={{ fontSize:12 }}>⚠️ Signaler une erreur</Btn>
-        {isAdmin&&<Btn variant="ghost" onClick={()=>setShowEdit(true)} style={{ fontSize:12,borderColor:C.yellow,color:C.yellow }}>✏️ Modifier</Btn>}
+
+      {/* ── STICKY CTA ── */}
+      <div style={{ position:"fixed",bottom:0,left:0,right:0,zIndex:200,padding:"10px 16px 22px",background:"linear-gradient(transparent,#0f0f0f 35%)",pointerEvents:"none" }}>
+        <div style={{ maxWidth:860,margin:"0 auto",display:"flex",gap:10,pointerEvents:"auto" }}>
+          <a href={mapsUrl} target="_blank" rel="noreferrer" style={{ flex:1,textDecoration:"none" }}>
+            <button style={{ width:"100%",background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:14,padding:"13px 0",fontSize:14,fontWeight:600,cursor:"pointer" }}>📍 Itinéraire</button>
+          </a>
+          <button onClick={()=>{ if(!joueur){setPage("connexion");return;} presenceRef.current?.scrollIntoView({behavior:"smooth",block:"center"}); }}
+            style={{ flex:2,background:C.accent,color:"#fff",border:"none",borderRadius:14,padding:"13px 0",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 4px 20px rgba(249,115,22,.4)" }}>
+            🎯 Je joue ici ce soir
+          </button>
+        </div>
       </div>
-      <GalerieSection slug={bar.slug} type="bar" isAdmin={isAdmin}/>
-      <AvisSection barSlug={bar.slug} isAdmin={isAdmin}/>
     </div>
   );
 };
