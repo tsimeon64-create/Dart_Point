@@ -1179,6 +1179,8 @@ const ScoreurDoublette = ({ joueur, setPage }) => {
   // Called by Scoreur when the match is over (onResultat bypasses Supabase write)
   const handleResultat = async ({ gagnantNom }) => {
     const teamAWon = gagnantNom === teamAName;
+    const winTeam  = teamAWon ? config.teamA : config.teamB;
+    const loseTeam = teamAWon ? config.teamB : config.teamA;
     try {
       const ids = [...config.teamA, ...config.teamB].map(p => p?.id).filter(Boolean);
       const players = await sb(`joueurs?id=in.(${ids.join(",")})&select=id,drix`).catch(() => []);
@@ -1190,12 +1192,30 @@ const ScoreurDoublette = ({ joueur, setPage }) => {
       const EAf = 1 / (1 + Math.pow(10, (tBD - tAD) / 400));
       const varA = teamAWon ?  Math.round(Kf * (1 - EAf)) : -Math.round(Kf * EAf);
       const varB = teamAWon ? -Math.round(Kf * (1 - EAf)) :  Math.round(Kf * EAf);
+      const winVar  = teamAWon ? varA : varB;
+      const loseVar = teamAWon ? varB : varA;
       await Promise.all([
         sb(`joueurs?id=eq.${config.teamA[0]?.id}`, { method:"PATCH", body:JSON.stringify({ drix: Math.max(100, dA1 + varA) }), prefer:"return=minimal" }),
         sb(`joueurs?id=eq.${config.teamA[1]?.id}`, { method:"PATCH", body:JSON.stringify({ drix: Math.max(100, dA2 + varA) }), prefer:"return=minimal" }),
         sb(`joueurs?id=eq.${config.teamB[0]?.id}`, { method:"PATCH", body:JSON.stringify({ drix: Math.max(100, dB1 + varB) }), prefer:"return=minimal" }),
         sb(`joueurs?id=eq.${config.teamB[1]?.id}`, { method:"PATCH", body:JSON.stringify({ drix: Math.max(100, dB2 + varB) }), prefer:"return=minimal" }),
       ]);
+      // Publier sur le Comptoir
+      const contenu =
+        `👥 Doublette 2v2 — ${config.mode} · ${config.manches} manche${config.manches > 1 ? "s" : ""}\n` +
+        `🏆 ${winTeam.map(p => p.pseudo).join(" & ")} remportent la partie !\n` +
+        `💀 ${loseTeam.map(p => p.pseudo).join(" & ")} s'inclinent\n` +
+        `📈 +${winVar} DRIX / ${loseVar} DRIX`;
+      await sb("wall_posts", {
+        method: "POST",
+        body: JSON.stringify({
+          joueur_id:    joueur.id,
+          joueur_pseudo: joueur.pseudo,
+          joueur_photo:  joueur.photo || null,
+          contenu,
+          date: Date.now(),
+        }),
+      }).catch(e => console.error("Comptoir doublette:", e));
     } catch(e) { console.error("DRIX doublette:", e); }
     try { localStorage.removeItem("dp_doublette"); } catch {}
   };
