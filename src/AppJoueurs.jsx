@@ -164,15 +164,29 @@ const SpinnerJ = () => <div style={{ display:"flex",alignItems:"center",justifyC
 
 const BadgeJ = ({ children, color=CJ.accent }) => <span style={{ background:color+"22",color,border:`1px solid ${color}44`,borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap" }}>{children}</span>;
 
-// Titres DRIX
+// Titres DRIX — 9 rangs
+const RANGS = [
+  { titre:"Débutant",    min:0,    max:900,      emoji:"🎯",   color:"#64748b" },
+  { titre:"Amateur",     min:900,  max:1100,     emoji:"🎯🎯", color:"#60a5fa" },
+  { titre:"Confirmé",    min:1100, max:1300,     emoji:"⭐",   color:"#22c55e" },
+  { titre:"Expert",      min:1300, max:1500,     emoji:"⭐⭐", color:"#f59e0b" },
+  { titre:"Élite",       min:1500, max:1700,     emoji:"💎",   color:"#a78bfa" },
+  { titre:"Légende",     min:1700, max:1900,     emoji:"🏆",   color:"#f97316" },
+  { titre:"Master Bull", min:1900, max:2100,     emoji:"👑",   color:"#ef4444" },
+  { titre:"Titan",       min:2100, max:2500,     emoji:"🔥",   color:"#dc2626" },
+  { titre:"Mythique",    min:2500, max:Infinity, emoji:"✨",   color:"#ffd700" },
+];
 const getDrixTitreLocal = (drix) => {
-  if (drix < 900)  return { titre:"Novice",    emoji:"🎯",  color:"#94a3b8" };
-  if (drix < 1100) return { titre:"Amateur",   emoji:"🎯🎯", color:"#60a5fa" };
-  if (drix < 1300) return { titre:"Confirmé",  emoji:"⭐",  color:"#22c55e" };
-  if (drix < 1500) return { titre:"Expert",    emoji:"⭐⭐", color:"#f59e0b" };
-  if (drix < 1700) return { titre:"Elite",     emoji:"💎",  color:"#a78bfa" };
-  if (drix < 1900) return { titre:"Master",    emoji:"👑",  color:"#f97316" };
-  return              { titre:"Légende",   emoji:"🏆",  color:"#ef4444" };
+  for (const r of RANGS) { if (drix < r.max) return r; }
+  return RANGS[RANGS.length - 1];
+};
+const getProgression = (drix) => {
+  const cur = getDrixTitreLocal(drix);
+  const idx = RANGS.findIndex(r => r.titre === cur.titre);
+  if (cur.max === Infinity) return { pct:100, restant:0, prochain:null };
+  const prochain = RANGS[idx + 1];
+  const pct = Math.min(100, Math.round(((drix - cur.min) / (cur.max - cur.min)) * 100));
+  return { pct, restant: cur.max - drix, prochain };
 };
 
 // Code admin pour réinitialiser un mot de passe oublié (à communiquer à voix)
@@ -290,51 +304,52 @@ export const Connexion = ({ onLogin, setPage }) => {
 
 // ── MON PROFIL ────────────────────────────────────────────────────────────────
 export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setBarSlug, demandesAmisCount=0 }) => {
-  const [stats, setStats] = useState(null);
-  const [duels, setDuels] = useState([]);
-  const [defis, setDefis] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("profil");
+  const [stats, setStats]         = useState(null);
+  const [duels, setDuels]         = useState([]);
+  const [drixMvts, setDrixMvts]   = useState([]);
+  const [classement, setClassement] = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [tournoisPotes, setTournoisPotes] = useState([]);
 
-  const [editMode, setEditMode] = useState(false);
-  const [editAge, setEditAge] = useState(joueur.age||"");
+  // Edit mode
+  const [editMode, setEditMode]   = useState(false);
+  const [editAge, setEditAge]     = useState(joueur.age||"");
   const [editVille, setEditVille] = useState(joueur.ville||"");
   const [editStyle, setEditStyle] = useState(joueur.style_jeu||"electronique");
   const [savingEdit, setSavingEdit] = useState(false);
   const photoRef = useRef(null);
 
-  const bar = bars.find(b => b.slug === joueur.bar_slug);
+  // Affiliations expand
+  const [affilBar, setAffilBar]   = useState(false);
+  const [affilAsso, setAffilAsso] = useState(false);
+
+  const bar  = bars.find(b => b.slug === joueur.bar_slug);
   const asso = associations.find(a => a.slug === joueur.asso_slug);
   const { titre, emoji, color } = getDrixTitreLocal(joueur.drix||1000);
-
-  const [moyDrix, setMoyDrix] = useState(null);
-  const [tournoisPotes, setTournoisPotes] = useState([]);
+  const prog = getProgression(joueur.drix||1000);
+  const STYLES = [["electronique","⚡ Électronique"],["traditionnel","🎯 Traditionnel"],["les deux","🎯⚡ Les deux"]];
 
   useEffect(() => {
     Promise.all([
       dbJ.getStats(joueur.id),
       dbJ.getDuels(joueur.id),
-      dbJ.getDuelsEnAttente(joueur.id),
-      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&select=variation`),
-    ]).then(([s,d,def,mv]) => {
-      setStats(s); setDuels(d||[]); setDefis(def||[]);
-      if (mv && mv.length > 0) {
-        const moy = mv.reduce((acc,x)=>acc+x.variation,0) / mv.length;
-        setMoyDrix(Math.round(moy * 10) / 10);
+      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=20&select=*`).catch(()=>[]),
+      sbJ(`joueurs?order=drix.desc&select=id`).catch(()=>[]),
+    ]).then(([s, d, mvts, allJ]) => {
+      setStats(s); setDuels(d||[]); setDrixMvts(mvts||[]);
+      if (allJ?.length) {
+        const pos = allJ.findIndex(j => j.id === joueur.id);
+        setClassement({ position: pos >= 0 ? pos + 1 : null, total: allJ.length });
       }
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [joueur.id]);
 
-  // Tournois entre potes où ce joueur est inscrit
   useEffect(() => {
     sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id,tournois_potes(id,nom,statut,createur_pseudo)`)
       .then(rows => {
         if (!rows) return;
-        const actifs = rows
-          .map(r => r.tournois_potes)
-          .filter(t => t && t.statut !== "termine");
-        setTournoisPotes(actifs);
+        setTournoisPotes(rows.map(r=>r.tournois_potes).filter(t=>t&&t.statut!=="termine"));
       }).catch(() => {});
   }, [joueur.id]);
 
@@ -343,10 +358,8 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     const patch = { age: parseInt(editAge)||null, ville: editVille.trim()||null, style_jeu: editStyle };
     await dbJ.updateJoueur(joueur.id, patch);
     const updated = {...joueur, ...patch};
-    setJoueur(updated);
-    localStorage.setItem("dp_joueur", JSON.stringify(updated));
-    setSavingEdit(false);
-    setEditMode(false);
+    setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
+    setSavingEdit(false); setEditMode(false);
   };
 
   const uploadPhoto = async (e) => {
@@ -355,15 +368,14 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     reader.onload = async (ev) => {
       const img = new Image();
       img.onload = async () => {
-        const MAX=300; let w=img.width,h=img.height;
+        const MAX=300; let w=img.width, h=img.height;
         if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
         const canvas=document.createElement("canvas"); canvas.width=w; canvas.height=h;
         canvas.getContext("2d").drawImage(img,0,0,w,h);
         const data = canvas.toDataURL("image/jpeg",0.8);
-        await dbJ.updateJoueur(joueur.id, { photo: data });
-        const updated = {...joueur, photo: data};
-        setJoueur(updated);
-        localStorage.setItem("dp_joueur", JSON.stringify(updated));
+        await dbJ.updateJoueur(joueur.id,{photo:data});
+        const updated = {...joueur, photo:data};
+        setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
       };
       img.src = ev.target.result;
     };
@@ -373,182 +385,189 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   const choisirBar = async (slug) => {
     await dbJ.updateJoueur(joueur.id, { bar_slug: slug });
     const updated = {...joueur, bar_slug: slug};
-    setJoueur(updated);
-    localStorage.setItem("dp_joueur", JSON.stringify(updated));
+    setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
+    setAffilBar(false);
   };
 
   const choisirAsso = async (slug) => {
     await dbJ.updateJoueur(joueur.id, { asso_slug: slug });
     const updated = {...joueur, asso_slug: slug};
-    setJoueur(updated);
-    localStorage.setItem("dp_joueur", JSON.stringify(updated));
+    setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
+    setAffilAsso(false);
   };
-
-  const accepterDefi = async (duel) => {
-    await dbJ.updateDuel(duel.id, { statut:"accepte" });
-    setPage("scoreur-duel-"+duel.id);
-  };
-
-  const refuserDefi = async (duel) => {
-    await dbJ.updateDuel(duel.id, { statut:"refuse" });
-    setDefis(x => x.filter(d => d.id !== duel.id));
-  };
-
-  const annulerDefi = async (duel) => {
-    await dbJ.deleteDuel(duel.id);
-    setDuels(x => x.filter(d => d.id !== duel.id));
-  };
-
-  const validerResultat = async (duel) => {
-    const isChallenger = duel.challenger_id === joueur.id;
-    const patch = isChallenger ? { valide_challenger: true } : { valide_defie: true };
-
-    // On enregistre d'abord notre validation en base
-    await dbJ.updateDuel(duel.id, patch);
-
-    // Puis on relit le duel depuis Supabase pour avoir l'état réel (évite la race condition)
-    const duelFrais = await sbJ(`duels?id=eq.${duel.id}&select=*`).then(r => r?.[0]);
-    const autreValide = duelFrais
-      ? (isChallenger ? duelFrais.valide_defie : duelFrais.valide_challenger)
-      : (isChallenger ? duel.valide_defie : duel.valide_challenger);
-
-    if (autreValide && duelFrais?.statut !== "termine") {
-      await dbJ.updateDuel(duel.id, { statut:"termine" });
-      const gagnantId = duel.gagnant_id;
-      const [sC, sD] = await Promise.all([dbJ.getStats(duel.challenger_id), dbJ.getStats(duel.defie_id)]);
-      if (sC) await dbJ.updateStats(sC.id, { parties:sC.parties+1, victoires:gagnantId===duel.challenger_id?sC.victoires+1:sC.victoires, defaites:gagnantId!==duel.challenger_id?sC.defaites+1:sC.defaites });
-      if (sD) await dbJ.updateStats(sD.id, { parties:sD.parties+1, victoires:gagnantId===duel.defie_id?sD.victoires+1:sD.victoires, defaites:gagnantId!==duel.defie_id?sD.defaites+1:sD.defaites });
-      // Utilise appliquerDrixDuel : K variable par niveau + écriture drix_mouvements (badge feed)
-      await appliquerDrixDuel(duelFrais);
-    }
-    const joueurFrais = await dbJ.getJoueur(joueur.id);
-    if (joueurFrais) {
-      setJoueur(joueurFrais);
-      localStorage.setItem("dp_joueur", JSON.stringify(joueurFrais));
-    }
-    const d = await dbJ.getDuels(joueur.id); setDuels(d||[]);
-  };
-
-  const [badgeModal, setBadgeModal] = useState(false);
 
   if (loading) return <SpinnerJ/>;
 
-  const winRate = stats && stats.parties > 0 ? Math.round((stats.victoires / stats.parties) * 100) : 0;
-  const STYLES = [["electronique","⚡ Électronique"],["traditionnel","🎯 Traditionnel"],["les deux","🎯⚡ Les deux"]];
+  const termines = duels.filter(d => d.statut === "termine");
+  const winRate  = stats && stats.parties > 0 ? Math.round((stats.victoires / stats.parties) * 100) : 0;
   const moyenneDuels = (() => {
-    const termines = duels.filter(d => d.statut === "termine");
-    const scores = termines
-      .map(d => parseFloat(d.challenger_id === joueur.id ? d.score_challenger : d.score_defie))
-      .filter(s => !isNaN(s) && s > 0);
+    const scores = termines.map(d=>parseFloat(d.challenger_id===joueur.id?d.score_challenger:d.score_defie)).filter(s=>!isNaN(s)&&s>0);
     return scores.length > 0 ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : null;
   })();
 
+  // Activité récente : les 5 derniers mouvements DRIX
+  const activiteRecente = drixMvts.slice(0, 5);
+
   return (
-    <div style={{ maxWidth:860, margin:"0 auto", padding:"24px 20px" }}>
+    <div style={{ maxWidth:600, margin:"0 auto", padding:"16px 16px 80px" }}>
 
-      {/* ── CARTE PROFIL ── */}
-      <div style={{ background:"linear-gradient(135deg,#1a0800,#1a1a2e)", border:`1px solid ${color}44`, borderRadius:16, padding:24, marginBottom:20 }}>
-        <div style={{ display:"flex", alignItems:"flex-start", gap:20, flexWrap:"wrap" }}>
+      {/* ── 1. HERO PROFIL ─────────────────────────────────────────────────── */}
+      <div style={{ background:"linear-gradient(135deg,#1a0800,#1a1a2e)", border:`1px solid ${color}44`, borderRadius:18, padding:20, marginBottom:14 }}>
+        <div style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
 
+          {/* Photo */}
           <div style={{ position:"relative", flexShrink:0 }}>
-            <div onClick={()=>photoRef.current?.click()} style={{ width:80,height:80,borderRadius:"50%",border:`3px solid ${color}`,overflow:"hidden",cursor:"pointer",background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32 }}>
+            <div onClick={()=>photoRef.current?.click()}
+              style={{ width:76,height:76,borderRadius:"50%",border:`3px solid ${color}`,overflow:"hidden",cursor:"pointer",background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30 }}>
               {joueur.photo
                 ? <img src={joueur.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
-                : <span>{emoji}</span>
-              }
+                : <span>{emoji}</span>}
             </div>
-            <div onClick={()=>photoRef.current?.click()} style={{ position:"absolute",bottom:0,right:0,background:CJ.accent,borderRadius:"50%",width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:12,border:"2px solid #1a0800" }}>📷</div>
+            <div onClick={()=>photoRef.current?.click()}
+              style={{ position:"absolute",bottom:0,right:0,background:"#f97316",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:11,border:"2px solid #1a0800" }}>📷</div>
             <input ref={photoRef} type="file" accept="image/*" style={{ display:"none" }} onChange={uploadPhoto}/>
           </div>
 
-          <div style={{ flex:1, minWidth:200 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6, flexWrap:"wrap" }}>
-              <h1 style={{ fontWeight:900, fontSize:24 }}>{joueur.pseudo}</h1>
-              {!editMode && <button onClick={()=>setEditMode(true)} style={{ background:"none",border:`1px solid ${CJ.border}`,color:CJ.muted,cursor:"pointer",borderRadius:6,padding:"3px 10px",fontSize:11 }}>✏️ Modifier</button>}
-            </div>
-
-            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>
-              <div style={{ display:"inline-flex",alignItems:"center",gap:8,background:color+"22",border:`1px solid ${color}44`,borderRadius:20,padding:"5px 14px" }}>
-                <span style={{ fontSize:16 }}>{emoji}</span>
-                <span style={{ fontWeight:900,fontSize:18,color }}>{joueur.drix||1000}</span>
-                <span style={{ fontSize:12,color,fontWeight:600 }}>DRIX · {titre}</span>
-              </div>
-            </div>
-
-            {!editMode ? (
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                {joueur.age && <BadgeJ color={CJ.muted}>🎂 {joueur.age} ans</BadgeJ>}
-                {joueur.ville && <BadgeJ color={CJ.blue}>📍 {joueur.ville}</BadgeJ>}
-                {joueur.style_jeu && <BadgeJ color={CJ.accent}>{STYLES.find(s=>s[0]===joueur.style_jeu)?.[1]||joueur.style_jeu}</BadgeJ>}
-                {bar ? <BadgeJ color={CJ.accent}>🍺 {bar.nom}</BadgeJ> : <BadgeJ color={CJ.muted}>Pas de bar affilié</BadgeJ>}
-                {asso && <BadgeJ color="#7c3aed">🫂 {asso.nom}</BadgeJ>}
-              </div>
-            ) : (
-              <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:8 }}>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                  <div>
-                    <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Âge</label>
-                    <input value={editAge} onChange={e=>setEditAge(e.target.value)} placeholder="Ex: 28" type="number"
-                      style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"8px 10px",color:CJ.text,fontSize:13 }}/>
-                  </div>
-                  <div>
-                    <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Ville</label>
-                    <input value={editVille} onChange={e=>setEditVille(e.target.value)} placeholder="Ex: Bayonne"
-                      style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"8px 10px",color:CJ.text,fontSize:13 }}/>
-                  </div>
-                </div>
-                <div>
-                  <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Style de jeu</label>
-                  <div style={{ display:"flex",gap:6 }}>
-                    {STYLES.map(([v,l])=>(
-                      <button key={v} onClick={()=>setEditStyle(v)} style={{ flex:1,background:editStyle===v?CJ.accent+"33":"#111",border:`1px solid ${editStyle===v?CJ.accent:CJ.border}`,borderRadius:8,padding:"7px 4px",cursor:"pointer",fontSize:11,color:editStyle===v?CJ.accent:CJ.muted,fontWeight:editStyle===v?700:400 }}>{l}</button>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ display:"flex",gap:8 }}>
-                  <BtnJ onClick={sauvegarderProfil} disabled={savingEdit} style={{ fontSize:12,padding:"7px 16px" }}>{savingEdit?"…":"💾 Sauvegarder"}</BtnJ>
-                  <BtnJ onClick={()=>setEditMode(false)} variant="dark" style={{ fontSize:12,padding:"7px 16px" }}>Annuler</BtnJ>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {stats && (
-            <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
-              {[[stats.victoires,"V",CJ.green],[stats.defaites,"D",CJ.red],[stats.parties,"Parties",CJ.muted],[winRate+"%","Win",CJ.yellow]].map(([v,l,c])=>(
-                <div key={l} style={{ textAlign:"center", background:"#ffffff11", borderRadius:10, padding:"10px 14px" }}>
-                  <div style={{ fontSize:22,fontWeight:900,color:c }}>{v}</div>
-                  <div style={{ fontSize:11,color:CJ.muted }}>{l}</div>
-                </div>
-              ))}
-              {moyenneDuels && (
-                <div style={{ textAlign:"center", background:"#ffffff11", borderRadius:10, padding:"10px 14px" }}>
-                  <div style={{ fontSize:22,fontWeight:900,color:CJ.blue }}>{moyenneDuels}</div>
-                  <div style={{ fontSize:11,color:CJ.muted }}>Moy. pts</div>
-                </div>
+          {/* Identité */}
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, flexWrap:"wrap" }}>
+              <h1 style={{ fontWeight:900, fontSize:20, margin:0 }}>{joueur.pseudo}</h1>
+              {!editMode && (
+                <button onClick={()=>setEditMode(true)}
+                  style={{ background:"none",border:`1px solid ${CJ.border}`,color:CJ.muted,cursor:"pointer",borderRadius:6,padding:"2px 8px",fontSize:11,touchAction:"manipulation" }}>
+                  ✏️ Modifier
+                </button>
               )}
             </div>
+
+            {/* DRIX + rang */}
+            <div style={{ display:"inline-flex",alignItems:"center",gap:8,background:color+"22",border:`1px solid ${color}44`,borderRadius:20,padding:"4px 12px",marginBottom:8 }}>
+              <span style={{ fontSize:15 }}>{emoji}</span>
+              <span style={{ fontWeight:900,fontSize:17,color }}>{joueur.drix||1000}</span>
+              <span style={{ fontSize:11,color,fontWeight:600 }}>DRIX · {titre}</span>
+            </div>
+
+            {/* Classement + infos */}
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+              {classement?.position && (
+                <BadgeJ color={CJ.yellow}>🏆 #{classement.position} national</BadgeJ>
+              )}
+              {joueur.age && <BadgeJ color={CJ.muted}>🎂 {joueur.age} ans</BadgeJ>}
+              {joueur.ville && <BadgeJ color={CJ.blue}>📍 {joueur.ville}</BadgeJ>}
+              {joueur.style_jeu && <BadgeJ color={CJ.accent}>{STYLES.find(s=>s[0]===joueur.style_jeu)?.[1]||joueur.style_jeu}</BadgeJ>}
+            </div>
+          </div>
+        </div>
+
+        {/* Edit mode */}
+        {editMode && (
+          <div style={{ marginTop:16, paddingTop:16, borderTop:`1px solid ${CJ.border}33` }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+              <div>
+                <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Âge</label>
+                <input value={editAge} onChange={e=>setEditAge(e.target.value)} placeholder="Ex: 28" type="number"
+                  style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"8px 10px",color:CJ.text,fontSize:13 }}/>
+              </div>
+              <div>
+                <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Ville</label>
+                <input value={editVille} onChange={e=>setEditVille(e.target.value)} placeholder="Ex: Bayonne"
+                  style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"8px 10px",color:CJ.text,fontSize:13 }}/>
+              </div>
+            </div>
+            <div style={{ marginBottom:10 }}>
+              <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Style de jeu</label>
+              <div style={{ display:"flex",gap:6 }}>
+                {STYLES.map(([v,l])=>(
+                  <button key={v} onClick={()=>setEditStyle(v)}
+                    style={{ flex:1,background:editStyle===v?CJ.accent+"33":"#111",border:`1px solid ${editStyle===v?CJ.accent:CJ.border}`,borderRadius:8,padding:"7px 4px",cursor:"pointer",fontSize:11,color:editStyle===v?CJ.accent:CJ.muted,fontWeight:editStyle===v?700:400,touchAction:"manipulation" }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display:"flex",gap:8 }}>
+              <BtnJ onClick={sauvegarderProfil} disabled={savingEdit} style={{ fontSize:12,padding:"7px 16px" }}>{savingEdit?"…":"💾 Sauvegarder"}</BtnJ>
+              <BtnJ onClick={()=>setEditMode(false)} variant="dark" style={{ fontSize:12,padding:"7px 16px" }}>Annuler</BtnJ>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── 2. PROGRESSION DE RANG ─────────────────────────────────────────── */}
+      <div style={{ background:CJ.card, border:`1px solid ${color}33`, borderRadius:14, padding:16, marginBottom:14 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:18 }}>{emoji}</span>
+            <span style={{ fontWeight:800, fontSize:14, color }}>{titre}</span>
+          </div>
+          {prog.prochain ? (
+            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+              <span style={{ fontSize:11, color:CJ.muted }}>→</span>
+              <span style={{ fontSize:14 }}>{prog.prochain.emoji}</span>
+              <span style={{ fontWeight:700, fontSize:12, color:prog.prochain.color }}>{prog.prochain.titre}</span>
+            </div>
+          ) : (
+            <span style={{ fontSize:11, color:CJ.yellow, fontWeight:700 }}>✨ Rang maximum</span>
+          )}
+        </div>
+
+        {/* Barre de progression */}
+        <div style={{ background:"#ffffff12", borderRadius:8, height:10, overflow:"hidden", marginBottom:8 }}>
+          <div style={{
+            height:"100%", borderRadius:8,
+            background:`linear-gradient(90deg, ${color}aa, ${color})`,
+            width:`${prog.pct}%`,
+            transition:"width 0.8s cubic-bezier(0.34,1.56,0.64,1)",
+            boxShadow:`0 0 8px ${color}88`,
+          }}/>
+        </div>
+
+        <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:CJ.muted }}>
+          <span style={{ fontWeight:700, color }}>{joueur.drix||1000} DRIX</span>
+          {prog.prochain ? (
+            <span style={{ color:CJ.muted }}>{prog.restant} DRIX avant <strong style={{ color:prog.prochain.color }}>{prog.prochain.titre}</strong></span>
+          ) : (
+            <span style={{ color:CJ.yellow }}>Niveau maximal atteint 🏆</span>
           )}
         </div>
       </div>
 
-      {/* Tournois entre potes */}
+      {/* ── 3. STATS RAPIDES ───────────────────────────────────────────────── */}
+      {stats && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:14 }}>
+          {[
+            [stats.victoires, "Victoires", CJ.green,  "🏆"],
+            [stats.defaites,  "Défaites",  CJ.red,    "💀"],
+            [winRate+"%",     "Winrate",   CJ.yellow,  "🎯"],
+            [moyenneDuels??"—", "Moy. pts", CJ.blue,  "📊"],
+          ].map(([val, label, col, ic]) => (
+            <div key={label} style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:12, padding:"12px 8px", textAlign:"center" }}>
+              <div style={{ fontSize:10, color:CJ.muted, marginBottom:4 }}>{ic}</div>
+              <div style={{ fontWeight:900, fontSize:20, color:col, lineHeight:1 }}>{val}</div>
+              <div style={{ fontSize:10, color:CJ.muted, marginTop:3 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── 4. TOURNOIS ACTIFS ─────────────────────────────────────────────── */}
       <div style={{ marginBottom:14 }}>
         {tournoisPotes.length > 0 ? (
           <div style={{ background:"#f9731611", border:`1px solid ${CJ.accent}55`, borderRadius:12, padding:14 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-              <span style={{ fontWeight:700, fontSize:13, color:CJ.accent }}>🍺 Tournois en cours</span>
-              <button onClick={()=>setPage("tournois-potes")} style={{ background:"none", border:"none", color:CJ.muted, cursor:"pointer", fontSize:11 }}>Voir tous →</button>
+              <span style={{ fontWeight:700, fontSize:13, color:CJ.accent }}>🏓 Tournois actifs</span>
+              <button onClick={()=>setPage("tournois-potes")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:11,touchAction:"manipulation" }}>Voir tous →</button>
             </div>
             {tournoisPotes.map(t => {
               const sl = { attente:"⏳ Lobby", poules:"🏟️ Poules", eliminatoires:"⚔️ Élim." }[t.statut] || t.statut;
               return (
-                <div key={t.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"#ffffff0d", borderRadius:8, padding:"9px 12px", marginBottom:6, gap:8 }}>
+                <div key={t.id} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",background:"#ffffff0d",borderRadius:8,padding:"9px 12px",marginBottom:6,gap:8 }}>
                   <div>
                     <div style={{ fontWeight:600, fontSize:13 }}>🏓 {t.nom}</div>
                     <div style={{ fontSize:11, color:CJ.muted }}>par {t.createur_pseudo} · {sl}</div>
                   </div>
-                  <button onClick={()=>setPage("tournoi-potes-"+t.id)} style={{ background:CJ.accent, color:"#fff", border:"none", cursor:"pointer", padding:"6px 14px", borderRadius:8, fontSize:12, fontWeight:700, whiteSpace:"nowrap" }}>
+                  <button onClick={()=>setPage("tournoi-potes-"+t.id)}
+                    style={{ background:CJ.accent,color:"#fff",border:"none",cursor:"pointer",padding:"6px 12px",borderRadius:8,fontSize:12,fontWeight:700,whiteSpace:"nowrap",touchAction:"manipulation" }}>
                     Rejoindre →
                   </button>
                 </div>
@@ -556,199 +575,143 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             })}
           </div>
         ) : (
-          <button onClick={()=>setPage("tournois-potes")} style={{ background:"#f9731611", border:`1px solid ${CJ.accent}44`, color:CJ.accent, cursor:"pointer", padding:"9px 16px", borderRadius:10, fontSize:13, fontWeight:600, display:"flex", alignItems:"center", gap:8, width:"100%" }}>
-            <span style={{ fontSize:18 }}>🍺</span>
-            <span>Tournoi entre potes</span>
-            <span style={{ marginLeft:"auto", fontSize:11, color:CJ.muted }}>Voir mes tournois →</span>
+          <button onClick={()=>setPage("tournois-potes")}
+            style={{ background:"#f9731611",border:`1px solid ${CJ.accent}44`,color:CJ.accent,cursor:"pointer",padding:"11px 16px",borderRadius:12,fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:8,width:"100%",touchAction:"manipulation" }}>
+            <span style={{ fontSize:18 }}>🏓</span>
+            <span>Tournois entre potes</span>
+            <span style={{ marginLeft:"auto",fontSize:11,color:CJ.muted }}>Voir mes tournois →</span>
           </button>
         )}
       </div>
 
-      {/* ── BOUTONS IMAGE PROFIL ── */}
-      <div style={{ display:"flex", gap:10, marginBottom:16 }}>
-        {[
-          { src:"/profil/stat.png",  label:"Stats",  action:()=>setPage("profil-stats"), badge:0 },
-          { src:"/profil/amis.png",  label:"Amis",   action:()=>setPage("profil-amis"),  badge:demandesAmisCount },
-          { src:"/profil/badge.png", label:"Badges", action:()=>setPage("profil-badges"),badge:0 },
-        ].map(({ src, label, action, badge }) => (
-          <div key={label} onClick={action} style={{ flex:1,cursor:"pointer",borderRadius:12,overflow:"hidden",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s",position:"relative" }}
-            onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 20px #0008";}}
-            onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
-            <img src={src} alt={label} style={{ width:"100%",display:"block",borderRadius:12 }}/>
-            {badge > 0 && (
-              <div style={{ position:"absolute",top:8,right:8,background:"#10b981",color:"#fff",borderRadius:"50%",minWidth:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,boxShadow:"0 2px 10px #00000099",border:"2px solid #0a0a0a",zIndex:2 }}>
-                {badge > 9 ? "9+" : badge}
-              </div>
-            )}
-          </div>
-        ))}
+      {/* ── 5. MON UNIVERS ─────────────────────────────────────────────────── */}
+      <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:16, marginBottom:14 }}>
+        <div style={{ fontSize:11, color:CJ.muted, fontWeight:700, letterSpacing:1, marginBottom:12 }}>MON UNIVERS</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          {[
+            { emoji:"📊", label:"Stats",       sub:"Mes performances",  action:()=>setPage("profil-stats"),      color:CJ.blue },
+            { emoji:"👥", label:"Amis",        sub:"Mes connexions",    action:()=>setPage("profil-amis"),       color:CJ.green, badge:demandesAmisCount },
+            { emoji:"🏅", label:"Badges",      sub:"Mes récompenses",   action:()=>setPage("profil-badges"),     color:CJ.yellow },
+            { emoji:"📜", label:"Historique",  sub:"Mes duels",         action:()=>setPage("profil-historique"), color:CJ.accent },
+          ].map(({ emoji, label, sub, action, color: col, badge }) => (
+            <button key={label} onClick={action}
+              style={{ background:"#ffffff07",border:`1px solid ${CJ.border}`,borderRadius:12,padding:"14px 12px",cursor:"pointer",textAlign:"left",touchAction:"manipulation",position:"relative",transition:"border-color .15s" }}
+              onMouseEnter={e=>e.currentTarget.style.borderColor=col}
+              onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
+              {badge > 0 && (
+                <div style={{ position:"absolute",top:8,right:8,background:CJ.green,color:"#fff",borderRadius:"50%",width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900 }}>{badge>9?"9+":badge}</div>
+              )}
+              <div style={{ fontSize:24, marginBottom:6 }}>{emoji}</div>
+              <div style={{ fontWeight:700, fontSize:14, color:CJ.text }}>{label}</div>
+              <div style={{ fontSize:11, color:CJ.muted, marginTop:2 }}>{sub}</div>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Badge modal */}
-      {badgeModal && (
-        <div style={{ position:"fixed",inset:0,background:"#000000cc",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }} onClick={()=>setBadgeModal(false)}>
-          <div style={{ background:"#1a1a1a",border:`1px solid ${CJ.border}`,borderRadius:20,padding:32,maxWidth:300,textAlign:"center",width:"100%" }} onClick={e=>e.stopPropagation()}>
-            <div style={{ fontSize:52,marginBottom:12 }}>🏅</div>
-            <h2 style={{ fontWeight:900,fontSize:20,marginBottom:8 }}>Badges</h2>
-            <p style={{ color:CJ.muted,fontSize:14,marginBottom:20 }}>Cette fonctionnalité arrive bientôt !<br/>Débloque des badges selon tes performances.</p>
-            <div style={{ background:"#f97316",color:"#fff",fontWeight:700,fontSize:12,padding:"5px 16px",borderRadius:20,display:"inline-block",marginBottom:20 }}>🚧 En construction</div>
-            <br/>
-            <button onClick={()=>setBadgeModal(false)} style={{ background:"#2a2a2a",border:"none",color:"#f1f5f9",cursor:"pointer",padding:"10px 28px",borderRadius:10,fontSize:14,fontWeight:700,touchAction:"manipulation" }}>Fermer</button>
+      {/* ── 6. ACTIVITÉ RÉCENTE ────────────────────────────────────────────── */}
+      {activiteRecente.length > 0 && (
+        <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:16, marginBottom:14 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <div style={{ fontSize:11, color:CJ.muted, fontWeight:700, letterSpacing:1 }}>ACTIVITÉ RÉCENTE</div>
+            <button onClick={()=>setPage("profil-historique")}
+              style={{ background:"none",border:"none",color:CJ.accent,cursor:"pointer",fontSize:11,fontWeight:600,touchAction:"manipulation" }}>
+              Tout voir →
+            </button>
           </div>
-        </div>
-      )}
-
-      {/* Onglets */}
-      <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
-        {[["defis",`⚔️ Défis${defis.length>0?" ("+defis.length+")":""}`],["amis","👥 Amis"],["historique","📋 Historique"],["affiliation","🍺 Affiliation"]].map(([t,l])=>(
-          <button key={t} onClick={()=>setTab(t)} style={{ background:tab===t?CJ.accent+"22":"transparent",color:tab===t?CJ.accent:CJ.muted,border:`1px solid ${tab===t?CJ.accent:CJ.border}`,cursor:"pointer",padding:"7px 14px",borderRadius:8,fontSize:13,fontWeight:500,touchAction:"manipulation" }}>{l}</button>
-        ))}
-      </div>
-
-      {/* Défis */}
-      {tab==="defis" && (
-        <div>
-          {duels.filter(d=>d.statut==="termine"&&d.gagnant_id!==joueur.id&&(d.challenger_id===joueur.id?!d.valide_challenger:!d.valide_defie)&&Date.now()-d.date<86400000).length>0&&(
-            <div style={{ marginBottom:24 }}>
-              <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:CJ.yellow }}>⚠️ Résultats récents — tu peux contester</h3>
-              {duels.filter(d=>d.statut==="termine"&&d.gagnant_id!==joueur.id&&(d.challenger_id===joueur.id?!d.valide_challenger:!d.valide_defie)&&Date.now()-d.date<86400000).map(d=>{
-                const isChallenger=d.challenger_id===joueur.id;
-                const adversaire=isChallenger?d.defie_pseudo:d.challenger_pseudo;
-                const {sc,sd}=fixManches(d);
-                const monManche=isChallenger?sc:sd; const sonManche=isChallenger?sd:sc;
-                const heuresRestantes=Math.max(0,Math.floor((86400000-(Date.now()-d.date))/3600000));
-                return(
-                  <div key={d.id} style={{ background:CJ.card,border:`2px solid ${CJ.yellow}`,borderRadius:12,padding:18,marginBottom:10 }}>
-                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
-                      <p style={{ fontWeight:700,fontSize:14,margin:0 }}>😔 vs <strong>{adversaire}</strong> — {d.mode}</p>
-                      <span style={{ fontSize:11,color:CJ.yellow }}>{heuresRestantes}h restantes</span>
-                    </div>
-                    <p style={{ color:CJ.muted,fontSize:13,marginBottom:12 }}>{d.gagnant_pseudo} a gagné · {monManche} – {sonManche} manches</p>
-                    <div style={{ display:"flex",gap:8 }}>
-                      <BtnJ variant="dark" onClick={async()=>{await dbJ.updateDuel(d.id,{valide_challenger:true,valide_defie:true});setDuels(x=>x.map(x=>x.id===d.id?{...x,valide_challenger:true,valide_defie:true}:x));}} style={{ flex:1,fontSize:13 }}>✅ J'accepte le résultat</BtnJ>
-                      <BtnJ variant="danger" onClick={async()=>{if(window.confirm("Contester ce résultat ?"))await dbJ.updateDuel(d.id,{statut:"conteste"});setDuels(x=>x.filter(x=>x.id!==d.id));}} style={{ fontSize:13 }}>⚠️ Contester</BtnJ>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {duels.filter(d=>d.statut==="accepte").length>0&&(
-            <div style={{ marginBottom:24 }}>
-              <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:CJ.green }}>🎯 Match accepté — Lance le scoreur !</h3>
-              {duels.filter(d=>d.statut==="accepte").map(d=>{
-                const adversaire=d.challenger_id===joueur.id?d.defie_pseudo:d.challenger_pseudo;
-                return(
-                  <div key={d.id} style={{ background:CJ.card,border:`2px solid ${CJ.green}`,borderRadius:12,padding:16,marginBottom:10 }}>
-                    <p style={{ fontWeight:700,marginBottom:4 }}>⚔️ vs <strong>{adversaire}</strong> — {d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""}</p>
-                    <BtnJ onClick={()=>setPage("scoreur-duel-"+d.id)} style={{ fontSize:13,width:"100%",marginTop:8 }}>🎯 Lancer le scoreur</BtnJ>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14 }}>⚔️ Défis reçus</h3>
-          {defis.length===0
-            ? <p style={{ color:CJ.muted,fontSize:13,marginBottom:24 }}>Aucun défi en attente.<br/><span style={{ fontSize:12 }}>Utilise le bouton <b>⚔️ Défi</b> pour défier un ami.</span></p>
-            : defis.map(d=>(
-              <div key={d.id} style={{ background:CJ.card,border:`1px solid ${CJ.yellow}44`,borderRadius:12,padding:16,marginBottom:10 }}>
-                <p style={{ fontWeight:700,marginBottom:4 }}>⚔️ <strong>{d.challenger_pseudo}</strong> vous défie</p>
-                <p style={{ color:CJ.muted,fontSize:12,marginBottom:10 }}>{d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""} · {new Date(d.date).toLocaleDateString("fr-FR")}</p>
-                <div style={{ display:"flex",gap:8 }}>
-                  <BtnJ variant="success" onClick={()=>accepterDefi(d)} style={{ fontSize:12,padding:"7px 14px" }}>✅ Accepter et jouer</BtnJ>
-                  <BtnJ variant="danger" onClick={()=>refuserDefi(d)} style={{ fontSize:12,padding:"7px 14px" }}>❌ Refuser</BtnJ>
-                </div>
-              </div>
-            ))
-          }
-          <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,marginTop:16 }}>📤 Défis envoyés</h3>
-          {duels.filter(d=>d.challenger_id===joueur.id&&d.statut==="en_attente").length===0
-            ? <p style={{ color:CJ.muted,fontSize:13,marginBottom:24 }}>Aucun défi envoyé en attente.</p>
-            : duels.filter(d=>d.challenger_id===joueur.id&&d.statut==="en_attente").map(d=>(
-              <div key={d.id} style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,padding:16,marginBottom:10 }}>
-                <p style={{ fontWeight:600,marginBottom:4 }}>⚔️ Défi envoyé à <strong>{d.defie_pseudo}</strong></p>
-                <p style={{ color:CJ.muted,fontSize:12,marginBottom:10 }}>{d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""} · En attente…</p>
-                <BtnJ variant="danger" onClick={()=>annulerDefi(d)} style={{ fontSize:12,padding:"7px 14px" }}>❌ Annuler le défi</BtnJ>
-              </div>
-            ))
-          }
-        </div>
-      )}
-
-      {/* Historique */}
-      {tab==="historique" && (
-        <div>
-          <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14 }}>📋 Historique des duels</h3>
-          {duels.filter(d=>d.statut==="termine").length===0
-            ? <p style={{ color:CJ.muted,fontSize:13 }}>Aucun duel terminé.</p>
-            : duels.filter(d=>d.statut==="termine").map(d=>{
-              const isChallenger = d.challenger_id===joueur.id;
-              const adversaire = isChallenger ? d.defie_pseudo : d.challenger_pseudo;
-              const {sc,sd} = fixManches(d);
-              const monManche = isChallenger ? sc : sd;
-              const sonManche = isChallenger ? sd : sc;
-              const monMoy = isChallenger ? d.score_challenger : d.score_defie;
-              const sonMoy = isChallenger ? d.score_defie : d.score_challenger;
-              const gagne = d.gagnant_id===joueur.id;
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {activiteRecente.map((m, i) => {
+              const gain = m.variation > 0;
+              const date = m.date ? new Date(m.date).toLocaleDateString("fr-FR",{day:"numeric",month:"short"}) : "";
               return (
-                <div key={d.id} style={{ background:CJ.card,border:`1px solid ${gagne?CJ.green+"44":CJ.red+"44"}`,borderRadius:10,padding:14,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8 }}>
-                  <div>
-                    <span style={{ fontWeight:600 }}>vs {adversaire}</span>
-                    <span style={{ color:CJ.muted,fontSize:12,marginLeft:8 }}>{d.mode} · {new Date(d.date).toLocaleDateString("fr-FR")}</span>
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:i<activiteRecente.length-1?`1px solid ${CJ.border}33`:"none" }}>
+                  <div style={{ width:34,height:34,borderRadius:"50%",background:gain?"#14532d":"#7f1d1d",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0 }}>
+                    {gain ? "🏆" : "💀"}
                   </div>
-                  <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
-                    <div style={{ textAlign:"right" }}>
-                      <div style={{ fontWeight:700,fontSize:14 }}>{monManche ?? "?"} – {sonManche ?? "?"}</div>
-                      {monMoy && <div style={{ fontSize:11,color:CJ.accent }}>Moi : {monMoy} pts</div>}
-                      {sonMoy && <div style={{ fontSize:11,color:CJ.muted }}>Adv. : {sonMoy} pts</div>}
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:600, fontSize:13 }}>
+                      {gain ? "Victoire" : "Défaite"} vs {m.adversaire_pseudo || "?"}
                     </div>
-                    <BadgeJ color={gagne?CJ.green:CJ.red}>{gagne?"Victoire ✅":"Défaite ❌"}</BadgeJ>
+                    <div style={{ fontSize:11, color:CJ.muted }}>{date} · {m.drix_avant}→{m.drix_apres} DRIX</div>
+                  </div>
+                  <div style={{ fontWeight:800, fontSize:14, color:gain?CJ.green:CJ.red, background:gain?"#14532d":"#7f1d1d", borderRadius:8, padding:"3px 9px", flexShrink:0 }}>
+                    {gain?"+":""}{m.variation}
                   </div>
                 </div>
               );
-            })
-          }
+            })}
+          </div>
         </div>
       )}
 
-      {/* Amis */}
-      {tab==="amis" && (
-        <AmiSection joueur={joueur} setPage={setPage}/>
-      )}
+      {/* ── 7. MES AFFILIATIONS ────────────────────────────────────────────── */}
+      <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:16 }}>
+        <div style={{ fontSize:11, color:CJ.muted, fontWeight:700, letterSpacing:1, marginBottom:12 }}>MES AFFILIATIONS</div>
 
-      {/* Affiliation */}
-      {tab==="affiliation" && (
-        <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
-          <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,padding:20 }}>
-            <h3 style={{ fontWeight:700,fontSize:15,marginBottom:6,color:CJ.accent }}>🍺 Bar affilié</h3>
-            <p style={{ color:CJ.muted,fontSize:13,marginBottom:14 }}>Votre bar = votre équipe.</p>
-            {bar && <p style={{ color:CJ.green,fontSize:13,marginBottom:12 }}>Actuellement : <strong>{bar.nom}</strong> à {bar.ville}</p>}
-            <div style={{ display:"flex",flexDirection:"column",gap:8,maxHeight:300,overflowY:"auto" }}>
+        {/* Bar affilié */}
+        <div style={{ marginBottom:12 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:affilBar?10:0 }}>
+            <div>
+              <div style={{ fontSize:11, color:CJ.muted }}>🍺 Bar affilié</div>
+              <div style={{ fontWeight:700, fontSize:14, color: bar ? CJ.accent : CJ.muted }}>
+                {bar ? bar.nom : "Aucun bar sélectionné"}
+              </div>
+              {bar && <div style={{ fontSize:11, color:CJ.muted }}>📍 {bar.ville}</div>}
+            </div>
+            <button onClick={()=>setAffilBar(x=>!x)}
+              style={{ background:CJ.accent+"22",border:`1px solid ${CJ.accent}44`,color:CJ.accent,cursor:"pointer",borderRadius:8,padding:"6px 14px",fontSize:12,fontWeight:600,touchAction:"manipulation",flexShrink:0 }}>
+              {affilBar?"Fermer":"Changer"}
+            </button>
+          </div>
+          {affilBar && (
+            <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:220,overflowY:"auto",border:`1px solid ${CJ.border}`,borderRadius:10,padding:8 }}>
               {bars.map(b=>(
-                <div key={b.slug} onClick={()=>choisirBar(b.slug)} style={{ background:joueur.bar_slug===b.slug?"#1a0800":"#111",border:`1px solid ${joueur.bar_slug===b.slug?CJ.accent:CJ.border}`,borderRadius:8,padding:"10px 14px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-                  <span style={{ fontWeight:joueur.bar_slug===b.slug?700:400 }}>{b.nom}</span>
-                  <span style={{ color:CJ.muted,fontSize:12 }}>📍 {b.ville}</span>
+                <div key={b.slug} onClick={()=>choisirBar(b.slug)}
+                  style={{ background:joueur.bar_slug===b.slug?"#1a0800":"#111",border:`1px solid ${joueur.bar_slug===b.slug?CJ.accent:CJ.border}`,borderRadius:8,padding:"9px 12px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",touchAction:"manipulation" }}>
+                  <span style={{ fontWeight:joueur.bar_slug===b.slug?700:400,fontSize:13 }}>{b.nom}</span>
+                  <span style={{ color:CJ.muted,fontSize:11 }}>📍 {b.ville}</span>
                 </div>
               ))}
             </div>
-          </div>
-          <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,padding:20 }}>
-            <h3 style={{ fontWeight:700,fontSize:15,marginBottom:6,color:"#7c3aed" }}>🫂 Association affiliée</h3>
-            {asso && <p style={{ color:CJ.green,fontSize:13,marginBottom:12 }}>Actuellement : <strong>{asso.nom}</strong></p>}
-            <div style={{ display:"flex",flexDirection:"column",gap:8,maxHeight:200,overflowY:"auto" }}>
-              {associations.map(a=>(
-                <div key={a.slug} onClick={()=>choisirAsso(a.slug)} style={{ background:joueur.asso_slug===a.slug?"#1a0f1a":"#111",border:`1px solid ${joueur.asso_slug===a.slug?"#7c3aed":CJ.border}`,borderRadius:8,padding:"10px 14px",cursor:"pointer",display:"flex",justifyContent:"space-between" }}>
-                  <span style={{ fontWeight:joueur.asso_slug===a.slug?700:400 }}>{a.nom}</span>
-                  <span style={{ color:CJ.muted,fontSize:12 }}>📍 {a.ville}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          )}
         </div>
-      )}
+
+        {/* Séparateur */}
+        <div style={{ borderTop:`1px solid ${CJ.border}`, marginBottom:12 }}/>
+
+        {/* Association affiliée */}
+        <div>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:affilAsso?10:0 }}>
+            <div>
+              <div style={{ fontSize:11, color:CJ.muted }}>🫂 Association affiliée</div>
+              <div style={{ fontWeight:700, fontSize:14, color: asso ? "#a78bfa" : CJ.muted }}>
+                {asso ? asso.nom : "Aucune association"}
+              </div>
+              {asso && asso.ville && <div style={{ fontSize:11, color:CJ.muted }}>📍 {asso.ville}</div>}
+            </div>
+            <button onClick={()=>setAffilAsso(x=>!x)}
+              style={{ background:"#a78bfa22",border:"1px solid #a78bfa44",color:"#a78bfa",cursor:"pointer",borderRadius:8,padding:"6px 14px",fontSize:12,fontWeight:600,touchAction:"manipulation",flexShrink:0 }}>
+              {affilAsso?"Fermer":"Changer"}
+            </button>
+          </div>
+          {affilAsso && (
+            <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:200,overflowY:"auto",border:`1px solid ${CJ.border}`,borderRadius:10,padding:8 }}>
+              {associations.map(a=>(
+                <div key={a.slug} onClick={()=>choisirAsso(a.slug)}
+                  style={{ background:joueur.asso_slug===a.slug?"#1a0f1a":"#111",border:`1px solid ${joueur.asso_slug===a.slug?"#7c3aed":CJ.border}`,borderRadius:8,padding:"9px 12px",cursor:"pointer",display:"flex",justifyContent:"space-between",touchAction:"manipulation" }}>
+                  <span style={{ fontWeight:joueur.asso_slug===a.slug?700:400,fontSize:13 }}>{a.nom}</span>
+                  <span style={{ color:CJ.muted,fontSize:11 }}>📍 {a.ville}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
     </div>
   );
 };
+
 
 // ── PAGE STATS ────────────────────────────────────────────────────────────────
 export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage }) => {
@@ -756,18 +719,7 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
   const [duels, setDuels]         = useState([]);
   const [drixMvts, setDrixMvts]   = useState([]);
   const [classement, setClassement] = useState(null);
-  const [drixMvtMap, setDrixMvtMap] = useState({});
   const [loading, setLoading]     = useState(true);
-  const [activeTab, setActiveTab] = useState("stats"); // "stats" | "historique"
-  const [editMode, setEditMode]   = useState(false);
-  const [editAge, setEditAge]     = useState(joueur.age||"");
-  const [editVille, setEditVille] = useState(joueur.ville||"");
-  const [editStyle, setEditStyle] = useState(joueur.style_jeu||"electronique");
-  const [savingEdit, setSavingEdit] = useState(false);
-
-  const bar  = bars.find(b => b.slug === joueur.bar_slug);
-  const asso = associations.find(a => a.slug === joueur.asso_slug);
-  const STYLES = [["electronique","⚡ Électronique"],["traditionnel","🎯 Traditionnel"],["les deux","🎯⚡ Les deux"]];
 
   useEffect(() => {
     Promise.all([
@@ -779,9 +731,6 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
       setStats(s);
       setDuels(d||[]);
       setDrixMvts(mvts||[]);
-      const map = {};
-      (mvts||[]).forEach(m => { if (m.duel_id) map[m.duel_id] = m.variation; });
-      setDrixMvtMap(map);
       if (allJ?.length) {
         const pos = allJ.findIndex(j => j.id === joueur.id);
         setClassement({ position: pos >= 0 ? pos + 1 : null, total: allJ.length });
@@ -789,25 +738,6 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [joueur.id]);
-
-  const sauvegarderProfil = async () => {
-    setSavingEdit(true);
-    const patch = { age: parseInt(editAge)||null, ville: editVille.trim()||null, style_jeu: editStyle };
-    await dbJ.updateJoueur(joueur.id, patch);
-    const updated = {...joueur, ...patch};
-    setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
-    setSavingEdit(false); setEditMode(false);
-  };
-  const choisirBar = async (slug) => {
-    await dbJ.updateJoueur(joueur.id, { bar_slug: slug });
-    const updated = {...joueur, bar_slug: slug};
-    setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
-  };
-  const choisirAsso = async (slug) => {
-    await dbJ.updateJoueur(joueur.id, { asso_slug: slug });
-    const updated = {...joueur, asso_slug: slug};
-    setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
-  };
 
   if (loading) return <SpinnerJ/>;
 
@@ -871,7 +801,7 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
   });
   const hasScoring = termines.some(d=>(d.manches_detail||[]).some(m=>m.winner_180!==undefined));
 
-  // ── Composant card stat ───────────────────────────────────────────────────
+  // ── Composants internes ───────────────────────────────────────────────────
   const StatCard = ({ label, value, color=CJ.text, sub=null, bientot=false }) => (
     <div style={{ background:"#ffffff09", border:`1px solid ${CJ.border}`, borderRadius:10, padding:"12px 10px", position:"relative" }}>
       {bientot && <span style={{ position:"absolute",top:6,right:6,background:"#1a1a1a",border:`1px solid ${CJ.border}`,borderRadius:4,fontSize:9,color:CJ.muted,padding:"1px 5px" }}>bientôt</span>}
@@ -888,235 +818,97 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
 
   return (
     <div style={{ maxWidth:860, margin:"0 auto", padding:"16px 16px 40px" }}>
-      {/* Header */}
       <button onClick={()=>setPage("mon-profil")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour</button>
 
-      {/* Tabs */}
-      <div style={{ display:"flex", gap:8, marginBottom:20 }}>
-        {[["stats","📊 Mes stats"],["historique","📋 Historique des duels"]].map(([tab,label])=>(
-          <button key={tab} onClick={()=>setActiveTab(tab)} style={{
-            flex:1, padding:"12px 8px", borderRadius:12, border:`2px solid ${activeTab===tab?CJ.accent:CJ.border}`,
-            background:activeTab===tab?CJ.accent+"22":"#111", color:activeTab===tab?CJ.accent:CJ.muted,
-            fontWeight:700, fontSize:13, cursor:"pointer", touchAction:"manipulation"
-          }}>{label}</button>
-        ))}
+      {/* Hero DRIX */}
+      <div style={{ background:`linear-gradient(135deg,#1a0800,#1a1a2e)`,border:`2px solid ${drixColor}44`,borderRadius:16,padding:20,marginBottom:4,display:"flex",alignItems:"center",gap:16 }}>
+        <div style={{ fontSize:48 }}>{drixEmoji}</div>
+        <div style={{ flex:1 }}>
+          <div style={{ fontSize:13,color:CJ.muted,marginBottom:2 }}>DRIX actuel</div>
+          <div style={{ fontSize:42,fontWeight:900,color:drixColor,lineHeight:1 }}>{joueur.drix||1000}</div>
+          <div style={{ fontSize:13,color:drixColor,marginTop:3 }}>{drixTitre}</div>
+        </div>
+        {classement?.position && (
+          <div style={{ textAlign:"center",background:"#ffffff0d",borderRadius:12,padding:"10px 16px" }}>
+            <div style={{ fontSize:28,fontWeight:900,color:CJ.yellow }}>#{classement.position}</div>
+            <div style={{ fontSize:10,color:CJ.muted }}>/ {classement.total} joueurs</div>
+          </div>
+        )}
       </div>
 
-      {/* ── ONGLET STATS ─────────────────────────────────────────────────── */}
-      {activeTab==="stats" && (
-        <div>
-          {/* Hero DRIX */}
-          <div style={{ background:`linear-gradient(135deg,#1a0800,#1a1a2e)`,border:`2px solid ${drixColor}44`,borderRadius:16,padding:20,marginBottom:4,display:"flex",alignItems:"center",gap:16 }}>
-            <div style={{ fontSize:48 }}>{drixEmoji}</div>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:13,color:CJ.muted,marginBottom:2 }}>DRIX actuel</div>
-              <div style={{ fontSize:42,fontWeight:900,color:drixColor,lineHeight:1 }}>{joueur.drix||1000}</div>
-              <div style={{ fontSize:13,color:drixColor,marginTop:3 }}>{drixTitre}</div>
-            </div>
-            {classement?.position && (
-              <div style={{ textAlign:"center",background:"#ffffff0d",borderRadius:12,padding:"10px 16px" }}>
-                <div style={{ fontSize:28,fontWeight:900,color:CJ.yellow }}>#{classement.position}</div>
-                <div style={{ fontSize:10,color:CJ.muted }}>/ {classement.total} joueurs</div>
-              </div>
-            )}
-          </div>
+      {/* Performance */}
+      <SectionTitle>🎯 Performance</SectionTitle>
+      <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
+        <StatCard label="Victoires"  value={stats?.victoires??0}  color={CJ.green}/>
+        <StatCard label="Défaites"   value={stats?.defaites??0}   color={CJ.red}/>
+        <StatCard label="Parties"    value={stats?.parties??0}    color={CJ.muted}/>
+        <StatCard label="Win Rate"   value={winRate+"%"}          color={CJ.yellow}/>
+        <StatCard label="Ratio V/D"  value={stats?.defaites>0?(stats.victoires/stats.defaites).toFixed(1):"∞"} color={CJ.accent}/>
+        <StatCard label="Série actuelle" value={serieActuelle>0?(serieType==="win"?`${serieActuelle}🔥`:`${serieActuelle}💔`):"—"} color={serieType==="win"?CJ.green:CJ.red}/>
+      </div>
 
-          {/* Performance */}
-          <SectionTitle>🎯 Performance</SectionTitle>
-          <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
-            <StatCard label="Victoires"  value={stats?.victoires??0}  color={CJ.green}/>
-            <StatCard label="Défaites"   value={stats?.defaites??0}   color={CJ.red}/>
-            <StatCard label="Parties"    value={stats?.parties??0}    color={CJ.muted}/>
-            <StatCard label="Win Rate"   value={winRate+"%"}          color={CJ.yellow}/>
-            <StatCard label="Ratio V/D"  value={stats?.defaites>0?(stats.victoires/stats.defaites).toFixed(1):"∞"} color={CJ.accent}/>
-            <StatCard label="Série actuelle" value={serieActuelle>0?(serieType==="win"?`${serieActuelle}🔥`:`${serieActuelle}💔`):"—"} color={serieType==="win"?CJ.green:CJ.red}/>
-          </div>
+      {/* Moyennes */}
+      <SectionTitle>📊 Moyennes pts/volée</SectionTitle>
+      <div style={{ display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8 }}>
+        <StatCard label="🌍 Générale"        value={moyenneGenerale?? "—"} color={CJ.blue} sub={`sur ${termines.length} match${termines.length>1?"s":""}`}/>
+        <StatCard label="📅 Aujourd'hui"     value={moyenneJour??     "—"} color={CJ.blue} sub={nbJour>0?`${nbJour} match${nbJour>1?"s":""}`:null}/>
+        <StatCard label="📆 Cette semaine"   value={moyenneSemaine??  "—"} color={CJ.blue} sub={nbSemaine>0?`${nbSemaine} match${nbSemaine>1?"s":""}`:null}/>
+        <StatCard label="🗓️ Ce mois"         value={moyenneMois??     "—"} color={CJ.blue} sub={nbMois>0?`${nbMois} match${nbMois>1?"s":""}`:null}/>
+      </div>
 
-          {/* Moyennes */}
-          <SectionTitle>📊 Moyennes pts/volée</SectionTitle>
-          <div style={{ display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8 }}>
-            <StatCard label="🌍 Générale"        value={moyenneGenerale?? "—"} color={CJ.blue} sub={`sur ${termines.length} match${termines.length>1?"s":""}`}/>
-            <StatCard label="📅 Aujourd'hui"     value={moyenneJour??     "—"} color={CJ.blue} sub={nbJour>0?`${nbJour} match${nbJour>1?"s":""}`:null}/>
-            <StatCard label="📆 Cette semaine"   value={moyenneSemaine??  "—"} color={CJ.blue} sub={nbSemaine>0?`${nbSemaine} match${nbSemaine>1?"s":""}`:null}/>
-            <StatCard label="🗓️ Ce mois"         value={moyenneMois??     "—"} color={CJ.blue} sub={nbMois>0?`${nbMois} match${nbMois>1?"s":""}`:null}/>
-            <StatCard label="🏆 Meilleure moy."  value="—" bientot/>
-            <StatCard label="⚔️ Moy. en duel"   value="—" bientot/>
-            <StatCard label="Moy. par mode"     value="—" bientot/>
-          </div>
+      {/* Scoring */}
+      <SectionTitle>🎯 Scoring</SectionTitle>
+      {!hasScoring && <p style={{ color:CJ.muted,fontSize:12,marginBottom:8 }}>Les stats de scoring sont calculées à partir de tes prochains matchs.</p>}
+      <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
+        <StatCard label="180"  value={hasScoring ? nb180  : "—"} color="#f59e0b" bientot={!hasScoring}/>
+        <StatCard label="140+" value={hasScoring ? nb140  : "—"} color={CJ.accent} bientot={!hasScoring}/>
+        <StatCard label="100+" value={hasScoring ? nb100  : "—"} color={CJ.yellow} bientot={!hasScoring}/>
+        <StatCard label="80+"  value={hasScoring ? nb80   : "—"} color={CJ.muted} bientot={!hasScoring}/>
+        <StatCard label="60+"  value={hasScoring ? nb60   : "—"} color={CJ.muted} bientot={!hasScoring}/>
+        <StatCard label="Plus gros score" value={hasScoring && plusGrosScore>0 ? plusGrosScore : "—"} color={CJ.accent} bientot={!hasScoring}/>
+      </div>
 
-          {/* Scoring */}
-          <SectionTitle>🎯 Scoring</SectionTitle>
-          {!hasScoring && <p style={{ color:CJ.muted,fontSize:12,marginBottom:8 }}>Les stats de scoring sont calculées à partir de tes prochains matchs.</p>}
-          <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
-            <StatCard label="180"  value={hasScoring ? nb180  : "—"} color="#f59e0b" bientot={!hasScoring}/>
-            <StatCard label="140+" value={hasScoring ? nb140  : "—"} color={CJ.accent} bientot={!hasScoring}/>
-            <StatCard label="100+" value={hasScoring ? nb100  : "—"} color={CJ.yellow} bientot={!hasScoring}/>
-            <StatCard label="80+"  value={hasScoring ? nb80   : "—"} color={CJ.muted} bientot={!hasScoring}/>
-            <StatCard label="60+"  value={hasScoring ? nb60   : "—"} color={CJ.muted} bientot={!hasScoring}/>
-            <StatCard label="Plus gros score" value={hasScoring && plusGrosScore>0 ? plusGrosScore : "—"} color={CJ.accent} bientot={!hasScoring}/>
-          </div>
+      {/* Finishes */}
+      <SectionTitle>👑 Finishes</SectionTitle>
+      <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
+        <StatCard label="Plus gros finish" value={hasScoring && plusGrosFinish>0 ? plusGrosFinish : "—"} color={CJ.green} bientot={!hasScoring}/>
+        <StatCard label="Finishes 100+"    value="—" bientot/>
+        <StatCard label="Taux checkout"    value="—" bientot/>
+        <StatCard label="Finish 1 flèche"  value="—" bientot/>
+        <StatCard label="Finish 2 flèches" value="—" bientot/>
+        <StatCard label="Finish 3 flèches" value="—" bientot/>
+      </div>
 
-          {/* Finishes */}
-          <SectionTitle>👑 Finishes</SectionTitle>
-          <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
-            <StatCard label="Plus gros finish" value={hasScoring && plusGrosFinish>0 ? plusGrosFinish : "—"} color={CJ.green} bientot={!hasScoring}/>
-            <StatCard label="Finishes 100+"    value="—" bientot/>
-            <StatCard label="Taux checkout"    value="—" bientot/>
-            <StatCard label="Finish 1 flèche"  value="—" bientot/>
-            <StatCard label="Finish 2 flèches" value="—" bientot/>
-            <StatCard label="Finish 3 flèches" value="—" bientot/>
-          </div>
+      {/* Duels */}
+      <SectionTitle>⚔️ Duels</SectionTitle>
+      <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
+        <StatCard label="Duels joués" value={termines.length} color={CJ.accent}/>
+        <StatCard label="Rival principal" value={rival?rival[0]:"—"} sub={rival?`${rival[1]} match${rival[1]>1?"s":""}`:null} color={CJ.yellow}/>
+        <StatCard label="Max DRIX gagné" value={maxGain?`+${maxGain}`:"—"} color={CJ.green}/>
+        <StatCard label="Max DRIX perdu" value={maxPerte?`${maxPerte}`:"—"} color={CJ.red}/>
+        <StatCard label="Meilleure série" value="—" bientot/>
+        <StatCard label="Nemesis" value="—" bientot/>
+      </div>
 
-          {/* Duels */}
-          <SectionTitle>⚔️ Duels</SectionTitle>
-          <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
-            <StatCard label="Duels joués" value={termines.length} color={CJ.accent}/>
-            <StatCard label="Rival principal" value={rival?rival[0]:"—"} sub={rival?`${rival[1]} match${rival[1]>1?"s":""}`+".":null} color={CJ.yellow}/>
-            <StatCard label="Max DRIX gagné" value={maxGain?`+${maxGain}`:"—"} color={CJ.green}/>
-            <StatCard label="Max DRIX perdu" value={maxPerte?`${maxPerte}`:"—"} color={CJ.red}/>
-            <StatCard label="Meilleure série" value="—" bientot/>
-            <StatCard label="Nemesis" value="—" bientot/>
-          </div>
-
-          {/* Activité */}
-          <SectionTitle>🎮 Activité</SectionTitle>
-          <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
-            <StatCard label="Bar" value={bar?.nom||"—"} sub={bar?.ville||null} color={CJ.accent}/>
-            <StatCard label="Club" value={asso?.nom||"—"} color="#a78bfa"/>
-            <StatCard label="Jours actifs" value="—" bientot/>
-            <StatCard label="Heure favorite" value="—" bientot/>
-            <StatCard label="Jour favori"   value="—" bientot/>
-          </div>
-
-          {/* Historique DRIX (mini) */}
-          {drixMvts.length > 0 && (
-            <>
-              <SectionTitle>📈 Historique DRIX</SectionTitle>
-              <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,overflow:"hidden" }}>
-                {drixMvts.slice(0,8).map((m,i)=>(
-                  <div key={i} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",borderBottom:i<Math.min(drixMvts.length,8)-1?`1px solid ${CJ.border}`:"none" }}>
-                    <div>
-                      <div style={{ fontWeight:600,fontSize:13 }}>vs {m.adversaire_pseudo||"?"}</div>
-                      <div style={{ fontSize:10,color:CJ.muted }}>{m.resultat==="victoire"?"✅ Victoire":"❌ Défaite"} · {new Date(m.date).toLocaleDateString("fr-FR")}</div>
-                    </div>
-                    <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                      <span style={{ fontSize:11,color:CJ.muted }}>{m.drix_avant}→{m.drix_apres}</span>
-                      <span style={{ fontWeight:800,fontSize:14,color:m.variation>0?CJ.green:CJ.red,background:m.variation>0?"#14532d":"#7f1d1d",borderRadius:6,padding:"2px 8px" }}>{m.variation>0?"+":""}{m.variation}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* Edit profil */}
-          <SectionTitle>👤 Mes informations</SectionTitle>
-          <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:14,padding:18,marginBottom:12 }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
-              <span style={{ fontWeight:700,fontSize:14 }}>Profil personnel</span>
-              {!editMode && <button onClick={()=>setEditMode(true)} style={{ background:"none",border:`1px solid ${CJ.border}`,color:CJ.muted,cursor:"pointer",borderRadius:6,padding:"4px 12px",fontSize:12,touchAction:"manipulation" }}>✏️ Modifier</button>}
-            </div>
-            {!editMode ? (
-              <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
-                {joueur.age && <BadgeJ color={CJ.muted}>🎂 {joueur.age} ans</BadgeJ>}
-                {joueur.ville && <BadgeJ color={CJ.blue}>📍 {joueur.ville}</BadgeJ>}
-                {joueur.style_jeu && <BadgeJ color={CJ.accent}>{STYLES.find(s=>s[0]===joueur.style_jeu)?.[1]||joueur.style_jeu}</BadgeJ>}
-                {bar  ? <BadgeJ color={CJ.accent}>🍺 {bar.nom}</BadgeJ> : <BadgeJ color={CJ.muted}>Pas de bar affilié</BadgeJ>}
-                {asso && <BadgeJ color="#7c3aed">🫂 {asso.nom}</BadgeJ>}
-              </div>
-            ) : (
-              <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-                <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
-                  <div><label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Âge</label>
-                    <input value={editAge} onChange={e=>setEditAge(e.target.value)} type="number" placeholder="Ex: 28" style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"8px 10px",color:CJ.text,fontSize:13 }}/></div>
-                  <div><label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Ville</label>
-                    <input value={editVille} onChange={e=>setEditVille(e.target.value)} placeholder="Ex: Bayonne" style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"8px 10px",color:CJ.text,fontSize:13 }}/></div>
+      {/* Historique DRIX mini */}
+      {drixMvts.length > 0 && (
+        <>
+          <SectionTitle>📈 Historique DRIX</SectionTitle>
+          <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,overflow:"hidden" }}>
+            {drixMvts.slice(0,8).map((m,i)=>(
+              <div key={i} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",borderBottom:i<Math.min(drixMvts.length,8)-1?`1px solid ${CJ.border}`:"none" }}>
+                <div>
+                  <div style={{ fontWeight:600,fontSize:13 }}>vs {m.adversaire_pseudo||"?"}</div>
+                  <div style={{ fontSize:10,color:CJ.muted }}>{m.resultat==="victoire"?"✅ Victoire":"❌ Défaite"} · {new Date(m.date).toLocaleDateString("fr-FR")}</div>
                 </div>
-                <div><label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Style de jeu</label>
-                  <div style={{ display:"flex",gap:6 }}>
-                    {STYLES.map(([v,l])=>(<button key={v} onClick={()=>setEditStyle(v)} style={{ flex:1,background:editStyle===v?CJ.accent+"33":"#111",border:`1px solid ${editStyle===v?CJ.accent:CJ.border}`,borderRadius:8,padding:"7px 4px",cursor:"pointer",fontSize:11,color:editStyle===v?CJ.accent:CJ.muted,fontWeight:editStyle===v?700:400,touchAction:"manipulation" }}>{l}</button>))}
-                  </div>
-                </div>
-                <div style={{ display:"flex",gap:8 }}>
-                  <BtnJ onClick={sauvegarderProfil} disabled={savingEdit} style={{ fontSize:12,padding:"7px 16px" }}>{savingEdit?"…":"💾 Sauvegarder"}</BtnJ>
-                  <BtnJ onClick={()=>setEditMode(false)} variant="dark" style={{ fontSize:12,padding:"7px 16px" }}>Annuler</BtnJ>
+                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                  <span style={{ fontSize:11,color:CJ.muted }}>{m.drix_avant}→{m.drix_apres}</span>
+                  <span style={{ fontWeight:800,fontSize:14,color:m.variation>0?CJ.green:CJ.red,background:m.variation>0?"#14532d":"#7f1d1d",borderRadius:6,padding:"2px 8px" }}>{m.variation>0?"+":""}{m.variation}</span>
                 </div>
               </div>
-            )}
+            ))}
           </div>
-
-          {/* Affiliation bar / asso */}
-          <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-            <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:14,padding:18 }}>
-              <h3 style={{ fontWeight:700,fontSize:14,marginBottom:12,color:CJ.accent }}>🍺 Bar affilié</h3>
-              {bar && <p style={{ color:CJ.green,fontSize:12,marginBottom:10 }}>Actuellement : <strong>{bar.nom}</strong> — {bar.ville}</p>}
-              <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:220,overflowY:"auto" }}>
-                {bars.map(b=>(
-                  <div key={b.slug} onClick={()=>choisirBar(b.slug)} style={{ background:joueur.bar_slug===b.slug?"#1a0800":"#111",border:`1px solid ${joueur.bar_slug===b.slug?CJ.accent:CJ.border}`,borderRadius:8,padding:"9px 12px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",touchAction:"manipulation" }}>
-                    <span style={{ fontWeight:joueur.bar_slug===b.slug?700:400,fontSize:13 }}>{b.nom}</span>
-                    <span style={{ color:CJ.muted,fontSize:11 }}>📍 {b.ville}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:14,padding:18 }}>
-              <h3 style={{ fontWeight:700,fontSize:14,marginBottom:12,color:"#7c3aed" }}>🫂 Association affiliée</h3>
-              {asso && <p style={{ color:CJ.green,fontSize:12,marginBottom:10 }}>Actuellement : <strong>{asso.nom}</strong></p>}
-              <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:180,overflowY:"auto" }}>
-                {associations.map(a=>(
-                  <div key={a.slug} onClick={()=>choisirAsso(a.slug)} style={{ background:joueur.asso_slug===a.slug?"#1a0f1a":"#111",border:`1px solid ${joueur.asso_slug===a.slug?"#7c3aed":CJ.border}`,borderRadius:8,padding:"9px 12px",cursor:"pointer",display:"flex",justifyContent:"space-between",touchAction:"manipulation" }}>
-                    <span style={{ fontWeight:joueur.asso_slug===a.slug?700:400,fontSize:13 }}>{a.nom}</span>
-                    <span style={{ color:CJ.muted,fontSize:11 }}>📍 {a.ville}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── ONGLET HISTORIQUE ────────────────────────────────────────────── */}
-      {activeTab==="historique" && (
-        <div>
-          <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:14,padding:18 }}>
-            <h2 style={{ fontWeight:800,fontSize:16,marginBottom:14,color:CJ.text }}>📋 Historique des duels <span style={{ color:CJ.muted,fontWeight:400,fontSize:13 }}>({termines.length})</span></h2>
-            {termines.length === 0
-              ? <p style={{ color:CJ.muted,fontSize:13 }}>Aucun duel terminé pour l'instant.</p>
-              : termines.map(d => {
-                  const isC  = d.challenger_id === joueur.id;
-                  const adv  = isC ? d.defie_pseudo : d.challenger_pseudo;
-                  const advId = isC ? d.defie_id : d.challenger_id;
-                  const {sc,sd} = fixManches(d);
-                  const monM = isC?sc:sd, sonM = isC?sd:sc;
-                  const monMoy = isC?d.score_challenger:d.score_defie;
-                  const gagne = d.gagnant_id === joueur.id;
-                  const variation = drixMvtMap[d.id];
-                  return (
-                    <div key={d.id} style={{ background:"#ffffff0a",border:`1px solid ${gagne?CJ.green+"33":CJ.red+"33"}`,borderRadius:10,padding:12,marginBottom:8 }}>
-                      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8 }}>
-                        <div>
-                          <span style={{ fontWeight:700,fontSize:14 }}>vs{" "}
-                            <span onClick={()=>setPage("profil-joueur-"+advId)} style={{ color:CJ.accent,cursor:"pointer",textDecoration:"underline" }}>{adv}</span>
-                          </span>
-                          <div style={{ color:CJ.muted,fontSize:11,marginTop:2 }}>{d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""} · {new Date(d.date).toLocaleDateString("fr-FR")}</div>
-                        </div>
-                        <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
-                          <span style={{ fontWeight:800,fontSize:15 }}>{monM??'?'}–{sonM??'?'}</span>
-                          {monMoy && <span style={{ fontSize:11,color:CJ.accent }}>Moy. {Math.round(monMoy)}</span>}
-                          <BadgeJ color={gagne?CJ.green:CJ.red}>{gagne?"✅ Victoire":"❌ Défaite"}</BadgeJ>
-                          {variation !== undefined && (
-                            <span style={{ fontWeight:800,fontSize:12,color:variation>0?CJ.green:CJ.red,background:variation>0?"#14532d":"#7f1d1d",borderRadius:6,padding:"2px 8px" }}>
-                              {variation>0?"+":""}{variation} DRIX
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-            }
-          </div>
-        </div>
+        </>
       )}
     </div>
   );
@@ -1131,32 +923,183 @@ export const PageProfilAmis = ({ joueur, setPage }) => (
   </div>
 );
 
-// ── PAGE BADGES (en construction) ─────────────────────────────────────────────
-export const PageProfilBadges = ({ setPage }) => (
-  <div style={{ maxWidth:500, margin:"0 auto", padding:"60px 20px", textAlign:"center" }}>
-    <button onClick={()=>setPage("mon-profil")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:40,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
-    <div style={{ fontSize:80,marginBottom:24 }}>🏅</div>
-    <h1 style={{ fontWeight:900,fontSize:28,marginBottom:10 }}>Badges</h1>
-    <p style={{ color:CJ.muted,fontSize:15,marginBottom:32,lineHeight:1.7 }}>
-      Débloque des badges en jouant,<br/>en gagnant des défis et en participant aux tournois.
-    </p>
-    <div style={{ background:"linear-gradient(135deg,#1a1a1a,#111)",border:`1px solid #f9731644`,borderRadius:20,padding:32,marginBottom:24 }}>
-      <div style={{ fontSize:36,marginBottom:12 }}>🚧</div>
-      <div style={{ fontWeight:900,fontSize:18,color:"#f97316",marginBottom:8 }}>En construction</div>
-      <div style={{ color:CJ.muted,fontSize:13,lineHeight:1.6 }}>
-        Les badges arrivent bientôt !<br/>Continue à jouer pour être parmi les premiers à en débloquer.
+// ── PAGE HISTORIQUE ────────────────────────────────────────────────────────────
+export const PageProfilHistorique = ({ joueur, setPage }) => {
+  const [duels, setDuels]       = useState([]);
+  const [drixMvtMap, setDrixMvtMap] = useState({});
+  const [loading, setLoading]   = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      dbJ.getDuels(joueur.id),
+      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&select=*`).catch(()=>[]),
+    ]).then(([d, mvts]) => {
+      setDuels(d||[]);
+      const map = {};
+      (mvts||[]).forEach(m => { if (m.duel_id) map[m.duel_id] = m.variation; });
+      setDrixMvtMap(map);
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  }, [joueur.id]);
+
+  if (loading) return <SpinnerJ/>;
+
+  const termines = duels.filter(d => d.statut === "termine");
+
+  return (
+    <div style={{ maxWidth:860, margin:"0 auto", padding:"16px 16px 40px" }}>
+      <button onClick={()=>setPage("mon-profil")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
+      <h1 style={{ fontWeight:900, fontSize:22, marginBottom:4 }}>📜 Historique</h1>
+      <p style={{ color:CJ.muted, fontSize:13, marginBottom:20 }}>{termines.length} duel{termines.length>1?"s":""} terminé{termines.length>1?"s":""}</p>
+      <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:18 }}>
+        {termines.length === 0
+          ? <p style={{ color:CJ.muted, fontSize:13 }}>Aucun duel terminé pour l'instant.</p>
+          : termines.map(d => {
+              const isC  = d.challenger_id === joueur.id;
+              const adv  = isC ? d.defie_pseudo : d.challenger_pseudo;
+              const advId = isC ? d.defie_id : d.challenger_id;
+              const {sc,sd} = fixManches(d);
+              const monM = isC?sc:sd, sonM = isC?sd:sc;
+              const monMoy = isC?d.score_challenger:d.score_defie;
+              const gagne = d.gagnant_id === joueur.id;
+              const variation = drixMvtMap[d.id];
+              return (
+                <div key={d.id} style={{ background:"#ffffff0a", border:`1px solid ${gagne?CJ.green+"33":CJ.red+"33"}`, borderRadius:10, padding:12, marginBottom:8 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8 }}>
+                    <div>
+                      <span style={{ fontWeight:700, fontSize:14 }}>vs{" "}
+                        <span onClick={()=>setPage("profil-joueur-"+advId)} style={{ color:CJ.accent, cursor:"pointer", textDecoration:"underline" }}>{adv}</span>
+                      </span>
+                      <div style={{ color:CJ.muted, fontSize:11, marginTop:2 }}>{d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""} · {new Date(d.date).toLocaleDateString("fr-FR")}</div>
+                    </div>
+                    <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                      <span style={{ fontWeight:800, fontSize:15 }}>{monM??'?'}–{sonM??'?'}</span>
+                      {monMoy && <span style={{ fontSize:11, color:CJ.accent }}>Moy. {Math.round(monMoy)}</span>}
+                      <BadgeJ color={gagne?CJ.green:CJ.red}>{gagne?"✅ Victoire":"❌ Défaite"}</BadgeJ>
+                      {variation !== undefined && (
+                        <span style={{ fontWeight:800, fontSize:12, color:variation>0?CJ.green:CJ.red, background:variation>0?"#14532d":"#7f1d1d", borderRadius:6, padding:"2px 8px" }}>
+                          {variation>0?"+":""}{variation} DRIX
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+        }
       </div>
     </div>
-    <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,opacity:0.3 }}>
-      {["🎯","🏆","⚔️","🔥","💎","👑"].map((e,i)=>(
-        <div key={i} style={{ background:CJ.card,borderRadius:14,padding:20,textAlign:"center" }}>
-          <div style={{ fontSize:32,marginBottom:6 }}>{e}</div>
-          <div style={{ fontSize:11,color:CJ.muted }}>???</div>
-        </div>
-      ))}
+  );
+};
+
+// ── PAGE BADGES ───────────────────────────────────────────────────────────────
+export const PageProfilBadges = ({ joueur, setPage }) => {
+  const [stats, setStats]   = useState(null);
+  const [duels, setDuels]   = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      dbJ.getStats(joueur.id),
+      dbJ.getDuels(joueur.id),
+    ]).then(([s,d])=>{ setStats(s); setDuels(d||[]); setLoading(false); }).catch(()=>setLoading(false));
+  }, [joueur.id]);
+
+  if (loading) return <SpinnerJ/>;
+
+  const termines = (duels||[]).filter(d=>d.statut==="termine");
+  const victoires = stats?.victoires ?? 0;
+  const parties   = stats?.parties   ?? 0;
+  const drix      = joueur.drix || 1000;
+
+  // Scoring depuis manches_detail
+  let nb180=0, nb140=0, nb100=0, plusGrosFinish=0;
+  termines.forEach(d => {
+    (d.manches_detail||[]).forEach(m => {
+      const isW = m.winner === joueur.pseudo;
+      nb180 += isW ? (m.winner_180||0) : (m.loser_180||0);
+      nb140 += isW ? (m.winner_140plus||0) : (m.loser_140plus||0);
+      nb100 += isW ? (m.winner_100plus||0) : (m.loser_100plus||0);
+      const fin = isW ? (m.winner_finish||0) : 0;
+      plusGrosFinish = Math.max(plusGrosFinish, fin);
+    });
+  });
+
+  const BADGES = [
+    // Duels
+    { id:"first_duel",    emoji:"🎯", nom:"Premier duel",     desc:"Jouer son premier duel",           seuil:1,   valeur:parties,   couleur:"#60a5fa" },
+    { id:"duel_10",       emoji:"⚔️", nom:"Combattant",        desc:"Jouer 10 duels",                  seuil:10,  valeur:parties,   couleur:"#60a5fa" },
+    { id:"duel_50",       emoji:"🔱", nom:"Guerrier",          desc:"Jouer 50 duels",                  seuil:50,  valeur:parties,   couleur:"#a78bfa" },
+    { id:"duel_100",      emoji:"💎", nom:"Vétéran",           desc:"Jouer 100 duels",                 seuil:100, valeur:parties,   couleur:"#ffd700" },
+    // Victoires
+    { id:"first_win",     emoji:"🏆", nom:"Première victoire", desc:"Gagner son premier duel",         seuil:1,   valeur:victoires, couleur:"#22c55e" },
+    { id:"win_10",        emoji:"🔥", nom:"En feu",            desc:"10 victoires",                    seuil:10,  valeur:victoires, couleur:"#f97316" },
+    { id:"win_50",        emoji:"👑", nom:"Champion",          desc:"50 victoires",                    seuil:50,  valeur:victoires, couleur:"#f59e0b" },
+    { id:"win_100",       emoji:"🌟", nom:"Légende vivante",   desc:"100 victoires",                   seuil:100, valeur:victoires, couleur:"#ffd700" },
+    // Rangs DRIX
+    { id:"rank_confirmé", emoji:"⭐", nom:"Confirmé",          desc:"Atteindre 1100 DRIX",             seuil:1,   valeur:drix>=1100?1:0,  couleur:"#22c55e" },
+    { id:"rank_expert",   emoji:"⭐⭐", nom:"Expert",           desc:"Atteindre 1300 DRIX",             seuil:1,   valeur:drix>=1300?1:0,  couleur:"#f59e0b" },
+    { id:"rank_elite",    emoji:"💎", nom:"Élite",             desc:"Atteindre 1500 DRIX",             seuil:1,   valeur:drix>=1500?1:0,  couleur:"#a78bfa" },
+    { id:"rank_legende",  emoji:"🏆", nom:"Légende",           desc:"Atteindre 1700 DRIX",             seuil:1,   valeur:drix>=1700?1:0,  couleur:"#f97316" },
+    // Scoring
+    { id:"s_180",         emoji:"🎯", nom:"Le 180",            desc:"Marquer un premier 180",          seuil:1,   valeur:nb180,     couleur:"#ef4444" },
+    { id:"s_5x180",       emoji:"🎯🎯", nom:"Machine à 180",   desc:"Marquer 5 fois 180",              seuil:5,   valeur:nb180,     couleur:"#ef4444" },
+    { id:"s_finish100",   emoji:"💯", nom:"Finish 100+",       desc:"Réussir un finish 100 ou plus",   seuil:1,   valeur:plusGrosFinish>=100?1:0, couleur:"#22c55e" },
+    { id:"s_finish120",   emoji:"🎯💯", nom:"Gros finish",      desc:"Réussir un finish 120 ou plus",   seuil:1,   valeur:plusGrosFinish>=120?1:0, couleur:"#ffd700" },
+  ];
+
+  const debloqués  = BADGES.filter(b => b.valeur >= b.seuil);
+  const verrouillés = BADGES.filter(b => b.valeur < b.seuil);
+
+  const BadgeCard = ({ b }) => {
+    const unlocked = b.valeur >= b.seuil;
+    const pct = unlocked ? 100 : Math.min(99, Math.round((b.valeur / b.seuil) * 100));
+    return (
+      <div style={{ background:unlocked?b.couleur+"18":CJ.card, border:`1px solid ${unlocked?b.couleur+"66":CJ.border}`, borderRadius:14, padding:14, position:"relative", overflow:"hidden" }}>
+        <div style={{ fontSize:30, marginBottom:8 }}>{b.emoji}</div>
+        <div style={{ fontWeight:700, fontSize:13, marginBottom:3, color:unlocked?b.couleur:CJ.text }}>{b.nom}</div>
+        <div style={{ fontSize:11, color:CJ.muted, marginBottom:unlocked?0:10 }}>{b.desc}</div>
+        {!unlocked && (
+          <>
+            <div style={{ background:"#ffffff12", borderRadius:4, height:4, overflow:"hidden" }}>
+              <div style={{ height:"100%", width:`${pct}%`, background:b.couleur, borderRadius:4, transition:"width 0.6s ease" }}/>
+            </div>
+            <div style={{ fontSize:10, color:CJ.muted, marginTop:4 }}>{b.valeur} / {b.seuil}</div>
+          </>
+        )}
+        {unlocked && (
+          <div style={{ position:"absolute", top:8, right:8, fontSize:12 }}>✅</div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ maxWidth:600, margin:"0 auto", padding:"16px 16px 40px" }}>
+      <button onClick={()=>setPage("mon-profil")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
+      <h1 style={{ fontWeight:900, fontSize:22, marginBottom:4 }}>🏅 Mes badges</h1>
+      <p style={{ color:CJ.muted, fontSize:13, marginBottom:20 }}>{debloqués.length} / {BADGES.length} débloqués</p>
+
+      {debloqués.length > 0 && (
+        <>
+          <div style={{ fontSize:11,color:CJ.muted,fontWeight:700,letterSpacing:1,marginBottom:10 }}>DÉBLOQUÉS ({debloqués.length})</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10, marginBottom:20 }}>
+            {debloqués.map(b=><BadgeCard key={b.id} b={b}/>)}
+          </div>
+        </>
+      )}
+
+      {verrouillés.length > 0 && (
+        <>
+          <div style={{ fontSize:11,color:CJ.muted,fontWeight:700,letterSpacing:1,marginBottom:10 }}>EN COURS ({verrouillés.length})</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10, opacity:0.7 }}>
+            {verrouillés.map(b=><BadgeCard key={b.id} b={b}/>)}
+          </div>
+        </>
+      )}
     </div>
-  </div>
-);
+  );
+};
 
 // ── PAGE JOUEURS (liste publique) ─────────────────────────────────────────────
 export const PageJoueurs = ({ joueur, setPage }) => {
@@ -1693,15 +1636,7 @@ export const MembresBarSection = ({ barSlug, setPage }) => {
 };
 
 // ── SYSTÈME DRIX ──────────────────────────────────────────────────────────────
-export const getDrixTitre = (drix) => {
-  if (drix < 900)  return { titre:"Novice",    emoji:"🎯",  color:"#94a3b8" };
-  if (drix < 1100) return { titre:"Amateur",   emoji:"🎯🎯", color:"#60a5fa" };
-  if (drix < 1300) return { titre:"Confirmé",  emoji:"⭐",  color:"#22c55e" };
-  if (drix < 1500) return { titre:"Expert",    emoji:"⭐⭐", color:"#f59e0b" };
-  if (drix < 1700) return { titre:"Elite",     emoji:"💎",  color:"#a78bfa" };
-  if (drix < 1900) return { titre:"Master",    emoji:"👑",  color:"#f97316" };
-  return              { titre:"Légende",   emoji:"🏆",  color:"#ef4444" };
-};
+export const getDrixTitre = getDrixTitreLocal;
 
 // ── Formule DRIX asymétrique ───────────────────────────────────────────────────
 //

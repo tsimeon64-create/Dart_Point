@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import {
   Connexion, MonProfil, PageJoueurs, FicheJoueur,
-  PageProfilStats, PageProfilAmis, PageProfilBadges,
+  PageProfilStats, PageProfilAmis, PageProfilBadges, PageProfilHistorique,
   PresenceSection, MembresBarSection,
   PageDrix, DrixBadge, HistoriqueDrix,
   AmiSection,
@@ -3238,7 +3238,8 @@ export default function App() {
         {page==="mon-profil"       && joueur && <MonProfil joueur={joueur} setJoueur={setJoueur} bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug} setJoueurId={setJoueurId} demandesAmisCount={demandesAmisCount}/>}
         {page==="profil-stats"     && joueur && <PageProfilStats joueur={joueur} setJoueur={setJoueur} bars={bars} associations={associations} setPage={nav}/>}
         {page==="profil-amis"      && joueur && <PageProfilAmis joueur={joueur} setPage={nav}/>}
-        {page==="profil-badges"    && joueur && <PageProfilBadges setPage={nav}/>}
+        {page==="profil-badges"    && joueur && <PageProfilBadges joueur={joueur} setPage={nav}/>}
+        {page==="profil-historique" && joueur && <PageProfilHistorique joueur={joueur} setPage={nav}/>}
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav}/>}
         {page==="scoreur"          && <Scoreur setPage={nav}/>}
         {page==="jeux"             && <PageModeJeu joueur={joueur} setPage={nav}/>}
