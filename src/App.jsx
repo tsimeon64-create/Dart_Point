@@ -919,7 +919,7 @@ const DoubletteFlow = ({ joueur, amis, amisData, setPage }) => {
           <div>
             <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Manches</div>
             <div style={{ display:"flex",gap:4 }}>
-              {[1,3,5].map(n=><button key={n} onClick={()=>setForm(f=>({...f,manches:n}))} style={{ flex:1,padding:"9px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:form.manches===n?C.accent:"#222",color:form.manches===n?"#fff":C.muted }}>{n}</button>)}
+              {[1,2,3,5].map(n=><button key={n} onClick={()=>setForm(f=>({...f,manches:n}))} style={{ flex:1,padding:"9px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:form.manches===n?C.accent:"#222",color:form.manches===n?"#fff":C.muted }}>{n}</button>)}
             </div>
           </div>
         </div>
@@ -1142,181 +1142,72 @@ const PageDefi = ({ joueur, setPage }) => {
 };
 
 // ── SCOREUR DOUBLETTE ──────────────────────────────────────────────────────────
+// Thin wrapper: reuses the existing <Scoreur> component entirely.
+// Team names displayed as first 3 letters uppercase: "THO / HER" vs "TOT / CYR"
+// DRIX applied to all 4 players via onResultat intercept.
 const ScoreurDoublette = ({ joueur, setPage }) => {
-  const [config] = useState(() => {
+  const config = (() => {
     try { return JSON.parse(localStorage.getItem("dp_doublette")||"null"); }
     catch { return window.__dpDoublette||null; }
-  });
+  })();
 
-  const startScore = config?.mode==="301"?301:501;
-  const manchesMax = config?.manches||1;
-  const targetLegs = Math.ceil(manchesMax/2);
+  if (!config) return <div style={{ textAlign:"center",padding:60,color:C.muted }}>Configuration introuvable.</div>;
 
-  const [scores,setScores]=useState([startScore,startScore]);
-  const [legsWon,setLegsWon]=useState([0,0]);
-  const [turnIdx,setTurnIdx]=useState(0);
-  const [input,setInput]=useState("");
-  const [betweenLegs,setBetweenLegs]=useState(null); // { winner:"A"|"B" }
-  const [finished,setFinished]=useState(false);
-  const [winnersTeam,setWinnersTeam]=useState(null);
-  const [processing,setProcessing]=useState(false);
-  const [drixResult,setDrixResult]=useState(null);
+  const abbr = (pseudo) => (pseudo||"?").slice(0,3).toUpperCase();
+  const teamAName = `${abbr(config.teamA[0]?.pseudo)} / ${abbr(config.teamA[1]?.pseudo)}`;
+  const teamBName = `${abbr(config.teamB[0]?.pseudo)} / ${abbr(config.teamB[1]?.pseudo)}`;
 
-  if(!config) return <div style={{ textAlign:"center",padding:60,color:C.muted }}>Configuration introuvable.</div>;
+  const fakeDuel = {
+    challenger_pseudo: teamAName,
+    defie_pseudo:      teamBName,
+    mode:              config.mode   || "501",
+    manches:           config.manches || 1,
+  };
 
-  // Ordre : A1, B1, A2, B2, repeat
-  const playerOrder=[config.teamA[0],config.teamB[0],config.teamA[1],config.teamB[1]];
-  const curIdx=turnIdx%4;
-  const currentPlayer=playerOrder[curIdx];
-  const currentTeam=curIdx===0||curIdx===2?0:1; // 0=A, 1=B
+  // Pre-compute drixData so Scoreur can show gain/loss on the final screen
+  const teamADrix = Math.round(((config.teamA[0]?.drix||1000) + (config.teamA[1]?.drix||1000)) / 2);
+  const teamBDrix = Math.round(((config.teamB[0]?.drix||1000) + (config.teamB[1]?.drix||1000)) / 2);
+  const K  = 32 * Math.max(1, config.manches || 1);
+  const EA = 1 / (1 + Math.pow(10, (teamBDrix - teamADrix) / 400));
+  const gainA = Math.round(K * (1 - EA));
+  const perteA = Math.round(K * EA);
+  const drixData = {
+    challenger: { gain: gainA, perte: perteA },
+    defie:      { gain: perteA, perte: gainA },
+  };
 
-  const applyDrix=async(teamAWon)=>{
-    setProcessing(true);
+  // Called by Scoreur when the match is over (onResultat bypasses Supabase write)
+  const handleResultat = async ({ gagnantNom }) => {
+    const teamAWon = gagnantNom === teamAName;
     try {
-      const ids=[...config.teamA,...config.teamB].map(p=>p.id).filter(Boolean);
-      const players=await sb(`joueurs?id=in.(${ids.join(",")})&select=id,drix`).catch(()=>[]);
-      const getDrix=(id)=>players?.find(p=>p.id===id)?.drix||1000;
-      const dA1=getDrix(config.teamA[0].id),dA2=getDrix(config.teamA[1].id);
-      const dB1=getDrix(config.teamB[0].id),dB2=getDrix(config.teamB[1].id);
-      const teamADrix=Math.round((dA1+dA2)/2), teamBDrix=Math.round((dB1+dB2)/2);
-      const K=32*Math.max(1,manchesMax);
-      const EA=1/(1+Math.pow(10,(teamBDrix-teamADrix)/400));
-      const varA=teamAWon?Math.round(K*(1-EA)):-Math.round(K*EA);
-      const varB=teamAWon?-Math.round(K*(1-EA)):Math.round(K*EA);
+      const ids = [...config.teamA, ...config.teamB].map(p => p?.id).filter(Boolean);
+      const players = await sb(`joueurs?id=in.(${ids.join(",")})&select=id,drix`).catch(() => []);
+      const getDrix = (id) => players?.find(p => p.id === id)?.drix || 1000;
+      const dA1 = getDrix(config.teamA[0]?.id), dA2 = getDrix(config.teamA[1]?.id);
+      const dB1 = getDrix(config.teamB[0]?.id), dB2 = getDrix(config.teamB[1]?.id);
+      const tAD = Math.round((dA1 + dA2) / 2), tBD = Math.round((dB1 + dB2) / 2);
+      const Kf  = 32 * Math.max(1, config.manches || 1);
+      const EAf = 1 / (1 + Math.pow(10, (tBD - tAD) / 400));
+      const varA = teamAWon ?  Math.round(Kf * (1 - EAf)) : -Math.round(Kf * EAf);
+      const varB = teamAWon ? -Math.round(Kf * (1 - EAf)) :  Math.round(Kf * EAf);
       await Promise.all([
-        sb(`joueurs?id=eq.${config.teamA[0].id}`,{method:"PATCH",body:JSON.stringify({drix:Math.max(100,dA1+varA)}),prefer:"return=minimal"}),
-        sb(`joueurs?id=eq.${config.teamA[1].id}`,{method:"PATCH",body:JSON.stringify({drix:Math.max(100,dA2+varA)}),prefer:"return=minimal"}),
-        sb(`joueurs?id=eq.${config.teamB[0].id}`,{method:"PATCH",body:JSON.stringify({drix:Math.max(100,dB1+varB)}),prefer:"return=minimal"}),
-        sb(`joueurs?id=eq.${config.teamB[1].id}`,{method:"PATCH",body:JSON.stringify({drix:Math.max(100,dB2+varB)}),prefer:"return=minimal"}),
+        sb(`joueurs?id=eq.${config.teamA[0]?.id}`, { method:"PATCH", body:JSON.stringify({ drix: Math.max(100, dA1 + varA) }), prefer:"return=minimal" }),
+        sb(`joueurs?id=eq.${config.teamA[1]?.id}`, { method:"PATCH", body:JSON.stringify({ drix: Math.max(100, dA2 + varA) }), prefer:"return=minimal" }),
+        sb(`joueurs?id=eq.${config.teamB[0]?.id}`, { method:"PATCH", body:JSON.stringify({ drix: Math.max(100, dB1 + varB) }), prefer:"return=minimal" }),
+        sb(`joueurs?id=eq.${config.teamB[1]?.id}`, { method:"PATCH", body:JSON.stringify({ drix: Math.max(100, dB2 + varB) }), prefer:"return=minimal" }),
       ]);
-      setDrixResult({varA,varB,teamAWon});
-    } catch(e){console.error("DRIX doublette:",e);}
-    setProcessing(false);
+    } catch(e) { console.error("DRIX doublette:", e); }
+    try { localStorage.removeItem("dp_doublette"); } catch {}
   };
 
-  const valider=()=>{
-    const pts=parseInt(input);
-    if(isNaN(pts)||pts<0||pts>180){setInput("");return;}
-    const newScores=[...scores];
-    const rem=newScores[currentTeam]-pts;
-    if(rem<0){setInput("");setTurnIdx(t=>t+1);return;} // bust
-    newScores[currentTeam]=rem;
-    setScores(newScores);
-    if(rem===0){
-      const nw=[...legsWon]; nw[currentTeam]++;
-      setLegsWon(nw);
-      if(nw[currentTeam]>=targetLegs){
-        const winner=currentTeam===0?"A":"B";
-        setWinnersTeam(winner); setFinished(true);
-        applyDrix(currentTeam===0);
-      } else {
-        setBetweenLegs({winner:currentTeam===0?"A":"B",teamA:nw[0],teamB:nw[1]});
-      }
-    } else {
-      setTurnIdx(t=>t+1);
-    }
-    setInput("");
-  };
-
-  // Écran victoire
-  if(finished){
-    const winTeam=winnersTeam==="A"?config.teamA:config.teamB;
-    const loseTeam=winnersTeam==="A"?config.teamB:config.teamA;
-    const winVar=drixResult?(winnersTeam==="A"?drixResult.varA:drixResult.varB):null;
-    const loseVar=drixResult?(winnersTeam==="A"?drixResult.varB:drixResult.varA):null;
-    return (
-      <div style={{ maxWidth:480,margin:"0 auto",padding:"50px 20px",textAlign:"center" }}>
-        <div style={{ fontSize:64,marginBottom:12 }}>🏆</div>
-        <h1 style={{ fontWeight:800,fontSize:26,marginBottom:6 }}>Victoire Équipe {winnersTeam} !</h1>
-        <p style={{ color:C.muted,fontSize:14,marginBottom:24 }}>{winTeam.map(p=>p.pseudo).join(" & ")}</p>
-        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:20,marginBottom:24 }}>
-          {processing&&<p style={{ color:C.muted,marginBottom:8 }}>⏳ Calcul des DRIX…</p>}
-          {winVar!=null&&<>
-            <p style={{ color:C.green,fontWeight:700,fontSize:20,marginBottom:4 }}>+{winVar} DRIX chacun</p>
-            <p style={{ color:C.muted,fontSize:13,marginBottom:12 }}>🏆 {winTeam.map(p=>p.pseudo).join(" & ")}</p>
-            <p style={{ color:"#f87171",fontWeight:700,fontSize:16,marginBottom:4 }}>{loseVar} DRIX chacun</p>
-            <p style={{ color:C.muted,fontSize:13 }}>💀 {loseTeam.map(p=>p.pseudo).join(" & ")}</p>
-          </>}
-          <div style={{ marginTop:16,padding:"10px 14px",background:"#111",borderRadius:10,fontSize:12,color:C.muted }}>
-            Score final · Éq. A {legsWon[0]} — {legsWon[1]} Éq. B
-          </div>
-        </div>
-        <div style={{ display:"flex",gap:10,justifyContent:"center" }}>
-          <Btn onClick={()=>{try{localStorage.removeItem("dp_doublette");}catch{}setPage("defi");}}>← Retour aux défis</Btn>
-        </div>
-      </div>
-    );
-  }
-
-  // Écran entre deux manches
-  if(betweenLegs){
-    return (
-      <div style={{ maxWidth:480,margin:"0 auto",padding:"50px 20px",textAlign:"center" }}>
-        <div style={{ fontSize:50,marginBottom:12 }}>🎯</div>
-        <h2 style={{ fontWeight:800,fontSize:22,marginBottom:6 }}>Manche pour l'Équipe {betweenLegs.winner} !</h2>
-        <p style={{ color:C.muted,marginBottom:20 }}>Score : {betweenLegs.teamA} — {betweenLegs.teamB}</p>
-        <Btn onClick={()=>{setBetweenLegs(null);setScores([startScore,startScore]);setTurnIdx(t=>t+1);}} style={{ fontSize:15,padding:"13px 32px" }}>
-          Manche suivante →
-        </Btn>
-      </div>
-    );
-  }
-
-  // Écran de jeu
-  const teamColors=["#60a5fa","#f87171"];
   return (
-    <div style={{ maxWidth:500,margin:"0 auto",padding:"20px 16px 40px" }}>
-      {/* Scores des équipes */}
-      <div style={{ display:"grid",gridTemplateColumns:"1fr 48px 1fr",gap:8,marginBottom:16 }}>
-        {[0,1].map(t=>(
-          <div key={t} style={{ background:t===currentTeam?"#1a1a1a":C.card,border:`2px solid ${t===currentTeam?teamColors[t]:C.border}`,borderRadius:14,padding:"14px 10px",textAlign:"center",transition:"all .2s" }}>
-            <div style={{ fontSize:10,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:4 }}>ÉQ. {t===0?"A":"B"}</div>
-            <div style={{ fontWeight:800,fontSize:38,color:t===currentTeam?teamColors[t]:C.text,lineHeight:1 }}>{scores[t]}</div>
-            <div style={{ fontSize:11,color:C.muted,marginTop:6 }}>{config[t===0?"teamA":"teamB"].map(p=>p.pseudo).join(" & ")}</div>
-            <div style={{ fontSize:13,marginTop:6 }}>
-              {"●".repeat(legsWon[t])}{"○".repeat(Math.max(0,targetLegs-legsWon[t]))}
-            </div>
-          </div>
-        ))}
-        <div style={{ display:"flex",alignItems:"center",justifyContent:"center" }}>
-          <span style={{ fontSize:16,color:C.muted,fontWeight:700 }}>vs</span>
-        </div>
-      </div>
-
-      {/* Tour actuel */}
-      <div style={{ background:"#111",border:`2px solid ${teamColors[currentTeam]}44`,borderRadius:12,padding:"13px 16px",marginBottom:14,textAlign:"center" }}>
-        <div style={{ fontSize:11,color:C.muted,marginBottom:3 }}>Au tour de</div>
-        <div style={{ fontWeight:800,fontSize:20,color:teamColors[currentTeam] }}>{currentPlayer?.pseudo}</div>
-        <div style={{ fontSize:11,color:C.muted,marginTop:2 }}>Équipe {currentTeam===0?"A":"B"} · {config.mode}</div>
-      </div>
-
-      {/* Saisie score */}
-      <div style={{ display:"flex",gap:8,marginBottom:10 }}>
-        <input type="number" min="0" max="180" value={input}
-          onChange={e=>setInput(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&valider()}
-          placeholder="0 – 180"
-          style={{ flex:1,background:"#111",border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px",color:C.text,fontSize:22,fontWeight:700,textAlign:"center" }}
-          autoFocus
-        />
-        <Btn onClick={valider} style={{ padding:"14px 22px",fontSize:18,minWidth:58 }}>✓</Btn>
-      </div>
-
-      {/* Raccourcis scores */}
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:5,marginBottom:14 }}>
-        {[26,41,45,60,81,85,100,121,140,180].map(s=>(
-          <button key={s} onClick={()=>setInput(String(s))} style={{ background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 0",cursor:"pointer",fontSize:12,fontWeight:600,color:C.text }}>
-            {s}
-          </button>
-        ))}
-      </div>
-
-      {/* Info bas */}
-      <div style={{ display:"flex",justifyContent:"space-between",color:C.muted,fontSize:12,padding:"0 2px" }}>
-        <span>Manche {legsWon[0]+legsWon[1]+1} / {manchesMax}</span>
-        <span>Best of {manchesMax} — cible {targetLegs} victoires</span>
-      </div>
-    </div>
+    <Scoreur
+      duel={fakeDuel}
+      drixData={drixData}
+      onResultat={handleResultat}
+      onDuelTermine={() => { try { localStorage.removeItem("dp_doublette"); } catch {} }}
+      setPage={setPage}
+    />
   );
 };
 
