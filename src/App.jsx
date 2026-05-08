@@ -774,6 +774,164 @@ const MatchActifCard = ({ d, joueur, setPage, onAbandon }) => {
   );
 };
 
+// ── DOUBLETTE ──────────────────────────────────────────────────────────────────
+const couleurPseudo = (pseudo) => {
+  const cols=["#f97316","#60a5fa","#22c55e","#a78bfa","#f59e0b","#ec4899"];
+  let h=0; for(const c of pseudo||"") h=(h*31+c.charCodeAt(0))%cols.length; return cols[h];
+};
+
+const JoueurSelectCard = ({ j, selected, onSelect, disabled }) => {
+  const col=couleurPseudo(j.pseudo); const {emoji,color}=getDrixTitre(j.drix||1000);
+  return (
+    <div onClick={disabled?undefined:onSelect}
+      style={{ background:selected?C.accent+"22":C.card,border:`2px solid ${selected?C.accent:C.border}`,borderRadius:12,padding:"11px 14px",cursor:disabled?"not-allowed":"pointer",display:"flex",alignItems:"center",gap:12,opacity:disabled&&!selected?.35:1,transition:"all .12s" }}>
+      <div style={{ width:42,height:42,borderRadius:"50%",background:col+"22",border:`2px solid ${col}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0,overflow:"hidden" }}>
+        {j.photo?<img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>:<span>{emoji}</span>}
+      </div>
+      <div style={{ flex:1 }}>
+        <div style={{ fontWeight:700,fontSize:14 }}>{j.pseudo}</div>
+        <div style={{ fontSize:11,color,marginTop:1 }}>{emoji} {j.drix||1000} DRIX</div>
+      </div>
+      {selected&&<span style={{ color:C.accent,fontSize:20,fontWeight:700 }}>✓</span>}
+    </div>
+  );
+};
+
+const DoubletteFlow = ({ joueur, amis, amisData, setPage }) => {
+  const [step,setStep]=useState(1);
+  const [partner,setPartner]=useState(null);
+  const [adv1,setAdv1]=useState(null);
+  const [adv2,setAdv2]=useState(null);
+  const [form,setForm]=useState({ mode:"501",manches:1 });
+  const [launching,setLaunching]=useState(false);
+
+  const friendsList=useMemo(()=>amis.map(a=>{
+    const id=a.joueur_id===joueur.id?a.ami_id:a.joueur_id;
+    const pseudo=a.joueur_id===joueur.id?a.ami_pseudo:a.joueur_pseudo;
+    const profil=amisData[id]||{};
+    return {id,pseudo,drix:profil.drix||1000,photo:profil.photo||null};
+  }),[amis,amisData,joueur.id]);
+
+  const me={id:joueur.id,pseudo:joueur.pseudo,drix:joueur.drix||1000,photo:joueur.photo||null};
+
+  const launch=()=>{
+    if(!partner||!adv1||!adv2||launching) return;
+    setLaunching(true);
+    const config={teamA:[me,partner],teamB:[adv1,adv2],mode:form.mode,manches:form.manches};
+    window.__dpDoublette=config;
+    try{localStorage.setItem("dp_doublette",JSON.stringify(config));}catch{}
+    setPage("scoreur-doublette");
+  };
+
+  const noFriends=<div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:24,textAlign:"center" }}><p style={{ color:C.muted,marginBottom:12 }}>Tu n'as pas encore d'amis sur DartPoint.</p><Btn onClick={()=>setPage("joueurs")} style={{ fontSize:13 }}>👥 Trouver des joueurs</Btn></div>;
+
+  // ── Étape 1 : choix équipier ──
+  if(step===1) return (
+    <div>
+      <h2 style={{ fontWeight:700,fontSize:16,marginBottom:4 }}>👥 Choisis ton équipier</h2>
+      <p style={{ color:C.muted,fontSize:13,marginBottom:14 }}>Équipe A : toi + 1 équipier</p>
+      {friendsList.length===0?noFriends:(
+        <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
+          {friendsList.map(f=><JoueurSelectCard key={f.id} j={f} selected={partner?.id===f.id} onSelect={()=>setPartner(partner?.id===f.id?null:f)}/>)}
+        </div>
+      )}
+      <Btn onClick={()=>setStep(2)} disabled={!partner} style={{ width:"100%" }}>Choisir les adversaires →</Btn>
+    </div>
+  );
+
+  // ── Étape 2 : choix adversaires ──
+  if(step===2) {
+    const available=friendsList.filter(f=>f.id!==partner?.id);
+    const isAdv=(id)=>adv1?.id===id||adv2?.id===id;
+    const toggleAdv=(f)=>{
+      if(adv1?.id===f.id){setAdv1(null);return;}
+      if(adv2?.id===f.id){setAdv2(null);return;}
+      if(!adv1){setAdv1(f);return;}
+      if(!adv2){setAdv2(f);return;}
+    };
+    return (
+      <div>
+        <button onClick={()=>setStep(1)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,marginBottom:12 }}>← Retour</button>
+        <h2 style={{ fontWeight:700,fontSize:16,marginBottom:4 }}>⚔️ Choisis vos adversaires</h2>
+        <p style={{ color:C.muted,fontSize:13,marginBottom:14 }}>Équipe B : 2 joueurs ({(adv1?1:0)+(adv2?1:0)}/2 sélectionnés)</p>
+        {available.length<2?<p style={{ color:C.muted,fontSize:13 }}>Il te faut au moins 3 amis pour jouer en doublette.</p>:(
+          <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
+            {available.map(f=><JoueurSelectCard key={f.id} j={f} selected={isAdv(f.id)} onSelect={()=>toggleAdv(f)} disabled={!isAdv(f.id)&&!!adv1&&!!adv2}/>)}
+          </div>
+        )}
+        <Btn onClick={()=>setStep(3)} disabled={!adv1||!adv2} style={{ width:"100%" }}>Configurer la partie →</Btn>
+      </div>
+    );
+  }
+
+  // ── Étape 3 : aperçu + config ──
+  const teamADrix=Math.round(((me.drix||1000)+(partner?.drix||1000))/2);
+  const teamBDrix=Math.round(((adv1?.drix||1000)+(adv2?.drix||1000))/2);
+  const K=32*Math.max(1,form.manches);
+  const EA=1/(1+Math.pow(10,(teamBDrix-teamADrix)/400));
+  const gainV=Math.round(K*(1-EA)); const perteD=Math.round(K*EA);
+
+  const TeamPreview=({label,players,drix,col})=>(
+    <div style={{ textAlign:"center",flex:1 }}>
+      <div style={{ fontSize:10,color:C.muted,fontWeight:700,marginBottom:8,letterSpacing:.5 }}>{label}</div>
+      <div style={{ display:"flex",gap:6,justifyContent:"center",marginBottom:8 }}>
+        {players.filter(Boolean).map(p=>(
+          <div key={p.id} style={{ width:38,height:38,borderRadius:"50%",background:couleurPseudo(p.pseudo)+"33",border:`2px solid ${couleurPseudo(p.pseudo)}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,overflow:"hidden" }}>
+            {p.photo?<img src={p.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>:<span>{p.pseudo[0]?.toUpperCase()}</span>}
+          </div>
+        ))}
+      </div>
+      <div style={{ fontWeight:700,fontSize:13,marginBottom:4 }}>{players.filter(Boolean).map(p=>p.pseudo).join(" & ")}</div>
+      <div style={{ fontWeight:800,fontSize:18,color:col }}>{drix} <span style={{ fontSize:11,fontWeight:600,color:C.muted }}>DRIX</span></div>
+    </div>
+  );
+
+  return (
+    <div>
+      <button onClick={()=>setStep(2)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,marginBottom:12 }}>← Retour</button>
+
+      {/* Aperçu équipes */}
+      <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18,marginBottom:14 }}>
+        <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:16 }}>
+          <TeamPreview label="ÉQUIPE A" players={[me,partner]} drix={teamADrix} col="#60a5fa"/>
+          <div style={{ textAlign:"center",flexShrink:0 }}>
+            <div style={{ fontSize:20,color:C.muted }}>⚔️</div>
+            <div style={{ fontSize:10,color:C.muted }}>VS</div>
+          </div>
+          <TeamPreview label="ÉQUIPE B" players={[adv1,adv2]} drix={teamBDrix} col="#f87171"/>
+        </div>
+        <div style={{ display:"flex",gap:8,justifyContent:"center" }}>
+          <span style={{ background:"#14532d",color:"#22c55e",borderRadius:20,padding:"3px 11px",fontSize:12,fontWeight:700 }}>+{gainV} si victoire</span>
+          <span style={{ background:"#7f1d1d",color:"#ef4444",borderRadius:20,padding:"3px 11px",fontSize:12,fontWeight:700 }}>−{perteD} si défaite</span>
+        </div>
+        <p style={{ textAlign:"center",color:C.muted,fontSize:11,marginTop:8 }}>Chaque joueur reçoit le même montant</p>
+      </div>
+
+      {/* Format */}
+      <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16 }}>
+        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
+          <div>
+            <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Mode</div>
+            <div style={{ display:"flex",gap:6 }}>
+              {["501","301"].map(m=><button key={m} onClick={()=>setForm(f=>({...f,mode:m}))} style={{ flex:1,padding:"9px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:form.mode===m?C.accent:"#222",color:form.mode===m?"#fff":C.muted }}>{m}</button>)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Manches</div>
+            <div style={{ display:"flex",gap:4 }}>
+              {[1,3,5].map(n=><button key={n} onClick={()=>setForm(f=>({...f,manches:n}))} style={{ flex:1,padding:"9px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:form.manches===n?C.accent:"#222",color:form.manches===n?"#fff":C.muted }}>{n}</button>)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <Btn onClick={launch} disabled={launching} style={{ width:"100%",fontSize:15,padding:"14px 0" }}>
+        {launching?"Lancement…":"🎯 Lancer la Doublette !"}
+      </Btn>
+    </div>
+  );
+};
+
 // ── PAGE DÉFI ─────────────────────────────────────────────────────────────────
 const PageDefi = ({ joueur, setPage }) => {
   const [amis, setAmis] = useState([]);
@@ -781,6 +939,8 @@ const PageDefi = ({ joueur, setPage }) => {
   const [matchsActifs, setMatchsActifs] = useState([]);
   const [resultsAContester, setResultsAContester] = useState([]);
   const [loading, setLoading] = useState(true);
+  // ── onglet ──
+  const [tab, setTab] = useState("1v1"); // "1v1" | "doublette"
   // ── sélection ami ──
   const [selected, setSelected] = useState(null); // ami row sélectionné
   // ── config DRIX ──
@@ -832,7 +992,19 @@ const PageDefi = ({ joueur, setPage }) => {
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
       <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Accueil</button>
       <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>⚔️ Défis</h1>
-      <p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>Défie tes amis et gagne des DRIX</p>
+      <p style={{ color:C.muted,fontSize:13,marginBottom:14 }}>Défie tes amis et gagne des DRIX</p>
+
+      {/* ── Toggle 1v1 / Doublette ── */}
+      <div style={{ display:"flex",background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",marginBottom:20 }}>
+        <button onClick={()=>setTab("1v1")} style={{ flex:1,padding:"11px 0",background:tab==="1v1"?C.accent:"transparent",color:tab==="1v1"?"#fff":C.muted,border:"none",cursor:"pointer",fontWeight:tab==="1v1"?700:400,fontSize:14,transition:"all .15s" }}>⚔️ Défier un ami</button>
+        <button onClick={()=>setTab("doublette")} style={{ flex:1,padding:"11px 0",background:tab==="doublette"?C.accent:"transparent",color:tab==="doublette"?"#fff":C.muted,border:"none",cursor:"pointer",fontWeight:tab==="doublette"?700:400,fontSize:14,transition:"all .15s" }}>👥 Doublette 2v2</button>
+      </div>
+
+      {/* ── Mode Doublette ── */}
+      {tab==="doublette" && <DoubletteFlow joueur={joueur} amis={amis} amisData={amisData} setPage={setPage}/>}
+
+      {/* ── Mode 1v1 ── */}
+      {tab==="1v1" && <>
 
       {/* ── Résultats à contester (24h) ── */}
       {resultsAContester.length > 0 && (
@@ -964,6 +1136,186 @@ const PageDefi = ({ joueur, setPage }) => {
           })}
         </div>
       )}
+      </>}
+    </div>
+  );
+};
+
+// ── SCOREUR DOUBLETTE ──────────────────────────────────────────────────────────
+const ScoreurDoublette = ({ joueur, setPage }) => {
+  const [config] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("dp_doublette")||"null"); }
+    catch { return window.__dpDoublette||null; }
+  });
+
+  const startScore = config?.mode==="301"?301:501;
+  const manchesMax = config?.manches||1;
+  const targetLegs = Math.ceil(manchesMax/2);
+
+  const [scores,setScores]=useState([startScore,startScore]);
+  const [legsWon,setLegsWon]=useState([0,0]);
+  const [turnIdx,setTurnIdx]=useState(0);
+  const [input,setInput]=useState("");
+  const [betweenLegs,setBetweenLegs]=useState(null); // { winner:"A"|"B" }
+  const [finished,setFinished]=useState(false);
+  const [winnersTeam,setWinnersTeam]=useState(null);
+  const [processing,setProcessing]=useState(false);
+  const [drixResult,setDrixResult]=useState(null);
+
+  if(!config) return <div style={{ textAlign:"center",padding:60,color:C.muted }}>Configuration introuvable.</div>;
+
+  // Ordre : A1, B1, A2, B2, repeat
+  const playerOrder=[config.teamA[0],config.teamB[0],config.teamA[1],config.teamB[1]];
+  const curIdx=turnIdx%4;
+  const currentPlayer=playerOrder[curIdx];
+  const currentTeam=curIdx===0||curIdx===2?0:1; // 0=A, 1=B
+
+  const applyDrix=async(teamAWon)=>{
+    setProcessing(true);
+    try {
+      const ids=[...config.teamA,...config.teamB].map(p=>p.id).filter(Boolean);
+      const players=await sb(`joueurs?id=in.(${ids.join(",")})&select=id,drix`).catch(()=>[]);
+      const getDrix=(id)=>players?.find(p=>p.id===id)?.drix||1000;
+      const dA1=getDrix(config.teamA[0].id),dA2=getDrix(config.teamA[1].id);
+      const dB1=getDrix(config.teamB[0].id),dB2=getDrix(config.teamB[1].id);
+      const teamADrix=Math.round((dA1+dA2)/2), teamBDrix=Math.round((dB1+dB2)/2);
+      const K=32*Math.max(1,manchesMax);
+      const EA=1/(1+Math.pow(10,(teamBDrix-teamADrix)/400));
+      const varA=teamAWon?Math.round(K*(1-EA)):-Math.round(K*EA);
+      const varB=teamAWon?-Math.round(K*(1-EA)):Math.round(K*EA);
+      await Promise.all([
+        sb(`joueurs?id=eq.${config.teamA[0].id}`,{method:"PATCH",body:JSON.stringify({drix:Math.max(100,dA1+varA)}),prefer:"return=minimal"}),
+        sb(`joueurs?id=eq.${config.teamA[1].id}`,{method:"PATCH",body:JSON.stringify({drix:Math.max(100,dA2+varA)}),prefer:"return=minimal"}),
+        sb(`joueurs?id=eq.${config.teamB[0].id}`,{method:"PATCH",body:JSON.stringify({drix:Math.max(100,dB1+varB)}),prefer:"return=minimal"}),
+        sb(`joueurs?id=eq.${config.teamB[1].id}`,{method:"PATCH",body:JSON.stringify({drix:Math.max(100,dB2+varB)}),prefer:"return=minimal"}),
+      ]);
+      setDrixResult({varA,varB,teamAWon});
+    } catch(e){console.error("DRIX doublette:",e);}
+    setProcessing(false);
+  };
+
+  const valider=()=>{
+    const pts=parseInt(input);
+    if(isNaN(pts)||pts<0||pts>180){setInput("");return;}
+    const newScores=[...scores];
+    const rem=newScores[currentTeam]-pts;
+    if(rem<0){setInput("");setTurnIdx(t=>t+1);return;} // bust
+    newScores[currentTeam]=rem;
+    setScores(newScores);
+    if(rem===0){
+      const nw=[...legsWon]; nw[currentTeam]++;
+      setLegsWon(nw);
+      if(nw[currentTeam]>=targetLegs){
+        const winner=currentTeam===0?"A":"B";
+        setWinnersTeam(winner); setFinished(true);
+        applyDrix(currentTeam===0);
+      } else {
+        setBetweenLegs({winner:currentTeam===0?"A":"B",teamA:nw[0],teamB:nw[1]});
+      }
+    } else {
+      setTurnIdx(t=>t+1);
+    }
+    setInput("");
+  };
+
+  // Écran victoire
+  if(finished){
+    const winTeam=winnersTeam==="A"?config.teamA:config.teamB;
+    const loseTeam=winnersTeam==="A"?config.teamB:config.teamA;
+    const winVar=drixResult?(winnersTeam==="A"?drixResult.varA:drixResult.varB):null;
+    const loseVar=drixResult?(winnersTeam==="A"?drixResult.varB:drixResult.varA):null;
+    return (
+      <div style={{ maxWidth:480,margin:"0 auto",padding:"50px 20px",textAlign:"center" }}>
+        <div style={{ fontSize:64,marginBottom:12 }}>🏆</div>
+        <h1 style={{ fontWeight:800,fontSize:26,marginBottom:6 }}>Victoire Équipe {winnersTeam} !</h1>
+        <p style={{ color:C.muted,fontSize:14,marginBottom:24 }}>{winTeam.map(p=>p.pseudo).join(" & ")}</p>
+        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:20,marginBottom:24 }}>
+          {processing&&<p style={{ color:C.muted,marginBottom:8 }}>⏳ Calcul des DRIX…</p>}
+          {winVar!=null&&<>
+            <p style={{ color:C.green,fontWeight:700,fontSize:20,marginBottom:4 }}>+{winVar} DRIX chacun</p>
+            <p style={{ color:C.muted,fontSize:13,marginBottom:12 }}>🏆 {winTeam.map(p=>p.pseudo).join(" & ")}</p>
+            <p style={{ color:"#f87171",fontWeight:700,fontSize:16,marginBottom:4 }}>{loseVar} DRIX chacun</p>
+            <p style={{ color:C.muted,fontSize:13 }}>💀 {loseTeam.map(p=>p.pseudo).join(" & ")}</p>
+          </>}
+          <div style={{ marginTop:16,padding:"10px 14px",background:"#111",borderRadius:10,fontSize:12,color:C.muted }}>
+            Score final · Éq. A {legsWon[0]} — {legsWon[1]} Éq. B
+          </div>
+        </div>
+        <div style={{ display:"flex",gap:10,justifyContent:"center" }}>
+          <Btn onClick={()=>{try{localStorage.removeItem("dp_doublette");}catch{}setPage("defi");}}>← Retour aux défis</Btn>
+        </div>
+      </div>
+    );
+  }
+
+  // Écran entre deux manches
+  if(betweenLegs){
+    return (
+      <div style={{ maxWidth:480,margin:"0 auto",padding:"50px 20px",textAlign:"center" }}>
+        <div style={{ fontSize:50,marginBottom:12 }}>🎯</div>
+        <h2 style={{ fontWeight:800,fontSize:22,marginBottom:6 }}>Manche pour l'Équipe {betweenLegs.winner} !</h2>
+        <p style={{ color:C.muted,marginBottom:20 }}>Score : {betweenLegs.teamA} — {betweenLegs.teamB}</p>
+        <Btn onClick={()=>{setBetweenLegs(null);setScores([startScore,startScore]);setTurnIdx(t=>t+1);}} style={{ fontSize:15,padding:"13px 32px" }}>
+          Manche suivante →
+        </Btn>
+      </div>
+    );
+  }
+
+  // Écran de jeu
+  const teamColors=["#60a5fa","#f87171"];
+  return (
+    <div style={{ maxWidth:500,margin:"0 auto",padding:"20px 16px 40px" }}>
+      {/* Scores des équipes */}
+      <div style={{ display:"grid",gridTemplateColumns:"1fr 48px 1fr",gap:8,marginBottom:16 }}>
+        {[0,1].map(t=>(
+          <div key={t} style={{ background:t===currentTeam?"#1a1a1a":C.card,border:`2px solid ${t===currentTeam?teamColors[t]:C.border}`,borderRadius:14,padding:"14px 10px",textAlign:"center",transition:"all .2s" }}>
+            <div style={{ fontSize:10,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:4 }}>ÉQ. {t===0?"A":"B"}</div>
+            <div style={{ fontWeight:800,fontSize:38,color:t===currentTeam?teamColors[t]:C.text,lineHeight:1 }}>{scores[t]}</div>
+            <div style={{ fontSize:11,color:C.muted,marginTop:6 }}>{config[t===0?"teamA":"teamB"].map(p=>p.pseudo).join(" & ")}</div>
+            <div style={{ fontSize:13,marginTop:6 }}>
+              {"●".repeat(legsWon[t])}{"○".repeat(Math.max(0,targetLegs-legsWon[t]))}
+            </div>
+          </div>
+        ))}
+        <div style={{ display:"flex",alignItems:"center",justifyContent:"center" }}>
+          <span style={{ fontSize:16,color:C.muted,fontWeight:700 }}>vs</span>
+        </div>
+      </div>
+
+      {/* Tour actuel */}
+      <div style={{ background:"#111",border:`2px solid ${teamColors[currentTeam]}44`,borderRadius:12,padding:"13px 16px",marginBottom:14,textAlign:"center" }}>
+        <div style={{ fontSize:11,color:C.muted,marginBottom:3 }}>Au tour de</div>
+        <div style={{ fontWeight:800,fontSize:20,color:teamColors[currentTeam] }}>{currentPlayer?.pseudo}</div>
+        <div style={{ fontSize:11,color:C.muted,marginTop:2 }}>Équipe {currentTeam===0?"A":"B"} · {config.mode}</div>
+      </div>
+
+      {/* Saisie score */}
+      <div style={{ display:"flex",gap:8,marginBottom:10 }}>
+        <input type="number" min="0" max="180" value={input}
+          onChange={e=>setInput(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&valider()}
+          placeholder="0 – 180"
+          style={{ flex:1,background:"#111",border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px",color:C.text,fontSize:22,fontWeight:700,textAlign:"center" }}
+          autoFocus
+        />
+        <Btn onClick={valider} style={{ padding:"14px 22px",fontSize:18,minWidth:58 }}>✓</Btn>
+      </div>
+
+      {/* Raccourcis scores */}
+      <div style={{ display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:5,marginBottom:14 }}>
+        {[26,41,45,60,81,85,100,121,140,180].map(s=>(
+          <button key={s} onClick={()=>setInput(String(s))} style={{ background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 0",cursor:"pointer",fontSize:12,fontWeight:600,color:C.text }}>
+            {s}
+          </button>
+        ))}
+      </div>
+
+      {/* Info bas */}
+      <div style={{ display:"flex",justifyContent:"space-between",color:C.muted,fontSize:12,padding:"0 2px" }}>
+        <span>Manche {legsWon[0]+legsWon[1]+1} / {manchesMax}</span>
+        <span>Best of {manchesMax} — cible {targetLegs} victoires</span>
+      </div>
     </div>
   );
 };
@@ -2863,7 +3215,7 @@ export default function App() {
   const goBack=()=>{ if(history.length>1){ const nh=history.slice(0,-1); setHistory(nh); setPage(nh[nh.length-1]); try{window.scrollTo(0,0);}catch{} } };
 
   const [pendingNav, setPendingNav] = useState(null);
-  const isGamePage = (p) => p==="jeux-capital" || p==="scoreur" || p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-");
+  const isGamePage = (p) => p==="jeux-capital" || p==="scoreur" || p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-") || p==="scoreur-doublette";
   const navSafe = (targetPage) => {
     if (isGamePage(page)) { setPendingNav(targetPage); }
     else { nav(targetPage); }
@@ -2988,6 +3340,7 @@ export default function App() {
         {page==="messagerie"       && <MessagesPage joueur={joueur} setPage={nav}/>}
         {page.startsWith("messages-") && (()=>{ const str=page.replace("messages-",""); const parts=str.split("-"); const tid=parts.slice(0,5).join("-"); const tpseudo=decodeURIComponent(parts.slice(5).join("-")); return <MessagesPage joueur={joueur} setPage={nav} targetId={tid} targetPseudo={tpseudo}/>; })()}
         {page.startsWith("scoreur-duel-") && joueur && <ScoreurDuel duelId={page.replace("scoreur-duel-","")} joueur={joueur} setPage={nav}/>}
+        {page==="scoreur-doublette"     && joueur && <ScoreurDoublette joueur={joueur} setPage={nav}/>}
         {page==="apropos"          && <APropos bars={bars} setPage={nav}/>}
         {page==="proposer"         && <Proposer bars={bars} onSubmit={handleProposal}/>}
         {page==="proposer-asso"    && <ProposerAsso onSubmit={handleProposalAsso}/>}
