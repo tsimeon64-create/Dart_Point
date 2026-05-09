@@ -2711,109 +2711,213 @@ const AdminKpiCard = ({ icon, label, count, prio="normal", onClick }) => {
 
 const AdminJoueurs = ({ addLog }) => {
   const [recherche, setRecherche] = useState("");
-  const [joueurs, setJoueurs]     = useState([]);
-  const [loading, setLoading]     = useState(false);
-  const [drixInputs, setDrixInputs] = useState({});
+  const [tous, setTous]           = useState([]);       // liste complète chargée
+  const [loading, setLoading]     = useState(true);
+  const [drixVal, setDrixVal]     = useState({});       // { [id]: string }
+  const [setDrix, setSetDrix]     = useState({});       // { [id]: string } valeur absolue
   const [saving, setSaving]       = useState({});
   const [msg, setMsg]             = useState({});
   const [expanded, setExpanded]   = useState({});
 
-  const chercher = async () => {
-    if (!recherche.trim()) return;
-    setLoading(true);
-    const res = await sb(`joueurs?pseudo=ilike.%25${encodeURIComponent(recherche.trim())}%25&select=id,pseudo,drix,date_inscription,photo_url&limit=20`).catch(()=>[]);
-    setJoueurs(res || []);
-    setLoading(false);
-  };
+  // Chargement initial — tous les joueurs
+  useEffect(()=>{
+    sb(`joueurs?order=drix.desc&select=id,pseudo,drix,date_inscription,photo,bar_slug,asso_slug&limit=200`)
+      .then(r=>{ setTous(r||[]); setLoading(false); })
+      .catch(()=>setLoading(false));
+  },[]);
 
-  const supprimerCompte = async (j) => {
-    if (!window.confirm(`⚠️ Supprimer définitivement le compte de ${j.pseudo} ? Irréversible.`)) return;
-    setSaving(s=>({...s,[j.id]:true}));
-    await sb(`joueurs?id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}).catch(()=>{});
-    setJoueurs(x=>x.filter(p=>p.id!==j.id));
-    addLog?.("Suppression compte", j.pseudo, "danger");
-    setSaving(s=>({...s,[j.id]:false}));
-  };
+  // Filtre local par pseudo
+  const joueurs = recherche.trim()
+    ? tous.filter(j=>j.pseudo?.toLowerCase().includes(recherche.toLowerCase()))
+    : tous;
+
+  const setField = (id, field, val) => setTous(x=>x.map(j=>j.id===id?{...j,[field]:val}:j));
 
   const appliquerDrix = async (j, delta) => {
     if (!delta || isNaN(delta)) return;
     setSaving(s=>({...s,[j.id]:true}));
     const newDrix = Math.max(0,(j.drix||1000)+Number(delta));
-    await sb(`joueurs?id=eq.${j.id}`,{method:"PATCH",body:JSON.stringify({drix:newDrix}),prefer:"return=minimal"}).catch(()=>{});
+    await Promise.all([
+      sb(`joueurs?id=eq.${j.id}`,{method:"PATCH",body:JSON.stringify({drix:newDrix}),prefer:"return=minimal"}),
+      sb("drix_mouvements",{method:"POST",body:JSON.stringify({
+        joueur_id:j.id, joueur_pseudo:j.pseudo, adversaire_pseudo:"Admin",
+        variation:Number(delta), drix_avant:j.drix||1000, drix_apres:newDrix,
+        resultat:Number(delta)>0?"victoire":"defaite", date:Date.now(),
+      })}),
+    ]).catch(()=>{});
+    setField(j.id,"drix",newDrix);
+    setMsg(m=>({...m,[j.id]:`✅ ${j.drix||1000} → ${newDrix} DRIX`}));
+    setDrixVal(d=>({...d,[j.id]:""}));
+    addLog?.(`DRIX ${Number(delta)>0?"+":""}${delta}`, j.pseudo, Number(delta)>0?"success":"warning");
+    setTimeout(()=>setMsg(m=>({...m,[j.id]:""})),4000);
+    setSaving(s=>({...s,[j.id]:false}));
+  };
+
+  const fixerDrix = async (j, valeur) => {
+    const v = parseInt(valeur);
+    if (isNaN(v)||v<0) return;
+    const delta = v-(j.drix||1000);
+    await appliquerDrix(j, delta);
+    setSetDrix(d=>({...d,[j.id]:""}));
+  };
+
+  const supprimerCompte = async (j) => {
+    if (!window.confirm(`⚠️ Supprimer définitivement ${j.pseudo} ?\nCette action est irréversible.`)) return;
+    setSaving(s=>({...s,[j.id]:true}));
+    await sb(`joueurs?id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}).catch(()=>{});
+    setTous(x=>x.filter(p=>p.id!==j.id));
+    addLog?.("Compte supprimé", j.pseudo, "danger");
+  };
+
+  const banirJoueur = async (j) => {
+    if (!window.confirm(`🚫 Bannir ${j.pseudo} ?\nSes DRIX seront remis à 0 et son compte supprimé.`)) return;
+    setSaving(s=>({...s,[j.id]:true}));
+    // Met DRIX à 0 puis supprime
+    await sb(`joueurs?id=eq.${j.id}`,{method:"PATCH",body:JSON.stringify({drix:0}),prefer:"return=minimal"}).catch(()=>{});
     await sb("drix_mouvements",{method:"POST",body:JSON.stringify({
       joueur_id:j.id, joueur_pseudo:j.pseudo, adversaire_pseudo:"Admin",
-      variation:Number(delta), drix_avant:j.drix||1000, drix_apres:newDrix,
-      resultat:Number(delta)>0?"victoire":"defaite", date:Date.now(),
+      variation:-(j.drix||1000), drix_avant:j.drix||1000, drix_apres:0,
+      resultat:"defaite", date:Date.now(),
     })}).catch(()=>{});
-    setJoueurs(x=>x.map(p=>p.id===j.id?{...p,drix:newDrix}:p));
-    setMsg(m=>({...m,[j.id]:`✅ DRIX : ${j.drix||1000} → ${newDrix}`}));
-    setDrixInputs(d=>({...d,[j.id]:""}));
-    addLog?.(`DRIX ${Number(delta)>0?"+":""}${delta}`, j.pseudo, Number(delta)>0?"success":"warning");
-    setTimeout(()=>setMsg(m=>({...m,[j.id]:""})),3000);
-    setSaving(s=>({...s,[j.id]:false}));
+    await sb(`joueurs?id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}).catch(()=>{});
+    setTous(x=>x.filter(p=>p.id!==j.id));
+    addLog?.("Joueur banni", j.pseudo, "danger");
+  };
+
+  const resetDrix = async (j) => {
+    if (!window.confirm(`🔄 Remettre les DRIX de ${j.pseudo} à 1000 ?`)) return;
+    await appliquerDrix(j, 1000-(j.drix||1000));
+    addLog?.("DRIX réinitialisé", j.pseudo, "warning");
   };
 
   return (
     <div>
-      <div style={{display:"flex",gap:8,marginBottom:20}}>
-        <input value={recherche} onChange={e=>setRecherche(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&chercher()}
-          placeholder="🔍 Rechercher un pseudo…"
-          style={{flex:1,background:"#111",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",color:C.text,fontSize:14}}/>
-        <button onClick={chercher} style={{background:C.accent,color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",cursor:"pointer",fontWeight:700,fontSize:14}}>Chercher</button>
+      {/* Barre de recherche */}
+      <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center"}}>
+        <input
+          value={recherche}
+          onChange={e=>setRecherche(e.target.value)}
+          placeholder="🔍 Filtrer par pseudo…"
+          style={{flex:1,background:"#111",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",color:C.text,fontSize:14}}
+        />
+        {recherche&&<button onClick={()=>setRecherche("")} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:18}}>✕</button>}
+        <div style={{color:C.muted,fontSize:12,whiteSpace:"nowrap"}}>{joueurs.length} joueur{joueurs.length!==1?"s":""}</div>
       </div>
-      {loading&&<Spinner/>}
-      {!loading&&joueurs.length===0&&recherche&&<div style={{textAlign:"center",padding:40,color:C.muted}}>Aucun joueur trouvé.</div>}
-      {joueurs.map(j=>(
-        <div key={j.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18,marginBottom:12,overflow:"hidden"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,cursor:"pointer"}} onClick={()=>setExpanded(x=>({...x,[j.id]:!x[j.id]}))}>
-            <div style={{display:"flex",alignItems:"center",gap:12}}>
-              {j.photo_url
-                ? <img src={j.photo_url} style={{width:40,height:40,borderRadius:"50%",objectFit:"cover",border:`2px solid ${C.accent}`}} alt=""/>
-                : <div style={{width:40,height:40,borderRadius:"50%",background:`${C.accent}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>👤</div>}
-              <div>
-                <div style={{fontWeight:800,fontSize:15}}>{j.pseudo}</div>
-                <div style={{fontSize:11,color:C.muted}}>Inscrit le {j.date_inscription?new Date(j.date_inscription).toLocaleDateString("fr-FR"):"—"}</div>
-              </div>
-            </div>
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:22,fontWeight:900,color:C.accent}}>{j.drix??1000}</div>
-              <div style={{fontSize:10,color:C.muted,letterSpacing:1}}>DRIX</div>
-            </div>
-          </div>
-          {expanded[j.id]&&(
-            <div style={{borderTop:`1px solid ${C.border}`,paddingTop:14,display:"flex",flexDirection:"column",gap:12}}>
-              {/* Modifier DRIX */}
-              <div>
-                <div style={{fontSize:12,color:C.muted,marginBottom:8,fontWeight:600}}>💎 Modifier les DRIX</div>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                  <input type="number" value={drixInputs[j.id]??""} onChange={e=>setDrixInputs(d=>({...d,[j.id]:e.target.value}))}
-                    placeholder="+50 ou -30"
-                    style={{width:100,background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 10px",color:C.text,fontSize:13}}/>
-                  <button onClick={()=>appliquerDrix(j,drixInputs[j.id])} disabled={saving[j.id]}
-                    style={{background:"#10b98122",color:"#10b981",border:`1px solid #10b98155`,borderRadius:8,padding:"6px 14px",cursor:"pointer",fontWeight:700,fontSize:13}}>
-                    Appliquer
-                  </button>
-                  {[-100,-50,-10,10,50,100].map(v=>(
-                    <button key={v} onClick={()=>appliquerDrix(j,v)}
-                      style={{background:v>0?"#10b98118":"#ef444418",color:v>0?"#10b981":"#ef4444",border:`1px solid ${v>0?"#10b98133":"#ef444433"}`,borderRadius:6,padding:"4px 9px",cursor:"pointer",fontSize:12,fontWeight:700}}>
-                      {v>0?"+":""}{v}
-                    </button>
-                  ))}
-                </div>
-                {msg[j.id]&&<div style={{fontSize:12,color:"#10b981",marginTop:6}}>{msg[j.id]}</div>}
-              </div>
-              {/* Actions danger */}
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                <button onClick={()=>supprimerCompte(j)} disabled={saving[j.id]}
-                  style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}44`,borderRadius:8,padding:"7px 14px",cursor:"pointer",fontWeight:700,fontSize:13}}>
-                  🗑 Supprimer le compte
-                </button>
-              </div>
-            </div>
-          )}
+
+      {loading && <Spinner/>}
+
+      {!loading && joueurs.length === 0 && (
+        <div style={{textAlign:"center",padding:50,color:C.muted}}>
+          {recherche ? `Aucun joueur correspondant à "${recherche}"` : "Aucun joueur inscrit."}
         </div>
-      ))}
+      )}
+
+      {joueurs.map(j=>{
+        const isOpen = !!expanded[j.id];
+        return (
+          <div key={j.id} style={{background:C.card,border:`1px solid ${isOpen?C.accent:C.border}`,borderRadius:14,marginBottom:10,overflow:"hidden",transition:"border-color .2s"}}>
+            {/* Header carte — cliquable pour ouvrir */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px",cursor:"pointer"}}
+              onClick={()=>setExpanded(x=>({...x,[j.id]:!x[j.id]}))}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                {j.photo
+                  ? <img src={j.photo} style={{width:42,height:42,borderRadius:"50%",objectFit:"cover",border:`2px solid ${C.accent}`}} alt=""/>
+                  : <div style={{width:42,height:42,borderRadius:"50%",background:`${C.accent}22`,border:`1px solid ${C.accent}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:700}}>{(j.pseudo||"?")[0].toUpperCase()}</div>}
+                <div>
+                  <div style={{fontWeight:800,fontSize:15}}>{j.pseudo}</div>
+                  <div style={{fontSize:11,color:C.muted,marginTop:2}}>
+                    {j.date_inscription ? `Inscrit le ${new Date(j.date_inscription).toLocaleDateString("fr-FR")}` : "—"}
+                    {j.bar_slug && <span style={{marginLeft:8}}>🍺 {j.bar_slug}</span>}
+                  </div>
+                </div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:16}}>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:20,fontWeight:900,color:C.accent}}>{j.drix??1000}</div>
+                  <div style={{fontSize:10,color:C.muted,letterSpacing:1}}>DRIX</div>
+                </div>
+                <span style={{color:C.muted,fontSize:16,transform:isOpen?"rotate(180deg)":"",transition:"transform .2s"}}>▼</span>
+              </div>
+            </div>
+
+            {/* Panel de gestion */}
+            {isOpen && (
+              <div style={{borderTop:`1px solid ${C.border}`,padding:"18px 18px",display:"flex",flexDirection:"column",gap:18}}>
+
+                {/* Section DRIX */}
+                <div style={{background:"#0a1a0a",border:`1px solid ${C.green}22`,borderRadius:12,padding:16}}>
+                  <div style={{fontSize:12,color:C.green,fontWeight:700,letterSpacing:.5,marginBottom:12}}>💎 GESTION DRIX</div>
+
+                  {/* Boutons delta rapides */}
+                  <div style={{marginBottom:10}}>
+                    <div style={{fontSize:11,color:C.muted,marginBottom:6}}>Ajuster (delta)</div>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                      {[-500,-200,-100,-50,-10,10,50,100,200,500].map(v=>(
+                        <button key={v} onClick={()=>appliquerDrix(j,v)} disabled={saving[j.id]}
+                          style={{background:v>0?"#10b98118":"#ef444418",color:v>0?"#10b981":"#ef4444",border:`1px solid ${v>0?"#10b98133":"#ef444433"}`,borderRadius:6,padding:"5px 10px",cursor:"pointer",fontSize:12,fontWeight:700,opacity:saving[j.id]?.5:1}}>
+                          {v>0?"+":""}{v}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Ajustement personnalisé */}
+                  <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+                    <div style={{flex:1,minWidth:140}}>
+                      <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Delta personnalisé (+/-)</div>
+                      <div style={{display:"flex",gap:6}}>
+                        <input type="number" value={drixVal[j.id]||""} onChange={e=>setDrixVal(d=>({...d,[j.id]:e.target.value}))}
+                          placeholder="ex: +150 ou -80"
+                          style={{flex:1,background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:13}}/>
+                        <button onClick={()=>appliquerDrix(j,drixVal[j.id])} disabled={saving[j.id]||!drixVal[j.id]}
+                          style={{background:"#10b98122",color:"#10b981",border:`1px solid #10b98155`,borderRadius:8,padding:"8px 14px",cursor:"pointer",fontWeight:700,fontSize:13,opacity:(saving[j.id]||!drixVal[j.id])?.5:1}}>
+                          Appliquer
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{flex:1,minWidth:140}}>
+                      <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Fixer à une valeur absolue</div>
+                      <div style={{display:"flex",gap:6}}>
+                        <input type="number" value={setDrix[j.id]||""} onChange={e=>setSetDrix(d=>({...d,[j.id]:e.target.value}))}
+                          placeholder="ex: 1250"
+                          style={{flex:1,background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:13}}/>
+                        <button onClick={()=>fixerDrix(j,setDrix[j.id])} disabled={saving[j.id]||!setDrix[j.id]}
+                          style={{background:"#1e3a5f",color:C.blue,border:`1px solid ${C.blue}55`,borderRadius:8,padding:"8px 14px",cursor:"pointer",fontWeight:700,fontSize:13,opacity:(saving[j.id]||!setDrix[j.id])?.5:1}}>
+                          Fixer
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button onClick={()=>resetDrix(j)} disabled={saving[j.id]}
+                    style={{background:"#1a1200",color:C.yellow,border:`1px solid ${C.yellow}44`,borderRadius:8,padding:"6px 14px",cursor:"pointer",fontWeight:600,fontSize:12}}>
+                    🔄 Remettre à 1000
+                  </button>
+
+                  {msg[j.id] && <div style={{marginTop:10,padding:"8px 12px",background:"#10b98118",border:`1px solid #10b98133`,borderRadius:8,fontSize:13,color:"#10b981",fontWeight:600}}>{msg[j.id]}</div>}
+                </div>
+
+                {/* Section actions */}
+                <div style={{background:"#1a0000",border:`1px solid ${C.red}22`,borderRadius:12,padding:16}}>
+                  <div style={{fontSize:12,color:C.red,fontWeight:700,letterSpacing:.5,marginBottom:12}}>⚠️ ACTIONS ADMINISTRATIVES</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    <button onClick={()=>supprimerCompte(j)} disabled={saving[j.id]}
+                      style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}55`,borderRadius:8,padding:"9px 16px",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",gap:6}}>
+                      🗑 Supprimer le compte
+                    </button>
+                    <button onClick={()=>banirJoueur(j)} disabled={saving[j.id]}
+                      style={{background:"#1a0014",color:"#f43f5e",border:`1px solid #f43f5e55`,borderRadius:8,padding:"9px 16px",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",gap:6}}>
+                      🚫 Bannir (DRIX 0 + suppression)
+                    </button>
+                  </div>
+                  <div style={{marginTop:10,fontSize:11,color:C.muted}}>⚠️ Ces actions sont irréversibles et seront enregistrées dans les logs.</div>
+                </div>
+
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 };
