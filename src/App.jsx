@@ -2771,7 +2771,8 @@ const AdminJoueurs = ({ addLog }) => {
       sb(`stats_joueurs?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
       // Mouvements DRIX
       sb(`drix_mouvements?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
-      // Présences
+      // Présences (table: presences + presence_joueurs)
+      sb(`presences?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
       sb(`presence_joueurs?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
       // Duels en cours (marquer comme annulé plutôt que supprimer)
       sb(`duels?or=(challenger_id.eq.${id},defie_id.eq.${id})&statut=eq.en_cours`,
