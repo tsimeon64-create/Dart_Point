@@ -2308,124 +2308,445 @@ export const finaliserDuel = async (duel) => {
 };
 
 // ── PAGE CLASSEMENT DRIX ──────────────────────────────────────────────────────
-export const PageDrix = ({ setPage, bars, associations }) => {
-  const [classement, setClassement] = useState([]);
-  const [hallOfFame, setHallOfFame] = useState([]);
-  const [tab, setTab] = useState("general");
-  const [loading, setLoading] = useState(true);
-  const [barFilter, setBarFilter] = useState("");
-  const [assoFilter, setAssoFilter] = useState("");
-
-  useEffect(() => {
-    Promise.all([dbDrix.getClassement(), dbDrix.getHallOfFame()])
-      .then(([c, h]) => { setClassement(c||[]); setHallOfFame(h||[]); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, []);
-
-  const classementFiltre = useMemo(() => {
-    if (tab === "bar" && barFilter) return classement.filter(j => j.bar_slug === barFilter);
-    if (tab === "asso" && assoFilter) return classement.filter(j => j.asso_slug === assoFilter);
-    return classement;
-  }, [classement, tab, barFilter, assoFilter]);
-
+export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurId }) => {
+  const [classement, setClassement]   = useState([]);
+  const [hallOfFame, setHallOfFame]   = useState([]);
+  const [variationMap, setVariationMap] = useState({});
+  const [amis, setAmis]               = useState([]);
+  const [monHistorique, setMonHistorique] = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [filtre, setFiltre]           = useState("national"); // national|amis|bar|asso|proximite
+  const [view, setView]               = useState("classement"); // classement|evolution
+  const [showVoisinage, setShowVoisinage] = useState(false);
   const saisonActuelle = new Date().getFullYear();
 
-  const getMedaille = (rang) => {
-    if (rang === 1) return "🥇";
-    if (rang === 2) return "🥈";
-    if (rang === 3) return "🥉";
-    return `#${rang}`;
+  useEffect(() => {
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    Promise.all([
+      dbDrix.getClassement(),
+      sbJ(`drix_mouvements?date=gt.${weekAgo}&select=joueur_id,variation`).catch(() => []),
+      dbDrix.getHallOfFame().catch(() => []),
+    ]).then(([c, mvts, hof]) => {
+      setClassement(c || []);
+      const vMap = {};
+      (mvts || []).forEach(m => { vMap[m.joueur_id] = (vMap[m.joueur_id] || 0) + (m.variation || 0); });
+      setVariationMap(vMap);
+      setHallOfFame(hof || []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+    if (joueur?.id) {
+      sbJ(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&statut=eq.accepte&select=joueur_id,ami_id`).catch(() => []).then(a => setAmis(a || []));
+      dbDrix.getHistorique(joueur.id).then(h => setMonHistorique(h || [])).catch(() => {});
+    }
+  }, [joueur?.id]);
+
+  const amisIds = useMemo(() => {
+    if (!joueur) return new Set();
+    return new Set((amis || []).map(a => a.joueur_id === joueur.id ? a.ami_id : a.joueur_id));
+  }, [amis, joueur]);
+
+  const classementFiltre = useMemo(() => {
+    if (filtre === "amis") {
+      const ids = new Set([joueur?.id, ...amisIds].filter(Boolean));
+      return classement.filter(j => ids.has(j.id));
+    }
+    if (filtre === "bar"  && joueur?.bar_slug)  return classement.filter(j => j.bar_slug  === joueur.bar_slug);
+    if (filtre === "asso" && joueur?.asso_slug) return classement.filter(j => j.asso_slug === joueur.asso_slug);
+    return classement;
+  }, [classement, filtre, joueur, amisIds]);
+
+  const monRangGlobal = useMemo(() => {
+    if (!joueur) return null;
+    const idx = classement.findIndex(j => j.id === joueur.id);
+    return idx >= 0 ? idx + 1 : null;
+  }, [classement, joueur]);
+
+  const moi        = joueur ? classement.find(j => j.id === joueur.id) : null;
+  const monDrix    = moi?.drix || joueur?.drix || 1000;
+  const monRangInfo = getDrixTitreLocal(monDrix);
+  const progression = getProgression(monDrix);
+
+  const joueurAvant = monRangGlobal && monRangGlobal > 1 ? classement[monRangGlobal - 2] : null;
+  const joueurApres = monRangGlobal ? classement[monRangGlobal] : null;
+
+  const aPortee = useMemo(() => {
+    if (!monRangGlobal) return [];
+    const start = Math.max(0, monRangGlobal - 4);
+    return classement.slice(start, monRangGlobal - 1).reverse();
+  }, [classement, monRangGlobal]);
+
+  const voisinage = useMemo(() => {
+    if (!monRangGlobal) return [];
+    const start = Math.max(0, monRangGlobal - 4);
+    const end   = Math.min(classement.length, monRangGlobal + 3);
+    return classement.slice(start, end);
+  }, [classement, monRangGlobal]);
+
+  // Mini progress bar inside player card
+  const MiniBar = ({ drix, color }) => {
+    const { pct } = getProgression(drix || 1000);
+    return (
+      <div style={{ height:3, background:"#2a2a2a", borderRadius:2, marginTop:5, overflow:"hidden" }}>
+        <div style={{ height:"100%", width:`${pct}%`, background:color, borderRadius:2 }}/>
+      </div>
+    );
+  };
+
+  // Small neighbor card
+  const NeighborCard = ({ j, label, rangOffset, ecartPositif }) => {
+    if (!j) return <div style={{ flex:1 }}/>;
+    const { emoji, color } = getDrixTitreLocal(j.drix || 1000);
+    const ecart = Math.abs((j.drix || 1000) - monDrix);
+    return (
+      <div style={{ flex:1, background:"#0f0f0f", border:`1px solid ${CJ.border}`, borderRadius:10, padding:"10px 10px" }}>
+        <div style={{ fontSize:9, color:CJ.muted, fontWeight:800, marginBottom:6, letterSpacing:1 }}>{label}</div>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ width:30, height:30, borderRadius:"50%", background:`${color}22`, border:`1.5px solid ${color}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, overflow:"hidden", flexShrink:0 }}>
+            {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : emoji}
+          </div>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontWeight:700, fontSize:12, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{j.pseudo}</div>
+            <div style={{ fontSize:10, color:CJ.muted }}>#{(monRangGlobal||0)+rangOffset} · {j.drix||1000} DRIX</div>
+            <div style={{ fontSize:10, fontWeight:700, color: ecartPositif ? CJ.red : CJ.green }}>Écart : {ecart} DRIX</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Evolution chart (SVG line chart)
+  const EvolutionChart = () => {
+    if (monHistorique.length === 0) return <p style={{ color:CJ.muted, fontSize:13, textAlign:"center", padding:30 }}>Aucun historique disponible.</p>;
+    const pts = [...monHistorique].reverse();
+    const vals = pts.map(p => p.drix_apres || 1000);
+    const minV = Math.min(...vals) - 30;
+    const maxV = Math.max(...vals) + 30;
+    const W = 320, H = 100;
+    const x = (i) => (i / (pts.length - 1 || 1)) * W;
+    const y = (v) => H - ((v - minV) / (maxV - minV || 1)) * H;
+    const polyline = pts.map((p, i) => `${x(i)},${y(vals[i])}`).join(" ");
+    const area = `M${x(0)},${H} ` + pts.map((p, i) => `L${x(i)},${y(vals[i])}`).join(" ") + ` L${x(pts.length-1)},${H} Z`;
+    return (
+      <div>
+        <div style={{ fontSize:13, fontWeight:700, color:CJ.text, marginBottom:10 }}>📈 Évolution de mes DRIX</div>
+        <div style={{ background:"#0f0f0f", border:`1px solid ${CJ.border}`, borderRadius:12, padding:14, marginBottom:14, overflowX:"auto" }}>
+          <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:H }} preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="drix-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#22c55e" stopOpacity="0.4"/>
+                <stop offset="100%" stopColor="#22c55e" stopOpacity="0"/>
+              </linearGradient>
+            </defs>
+            <path d={area} fill="url(#drix-grad)"/>
+            <polyline points={polyline} fill="none" stroke="#22c55e" strokeWidth="2.5"/>
+            {pts.map((p, i) => (
+              <circle key={i} cx={x(i)} cy={y(vals[i])} r="4" fill={p.variation > 0 ? "#22c55e" : "#ef4444"} stroke="#0f0f0f" strokeWidth="1.5"/>
+            ))}
+          </svg>
+        </div>
+        <div style={{ fontSize:12, fontWeight:700, color:CJ.muted, marginBottom:8 }}>Derniers mouvements</div>
+        {monHistorique.slice(0, 8).map((m, i) => (
+          <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:`1px solid ${CJ.border}` }}>
+            <div style={{ width:28, height:28, borderRadius:"50%", background:m.variation > 0 ? "#16a34a22" : "#7f1d1d22", border:`1.5px solid ${m.variation > 0 ? "#22c55e44" : "#ef444444"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, flexShrink:0 }}>{m.variation > 0 ? "V" : "D"}</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:600, fontSize:13 }}>vs {m.adversaire_pseudo}</div>
+              <div style={{ fontSize:11, color:CJ.muted }}>{m.drix_avant} → {m.drix_apres} DRIX</div>
+            </div>
+            <div>
+              <div style={{ fontWeight:800, fontSize:15, color:m.variation > 0 ? CJ.green : CJ.red, textAlign:"right" }}>{m.variation > 0 ? "+" : ""}{m.variation}</div>
+              <div style={{ fontSize:10, color:CJ.muted }}>{new Date(m.date).toLocaleDateString("fr-FR")}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
-    <div style={{ maxWidth:900, margin:"0 auto", padding:"36px 20px" }}>
-      <div style={{ background:"linear-gradient(135deg,#1a0800,#1a0030)", border:`1px solid #a78bfa44`, borderRadius:14, padding:24, marginBottom:24, textAlign:"center" }}>
-        <div style={{ fontSize:48, marginBottom:8 }}>💎</div>
-        <h1 style={{ fontWeight:900, fontSize:28, marginBottom:4 }}>Classement <span style={{ color:"#a78bfa" }}>DRIX</span></h1>
-        <p style={{ color:CJ.muted, fontSize:14 }}>Saison {saisonActuelle} · Système ELO · Remise à zéro le 1er janvier</p>
-        <div style={{ display:"flex", justifyContent:"center", gap:16, marginTop:16, flexWrap:"wrap" }}>
-          {[["< 900","Novice","#94a3b8"],["900–1099","Amateur","#60a5fa"],["1100–1299","Confirmé","#22c55e"],["1300–1499","Expert","#f59e0b"],["1500–1699","Elite","#a78bfa"],["1700–1899","Master","#f97316"],["1900+","Légende","#ef4444"]].map(([r,t,c])=>(
-            <div key={t} style={{ textAlign:"center" }}>
-              <div style={{ fontSize:11, color:c, fontWeight:700 }}>{t}</div>
-              <div style={{ fontSize:10, color:CJ.muted }}>{r}</div>
+    <div style={{ maxWidth:520, margin:"0 auto", padding:"0 0 100px", background:CJ.bg, minHeight:"100vh" }}>
+
+      {/* ── HEADER ── */}
+      <div style={{ background:"linear-gradient(160deg,#0f0f0f 0%,#1a1000 60%,#0f0f0f 100%)", padding:"20px 16px 16px", borderBottom:`1px solid #2a2a2a22` }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+          <span style={{ fontSize:30 }}>💎</span>
+          <div>
+            <div style={{ fontWeight:900, fontSize:20, color:CJ.text }}>Classement <span style={{ color:"#a78bfa" }}>DRIX</span></div>
+            <div style={{ color:CJ.muted, fontSize:11 }}>Saison {saisonActuelle} · Système ELO · Remise à zéro le 1er janvier</div>
+          </div>
+        </div>
+        {/* View toggle */}
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={() => setView("classement")} style={{ flex:1, padding:"10px 0", borderRadius:10, border:`2px solid ${view==="classement"?CJ.yellow:CJ.border}`, background:view==="classement"?`${CJ.yellow}18`:"transparent", color:view==="classement"?CJ.yellow:CJ.muted, fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+            🏆 HALL OF FAME
+          </button>
+          <button onClick={() => setView("evolution")} style={{ flex:1, padding:"10px 0", borderRadius:10, border:`2px solid ${view==="evolution"?CJ.blue:CJ.border}`, background:view==="evolution"?`${CJ.blue}18`:"transparent", color:view==="evolution"?CJ.blue:CJ.muted, fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+            📈 ÉVOLUTION
+          </button>
+        </div>
+      </div>
+
+      <div style={{ padding:"14px 12px" }}>
+
+        {/* ── MON CLASSEMENT ── */}
+        {joueur && (
+          <div style={{ background:CJ.card, border:`1.5px solid ${CJ.yellow}55`, borderRadius:16, padding:16, marginBottom:12, position:"relative", overflow:"hidden", boxShadow:`0 0 24px ${CJ.yellow}18` }}>
+            <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${CJ.yellow},${CJ.accent},${CJ.yellow})` }}/>
+            <div style={{ fontSize:10, fontWeight:900, color:CJ.yellow, letterSpacing:2, marginBottom:14 }}>MON CLASSEMENT</div>
+
+            {/* Rang + Photo + DRIX */}
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ textAlign:"center", minWidth:48 }}>
+                <div style={{ fontSize:9, color:CJ.muted, fontWeight:700, letterSpacing:1 }}>MON RANG</div>
+                <div style={{ fontWeight:900, fontSize:28, color:CJ.text, lineHeight:1.1, marginTop:2 }}>#{monRangGlobal || "—"}</div>
+              </div>
+              <div style={{ flex:1, display:"flex", justifyContent:"center" }}>
+                <div style={{ position:"relative" }}>
+                  <div style={{ width:72, height:72, borderRadius:"50%", border:`3px solid ${CJ.yellow}`, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", background:`${monRangInfo.color}22`, fontSize:30 }}>
+                    {joueur.photo ? <img src={joueur.photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : monRangInfo.emoji}
+                  </div>
+                  <div style={{ position:"absolute", bottom:-5, left:"50%", transform:"translateX(-50%)", background:CJ.yellow, borderRadius:8, padding:"2px 8px", fontSize:8, fontWeight:900, color:"#000", whiteSpace:"nowrap" }}>{monRangInfo.emoji} {monRangInfo.titre.toUpperCase()}</div>
+                </div>
+              </div>
+              <div style={{ textAlign:"center", minWidth:60 }}>
+                <div style={{ fontSize:9, color:CJ.muted, fontWeight:700, letterSpacing:1 }}>MES DRIX</div>
+                <div style={{ fontWeight:900, fontSize:28, color:CJ.yellow, lineHeight:1.1, marginTop:2 }}>{monDrix}</div>
+                <div style={{ fontSize:9, color:monRangInfo.color, fontWeight:700, marginTop:2 }}>{monRangInfo.titre.toUpperCase()}</div>
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
 
-      <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
-        {[["general","🌍 Général"],["bar","🍺 Par bar"],["asso","🫂 Par asso"],["halloffame","🏆 Hall of Fame"]].map(([t,l])=>(
-          <button key={t} onClick={()=>setTab(t)} style={{ background:tab===t?CJ.accent+"22":"transparent",color:tab===t?CJ.accent:CJ.muted,border:`1px solid ${tab===t?CJ.accent:CJ.border}`,cursor:"pointer",padding:"7px 14px",borderRadius:8,fontSize:13,fontWeight:500 }}>{l}</button>
-        ))}
-      </div>
+            {/* Progression */}
+            <div style={{ marginTop:18 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
+                <span style={{ fontSize:9, fontWeight:800, color:CJ.text, letterSpacing:1 }}>PROGRESSION DE RANG</span>
+                {progression.prochain && <span style={{ fontSize:9, color:CJ.yellow, fontWeight:700 }}>{progression.restant} DRIX avant {progression.prochain.titre.toUpperCase()}</span>}
+              </div>
+              <div style={{ height:10, background:"#2a2a2a", borderRadius:5, overflow:"hidden" }}>
+                <div style={{ height:"100%", width:`${progression.pct}%`, background:`linear-gradient(90deg,${monRangInfo.color},${CJ.yellow})`, borderRadius:5, transition:"width .6s" }}/>
+              </div>
+              <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
+                <span style={{ fontSize:10, color:CJ.muted }}>{monDrix} / {progression.prochain ? monRangInfo.max : "MAX"} DRIX</span>
+                <span style={{ fontSize:10, fontWeight:800, color:CJ.yellow }}>{progression.pct}%</span>
+              </div>
+            </div>
 
-      {tab==="bar" && (
-        <select value={barFilter} onChange={e=>setBarFilter(e.target.value)} style={{ width:"100%",background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:8,padding:"10px 14px",color:CJ.text,fontSize:14,marginBottom:16 }}>
-          <option value="">-- Choisir un bar --</option>
-          {bars.map(b=><option key={b.slug} value={b.slug}>{b.nom} — {b.ville}</option>)}
-        </select>
-      )}
-      {tab==="asso" && (
-        <select value={assoFilter} onChange={e=>setAssoFilter(e.target.value)} style={{ width:"100%",background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:8,padding:"10px 14px",color:CJ.text,fontSize:14,marginBottom:16 }}>
-          <option value="">-- Choisir une association --</option>
-          {associations.map(a=><option key={a.slug} value={a.slug}>{a.nom}</option>)}
-        </select>
-      )}
+            {/* Neighbors */}
+            {(joueurAvant || joueurApres) && (
+              <div style={{ display:"flex", gap:8, marginTop:14 }}>
+                <NeighborCard j={joueurAvant} label="JUSTE DEVANT MOI"  rangOffset={-1} ecartPositif={true}/>
+                <NeighborCard j={joueurApres} label="JUSTE DERRIÈRE MOI" rangOffset={1} ecartPositif={false}/>
+              </div>
+            )}
 
-      {tab==="halloffame" && (
-        <div>
-          <h3 style={{ fontWeight:700, fontSize:16, marginBottom:14, color:CJ.yellow }}>🏆 Hall of Fame — Meilleurs joueurs par saison</h3>
-          {hallOfFame.length===0
-            ? <p style={{ color:CJ.muted, fontSize:13 }}>Aucune saison archivée pour l'instant.</p>
-            : (() => {
-                const saisons = [...new Set(hallOfFame.map(h=>h.saison))].sort((a,b)=>b-a);
-                return saisons.map(s => (
-                  <div key={s} style={{ marginBottom:24 }}>
-                    <h4 style={{ fontWeight:700, fontSize:15, color:CJ.yellow, marginBottom:10 }}>Saison {s}</h4>
-                    {hallOfFame.filter(h=>h.saison===s).slice(0,3).map((h,i)=>(
-                      <div key={h.id} style={{ background:CJ.card,border:`1px solid ${i===0?CJ.yellow:CJ.border}`,borderRadius:10,padding:14,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-                        <div style={{ display:"flex",alignItems:"center",gap:12 }}>
-                          <span style={{ fontSize:20 }}>{getMedaille(h.classement)}</span>
-                          <span style={{ fontWeight:700 }}>{h.joueur_pseudo}</span>
-                        </div>
-                        <BadgeJ color={CJ.yellow}>{h.score_final} DRIX</BadgeJ>
+            {/* Voir voisinage */}
+            <button onClick={() => setShowVoisinage(v => !v)} style={{ width:"100%", marginTop:12, padding:"10px 0", background:"transparent", border:`1px solid ${CJ.yellow}44`, borderRadius:10, color:CJ.yellow, fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+              👥 VOIR MON VOISINAGE <span style={{ fontSize:14, transition:"transform .2s", display:"inline-block", transform:showVoisinage?"rotate(90deg)":"none" }}>›</span>
+            </button>
+
+            {showVoisinage && (
+              <div style={{ marginTop:12, borderTop:`1px solid ${CJ.border}`, paddingTop:12 }}>
+                {voisinage.map(j => {
+                  const rang = classement.findIndex(x => x.id === j.id) + 1;
+                  const isMe = joueur && j.id === joueur.id;
+                  const { emoji, color } = getDrixTitreLocal(j.drix || 1000);
+                  return (
+                    <div key={j.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", borderRadius:8, marginBottom:4, background:isMe?`${CJ.yellow}15`:"transparent", border:`1px solid ${isMe?CJ.yellow+"44":"transparent"}` }}>
+                      <span style={{ width:28, textAlign:"center", fontWeight:800, fontSize:13, color:isMe?CJ.yellow:CJ.muted }}>#{rang}</span>
+                      <div style={{ width:32, height:32, borderRadius:"50%", background:`${color}22`, border:`2px solid ${isMe?CJ.yellow:color+"44"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, overflow:"hidden" }}>
+                        {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : emoji}
                       </div>
-                    ))}
-                  </div>
-                ));
-              })()
-          }
-        </div>
-      )}
+                      <div style={{ flex:1 }}>
+                        <span style={{ fontWeight:700, fontSize:13, color:isMe?CJ.yellow:CJ.text }}>{j.pseudo}{isMe?" (moi)":""}</span>
+                      </div>
+                      <span style={{ fontWeight:800, fontSize:15, color }}>{j.drix || 1000}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
-      {tab!=="halloffame" && (
-        loading ? <SpinnerJ/> : classementFiltre.length===0
-          ? <p style={{ color:CJ.muted, fontSize:13, textAlign:"center", padding:40 }}>Aucun joueur trouvé.</p>
-          : classementFiltre.map((j, i) => {
-              const { titre, emoji, color } = getDrixTitreLocal(j.drix || 1000);
-              const rang = i + 1;
+        {/* ── À PORTÉE ── */}
+        {joueur && aPortee.length > 0 && (
+          <div style={{ background:CJ.card, border:`1px solid #a78bfa44`, borderRadius:16, padding:16, marginBottom:12 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+              <span style={{ fontSize:18 }}>🎯</span>
+              <span style={{ fontWeight:800, fontSize:14, color:"#a78bfa" }}>À PORTÉE</span>
+            </div>
+            <div style={{ fontSize:11, color:CJ.muted, marginBottom:12 }}>Dépasse-les pour monter dans le classement !</div>
+            {aPortee.map(j => {
+              const rang = classement.findIndex(x => x.id === j.id) + 1;
+              const ecart = (j.drix || 1000) - monDrix;
+              const { emoji, color } = getDrixTitreLocal(j.drix || 1000);
               return (
-                <div key={j.id} onClick={()=>setPage("profil-joueur-"+j.id)}
-                  style={{ background:rang<=3?`${color}11`:CJ.card, border:`1px solid ${rang===1?color:rang<=3?color+"44":CJ.border}`, borderRadius:12, padding:"14px 18px", marginBottom:10, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", transition:"border-color .15s" }}
-                  onMouseEnter={e=>e.currentTarget.style.borderColor=color} onMouseLeave={e=>e.currentTarget.style.borderColor=rang===1?color:rang<=3?color+"44":CJ.border}>
-                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                    <span style={{ fontSize:rang<=3?22:16, fontWeight:900, color:rang<=3?color:CJ.muted, minWidth:28, textAlign:"center" }}>{getMedaille(rang)}</span>
-                    <div style={{ width:36,height:36,borderRadius:"50%",background:color+"22",border:`2px solid ${color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,overflow:"hidden" }}>
-                      {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{emoji}</span>}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight:700, fontSize:15 }}>{j.pseudo}</div>
-                      <div style={{ fontSize:12, color }}>{emoji} {titre}</div>
-                    </div>
+                <div key={j.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom:`1px solid ${CJ.border}` }}>
+                  <span style={{ width:28, fontWeight:700, fontSize:13, color:CJ.muted, textAlign:"center" }}>#{rang}</span>
+                  <div style={{ width:38, height:38, borderRadius:"50%", background:`${color}22`, border:`2px solid ${color}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, overflow:"hidden" }}>
+                    {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : emoji}
                   </div>
-                  <div style={{ textAlign:"right" }}>
-                    <div style={{ fontWeight:900, fontSize:20, color }}>{j.drix || 1000}</div>
-                    <div style={{ fontSize:11, color:CJ.muted }}>DRIX</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:700, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{j.pseudo}</div>
+                    <div style={{ fontSize:11, color:CJ.muted }}>{j.drix||1000} DRIX · <span style={{ color:CJ.red }}>Écart : {ecart} DRIX</span></div>
                   </div>
+                  <button onClick={() => { setJoueurId && setJoueurId(j.id); setPage("profil-joueur-"+j.id); }} style={{ background:`${CJ.accent}22`, border:`1px solid ${CJ.accent}55`, borderRadius:8, padding:"7px 13px", color:CJ.accent, fontWeight:700, fontSize:12, cursor:"pointer", flexShrink:0 }}>DÉFIER</button>
                 </div>
               );
-            })
-      )}
+            })}
+          </div>
+        )}
+
+        {/* ── FILTRES ── */}
+        <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:14, marginBottom:14 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
+            <span style={{ fontSize:16 }}>⚙️</span>
+            <span style={{ fontWeight:800, fontSize:13, color:CJ.text, letterSpacing:1 }}>FILTRES</span>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
+            {[
+              ["national",  "🌍", "NATIONAL",       CJ.yellow],
+              ["amis",      "👥", "MES AMIS",        CJ.blue],
+              ["bar",       "🍺", "MON BAR",         CJ.accent],
+              ["asso",      "🏢", "MON ASSO",        "#a78bfa"],
+              ["proximite", "📍", "AUTOUR DE MOI",   CJ.green],
+            ].map(([key, icon, label, color]) => (
+              <button key={key} onClick={() => setFiltre(key)} style={{ background:filtre===key?`${color}22`:"transparent", border:`1.5px solid ${filtre===key?color:CJ.border}`, borderRadius:10, padding:"9px 6px", color:filtre===key?color:CJ.muted, fontWeight:700, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+                <span style={{ fontSize:15 }}>{icon}</span>{label}
+              </button>
+            ))}
+          </div>
+          {filtre === "proximite" && <p style={{ color:CJ.muted, fontSize:11, marginTop:8, textAlign:"center" }}>📍 Affiche les joueurs partageant ton bar</p>}
+          {filtre === "bar"  && !joueur?.bar_slug  && <p style={{ color:CJ.red, fontSize:11, marginTop:8, textAlign:"center" }}>Associe-toi à un bar depuis ton profil.</p>}
+          {filtre === "asso" && !joueur?.asso_slug && <p style={{ color:CJ.red, fontSize:11, marginTop:8, textAlign:"center" }}>Rejoins une association depuis ton profil.</p>}
+        </div>
+
+        {/* ── CONTENU PRINCIPAL ── */}
+        {view === "evolution" ? (
+          <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:16, marginBottom:12 }}>
+            {joueur ? <EvolutionChart/> : <p style={{ color:CJ.muted, textAlign:"center", padding:20, fontSize:13 }}>Connecte-toi pour voir ton évolution.</p>}
+          </div>
+        ) : (
+          <div>
+            {/* List header */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, padding:"0 2px" }}>
+              <div style={{ fontWeight:800, fontSize:14, color:CJ.text }}>
+                {filtre==="national"?"🌍 Classement National":filtre==="amis"?"👥 Mes Amis":filtre==="bar"?"🍺 Mon Bar":filtre==="asso"?"🏢 Mon Association":"📍 Autour de moi"}
+              </div>
+              <div style={{ fontSize:10, color:CJ.muted }}>{classementFiltre.length} joueurs</div>
+            </div>
+
+            {loading ? <SpinnerJ/> : classementFiltre.length === 0
+              ? <div style={{ textAlign:"center", padding:"40px 20px", color:CJ.muted, fontSize:13 }}>
+                  {filtre === "amis" ? "Aucun ami dans le classement." : "Aucun joueur trouvé."}
+                </div>
+              : classementFiltre.map((j, i) => {
+                  const rang = i + 1;
+                  const { titre, emoji, color } = getDrixTitreLocal(j.drix || 1000);
+                  const isMe = joueur && j.id === joueur.id;
+                  const variation = variationMap[j.id] || 0;
+                  const medalColors = ["#ffd700","#c0c0c0","#cd7f32"];
+
+                  return (
+                    <div key={j.id} onClick={() => setPage("profil-joueur-"+j.id)}
+                      style={{ background:isMe?`linear-gradient(135deg,${CJ.yellow}15,${CJ.card})`:(rang<=3?`${color}0a`:CJ.card), border:`1.5px solid ${isMe?CJ.yellow+"77":rang===1?color:rang<=3?color+"44":CJ.border}`, borderRadius:14, padding:"12px 14px", marginBottom:8, cursor:"pointer", boxShadow:isMe?`0 0 22px ${CJ.yellow}22`:rang===1?`0 0 14px ${color}22`:"none" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:11 }}>
+
+                        {/* Rank */}
+                        <div style={{ minWidth:30, textAlign:"center" }}>
+                          {rang <= 3 ? (
+                            <div style={{ width:30, height:30, borderRadius:"50%", background:medalColors[rang-1], display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, boxShadow:`0 2px 8px ${medalColors[rang-1]}66` }}>
+                              {rang===1?"🥇":rang===2?"🥈":"🥉"}
+                            </div>
+                          ) : (
+                            <span style={{ fontWeight:900, fontSize:14, color:isMe?CJ.yellow:CJ.muted }}>#{rang}</span>
+                          )}
+                        </div>
+
+                        {/* Avatar + rank badge */}
+                        <div style={{ position:"relative", flexShrink:0 }}>
+                          <div style={{ width:46, height:46, borderRadius:"50%", background:`${color}22`, border:`2px solid ${isMe?CJ.yellow:color+"55"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, overflow:"hidden" }}>
+                            {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : emoji}
+                          </div>
+                          <div style={{ position:"absolute", bottom:-3, right:-4, background:color, borderRadius:"50%", width:17, height:17, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, border:"2px solid #1a1a1a" }}>{emoji}</div>
+                        </div>
+
+                        {/* Name + rank + progress */}
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontWeight:700, fontSize:14, color:isMe?CJ.yellow:CJ.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                            {j.pseudo}{isMe?" (moi)":""}
+                          </div>
+                          <div style={{ fontSize:11, color, fontWeight:600 }}>{emoji} {titre}</div>
+                          <MiniBar drix={j.drix||1000} color={color}/>
+                        </div>
+
+                        {/* DRIX + variation */}
+                        <div style={{ textAlign:"right", flexShrink:0 }}>
+                          <div style={{ fontWeight:900, fontSize:20, color, lineHeight:1 }}>{j.drix||1000}</div>
+                          <div style={{ fontSize:9, color:CJ.muted, marginBottom:2 }}>DRIX</div>
+                          {variation !== 0
+                            ? <div style={{ fontSize:10, fontWeight:700, color:variation>0?CJ.green:CJ.red }}>
+                                {variation>0?"↑ +":"↓ "}{variation}
+                                <div style={{ fontSize:9, color:CJ.muted, fontWeight:400 }}>cette semaine</div>
+                              </div>
+                            : <div style={{ fontSize:9, color:CJ.muted }}>stable</div>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+            }
+
+            {/* Hall of Fame section (bottom of classement) */}
+            {hallOfFame.length > 0 && filtre === "national" && (
+              <div style={{ background:CJ.card, border:`1px solid ${CJ.yellow}33`, borderRadius:14, padding:16, marginTop:16 }}>
+                <div style={{ fontWeight:800, fontSize:14, color:CJ.yellow, marginBottom:14 }}>🏆 Hall of Fame — Saisons passées</div>
+                {(() => {
+                  const saisons = [...new Set(hallOfFame.map(h=>h.saison))].sort((a,b)=>b-a);
+                  return saisons.map(s => (
+                    <div key={s} style={{ marginBottom:16 }}>
+                      <div style={{ fontWeight:700, fontSize:13, color:CJ.yellow, marginBottom:8 }}>Saison {s}</div>
+                      {hallOfFame.filter(h=>h.saison===s).slice(0,3).map((h,i)=>(
+                        <div key={h.id} style={{ background:"#0f0f0f", border:`1px solid ${i===0?CJ.yellow+"55":CJ.border}`, borderRadius:10, padding:"10px 14px", marginBottom:6, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                            <span style={{ fontSize:18 }}>{i===0?"🥇":i===1?"🥈":"🥉"}</span>
+                            <span style={{ fontWeight:700, fontSize:14 }}>{h.joueur_pseudo}</span>
+                          </div>
+                          <BadgeJ color={CJ.yellow}>{h.score_final} DRIX</BadgeJ>
+                        </div>
+                      ))}
+                    </div>
+                  ));
+                })()}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── SYSTÈME DE RANGS ── */}
+        <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:16, padding:16, marginTop:8 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+            <span style={{ fontSize:16 }}>🛡️</span>
+            <span style={{ fontWeight:800, fontSize:13, color:CJ.text, letterSpacing:1 }}>SYSTÈME DE RANGS</span>
+          </div>
+          <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:6 }}>
+            {RANGS.map((r) => {
+              const isCurrent = joueur && monRangInfo.titre === r.titre;
+              const isNext    = joueur && progression.prochain?.titre === r.titre;
+              return (
+                <div key={r.titre} style={{ textAlign:"center", flexShrink:0, minWidth:72, padding:"10px 6px", borderRadius:12, border:`2px solid ${isCurrent?r.color:isNext?r.color+"55":CJ.border}`, background:isCurrent?`${r.color}20`:isNext?`${r.color}09`:"transparent", transition:"all .2s" }}>
+                  <div style={{ fontSize:26, marginBottom:5, filter:isCurrent?"drop-shadow(0 0 6px "+r.color+"88)":"none" }}>{r.emoji}</div>
+                  <div style={{ fontSize:8, fontWeight:900, color:isCurrent?r.color:CJ.muted, textTransform:"uppercase", letterSpacing:0.5 }}>{r.titre}</div>
+                  <div style={{ fontSize:7, color:CJ.muted, marginTop:2 }}>{r.max === Infinity ? `${r.min}+` : `${r.min}–${r.max}`}</div>
+                  {isCurrent && <div style={{ fontSize:7, marginTop:5, color:r.color, background:`${r.color}22`, borderRadius:4, padding:"2px 4px", fontWeight:800 }}>● MOI</div>}
+                  {isNext && !isCurrent && <div style={{ fontSize:7, marginTop:5, color:r.color+"99", borderRadius:4, padding:"2px 4px", fontWeight:700 }}>suivant</div>}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ textAlign:"center", marginTop:12, fontSize:11, color:CJ.muted }}>Classement mis à jour il y a 2 minutes ⏱</div>
+        </div>
+
+      </div>
     </div>
   );
 };
