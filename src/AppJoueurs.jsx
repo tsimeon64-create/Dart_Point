@@ -51,6 +51,7 @@ export const dbJ = {
   getJoueurs: () => sbJ("joueurs?order=pseudo.asc&select=*"),
   getJoueur: (id) => sbJ(`joueurs?id=eq.${id}&select=*`).then(r => r?.[0]),
   getJoueurByPseudo: (pseudo) => sbJ(`joueurs?pseudo=eq.${encodeURIComponent(pseudo)}&select=*`).then(r => r?.[0]),
+  getJoueurByPseudoIlike: (pseudo) => sbJ(`joueurs?pseudo=ilike.${encodeURIComponent(pseudo)}&select=id,pseudo`).then(r => r?.[0]),
   addJoueur: (d) => sbJ("joueurs", { method: "POST", body: JSON.stringify(d) }),
   updateJoueur: (id, d) => sbJ(`joueurs?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(d), prefer: "return=minimal" }),
   getJoueursByBar: (slug) => sbJ(`joueurs?bar_slug=eq.${encodeURIComponent(slug)}&select=*`),
@@ -220,10 +221,13 @@ export const Connexion = ({ onLogin, setPage }) => {
   const register = async () => {
     if (!pseudo.trim() || !pwd || pwd !== pwd2) { setErr(pwd !== pwd2 ? "Les mots de passe ne correspondent pas" : "Champs obligatoires"); return; }
     if (pseudo.trim().length < 3) { setErr("Pseudo trop court (min 3 caractères)"); return; }
+    // Caractères autorisés : lettres, chiffres, _, -, .
+    if (!/^[\w.\-]+$/i.test(pseudo.trim())) { setErr("Pseudo invalide (lettres, chiffres, _ - . uniquement)"); return; }
     setLoading(true); setErr("");
     try {
-      const exist = await dbJ.getJoueurByPseudo(pseudo.trim());
-      if (exist) { setErr("Ce pseudo est déjà pris"); setLoading(false); return; }
+      // Vérification insensible à la casse — "TOTO" bloqué si "toto" existe déjà
+      const exist = await dbJ.getJoueurByPseudoIlike(pseudo.trim());
+      if (exist) { setErr(`Ce pseudo est déjà pris${exist.pseudo !== pseudo.trim() ? ` (par "${exist.pseudo}")` : ""}`); setLoading(false); return; }
       const hash = await hashPwd(pwd);
       const r = await dbJ.addJoueur({ pseudo: pseudo.trim(), password_hash: hash, date_inscription: Date.now() });
       if (r?.[0]) {
