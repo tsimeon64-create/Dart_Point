@@ -2767,6 +2767,8 @@ const AdminJoueurs = ({ addLog }) => {
       // Liens d'amitié (joueur des deux côtés)
       sb(`amis?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
       sb(`amis?ami_id=eq.${id}`,  {method:"DELETE",prefer:"return=minimal"}),
+      // Stats joueur (FK contrainte bloquante)
+      sb(`stats_joueurs?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
       // Mouvements DRIX
       sb(`drix_mouvements?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
       // Présences
