@@ -237,7 +237,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const annulerDernierCoup = () => {
     if (historique.length === 0) return;
     const prev = historique[historique.length - 1];
-    setJoueurs(prev.joueurs);
+    // Restaure le state depuis le snapshot (shallow copy suffisante — tours est déjà un tableau immutable)
+    setJoueurs(prev.joueurs.map(j => ({ ...j, tours: [...j.tours] })));
     setActifIdx(prev.actifIdx);
     setHistorique(h => h.slice(0, -1));
     setInput("");
@@ -277,6 +278,18 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     } catch(e) { console.error("Erreur enregistrement duel:", e); }
   };
 
+  // Snapshot léger pour l'annulation (sans cloner le tableau tours qui grandit sans limite)
+  const snapshot = () => ({
+    joueurs: joueurs.map(j => ({
+      nom: j.nom, score: j.score, manchesGagnees: j.manchesGagnees,
+      flechettes: j.flechettes, totalPoints: j.totalPoints,
+      scorePrecedent: j.scorePrecedent, tours: j.tours, // on garde tours mais on évite JSON deep-clone
+    })),
+    actifIdx,
+  });
+
+  const pushHistorique = () => setHistorique(h => [...h.slice(-14), snapshot()]);
+
   const envoyer = () => {
     if (!joueurs) return;
     const val = parseInt(input);
@@ -287,20 +300,20 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
     // Bust
     if (nouveau < 0 || nouveau === 1) {
-      setHistorique(h => [...h, { joueurs: JSON.parse(JSON.stringify(joueurs)), actifIdx }]);
+      pushHistorique();
       const updated = joueurs.map((j, i) => i === actifIdx ? { ...j, scorePrecedent: val, flechettes: j.flechettes + 3 } : j);
       setJoueurs(updated); setActifIdx(1 - actifIdx); setInput(""); return;
     }
 
     // Finish (score → 0) ou zéro pointé → popup fléchettes
     if (nouveau === 0 || val === 0) {
-      setHistorique(h => [...h, { joueurs: JSON.parse(JSON.stringify(joueurs)), actifIdx }]);
+      pushHistorique();
       setPendingVolee({ val, type: nouveau === 0 ? "finish" : "zero" });
       setInput(""); return;
     }
 
-    // Volée normale
-    setHistorique(h => [...h, { joueurs: JSON.parse(JSON.stringify(joueurs)), actifIdx }]);
+    // Volée normale — pas de limite de fléchettes, la partie se poursuit jusqu'au finish
+    pushHistorique();
     setJoueurs(joueurs.map((j, i) => i === actifIdx
       ? { ...j, score: nouveau, tours: [...j.tours, val], flechettes: j.flechettes + 3, totalPoints: j.totalPoints + val, scorePrecedent: val }
       : j
