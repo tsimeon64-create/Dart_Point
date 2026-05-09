@@ -2686,128 +2686,132 @@ const AdminLogin = ({ onLogin }) => {
   );
 };
 
-// ── ADMIN JOUEURS ─────────────────────────────────────────────────────────────
-const AdminJoueurs = () => {
+// ── ADMIN COCKPIT ─────────────────────────────────────────────────────────────
+
+// Couleurs priorité
+const PRIO = {
+  urgent:    { bg:"#ef444418", border:"#ef4444", text:"#ef4444", label:"🔴 Urgent" },
+  important: { bg:"#f59e0b18", border:"#f59e0b", text:"#f59e0b", label:"🟠 Important" },
+  normal:    { bg:"#22c55e18", border:"#22c55e", text:"#22c55e", label:"🟢 Normal" },
+};
+
+const AdminKpiCard = ({ icon, label, count, prio="normal", onClick }) => {
+  const p = PRIO[prio];
+  return (
+    <div onClick={onClick} style={{ background:`linear-gradient(135deg,${p.bg},#1a1a1a)`, border:`1px solid ${p.border}44`, borderRadius:14, padding:"18px 20px", cursor:onClick?"pointer":"default", transition:"transform .15s, box-shadow .15s", display:"flex", flexDirection:"column", gap:6, minWidth:140 }}
+      onMouseEnter={e=>{ if(onClick){e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow=`0 8px 24px ${p.border}22`;}}}
+      onMouseLeave={e=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
+      <div style={{ fontSize:22 }}>{icon}</div>
+      <div style={{ fontSize:28, fontWeight:900, color:p.text, lineHeight:1 }}>{count ?? "—"}</div>
+      <div style={{ fontSize:11, color:C.muted, fontWeight:600, letterSpacing:.5 }}>{label}</div>
+      {prio !== "normal" && <div style={{ fontSize:10, color:p.text, marginTop:2 }}>{p.label}</div>}
+    </div>
+  );
+};
+
+const AdminJoueurs = ({ addLog }) => {
   const [recherche, setRecherche] = useState("");
-  const [joueurs, setJoueurs] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [drixInputs, setDrixInputs] = useState({});   // { [id]: valeur saisie }
-  const [saving, setSaving] = useState({});            // { [id]: bool }
-  const [msg, setMsg] = useState({});                  // { [id]: message feedback }
+  const [joueurs, setJoueurs]     = useState([]);
+  const [loading, setLoading]     = useState(false);
+  const [drixInputs, setDrixInputs] = useState({});
+  const [saving, setSaving]       = useState({});
+  const [msg, setMsg]             = useState({});
+  const [expanded, setExpanded]   = useState({});
 
   const chercher = async () => {
     if (!recherche.trim()) return;
     setLoading(true);
-    const res = await sb(`joueurs?pseudo=ilike.%25${encodeURIComponent(recherche.trim())}%25&select=id,pseudo,drix,date_inscription&limit=20`).catch(()=>[]);
+    const res = await sb(`joueurs?pseudo=ilike.%25${encodeURIComponent(recherche.trim())}%25&select=id,pseudo,drix,date_inscription,photo_url&limit=20`).catch(()=>[]);
     setJoueurs(res || []);
     setLoading(false);
   };
 
   const supprimerCompte = async (j) => {
-    if (!window.confirm(`⚠️ Supprimer définitivement le compte de ${j.pseudo} ? Cette action est irréversible.`)) return;
-    setSaving(s => ({ ...s, [j.id]: true }));
-    await sb(`joueurs?id=eq.${j.id}`, { method:"DELETE", prefer:"return=minimal" }).catch(()=>{});
-    setJoueurs(x => x.filter(p => p.id !== j.id));
-    setSaving(s => ({ ...s, [j.id]: false }));
+    if (!window.confirm(`⚠️ Supprimer définitivement le compte de ${j.pseudo} ? Irréversible.`)) return;
+    setSaving(s=>({...s,[j.id]:true}));
+    await sb(`joueurs?id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}).catch(()=>{});
+    setJoueurs(x=>x.filter(p=>p.id!==j.id));
+    addLog?.("Suppression compte", j.pseudo, "danger");
+    setSaving(s=>({...s,[j.id]:false}));
   };
 
   const appliquerDrix = async (j, delta) => {
     if (!delta || isNaN(delta)) return;
-    setSaving(s => ({ ...s, [j.id]: true }));
-    const newDrix = Math.max(0, (j.drix || 1000) + Number(delta));
-    await sb(`joueurs?id=eq.${j.id}`, { method:"PATCH", body: JSON.stringify({ drix: newDrix }), prefer:"return=minimal" }).catch(()=>{});
-    await sb("drix_mouvements", { method:"POST", body: JSON.stringify({
-      joueur_id: j.id,
-      joueur_pseudo: j.pseudo,
-      adversaire_pseudo: "Admin",
-      variation: Number(delta),
-      drix_avant: j.drix || 1000,
-      drix_apres: newDrix,
-      resultat: Number(delta) > 0 ? "victoire" : "defaite",
-      date: Date.now(),
+    setSaving(s=>({...s,[j.id]:true}));
+    const newDrix = Math.max(0,(j.drix||1000)+Number(delta));
+    await sb(`joueurs?id=eq.${j.id}`,{method:"PATCH",body:JSON.stringify({drix:newDrix}),prefer:"return=minimal"}).catch(()=>{});
+    await sb("drix_mouvements",{method:"POST",body:JSON.stringify({
+      joueur_id:j.id, joueur_pseudo:j.pseudo, adversaire_pseudo:"Admin",
+      variation:Number(delta), drix_avant:j.drix||1000, drix_apres:newDrix,
+      resultat:Number(delta)>0?"victoire":"defaite", date:Date.now(),
     })}).catch(()=>{});
-    setJoueurs(x => x.map(p => p.id === j.id ? { ...p, drix: newDrix } : p));
-    setMsg(m => ({ ...m, [j.id]: `✅ DRIX mis à jour : ${newDrix}` }));
-    setDrixInputs(d => ({ ...d, [j.id]: "" }));
-    setTimeout(() => setMsg(m => ({ ...m, [j.id]: "" })), 3000);
-    setSaving(s => ({ ...s, [j.id]: false }));
+    setJoueurs(x=>x.map(p=>p.id===j.id?{...p,drix:newDrix}:p));
+    setMsg(m=>({...m,[j.id]:`✅ DRIX : ${j.drix||1000} → ${newDrix}`}));
+    setDrixInputs(d=>({...d,[j.id]:""}));
+    addLog?.(`DRIX ${Number(delta)>0?"+":""}${delta}`, j.pseudo, Number(delta)>0?"success":"warning");
+    setTimeout(()=>setMsg(m=>({...m,[j.id]:""})),3000);
+    setSaving(s=>({...s,[j.id]:false}));
   };
 
   return (
     <div>
-      {/* Recherche */}
-      <div style={{ display:"flex", gap:8, marginBottom:20 }}>
-        <input
-          value={recherche}
-          onChange={e => setRecherche(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && chercher()}
-          placeholder="Rechercher un pseudo…"
-          style={{ flex:1, background:"#111", border:`1px solid ${C.border}`, borderRadius:8, padding:"8px 12px", color:C.text, fontSize:14 }}
-        />
-        <button onClick={chercher} style={{ background:C.accent, color:"#fff", border:"none", borderRadius:8, padding:"8px 16px", cursor:"pointer", fontWeight:700, fontSize:14 }}>
-          🔍 Chercher
-        </button>
+      <div style={{display:"flex",gap:8,marginBottom:20}}>
+        <input value={recherche} onChange={e=>setRecherche(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&chercher()}
+          placeholder="🔍 Rechercher un pseudo…"
+          style={{flex:1,background:"#111",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",color:C.text,fontSize:14}}/>
+        <button onClick={chercher} style={{background:C.accent,color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",cursor:"pointer",fontWeight:700,fontSize:14}}>Chercher</button>
       </div>
-
-      {loading && <Spinner/>}
-
-      {!loading && joueurs.length === 0 && recherche && (
-        <div style={{ textAlign:"center", padding:40, color:C.muted }}>Aucun joueur trouvé.</div>
-      )}
-
-      {joueurs.map(j => (
-        <div key={j.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:18, marginBottom:12 }}>
-          {/* Infos joueur */}
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
-            <div>
-              <div style={{ fontWeight:800, fontSize:16, color:C.text }}>{j.pseudo}</div>
-              <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>Inscription : {j.date_inscription ? new Date(j.date_inscription).toLocaleDateString("fr-FR") : "—"}</div>
+      {loading&&<Spinner/>}
+      {!loading&&joueurs.length===0&&recherche&&<div style={{textAlign:"center",padding:40,color:C.muted}}>Aucun joueur trouvé.</div>}
+      {joueurs.map(j=>(
+        <div key={j.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18,marginBottom:12,overflow:"hidden"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,cursor:"pointer"}} onClick={()=>setExpanded(x=>({...x,[j.id]:!x[j.id]}))}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              {j.photo_url
+                ? <img src={j.photo_url} style={{width:40,height:40,borderRadius:"50%",objectFit:"cover",border:`2px solid ${C.accent}`}} alt=""/>
+                : <div style={{width:40,height:40,borderRadius:"50%",background:`${C.accent}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>👤</div>}
+              <div>
+                <div style={{fontWeight:800,fontSize:15}}>{j.pseudo}</div>
+                <div style={{fontSize:11,color:C.muted}}>Inscrit le {j.date_inscription?new Date(j.date_inscription).toLocaleDateString("fr-FR"):"—"}</div>
+              </div>
             </div>
-            <div style={{ textAlign:"right" }}>
-              <div style={{ fontSize:22, fontWeight:900, color:C.accent }}>{j.drix ?? 1000}</div>
-              <div style={{ fontSize:10, color:C.muted, letterSpacing:1 }}>DRIX</div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:22,fontWeight:900,color:C.accent}}>{j.drix??1000}</div>
+              <div style={{fontSize:10,color:C.muted,letterSpacing:1}}>DRIX</div>
             </div>
           </div>
-
-          {/* Modifier DRIX */}
-          <div style={{ marginBottom:12 }}>
-            <div style={{ fontSize:12, color:C.muted, marginBottom:6, fontWeight:600 }}>Modifier les DRIX (ex: +50 ou -30)</div>
-            <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-              <input
-                type="number"
-                value={drixInputs[j.id] ?? ""}
-                onChange={e => setDrixInputs(d => ({ ...d, [j.id]: e.target.value }))}
-                placeholder="+50 ou -30"
-                style={{ width:120, background:"#111", border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 10px", color:C.text, fontSize:13 }}
-              />
-              <button
-                onClick={() => appliquerDrix(j, drixInputs[j.id])}
-                disabled={saving[j.id]}
-                style={{ background:"#10b98122", color:"#10b981", border:`1px solid #10b98155`, borderRadius:8, padding:"6px 14px", cursor:"pointer", fontWeight:700, fontSize:13 }}
-              >
-                💎 Appliquer
-              </button>
-              {/* Boutons rapides */}
-              {[-100,-50,-10,10,50,100].map(v => (
-                <button key={v} onClick={() => appliquerDrix(j, v)}
-                  style={{ background: v>0 ? "#10b98118":"#ef444418", color: v>0 ? "#10b981":"#ef4444", border:`1px solid ${v>0?"#10b98133":"#ef444433"}`, borderRadius:6, padding:"4px 9px", cursor:"pointer", fontSize:12, fontWeight:700 }}>
-                  {v>0?"+":""}{v}
+          {expanded[j.id]&&(
+            <div style={{borderTop:`1px solid ${C.border}`,paddingTop:14,display:"flex",flexDirection:"column",gap:12}}>
+              {/* Modifier DRIX */}
+              <div>
+                <div style={{fontSize:12,color:C.muted,marginBottom:8,fontWeight:600}}>💎 Modifier les DRIX</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                  <input type="number" value={drixInputs[j.id]??""} onChange={e=>setDrixInputs(d=>({...d,[j.id]:e.target.value}))}
+                    placeholder="+50 ou -30"
+                    style={{width:100,background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 10px",color:C.text,fontSize:13}}/>
+                  <button onClick={()=>appliquerDrix(j,drixInputs[j.id])} disabled={saving[j.id]}
+                    style={{background:"#10b98122",color:"#10b981",border:`1px solid #10b98155`,borderRadius:8,padding:"6px 14px",cursor:"pointer",fontWeight:700,fontSize:13}}>
+                    Appliquer
+                  </button>
+                  {[-100,-50,-10,10,50,100].map(v=>(
+                    <button key={v} onClick={()=>appliquerDrix(j,v)}
+                      style={{background:v>0?"#10b98118":"#ef444418",color:v>0?"#10b981":"#ef4444",border:`1px solid ${v>0?"#10b98133":"#ef444433"}`,borderRadius:6,padding:"4px 9px",cursor:"pointer",fontSize:12,fontWeight:700}}>
+                      {v>0?"+":""}{v}
+                    </button>
+                  ))}
+                </div>
+                {msg[j.id]&&<div style={{fontSize:12,color:"#10b981",marginTop:6}}>{msg[j.id]}</div>}
+              </div>
+              {/* Actions danger */}
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                <button onClick={()=>supprimerCompte(j)} disabled={saving[j.id]}
+                  style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}44`,borderRadius:8,padding:"7px 14px",cursor:"pointer",fontWeight:700,fontSize:13}}>
+                  🗑 Supprimer le compte
                 </button>
-              ))}
+              </div>
             </div>
-            {msg[j.id] && <div style={{ fontSize:12, color:"#10b981", marginTop:6 }}>{msg[j.id]}</div>}
-          </div>
-
-          {/* Supprimer compte */}
-          <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:12 }}>
-            <button
-              onClick={() => supprimerCompte(j)}
-              disabled={saving[j.id]}
-              style={{ background:"#1a0000", color:C.red, border:`1px solid ${C.red}44`, borderRadius:8, padding:"6px 14px", cursor:"pointer", fontWeight:700, fontSize:13 }}
-            >
-              🗑 Supprimer le compte
-            </button>
-          </div>
+          )}
         </div>
       ))}
     </div>
@@ -2815,107 +2819,413 @@ const AdminJoueurs = () => {
 };
 
 const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTournois, setPage, setBarSlug, setAssoSlug, setTournoiSlug }) => {
-  const [tab,setTab]=useState("pending");
-  const [propositions,setPropositions]=useState([]);
-  const [signalements,setSignalements]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [editBar,setEditBar]=useState(null);
-  const [editAsso,setEditAsso]=useState(null);
-  const [editTournoi,setEditTournoi]=useState(null);
+  const [tab, setTab]               = useState("dashboard");
+  const [propositions, setPropositions] = useState([]);
+  const [signalements, setSignalements] = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [editBar, setEditBar]       = useState(null);
+  const [editAsso, setEditAsso]     = useState(null);
+  const [editTournoi, setEditTournoi] = useState(null);
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [searchResults, setSearchResults] = useState(null);
+  const [joueursList, setJoueursList] = useState([]);
+  const [avisCount, setAvisCount]   = useState(0);
+  const [adminLogs, setAdminLogs]   = useState([]);
+  const [stats, setStats]           = useState({ matchsDuJour:0, joueursActifs:0, nouveauxJoueurs:0, totalJoueurs:0 });
 
-  useEffect(()=>{ Promise.all([db.getPropositions(),db.getSignalements()]).then(([p,s])=>{ setPropositions(p||[]); setSignalements(s||[]); setLoading(false); }).catch(()=>setLoading(false)); },[]);
+  const addLog = (action, cible, type="info") =>
+    setAdminLogs(l => [{ id:Date.now(), action, cible, type, date:new Date().toLocaleString("fr-FR") }, ...l.slice(0,49)]);
 
-  const validerBar=async p=>{const slug=slugify(p.nom+"-"+p.ville);let lat=null,lng=null;try{const adresseComplete=`${p.adresse||p.nom}, ${p.ville}, France`;const q=encodeURIComponent(adresseComplete);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const geoData=await geo.json();if(geoData?.[0]){lat=parseFloat(geoData[0].lat);lng=parseFloat(geoData[0].lon);}if(!lat){const q2=encodeURIComponent(`${p.ville}, France`);const geo2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);const geoData2=await geo2.json();if(geoData2?.[0]){lat=parseFloat(geoData2[0].lat);lng=parseFloat(geoData2[0].lon);}}}catch(e){console.error("Géocodage échoué",e);}const nb={slug,nom:p.nom,ville:p.ville,cp:p.cp||"",adresse:p.adresse||"",tel:p.tel||"",type:p.type||"electronique",cibles:parseInt(p.cibles)||1,horaires:"",description:"",tournois:p.tournois==="oui",association:null,source:"user",verifie:true,vues:0,lat,lng};const r=await db.addBar(nb);if(r?.[0])setBars(b=>[...b,r[0]]);await db.updateProposition(p.id,{statut:"publie"});setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));};
-  const validerAsso=async p=>{ const slug=slugify(p.nom+"-"+p.ville); const nb={slug,nom:p.nom,ville:p.ville,zone:p.zone||"",type:p.type||"electronique",jours:p.jours||"À confirmer",lieu:p.lieu||"",tel:p.tel||"",contact:p.contact||"",description:p.description||"",bars:[],source:"user",verifie:true,lat:null,lng:null}; const r=await db.addAssociation(nb); if(r?.[0]) setAssociations(a=>[...a,r[0]]); await db.updateProposition(p.id,{statut:"publie"}); setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y)); };
-  const validerTournoi=async p=>{ const slug=slugify(p.nom+"-"+p.ville+"-"+(p.date||"")); const nb={slug,nom:p.nom,ville:p.ville,date:p.date||"",bar:p.bar||"",association:p.association||"",type:p.type||"electronique",format:p.format||"individuel",niveau:p.niveau||"tous",prix:p.prix||"",dotations:p.dotations||"",places:p.places||"",description:p.description||"",contact:p.contact||"",lien:p.lien||"",source:"user",statut:"publie",lat:null,lng:null}; const r=await db.addTournoi(nb); if(r?.[0]) setTournois(t=>[...t,r[0]]); await db.updateProposition(p.id,{statut:"publie"}); setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y)); };
-  const refuser=async id=>{ await db.updateProposition(id,{statut:"refuse"}); setPropositions(x=>x.map(y=>y.id===id?{...y,statut:"refuse"}:y)); };
+  useEffect(()=>{
+    const weekAgo = Date.now() - 7*24*60*60*1000;
+    Promise.all([
+      db.getPropositions(),
+      db.getSignalements(),
+      fetch(`${SB_URL}/rest/v1/avis?valide=eq.false&select=id`,{headers:{"apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`}}).then(r=>r.json()).catch(()=>[]),
+      sb(`joueurs?order=date_inscription.desc&limit=200&select=id,pseudo,drix,date_inscription,photo_url`).catch(()=>[]),
+      sb(`duels?statut=eq.en_cours&select=id`).catch(()=>[]),
+    ]).then(([p,s,av,j,duels])=>{
+      setPropositions(p||[]);
+      setSignalements(s||[]);
+      setAvisCount((av||[]).length);
+      const jList = j||[];
+      setJoueursList(jList);
+      setStats({
+        matchsDuJour: (duels||[]).length,
+        joueursActifs: 0,
+        nouveauxJoueurs: jList.filter(x=>x.date_inscription&&new Date(x.date_inscription).getTime()>weekAgo).length,
+        totalJoueurs: jList.length,
+      });
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  },[]);
 
-  const allPending=propositions.filter(p=>p.statut==="en_attente");
-  const sigPending=signalements.filter(s=>!s.traite);
-  const tabs=[["pending",`⏳ En attente (${allPending.length})`],["avismod","💬 Avis"],["allbars",`🎯 Bars (${bars.length})`],["allassos",`🫂 Assos`],["alltournois",`🏅 Tournois`],["signalements",`⚠️ Signalements (${sigPending.length})`],["joueurs","👤 Profil joueur"]];
+  const validerBar=async p=>{const slug=slugify(p.nom+"-"+p.ville);let lat=null,lng=null;try{const q=encodeURIComponent(`${p.adresse||p.nom}, ${p.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const geoData=await geo.json();if(geoData?.[0]){lat=parseFloat(geoData[0].lat);lng=parseFloat(geoData[0].lon);}if(!lat){const q2=encodeURIComponent(`${p.ville}, France`);const geo2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);const geoData2=await geo2.json();if(geoData2?.[0]){lat=parseFloat(geoData2[0].lat);lng=parseFloat(geoData2[0].lon);}}}catch(e){}const nb={slug,nom:p.nom,ville:p.ville,cp:p.cp||"",adresse:p.adresse||"",tel:p.tel||"",type:p.type||"electronique",cibles:parseInt(p.cibles)||1,horaires:"",description:"",tournois:p.tournois==="oui",association:null,source:"user",verifie:true,vues:0,lat,lng};const r=await db.addBar(nb);if(r?.[0])setBars(b=>[...b,r[0]]);await db.updateProposition(p.id,{statut:"publie"});setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));addLog("Bar validé",p.nom,"success");};
+  const validerAsso=async p=>{const slug=slugify(p.nom+"-"+p.ville);const nb={slug,nom:p.nom,ville:p.ville,zone:p.zone||"",type:p.type||"electronique",jours:p.jours||"À confirmer",lieu:p.lieu||"",tel:p.tel||"",contact:p.contact||"",description:p.description||"",bars:[],source:"user",verifie:true,lat:null,lng:null};const r=await db.addAssociation(nb);if(r?.[0])setAssociations(a=>[...a,r[0]]);await db.updateProposition(p.id,{statut:"publie"});setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));addLog("Association validée",p.nom,"success");};
+  const validerTournoi=async p=>{const slug=slugify(p.nom+"-"+p.ville+"-"+(p.date||""));const nb={slug,nom:p.nom,ville:p.ville,date:p.date||"",bar:p.bar||"",association:p.association||"",type:p.type||"electronique",format:p.format||"individuel",niveau:p.niveau||"tous",prix:p.prix||"",dotations:p.dotations||"",places:p.places||"",description:p.description||"",contact:p.contact||"",lien:p.lien||"",source:"user",statut:"publie",lat:null,lng:null};const r=await db.addTournoi(nb);if(r?.[0])setTournois(t=>[...t,r[0]]);await db.updateProposition(p.id,{statut:"publie"});setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));addLog("Tournoi validé",p.nom,"success");};
+  const refuser=async(id,nom)=>{await db.updateProposition(id,{statut:"refuse"});setPropositions(x=>x.map(y=>y.id===id?{...y,statut:"refuse"}:y));addLog("Proposition refusée",nom||id,"warning");};
 
-  return (
-    <div style={{ maxWidth:980,margin:"0 auto",padding:"36px 20px" }}>
-      {editBar&&<EditBarModal bar={editBar} onSave={u=>{setBars(b=>b.map(x=>x.slug===u.slug?u:x));setEditBar(null);}} onClose={()=>setEditBar(null)}/>}
-      {editAsso&&<EditAssoModal asso={editAsso} onSave={u=>{setAssociations(a=>a.map(x=>x.slug===u.slug?u:x));setEditAsso(null);}} onClose={()=>setEditAsso(null)}/>}
-      {editTournoi&&<EditTournoiModal tournoi={editTournoi} onSave={u=>{setTournois(t=>t.map(x=>x.slug===u.slug?u:x));setEditTournoi(null);}} onClose={()=>setEditTournoi(null)}/>}
-      <h1 style={{ fontWeight:800,fontSize:24,marginBottom:24 }}>⚙️ Administration</h1>
-      <div style={{ display:"flex",gap:6,marginBottom:18,flexWrap:"wrap" }}>
-        {tabs.map(([t,l])=><button key={t} onClick={()=>setTab(t)} style={{ background:tab===t?C.accent+"22":"transparent",color:tab===t?C.accent:C.muted,border:`1px solid ${tab===t?C.accent:C.border}`,cursor:"pointer",padding:"6px 13px",borderRadius:8,fontSize:12,fontWeight:500 }}>{l}</button>)}
-      </div>
-      {loading?<Spinner/>
-      :tab==="pending"?(allPending.length===0?<div style={{ textAlign:"center",padding:50,color:C.muted }}>📭 Aucune proposition.</div>:allPending.map(p=>{
-        const isAsso=p.type_prop==="association"; const isTournoi=p.type_prop==="tournoi";
-        return (
-          <div key={p.id} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18,marginBottom:10 }}>
-            <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:6 }}><h3 style={{ fontWeight:700,fontSize:15 }}>{p.nom}</h3><Badge color={isAsso?"#7c3aed":isTournoi?C.yellow:C.accent}>{isAsso?"🫂":isTournoi?"🏅":"🎯"}</Badge></div>
-            <p style={{ color:C.muted,fontSize:12,marginBottom:10 }}>📍 {p.ville}{p.date?" · "+p.date:""}</p>
-            {(p.description||p.commentaire)&&<p style={{ color:"#cbd5e1",fontSize:12,fontStyle:"italic",background:"#111",padding:"7px 11px",borderRadius:8,marginBottom:10 }}>"{(p.description||p.commentaire||"").slice(0,120)}"</p>}
-            <div style={{ display:"flex",gap:8 }}>
-              <Btn variant="success" onClick={()=>isAsso?validerAsso(p):isTournoi?validerTournoi(p):validerBar(p)} style={{ fontSize:12 }}>✅ Valider</Btn>
-              <Btn variant="danger" onClick={()=>refuser(p.id)} style={{ fontSize:12 }}>❌ Refuser</Btn>
+  const allPending = propositions.filter(p=>p.statut==="en_attente");
+  const sigPending = signalements.filter(s=>!s.traite);
+  const totalUrgent = allPending.length + sigPending.length + avisCount;
+
+  // Global search
+  const doSearch = (q) => {
+    if (!q.trim()) { setSearchResults(null); return; }
+    const lq = q.toLowerCase();
+    setSearchResults({
+      bars: bars.filter(b=>b.nom?.toLowerCase().includes(lq)||b.ville?.toLowerCase().includes(lq)),
+      assos: associations.filter(a=>a.nom?.toLowerCase().includes(lq)||a.ville?.toLowerCase().includes(lq)),
+      tournois: tournois.filter(t=>t.nom?.toLowerCase().includes(lq)||t.ville?.toLowerCase().includes(lq)),
+      joueurs: joueursList.filter(j=>j.pseudo?.toLowerCase().includes(lq)),
+    });
+  };
+
+  // ── STYLES ──
+  const tabBtn = (t) => ({
+    background: tab===t ? `${C.accent}22` : "transparent",
+    color: tab===t ? C.accent : C.muted,
+    border: `1px solid ${tab===t ? C.accent : C.border}`,
+    cursor:"pointer", padding:"8px 14px", borderRadius:10,
+    fontSize:12, fontWeight:600, whiteSpace:"nowrap", position:"relative",
+  });
+
+  const LOG_COLORS = { success:"#22c55e", warning:"#f59e0b", danger:"#ef4444", info:"#60a5fa" };
+  const LOG_ICONS  = { success:"✅", warning:"⚠️", danger:"🗑", info:"ℹ️" };
+
+  // ── RENDER TABS ──
+  const renderPending = () => (
+    <div>
+      {allPending.length===0
+        ? <div style={{textAlign:"center",padding:60,color:C.muted}}>📭 Aucune proposition en attente.</div>
+        : allPending.map(p=>{
+            const isAsso=p.type_prop==="association"; const isTournoi=p.type_prop==="tournoi";
+            return (
+              <div key={p.id} style={{background:C.card,border:`1px solid ${C.accent}33`,borderRadius:14,padding:20,marginBottom:12}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                  <span style={{fontSize:20}}>{isAsso?"🫂":isTournoi?"🏅":"🎯"}</span>
+                  <div>
+                    <div style={{fontWeight:800,fontSize:15}}>{p.nom}</div>
+                    <div style={{color:C.muted,fontSize:12}}>📍 {p.ville}{p.date?" · "+p.date:""} · {isAsso?"Association":isTournoi?"Tournoi":"Bar"}</div>
+                  </div>
+                  <div style={{marginLeft:"auto",background:PRIO.urgent.bg,border:`1px solid ${PRIO.urgent.border}`,borderRadius:8,padding:"3px 10px",fontSize:11,color:PRIO.urgent.text}}>🔴 Urgent</div>
+                </div>
+                {(p.description||p.commentaire)&&<p style={{color:"#cbd5e1",fontSize:12,fontStyle:"italic",background:"#111",padding:"8px 12px",borderRadius:8,marginBottom:12}}>"{(p.description||p.commentaire||"").slice(0,150)}"</p>}
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <Btn variant="success" onClick={()=>isAsso?validerAsso(p):isTournoi?validerTournoi(p):validerBar(p)} style={{fontSize:12}}>✅ Valider & Publier</Btn>
+                  <Btn variant="danger" onClick={()=>refuser(p.id,p.nom)} style={{fontSize:12}}>❌ Refuser</Btn>
+                </div>
+              </div>
+            );
+          })}
+    </div>
+  );
+
+  const renderBars = () => (
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
+      {bars.map(b=>(
+        <div key={b.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14}}>
+          <div onClick={()=>{setBarSlug(b.slug);setPage("bar");}} style={{cursor:"pointer",marginBottom:10}}>
+            <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:6}}>{b.nom}{b.verifie&&<span style={{color:C.green,fontSize:12}}>✅</span>}</div>
+            <div style={{color:C.muted,fontSize:12}}>📍 {b.ville} · 👁 {b.vues||0} vues</div>
+          </div>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+            <button onClick={()=>db.toggleVerifie(b.slug,!b.verifie).then(()=>{setBars(x=>x.map(y=>y.slug===b.slug?{...y,verifie:!y.verifie}:y));addLog(b.verifie?"Bar dévérifié":"Bar vérifié",b.nom,"info");})} style={{background:b.verifie?"#14532d":"#111",border:`1px solid ${b.verifie?C.green:C.border}`,borderRadius:6,color:b.verifie?C.green:C.muted,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>{b.verifie?"✅ Vérifié":"Vérifier"}</button>
+            <button onClick={()=>setEditBar(b)} style={{background:"#1a1200",border:`1px solid ${C.yellow}44`,borderRadius:6,color:C.yellow,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>✏️ Éditer</button>
+            <button onClick={async()=>{let lat=null,lng=null;try{const q=encodeURIComponent(`${b.adresse||b.nom}, ${b.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const gd=await geo.json();if(gd?.[0]){lat=parseFloat(gd[0].lat);lng=parseFloat(gd[0].lon);}if(!lat){const q2=encodeURIComponent(`${b.ville}, France`);const geo2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);const gd2=await geo2.json();if(gd2?.[0]){lat=parseFloat(gd2[0].lat);lng=parseFloat(gd2[0].lon);}}}catch(e){}if(lat){await db.updateBar(b.slug,{lat,lng});setBars(x=>x.map(y=>y.slug===b.slug?{...y,lat,lng}:y));alert("✅ GPS mis à jour!");}else{alert("❌ Adresse introuvable");}}} style={{background:"#0f1a0f",border:`1px solid ${C.green}44`,borderRadius:6,color:C.green,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>📍 GPS</button>
+            <button onClick={async()=>{if(!window.confirm("Supprimer ce bar ?"))return;await db.deleteBar(b.slug);setBars(x=>x.filter(y=>y.slug!==b.slug));addLog("Bar supprimé",b.nom,"danger");}} style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>🗑</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderAssos = () => (
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
+      {associations.map(a=>(
+        <div key={a.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14}}>
+          <div onClick={()=>{setAssoSlug(a.slug);setPage("asso");}} style={{cursor:"pointer",marginBottom:10}}>
+            <div style={{fontWeight:700,fontSize:14}}>{a.nom}</div>
+            <div style={{color:C.muted,fontSize:12}}>📍 {a.ville} · {a.type}</div>
+          </div>
+          <div style={{display:"flex",gap:5}}>
+            <button onClick={()=>setEditAsso(a)} style={{background:"#1a1200",border:`1px solid ${C.yellow}44`,borderRadius:6,color:C.yellow,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>✏️ Éditer</button>
+            <button onClick={async()=>{if(!window.confirm("Supprimer ?"))return;await db.deleteAssociation(a.slug);setAssociations(x=>x.filter(y=>y.slug!==a.slug));addLog("Asso supprimée",a.nom,"danger");}} style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>🗑</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderTournois = () => (
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
+      {tournois.map(t=>(
+        <div key={t.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14}}>
+          <div onClick={()=>{setTournoiSlug(t.slug);setPage("tournoi-detail");}} style={{cursor:"pointer",marginBottom:10}}>
+            <div style={{fontWeight:700,fontSize:14}}>{t.nom}</div>
+            <div style={{color:C.muted,fontSize:12}}>📍 {t.ville} · 📅 {t.date}</div>
+          </div>
+          <div style={{display:"flex",gap:5}}>
+            <button onClick={()=>setEditTournoi(t)} style={{background:"#1a1200",border:`1px solid ${C.yellow}44`,borderRadius:6,color:C.yellow,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>✏️ Éditer</button>
+            <button onClick={async()=>{if(!window.confirm("Supprimer ?"))return;await db.deleteTournoi(t.slug);setTournois(x=>x.filter(y=>y.slug!==t.slug));addLog("Tournoi supprimé",t.nom,"danger");}} style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>🗑</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderSignalements = () => (
+    sigPending.length===0
+      ? <div style={{textAlign:"center",padding:60,color:C.muted}}>✅ Aucun signalement actif.</div>
+      : sigPending.map(s=>(
+          <div key={s.id} style={{background:C.card,border:`1px solid ${C.red}44`,borderRadius:14,padding:18,marginBottom:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+              <div>
+                <div style={{fontWeight:800,fontSize:15,color:C.red}}>⚠️ {s.bar_nom}</div>
+                <div style={{color:C.muted,fontSize:12}}>{s.type} · {new Date(s.date).toLocaleDateString("fr-FR")}</div>
+              </div>
+              <div style={{background:PRIO.urgent.bg,border:`1px solid ${PRIO.urgent.border}`,borderRadius:8,padding:"3px 10px",fontSize:11,color:PRIO.urgent.text}}>🔴 Urgent</div>
+            </div>
+            <p style={{color:"#cbd5e1",fontSize:13,background:"#111",padding:"10px 14px",borderRadius:10,marginBottom:12}}>{s.message}</p>
+            <div style={{display:"flex",gap:8}}>
+              <Btn variant="ghost" onClick={()=>{setBarSlug(s.bar_slug);setPage("bar");}} style={{fontSize:12}}>👁 Voir le bar</Btn>
+              <Btn variant="success" onClick={async()=>{await db.updateSignalement(s.id,{traite:true});setSignalements(x=>x.map(y=>y.id===s.id?{...y,traite:true}:y));addLog("Signalement traité",s.bar_nom,"success");}} style={{fontSize:12}}>✅ Marquer traité</Btn>
             </div>
           </div>
-        );
-      }))
-      :tab==="avismod"?<AvisAdminSection/>
-      :tab==="signalements"?(sigPending.length===0?<div style={{ textAlign:"center",padding:50,color:C.muted }}>✅ Aucun signalement.</div>:sigPending.map(s=>(
-        <div key={s.id} style={{ background:C.card,border:`1px solid ${C.red}33`,borderRadius:12,padding:18,marginBottom:10 }}>
-          <h3 style={{ fontWeight:700,fontSize:15 }}>⚠️ {s.bar_nom}</h3>
-          <p style={{ color:C.muted,fontSize:12,marginBottom:8 }}>{s.type} · {new Date(s.date).toLocaleDateString("fr-FR")}</p>
-          <p style={{ color:"#cbd5e1",fontSize:13,background:"#111",padding:"8px 12px",borderRadius:8,marginBottom:10 }}>{s.message}</p>
-          <div style={{ display:"flex",gap:8 }}>
-            <Btn variant="ghost" onClick={()=>{setBarSlug(s.bar_slug);setPage("bar");}} style={{ fontSize:12 }}>👁 Voir</Btn>
-            <Btn variant="success" onClick={async()=>{ await db.updateSignalement(s.id,{traite:true}); setSignalements(x=>x.map(y=>y.id===s.id?{...y,traite:true}:y)); }} style={{ fontSize:12 }}>✅ Traité</Btn>
+        ))
+  );
+
+  const renderDashboard = () => (
+    <div style={{display:"flex",flexDirection:"column",gap:24}}>
+      {/* KPI Cards */}
+      <div>
+        <div style={{fontSize:13,color:C.muted,fontWeight:700,letterSpacing:1,marginBottom:12}}>📊 INDICATEURS CLÉS</div>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+          <AdminKpiCard icon="⏳" label="En attente" count={allPending.length} prio={allPending.length>0?"urgent":"normal"} onClick={()=>setTab("pending")}/>
+          <AdminKpiCard icon="💬" label="Avis à modérer" count={avisCount} prio={avisCount>0?"important":"normal"} onClick={()=>setTab("avismod")}/>
+          <AdminKpiCard icon="⚠️" label="Signalements" count={sigPending.length} prio={sigPending.length>0?"urgent":"normal"} onClick={()=>setTab("signalements")}/>
+          <AdminKpiCard icon="👥" label="Total joueurs" count={stats.totalJoueurs} prio="normal"/>
+          <AdminKpiCard icon="🆕" label="Nouveaux (7j)" count={stats.nouveauxJoueurs} prio={stats.nouveauxJoueurs>0?"important":"normal"}/>
+          <AdminKpiCard icon="🎯" label="Bars référencés" count={bars.length} prio="normal"/>
+          <AdminKpiCard icon="🫂" label="Associations" count={associations.length} prio="normal"/>
+          <AdminKpiCard icon="🏅" label="Tournois" count={tournois.length} prio="normal"/>
+        </div>
+      </div>
+
+      {/* Analytics */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
+        {/* Plateforme */}
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20}}>
+          <div style={{fontSize:13,color:C.accent,fontWeight:700,letterSpacing:.5,marginBottom:16}}>📈 ANALYTICS PLATEFORME</div>
+          {[
+            ["🎯 Bars", bars.length, `${bars.filter(b=>b.verifie).length} vérifiés`],
+            ["🫂 Associations", associations.length, `${associations.length} actives`],
+            ["🏅 Tournois", tournois.length, `${tournois.filter(t=>new Date(t.date)>new Date()).length} à venir`],
+            ["👥 Joueurs", stats.totalJoueurs, `${stats.nouveauxJoueurs} nouveaux cette semaine`],
+            ["⏳ Propositions", allPending.length, `en attente de validation`],
+          ].map(([label, count, sub])=>(
+            <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:600}}>{label}</div>
+                <div style={{fontSize:11,color:C.muted}}>{sub}</div>
+              </div>
+              <div style={{fontSize:22,fontWeight:900,color:C.text}}>{count}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Sécurité */}
+        <div style={{background:C.card,border:`1px solid ${C.red}33`,borderRadius:16,padding:20}}>
+          <div style={{fontSize:13,color:C.red,fontWeight:700,letterSpacing:.5,marginBottom:16}}>🔒 SÉCURITÉ</div>
+          {[
+            { label:"Signalements actifs", count:sigPending.length, prio:sigPending.length>0?"urgent":"normal" },
+            { label:"Avis en attente", count:avisCount, prio:avisCount>3?"important":"normal" },
+            { label:"Propositions non traitées", count:allPending.length, prio:allPending.length>0?"important":"normal" },
+          ].map(sec=>(
+            <div key={sec.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+              <div style={{fontSize:13,fontWeight:600}}>{sec.label}</div>
+              <div style={{background:PRIO[sec.prio].bg,color:PRIO[sec.prio].text,border:`1px solid ${PRIO[sec.prio].border}44`,borderRadius:8,padding:"2px 10px",fontSize:12,fontWeight:700}}>
+                {sec.count} {PRIO[sec.prio].label.split(" ")[0]}
+              </div>
+            </div>
+          ))}
+          <div style={{marginTop:14,padding:12,background:"#0f1a0f",borderRadius:10,border:`1px solid ${C.green}22`}}>
+            <div style={{fontSize:12,color:C.green,fontWeight:600}}>🛡️ Statut global</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:4}}>{totalUrgent===0?"Plateforme saine — aucune urgence.":`${totalUrgent} élément(s) nécessitent attention.`}</div>
           </div>
         </div>
-      )))
-      :tab==="allbars"?<div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10 }}>{bars.map(b=>(
-        <div key={b.id} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:14 }}>
-          <div onClick={()=>{setBarSlug(b.slug);setPage("bar");}} style={{ cursor:"pointer",marginBottom:10 }}><div style={{ fontWeight:600,fontSize:14 }}>{b.nom} {b.verifie&&"✅"}</div><div style={{ color:C.muted,fontSize:12 }}>📍 {b.ville} · 👁 {b.vues||0}</div></div>
-          <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
-            <button onClick={()=>db.toggleVerifie(b.slug,!b.verifie).then(()=>setBars(x=>x.map(y=>y.slug===b.slug?{...y,verifie:!y.verifie}:y)))} style={{ background:b.verifie?"#14532d":"#111",border:`1px solid ${b.verifie?C.green:C.border}`,borderRadius:6,color:b.verifie?C.green:C.muted,cursor:"pointer",fontSize:11,padding:"3px 8px" }}>{b.verifie?"✅":"Vérifier"}</button>
-            <button onClick={()=>setEditBar(b)} style={{ background:"#1a1200",border:`1px solid ${C.yellow}44`,borderRadius:6,color:C.yellow,cursor:"pointer",fontSize:11,padding:"3px 8px" }}>✏️</button>
-<button onClick={async()=>{
-  let lat=null,lng=null;
-  try{
-    const q=encodeURIComponent(`${b.adresse||b.nom}, ${b.ville}, France`);
-    const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);
-    const geoData=await geo.json();
-    if(geoData?.[0]){lat=parseFloat(geoData[0].lat);lng=parseFloat(geoData[0].lon);}
-    if(!lat){
-      const q2=encodeURIComponent(`${b.ville}, France`);
-      const geo2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);
-      const geoData2=await geo2.json();
-      if(geoData2?.[0]){lat=parseFloat(geoData2[0].lat);lng=parseFloat(geoData2[0].lon);}
-    }
-  }catch(e){console.error("GPS échoué",e);}
-  if(lat){await db.updateBar(b.slug,{lat,lng});setBars(x=>x.map(y=>y.slug===b.slug?{...y,lat,lng}:y));alert("✅ GPS mis à jour !");}else{alert("❌ Adresse introuvable");}
-}} style={{ background:"#0f1a0f",border:`1px solid ${C.green}44`,borderRadius:6,color:C.green,cursor:"pointer",fontSize:11,padding:"3px 8px" }}>🔄 GPS</button>
-            <button onClick={async()=>{ if(!window.confirm("Supprimer ?")) return; await db.deleteBar(b.slug); setBars(x=>x.filter(y=>y.slug!==b.slug)); }} style={{ background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"3px 8px" }}>🗑</button>
+
+        {/* Actions rapides */}
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20}}>
+          <div style={{fontSize:13,color:C.yellow,fontWeight:700,letterSpacing:.5,marginBottom:16}}>⚡ ACTIONS RAPIDES</div>
+          {[
+            {icon:"➕",label:"Ajouter un bar",color:C.accent,action:()=>setPage("proposer")},
+            {icon:"🏅",label:"Ajouter un tournoi",color:C.yellow,action:()=>setPage("proposer-tournoi")},
+            {icon:"🫂",label:"Ajouter une association",color:"#a78bfa",action:()=>setPage("proposer-asso")},
+            {icon:"👤",label:"Gérer les joueurs",color:C.blue,action:()=>setTab("joueurs")},
+            {icon:"⏳",label:`Voir les ${allPending.length} propositions`,color:allPending.length>0?C.red:C.muted,action:()=>setTab("pending")},
+            {icon:"⚠️",label:`Signalements (${sigPending.length})`,color:sigPending.length>0?C.red:C.muted,action:()=>setTab("signalements")},
+          ].map(a=>(
+            <button key={a.label} onClick={a.action} style={{width:"100%",background:"#0f0f0f",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,marginBottom:8,color:a.color,fontWeight:600,fontSize:13,textAlign:"left",transition:"background .15s"}}
+              onMouseEnter={e=>e.currentTarget.style.background="#1a1a1a"}
+              onMouseLeave={e=>e.currentTarget.style.background="#0f0f0f"}>
+              <span style={{fontSize:18}}>{a.icon}</span>{a.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Logs récents */}
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20}}>
+        <div style={{fontSize:13,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:14}}>📜 ACTIVITÉ RÉCENTE (session)</div>
+        {adminLogs.length===0
+          ? <div style={{textAlign:"center",color:C.muted,padding:30,fontSize:13}}>Aucune action effectuée dans cette session.</div>
+          : adminLogs.slice(0,10).map(log=>(
+              <div key={log.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+                <span style={{fontSize:16}}>{LOG_ICONS[log.type]||"ℹ️"}</span>
+                <div style={{flex:1}}>
+                  <span style={{fontWeight:600,fontSize:13}}>{log.action}</span>
+                  <span style={{color:C.muted,fontSize:12}}> — {log.cible}</span>
+                </div>
+                <span style={{fontSize:11,color:C.muted,whiteSpace:"nowrap"}}>{log.date}</span>
+              </div>
+            ))}
+      </div>
+    </div>
+  );
+
+  const renderLogs = () => (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{fontSize:13,color:C.muted}}>Historique des actions de la session en cours</div>
+        {adminLogs.length>0&&<button onClick={()=>setAdminLogs([])} style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}44`,borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:12}}>🗑 Vider</button>}
+      </div>
+      {adminLogs.length===0
+        ? <div style={{textAlign:"center",padding:60,color:C.muted}}>Aucune action enregistrée.</div>
+        : adminLogs.map(log=>(
+            <div key={log.id} style={{background:C.card,border:`1px solid ${LOG_COLORS[log.type]||C.border}33`,borderRadius:12,padding:"14px 18px",marginBottom:8,display:"flex",alignItems:"center",gap:14}}>
+              <span style={{fontSize:20}}>{LOG_ICONS[log.type]||"ℹ️"}</span>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,fontSize:14,color:LOG_COLORS[log.type]||C.text}}>{log.action}</div>
+                <div style={{fontSize:12,color:C.muted}}>Cible : {log.cible}</div>
+              </div>
+              <div style={{fontSize:11,color:C.muted,textAlign:"right"}}>
+                <div>Admin</div>
+                <div>{log.date}</div>
+              </div>
+            </div>
+          ))}
+    </div>
+  );
+
+  const TABS = [
+    ["dashboard","📊 Dashboard"],
+    ["pending",`⏳ En attente${allPending.length>0?` (${allPending.length})`:""}`,allPending.length>0?"urgent":null],
+    ["avismod",`💬 Avis${avisCount>0?` (${avisCount})`:""}`,avisCount>0?"important":null],
+    ["allbars",`🎯 Bars (${bars.length})`],
+    ["allassos",`🫂 Assos (${associations.length})`],
+    ["alltournois",`🏅 Tournois (${tournois.length})`],
+    ["signalements",`⚠️ Signalements${sigPending.length>0?` (${sigPending.length})`:""}`,sigPending.length>0?"urgent":null],
+    ["joueurs","👤 Joueurs"],
+    ["logs",`📜 Logs${adminLogs.length>0?` (${adminLogs.length})`:""}`,null],
+  ];
+
+  return (
+    <div style={{maxWidth:1100,margin:"0 auto",padding:"0 0 60px"}}>
+      {editBar&&<EditBarModal bar={editBar} onSave={u=>{setBars(b=>b.map(x=>x.slug===u.slug?u:x));setEditBar(null);addLog("Bar édité",u.nom,"info");}} onClose={()=>setEditBar(null)}/>}
+      {editAsso&&<EditAssoModal asso={editAsso} onSave={u=>{setAssociations(a=>a.map(x=>x.slug===u.slug?u:x));setEditAsso(null);addLog("Association éditée",u.nom,"info");}} onClose={()=>setEditAsso(null)}/>}
+      {editTournoi&&<EditTournoiModal tournoi={editTournoi} onSave={u=>{setTournois(t=>t.map(x=>x.slug===u.slug?u:x));setEditTournoi(null);addLog("Tournoi édité",u.nom,"info");}} onClose={()=>setEditTournoi(null)}/>}
+
+      {/* ── HEADER ── */}
+      <div style={{background:"linear-gradient(135deg,#1a0a00,#0f0f0f)",borderBottom:`1px solid ${C.accent}33`,padding:"24px 20px 20px",marginBottom:0}}>
+        <div style={{maxWidth:1060,margin:"0 auto"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12,marginBottom:16}}>
+            <div>
+              <h1 style={{fontWeight:900,fontSize:26,margin:0,background:`linear-gradient(90deg,${C.accent},${C.yellow})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>⚙️ Administration</h1>
+              <p style={{color:C.muted,fontSize:13,marginTop:4}}>Centre de contrôle Dart Point</p>
+            </div>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              <div style={{background:`${C.accent}15`,border:`1px solid ${C.accent}33`,borderRadius:10,padding:"8px 14px",textAlign:"center"}}>
+                <div style={{fontSize:11,color:C.muted}}>DATE</div>
+                <div style={{fontWeight:700,fontSize:13,color:C.accent}}>{new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"})}</div>
+              </div>
+              <div style={{background:`${C.green}15`,border:`1px solid ${C.green}33`,borderRadius:10,padding:"8px 14px",textAlign:"center"}}>
+                <div style={{fontSize:11,color:C.muted}}>JOUEURS</div>
+                <div style={{fontWeight:700,fontSize:13,color:C.green}}>{stats.totalJoueurs} inscrits</div>
+              </div>
+              {totalUrgent>0&&<div style={{background:`${C.red}15`,border:`1px solid ${C.red}`,borderRadius:10,padding:"8px 14px",textAlign:"center",animation:"pulse 2s infinite"}}>
+                <div style={{fontSize:11,color:C.red}}>URGENCES</div>
+                <div style={{fontWeight:900,fontSize:16,color:C.red}}>{totalUrgent}</div>
+              </div>}
+            </div>
+          </div>
+
+          {/* Recherche globale */}
+          <div style={{position:"relative"}}>
+            <input
+              value={globalSearch}
+              onChange={e=>{setGlobalSearch(e.target.value);doSearch(e.target.value);}}
+              placeholder="🔍 Rechercher un joueur, bar, tournoi, association…"
+              style={{width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 16px",color:C.text,fontSize:14,boxSizing:"border-box"}}/>
+            {searchResults&&(
+              <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1a1a1a",border:`1px solid ${C.border}`,borderRadius:12,zIndex:100,maxHeight:320,overflowY:"auto",marginTop:4,padding:8}}>
+                {["bars","assos","tournois","joueurs"].map(cat=>{
+                  const items = searchResults[cat]||[];
+                  if(!items.length) return null;
+                  const labels = {bars:"🎯 Bars",assos:"🫂 Associations",tournois:"🏅 Tournois",joueurs:"👤 Joueurs"};
+                  return (
+                    <div key={cat}>
+                      <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:1,padding:"6px 8px"}}>{labels[cat]}</div>
+                      {items.slice(0,4).map(item=>(
+                        <div key={item.id||item.slug} style={{padding:"8px 12px",borderRadius:8,cursor:"pointer",fontSize:13}} onClick={()=>{
+                          setGlobalSearch(""); setSearchResults(null);
+                          if(cat==="bars"){setBarSlug(item.slug);setPage("bar");}
+                          else if(cat==="assos"){setAssoSlug(item.slug);setPage("asso");}
+                          else if(cat==="tournois"){setTournoiSlug(item.slug);setPage("tournoi-detail");}
+                          else setTab("joueurs");
+                        }}
+                          onMouseEnter={e=>e.currentTarget.style.background="#2a2a2a"}
+                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          <span style={{fontWeight:600}}>{item.nom||item.pseudo}</span>
+                          <span style={{color:C.muted,fontSize:11,marginLeft:8}}>📍 {item.ville||`${item.drix??1000} DRIX`}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+                {Object.values(searchResults).every(a=>!a.length)&&<div style={{textAlign:"center",padding:20,color:C.muted,fontSize:13}}>Aucun résultat</div>}
+              </div>
+            )}
           </div>
         </div>
-      ))}</div>
-      :tab==="allassos"?<div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10 }}>{associations.map(a=>(
-        <div key={a.id} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:14 }}>
-          <div onClick={()=>{setAssoSlug(a.slug);setPage("asso");}} style={{ cursor:"pointer",marginBottom:10 }}><div style={{ fontWeight:600,fontSize:14 }}>{a.nom}</div><div style={{ color:C.muted,fontSize:12 }}>📍 {a.ville}</div></div>
-          <div style={{ display:"flex",gap:6 }}>
-            <button onClick={()=>setEditAsso(a)} style={{ background:"#1a1200",border:`1px solid ${C.yellow}44`,borderRadius:6,color:C.yellow,cursor:"pointer",fontSize:11,padding:"3px 8px" }}>✏️</button>
-            <button onClick={async()=>{ if(!window.confirm("Supprimer ?")) return; await db.deleteAssociation(a.slug); setAssociations(x=>x.filter(y=>y.slug!==a.slug)); }} style={{ background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"3px 8px" }}>🗑</button>
-          </div>
+      </div>
+
+      {/* ── TABS ── */}
+      <div style={{background:"#111",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:50}}>
+        <div style={{maxWidth:1060,margin:"0 auto",padding:"0 20px",overflowX:"auto",display:"flex",gap:4,paddingTop:8,paddingBottom:8}}>
+          {TABS.map(([t,l,prio])=>(
+            <button key={t} onClick={()=>setTab(t)} style={{...tabBtn(t),position:"relative",flexShrink:0}}>
+              {l}
+              {prio&&<span style={{position:"absolute",top:-4,right:-4,width:8,height:8,borderRadius:"50%",background:PRIO[prio].border,display:"block"}}/>}
+            </button>
+          ))}
         </div>
-      ))}</div>
-      :tab==="alltournois"?<div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10 }}>{tournois.map(t=>(
-        <div key={t.id} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:14 }}>
-          <div onClick={()=>{setTournoiSlug(t.slug);setPage("tournoi-detail");}} style={{ cursor:"pointer",marginBottom:10 }}><div style={{ fontWeight:600,fontSize:14 }}>{t.nom}</div><div style={{ color:C.muted,fontSize:12 }}>📍 {t.ville} · {t.date}</div></div>
-          <div style={{ display:"flex",gap:6 }}>
-            <button onClick={()=>setEditTournoi(t)} style={{ background:"#1a1200",border:`1px solid ${C.yellow}44`,borderRadius:6,color:C.yellow,cursor:"pointer",fontSize:11,padding:"3px 8px" }}>✏️</button>
-            <button onClick={async()=>{ if(!window.confirm("Supprimer ?")) return; await db.deleteTournoi(t.slug); setTournois(x=>x.filter(y=>y.slug!==t.slug)); }} style={{ background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"3px 8px" }}>🗑</button>
-          </div>
-        </div>
-      ))}</div>
-      :tab==="joueurs"?<AdminJoueurs/>
-      :null}
+      </div>
+
+      {/* ── CONTENT ── */}
+      <div style={{maxWidth:1060,margin:"0 auto",padding:"24px 20px"}}>
+        {loading ? <Spinner/>
+          : tab==="dashboard"   ? renderDashboard()
+          : tab==="pending"     ? renderPending()
+          : tab==="avismod"     ? <AvisAdminSection/>
+          : tab==="allbars"     ? renderBars()
+          : tab==="allassos"    ? renderAssos()
+          : tab==="alltournois" ? renderTournois()
+          : tab==="signalements"? renderSignalements()
+          : tab==="joueurs"     ? <AdminJoueurs addLog={addLog}/>
+          : tab==="logs"        ? renderLogs()
+          : null}
+      </div>
     </div>
   );
 };
