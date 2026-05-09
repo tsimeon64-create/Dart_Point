@@ -2761,27 +2761,66 @@ const AdminJoueurs = ({ addLog }) => {
     setSetDrix(d=>({...d,[j.id]:""}));
   };
 
+  // Nettoyage complet de toutes les tables liées avant suppression
+  const nettoyerJoueur = async (id) => {
+    await Promise.allSettled([
+      // Liens d'amitié (joueur des deux côtés)
+      sb(`amis?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
+      sb(`amis?ami_id=eq.${id}`,  {method:"DELETE",prefer:"return=minimal"}),
+      // Mouvements DRIX
+      sb(`drix_mouvements?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
+      // Présences
+      sb(`presence_joueurs?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
+      // Duels en cours (marquer comme annulé plutôt que supprimer)
+      sb(`duels?or=(challenger_id.eq.${id},defie_id.eq.${id})&statut=eq.en_cours`,
+         {method:"PATCH",body:JSON.stringify({statut:"annule"}),prefer:"return=minimal"}),
+      // Inscriptions tournois potes
+      sb(`tournois_potes_joueurs?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
+      // Messages
+      sb(`messages?or=(expediteur_id.eq.${id},destinataire_id.eq.${id})`,{method:"DELETE",prefer:"return=minimal"}),
+    ]);
+  };
+
   const supprimerCompte = async (j) => {
-    if (!window.confirm(`⚠️ Supprimer définitivement ${j.pseudo} ?\nCette action est irréversible.`)) return;
+    if (!window.confirm(`⚠️ Supprimer définitivement ${j.pseudo} ?\n\nCela supprimera aussi :\n• Ses liens d'amitié\n• Son historique DRIX\n• Ses présences\n\nCette action est irréversible.`)) return;
     setSaving(s=>({...s,[j.id]:true}));
-    await sb(`joueurs?id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}).catch(()=>{});
-    setTous(x=>x.filter(p=>p.id!==j.id));
-    addLog?.("Compte supprimé", j.pseudo, "danger");
+    try {
+      // 1. Nettoyer les tables liées
+      await nettoyerJoueur(j.id);
+      // 2. Supprimer le joueur
+      await sb(`joueurs?id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"});
+      // 3. Retirer de l'UI
+      setTous(x=>x.filter(p=>p.id!==j.id));
+      addLog?.("Compte supprimé", j.pseudo, "danger");
+      setMsg(m=>({...m,[j.id]:"✅ Compte et données associées supprimés."}));
+    } catch(e) {
+      alert(`❌ Erreur lors de la suppression de ${j.pseudo} :\n${e.message}`);
+      setSaving(s=>({...s,[j.id]:false}));
+    }
   };
 
   const banirJoueur = async (j) => {
-    if (!window.confirm(`🚫 Bannir ${j.pseudo} ?\nSes DRIX seront remis à 0 et son compte supprimé.`)) return;
+    if (!window.confirm(`🚫 BANNIR ${j.pseudo} ?\n\nCela va :\n• Remettre ses DRIX à 0\n• Supprimer son compte et toutes ses données\n\nIrréversible.`)) return;
     setSaving(s=>({...s,[j.id]:true}));
-    // Met DRIX à 0 puis supprime
-    await sb(`joueurs?id=eq.${j.id}`,{method:"PATCH",body:JSON.stringify({drix:0}),prefer:"return=minimal"}).catch(()=>{});
-    await sb("drix_mouvements",{method:"POST",body:JSON.stringify({
-      joueur_id:j.id, joueur_pseudo:j.pseudo, adversaire_pseudo:"Admin",
-      variation:-(j.drix||1000), drix_avant:j.drix||1000, drix_apres:0,
-      resultat:"defaite", date:Date.now(),
-    })}).catch(()=>{});
-    await sb(`joueurs?id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}).catch(()=>{});
-    setTous(x=>x.filter(p=>p.id!==j.id));
-    addLog?.("Joueur banni", j.pseudo, "danger");
+    try {
+      // 1. Mettre DRIX à 0 + log du mouvement
+      await sb(`joueurs?id=eq.${j.id}`,{method:"PATCH",body:JSON.stringify({drix:0}),prefer:"return=minimal"});
+      await sb("drix_mouvements",{method:"POST",body:JSON.stringify({
+        joueur_id:j.id, joueur_pseudo:j.pseudo, adversaire_pseudo:"Admin",
+        variation:-(j.drix||1000), drix_avant:j.drix||1000, drix_apres:0,
+        resultat:"defaite", date:Date.now(),
+      })}).catch(()=>{});
+      // 2. Nettoyer les tables liées
+      await nettoyerJoueur(j.id);
+      // 3. Supprimer le joueur
+      await sb(`joueurs?id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"});
+      // 4. Retirer de l'UI
+      setTous(x=>x.filter(p=>p.id!==j.id));
+      addLog?.("Joueur banni", j.pseudo, "danger");
+    } catch(e) {
+      alert(`❌ Erreur ban ${j.pseudo} :\n${e.message}`);
+      setSaving(s=>({...s,[j.id]:false}));
+    }
   };
 
   const resetDrix = async (j) => {
