@@ -367,6 +367,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     setManchesHistory([]);
     setMancheStart({ vol:[0,0], pts:[0,0], nbtours:[0,0], flechettes:[0,0] });
     setEtape("jeu");
+    console.error("[LIVE-DEBUG] demarrerAvecBulle appelé, modeDuel=", modeDuel, "duel=", duel?.id);
     createLiveSession();
   };
 
@@ -474,8 +475,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Suivi live session ────────────────────────────────────────────────────
   const createLiveSession = async () => {
-    console.log("[Live] createLiveSession appelé — modeDuel:", modeDuel, "duel.id:", duel?.id);
-    if (!modeDuel || !duel?.id) { console.log("[Live] aborted (pas de duel)"); return; }
+    console.error("[LIVE-DEBUG] createLiveSession — modeDuel:", modeDuel, "duel.id:", duel?.id);
+    if (!modeDuel || !duel?.id) { console.error("[LIVE-DEBUG] aborted — pas de duel"); return; }
     try {
       const mode = duel.mode || "501";
       const manches = duel.manches || 1;
