@@ -1458,7 +1458,7 @@ const FeedAvatar = ({ photo, pseudo, size=40 }) => {
   return (
     <div style={{ width:size,height:size,borderRadius:"50%",background:col,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:Math.round(size*0.4),color:"#fff",position:"relative" }}>
       {photo && <img src={photo} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} onError={e=>{e.currentTarget.style.display="none";}}/>}
-      <span style={{ position:"relative",zIndex:1 }}>{(pseudo?.[0]||"?").toUpperCase()}</span>
+      {!photo && <span style={{ position:"relative",zIndex:1 }}>{(pseudo?.[0]||"?").toUpperCase()}</span>}
     </div>
   );
 };
