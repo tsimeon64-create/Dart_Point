@@ -895,9 +895,7 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
         <StatCard label="Plus gros finish" value={hasScoring && plusGrosFinish>0 ? plusGrosFinish : "—"} color={CJ.green} bientot={!hasScoring}/>
         <StatCard label="Finishes 100+"    value={hasScoring ? nbFinishes100 : "—"} color={CJ.yellow} bientot={!hasScoring}/>
         <StatCard label="Taux checkout"    value={tauxCheckout!==null && manchesJouees>=3 ? `${tauxCheckout}%` : "—"} color={CJ.accent} sub={manchesJouees>=3?`${manchesGagnees}/${manchesJouees} legs`:null} bientot={manchesJouees<3}/>
-        <StatCard label="Finish 1 flèche"  value="—" bientot/>
-        <StatCard label="Finish 2 flèches" value="—" bientot/>
-        <StatCard label="Finish 3 flèches" value="—" bientot/>
+
       </div>
 
       {/* Duels */}
