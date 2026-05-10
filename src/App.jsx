@@ -967,7 +967,7 @@ const PageDefi = ({ joueur, setPage }) => {
   const [modalAmi, setModalAmi] = useState(null); // { amiId, amiPseudo, profil }
   const [modalData, setModalData] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
-  const [defiForm, setDefiForm] = useState({ mode:"501", manches:1, type:"classe", message:"" });
+  const [defiForm, setDefiForm] = useState({ mode:"501", manches:1, type:"classe" });
   const [sending, setSending] = useState(false);
 
   const charger = () => {
@@ -1002,7 +1002,7 @@ const PageDefi = ({ joueur, setPage }) => {
     setModalAmi({ amiId, amiPseudo, profil });
     setModalData(null);
     setModalLoading(true);
-    setDefiForm({ mode:"501", manches:1, type:"classe", message:"" });
+    setDefiForm({ mode:"501", manches:1, type:"classe" });
     try {
       const [duelsAdv, allJ] = await Promise.all([
         sb(`duels?or=(challenger_id.eq.${amiId},defie_id.eq.${amiId})&order=date.desc&select=*`).catch(()=>[]),
@@ -1331,11 +1331,6 @@ const PageDefi = ({ joueur, setPage }) => {
 
             {/* BLOC VALIDATION */}
             <div style={{ margin:"12px 16px 0",background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:16 }}>
-              <div style={{ fontSize:11,color:C.muted,marginBottom:8,fontWeight:700,letterSpacing:1 }}>MESSAGE (optionnel)</div>
-              <input value={defiForm.message} onChange={e=>setDefiForm(f=>({...f,message:e.target.value.slice(0,120)}))}
-                placeholder="Ajoute un message à ton défi…" maxLength={120}
-                style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",color:"#fff",fontSize:13,boxSizing:"border-box",marginBottom:4 }}/>
-              <div style={{ fontSize:10,color:C.muted,textAlign:"right",marginBottom:14 }}>{defiForm.message.length}/120</div>
               <button onClick={envoyerDefi} disabled={sending}
                 style={{ width:"100%",padding:"14px 0",borderRadius:12,border:"none",fontWeight:900,fontSize:16,cursor:sending?"not-allowed":"pointer",background:"linear-gradient(135deg,#f97316,#7c3aed)",color:"#fff",opacity:sending?0.6:1,transition:"all .15s",letterSpacing:0.5 }}>
                 {sending?"Lancement du match…":`⚔️ DÉFIER ${modalAmi.amiPseudo.toUpperCase()}`}
