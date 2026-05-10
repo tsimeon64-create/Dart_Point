@@ -963,6 +963,7 @@ const PageDefi = ({ joueur, setPage }) => {
   const [resultsAContester, setResultsAContester] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("1v1");
+  const [searchDefi, setSearchDefi] = useState("");
   // ── modal défi premium ──
   const [modalAmi, setModalAmi] = useState(null); // { amiId, amiPseudo, profil }
   const [modalData, setModalData] = useState(null);
@@ -1156,32 +1157,61 @@ const PageDefi = ({ joueur, setPage }) => {
           <p style={{ color:C.muted,fontSize:14,marginBottom:12 }}>Tu n'as pas encore d'amis sur DartPoint.</p>
           <Btn onClick={()=>setPage("joueurs")} style={{ fontSize:13 }}>👥 Trouver des joueurs</Btn>
         </div>
-      ) : (
-        <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
-          {amis.map(a => {
-            const amiId = a.joueur_id===joueur.id?a.ami_id:a.joueur_id;
-            const amiPseudo = a.joueur_id===joueur.id?a.ami_pseudo:a.joueur_pseudo;
-            const profil = amisData[amiId];
-            const { emoji:amiEmoji, color:amiColor } = getDrixTitre(profil?.drix||1000);
-            const hisDrix = profil?.drix || 1000;
-            return (
-              <div key={amiId} onClick={()=>ouvrirModal(a)}
-                style={{ background:C.card,border:`2px solid ${C.border}`,borderRadius:12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"all .12s" }}>
-                <div style={{ width:44,height:44,borderRadius:"50%",background:amiColor+"22",border:`2px solid ${amiColor}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,overflow:"hidden" }}>
-                  {profil?.photo ? <img src={profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{amiEmoji}</span>}
-                </div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontWeight:700,fontSize:15 }}>{amiPseudo}</div>
-                  <div style={{ display:"flex",gap:8,marginTop:2 }}>
-                    <span style={{ fontSize:11,color:amiColor,fontWeight:600 }}>{amiEmoji} {hisDrix} DRIX</span>
+      ) : (() => {
+        const amisTries = [...amis].sort((a, b) => {
+          const pa = (a.joueur_id===joueur.id ? a.ami_pseudo : a.joueur_pseudo)||"";
+          const pb = (b.joueur_id===joueur.id ? b.ami_pseudo : b.joueur_pseudo)||"";
+          return pa.localeCompare(pb, "fr", { sensitivity:"base" });
+        });
+        const q = searchDefi.trim().toLowerCase();
+        const amisFiltres = q ? amisTries.filter(a => {
+          const pseudo = (a.joueur_id===joueur.id ? a.ami_pseudo : a.joueur_pseudo)||"";
+          return pseudo.toLowerCase().includes(q);
+        }) : amisTries;
+        return (
+          <>
+            {/* Barre de recherche */}
+            <div style={{ display:"flex",alignItems:"center",gap:8,background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",marginBottom:12 }}>
+              <span style={{ fontSize:15,flexShrink:0 }}>🔍</span>
+              <input
+                value={searchDefi}
+                onChange={e=>setSearchDefi(e.target.value)}
+                placeholder="Rechercher un ami…"
+                style={{ flex:1,background:"transparent",border:"none",color:C.text,fontSize:14,outline:"none",minWidth:0 }}
+              />
+              {searchDefi && (
+                <button onClick={()=>setSearchDefi("")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16,padding:0,lineHeight:1 }}>✕</button>
+              )}
+            </div>
+            <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
+              {amisFiltres.length === 0 ? (
+                <div style={{ textAlign:"center",padding:"20px 0",color:C.muted,fontSize:13 }}>Aucun ami trouvé pour « {searchDefi} »</div>
+              ) : amisFiltres.map(a => {
+                const amiId = a.joueur_id===joueur.id?a.ami_id:a.joueur_id;
+                const amiPseudo = a.joueur_id===joueur.id?a.ami_pseudo:a.joueur_pseudo;
+                const profil = amisData[amiId];
+                const { emoji:amiEmoji, color:amiColor } = getDrixTitre(profil?.drix||1000);
+                const hisDrix = profil?.drix || 1000;
+                return (
+                  <div key={amiId} onClick={()=>ouvrirModal(a)}
+                    style={{ background:C.card,border:`2px solid ${C.border}`,borderRadius:12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"all .12s" }}>
+                    <div style={{ width:44,height:44,borderRadius:"50%",background:amiColor+"22",border:`2px solid ${amiColor}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,overflow:"hidden" }}>
+                      {profil?.photo ? <img src={profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{amiEmoji}</span>}
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:700,fontSize:15 }}>{amiPseudo}</div>
+                      <div style={{ display:"flex",gap:8,marginTop:2 }}>
+                        <span style={{ fontSize:11,color:amiColor,fontWeight:600 }}>{amiEmoji} {hisDrix} DRIX</span>
+                      </div>
+                    </div>
+                    <span style={{ color:C.muted,fontSize:13,fontWeight:600 }}>⚔️</span>
                   </div>
-                </div>
-                <span style={{ color:C.muted,fontSize:13,fontWeight:600 }}>⚔️</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
+                );
+              })}
+            </div>
+          </>
+        );
+      })()}
       </>}
 
       {/* ── MODAL DÉFI PREMIUM ── */}
