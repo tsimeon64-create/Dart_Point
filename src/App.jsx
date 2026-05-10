@@ -958,16 +958,16 @@ const DoubletteFlow = ({ joueur, amis, amisData, setPage }) => {
 // ── PAGE DÉFI ─────────────────────────────────────────────────────────────────
 const PageDefi = ({ joueur, setPage }) => {
   const [amis, setAmis] = useState([]);
-  const [amisData, setAmisData] = useState({}); // { [joueurId]: { photo, drix, pseudo } }
+  const [amisData, setAmisData] = useState({});
   const [matchsActifs, setMatchsActifs] = useState([]);
   const [resultsAContester, setResultsAContester] = useState([]);
   const [loading, setLoading] = useState(true);
-  // ── onglet ──
-  const [tab, setTab] = useState("1v1"); // "1v1" | "doublette"
-  // ── sélection ami ──
-  const [selected, setSelected] = useState(null); // ami row sélectionné
-  // ── config DRIX ──
-  const [form, setForm] = useState({ mode:"501", manches:1 });
+  const [tab, setTab] = useState("1v1");
+  // ── modal défi premium ──
+  const [modalAmi, setModalAmi] = useState(null); // { amiId, amiPseudo, profil }
+  const [modalData, setModalData] = useState(null);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [defiForm, setDefiForm] = useState({ mode:"501", manches:1, type:"classe", message:"" });
   const [sending, setSending] = useState(false);
 
   const charger = () => {
@@ -995,21 +995,93 @@ const PageDefi = ({ joueur, setPage }) => {
   };
   useEffect(charger, [joueur?.id]);
 
-  const envoyerDefiDrix = async () => {
-    if (!selected || sending) return;
+  const ouvrirModal = async (a) => {
+    const amiId = a.joueur_id===joueur.id ? a.ami_id : a.joueur_id;
+    const amiPseudo = a.joueur_id===joueur.id ? a.ami_pseudo : a.joueur_pseudo;
+    const profil = amisData[amiId] || {};
+    setModalAmi({ amiId, amiPseudo, profil });
+    setModalData(null);
+    setModalLoading(true);
+    setDefiForm({ mode:"501", manches:1, type:"classe", message:"" });
+    try {
+      const [duelsAdv, allJ] = await Promise.all([
+        sb(`duels?or=(challenger_id.eq.${amiId},defie_id.eq.${amiId})&order=date.desc&select=*`).catch(()=>[]),
+        sb(`joueurs?order=drix.desc&select=id,drix`).catch(()=>[]),
+      ]);
+      setModalData({ duelsAdv: duelsAdv||[], allJoueurs: allJ||[] });
+    } catch {}
+    setModalLoading(false);
+  };
+
+  const envoyerDefi = async () => {
+    if (!modalAmi || sending) return;
     setSending(true);
-    const amiId = selected.joueur_id === joueur.id ? selected.ami_id : selected.joueur_id;
-    const amiPseudo = selected.joueur_id === joueur.id ? selected.ami_pseudo : selected.joueur_pseudo;
-    const res = await sb("duels", { method:"POST", body:JSON.stringify({ challenger_id:joueur.id, challenger_pseudo:joueur.pseudo, defie_id:amiId, defie_pseudo:amiPseudo, statut:"accepte", type:"drix", mode:form.mode, manches:form.manches, date:Date.now(), valide_challenger:false, valide_defie:false, score_manches_challenger:0, score_manches_defie:0 }) });
+    try {
+      const res = await sb("duels", { method:"POST", body:JSON.stringify({
+        challenger_id: joueur.id, challenger_pseudo: joueur.pseudo,
+        defie_id: modalAmi.amiId, defie_pseudo: modalAmi.amiPseudo,
+        statut:"accepte", type: defiForm.type==="classe"?"drix":"amical",
+        mode: defiForm.mode, manches: defiForm.manches,
+        date: Date.now(), valide_challenger:false, valide_defie:false,
+        score_manches_challenger:0, score_manches_defie:0,
+        message: defiForm.message||null,
+      })});
+      const newDuel = Array.isArray(res) ? res[0] : res;
+      if (newDuel?.id) { setModalAmi(null); setPage("scoreur-duel-" + newDuel.id); }
+    } catch {}
     setSending(false);
-    const newDuel = Array.isArray(res) ? res[0] : res;
-    if (newDuel?.id) { setPage("scoreur-duel-" + newDuel.id); return; }
   };
 
   if (!joueur) return <div style={{ textAlign:"center",padding:60 }}><p style={{ color:C.muted }}>Connecte-toi pour accéder aux défis.</p><Btn onClick={()=>setPage("connexion")}>Se connecter</Btn></div>;
   if (loading) return <Spinner/>;
 
-  const couleurAmi = (pseudo) => { const cols=["#f97316","#60a5fa","#22c55e","#a78bfa","#f59e0b","#ec4899"]; let h=0; for(const c of pseudo||"") h=(h*31+c.charCodeAt(0))%cols.length; return cols[h]; };
+  // ── stats calculées pour la modal ──
+  const buildModalStats = () => {
+    if (!modalData || !modalAmi) return {};
+    const { duelsAdv, allJoueurs } = modalData;
+    const amiId = modalAmi.amiId;
+    const hisDrix = modalAmi.profil?.drix || 1000;
+    const myDrix = joueur.drix || 1000;
+    const termines = duelsAdv.filter(d => d.statut==="termine");
+    const wins = termines.filter(d => d.gagnant_id===amiId).length;
+    const winRate = termines.length ? Math.round(wins/termines.length*100) : 50;
+    const derniers10 = termines.slice(0,10);
+    const wins10 = derniers10.filter(d => d.gagnant_id===amiId).length;
+    const formePct = derniers10.length ? wins10/derniers10.length : 0.5;
+    const resultats5 = termines.slice(0,5).map(d => d.gagnant_id===amiId ? "V" : "D");
+    const wins5 = resultats5.filter(r=>r==="V").length;
+    const formeLabel = wins5>=4?"Très en forme":wins5>=3?"En forme":wins5>=2?"Stable":"En difficulté";
+    const formeColor = wins5>=4?"#22c55e":wins5>=3?"#60a5fa":wins5>=2?"#f59e0b":"#ef4444";
+    const faceAFace = termines.filter(d => (d.challenger_id===amiId&&d.defie_id===joueur.id)||(d.defie_id===amiId&&d.challenger_id===joueur.id));
+    const fafWins = faceAFace.filter(d => d.gagnant_id===amiId).length;
+    const fafLoses = faceAFace.length - fafWins;
+    const avgFinish = termines.length ? Math.round(termines.reduce((s,d)=>s+(d.finish||0),0)/termines.length) : 0;
+    const bigFinishes = termines.filter(d => (d.finish||0)>100).length;
+    const styleObj = (() => {
+      if (winRate>=65&&formePct>=0.6) return {emoji:"🏆",label:"Dominateur",desc:"Écrase ses adversaires"};
+      if (avgFinish>=80||bigFinishes>=3) return {emoji:"💥",label:"Finisseur",desc:"Conclut avec de grands finishes"};
+      if (formePct>=0.7) return {emoji:"🔥",label:"En feu",desc:"Série impressionnante en cours"};
+      if (winRate>=50) return {emoji:"⚔️",label:"Régulier",desc:"Performant sur la durée"};
+      return {emoji:"🎯",label:"Imprévisible",desc:"Résultats difficiles à prévoir"};
+    })();
+    const dangerositeScore = Math.min(100, Math.round((winRate*0.5) + ((hisDrix/2000)*30) + (formePct*20)));
+    const dangerColor = dangerositeScore>=80?"#ef4444":dangerositeScore>=60?"#f97316":dangerositeScore>=40?"#f59e0b":"#22c55e";
+    const EA = 1/(1+Math.pow(10,(hisDrix-myDrix)/400));
+    const probaVictoire = Math.round(EA*100);
+    const K = 32 * Math.max(1, defiForm.manches);
+    const gainElo = Math.round(K*(1-EA));
+    const perteElo = Math.round(K*EA);
+    const posAdv = allJoueurs.findIndex(x=>x.id===amiId);
+    const classAdv = posAdv>=0 ? posAdv+1 : null;
+    const pointFaibleObj = (() => {
+      if (formePct<0.4&&derniers10.length>=5) return {emoji:"😰",label:"Pression",desc:"Perd sous la pression"};
+      if (avgFinish<60&&termines.length>=5) return {emoji:"🛡️",label:"Finishes",desc:"Peut rater ses finishes"};
+      if (winRate<40) return {emoji:"📉",label:"Régularité",desc:"Résultats irréguliers"};
+      return {emoji:"🎯",label:"Grands finishes",desc:"Peut rater les grands finishes"};
+    })();
+    return { winRate, formePct, resultats5, formeLabel, formeColor, faceAFace, fafWins, fafLoses, styleObj, dangerositeScore, dangerColor, probaVictoire, gainElo, perteElo, classAdv, pointFaibleObj, hisDrix, myDrix };
+  };
+  const ms = modalAmi ? buildModalStats() : {};
 
   return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
@@ -1023,13 +1095,9 @@ const PageDefi = ({ joueur, setPage }) => {
         <button onClick={()=>setTab("doublette")} style={{ flex:1,padding:"11px 0",background:tab==="doublette"?C.accent:"transparent",color:tab==="doublette"?"#fff":C.muted,border:"none",cursor:"pointer",fontWeight:tab==="doublette"?700:400,fontSize:14,transition:"all .15s" }}>👥 Doublette 2v2</button>
       </div>
 
-      {/* ── Mode Doublette ── */}
       {tab==="doublette" && <DoubletteFlow joueur={joueur} amis={amis} amisData={amisData} setPage={setPage}/>}
 
-      {/* ── Mode 1v1 ── */}
       {tab==="1v1" && <>
-
-      {/* ── Résultats à contester (24h) ── */}
       {resultsAContester.length > 0 && (
         <div style={{ marginBottom:24 }}>
           <h2 style={{ fontWeight:700,fontSize:16,marginBottom:12,color:C.red }}>⚠️ Résultats à contester ({resultsAContester.length})</h2>
@@ -1060,7 +1128,6 @@ const PageDefi = ({ joueur, setPage }) => {
         </div>
       )}
 
-      {/* ── Matchs actifs ── */}
       {matchsActifs.length > 0 && (
         <div style={{ marginBottom:24 }}>
           <h2 style={{ fontWeight:700,fontSize:16,marginBottom:12,color:C.green }}>🎯 Match en cours — Lance le scoreur !</h2>
@@ -1070,7 +1137,6 @@ const PageDefi = ({ joueur, setPage }) => {
         </div>
       )}
 
-      {/* ── Défier un ami ── */}
       <h2 style={{ fontWeight:700,fontSize:16,marginBottom:12 }}>👥 Défier un ami</h2>
       {amis.length === 0 ? (
         <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:24,textAlign:"center" }}>
@@ -1084,82 +1150,193 @@ const PageDefi = ({ joueur, setPage }) => {
             const amiPseudo = a.joueur_id===joueur.id?a.ami_pseudo:a.joueur_pseudo;
             const profil = amisData[amiId];
             const { emoji:amiEmoji, color:amiColor } = getDrixTitre(profil?.drix||1000);
-            const isSelected = selected?.joueur_id===a.joueur_id&&selected?.ami_id===a.ami_id;
-
-            // Calcul DRIX estimé
-            const myDrix = joueur.drix || 1000;
             const hisDrix = profil?.drix || 1000;
-            const K  = 32 * Math.max(1, form.manches || 1);
-            const EA = 1 / (1 + Math.pow(10, (hisDrix - myDrix) / 400));
-            const EB = 1 - EA;
-            const gainVictoire = Math.round(K * EB);
-            const perteDefaite = Math.round(K * EA);
-
             return (
-              <div key={amiId}>
-                {/* Carte ami */}
-                <div onClick={()=>setSelected(isSelected?null:a)}
-                  style={{ background:isSelected?C.accent+"22":C.card,border:`2px solid ${isSelected?C.accent:C.border}`,borderRadius:isSelected?"12px 12px 0 0":12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"all .12s" }}>
-                  <div style={{ width:44,height:44,borderRadius:"50%",background:amiColor+"22",border:`2px solid ${amiColor}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,overflow:"hidden" }}>
-                    {profil?.photo ? <img src={profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{amiEmoji}</span>}
-                  </div>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontWeight:700,fontSize:15 }}>{amiPseudo}</div>
-                    <div style={{ display:"flex",gap:8,marginTop:2 }}>
-                      <span style={{ fontSize:11,color:amiColor,fontWeight:600 }}>{amiEmoji} {hisDrix} DRIX</span>
-                    </div>
-                  </div>
-                  <span style={{ color:isSelected?C.accent:C.muted,fontSize:13,fontWeight:600 }}>{isSelected?"✕":"⚔️"}</span>
+              <div key={amiId} onClick={()=>ouvrirModal(a)}
+                style={{ background:C.card,border:`2px solid ${C.border}`,borderRadius:12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"all .12s" }}>
+                <div style={{ width:44,height:44,borderRadius:"50%",background:amiColor+"22",border:`2px solid ${amiColor}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,overflow:"hidden" }}>
+                  {profil?.photo ? <img src={profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{amiEmoji}</span>}
                 </div>
-
-                {isSelected && (
-                  <div style={{ background:"#111",border:`1px solid ${C.accent}44`,borderTop:"none",borderRadius:"0 0 12px 12px",padding:"14px 16px" }}>
-                    {/* Aperçu DRIX */}
-                    <div style={{ display:"flex",gap:8,marginBottom:14,padding:"10px 12px",background:"#1a1a1a",borderRadius:10,alignItems:"center",flexWrap:"wrap" }}>
-                      <div style={{ flex:1,textAlign:"center" }}>
-                        <div style={{ fontSize:10,color:C.muted,marginBottom:3 }}>TOI</div>
-                        <div style={{ fontWeight:800,fontSize:16,color:"#f97316" }}>{myDrix}</div>
-                        <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
-                      </div>
-                      <div style={{ textAlign:"center",padding:"0 6px" }}>
-                        <div style={{ fontSize:16,fontWeight:900,color:C.muted }}>⚔️</div>
-                        <div style={{ fontSize:10,color:C.muted }}>vs</div>
-                      </div>
-                      <div style={{ flex:1,textAlign:"center" }}>
-                        <div style={{ fontSize:10,color:C.muted,marginBottom:3 }}>{amiPseudo.toUpperCase()}</div>
-                        <div style={{ fontWeight:800,fontSize:16,color:amiColor }}>{hisDrix}</div>
-                        <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
-                      </div>
-                      <div style={{ width:"100%",display:"flex",gap:6,justifyContent:"center",marginTop:6 }}>
-                        <span style={{ background:"#14532d",color:"#22c55e",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700 }}>+{gainVictoire} si victoire</span>
-                        <span style={{ background:"#7f1d1d",color:"#ef4444",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700 }}>-{perteDefaite} si défaite</span>
-                      </div>
-                    </div>
-                    <div style={{ display:"flex",gap:8,marginBottom:12,flexWrap:"wrap" }}>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Mode</div>
-                        <div style={{ display:"flex",gap:6 }}>
-                          {["501","301"].map(m=><button key={m} onClick={()=>setForm(f=>({...f,mode:m}))} style={{ flex:1,padding:"8px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:form.mode===m?C.accent:"#222",color:form.mode===m?"#fff":C.muted,fontSize:14 }}>{m}</button>)}
-                        </div>
-                      </div>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Manches</div>
-                        <div style={{ display:"flex",gap:4 }}>
-                          {[1,2,3,4,5].map(n=><button key={n} onClick={()=>setForm(f=>({...f,manches:n}))} style={{ flex:1,padding:"8px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:form.manches===n?C.accent:"#222",color:form.manches===n?"#fff":C.muted,fontSize:14 }}>{n}</button>)}
-                        </div>
-                      </div>
-                    </div>
-                    <Btn onClick={envoyerDefiDrix} disabled={sending} style={{ width:"100%",fontSize:14 }}>
-                      {sending?"Lancement…":"💎 Jouer des DRIX contre "+amiPseudo+" !"}
-                    </Btn>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:700,fontSize:15 }}>{amiPseudo}</div>
+                  <div style={{ display:"flex",gap:8,marginTop:2 }}>
+                    <span style={{ fontSize:11,color:amiColor,fontWeight:600 }}>{amiEmoji} {hisDrix} DRIX</span>
                   </div>
-                )}
+                </div>
+                <span style={{ color:C.muted,fontSize:13,fontWeight:600 }}>⚔️</span>
               </div>
             );
           })}
         </div>
       )}
       </>}
+
+      {/* ── MODAL DÉFI PREMIUM ── */}
+      {modalAmi && (
+        <div onClick={e=>{if(e.target===e.currentTarget)setModalAmi(null)}} style={{ position:"fixed",inset:0,zIndex:2000,background:"rgba(0,0,0,0.88)",backdropFilter:"blur(6px)",overflowY:"auto" }}>
+          <div style={{ maxWidth:480,margin:"0 auto",paddingBottom:40 }}>
+            {/* EN-TÊTE */}
+            <div style={{ position:"sticky",top:0,zIndex:10,background:"#0a0a0a",padding:"16px 20px",borderBottom:`1px solid #222`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+              <div>
+                <div style={{ fontWeight:900,fontSize:18,background:"linear-gradient(90deg,#f97316,#a855f7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent" }}>⚔️ Préparer le défi</div>
+                <div style={{ color:C.muted,fontSize:12,marginTop:2 }}>Analyse complète avant de défier</div>
+              </div>
+              <button onClick={()=>setModalAmi(null)} style={{ background:"#222",border:"none",color:"#fff",borderRadius:8,width:36,height:36,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>✕</button>
+            </div>
+
+            {modalLoading ? (
+              <div style={{ textAlign:"center",padding:60,color:C.muted }}>Chargement de l'analyse…</div>
+            ) : (<>
+
+            {/* BLOC IDENTITÉ */}
+            {(() => {
+              const { emoji:advEmoji, color:advColor, titre:advTitre } = getDrixTitre(modalAmi.profil?.drix||1000);
+              return (
+                <div style={{ margin:"16px 16px 0",background:"linear-gradient(135deg,#111 0%,#1a1a2e 100%)",border:`1px solid ${advColor}44`,borderRadius:16,padding:20 }}>
+                  <div style={{ display:"flex",alignItems:"center",gap:16 }}>
+                    <div style={{ width:64,height:64,borderRadius:"50%",background:advColor+"33",border:`3px solid ${advColor}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,flexShrink:0,overflow:"hidden" }}>
+                      {modalAmi.profil?.photo ? <img src={modalAmi.profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{advEmoji}</span>}
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:900,fontSize:20 }}>{modalAmi.amiPseudo}</div>
+                      <div style={{ color:advColor,fontWeight:700,fontSize:13,marginTop:2 }}>{advEmoji} {advTitre} · {modalAmi.profil?.drix||1000} DRIX</div>
+                      {ms.classAdv && <div style={{ color:C.muted,fontSize:12,marginTop:2 }}>#{ms.classAdv} mondial</div>}
+                    </div>
+                    {/* Cercle dangerosité */}
+                    <div style={{ textAlign:"center",flexShrink:0 }}>
+                      <svg width="60" height="60" viewBox="0 0 60 60">
+                        <circle cx="30" cy="30" r="24" fill="none" stroke="#222" strokeWidth="5"/>
+                        <circle cx="30" cy="30" r="24" fill="none" stroke={ms.dangerColor||"#f97316"} strokeWidth="5"
+                          strokeDasharray={`${(ms.dangerositeScore||0)*1.508} 150.8`}
+                          strokeLinecap="round" transform="rotate(-90 30 30)"/>
+                        <text x="30" y="35" textAnchor="middle" fill="#fff" fontSize="13" fontWeight="900">{ms.dangerositeScore||0}</text>
+                      </svg>
+                      <div style={{ fontSize:9,color:C.muted,marginTop:2 }}>DANGER</div>
+                    </div>
+                  </div>
+                  {/* Forme */}
+                  <div style={{ marginTop:14 }}>
+                    <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>FORME ACTUELLE</div>
+                    <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+                      {(ms.resultats5||[]).map((r,i) => (
+                        <div key={i} style={{ width:32,height:32,borderRadius:8,background:r==="V"?"#14532d":"#7f1d1d",border:`2px solid ${r==="V"?"#22c55e":"#ef4444"}`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:13,color:r==="V"?"#22c55e":"#ef4444" }}>{r}</div>
+                      ))}
+                      {!(ms.resultats5||[]).length && <span style={{ color:C.muted,fontSize:12 }}>Pas de données</span>}
+                      {(ms.resultats5||[]).length>0 && <span style={{ marginLeft:4,fontSize:12,color:ms.formeColor,fontWeight:700 }}>{ms.formeLabel}</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* BLOC COMPARAISON DRIX */}
+            <div style={{ margin:"12px 16px 0",background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:16 }}>
+              <div style={{ fontSize:11,color:C.muted,marginBottom:12,fontWeight:700,letterSpacing:1 }}>COMPARAISON DRIX</div>
+              <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                <div style={{ flex:1,textAlign:"center",background:"#111",borderRadius:12,padding:"12px 8px" }}>
+                  <div style={{ fontSize:10,color:C.muted,marginBottom:4 }}>TOI</div>
+                  <div style={{ fontWeight:900,fontSize:24,color:"#f97316" }}>{ms.myDrix}</div>
+                  <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
+                </div>
+                <div style={{ textAlign:"center",padding:"0 4px" }}>
+                  <div style={{ fontSize:20,fontWeight:900 }}>⚔️</div>
+                  <div style={{ fontSize:10,color:C.muted }}>VS</div>
+                </div>
+                <div style={{ flex:1,textAlign:"center",background:"#111",borderRadius:12,padding:"12px 8px" }}>
+                  <div style={{ fontSize:10,color:C.muted,marginBottom:4 }}>{modalAmi.amiPseudo.toUpperCase().slice(0,10)}</div>
+                  <div style={{ fontWeight:900,fontSize:24,color:getDrixTitre(ms.hisDrix||1000).color }}>{ms.hisDrix}</div>
+                  <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
+                </div>
+              </div>
+              <div style={{ display:"flex",gap:8,marginTop:10 }}>
+                <div style={{ flex:1,background:"#14532d",borderRadius:10,padding:"10px 8px",textAlign:"center" }}>
+                  <div style={{ fontSize:10,color:"#4ade80",marginBottom:2 }}>SI VICTOIRE</div>
+                  <div style={{ fontWeight:900,fontSize:18,color:"#22c55e" }}>+{ms.gainElo||"?"}</div>
+                  <div style={{ fontSize:9,color:"#4ade80" }}>DRIX</div>
+                </div>
+                <div style={{ flex:1,background:"#7f1d1d",borderRadius:10,padding:"10px 8px",textAlign:"center" }}>
+                  <div style={{ fontSize:10,color:"#fca5a5",marginBottom:2 }}>SI DÉFAITE</div>
+                  <div style={{ fontWeight:900,fontSize:18,color:"#ef4444" }}>-{ms.perteElo||"?"}</div>
+                  <div style={{ fontSize:9,color:"#fca5a5" }}>DRIX</div>
+                </div>
+              </div>
+            </div>
+
+            {/* BLOC ANALYSE */}
+            <div style={{ margin:"12px 16px 0",background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:16 }}>
+              <div style={{ fontSize:11,color:C.muted,marginBottom:12,fontWeight:700,letterSpacing:1 }}>ANALYSE</div>
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
+                <div style={{ background:"#111",borderRadius:12,padding:"12px 10px" }}>
+                  <div style={{ fontSize:10,color:C.muted,marginBottom:6 }}>FACE À FACE</div>
+                  <div style={{ fontWeight:900,fontSize:18 }}><span style={{ color:"#22c55e" }}>{ms.fafLoses||0}V</span> – <span style={{ color:"#ef4444" }}>{ms.fafWins||0}D</span></div>
+                  <div style={{ fontSize:10,color:C.muted,marginTop:2 }}>{(ms.faceAFace||[]).length} matchs</div>
+                </div>
+                <div style={{ background:"#111",borderRadius:12,padding:"12px 10px" }}>
+                  <div style={{ fontSize:10,color:C.muted,marginBottom:6 }}>STYLE</div>
+                  <div style={{ fontSize:16 }}>{ms.styleObj?.emoji}</div>
+                  <div style={{ fontWeight:700,fontSize:12,marginTop:2 }}>{ms.styleObj?.label}</div>
+                  <div style={{ fontSize:10,color:C.muted }}>{ms.styleObj?.desc}</div>
+                </div>
+                <div style={{ background:"#111",borderRadius:12,padding:"12px 10px" }}>
+                  <div style={{ fontSize:10,color:C.muted,marginBottom:6 }}>POINT FAIBLE</div>
+                  <div style={{ fontSize:16 }}>{ms.pointFaibleObj?.emoji}</div>
+                  <div style={{ fontWeight:700,fontSize:12,marginTop:2 }}>{ms.pointFaibleObj?.label}</div>
+                  <div style={{ fontSize:10,color:C.muted }}>{ms.pointFaibleObj?.desc}</div>
+                </div>
+                <div style={{ background:"#111",borderRadius:12,padding:"12px 10px",textAlign:"center" }}>
+                  <div style={{ fontSize:10,color:C.muted,marginBottom:6 }}>PROB. VICTOIRE</div>
+                  <div style={{ fontWeight:900,fontSize:28,color:ms.probaVictoire>=60?"#22c55e":ms.probaVictoire>=40?"#f59e0b":"#ef4444" }}>{ms.probaVictoire||"?"}%</div>
+                  <div style={{ fontSize:10,color:C.muted }}>pour toi</div>
+                </div>
+              </div>
+            </div>
+
+            {/* BLOC CONFIGURATION */}
+            <div style={{ margin:"12px 16px 0",background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:16 }}>
+              <div style={{ fontSize:11,color:C.muted,marginBottom:12,fontWeight:700,letterSpacing:1 }}>CONFIGURATION</div>
+              <div style={{ marginBottom:12 }}>
+                <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Mode</div>
+                <div style={{ display:"flex",gap:6 }}>
+                  {["501","301","Cricket"].map(m=>(
+                    <button key={m} onClick={()=>setDefiForm(f=>({...f,mode:m}))} style={{ flex:1,padding:"10px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:defiForm.mode===m?"#7c3aed":"#222",color:defiForm.mode===m?"#fff":C.muted,fontSize:14,transition:"all .12s" }}>{m}</button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ marginBottom:12 }}>
+                <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Manches</div>
+                <div style={{ display:"flex",gap:4 }}>
+                  {[1,2,3,4,5].map(n=>(
+                    <button key={n} onClick={()=>setDefiForm(f=>({...f,manches:n}))} style={{ flex:1,padding:"10px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:defiForm.manches===n?"#7c3aed":"#222",color:defiForm.manches===n?"#fff":C.muted,fontSize:14,transition:"all .12s" }}>{n}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Type</div>
+                <div style={{ display:"flex",gap:6 }}>
+                  {[{v:"classe",l:"🏆 Classé"},{v:"amical",l:"🤝 Amical"}].map(t=>(
+                    <button key={t.v} onClick={()=>setDefiForm(f=>({...f,type:t.v}))} style={{ flex:1,padding:"10px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:defiForm.type===t.v?"#7c3aed":"#222",color:defiForm.type===t.v?"#fff":C.muted,fontSize:13,transition:"all .12s" }}>{t.l}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* BLOC VALIDATION */}
+            <div style={{ margin:"12px 16px 0",background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:16 }}>
+              <div style={{ fontSize:11,color:C.muted,marginBottom:8,fontWeight:700,letterSpacing:1 }}>MESSAGE (optionnel)</div>
+              <input value={defiForm.message} onChange={e=>setDefiForm(f=>({...f,message:e.target.value.slice(0,120)}))}
+                placeholder="Ajoute un message à ton défi…" maxLength={120}
+                style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",color:"#fff",fontSize:13,boxSizing:"border-box",marginBottom:4 }}/>
+              <div style={{ fontSize:10,color:C.muted,textAlign:"right",marginBottom:14 }}>{defiForm.message.length}/120</div>
+              <button onClick={envoyerDefi} disabled={sending}
+                style={{ width:"100%",padding:"14px 0",borderRadius:12,border:"none",fontWeight:900,fontSize:16,cursor:sending?"not-allowed":"pointer",background:"linear-gradient(135deg,#f97316,#7c3aed)",color:"#fff",opacity:sending?0.6:1,transition:"all .15s",letterSpacing:0.5 }}>
+                {sending?"Lancement du match…":`⚔️ DÉFIER ${modalAmi.amiPseudo.toUpperCase()}`}
+              </button>
+            </div>
+
+            </>)}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
