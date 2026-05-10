@@ -421,40 +421,74 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     <div style={{ maxWidth:600, margin:"0 auto", padding:"16px 16px 80px" }}>
 
       {/* ── 1. HERO PROFIL ─────────────────────────────────────────────────── */}
-      <div style={{ background:"linear-gradient(135deg,#1a0800,#1a1a2e)", border:`1px solid ${color}44`, borderRadius:18, padding:20, marginBottom:14 }}>
-        <div style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
+      <div style={{
+        position:"relative", overflow:"hidden",
+        background:`linear-gradient(135deg,#0d0d1a 0%,#1a0a00 50%,#0d0d1a 100%)`,
+        border:`1px solid ${color}66`,
+        borderRadius:20, padding:20, marginBottom:14,
+        boxShadow:`0 0 30px ${color}22, 0 0 60px ${color}11, inset 0 0 40px #00000044`,
+      }}>
+        {/* Fond neon décoratif */}
+        <div style={{ position:"absolute", top:-40, right:-40, width:180, height:180, borderRadius:"50%", background:`radial-gradient(circle,${color}18 0%,transparent 70%)`, pointerEvents:"none" }}/>
+        <div style={{ position:"absolute", bottom:-30, left:-30, width:120, height:120, borderRadius:"50%", background:`radial-gradient(circle,${color}10 0%,transparent 70%)`, pointerEvents:"none" }}/>
 
-          {/* Photo */}
+        <div style={{ display:"flex", gap:16, alignItems:"flex-start", position:"relative" }}>
+
+          {/* Photo avec halo neon */}
           <div style={{ position:"relative", flexShrink:0 }}>
-            <div onClick={()=>photoRef.current?.click()}
-              style={{ width:76,height:76,borderRadius:"50%",border:`3px solid ${color}`,overflow:"hidden",cursor:"pointer",background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30 }}>
+            {/* Halo lumineux derrière la photo */}
+            <div style={{ position:"absolute", inset:-6, borderRadius:"50%", background:`radial-gradient(circle,${color}44 0%,transparent 70%)`, filter:"blur(8px)", zIndex:0 }}/>
+            <div onClick={()=>photoRef.current?.click()} style={{ position:"relative", zIndex:1,
+              width:80, height:80, borderRadius:"50%",
+              border:`2px solid ${color}`,
+              boxShadow:`0 0 12px ${color}88, 0 0 24px ${color}44`,
+              overflow:"hidden", cursor:"pointer",
+              background:color+"22", display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>
               {joueur.photo
                 ? <img src={joueur.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
                 : <span>{emoji}</span>}
             </div>
             <div onClick={()=>photoRef.current?.click()}
-              style={{ position:"absolute",bottom:0,right:0,background:"#f97316",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:11,border:"2px solid #1a0800" }}>📷</div>
+              style={{ position:"absolute",bottom:0,right:0,zIndex:2,
+                background:"#f97316", borderRadius:"50%", width:22, height:22,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                cursor:"pointer", fontSize:11, border:`2px solid #0d0d1a`,
+                boxShadow:"0 0 8px #f9731688" }}>📷</div>
             <input ref={photoRef} type="file" accept="image/*" style={{ display:"none" }} onChange={uploadPhoto}/>
           </div>
 
           {/* Identité */}
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, flexWrap:"wrap" }}>
-              <h1 style={{ fontWeight:900, fontSize:20, margin:0 }}>{joueur.pseudo}</h1>
+              <h1 style={{ fontWeight:900, fontSize:22, margin:0,
+                textShadow:`0 0 20px ${color}88, 0 0 40px ${color}44`,
+                color:"#fff", letterSpacing:.5 }}>{joueur.pseudo}</h1>
               {!editMode && (
                 <button onClick={()=>setEditMode(true)}
                   style={{ background:"none",border:`1px solid ${CJ.border}`,color:CJ.muted,cursor:"pointer",borderRadius:6,padding:"2px 8px",fontSize:11,touchAction:"manipulation" }}>
-                  ✏️ Modifier
+                  ✏️
                 </button>
               )}
             </div>
 
-            {/* DRIX + rang */}
-            <div style={{ display:"inline-flex",alignItems:"center",gap:8,background:color+"22",border:`1px solid ${color}44`,borderRadius:20,padding:"4px 12px",marginBottom:8 }}>
-              <span style={{ fontSize:15 }}>{emoji}</span>
-              <span style={{ fontWeight:900,fontSize:17,color }}>{joueur.drix||1000}</span>
-              <span style={{ fontSize:11,color,fontWeight:600 }}>DRIX · {titre}</span>
+            {/* DRIX + rang — pill neon */}
+            <div style={{ display:"inline-flex", alignItems:"center", gap:8,
+              background:`linear-gradient(90deg,${color}22,${color}11)`,
+              border:`1px solid ${color}66`,
+              boxShadow:`0 0 12px ${color}33`,
+              borderRadius:20, padding:"5px 14px", marginBottom:8 }}>
+              <span style={{ fontSize:16 }}>{emoji}</span>
+              <span style={{ fontWeight:900, fontSize:18, color,
+                textShadow:`0 0 10px ${color}` }}>{joueur.drix||1000}</span>
+              <span style={{ fontSize:11, color, fontWeight:700, opacity:.85 }}>DRIX · {titre}</span>
             </div>
+
+            {/* Stats rapides */}
+            {stats && (
+              <div style={{ display:"flex", gap:14, marginBottom:8 }}>
+                <span style={{ fontSize:12, color:"#94a3b8" }}><span style={{ color:CJ.green, fontWeight:700 }}>{stats.victoires}V</span> · <span style={{ color:CJ.red, fontWeight:700 }}>{stats.defaites}D</span> · <span style={{ color:CJ.yellow, fontWeight:700 }}>{winRate}%</span> WR</span>
+              </div>
+            )}
 
             {/* Classement + infos */}
             <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
