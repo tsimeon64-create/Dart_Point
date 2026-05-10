@@ -84,12 +84,26 @@ const AnimCount = ({ target, duration=1400, prefix="", suffix="" }) => {
 };
 
 // ── Écran de fin (composant séparé pour pouvoir utiliser des hooks) ────────────
+const SB_URL_J = "https://secuyejzngzhnnuweuwm.supabase.co";
+const SB_KEY_J = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
+
 const FinScreen = ({ gagnant, duel, drixData, modeDuel, moyenne, demarrer, quitterPartie }) => {
   const [show, setShow] = useState(false);
   const [drixShow, setDrixShow] = useState(false);
+  const [winnerPhoto, setWinnerPhoto] = useState(null);
+
   useEffect(() => {
     setShow(true);
     const t = setTimeout(() => setDrixShow(true), 800);
+    // Fetch la photo du gagnant si en mode duel
+    if (modeDuel && duel && gagnant?.nom) {
+      const winnerId = gagnant.nom === duel.challenger_pseudo ? duel.challenger_id : duel.defie_id;
+      if (winnerId) {
+        fetch(`${SB_URL_J}/rest/v1/joueurs?id=eq.${winnerId}&select=photo`, {
+          headers: { apikey: SB_KEY_J, Authorization: `Bearer ${SB_KEY_J}` }
+        }).then(r => r.json()).then(d => { if (d?.[0]?.photo) setWinnerPhoto(d[0].photo); }).catch(() => {});
+      }
+    }
     return () => clearTimeout(t);
   }, []);
 
@@ -110,8 +124,16 @@ const FinScreen = ({ gagnant, duel, drixData, modeDuel, moyenne, demarrer, quitt
         opacity: show ? 1 : 0,
         transition: "transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.4s ease",
       }}>
-        <div style={{ fontSize:72,marginBottom:12,animation:"trophy-bounce 0.6s 0.2s both" }}>🏆</div>
         <style>{`@keyframes trophy-bounce{0%{transform:scale(0) rotate(-20deg);opacity:0}70%{transform:scale(1.2) rotate(5deg)}100%{transform:scale(1) rotate(0);opacity:1}}`}</style>
+        <div style={{ display:"flex",justifyContent:"center",marginBottom:16,animation:"trophy-bounce 0.6s 0.2s both" }}>
+          {winnerPhoto ? (
+            <div style={{ width:96,height:96,borderRadius:"50%",overflow:"hidden",border:"4px solid #22c55e",boxShadow:"0 0 24px #22c55e88" }}>
+              <img src={winnerPhoto} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
+            </div>
+          ) : (
+            <span style={{ fontSize:72 }}>🏆</span>
+          )}
+        </div>
         <h2 style={{ fontWeight:900,fontSize:32,color:"#22c55e",marginBottom:6 }}>VICTOIRE !</h2>
         <p style={{ fontSize:24,fontWeight:800,color:"#fff",marginBottom:20 }}>{gagnant?.nom}</p>
         <div style={{ display:"flex",justifyContent:"center",gap:24 }}>
