@@ -1579,8 +1579,390 @@ const MancheDetail = ({ manches, joueur0, joueur1 }) => {
   );
 };
 
+// ── LIVE ──────────────────────────────────────────────────────────────────────
+
+const generateLiveAI = (s) => {
+  const s1 = s.stats_j1||{}, s2 = s.stats_j2||{};
+  const lines = [];
+  const ea = 1/(1+Math.pow(10, ((s.joueur2_drix||1000)-(s.joueur1_drix||1000))/400));
+  const moy1 = s1.moy||0, moy2 = s2.moy||0;
+  if (moy1 > 0 && moy2 > 0) {
+    const [better, bMoy] = moy1>=moy2 ? [s.joueur1_pseudo, moy1] : [s.joueur2_pseudo, moy2];
+    lines.push(`🔥 ${better} domine avec une moyenne de ${typeof bMoy==="number"?bMoy.toFixed(1):bMoy}`);
+  } else if (moy1 > 0) { lines.push(`🎯 ${s.joueur1_pseudo} est en jeu — moy. ${moy1}`); }
+  else if (moy2 > 0) { lines.push(`🎯 ${s.joueur2_pseudo} est en jeu — moy. ${moy2}`); }
+  if ((s1.reste||999) < 120) lines.push(`🎯 ${s.joueur1_pseudo} peut finir — ${s1.reste} restants`);
+  if ((s2.reste||999) < 120) lines.push(`🎯 ${s.joueur2_pseudo} peut finir — ${s2.reste} restants`);
+  if ((s1.nb180||0) > 0) lines.push(`💥 ${s.joueur1_pseudo} a planté ${s1.nb180}× 180 !`);
+  if ((s2.nb180||0) > 0) lines.push(`💥 ${s.joueur2_pseudo} a planté ${s2.nb180}× 180 !`);
+  if ((s1.busts||0) > 1) lines.push(`⚠️ ${s.joueur1_pseudo} galère sur les doubles — ${s1.busts} busts`);
+  if ((s2.busts||0) > 1) lines.push(`⚠️ ${s.joueur2_pseudo} galère sur les doubles — ${s2.busts} busts`);
+  if ((s1.max_finish||0) > 0) lines.push(`✅ Meilleur finish de ${s.joueur1_pseudo} : ${s1.max_finish}`);
+  if ((s2.max_finish||0) > 0) lines.push(`✅ Meilleur finish de ${s.joueur2_pseudo} : ${s2.max_finish}`);
+  const adjP1 = moy1 > moy2 ? Math.min(Math.round(ea*100)+10, 92) : moy1 < moy2 ? Math.max(Math.round(ea*100)-10, 8) : Math.round(ea*100);
+  lines.push(`📊 Probabilité de victoire → ${s.joueur1_pseudo} ${adjP1}% · ${s.joueur2_pseudo} ${100-adjP1}%`);
+  return lines;
+};
+
+const LiveMatchCard = ({ session:s, onClick, setPage }) => {
+  const elapsed = Math.floor((Date.now()-(s.debut||Date.now()))/60000);
+  const elStr = elapsed < 60 ? `${elapsed} min` : `${Math.floor(elapsed/60)}h${elapsed%60}`;
+  const { emoji:e1, color:c1 } = getDrixTitre(s.joueur1_drix||1000);
+  const { emoji:e2, color:c2 } = getDrixTitre(s.joueur2_drix||1000);
+  const st1 = s.stats_j1||{}, st2 = s.stats_j2||{};
+  return (
+    <div onClick={onClick} style={{ background:C.card, border:"1px solid #ef444433", borderRadius:16, padding:"14px 16px", marginBottom:12, cursor:"pointer", position:"relative", overflow:"hidden" }}>
+      <style>{`@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.35)}}`}</style>
+      <div style={{ position:"absolute",top:10,right:10,display:"flex",alignItems:"center",gap:5,background:"#ef444422",borderRadius:20,padding:"3px 10px" }}>
+        <div style={{ width:7,height:7,borderRadius:"50%",background:"#ef4444",animation:"livePulse 1.2s infinite" }}/>
+        <span style={{ fontSize:10,fontWeight:800,color:"#ef4444",letterSpacing:0.8 }}>LIVE</span>
+      </div>
+      <div style={{ display:"flex",gap:8,alignItems:"center",marginBottom:10 }}>
+        <span style={{ fontSize:11,color:C.muted }}>⏱ {elStr}</span>
+        <span style={{ background:"#f9731622",color:"#f97316",borderRadius:6,padding:"2px 8px",fontSize:11,fontWeight:700 }}>{s.mode}</span>
+        {s.format && <span style={{ background:"#ffffff11",color:C.muted,borderRadius:6,padding:"2px 8px",fontSize:11 }}>{s.format}</span>}
+      </div>
+      <div style={{ display:"grid",gridTemplateColumns:"1fr 56px 1fr",gap:8,alignItems:"center" }}>
+        <div>
+          <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:6 }}>
+            <FeedAvatar pseudo={s.joueur1_pseudo} size={36} onClick={e=>{e.stopPropagation();if(s.joueur1_id&&setPage)setPage("profil-joueur-"+s.joueur1_id);}}/>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontWeight:700,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{s.joueur1_pseudo}</div>
+              <div style={{ fontSize:10,color:c1 }}>{e1} {s.joueur1_drix}</div>
+            </div>
+          </div>
+          <div style={{ fontSize:11,color:C.muted,display:"flex",flexDirection:"column",gap:2 }}>
+            <span>Moy <b style={{ color:"#f97316" }}>{st1.moy||0}</b></span>
+            <span>180s <b style={{ color:"#a78bfa" }}>{st1.nb180||0}</b></span>
+            <span>Reste <b style={{ color:C.text }}>{st1.reste!=null?st1.reste:s.mode}</b></span>
+          </div>
+        </div>
+        <div style={{ textAlign:"center" }}>
+          <div style={{ fontWeight:900,fontSize:26,lineHeight:1 }}>{s.score1||0}</div>
+          <div style={{ color:C.muted,fontSize:11,margin:"4px 0" }}>—</div>
+          <div style={{ fontWeight:900,fontSize:26,lineHeight:1 }}>{s.score2||0}</div>
+        </div>
+        <div style={{ textAlign:"right" }}>
+          <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:6,justifyContent:"flex-end" }}>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontWeight:700,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{s.joueur2_pseudo}</div>
+              <div style={{ fontSize:10,color:c2 }}>{e2} {s.joueur2_drix}</div>
+            </div>
+            <FeedAvatar pseudo={s.joueur2_pseudo} size={36} onClick={e=>{e.stopPropagation();if(s.joueur2_id&&setPage)setPage("profil-joueur-"+s.joueur2_id);}}/>
+          </div>
+          <div style={{ fontSize:11,color:C.muted,display:"flex",flexDirection:"column",gap:2,alignItems:"flex-end" }}>
+            <span>Moy <b style={{ color:"#f97316" }}>{st2.moy||0}</b></span>
+            <span>180s <b style={{ color:"#a78bfa" }}>{st2.nb180||0}</b></span>
+            <span>Reste <b style={{ color:C.text }}>{st2.reste!=null?st2.reste:s.mode}</b></span>
+          </div>
+        </div>
+      </div>
+      <div style={{ marginTop:10,textAlign:"center",fontSize:12,color:"#f97316",fontWeight:600 }}>👁 Regarder le live →</div>
+    </div>
+  );
+};
+
+const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
+  const [session, setSession] = useState(initSession);
+  const [volees, setVolees] = useState([]);
+  const [aiLines, setAiLines] = useState([]);
+  const [aiTick, setAiTick] = useState(0);
+  const [comment, setComment] = useState("");
+  const [comments, setComments] = useState([]);
+  const [reactions, setReactions] = useState({});
+  const [activeTab, setActiveTab] = useState("volees");
+
+  const REACTIONS = [
+    { type:"feu",    emoji:"🔥", label:"Chaud" },
+    { type:"finish", emoji:"🎯", label:"Beau finish" },
+    { type:"180",    emoji:"💥", label:"180" },
+    { type:"bust",   emoji:"😱", label:"Bust" },
+    { type:"bravo",  emoji:"👏", label:"Bien joué" },
+  ];
+
+  const loadData = useCallback(async () => {
+    if (!initSession?.id) return;
+    try {
+      const [sess, vs, coms, reacs] = await Promise.all([
+        sb(`live_sessions?id=eq.${initSession.id}&select=*`).then(d=>d?.[0]||session).catch(()=>session),
+        sb(`live_volees?session_id=eq.${initSession.id}&order=date.asc&select=*`).catch(()=>[]),
+        sb(`live_comments?session_id=eq.${initSession.id}&order=date.asc&select=*`).catch(()=>[]),
+        sb(`live_reactions?session_id=eq.${initSession.id}&select=*`).catch(()=>[]),
+      ]);
+      setSession(sess);
+      setVolees(vs||[]);
+      setComments(coms||[]);
+      const rMap = {};
+      (reacs||[]).forEach(r => { rMap[r.type] = (rMap[r.type]||0)+1; });
+      setReactions(rMap);
+      const newTick = Math.floor((vs||[]).length/2);
+      if (newTick !== aiTick) { setAiLines(generateLiveAI(sess)); setAiTick(newTick); }
+    } catch(e) {}
+  }, [initSession?.id, aiTick]);
+
+  useEffect(() => { loadData(); const iv = setInterval(loadData, 8000); return () => clearInterval(iv); }, [loadData]);
+
+  const sendComment = async () => {
+    if (!comment.trim() || !joueur) return;
+    try {
+      await sb("live_comments", { method:"POST", body:JSON.stringify({ session_id:initSession.id, joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, joueur_photo:joueur.photo||null, contenu:comment.trim(), date:Date.now() }) });
+      setComment(""); loadData();
+    } catch(e) {}
+  };
+
+  const sendReaction = async (type) => {
+    if (!joueur) return;
+    try {
+      await sb("live_reactions", { method:"POST", body:JSON.stringify({ session_id:initSession.id, joueur_id:joueur.id, type }) });
+      setReactions(r => ({ ...r, [type]:(r[type]||0)+1 }));
+    } catch(e) {}
+  };
+
+  const s1 = session.stats_j1||{}, s2 = session.stats_j2||{};
+  const { emoji:e1, color:c1 } = getDrixTitre(session.joueur1_drix||1000);
+  const { emoji:e2, color:c2 } = getDrixTitre(session.joueur2_drix||1000);
+  const elapsed = Math.floor((Date.now()-(session.debut||Date.now()))/60000);
+  const elStr = elapsed < 60 ? `${elapsed} min` : `${Math.floor(elapsed/60)}h${elapsed%60}`;
+  const vJ1 = volees.filter(v=>v.joueur_id===session.joueur1_id);
+  const vJ2 = volees.filter(v=>v.joueur_id===session.joueur2_id);
+
+  const tabBtn = (key, label) => (
+    <button key={key} onClick={()=>setActiveTab(key)} style={{ flex:1,padding:"8px 4px",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",transition:"all .15s",background:activeTab===key?"#f97316":"transparent",color:activeTab===key?"#fff":C.muted }}>
+      {label}
+    </button>
+  );
+
+  return (
+    <div style={{ maxWidth:700,margin:"0 auto",padding:"16px" }}>
+      <style>{`@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.35)}}`}</style>
+      <button onClick={onBack} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:12,fontSize:13 }}>← Retour aux matchs</button>
+
+      {/* ── Header match ── */}
+      <div style={{ background:"linear-gradient(135deg,#1a0a00,#0d0d1a)",border:"1px solid #f9731644",borderRadius:16,padding:16,marginBottom:14 }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
+          <div style={{ display:"flex",gap:6 }}>
+            <span style={{ background:"#f9731622",color:"#f97316",borderRadius:6,padding:"2px 8px",fontSize:11,fontWeight:700 }}>{session.mode}</span>
+            {session.format && <span style={{ background:"#ffffff11",color:C.muted,borderRadius:6,padding:"2px 8px",fontSize:11 }}>{session.format}</span>}
+          </div>
+          <div style={{ display:"flex",alignItems:"center",gap:5 }}>
+            <div style={{ width:7,height:7,borderRadius:"50%",background:"#ef4444",animation:"livePulse 1.2s infinite" }}/>
+            <span style={{ fontSize:11,fontWeight:800,color:"#ef4444" }}>LIVE · {elStr}</span>
+          </div>
+        </div>
+        <div style={{ display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:10,alignItems:"center" }}>
+          <div>
+            <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:8 }}>
+              <FeedAvatar pseudo={session.joueur1_pseudo} size={44} onClick={()=>session.joueur1_id&&setPage("profil-joueur-"+session.joueur1_id)}/>
+              <div>
+                <div style={{ fontWeight:800,fontSize:15 }}>{session.joueur1_pseudo}</div>
+                <div style={{ fontSize:11,color:c1 }}>{e1} {session.joueur1_drix} DRIX</div>
+              </div>
+            </div>
+            <div style={{ fontSize:13,color:"#f97316",fontWeight:700 }}>Moy {s1.moy||0}</div>
+            <div style={{ fontSize:12,color:C.muted }}>Reste <b style={{ color:C.text }}>{s1.reste!=null?s1.reste:session.mode}</b></div>
+          </div>
+          <div style={{ textAlign:"center",padding:"0 8px" }}>
+            <div style={{ fontWeight:900,fontSize:34,lineHeight:1 }}>{session.score1||0}</div>
+            <div style={{ color:C.muted,fontSize:14,margin:"4px 0" }}>—</div>
+            <div style={{ fontWeight:900,fontSize:34,lineHeight:1 }}>{session.score2||0}</div>
+          </div>
+          <div style={{ textAlign:"right" }}>
+            <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:8,justifyContent:"flex-end" }}>
+              <div>
+                <div style={{ fontWeight:800,fontSize:15 }}>{session.joueur2_pseudo}</div>
+                <div style={{ fontSize:11,color:c2 }}>{e2} {session.joueur2_drix} DRIX</div>
+              </div>
+              <FeedAvatar pseudo={session.joueur2_pseudo} size={44} onClick={()=>session.joueur2_id&&setPage("profil-joueur-"+session.joueur2_id)}/>
+            </div>
+            <div style={{ fontSize:13,color:"#f97316",fontWeight:700 }}>Moy {s2.moy||0}</div>
+            <div style={{ fontSize:12,color:C.muted }}>Reste <b style={{ color:C.text }}>{s2.reste!=null?s2.reste:session.mode}</b></div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Réactions rapides ── */}
+      <div style={{ display:"flex",gap:8,marginBottom:14,overflowX:"auto",paddingBottom:2 }}>
+        {REACTIONS.map(r => (
+          <button key={r.type} onClick={()=>sendReaction(r.type)} style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:3,background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"8px 12px",cursor:"pointer",flexShrink:0,minWidth:52 }}>
+            <span style={{ fontSize:20 }}>{r.emoji}</span>
+            <span style={{ fontSize:9,color:C.muted,fontWeight:600 }}>{r.label}</span>
+            {(reactions[r.type]||0) > 0 && <span style={{ fontSize:10,fontWeight:800,color:"#f97316" }}>{reactions[r.type]}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tabs ── */}
+      <div style={{ display:"flex",background:"#111",borderRadius:10,padding:3,gap:2,marginBottom:14 }}>
+        {tabBtn("volees","🎯 Volées")}
+        {tabBtn("stats","📊 Stats")}
+        {tabBtn("ai","🤖 Analyse")}
+        {tabBtn("comments","💬 Live")}
+      </div>
+
+      {/* ── Volées ── */}
+      {activeTab==="volees" && (
+        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+          {[{pseudo:session.joueur1_pseudo,vols:vJ1,color:c1},{pseudo:session.joueur2_pseudo,vols:vJ2,color:c2}].map((p,i)=>(
+            <div key={i} style={{ background:C.card,border:`1px solid ${p.color}44`,borderRadius:12,padding:12 }}>
+              <div style={{ fontWeight:700,fontSize:13,marginBottom:10,color:p.color }}>{p.pseudo}</div>
+              {p.vols.length===0 ? (
+                <div style={{ color:C.muted,fontSize:12,textAlign:"center",padding:16 }}>En attente…</div>
+              ) : [...p.vols].reverse().map((v,idx)=>(
+                <div key={idx} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:`1px solid ${C.border}` }}>
+                  <span style={{ fontSize:11,color:C.muted }}>V{v.numero_volee}</span>
+                  <span style={{ fontWeight:700,fontSize:14,color:v.score===180?"#a78bfa":v.score>=100?"#f97316":v.score===-1?"#ef4444":C.text }}>
+                    {v.score===-1?"💥 Bust":v.score}
+                  </span>
+                  <span style={{ fontSize:11,color:C.muted }}>{v.reste}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Stats ── */}
+      {activeTab==="stats" && (
+        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+          {[{pseudo:session.joueur1_pseudo,st:s1,color:c1},{pseudo:session.joueur2_pseudo,st:s2,color:c2}].map((p,i)=>(
+            <div key={i} style={{ background:C.card,border:`1px solid ${p.color}44`,borderRadius:12,padding:14 }}>
+              <div style={{ fontWeight:700,fontSize:13,marginBottom:12,color:p.color }}>{p.pseudo}</div>
+              {[["Moyenne",p.st.moy||0,"#f97316"],["Volées",p.st.volees||0,C.muted],["180s",p.st.nb180||0,"#a78bfa"],["Meilleur finish",p.st.max_finish||"—","#22c55e"],["Busts",p.st.busts||0,"#ef4444"],["Reste",p.st.reste!=null?p.st.reste:"—",C.text]].map(([label,val,col])=>(
+                <div key={label} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                  <span style={{ fontSize:12,color:C.muted }}>{label}</span>
+                  <span style={{ fontWeight:700,fontSize:14,color:col }}>{val}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Analyse IA ── */}
+      {activeTab==="ai" && (
+        <div style={{ background:"linear-gradient(135deg,#0d1117,#1a0d2e)",border:"1px solid #a78bfa44",borderRadius:12,padding:16 }}>
+          <div style={{ fontWeight:700,fontSize:14,color:"#a78bfa",marginBottom:12,display:"flex",alignItems:"center",gap:8 }}>
+            🤖 Analyse en direct <span style={{ fontSize:11,color:C.muted,fontWeight:400 }}>· mise à jour auto</span>
+          </div>
+          {aiLines.length===0 ? (
+            <div style={{ color:C.muted,fontSize:13 }}>En attente des premières volées…</div>
+          ) : aiLines.map((line,i)=>(
+            <div key={i} style={{ padding:"8px 10px",marginBottom:6,background:"#ffffff08",borderRadius:8,fontSize:13,lineHeight:1.5 }}>{line}</div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Commentaires ── */}
+      {activeTab==="comments" && (
+        <div>
+          <div style={{ marginBottom:12,maxHeight:320,overflowY:"auto",display:"flex",flexDirection:"column",gap:8 }}>
+            {comments.length===0 ? (
+              <div style={{ color:C.muted,fontSize:13,textAlign:"center",padding:24 }}>Sois le premier à commenter !</div>
+            ) : comments.map((c,i)=>(
+              <div key={c.id||i} style={{ display:"flex",gap:8,alignItems:"flex-start" }}>
+                <FeedAvatar photo={c.joueur_photo} pseudo={c.joueur_pseudo} size={30} onClick={()=>c.joueur_id&&setPage("profil-joueur-"+c.joueur_id)}/>
+                <div style={{ background:"#1a1a1a",borderRadius:10,padding:"7px 12px",flex:1 }}>
+                  <span style={{ fontWeight:700,fontSize:12,color:C.text }}>{c.joueur_pseudo} </span>
+                  <span style={{ fontSize:13,color:C.text }}>{c.contenu}</span>
+                  <div style={{ fontSize:10,color:C.muted,marginTop:3 }}>{tempsDepuis(c.date)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {joueur ? (
+            <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+              <FeedAvatar photo={joueur.photo} pseudo={joueur.pseudo} size={30}/>
+              <input value={comment} onChange={e=>setComment(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendComment()} placeholder="Commenter le match…" maxLength={200}
+                style={{ flex:1,background:"#1a1a1a",border:`1px solid ${C.border}`,borderRadius:20,padding:"8px 14px",color:C.text,fontSize:13,outline:"none",fontFamily:"inherit" }}/>
+              <button onClick={sendComment} disabled={!comment.trim()} style={{ background:comment.trim()?"#f97316":"#2a2a2a",border:"none",borderRadius:20,padding:"8px 14px",color:comment.trim()?"#fff":C.muted,cursor:comment.trim()?"pointer":"default",fontWeight:700,fontSize:13 }}>
+                Envoyer
+              </button>
+            </div>
+          ) : (
+            <div style={{ color:C.muted,fontSize:13,textAlign:"center" }}>Connecte-toi pour commenter</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PageLive = ({ joueur, setPage }) => {
+  const [sessions, setSessions] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [amiIds, setAmiIds] = useState([]);
+  const [filter, setFilter] = useState("tous");
+  const [sort, setSort] = useState("recent");
+
+  useEffect(() => {
+    if (!joueur?.id) { setLoading(false); return; }
+    Promise.all([
+      sb(`amis?joueur_id=eq.${joueur.id}&statut=eq.accepte&select=ami_id`).catch(()=>[]),
+      sb(`amis?ami_id=eq.${joueur.id}&statut=eq.accepte&select=joueur_id`).catch(()=>[]),
+    ]).then(([a,b]) => {
+      const ids = [joueur.id,...(a||[]).map(x=>x.ami_id),...(b||[]).map(x=>x.joueur_id)].filter((v,i,arr)=>arr.indexOf(v)===i);
+      setAmiIds(ids);
+    });
+  }, [joueur?.id]);
+
+  useEffect(() => {
+    if (!amiIds.length) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const inList = amiIds.join(",");
+        const data = await sb(`live_sessions?statut=eq.en_cours&or=(joueur1_id.in.(${inList}),joueur2_id.in.(${inList}))&order=debut.desc`).catch(()=>[]);
+        if (!cancelled) { setSessions(data||[]); setLoading(false); }
+      } catch(e) { if (!cancelled) setLoading(false); }
+    };
+    load();
+    const iv = setInterval(load, 10000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [amiIds]);
+
+  if (selected) return <LiveMatchView session={selected} joueur={joueur} setPage={setPage} onBack={()=>setSelected(null)}/>;
+
+  const filtered = sessions
+    .filter(s => filter==="tous" || s.mode===filter)
+    .sort((a,b) => {
+      if (sort==="serre") return Math.abs((a.score1||0)-(a.score2||0)) - Math.abs((b.score1||0)-(b.score2||0));
+      if (sort==="drix") return ((b.joueur1_drix||1000)+(b.joueur2_drix||1000))-((a.joueur1_drix||1000)+(a.joueur2_drix||1000));
+      return (b.debut||0)-(a.debut||0);
+    });
+
+  return (
+    <div>
+      <div style={{ display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",alignItems:"center" }}>
+        {["tous","501","301","Cricket"].map(f=>(
+          <button key={f} onClick={()=>setFilter(f)} style={{ background:filter===f?"#ef444422":"#1a1a1a",border:`1px solid ${filter===f?"#ef4444":"#2a2a2a"}`,color:filter===f?"#ef4444":C.muted,borderRadius:8,padding:"5px 12px",fontSize:12,fontWeight:700,cursor:"pointer" }}>
+            {f==="tous"?"Tous":f}
+          </button>
+        ))}
+        <select value={sort} onChange={e=>setSort(e.target.value)} style={{ marginLeft:"auto",background:"#1a1a1a",border:`1px solid #2a2a2a`,color:C.text,borderRadius:8,padding:"5px 10px",fontSize:12 }}>
+          <option value="recent">Plus récent</option>
+          <option value="serre">Plus serré</option>
+          <option value="drix">Plus haut niveau</option>
+        </select>
+      </div>
+      {loading ? (
+        <div style={{ textAlign:"center",color:C.muted,padding:48 }}>⏳ Chargement…</div>
+      ) : filtered.length===0 ? (
+        <div style={{ textAlign:"center",padding:"48px 16px" }}>
+          <div style={{ fontSize:48,marginBottom:12 }}>🎯</div>
+          <div style={{ fontWeight:700,fontSize:18,marginBottom:8 }}>Aucun match en cours</div>
+          <div style={{ fontSize:13,color:C.muted,lineHeight:1.6 }}>Les parties de tes amis apparaissent ici en temps réel dès qu'ils lancent le scoreur.</div>
+        </div>
+      ) : filtered.map(s=>(
+        <LiveMatchCard key={s.id} session={s} onClick={()=>setSelected(s)} setPage={setPage}/>
+      ))}
+    </div>
+  );
+};
+
 // ── PAGE COMMUNAUTÉ ────────────────────────────────────────────────────────────
 const PageCommunaute = ({ joueur, setPage, bars }) => {
+  const [mainTab, setMainTab] = useState("feed");
   const [feed, setFeed] = useState([]);
   const [photosMap, setPhotosMap] = useState({});
   const [likesMap, setLikesMap] = useState({});
@@ -1990,7 +2372,23 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         <h1 style={{ fontWeight:800,fontSize:22,margin:0 }}>👥 Communauté</h1>
         <button onClick={()=>{ setLoading(true); setRefreshTick(t=>t+1); }} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:18,padding:4 }} title="Rafraîchir">🔄</button>
       </div>
-      <p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>L'actualité de tes amis</p>
+      <p style={{ color:C.muted,fontSize:13,marginBottom:12 }}>L'actualité de tes amis</p>
+
+      {/* ── Onglets ── */}
+      <style>{`@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.35)}}`}</style>
+      <div style={{ display:"flex",background:"#111",borderRadius:12,padding:3,gap:3,marginBottom:20 }}>
+        <button onClick={()=>setMainTab("feed")} style={{ flex:1,padding:"9px",borderRadius:9,border:"none",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .15s",background:mainTab==="feed"?"#1e1e1e":"transparent",color:mainTab==="feed"?C.text:C.muted }}>
+          👥 Communauté
+        </button>
+        <button onClick={()=>setMainTab("live")} style={{ flex:1,padding:"9px",borderRadius:9,border:"none",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .15s",background:mainTab==="live"?"#1e1e1e":"transparent",color:mainTab==="live"?"#ef4444":C.muted,display:"flex",alignItems:"center",justifyContent:"center",gap:7 }}>
+          <span style={{ display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#ef4444",flexShrink:0,animation:mainTab==="live"?"livePulse 1.2s infinite":undefined }}/>
+          Live
+        </button>
+      </div>
+
+      {mainTab==="live" ? (
+        <PageLive joueur={joueur} setPage={setPage}/>
+      ) : (<>
 
       {/* Compositeur de post */}
       {joueur && (
@@ -2037,6 +2435,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
       ) : (
         <div>{feed.map((item,idx) => renderItem(item,idx))}</div>
       )}
+      </>)}
     </div>
   );
 };
@@ -3699,7 +4098,6 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
       .then(async r => {
         const d = r?.[0];
         if (d) {
-          setDuel(d);
           // Calcul DRIX — fallback 1000 si fetch échoue
           let drix1 = 1000, drix2 = 1000;
           try {
@@ -3711,6 +4109,7 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
               drix2 = p2?.drix || 1000;
             }
           } catch {}
+          setDuel({ ...d, challenger_drix: drix1, defie_drix: drix2 });
           const K   = 32 * Math.max(1, d.manches || 1);
           const EA1 = 1 / (1 + Math.pow(10, (drix2 - drix1) / 400)); // P(challenger gagne)
           const EA2 = 1 - EA1;                                         // P(défié gagne)

@@ -287,6 +287,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [mancheStart, setMancheStart] = useState({ vol:[0,0], pts:[0,0], nbtours:[0,0], flechettes:[0,0] });
   const [pendingVolee, setPendingVolee] = useState(null); // { val, type:"finish"|"zero" }
 
+  // ── Live session tracking ──
+  const liveIdRef = useRef(null);
+  const liveVoleeNumRef = useRef([0, 0]);
+  const liveMaxFinishRef = useRef([0, 0]);
+  const liveBustsRef = useRef([0, 0]);
+
   // ── Wake Lock : empêche la mise en veille pendant le jeu ──
   useEffect(() => {
     if (etape !== "jeu") return;
@@ -361,6 +367,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     setManchesHistory([]);
     setMancheStart({ vol:[0,0], pts:[0,0], nbtours:[0,0], flechettes:[0,0] });
     setEtape("jeu");
+    createLiveSession();
   };
 
   // Construit le détail d'une manche à partir des données courantes vs. début de manche
@@ -406,6 +413,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   const quitterPartie = () => {
     setShowConfirmQuitter(false);
+    closeLiveSession();
     if (modeDuel && setPage) { setPage("mon-profil"); return; }
     setJoueurs(null); setGagnant(null); setInput("");
     setResultEnregistre(false); setHistorique([]);
@@ -464,6 +472,76 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     } catch(e) { console.error("Erreur enregistrement duel:", e); }
   };
 
+  // ── Suivi live session ────────────────────────────────────────────────────
+  const createLiveSession = async () => {
+    if (!modeDuel || !duel?.id) return;
+    try {
+      const mode = duel.mode || "501";
+      const manches = duel.manches || 1;
+      const format = manches === 1 ? "Bo1" : `Bo${manches * 2 - 1}`;
+      const sv = parseInt(mode) || 501;
+      const initSt = { moy:0, volees:0, total_pts:0, nb180:0, reste:sv, max_finish:0, busts:0 };
+      const r = await fetch(`${SB_URL}/rest/v1/live_sessions`, {
+        method:"POST",
+        headers:{ apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, "Content-Type":"application/json", Prefer:"return=representation" },
+        body: JSON.stringify({
+          duel_id:duel.id, mode, format,
+          joueur1_id:duel.challenger_id, joueur1_pseudo:duel.challenger_pseudo, joueur1_drix:duel.challenger_drix||1000,
+          joueur2_id:duel.defie_id, joueur2_pseudo:duel.defie_pseudo, joueur2_drix:duel.defie_drix||1000,
+          debut:Date.now(), statut:"en_cours",
+          score1:0, score2:0, stats_j1:initSt, stats_j2:initSt,
+        }),
+      });
+      const d = await r.json();
+      if (d?.[0]?.id) {
+        liveIdRef.current = d[0].id;
+        liveVoleeNumRef.current = [0,0];
+        liveMaxFinishRef.current = [0,0];
+        liveBustsRef.current = [0,0];
+      }
+    } catch(e) { console.warn("createLiveSession:", e); }
+  };
+
+  const pushLiveVolee = async (joueurIdx, score, isBust, isFinish, updatedJoueurs) => {
+    if (!liveIdRef.current) return;
+    liveVoleeNumRef.current[joueurIdx]++;
+    if (isFinish && score > 0) liveMaxFinishRef.current[joueurIdx] = Math.max(liveMaxFinishRef.current[joueurIdx], score);
+    if (isBust) liveBustsRef.current[joueurIdx]++;
+    const j = updatedJoueurs[joueurIdx];
+    const flech = j.flechettes;
+    const moy = flech > 0 ? Math.round(j.totalPoints / flech * 3 * 10) / 10 : 0;
+    const nb180 = (j.tours||[]).filter(v => v===180).length;
+    const reste = isBust ? j.score : j.score; // j.score already updated correctly
+    const statsKey = joueurIdx === 0 ? "stats_j1" : "stats_j2";
+    const scoreKey = joueurIdx === 0 ? "score1" : "score2";
+    try {
+      await Promise.all([
+        fetch(`${SB_URL}/rest/v1/live_sessions?id=eq.${liveIdRef.current}`, {
+          method:"PATCH",
+          headers:{ apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, "Content-Type":"application/json", Prefer:"return=minimal" },
+          body: JSON.stringify({ [statsKey]:{ moy, volees:j.tours.length, total_pts:j.totalPoints, nb180, reste, max_finish:liveMaxFinishRef.current[joueurIdx], busts:liveBustsRef.current[joueurIdx] }, [scoreKey]:j.manchesGagnees }),
+        }),
+        fetch(`${SB_URL}/rest/v1/live_volees`, {
+          method:"POST",
+          headers:{ apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, "Content-Type":"application/json", Prefer:"return=minimal" },
+          body: JSON.stringify({ session_id:liveIdRef.current, joueur_id:joueurIdx===0?duel.challenger_id:duel.defie_id, numero_volee:liveVoleeNumRef.current[joueurIdx], score:isBust?-1:score, reste, date:Date.now() }),
+        }),
+      ]);
+    } catch(e) { console.warn("pushLiveVolee:", e); }
+  };
+
+  const closeLiveSession = async () => {
+    if (!liveIdRef.current) return;
+    try {
+      await fetch(`${SB_URL}/rest/v1/live_sessions?id=eq.${liveIdRef.current}`, {
+        method:"PATCH",
+        headers:{ apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, "Content-Type":"application/json", Prefer:"return=minimal" },
+        body: JSON.stringify({ statut:"termine" }),
+      });
+    } catch(e) { console.warn("closeLiveSession:", e); }
+    liveIdRef.current = null;
+  };
+
   // Snapshot léger pour l'annulation (sans cloner le tableau tours qui grandit sans limite)
   const snapshot = () => ({
     joueurs: joueurs.map(j => ({
@@ -488,7 +566,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     if (nouveau < 0 || nouveau === 1) {
       pushHistorique();
       const updated = joueurs.map((j, i) => i === actifIdx ? { ...j, scorePrecedent: val, flechettes: j.flechettes + 3 } : j);
-      setJoueurs(updated); setActifIdx(1 - actifIdx); setInput(""); return;
+      setJoueurs(updated); setActifIdx(1 - actifIdx); setInput("");
+      pushLiveVolee(actifIdx, val, true, false, updated);
+      return;
     }
 
     // Finish (score → 0) ou zéro pointé → popup fléchettes
@@ -500,11 +580,13 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
     // Volée normale — pas de limite de fléchettes, la partie se poursuit jusqu'au finish
     pushHistorique();
-    setJoueurs(joueurs.map((j, i) => i === actifIdx
+    const updatedN = joueurs.map((j, i) => i === actifIdx
       ? { ...j, score: nouveau, tours: [...j.tours, val], flechettes: j.flechettes + 3, totalPoints: j.totalPoints + val, scorePrecedent: val }
       : j
-    ));
+    );
+    setJoueurs(updatedN);
     setActifIdx(1 - actifIdx); setInput("");
+    pushLiveVolee(actifIdx, val, false, false, updatedN);
   };
 
   // Appelé après sélection du nb de fléchettes dans la popup
@@ -531,6 +613,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         const moyD = parseFloat(moyenneCalc(updated[1]));
         setGagnant({ ...joueur, manchesGagnees:newManches, tours:[...joueur.tours,val], totalPoints:joueur.totalPoints+val, flechettes:joueur.flechettes+nbFlechettes });
         setEtape("fin");
+        pushLiveVolee(actifIdx, val, false, true, updated);
+        closeLiveSession();
         if (modeDuel) enregistrerResultatDuel(joueur.nom, scoreC, scoreD, moyC, moyD, allManches);
         return;
       }
@@ -545,15 +629,17 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       const nextStart = (bulleStartIdx + nextManche) % 2;
       setMancheEnCours(nextManche);
       setJoueurs(updated.map(j => ({ ...j, score: modeDuel ? parseInt(duel?.mode||"501") : startVal, scorePrecedent: null })));
+      pushLiveVolee(actifIdx, val, false, true, updated);
       setActifIdx(nextStart); return;
     }
 
     // type === "zero" : volée à 0 point avec nb de fléchettes réel
-    const updated = joueurs.map((j, i) => i === actifIdx
+    const updatedZ = joueurs.map((j, i) => i === actifIdx
       ? { ...j, tours: [...j.tours, 0], flechettes: j.flechettes + nbFlechettes, scorePrecedent: 0 }
       : j
     );
-    setJoueurs(updated); setActifIdx(1 - actifIdx);
+    setJoueurs(updatedZ); setActifIdx(1 - actifIdx);
+    pushLiveVolee(actifIdx, 0, false, false, updatedZ);
   };
 
   // Moyenne globale (pour écran fin)
