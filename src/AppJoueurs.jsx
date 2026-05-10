@@ -1633,8 +1633,9 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const [tab, setTab]           = useState("analyse");
   const [expandedDuel, setExpandedDuel] = useState(null);
   const [showDefi, setShowDefi] = useState(false);
-  const [defiForm, setDefiForm] = useState({ mode:"501", manches:1 });
+  const [defiForm, setDefiForm] = useState({ mode:"501", manches:1, type:"classe", message:"" });
   const [sending, setSending]   = useState(false);
+  const [classementMoi, setClassementMoi] = useState(null);
 
   // ── Chargement données ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1657,6 +1658,10 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       if (allJ?.length) {
         const pos = allJ.findIndex(x => x.id === joueurId);
         setClassement({ position: pos >= 0 ? pos+1 : null, total: allJ.length });
+        if (moi) {
+          const posMe = allJ.findIndex(x => x.id === moi.id);
+          setClassementMoi({ position: posMe >= 0 ? posMe+1 : null, total: allJ.length });
+        }
       }
       setMesStats(ms);
       setMesDuels((md||[]).filter(x => x.statut==="termine").sort((a,b)=>(b.date||0)-(a.date||0)));
@@ -1758,6 +1763,27 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
 
   // Probabilité
   const probaVictoire = Math.round(Math.min(95,Math.max(5,( 1/(1+Math.pow(10,(drix-monDrix)/400)) )*100+(formePct<0.4?8:formePct>0.7?-8:0))));
+
+  // Résultats 5 derniers matchs (pour badges V/D dans la modal défi)
+  const resultats5 = duels.slice(0,5).map(d => d.gagnant_id===joueurId ? "V" : "D");
+  const wins5 = resultats5.filter(r=>r==="V").length;
+  const formeDefi = wins5>=4?"Très en forme":wins5>=3?"En forme":wins5>=2?"Stable":"En difficulté";
+  const formeDefiColor = wins5>=4?"#22c55e":wins5>=3?"#60a5fa":wins5>=2?"#f59e0b":"#ef4444";
+
+  // ELO gain/perte fixe (K=32, pas d'ajustement par manches)
+  const K_ELO = 32;
+  const EA_ELO = 1/(1+Math.pow(10,(drix-monDrix)/400));
+  const gainElo = Math.round(K_ELO*(1-EA_ELO));
+  const perteElo = Math.round(K_ELO*EA_ELO);
+
+  // Point faible structuré
+  const pointFaibleObj = (() => {
+    if (!debutFort && duels.length>=5) return {label:"Début de match",desc:"Démarre souvent lentement",emoji:"🐢"};
+    if (plusGrosFinish<60&&duels.length>=5) return {label:"Finishes",desc:"Peut rater ses finishes",emoji:"🛡️"};
+    if (formePct<0.4&&derniers10.length>=5) return {label:"Pression",desc:"Perd sous la pression",emoji:"😰"};
+    if (winRate<40) return {label:"Régularité",desc:"Résultats irréguliers",emoji:"📉"};
+    return {label:"Finishes élevés",desc:"Peut rater les grands finishes",emoji:"🎯"};
+  })();
 
   // Résumé
   const resume = [
@@ -1900,98 +1926,248 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
 
       {/* ── BOUTONS ── */}
       {moi&&moi.id!==j.id&&(
-        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:10}}>
-          <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>setPage("messages-"+j.id+"-"+encodeURIComponent(j.pseudo))}
-              style={{flex:1,background:"#1d4ed8",border:"none",color:"#fff",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:700,fontSize:14,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-              💬 Message
-            </button>
-            <button onClick={()=>setShowDefi(v=>!v)}
-              style={{flex:1,background:showDefi?"#1a1a1a":CJ.accent,border:showDefi?`2px solid ${CJ.accent}`:"none",color:showDefi?CJ.accent:"#fff",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:700,fontSize:14,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",gap:6,transition:"all .2s"}}>
-              {showDefi ? "✕ Annuler" : "🎯 Défier"}
-            </button>
-          </div>
-
-          {/* Formulaire inline déroulant */}
-          {showDefi && (()=>{
-            // Calcul DRIX enjeu
-            const drixMoi = moi.drix||1000, drixAdv = j.drix||1000;
-            const K = 32 * Math.max(1, defiForm.manches);
-            const EA = 1/(1+Math.pow(10,(drixAdv-drixMoi)/400));
-            const gain  = Math.round(K*(1-EA));
-            const perte = Math.round(K*EA);
-
-            const lancerDefi = async () => {
-              if (sending) return;
-              setSending(true);
-              try {
-                const res = await sbJ("duels", { method:"POST", body:JSON.stringify({
-                  challenger_id:moi.id, challenger_pseudo:moi.pseudo,
-                  defie_id:j.id, defie_pseudo:j.pseudo,
-                  statut:"accepte", type:"drix",
-                  mode:defiForm.mode, manches:defiForm.manches,
-                  date:Date.now(), valide_challenger:false, valide_defie:false,
-                  score_manches_challenger:0, score_manches_defie:0,
-                })});
-                const newDuel = Array.isArray(res)?res[0]:res;
-                if (newDuel?.id) setPage("scoreur-duel-"+newDuel.id);
-              } catch(e) { alert("Erreur : "+e.message); }
-              setSending(false);
-            };
-
-            return (
-              <div style={{background:"#111",border:`1px solid ${CJ.accent}44`,borderRadius:14,padding:16,animation:"slideDown .2s ease"}}>
-                <style>{`@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}`}</style>
-
-                {/* Mode de jeu */}
-                <div style={{marginBottom:14}}>
-                  <div style={{fontSize:11,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:8}}>MODE DE JEU</div>
-                  <div style={{display:"flex",gap:8}}>
-                    {[["501","🎯 501"],["301","⚡ 301"]].map(([v,l])=>(
-                      <button key={v} onClick={()=>setDefiForm(f=>({...f,mode:v}))}
-                        style={{flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${defiForm.mode===v?CJ.accent:"#2a2a2a"}`,background:defiForm.mode===v?CJ.accent+"22":"#1a1a1a",color:defiForm.mode===v?CJ.accent:"#94a3b8",fontWeight:700,fontSize:13,cursor:"pointer",touchAction:"manipulation",transition:"all .15s"}}>
-                        {l}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Nombre de manches */}
-                <div style={{marginBottom:16}}>
-                  <div style={{fontSize:11,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:8}}>NOMBRE DE MANCHES</div>
-                  <div style={{display:"flex",gap:6}}>
-                    {[1,2,3,5].map(n=>(
-                      <button key={n} onClick={()=>setDefiForm(f=>({...f,manches:n}))}
-                        style={{flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${defiForm.manches===n?CJ.accent:"#2a2a2a"}`,background:defiForm.manches===n?CJ.accent+"22":"#1a1a1a",color:defiForm.manches===n?CJ.accent:"#94a3b8",fontWeight:800,fontSize:15,cursor:"pointer",touchAction:"manipulation",transition:"all .15s"}}>
-                        {n}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Enjeu DRIX */}
-                <div style={{display:"flex",justifyContent:"space-between",background:"#1a1a1a",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
-                  <div style={{textAlign:"center"}}>
-                    <div style={{fontSize:11,color:CJ.muted,marginBottom:2}}>Si tu gagnes</div>
-                    <div style={{fontWeight:900,fontSize:18,color:CJ.green}}>+{gain} DRIX</div>
-                  </div>
-                  <div style={{width:1,background:"#2a2a2a"}}/>
-                  <div style={{textAlign:"center"}}>
-                    <div style={{fontSize:11,color:CJ.muted,marginBottom:2}}>Si tu perds</div>
-                    <div style={{fontWeight:900,fontSize:18,color:CJ.red}}>−{perte} DRIX</div>
-                  </div>
-                </div>
-
-                {/* Bouton lancer */}
-                <button onClick={lancerDefi} disabled={sending}
-                  style={{width:"100%",background:CJ.accent,border:"none",color:"#fff",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:800,fontSize:15,touchAction:"manipulation",opacity:sending?.6:1}}>
-                  {sending ? "⏳ Lancement…" : `⚔️ Lancer le défi contre ${j.pseudo}`}
-                </button>
-              </div>
-            );
-          })()}
+        <div style={{display:"flex",gap:8,marginBottom:10}}>
+          <button onClick={()=>setPage("messages-"+j.id+"-"+encodeURIComponent(j.pseudo))}
+            style={{flex:1,background:"#1d4ed8",border:"none",color:"#fff",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:700,fontSize:14,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+            💬 Message
+          </button>
+          <button onClick={()=>setShowDefi(true)}
+            style={{flex:1,background:CJ.accent,border:"none",color:"#fff",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:700,fontSize:14,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+            ⚔️ Défier
+          </button>
         </div>
       )}
+
+      {/* ── MODAL DÉFI ── */}
+      {showDefi&&moi&&(()=>{
+        const lancerDefi = async () => {
+          if (sending) return;
+          setSending(true);
+          try {
+            const res = await sbJ("duels", { method:"POST", body:JSON.stringify({
+              challenger_id:moi.id, challenger_pseudo:moi.pseudo,
+              defie_id:j.id, defie_pseudo:j.pseudo,
+              statut:"accepte", type: defiForm.type==="classe"?"drix":"amical",
+              mode:defiForm.mode, manches:defiForm.manches,
+              message:defiForm.message||null,
+              date:Date.now(), valide_challenger:false, valide_defie:false,
+              score_manches_challenger:0, score_manches_defie:0,
+            })});
+            const newDuel = Array.isArray(res)?res[0]:res;
+            if (newDuel?.id) { setShowDefi(false); setPage("scoreur-duel-"+newDuel.id); }
+          } catch(e) { alert("Erreur : "+e.message); }
+          setSending(false);
+        };
+        const probaColor = probaVictoire>=60?"#22c55e":probaVictoire>=40?"#f59e0b":"#ef4444";
+
+        return (
+          <div style={{position:"fixed",inset:0,zIndex:2000,background:"#000000dd",overflowY:"auto",WebkitOverflowScrolling:"touch"}} onClick={e=>{if(e.target===e.currentTarget)setShowDefi(false);}}>
+            <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
+            <div style={{maxWidth:480,margin:"0 auto",padding:"16px 16px 40px",animation:"slideUp .22s ease"}}>
+              <div style={{background:"#111",borderRadius:20,overflow:"hidden",border:"1px solid #2a2a2a"}}>
+
+                {/* ── En-tête ── */}
+                <div style={{padding:"14px 18px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid #1e1e1e"}}>
+                  <span style={{fontSize:22}}>⚔️</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:800,fontSize:16,color:CJ.text}}>Défis</div>
+                    <div style={{fontSize:11,color:CJ.muted}}>Défie tes amis et gagne des DRIX</div>
+                  </div>
+                  <button onClick={()=>setShowDefi(false)} style={{background:"#2a2a2a",border:"none",color:CJ.text,borderRadius:"50%",width:30,height:30,cursor:"pointer",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",touchAction:"manipulation"}}>✕</button>
+                </div>
+
+                {/* ── Bloc identité ── */}
+                <div style={{padding:"14px 18px",borderBottom:"1px solid #1e1e1e"}}>
+                  <div style={{display:"flex",gap:10,alignItems:"stretch"}}>
+                    {/* Joueur */}
+                    <div style={{flex:1.4,display:"flex",alignItems:"center",gap:10}}>
+                      <div style={{width:52,height:52,borderRadius:"50%",border:`2px solid ${color}`,overflow:"hidden",background:color+"22",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>
+                        {j.photo?<img src={j.photo} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span>{emoji}</span>}
+                      </div>
+                      <div>
+                        <div style={{fontWeight:800,fontSize:15,color:CJ.text}}>{j.pseudo}</div>
+                        <div style={{color:CJ.yellow,fontSize:12,fontWeight:700}}>⭐ {drix} DRIX</div>
+                        {classement?.position&&<div style={{color:CJ.muted,fontSize:11}}>Rang #{classement.position}</div>}
+                      </div>
+                    </div>
+                    {/* Dangerosité */}
+                    <div style={{flex:1,textAlign:"center",borderLeft:"1px solid #1e1e1e",paddingLeft:10}}>
+                      <div style={{fontSize:9,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:4}}>DANGEROSITÉ</div>
+                      <CircleGauge value={dangerScore} color={dangerColor} size={64}/>
+                      <div style={{fontSize:10,color:dangerColor,fontWeight:700,marginTop:3}}>{dangerScore>=75?"Joueur dangereux":dangerScore>=50?"Adversaire solide":dangerScore>=30?"À surveiller":"Accessible"}</div>
+                    </div>
+                    {/* Forme */}
+                    <div style={{flex:1,textAlign:"center",borderLeft:"1px solid #1e1e1e",paddingLeft:10}}>
+                      <div style={{fontSize:9,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:4}}>FORME ACTUELLE</div>
+                      <div style={{display:"flex",gap:3,justifyContent:"center",flexWrap:"wrap",marginBottom:4}}>
+                        {resultats5.length>0
+                          ? resultats5.map((r,i)=><VDBadge key={i} gagne={r==="V"} size={22}/>)
+                          : <span style={{color:CJ.muted,fontSize:10}}>—</span>}
+                      </div>
+                      <div style={{fontSize:10,color:formeDefiColor,fontWeight:700}}>{formeDefi}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Bloc comparaison DRIX ── */}
+                <div style={{padding:"14px 18px",borderBottom:"1px solid #1e1e1e"}}>
+                  <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
+                    <div style={{flex:1,textAlign:"center"}}>
+                      <div style={{fontSize:11,color:CJ.muted,fontWeight:700}}>TOI</div>
+                      <div style={{fontSize:26,fontWeight:900,color:CJ.text,lineHeight:1.1}}>{monDrix}</div>
+                      <div style={{fontSize:10,color:CJ.muted}}>DRIX</div>
+                      {classementMoi?.position&&<div style={{fontSize:10,color:CJ.muted}}>Rang #{classementMoi.position}</div>}
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                      <span style={{fontSize:20}}>⚔️</span>
+                      <span style={{fontSize:11,color:CJ.muted,fontWeight:700}}>VS</span>
+                    </div>
+                    <div style={{flex:1,textAlign:"center"}}>
+                      <div style={{fontSize:11,color:CJ.muted,fontWeight:700}}>{j.pseudo.toUpperCase()}</div>
+                      <div style={{fontSize:26,fontWeight:900,color:CJ.text,lineHeight:1.1}}>{drix}</div>
+                      <div style={{fontSize:10,color:CJ.muted}}>DRIX</div>
+                      {classement?.position&&<div style={{fontSize:10,color:CJ.muted}}>Rang #{classement.position}</div>}
+                    </div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                    <div style={{background:"#14532d",border:"1px solid #22c55e33",borderRadius:10,padding:"10px 12px"}}>
+                      <div style={{fontWeight:900,fontSize:20,color:"#22c55e"}}>+{gainElo} DRIX</div>
+                      <div style={{fontSize:11,color:"#86efac"}}>si victoire</div>
+                    </div>
+                    <div style={{background:"#7f1d1d",border:"1px solid #ef444433",borderRadius:10,padding:"10px 12px"}}>
+                      <div style={{fontWeight:900,fontSize:20,color:"#ef4444"}}>-{perteElo} DRIX</div>
+                      <div style={{fontSize:11,color:"#fca5a5"}}>si défaite</div>
+                    </div>
+                  </div>
+                  <div style={{fontSize:10,color:CJ.muted,textAlign:"center"}}>ⓘ Gain / perte de DRIX calculé par notre algorithme (type ELO)</div>
+                </div>
+
+                {/* ── Bloc analyse ── */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:6,padding:"14px 18px",borderBottom:"1px solid #1e1e1e"}}>
+                  {/* Face-à-face */}
+                  <div style={{background:"#1a1a1a",borderRadius:10,padding:"10px 8px"}}>
+                    <div style={{fontSize:8,color:CJ.muted,fontWeight:700,letterSpacing:.3,marginBottom:6,textTransform:"uppercase"}}>Face-à-face</div>
+                    {faceAFace.length>0?(
+                      <>
+                        <div style={{fontWeight:800,fontSize:12}}>
+                          <span style={{color:CJ.green}}>Toi {mesVFF}</span>
+                          <span style={{color:CJ.muted}}> - </span>
+                          <span style={{color:CJ.red}}>{sesVFF} Lui</span>
+                        </div>
+                        <div style={{fontSize:9,color:CJ.muted,marginTop:2}}>{faceAFace.length} match{faceAFace.length>1?"s":""}</div>
+                        <button onClick={()=>setTab("face")} style={{marginTop:5,background:"none",border:"none",color:CJ.accent,fontSize:9,cursor:"pointer",padding:0,touchAction:"manipulation"}}>Historique &gt;</button>
+                      </>
+                    ):(
+                      <div style={{fontSize:9,color:CJ.muted}}>Aucun match</div>
+                    )}
+                  </div>
+                  {/* Style de jeu */}
+                  <div style={{background:"#1a1a1a",borderRadius:10,padding:"10px 8px"}}>
+                    <div style={{fontSize:8,color:CJ.muted,fontWeight:700,letterSpacing:.3,marginBottom:6,textTransform:"uppercase"}}>Style de jeu</div>
+                    <div style={{fontSize:18,marginBottom:3}}>{styleJoueur.emoji}</div>
+                    <div style={{fontSize:10,fontWeight:700,color:CJ.text,lineHeight:1.3}}>{styleJoueur.label.replace("Le ","")}</div>
+                    <div style={{fontSize:9,color:CJ.muted,marginTop:2,lineHeight:1.3}}>{styleJoueur.desc}</div>
+                  </div>
+                  {/* Point faible */}
+                  <div style={{background:"#1a1a1a",borderRadius:10,padding:"10px 8px"}}>
+                    <div style={{fontSize:8,color:CJ.muted,fontWeight:700,letterSpacing:.3,marginBottom:6,textTransform:"uppercase"}}>Point faible</div>
+                    <div style={{fontSize:18,marginBottom:3}}>{pointFaibleObj.emoji}</div>
+                    <div style={{fontSize:10,fontWeight:700,color:CJ.text,lineHeight:1.3}}>{pointFaibleObj.label}</div>
+                    <div style={{fontSize:9,color:CJ.muted,marginTop:2,lineHeight:1.3}}>{pointFaibleObj.desc}</div>
+                  </div>
+                  {/* Chance estimée */}
+                  <div style={{background:"#1a1a1a",borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
+                    <div style={{fontSize:8,color:CJ.muted,fontWeight:700,letterSpacing:.3,marginBottom:6,textTransform:"uppercase"}}>Chance estimée</div>
+                    <div style={{position:"relative",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
+                      <svg width={58} height={58} style={{display:"block"}}>
+                        <circle cx={29} cy={29} r={22} fill="none" stroke="#ffffff10" strokeWidth={7}/>
+                        <circle cx={29} cy={29} r={22} fill="none" stroke={probaColor} strokeWidth={7}
+                          strokeDasharray={`${Math.min(1,probaVictoire/100)*138.2} 138.2`} strokeLinecap="round"
+                          transform="rotate(-90 29 29)"/>
+                        <text x="29" y="29" textAnchor="middle" dominantBaseline="middle" style={{fill:CJ.text,fontWeight:900,fontSize:13}}>{probaVictoire}%</text>
+                      </svg>
+                    </div>
+                    <div style={{fontSize:9,color:CJ.muted,marginTop:2}}>de gagner</div>
+                    <div style={{fontSize:8,color:CJ.muted,lineHeight:1.3}}>Stats et forme actuelle</div>
+                  </div>
+                </div>
+
+                {/* ── Bloc configuration ── */}
+                <div style={{padding:"14px 18px",borderBottom:"1px solid #1e1e1e"}}>
+                  <div style={{fontWeight:800,fontSize:13,color:CJ.text,marginBottom:12}}>CONFIGURATION DU DÉFI</div>
+
+                  {/* Mode de jeu */}
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:10,color:CJ.muted,fontWeight:700,marginBottom:7}}>MODE DE JEU</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7}}>
+                      {[["501","🎯","501","Classique"],["301","🎯","301","Classique"],["cricket","🦗","Cricket",""]].map(([v,ic,nm,sub])=>(
+                        <button key={v} onClick={()=>setDefiForm(f=>({...f,mode:v}))}
+                          style={{background:defiForm.mode===v?"#1a1a1a":"#0d0d0d",border:`2px solid ${defiForm.mode===v?CJ.accent:"#2a2a2a"}`,borderRadius:12,padding:"10px 6px",cursor:"pointer",touchAction:"manipulation",transition:"all .15s",textAlign:"center"}}>
+                          <div style={{fontSize:22,marginBottom:3}}>{ic}</div>
+                          <div style={{fontWeight:800,fontSize:13,color:defiForm.mode===v?CJ.accent:CJ.text}}>{nm}</div>
+                          {sub&&<div style={{fontSize:9,color:CJ.muted}}>{sub}</div>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Nombre de manches */}
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:10,color:CJ.muted,fontWeight:700,marginBottom:7}}>NOMBRE DE MANCHES</div>
+                    <div style={{display:"flex",gap:6}}>
+                      {[1,2,3,4,5].map(n=>(
+                        <button key={n} onClick={()=>setDefiForm(f=>({...f,manches:n}))}
+                          style={{flex:1,padding:"11px 0",borderRadius:10,border:`2px solid ${defiForm.manches===n?CJ.accent:"#2a2a2a"}`,background:defiForm.manches===n?CJ.accent+"22":"#0d0d0d",color:defiForm.manches===n?CJ.accent:CJ.muted,fontWeight:800,fontSize:15,cursor:"pointer",touchAction:"manipulation",transition:"all .15s"}}>
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{fontSize:10,color:CJ.muted,textAlign:"center",marginTop:6}}>{defiForm.manches===1?"1 manche gagnante":`${defiForm.manches} manches gagnantes`}</div>
+                  </div>
+
+                  {/* Type de partie */}
+                  <div>
+                    <div style={{fontSize:10,color:CJ.muted,fontWeight:700,marginBottom:7}}>TYPE DE PARTIE</div>
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      {[
+                        {v:"classe",icon:"🏆",label:"Classé",desc:"Impact sur ton DRIX"},
+                        {v:"amical",icon:"🤝",label:"Amical",desc:"Aucun impact DRIX"},
+                      ].map(({v,icon,label,desc})=>(
+                        <button key={v} onClick={()=>setDefiForm(f=>({...f,type:v}))}
+                          style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",borderRadius:11,border:`2px solid ${defiForm.type===v?CJ.accent:"#2a2a2a"}`,background:defiForm.type===v?CJ.accent+"18":"#0d0d0d",cursor:"pointer",touchAction:"manipulation",transition:"all .15s",textAlign:"left"}}>
+                          <span style={{fontSize:20}}>{icon}</span>
+                          <div>
+                            <div style={{fontWeight:700,fontSize:13,color:defiForm.type===v?CJ.accent:CJ.text}}>{label}</div>
+                            <div style={{fontSize:11,color:CJ.muted}}>{desc}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Message + bouton ── */}
+                <div style={{padding:"14px 18px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,background:"#0d0d0d",border:"1px solid #2a2a2a",borderRadius:10,padding:"10px 12px",marginBottom:14}}>
+                    <span style={{fontSize:15,flexShrink:0}}>💬</span>
+                    <span style={{fontSize:10,color:CJ.muted,fontWeight:700,flexShrink:0}}>MESSAGE OPTIONNEL</span>
+                    <input value={defiForm.message} onChange={e=>setDefiForm(f=>({...f,message:e.target.value.slice(0,120)}))}
+                      placeholder="Ajoute un message à ton défi..."
+                      style={{flex:1,background:"transparent",border:"none",color:CJ.text,fontSize:12,outline:"none",minWidth:0}}/>
+                    <span style={{fontSize:10,color:CJ.muted,flexShrink:0}}>{defiForm.message.length}/120</span>
+                  </div>
+                  <button onClick={lancerDefi} disabled={sending}
+                    style={{width:"100%",background:`linear-gradient(135deg,${CJ.accent},#ea580c)`,border:"none",color:"#fff",borderRadius:13,padding:"16px",cursor:sending?"not-allowed":"pointer",fontWeight:900,fontSize:16,display:"flex",alignItems:"center",justifyContent:"center",gap:10,touchAction:"manipulation",opacity:sending?.65:1,boxShadow:`0 6px 20px ${CJ.accent}44`}}>
+                    ⚔️ DÉFIER {j.pseudo.toUpperCase()}
+                  </button>
+                  <div style={{textAlign:"center",color:CJ.muted,fontSize:11,marginTop:8}}>🔒 Tu seras notifié de sa réponse</div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── STATS RAPIDES ── */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:6}}>
