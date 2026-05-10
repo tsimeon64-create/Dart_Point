@@ -281,6 +281,20 @@ export const ScoreurCricket = ({ config, setPage }) => {
   const [showQuit, setShowQuit] = useState(false);
   const [advancing, setAdvancing] = useState(false);
 
+  // ── Scroll auto vers le joueur actif ─────────────────────────────────────
+  const scrollContainerRef = useRef(null);
+  const colRefs = useRef([]);
+  useEffect(() => {
+    const col = colRefs.current[actifIdx];
+    const container = scrollContainerRef.current;
+    if (!col || !container) return;
+    const colLeft = col.offsetLeft;
+    const colWidth = col.offsetWidth;
+    const containerWidth = container.offsetWidth;
+    const target = colLeft - (containerWidth / 2) + (colWidth / 2);
+    container.scrollTo({ left: target, behavior: "smooth" });
+  }, [actifIdx]);
+
   // ── Full screen + wake lock ────────────────────────────────────────────────
   useEffect(() => {
     document.documentElement.requestFullscreen?.().catch(() => {});
@@ -662,14 +676,14 @@ export const ScoreurCricket = ({ config, setPage }) => {
         </div>
 
         {/* Colonnes joueurs scrollables */}
-        <div style={{ flex:1, overflowX:"auto", overflowY:"hidden", display:"flex" }}>
+        <div ref={scrollContainerRef} style={{ flex:1, overflowX:"auto", overflowY:"hidden", display:"flex" }}>
           {joueurs.map((j, ji) => {
             const isActive = ji === actifIdx;
             const curDarts = isActive ? darts : (lastDarts[ji] || []);
             const totalM = ZONES.reduce((s, z) => s + j.marks[z], 0);
 
             return (
-              <div key={j.id}
+              <div key={j.id} ref={el => colRefs.current[ji] = el}
                 style={{ flex:1, minWidth:`${colMinW}px`, display:"flex", flexDirection:"column",
                   borderRight: ji < joueurs.length-1 ? `1px solid ${C.border}33` : "none",
                   background: isActive ? `${j.color}06` : "transparent" }}>
