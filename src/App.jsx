@@ -708,7 +708,7 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
         {/* Inner card */}
         <div style={{ position:"relative", borderRadius:20, overflow:"hidden",
           background:`linear-gradient(160deg,#0f0f1a 0%,#111118 40%,#0a0a12 100%)`,
-          padding:"18px 18px 14px" }}>
+          padding:"12px 14px 10px" }}>
 
           {/* Orbes décoratifs */}
           <div style={{ position:"absolute",top:-40,right:-20,width:180,height:180,borderRadius:"50%",
@@ -724,7 +724,7 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
           )}
 
           {/* Ligne principale : photo + infos + DRIX */}
-          <div style={{ display:"flex", alignItems:"center", gap:16, position:"relative", zIndex:1 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12, position:"relative", zIndex:1 }}>
 
             {/* Photo avec double anneau */}
             <div style={{ position:"relative", flexShrink:0 }}>
@@ -732,33 +732,33 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
                 background:`conic-gradient(${color},${color}44,${color})`,
                 animation:"spin 4s linear infinite" }}/>
               <div style={{ position:"absolute",inset:-1,borderRadius:"50%",background:"#0f0f1a" }}/>
-              <div style={{ position:"relative",width:76,height:76,borderRadius:"50%",
+              <div style={{ position:"relative",width:62,height:62,borderRadius:"50%",
                 overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",
-                background:color+"22",fontSize:30,
-                boxShadow:`0 0 20px ${color}66` }}>
+                background:color+"22",fontSize:24,
+                boxShadow:`0 0 16px ${color}66` }}>
                 {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : emoji}
               </div>
             </div>
 
             {/* Infos */}
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontWeight:900, fontSize:"clamp(17px,5vw,24px)", color:"#fff", lineHeight:1.1,
+              <div style={{ fontWeight:900, fontSize:"clamp(15px,4.5vw,20px)", color:"#fff", lineHeight:1.1,
                 whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
                 textShadow:`0 0 20px ${color}88` }}>{j.pseudo}</div>
-              <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:3 }}>
                 <span style={{ background:`${color}22`, border:`1px solid ${color}55`, borderRadius:20,
-                  padding:"2px 10px", fontSize:11, fontWeight:800, color,
+                  padding:"1px 8px", fontSize:10, fontWeight:800, color,
                   boxShadow:`0 0 8px ${color}33` }}>{emoji} {titre}</span>
               </div>
               {stats && (
-                <div style={{ display:"flex", gap:6, marginTop:6, flexWrap:"wrap" }}>
+                <div style={{ display:"flex", gap:5, marginTop:5, flexWrap:"wrap" }}>
                   {[
                     { label:"V", val:stats.victoires, c:"#22c55e" },
                     { label:"D", val:stats.defaites, c:"#ef4444" },
                     { label:"WR", val:`${stats.parties>0?Math.round(stats.victoires/stats.parties*100):0}%`, c:"#60a5fa" },
                   ].map(({label,val,c})=>(
-                    <div key={label} style={{ background:"#ffffff08", borderRadius:8, padding:"3px 8px", textAlign:"center" }}>
-                      <div style={{ fontSize:13, fontWeight:900, color:c, lineHeight:1 }}>{val}</div>
+                    <div key={label} style={{ background:"#ffffff08", borderRadius:7, padding:"2px 7px", textAlign:"center" }}>
+                      <div style={{ fontSize:12, fontWeight:900, color:c, lineHeight:1 }}>{val}</div>
                       <div style={{ fontSize:9, color:"#64748b", fontWeight:700 }}>{label}</div>
                     </div>
                   ))}
@@ -770,17 +770,17 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
             <div style={{ textAlign:"center", flexShrink:0,
               background:`linear-gradient(160deg,${color}33,${color}11)`,
               border:`1px solid ${color}88`,
-              borderRadius:16, padding:"10px 16px",
-              boxShadow:`0 0 16px ${color}55, inset 0 1px 0 ${color}33` }}>
-              <div style={{ fontWeight:900, fontSize:"clamp(20px,6vw,28px)", color, lineHeight:1,
-                textShadow:`0 0 16px ${color}` }}>{j.drix||1000}</div>
+              borderRadius:14, padding:"8px 12px",
+              boxShadow:`0 0 14px ${color}55, inset 0 1px 0 ${color}33` }}>
+              <div style={{ fontWeight:900, fontSize:"clamp(17px,5vw,24px)", color, lineHeight:1,
+                textShadow:`0 0 14px ${color}` }}>{j.drix||1000}</div>
               <div style={{ fontSize:9, color:`${color}cc`, fontWeight:800, letterSpacing:1.5, marginTop:2 }}>DRIX</div>
             </div>
           </div>
 
           {/* Barre de progression vers prochain rang */}
           {prog && prog.prochain && (
-            <div style={{ marginTop:12, position:"relative", zIndex:1 }}>
+            <div style={{ marginTop:8, position:"relative", zIndex:1 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
                 <span style={{ fontSize:10, color:"#64748b" }}>{titre}</span>
                 <span style={{ fontSize:10, color, fontWeight:700 }}>
