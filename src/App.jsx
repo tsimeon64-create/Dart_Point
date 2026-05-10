@@ -1020,15 +1020,24 @@ const PageDefi = ({ joueur, setPage }) => {
       const res = await sb("duels", { method:"POST", body:JSON.stringify({
         challenger_id: joueur.id, challenger_pseudo: joueur.pseudo,
         defie_id: modalAmi.amiId, defie_pseudo: modalAmi.amiPseudo,
-        statut:"accepte", type: defiForm.type==="classe"?"drix":"amical",
-        mode: defiForm.mode, manches: defiForm.manches,
+        statut:"accepte", type:"drix",
+        mode: defiForm.mode === "Cricket" ? "501" : defiForm.mode,
+        manches: defiForm.manches,
         date: Date.now(), valide_challenger:false, valide_defie:false,
         score_manches_challenger:0, score_manches_defie:0,
-        message: defiForm.message||null,
       })});
       const newDuel = Array.isArray(res) ? res[0] : res;
-      if (newDuel?.id) { setModalAmi(null); setPage("scoreur-duel-" + newDuel.id); }
-    } catch {}
+      if (newDuel?.id) {
+        setModalAmi(null);
+        if (defiForm.mode === "Cricket") {
+          // Stocker les infos pour configurer le Cricket scorer
+          localStorage.setItem("dp_cricket_duel", JSON.stringify({ duelId: newDuel.id, manches: defiForm.manches }));
+          setPage("cricket-config");
+        } else {
+          setPage("scoreur-duel-" + newDuel.id);
+        }
+      }
+    } catch(e) { console.error("Erreur défi:", e); }
     setSending(false);
   };
 
