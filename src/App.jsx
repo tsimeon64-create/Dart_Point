@@ -10,6 +10,7 @@ import {
   ALL_BADGES, computeBadgeValues, getBadgesStored, storeBadgesSet,
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
+import { ConfigCricket } from "./AppCricket";
 import { JeuCapital } from "./AppJeuDecalePoint";
 import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper } from "./AppTournoiPotes";
 import { EntrainementFinish } from "./AppEntrainementFinish";
@@ -1856,18 +1857,34 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
 };
 
 // ── PAGE MODE JEU ─────────────────────────────────────────────────────────────
-const PageModeJeu = ({ joueur, setPage }) => {
-  const [categorie, setCategorie] = useState(null);
+const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
+  const [categorie, setCategorie] = useState(initCat);
 
-  const ModeBtn = ({ icon, label, sub, onClick, col }) => (
+  // Carte jeu active
+  const ModeBtn = ({ icon, label, sub, onClick, col, badge }) => (
     <div onClick={onClick}
-      style={{ background:"linear-gradient(135deg,#1a1a1a,#141414)",border:`2px solid ${col}33`,borderRadius:16,padding:"20px 18px",cursor:"pointer",display:"flex",flexDirection:"column",gap:6,transition:"all .15s",userSelect:"none" }}
-      onMouseEnter={e=>{e.currentTarget.style.borderColor=col;e.currentTarget.style.transform="translateY(-3px)";}}
-      onMouseLeave={e=>{e.currentTarget.style.borderColor=col+"33";e.currentTarget.style.transform="translateY(0)";}}>
-      <div style={{ fontSize:40 }}>{icon}</div>
-      <div style={{ fontWeight:800,fontSize:18,color:"#f1f5f9" }}>{label}</div>
-      <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.5 }}>{sub}</div>
-      <div style={{ fontSize:12,color:col,fontWeight:700,marginTop:4 }}>Jouer →</div>
+      style={{ background:"linear-gradient(135deg,#1a1a1a,#141414)",border:`2px solid ${col}33`,borderRadius:16,padding:"18px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,transition:"all .15s",userSelect:"none",position:"relative",overflow:"hidden" }}
+      onMouseEnter={e=>{e.currentTarget.style.borderColor=col;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 8px 24px ${col}22`;}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor=col+"33";e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
+      <div style={{ fontSize:36,flexShrink:0 }}>{icon}</div>
+      <div style={{ flex:1 }}>
+        <div style={{ fontWeight:800,fontSize:16,color:"#f1f5f9",marginBottom:2 }}>{label}</div>
+        <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.4 }}>{sub}</div>
+      </div>
+      {badge && <span style={{ background:`${col}22`,border:`1px solid ${col}55`,color:col,fontSize:11,fontWeight:700,borderRadius:6,padding:"3px 7px",flexShrink:0 }}>{badge}</span>}
+      {!badge && <div style={{ fontSize:13,color:col,fontWeight:700,flexShrink:0 }}>→</div>}
+    </div>
+  );
+
+  // Carte jeu à venir (grisée)
+  const SoonBtn = ({ icon, label, sub }) => (
+    <div style={{ background:"#111",border:`1px solid #2a2a2a`,borderRadius:16,padding:"16px",display:"flex",alignItems:"center",gap:14,opacity:.5,userSelect:"none" }}>
+      <div style={{ fontSize:34,flexShrink:0,filter:"grayscale(1)" }}>{icon}</div>
+      <div style={{ flex:1 }}>
+        <div style={{ fontWeight:700,fontSize:15,color:"#94a3b8" }}>{label}</div>
+        <div style={{ fontSize:12,color:"#64748b",lineHeight:1.4 }}>{sub}</div>
+      </div>
+      <span style={{ background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#64748b",fontSize:11,fontWeight:700,borderRadius:6,padding:"3px 7px",flexShrink:0 }}>Bientôt</span>
     </div>
   );
 
@@ -1878,7 +1895,7 @@ const PageModeJeu = ({ joueur, setPage }) => {
       onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
       <div style={{ fontSize:52,marginBottom:10 }}>{icon}</div>
       <div style={{ fontWeight:900,fontSize:20,color:col,marginBottom:6 }}>{label}</div>
-      <div style={{ fontSize:13,color:C.muted,lineHeight:1.6 }}>{sub}</div>
+      <div style={{ fontSize:13,color:C.muted,lineHeight:1.6,whiteSpace:"pre-line" }}>{sub}</div>
       <div style={{ marginTop:14,background:col,borderRadius:10,padding:"10px",fontWeight:800,fontSize:14,color:"#fff" }}>Accéder →</div>
     </div>
   );
@@ -1886,36 +1903,56 @@ const PageModeJeu = ({ joueur, setPage }) => {
   if (!categorie) return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
       <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Accueil</button>
-      <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🎮 Mode Jeu</h1>
-      <p style={{ color:C.muted,fontSize:13,marginBottom:24 }}>Choisis ta catégorie de jeu</p>
+      <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🎮 Mode de jeu</h1>
+      <p style={{ color:C.muted,fontSize:13,marginBottom:24 }}>Choisis ta catégorie</p>
       <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
-        <CatBtn id="fleche" icon="🎯" label="Jeux avec fléchettes" sub={"Capital · Tournoi entre potes\nJoue avec ta cible et tes fléchettes."} col="#f59e0b"/>
-        <CatBtn id="sans"   icon="🧠" label="Jeux sans fléchettes"  sub={"Rush Mode · Comptage de finish\nEntraîne ton mental et ta connaissance des finishes."} col="#ef4444"/>
+        <CatBtn id="fleche" icon="🎯" label="Jeux avec fléchettes"
+          sub={"501 · 301 · Cricket · Around the Clock\nKiller · Shanghai · Tournoi entre potes"} col="#f59e0b"/>
+        <CatBtn id="sans"   icon="🧠" label="Jeux sans fléchettes"
+          sub={"Rush Mode · Calcul finish\nQuiz · Défis mentaux · Jeux communautaires"} col="#ef4444"/>
       </div>
     </div>
   );
 
+  const back = categorie === "fleche"
+    ? <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:2 }}>🎯 Jeux avec fléchettes</h1><p style={{ color:C.muted,fontSize:13,marginBottom:18 }}>Prends ta cible, on joue !</p></>
+    : <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:2 }}>🧠 Jeux sans fléchettes</h1><p style={{ color:C.muted,fontSize:13,marginBottom:18 }}>Entraîne ton mental, n'importe où !</p></>;
+
   return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
       <button onClick={()=>setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,padding:0 }}>← Catégories</button>
-      {categorie==="fleche" && <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🎯 Jeux avec fléchettes</h1><p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>Prends ta cible, on joue !</p></>}
-      {categorie==="sans"   && <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🧠 Jeux sans fléchettes</h1><p style={{ color:C.muted,fontSize:13,marginBottom:20 }}>Entraîne ta tête, n'importe où !</p></>}
-      <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
+      {back}
+      <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
         {categorie==="fleche" && <>
+          <ModeBtn icon="🎯" label="501"
+            sub="Pars de 501 et descends à 0. Termine sur un double."
+            onClick={()=>setPage("scoreur")} col="#f97316"/>
+          <ModeBtn icon="🎯" label="301"
+            sub="Pars de 301 et descends à 0. Termine sur un double."
+            onClick={()=>setPage("scoreur")} col="#f59e0b"/>
+          <ModeBtn icon="🦗" label="Cricket"
+            sub="Ferme les zones 15 à 20 et Bull avant tes adversaires. Mode points ou Cut Throat."
+            onClick={()=>setPage("cricket-config")} col="#22c55e"/>
+          <SoonBtn icon="🕐" label="Around the Clock" sub="Vise chaque zone dans l'ordre, de 1 à 20." />
+          <SoonBtn icon="🐉" label="Shanghai" sub="Marque le max de points sur une zone spécifique chaque tour." />
+          <SoonBtn icon="☠️" label="Killer" sub="Deviens killer et élimine tes adversaires." />
           <ModeBtn icon="🏙️" label="Capital"
             sub="Jeu de précision : descends ton score en visant des zones précises."
-            onClick={()=>setPage("jeux-capital")} col="#f59e0b"/>
+            onClick={()=>setPage("jeux-capital")} col="#a78bfa"/>
           <ModeBtn icon="🍺" label="Tournoi entre potes"
             sub="Organise un tournoi avec tes amis. Format libre, ambiance garantie."
-            onClick={()=>setPage("tournois-potes")} col="#22c55e"/>
+            onClick={()=>setPage("tournois-potes")} col="#60a5fa"/>
         </>}
         {categorie==="sans" && <>
           <ModeBtn icon="⚡" label="Rush Mode"
             sub="Calcul mental sous pression : score, finishes, bust, routes. 3 niveaux, combos et badges !"
             onClick={()=>setPage("rush-mode")} col="#ef4444"/>
-          <ModeBtn icon="🎯" label="Comptage de finish"
+          <ModeBtn icon="🎯" label="Calcul finish"
             sub="Entraîne-toi à construire tes finishes en 1, 2 ou 3 fléchettes."
             onClick={()=>setPage("entrainement-finish")} col="#f97316"/>
+          <SoonBtn icon="🧩" label="Quiz fléchettes" sub="Teste tes connaissances sur les règles, les pros et l'histoire du fléché." />
+          <SoonBtn icon="🧠" label="Défis mentaux" sub="Calcul rapide, mémoire des zones, routes optimales..." />
+          <SoonBtn icon="👥" label="Jeux communautaires" sub="Défis partagés, classements hebdo, événements spéciaux." />
         </>}
       </div>
     </div>
@@ -3714,7 +3751,7 @@ export default function App() {
   const goBack=()=>{ if(history.length>1){ const nh=history.slice(0,-1); setHistory(nh); setPage(nh[nh.length-1]); try{window.scrollTo(0,0);}catch{} } };
 
   const [pendingNav, setPendingNav] = useState(null);
-  const isGamePage = (p) => p==="jeux-capital" || p==="scoreur" || p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-") || p==="scoreur-doublette";
+  const isGamePage = (p) => p==="jeux-capital" || p==="scoreur" || p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-") || p==="scoreur-doublette" || p==="cricket-config";
   const navSafe = (targetPage) => {
     if (isGamePage(page)) { setPendingNav(targetPage); }
     else { nav(targetPage); }
@@ -3831,6 +3868,8 @@ export default function App() {
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav}/>}
         {page==="scoreur"          && <Scoreur setPage={nav}/>}
         {page==="jeux"             && <PageModeJeu joueur={joueur} setPage={nav}/>}
+        {page==="jeux-flechettes"       && <PageModeJeu joueur={joueur} setPage={nav} initCat="fleche"/>}
+        {page==="cricket-config"        && <ConfigCricket joueur={joueur} setPage={nav}/>}
         {page==="jeux-capital"          && <JeuCapital setPage={nav}/>}
         {page==="entrainement-finish"   && <EntrainementFinish setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="rush-mode"             && <RushMode setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
