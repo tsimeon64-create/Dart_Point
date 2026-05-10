@@ -787,6 +787,7 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
 
   // Stats scoring depuis manches_detail
   let nb180=0, nb140=0, nb100=0, nb80=0, nb60=0, plusGrosScore=0, plusGrosFinish=0;
+  let nbFinishes100=0, manchesJouees=0, manchesGagnees=0;
   termines.forEach(d => {
     (d.manches_detail||[]).forEach(m => {
       const isW = m.winner === joueur.pseudo;
@@ -799,9 +800,27 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
       const fin     = isW ? (m.winner_finish||0)   : 0;
       plusGrosScore  = Math.max(plusGrosScore, ms);
       plusGrosFinish = Math.max(plusGrosFinish, fin);
+      manchesJouees++;
+      if (isW) { manchesGagnees++; if (fin >= 100) nbFinishes100++; }
     });
   });
-  const hasScoring = termines.some(d=>(d.manches_detail||[]).some(m=>m.winner_180!==undefined));
+  const hasScoring    = termines.some(d=>(d.manches_detail||[]).some(m=>m.winner_180!==undefined));
+  const tauxCheckout  = manchesJouees > 0 ? Math.round((manchesGagnees/manchesJouees)*100) : null;
+
+  // Meilleure série de victoires (ordre chronologique)
+  const sortedChron = [...termines].sort((a,b)=>(a.date||0)-(b.date||0));
+  let meilleureSerieW=0, tmpSerie=0;
+  sortedChron.forEach(d => { if(d.gagnant_id===joueur.id){tmpSerie++;meilleureSerieW=Math.max(meilleureSerieW,tmpSerie);}else tmpSerie=0; });
+
+  // Nemesis : joueur à qui on perd le plus
+  const defaites = termines.filter(d=>d.gagnant_id!==joueur.id);
+  const nemesisCnt = {};
+  defaites.forEach(d=>{ const adv=d.challenger_id===joueur.id?d.defie_pseudo:d.challenger_pseudo; nemesisCnt[adv]=(nemesisCnt[adv]||0)+1; });
+  const nemesis = Object.entries(nemesisCnt).sort((a,b)=>b[1]-a[1])[0];
+
+  // Graphique DRIX
+  const chartPts = [...drixMvts].reverse().map(m=>m.drix_apres||m.drix_avant||1000);
+  const drixTrend = chartPts.length>=2 ? chartPts[chartPts.length-1]-chartPts[0] : 0;
 
   // ── Composants internes ───────────────────────────────────────────────────
   const StatCard = ({ label, value, color=CJ.text, sub=null, bientot=false }) => (
@@ -874,8 +893,8 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
       <SectionTitle>👑 Finishes</SectionTitle>
       <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
         <StatCard label="Plus gros finish" value={hasScoring && plusGrosFinish>0 ? plusGrosFinish : "—"} color={CJ.green} bientot={!hasScoring}/>
-        <StatCard label="Finishes 100+"    value="—" bientot/>
-        <StatCard label="Taux checkout"    value="—" bientot/>
+        <StatCard label="Finishes 100+"    value={hasScoring ? nbFinishes100 : "—"} color={CJ.yellow} bientot={!hasScoring}/>
+        <StatCard label="Taux checkout"    value={tauxCheckout!==null && manchesJouees>=3 ? `${tauxCheckout}%` : "—"} color={CJ.accent} sub={manchesJouees>=3?`${manchesGagnees}/${manchesJouees} legs`:null} bientot={manchesJouees<3}/>
         <StatCard label="Finish 1 flèche"  value="—" bientot/>
         <StatCard label="Finish 2 flèches" value="—" bientot/>
         <StatCard label="Finish 3 flèches" value="—" bientot/>
@@ -884,21 +903,59 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
       {/* Duels */}
       <SectionTitle>⚔️ Duels</SectionTitle>
       <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
-        <StatCard label="Duels joués" value={termines.length} color={CJ.accent}/>
-        <StatCard label="Rival principal" value={rival?rival[0]:"—"} sub={rival?`${rival[1]} match${rival[1]>1?"s":""}`:null} color={CJ.yellow}/>
-        <StatCard label="Max DRIX gagné" value={maxGain?`+${maxGain}`:"—"} color={CJ.green}/>
-        <StatCard label="Max DRIX perdu" value={maxPerte?`${maxPerte}`:"—"} color={CJ.red}/>
-        <StatCard label="Meilleure série" value="—" bientot/>
-        <StatCard label="Nemesis" value="—" bientot/>
+        <StatCard label="Duels joués"      value={termines.length}                                                     color={CJ.accent}/>
+        <StatCard label="Rival principal"  value={rival?rival[0]:"—"}   sub={rival?`${rival[1]} match${rival[1]>1?"s":""}`:null} color={CJ.yellow}/>
+        <StatCard label="Max DRIX gagné"   value={maxGain?`+${maxGain}`:"—"}                                           color={CJ.green}/>
+        <StatCard label="Max DRIX perdu"   value={maxPerte?`${maxPerte}`:"—"}                                          color={CJ.red}/>
+        <StatCard label="🔥 Meilleure série" value={meilleureSerieW>0?`${meilleureSerieW}W`:"—"}                       color={CJ.green} bientot={termines.length===0}/>
+        <StatCard label="😤 Nemesis"        value={nemesis?nemesis[0]:"—"} sub={nemesis?`${nemesis[1]} défaite${nemesis[1]>1?"s":""}`:null} color={CJ.red} bientot={defaites.length===0}/>
       </div>
 
-      {/* Historique DRIX mini */}
+      {/* Graphique + Historique DRIX */}
       {drixMvts.length > 0 && (
         <>
-          <SectionTitle>📈 Historique DRIX</SectionTitle>
+          <SectionTitle>📈 Évolution DRIX</SectionTitle>
+          {/* Graphique */}
+          {chartPts.length >= 2 && (
+            <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,padding:"14px 16px",marginBottom:10 }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                <span style={{ fontSize:12,color:CJ.muted }}>Courbe DRIX ({chartPts.length} mouvements)</span>
+                <span style={{ fontWeight:800,fontSize:14,color:drixTrend>=0?CJ.green:CJ.red }}>
+                  {drixTrend>=0?"+":""}{drixTrend} {drixTrend>=0?"▲":"▼"}
+                </span>
+              </div>
+              {/* SVG inline chart */}
+              {(() => {
+                const h=56, w=300, clr=drixTrend>=0?"#22c55e":"#ef4444";
+                const mn=Math.min(...chartPts)-20, mx=Math.max(...chartPts)+20;
+                const tx=i=>(i/(chartPts.length-1))*w;
+                const ty=v=>h-((v-mn)/(mx-mn||1))*(h-8)-4;
+                const path=chartPts.map((v,i)=>`${i===0?"M":"L"}${tx(i).toFixed(1)},${ty(v).toFixed(1)}`).join(" ");
+                const gradId=`g${drixTrend>=0?"g":"r"}`;
+                return (
+                  <svg viewBox={`0 0 ${w} ${h}`} style={{ width:"100%",height:h }} preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={clr} stopOpacity="0.3"/>
+                        <stop offset="100%" stopColor={clr} stopOpacity="0"/>
+                      </linearGradient>
+                    </defs>
+                    <path d={`${path} L${tx(chartPts.length-1)},${h} L${tx(0)},${h} Z`} fill={`url(#${gradId})`}/>
+                    <path d={path} fill="none" stroke={clr} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <circle cx={tx(chartPts.length-1).toFixed(1)} cy={ty(chartPts[chartPts.length-1]).toFixed(1)} r="4" fill={clr}/>
+                  </svg>
+                );
+              })()}
+              <div style={{ display:"flex",justifyContent:"space-between",fontSize:10,color:CJ.muted,marginTop:4 }}>
+                <span>{new Date(drixMvts[drixMvts.length-1]?.date||0).toLocaleDateString("fr-FR",{day:"numeric",month:"short"})}</span>
+                <span>Aujourd'hui · {joueur.drix||1000} DRIX</span>
+              </div>
+            </div>
+          )}
+          {/* Liste historique */}
           <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,overflow:"hidden" }}>
-            {drixMvts.slice(0,8).map((m,i)=>(
-              <div key={i} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",borderBottom:i<Math.min(drixMvts.length,8)-1?`1px solid ${CJ.border}`:"none" }}>
+            {drixMvts.slice(0,10).map((m,i)=>(
+              <div key={i} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",borderBottom:i<Math.min(drixMvts.length,10)-1?`1px solid ${CJ.border}`:"none" }}>
                 <div>
                   <div style={{ fontWeight:600,fontSize:13 }}>vs {m.adversaire_pseudo||"?"}</div>
                   <div style={{ fontSize:10,color:CJ.muted }}>{m.resultat==="victoire"?"✅ Victoire":"❌ Défaite"} · {new Date(m.date).toLocaleDateString("fr-FR")}</div>
