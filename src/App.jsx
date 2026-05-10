@@ -1207,11 +1207,11 @@ const PageDefi = ({ joueur, setPage }) => {
               return (
                 <div style={{ margin:"16px 16px 0",background:"linear-gradient(135deg,#111 0%,#1a1a2e 100%)",border:`1px solid ${advColor}44`,borderRadius:16,padding:20 }}>
                   <div style={{ display:"flex",alignItems:"center",gap:16 }}>
-                    <div style={{ width:64,height:64,borderRadius:"50%",background:advColor+"33",border:`3px solid ${advColor}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,flexShrink:0,overflow:"hidden" }}>
+                    <div onClick={()=>{ setModalAmi(null); setPage("profil-joueur-"+modalAmi.amiId); }} style={{ width:64,height:64,borderRadius:"50%",background:advColor+"33",border:`3px solid ${advColor}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,flexShrink:0,overflow:"hidden",cursor:"pointer" }}>
                       {modalAmi.profil?.photo ? <img src={modalAmi.profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{advEmoji}</span>}
                     </div>
                     <div style={{ flex:1 }}>
-                      <div style={{ fontWeight:900,fontSize:20 }}>{modalAmi.amiPseudo}</div>
+                      <div onClick={()=>{ setModalAmi(null); setPage("profil-joueur-"+modalAmi.amiId); }} style={{ fontWeight:900,fontSize:20,cursor:"pointer" }}>{modalAmi.amiPseudo}</div>
                       <div style={{ color:advColor,fontWeight:700,fontSize:13,marginTop:2 }}>{advEmoji} {advTitre} · {modalAmi.profil?.drix||1000} DRIX</div>
                       {ms.classAdv && <div style={{ color:C.muted,fontSize:12,marginTop:2 }}>#{ms.classAdv} mondial</div>}
                     </div>
@@ -1452,11 +1452,11 @@ const tempsDepuis = (ts) => {
   return new Date(ts).toLocaleDateString("fr-FR", { day:"numeric", month:"short" });
 };
 
-const FeedAvatar = ({ photo, pseudo, size=40 }) => {
+const FeedAvatar = ({ photo, pseudo, size=40, onClick }) => {
   const cols = ["#f97316","#3b82f6","#10b981","#a855f7","#ec4899","#eab308"];
   const col = cols[pseudo ? pseudo.charCodeAt(0) % cols.length : 0];
   return (
-    <div style={{ width:size,height:size,borderRadius:"50%",background:col,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:Math.round(size*0.4),color:"#fff",position:"relative" }}>
+    <div onClick={onClick} style={{ width:size,height:size,borderRadius:"50%",background:col,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:Math.round(size*0.4),color:"#fff",position:"relative",cursor:onClick?"pointer":"default" }}>
       {photo && <img src={photo} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} onError={e=>{e.currentTarget.style.display="none";}}/>}
       {!photo && <span style={{ position:"relative",zIndex:1 }}>{(pseudo?.[0]||"?").toUpperCase()}</span>}
     </div>
@@ -1774,10 +1774,10 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
           boxShadow:`0 0 20px ${badge.couleur}18` }}>
           {/* Header */}
           <div style={{ display:"flex",gap:10,alignItems:"center",marginBottom:12 }}>
-            <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={40}/>
+            <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={40} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
             <div style={{ flex:1 }}>
               <div style={{ fontWeight:700,fontSize:14 }}>
-                <span style={{ color:C.text }}>{p.joueur_pseudo}</span>
+                <span onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ color:C.text,cursor:"pointer" }}>{p.joueur_pseudo}</span>
                 <span style={{ color:C.muted,fontWeight:400 }}> a débloqué un badge !</span>
               </div>
               <div style={{ fontSize:11,color:C.muted }}>{tempsDepuis(p.date)}</div>
@@ -1806,9 +1806,9 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     return (
       <div key={`post-${p.id}`} style={cardBase}>
         <div style={{ display:"flex",gap:10,alignItems:"flex-start",marginBottom:10 }}>
-          <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={42}/>
+          <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
           <div style={{ flex:1 }}>
-            <div style={{ fontWeight:700,fontSize:14,color:C.text }}>{p.joueur_pseudo}</div>
+            <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{p.joueur_pseudo}</div>
             <div style={{ fontSize:11,color:C.muted }}>{tempsDepuis(p.date)}</div>
           </div>
         </div>
@@ -1844,9 +1844,9 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
           const variation = drixMap[p.id];
           return (
           <div key={i} style={{ display:"flex",alignItems:"center",gap:10,marginBottom:i===0?8:0 }}>
-            <FeedAvatar photo={photosMap[p.id]||null} pseudo={p.pseudo} size={36}/>
+            <FeedAvatar photo={photosMap[p.id]||null} pseudo={p.pseudo} size={36} onClick={()=>setPage("profil-joueur-"+p.id)}/>
             <div style={{ flex:1 }}>
-              <div style={{ fontWeight:700,fontSize:14,color:p.win?"#10b981":draw?"#eab308":C.muted }}>
+              <div onClick={()=>setPage("profil-joueur-"+p.id)} style={{ fontWeight:700,fontSize:14,color:p.win?"#10b981":draw?"#eab308":C.muted,cursor:"pointer" }}>
                 {p.pseudo} {p.win?"🏆":""}
               </div>
               {p.moy!==null && <div style={{ fontSize:11,color:C.muted }}>moy. {p.moy} pts/volée</div>}
@@ -1905,9 +1905,9 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     return (
       <div key={`drix-${m.id||item.date}`} style={{ ...cardBase, borderColor: up?"#10b98133":"#ef444433", background: up?"#10b98108":"#ef444408" }}>
         <div style={{ display:"flex",gap:10,alignItems:"center" }}>
-          <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={42}/>
+          <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+m.joueur_id)}/>
           <div style={{ flex:1 }}>
-            <div style={{ fontWeight:700,fontSize:14,color:C.text }}>{m.joueur_pseudo}</div>
+            <div onClick={()=>setPage("profil-joueur-"+m.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{m.joueur_pseudo}</div>
             <div style={{ fontSize:13,color: up?"#10b981":"#ef4444",fontWeight:600,marginTop:3 }}>
               {up ? "⬆️ Nouveau palier DRIX !" : "⬇️ Palier perdu"}
             </div>
@@ -1930,9 +1930,9 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     return (
       <div key={`tdrix-${m.id||item.date}`} style={{ ...cardBase, borderColor: gain?"#f97316aa":"#ef444433", background: gain?"#f9731608":"#ef444408" }}>
         <div style={{ display:"flex",gap:10,alignItems:"center" }}>
-          <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={42}/>
+          <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+m.joueur_id)}/>
           <div style={{ flex:1 }}>
-            <div style={{ fontWeight:700,fontSize:14,color:C.text }}>{m.joueur_pseudo}</div>
+            <div onClick={()=>setPage("profil-joueur-"+m.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{m.joueur_pseudo}</div>
             <div style={{ fontSize:13,color: gain?"#f97316":"#ef4444",fontWeight:600,marginTop:3 }}>
               🎯 {gain ? `+${m.variation} DRIX gagnés` : `${m.variation} DRIX perdus`} en Comptage de finish
             </div>
@@ -1957,9 +1957,9 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     return (
       <div key={`pres-${p.id||item.date}`} style={{ ...cardBase, borderColor:"#3b82f633" }}>
         <div style={{ display:"flex",gap:10,alignItems:"center" }}>
-          <FeedAvatar photo={photosMap[p.joueur_id]||null} pseudo={p.joueur_pseudo} size={42}/>
+          <FeedAvatar photo={photosMap[p.joueur_id]||null} pseudo={p.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
           <div style={{ flex:1 }}>
-            <div style={{ fontWeight:700,fontSize:14,color:C.text }}>{p.joueur_pseudo}</div>
+            <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{p.joueur_pseudo}</div>
             <div style={{ fontSize:13,color:"#60a5fa",fontWeight:600,marginTop:3 }}>
               🍺 Est au bar{bar ? ` — ${bar.nom}` : p.bar_slug ? ` (${p.bar_slug})` : ""}
             </div>
