@@ -1,5 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 
+const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
+const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
+const sbC = async (path, opts = {}) => {
+  const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
+    headers: { apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, "Content-Type":"application/json", Prefer:opts.prefer||"return=representation", ...opts.headers },
+    ...opts,
+  });
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+};
+
 const ZONES = [20, 19, 18, 17, 16, 15, "Bull"];
 const ZONE_VAL = { 20:20, 19:19, 18:18, 17:17, 16:16, 15:15, Bull:25 };
 
@@ -47,6 +58,10 @@ const Counter = ({ label, value, min, max, onChange, col }) => (
 
 // ── CONFIG CRICKET ────────────────────────────────────────────────────────────
 export const ConfigCricket = ({ joueur, setPage }) => {
+  const defiData = (() => {
+    try { return JSON.parse(localStorage.getItem("dp_cricket_duel")||"null"); } catch { return null; }
+  })();
+
   const [config, setConfig] = useState({
     points: true,
     cutThroat: false,
@@ -54,9 +69,15 @@ export const ConfigCricket = ({ joueur, setPage }) => {
     sets: 1,
     legs: 3,
     random: false,
-    joueurs: joueur
-      ? [{ id: joueur.id, pseudo: joueur.pseudo, photo: joueur.photo || null }]
-      : [{ id: "j1", pseudo: "Joueur 1", photo: null }],
+    joueurs: defiData
+      ? [
+          { id: defiData.challengerId, pseudo: defiData.challengerPseudo, photo: null },
+          { id: defiData.defiId, pseudo: defiData.defiPseudo, photo: null },
+        ]
+      : joueur
+        ? [{ id: joueur.id, pseudo: joueur.pseudo, photo: joueur.photo || null }]
+        : [{ id: "j1", pseudo: "Joueur 1", photo: null }],
+    defi: defiData || null,
   });
   const [started, setStarted] = useState(false);
   const [gameConfig, setGameConfig] = useState(null);
@@ -64,24 +85,25 @@ export const ConfigCricket = ({ joueur, setPage }) => {
   const set = (key, val) => setConfig(c => ({ ...c, [key]: val }));
 
   const addJoueur = () => {
-    if (config.joueurs.length >= 8) return;
+    if (config.joueurs.length >= 8 || defiData) return;
     const n = config.joueurs.length + 1;
     setConfig(c => ({ ...c, joueurs: [...c.joueurs, { id: `j${Date.now()}`, pseudo: `Joueur ${n}`, photo: null }] }));
   };
 
   const removeJoueur = (i) => {
-    if (config.joueurs.length <= 2) return;
+    if (config.joueurs.length <= 2 || defiData) return;
     setConfig(c => ({ ...c, joueurs: c.joueurs.filter((_, idx) => idx !== i) }));
   };
 
-  const updatePseudo = (i, pseudo) =>
+  const updatePseudo = (i, pseudo) => {
+    if (defiData) return; // locked in defi mode
     setConfig(c => ({ ...c, joueurs: c.joueurs.map((j, idx) => idx === i ? { ...j, pseudo } : j) }));
+  };
 
   const demarrer = () => {
     if (config.joueurs.length < 2) return;
     let js = [...config.joueurs];
-    if (config.random) js = js.sort(() => Math.random() - 0.5);
-    // Ensure bestOf legs is odd
+    if (config.random && !defiData) js = js.sort(() => Math.random() - 0.5);
     let legs = config.legs;
     if (config.format === "bestOf" && legs % 2 === 0) legs++;
     setGameConfig({ ...config, joueurs: js, legs });
@@ -96,15 +118,29 @@ export const ConfigCricket = ({ joueur, setPage }) => {
     <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:"Inter,sans-serif", paddingBottom:90 }}>
       {/* Header */}
       <div style={{ padding:"16px 16px 0", display:"flex", alignItems:"center", gap:12, borderBottom:`1px solid ${C.border}`, paddingBottom:12, marginBottom:4 }}>
-        <button onClick={() => setPage("jeux-flechettes")}
+        <button onClick={() => { if (defiData) localStorage.removeItem("dp_cricket_duel"); setPage(defiData ? "defi" : "jeux-flechettes"); }}
           style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:14, padding:0 }}>← Retour</button>
         <div>
           <h1 style={{ fontWeight:900, fontSize:20, margin:0 }}>🎯 Cricket</h1>
-          <div style={{ fontSize:12, color:C.muted }}>Configuration de la partie</div>
+          <div style={{ fontSize:12, color:C.muted }}>{defiData ? "Défi DRIX — Configuration" : "Configuration de la partie"}</div>
         </div>
       </div>
 
       <div style={{ maxWidth:480, margin:"0 auto", padding:"16px 16px", display:"flex", flexDirection:"column", gap:14 }}>
+
+        {/* Notice défi DRIX */}
+        {defiData && (
+          <div style={{ background:"#1a1a2e", border:"1px solid #7c3aed44", borderRadius:14, padding:14, display:"flex", gap:12, alignItems:"flex-start" }}>
+            <div style={{ fontSize:22, flexShrink:0 }}>⚔️</div>
+            <div>
+              <div style={{ fontWeight:800, fontSize:14, color:"#a78bfa", marginBottom:4 }}>Match DRIX Cricket</div>
+              <div style={{ fontSize:12, color:C.muted, lineHeight:1.6 }}>
+                Les <strong style={{ color:"#f97316" }}>DRIX sont en jeu</strong> — même formule que le 501.<br/>
+                ⚠️ Ce match <strong>ne compte pas</strong> pour tes stats de fléchettes (moyennes, matchs gagnés, finishes…).
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Points ON/OFF */}
         <Section title="Points">
@@ -159,33 +195,36 @@ export const ConfigCricket = ({ joueur, setPage }) => {
           </p>
         </Section>
 
-        {/* Ordre aléatoire */}
-        <Section title="Options">
-          <label style={{ display:"flex", alignItems:"center", gap:12, cursor:"pointer", userSelect:"none" }}>
-            <input type="checkbox" checked={config.random} onChange={e => set("random", e.target.checked)}
-              style={{ width:20, height:20, accentColor:C.accent, cursor:"pointer" }} />
-            <div>
-              <div style={{ fontWeight:700, fontSize:14 }}>Ordre aléatoire</div>
-              <div style={{ fontSize:12, color:C.muted }}>L'ordre de jeu sera mélangé automatiquement.</div>
-            </div>
-          </label>
-        </Section>
+        {/* Ordre aléatoire — masqué en mode défi */}
+        {!defiData && (
+          <Section title="Options">
+            <label style={{ display:"flex", alignItems:"center", gap:12, cursor:"pointer", userSelect:"none" }}>
+              <input type="checkbox" checked={config.random} onChange={e => set("random", e.target.checked)}
+                style={{ width:20, height:20, accentColor:C.accent, cursor:"pointer" }} />
+              <div>
+                <div style={{ fontWeight:700, fontSize:14 }}>Ordre aléatoire</div>
+                <div style={{ fontSize:12, color:C.muted }}>L'ordre de jeu sera mélangé automatiquement.</div>
+              </div>
+            </label>
+          </Section>
+        )}
 
         {/* Joueurs */}
-        <Section title={`Joueurs (${config.joueurs.length}/8)`}>
+        <Section title={defiData ? "Joueurs" : `Joueurs (${config.joueurs.length}/8)`}>
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             {config.joueurs.map((j, i) => (
               <div key={j.id} style={{ display:"flex", alignItems:"center", gap:10 }}>
                 <div style={{ width:28, height:28, borderRadius:"50%", background:`${C.accent}22`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:C.accent, flexShrink:0 }}>{i+1}</div>
                 <input value={j.pseudo} onChange={e => updatePseudo(i, e.target.value)}
-                  style={{ flex:1, background:"#111", border:`1px solid ${C.border}`, borderRadius:8, padding:"9px 12px", color:C.text, fontSize:14 }} />
-                {config.joueurs.length > 2 && (
+                  readOnly={!!defiData}
+                  style={{ flex:1, background:"#111", border:`1px solid ${defiData?"#333":C.border}`, borderRadius:8, padding:"9px 12px", color: defiData?C.muted:C.text, fontSize:14, cursor:defiData?"default":"text" }} />
+                {!defiData && config.joueurs.length > 2 && (
                   <button onClick={() => removeJoueur(i)}
                     style={{ background:"none", border:"none", color:C.red, cursor:"pointer", fontSize:18, lineHeight:1, padding:4 }}>✕</button>
                 )}
               </div>
             ))}
-            {config.joueurs.length < 8 && (
+            {!defiData && config.joueurs.length < 8 && (
               <button onClick={addJoueur}
                 style={{ background:`${C.accent}15`, border:`1px dashed ${C.accent}55`, borderRadius:10, padding:"11px", color:C.accent, fontWeight:700, cursor:"pointer", fontSize:14 }}>
                 + Ajouter un joueur
@@ -430,6 +469,46 @@ export const ScoreurCricket = ({ config, setPage }) => {
   };
 
   // ── ÉCRANs INTER / FIN ────────────────────────────────────────────────────
+  const [drixPublished, setDrixPublished] = useState(false);
+  const [drixInfo, setDrixInfo] = useState(null); // { challengerGain, defiGain, winnerId }
+
+  useEffect(() => {
+    if (phase !== "fin" || !config.defi || drixPublished) return;
+    setDrixPublished(true);
+    const d = config.defi;
+    const winnerJ = config.cutThroat
+      ? [...joueurs].sort((a,b) => a.score-b.score)[0]
+      : [...joueurs].sort((a,b) => b.setsGagnes-a.setsGagnes)[0];
+    const winnerId = winnerJ?.id;
+    const challengerWon = winnerId === d.challengerId;
+
+    // DRIX formula K=32
+    const K = 32;
+    const EA = 1/(1+Math.pow(10,(d.defiDrix - d.challengerDrix)/400));
+    const challengerGain = challengerWon ? Math.round(K*(1-EA)) : -Math.round(K*EA);
+    const defiGain = challengerWon ? -Math.round(K*(1-EA)) : Math.round(K*EA);
+
+    setDrixInfo({ challengerGain, defiGain, winnerId });
+
+    const newChallengerDrix = Math.max(0, d.challengerDrix + challengerGain);
+    const newDefiDrix = Math.max(0, d.defiDrix + defiGain);
+    const loserPseudo = challengerWon ? d.defiPseudo : d.challengerPseudo;
+    const loserGain = challengerWon ? defiGain : challengerGain;
+
+    Promise.all([
+      sbC(`joueurs?id=eq.${d.challengerId}`, { method:"PATCH", body:JSON.stringify({ drix:newChallengerDrix }), prefer:"return=minimal" }).catch(()=>{}),
+      sbC(`joueurs?id=eq.${d.defiId}`, { method:"PATCH", body:JSON.stringify({ drix:newDefiDrix }), prefer:"return=minimal" }).catch(()=>{}),
+      sbC(`duels?id=eq.${d.duelId}`, { method:"PATCH", body:JSON.stringify({ statut:"termine", gagnant_id:winnerId, gagnant_pseudo:winnerJ?.pseudo, valide_challenger:true, valide_defie:true }), prefer:"return=minimal" }).catch(()=>{}),
+      // Post sur le mur
+      sbC("wall_posts", { method:"POST", body:JSON.stringify({
+        joueur_id: winnerId, joueur_pseudo: winnerJ?.pseudo,
+        contenu: `⚔️🏏 Cricket DRIX — ${winnerJ?.pseudo} bat ${loserPseudo} ! (+${challengerWon?challengerGain:-loserGain} DRIX)`,
+        type:"defi",
+      })}).catch(()=>{}),
+    ]).catch(()=>{});
+    localStorage.removeItem("dp_cricket_duel");
+  }, [phase, config.defi, drixPublished, joueurs]);
+
   if (phase === "fin" && interInfo) {
     const sorted = config.cutThroat
       ? [...joueurs].sort((a, b) => a.score - b.score)
@@ -446,6 +525,26 @@ export const ScoreurCricket = ({ config, setPage }) => {
             {config.points && <div><div style={{ fontWeight:900, fontSize:22, color:C.green }}>{config.cutThroat?"+" : ""}{w.score}</div><div style={{ fontSize:12, color:"#86efac" }}>Points</div></div>}
           </div>
         </div>
+
+        {/* Résultat DRIX */}
+        {config.defi && drixInfo && (
+          <div style={{ background:"#111", border:"1px solid #7c3aed44", borderRadius:16, padding:16, width:"100%", maxWidth:380, marginBottom:12 }}>
+            <div style={{ fontSize:11, color:"#a78bfa", fontWeight:700, letterSpacing:1, marginBottom:10 }}>DRIX MIS À JOUR</div>
+            {[
+              { id: config.defi.challengerId, pseudo: config.defi.challengerPseudo, ancien: config.defi.challengerDrix, gain: drixInfo.challengerGain },
+              { id: config.defi.defiId, pseudo: config.defi.defiPseudo, ancien: config.defi.defiDrix, gain: drixInfo.defiGain },
+            ].map(p => (
+              <div key={p.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:"1px solid #222" }}>
+                <div style={{ flex:1, fontWeight:700, fontSize:14 }}>{p.pseudo}{p.id===drixInfo.winnerId&&" 🏆"}</div>
+                <div style={{ fontWeight:800, fontSize:14, color: p.gain>=0?"#22c55e":"#ef4444" }}>
+                  {p.gain>=0?"+":""}{p.gain} DRIX
+                </div>
+                <div style={{ fontSize:12, color:C.muted }}>{p.ancien} → {Math.max(0,p.ancien+p.gain)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"16px", width:"100%", maxWidth:380, marginBottom:20 }}>
           {sorted.map((j, i) => (
             <div key={j.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"8px 0", borderBottom: i<sorted.length-1 ? `1px solid ${C.border}` : "none" }}>
@@ -457,13 +556,15 @@ export const ScoreurCricket = ({ config, setPage }) => {
           ))}
         </div>
         <div style={{ display:"flex", gap:12, width:"100%", maxWidth:380 }}>
-          <button onClick={() => { setJoueurs(initJoueurs(config)); setActifIdx(0); setMult(1); setDarts([]); setLastDarts({}); setHistorique([]); setInterInfo(null); setAdvancing(false); setPhase("jeu"); }}
-            style={{ flex:1, padding:"16px", borderRadius:12, border:"none", fontWeight:800, fontSize:15, cursor:"pointer", background:`linear-gradient(135deg,${C.accent},#ea580c)`, color:"#fff" }}>
-            🔄 Rejouer
-          </button>
-          <button onClick={() => setPage("jeux-flechettes")}
+          {!config.defi && (
+            <button onClick={() => { setJoueurs(initJoueurs(config)); setActifIdx(0); setMult(1); setDarts([]); setLastDarts({}); setHistorique([]); setInterInfo(null); setAdvancing(false); setPhase("jeu"); setDrixPublished(false); setDrixInfo(null); }}
+              style={{ flex:1, padding:"16px", borderRadius:12, border:"none", fontWeight:800, fontSize:15, cursor:"pointer", background:`linear-gradient(135deg,${C.accent},#ea580c)`, color:"#fff" }}>
+              🔄 Rejouer
+            </button>
+          )}
+          <button onClick={() => setPage(config.defi ? "home" : "jeux-flechettes")}
             style={{ flex:1, padding:"16px", borderRadius:12, border:`1px solid ${C.border}`, fontWeight:800, fontSize:15, cursor:"pointer", background:C.card, color:C.muted }}>
-            ← Quitter
+            {config.defi ? "🏠 Accueil" : "← Quitter"}
           </button>
         </div>
       </div>

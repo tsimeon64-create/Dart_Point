@@ -1020,9 +1020,9 @@ const PageDefi = ({ joueur, setPage }) => {
       const res = await sb("duels", { method:"POST", body:JSON.stringify({
         challenger_id: joueur.id, challenger_pseudo: joueur.pseudo,
         defie_id: modalAmi.amiId, defie_pseudo: modalAmi.amiPseudo,
-        statut:"accepte", type:"drix",
-        mode: defiForm.mode === "Cricket" ? "501" : defiForm.mode,
-        manches: defiForm.manches,
+        statut:"accepte", type: defiForm.type==="classe"?"drix":"amical",
+        mode: defiForm.mode === "Cricket" ? "Cricket" : defiForm.mode,
+        manches: defiForm.mode === "Cricket" ? 1 : defiForm.manches,
         date: Date.now(), valide_challenger:false, valide_defie:false,
         score_manches_challenger:0, score_manches_defie:0,
       })});
@@ -1030,8 +1030,12 @@ const PageDefi = ({ joueur, setPage }) => {
       if (newDuel?.id) {
         setModalAmi(null);
         if (defiForm.mode === "Cricket") {
-          // Stocker les infos pour configurer le Cricket scorer
-          localStorage.setItem("dp_cricket_duel", JSON.stringify({ duelId: newDuel.id, manches: defiForm.manches }));
+          localStorage.setItem("dp_cricket_duel", JSON.stringify({
+            duelId: newDuel.id,
+            challengerId: joueur.id, challengerPseudo: joueur.pseudo, challengerDrix: joueur.drix||1000,
+            defiId: modalAmi.amiId, defiPseudo: modalAmi.amiPseudo, defiDrix: modalAmi.profil?.drix||1000,
+            type: defiForm.type==="classe"?"drix":"amical",
+          }));
           setPage("cricket-config");
         } else {
           setPage("scoreur-duel-" + newDuel.id);
@@ -1311,14 +1315,14 @@ const PageDefi = ({ joueur, setPage }) => {
                   ))}
                 </div>
               </div>
-              <div style={{ marginBottom:12 }}>
+              {defiForm.mode !== "Cricket" && <div style={{ marginBottom:12 }}>
                 <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Manches</div>
                 <div style={{ display:"flex",gap:4 }}>
                   {[1,2,3,4,5].map(n=>(
                     <button key={n} onClick={()=>setDefiForm(f=>({...f,manches:n}))} style={{ flex:1,padding:"10px 0",borderRadius:8,border:"none",fontWeight:700,cursor:"pointer",background:defiForm.manches===n?"#7c3aed":"#222",color:defiForm.manches===n?"#fff":C.muted,fontSize:14,transition:"all .12s" }}>{n}</button>
                   ))}
                 </div>
-              </div>
+              </div>}
               <div>
                 <div style={{ fontSize:11,color:C.muted,marginBottom:6 }}>Type</div>
                 <div style={{ display:"flex",gap:6 }}>
