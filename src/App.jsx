@@ -2571,15 +2571,15 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           <ModeBtn icon="🦗" label="Cricket"
             sub="Ferme les zones 15 à 20 et Bull avant tes adversaires. Mode points ou Cut Throat."
             onClick={()=>setPage("cricket-config")} col="#22c55e"/>
-          <SoonBtn icon="🕐" label="Around the Clock" sub="Vise chaque zone dans l'ordre, de 1 à 20." />
-          <SoonBtn icon="🐉" label="Shanghai" sub="Marque le max de points sur une zone spécifique chaque tour." />
-          <SoonBtn icon="☠️" label="Killer" sub="Deviens killer et élimine tes adversaires." />
           <ModeBtn icon="🏙️" label="Capital"
             sub="Jeu de précision : descends ton score en visant des zones précises."
             onClick={()=>setPage("jeux-capital")} col="#a78bfa"/>
           <ModeBtn icon="🍺" label="Tournoi entre potes"
             sub="Organise un tournoi avec tes amis. Format libre, ambiance garantie."
             onClick={()=>setPage("tournois-potes")} col="#60a5fa"/>
+          <SoonBtn icon="🕐" label="Around the Clock" sub="Vise chaque zone dans l'ordre, de 1 à 20." />
+          <SoonBtn icon="🐉" label="Shanghai" sub="Marque le max de points sur une zone spécifique chaque tour." />
+          <SoonBtn icon="☠️" label="Killer" sub="Deviens killer et élimine tes adversaires." />
         </>}
         {categorie==="sans" && <>
           <ModeBtn icon="⚡" label="Rush Mode"
