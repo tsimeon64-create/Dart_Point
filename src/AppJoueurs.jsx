@@ -2718,6 +2718,7 @@ export const MembresBarSection = ({ barSlug, setPage }) => {
 
 // ── SYSTÈME DRIX ──────────────────────────────────────────────────────────────
 export const getDrixTitre = getDrixTitreLocal;
+export const getDrixProgression = getProgression;
 
 // ── Formule DRIX asymétrique ───────────────────────────────────────────────────
 //

@@ -5,7 +5,7 @@ import {
   PresenceSection, MembresBarSection,
   PageDrix, DrixBadge, HistoriqueDrix,
   AmiSection,
-  appliquerDrixDuel, getDrixTitre, calculerDrix,
+  appliquerDrixDuel, getDrixTitre, getDrixProgression, calculerDrix,
   dbJoueurs, todayStr, hashPwd,
   ALL_BADGES, computeBadgeValues, getBadgesStored, storeBadgesSet,
 } from "./AppJoueurs";
@@ -668,6 +668,7 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
 
   const j = joueurFrais;
   const { titre, emoji, color } = getDrixTitre(j.drix || 1000);
+  const prog = getDrixProgression(j.drix || 1000);
 
   // Bouton image générique
   const ImgBtn = ({ src, onClick, badge=0 }) => (
@@ -688,57 +689,112 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
       <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes slideUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
       {/* ── Carte profil ── */}
-      <div onClick={()=>setPage("mon-profil")} style={{ position:"relative",overflow:"hidden",display:"flex",alignItems:"center",gap:16,
-        background:`linear-gradient(135deg,#0d0d1a 0%,#1a0a00 60%,#0d0d1a 100%)`,
-        border:`1px solid ${color}66`,borderRadius:18,padding:"14px 18px",marginBottom:12,
-        cursor:"pointer",userSelect:"none",touchAction:"manipulation",
-        transition:"transform .15s, box-shadow .15s",
-        boxShadow:`0 0 24px ${color}18, 0 0 48px ${color}0a` }}
-        onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 8px 32px #0008, 0 0 32px ${color}33`;}}
-        onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow=`0 0 24px ${color}18`;}}>
+      <style>{`
+        @keyframes shimmer { 0%{background-position:200% center} 100%{background-position:-200% center} }
+        @keyframes pulseGlow { 0%,100%{opacity:.7} 50%{opacity:1} }
+      `}</style>
+      <div onClick={()=>setPage("mon-profil")} style={{
+        position:"relative", overflow:"hidden", borderRadius:22, marginBottom:14,
+        cursor:"pointer", userSelect:"none", touchAction:"manipulation",
+        padding:2,
+        background:`linear-gradient(135deg,${color}cc,${color}44,${color}cc)`,
+        backgroundSize:"300% 300%",
+        animation:"shimmer 3s linear infinite",
+        boxShadow:`0 0 32px ${color}44, 0 8px 32px #0008`,
+        transition:"transform .15s, box-shadow .15s" }}
+        onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow=`0 0 48px ${color}66, 0 16px 48px #000a`;}}
+        onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow=`0 0 32px ${color}44, 0 8px 32px #0008`;}}>
 
-        {/* Fond neon décoratif */}
-        <div style={{ position:"absolute",top:-30,right:-30,width:140,height:140,borderRadius:"50%",background:`radial-gradient(circle,${color}18 0%,transparent 70%)`,pointerEvents:"none" }}/>
-        <div style={{ position:"absolute",bottom:-20,left:-20,width:90,height:90,borderRadius:"50%",background:`radial-gradient(circle,${color}10 0%,transparent 70%)`,pointerEvents:"none" }}/>
+        {/* Inner card */}
+        <div style={{ position:"relative", borderRadius:20, overflow:"hidden",
+          background:`linear-gradient(160deg,#0f0f1a 0%,#111118 40%,#0a0a12 100%)`,
+          padding:"18px 18px 14px" }}>
 
-        {/* Badge demandes d'amis */}
-        {demandesAmisCount > 0 && (
-          <div style={{ position:"absolute",top:-8,right:-8,background:"#10b981",color:"#fff",borderRadius:"50%",minWidth:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,boxShadow:"0 2px 8px #00000066",border:"2px solid #0a0a0a",zIndex:2 }}>
-            {demandesAmisCount > 9 ? "9+" : demandesAmisCount}
+          {/* Orbes décoratifs */}
+          <div style={{ position:"absolute",top:-40,right:-20,width:180,height:180,borderRadius:"50%",
+            background:`radial-gradient(circle,${color}22 0%,transparent 65%)`,pointerEvents:"none",animation:"pulseGlow 3s ease-in-out infinite" }}/>
+          <div style={{ position:"absolute",bottom:-30,left:-10,width:120,height:120,borderRadius:"50%",
+            background:`radial-gradient(circle,${color}15 0%,transparent 65%)`,pointerEvents:"none" }}/>
+
+          {/* Badge demandes d'amis */}
+          {demandesAmisCount > 0 && (
+            <div style={{ position:"absolute",top:10,right:10,background:"#10b981",color:"#fff",borderRadius:"50%",minWidth:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:900,boxShadow:"0 2px 8px #00000066",border:"2px solid #0f0f1a",zIndex:5 }}>
+              {demandesAmisCount > 9 ? "9+" : demandesAmisCount}
+            </div>
+          )}
+
+          {/* Ligne principale : photo + infos + DRIX */}
+          <div style={{ display:"flex", alignItems:"center", gap:16, position:"relative", zIndex:1 }}>
+
+            {/* Photo avec double anneau */}
+            <div style={{ position:"relative", flexShrink:0 }}>
+              <div style={{ position:"absolute",inset:-3,borderRadius:"50%",
+                background:`conic-gradient(${color},${color}44,${color})`,
+                animation:"spin 4s linear infinite" }}/>
+              <div style={{ position:"absolute",inset:-1,borderRadius:"50%",background:"#0f0f1a" }}/>
+              <div style={{ position:"relative",width:76,height:76,borderRadius:"50%",
+                overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",
+                background:color+"22",fontSize:30,
+                boxShadow:`0 0 20px ${color}66` }}>
+                {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : emoji}
+              </div>
+            </div>
+
+            {/* Infos */}
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontWeight:900, fontSize:"clamp(17px,5vw,24px)", color:"#fff", lineHeight:1.1,
+                whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
+                textShadow:`0 0 20px ${color}88` }}>{j.pseudo}</div>
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4 }}>
+                <span style={{ background:`${color}22`, border:`1px solid ${color}55`, borderRadius:20,
+                  padding:"2px 10px", fontSize:11, fontWeight:800, color,
+                  boxShadow:`0 0 8px ${color}33` }}>{emoji} {titre}</span>
+              </div>
+              {stats && (
+                <div style={{ display:"flex", gap:6, marginTop:6, flexWrap:"wrap" }}>
+                  {[
+                    { label:"V", val:stats.victoires, c:"#22c55e" },
+                    { label:"D", val:stats.defaites, c:"#ef4444" },
+                    { label:"WR", val:`${stats.parties>0?Math.round(stats.victoires/stats.parties*100):0}%`, c:"#60a5fa" },
+                  ].map(({label,val,c})=>(
+                    <div key={label} style={{ background:"#ffffff08", borderRadius:8, padding:"3px 8px", textAlign:"center" }}>
+                      <div style={{ fontSize:13, fontWeight:900, color:c, lineHeight:1 }}>{val}</div>
+                      <div style={{ fontSize:9, color:"#64748b", fontWeight:700 }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* DRIX badge */}
+            <div style={{ textAlign:"center", flexShrink:0,
+              background:`linear-gradient(160deg,${color}33,${color}11)`,
+              border:`1px solid ${color}88`,
+              borderRadius:16, padding:"10px 16px",
+              boxShadow:`0 0 16px ${color}55, inset 0 1px 0 ${color}33` }}>
+              <div style={{ fontWeight:900, fontSize:"clamp(20px,6vw,28px)", color, lineHeight:1,
+                textShadow:`0 0 16px ${color}` }}>{j.drix||1000}</div>
+              <div style={{ fontSize:9, color:`${color}cc`, fontWeight:800, letterSpacing:1.5, marginTop:2 }}>DRIX</div>
+            </div>
           </div>
-        )}
 
-        {/* Photo avec halo */}
-        <div style={{ position:"relative",flexShrink:0,zIndex:1 }}>
-          <div style={{ position:"absolute",inset:-5,borderRadius:"50%",background:`radial-gradient(circle,${color}44 0%,transparent 70%)`,filter:"blur(6px)",zIndex:0 }}/>
-          <div style={{ position:"relative",zIndex:1,width:68,height:68,borderRadius:"50%",
-            border:`2px solid ${color}`,
-            boxShadow:`0 0 10px ${color}88, 0 0 20px ${color}44`,
-            overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",background:color+"22",fontSize:28 }}>
-            {j.photo
-              ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
-              : emoji
-            }
-          </div>
-        </div>
-
-        {/* Infos */}
-        <div style={{ flex:1,minWidth:0,position:"relative",zIndex:1 }}>
-          <div style={{ fontWeight:900,fontSize:"clamp(16px,4.5vw,22px)",color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
-            textShadow:`0 0 16px ${color}66` }}>{j.pseudo}</div>
-          <div style={{ color,fontWeight:700,fontSize:"clamp(11px,3vw,13px)",marginTop:2 }}>{emoji} {titre}</div>
-          {stats && <div style={{ color:"#94a3b8",fontSize:11,marginTop:3 }}>{stats.victoires}V · {stats.defaites}D · {stats.parties > 0 ? Math.round(stats.victoires/stats.parties*100) : 0}% WR</div>}
-        </div>
-
-        {/* DRIX pill neon */}
-        <div style={{ textAlign:"center",position:"relative",zIndex:1,
-          background:`linear-gradient(135deg,${color}22,${color}11)`,
-          border:`1px solid ${color}66`,
-          boxShadow:`0 0 12px ${color}44`,
-          borderRadius:12,padding:"8px 14px",flexShrink:0 }}>
-          <div style={{ fontWeight:900,fontSize:"clamp(16px,4.5vw,24px)",color,lineHeight:1,
-            textShadow:`0 0 12px ${color}` }}>{j.drix||1000}</div>
-          <div style={{ fontSize:9,color,fontWeight:700,marginTop:2,letterSpacing:1 }}>DRIX</div>
+          {/* Barre de progression vers prochain rang */}
+          {prog && prog.prochain && (
+            <div style={{ marginTop:12, position:"relative", zIndex:1 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                <span style={{ fontSize:10, color:"#64748b" }}>{titre}</span>
+                <span style={{ fontSize:10, color, fontWeight:700 }}>
+                  {prog.restant > 0 ? `${prog.restant} DRIX avant ${prog.prochain.titre}` : prog.prochain.titre}
+                </span>
+              </div>
+              <div style={{ height:5, borderRadius:10, background:"#ffffff12", overflow:"hidden" }}>
+                <div style={{ height:"100%", width:`${prog.pct}%`, borderRadius:10,
+                  background:`linear-gradient(90deg,${color}99,${color})`,
+                  boxShadow:`0 0 8px ${color}88`,
+                  transition:"width .6s ease" }}/>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
