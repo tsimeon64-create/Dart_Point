@@ -1104,9 +1104,33 @@ const PageDefi = ({ joueur, setPage }) => {
       <p style={{ color:C.muted,fontSize:13,marginBottom:14 }}>Défie tes amis et gagne des DRIX</p>
 
       {/* ── Toggle 1v1 / Doublette ── */}
-      <div style={{ display:"flex",background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden",marginBottom:20 }}>
-        <button onClick={()=>setTab("1v1")} style={{ flex:1,padding:"11px 0",background:tab==="1v1"?C.accent:"transparent",color:tab==="1v1"?"#fff":C.muted,border:"none",cursor:"pointer",fontWeight:tab==="1v1"?700:400,fontSize:14,transition:"all .15s" }}>⚔️ Défier un ami</button>
-        <button onClick={()=>setTab("doublette")} style={{ flex:1,padding:"11px 0",background:tab==="doublette"?C.accent:"transparent",color:tab==="doublette"?"#fff":C.muted,border:"none",cursor:"pointer",fontWeight:tab==="doublette"?700:400,fontSize:14,transition:"all .15s" }}>👥 Doublette 2v2</button>
+      <div style={{ display:"flex",gap:10,marginBottom:20 }}>
+        <button onClick={()=>setTab("1v1")} style={{
+          flex:1, padding:"13px 0", border:"none", cursor:"pointer", fontWeight:800, fontSize:14, borderRadius:12,
+          transition:"all .15s",
+          background: tab==="1v1"
+            ? "linear-gradient(135deg,#f97316,#ea580c)"
+            : "#1a1a1a",
+          color: tab==="1v1" ? "#fff" : C.muted,
+          boxShadow: tab==="1v1"
+            ? "0 6px 0 #9a3412, 0 8px 16px rgba(249,115,22,0.35)"
+            : "0 4px 0 #0a0a0a, 0 6px 12px rgba(0,0,0,0.4)",
+          transform: tab==="1v1" ? "translateY(0)" : "translateY(-2px)",
+          letterSpacing:.3,
+        }}>⚔️ Défier un ami</button>
+        <button onClick={()=>setTab("doublette")} style={{
+          flex:1, padding:"13px 0", border:"none", cursor:"pointer", fontWeight:800, fontSize:14, borderRadius:12,
+          transition:"all .15s",
+          background: tab==="doublette"
+            ? "linear-gradient(135deg,#a855f7,#7c3aed)"
+            : "#1a1a1a",
+          color: tab==="doublette" ? "#fff" : C.muted,
+          boxShadow: tab==="doublette"
+            ? "0 6px 0 #4c1d95, 0 8px 16px rgba(168,85,247,0.35)"
+            : "0 4px 0 #0a0a0a, 0 6px 12px rgba(0,0,0,0.4)",
+          transform: tab==="doublette" ? "translateY(0)" : "translateY(-2px)",
+          letterSpacing:.3,
+        }}>👥 Doublette 2v2</button>
       </div>
 
       {tab==="doublette" && <DoubletteFlow joueur={joueur} amis={amis} amisData={amisData} setPage={setPage}/>}
