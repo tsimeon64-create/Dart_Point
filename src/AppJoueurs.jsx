@@ -1633,7 +1633,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const [tab, setTab]           = useState("analyse");
   const [expandedDuel, setExpandedDuel] = useState(null);
   const [showDefi, setShowDefi] = useState(false);
-  const [defiForm, setDefiForm] = useState({ mode:"501", manches:1, type:"classe", message:"" });
+  const [defiForm, setDefiForm] = useState({ mode:"501", manches:1, type:"classe" });
   const [sending, setSending]   = useState(false);
   const [classementMoi, setClassementMoi] = useState(null);
 
@@ -1949,7 +1949,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
               defie_id:j.id, defie_pseudo:j.pseudo,
               statut:"accepte", type: defiForm.type==="classe"?"drix":"amical",
               mode:defiForm.mode, manches:defiForm.manches,
-              message:defiForm.message||null,
+
               date:Date.now(), valide_challenger:false, valide_defie:false,
               score_manches_challenger:0, score_manches_defie:0,
             })});
@@ -2146,16 +2146,8 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                   </div>
                 </div>
 
-                {/* ── Message + bouton ── */}
+                {/* ── Bouton ── */}
                 <div style={{padding:"14px 18px"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,background:"#0d0d0d",border:"1px solid #2a2a2a",borderRadius:10,padding:"10px 12px",marginBottom:14}}>
-                    <span style={{fontSize:15,flexShrink:0}}>💬</span>
-                    <span style={{fontSize:10,color:CJ.muted,fontWeight:700,flexShrink:0}}>MESSAGE OPTIONNEL</span>
-                    <input value={defiForm.message} onChange={e=>setDefiForm(f=>({...f,message:e.target.value.slice(0,120)}))}
-                      placeholder="Ajoute un message à ton défi..."
-                      style={{flex:1,background:"transparent",border:"none",color:CJ.text,fontSize:12,outline:"none",minWidth:0}}/>
-                    <span style={{fontSize:10,color:CJ.muted,flexShrink:0}}>{defiForm.message.length}/120</span>
-                  </div>
                   <button onClick={lancerDefi} disabled={sending}
                     style={{width:"100%",background:`linear-gradient(135deg,${CJ.accent},#ea580c)`,border:"none",color:"#fff",borderRadius:13,padding:"16px",cursor:sending?"not-allowed":"pointer",fontWeight:900,fontSize:16,display:"flex",alignItems:"center",justifyContent:"center",gap:10,touchAction:"manipulation",opacity:sending?.65:1,boxShadow:`0 6px 20px ${CJ.accent}44`}}>
                     ⚔️ DÉFIER {j.pseudo.toUpperCase()}
