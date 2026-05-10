@@ -3071,7 +3071,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
               <span style={{ fontSize:18 }}>🎯</span>
               <span style={{ fontWeight:800, fontSize:14, color:"#a78bfa" }}>À PORTÉE</span>
             </div>
-            <div style={{ fontSize:11, color:CJ.muted, marginBottom:12 }}>Dépasse-les pour monter dans le classement !</div>
+            <div style={{ fontSize:11, color:CJ.muted, marginBottom:12 }}>Gagne tes matchs pour monter dans le classement !</div>
             {aPortee.map(j => {
               const rang = classement.findIndex(x => x.id === j.id) + 1;
               const ecart = (j.drix || 1000) - monDrix;
