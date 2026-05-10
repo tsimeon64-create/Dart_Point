@@ -1979,8 +1979,8 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     try {
       // 1. Récupérer les IDs amis
       const [amisA, amisB] = await Promise.all([
-        sb(`amis?joueur_id=eq.${joueur.id}&statut=eq.accepte&select=ami_id`),
-        sb(`amis?ami_id=eq.${joueur.id}&statut=eq.accepte&select=joueur_id`),
+        sb(`amis?joueur_id=eq.${joueur.id}&statut=eq.accepte&select=ami_id`).catch(()=>[]),
+        sb(`amis?ami_id=eq.${joueur.id}&statut=eq.accepte&select=joueur_id`).catch(()=>[]),
       ]);
       const amiIds = [
         joueur.id,
