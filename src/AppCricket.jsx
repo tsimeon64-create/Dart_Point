@@ -213,7 +213,7 @@ export const ConfigCricket = ({ joueur, setPage }) => {
 };
 
 // ── SCOREUR CRICKET ───────────────────────────────────────────────────────────
-const PLAYER_COLORS = ["#f97316","#60a5fa","#22c55e","#a78bfa","#f59e0b","#ef4444","#06b6d4","#ec4899"];
+const PLAYER_COLORS = ["#22c55e","#60a5fa","#f97316","#a78bfa","#f59e0b","#ef4444","#06b6d4","#ec4899"];
 
 const initMarks = () => Object.fromEntries(ZONES.map(z => [z, 0]));
 
@@ -225,220 +225,244 @@ const initJoueurs = (config) =>
     score: 0,
     legsGagnes: 0,
     setsGagnes: 0,
+    roundsDone: 0,
   }));
 
+
 export const ScoreurCricket = ({ config, setPage }) => {
+  // ── State ──────────────────────────────────────────────────────────────────
   const [joueurs, setJoueurs] = useState(() => initJoueurs(config));
   const [actifIdx, setActifIdx] = useState(0);
-  const [mult, setMult] = useState(1);
+  const [mult, setMult] = useState(1);            // 1=simple 2=double 3=triple
+  const [darts, setDarts] = useState([]);          // current turn: [{zone,mult,label}]
+  const [lastDarts, setLastDarts] = useState({});  // {idx:[dart,dart,dart]} last turn
   const [historique, setHistorique] = useState([]);
-  const [phase, setPhase] = useState("jeu"); // "jeu" | "inter" | "fin"
-  const [interInfo, setInterInfo] = useState(null); // { type:"leg"|"set"|"fin", winner }
+  const [phase, setPhase] = useState("jeu");       // "jeu"|"inter"|"fin"
+  const [interInfo, setInterInfo] = useState(null);
   const [showQuit, setShowQuit] = useState(false);
-  const scrollRef = useRef(null);
+  const [advancing, setAdvancing] = useState(false);
 
-  // Wake lock
+  // ── Full screen + wake lock ────────────────────────────────────────────────
   useEffect(() => {
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.width = "100%";
+    document.body.style.height = "100%";
+    document.body.style.touchAction = "none";
     let wl = null;
     navigator.wakeLock?.request("screen").then(l => { wl = l; }).catch(() => {});
-    return () => wl?.release().catch(() => {});
+    const onVis = () => { if (document.visibilityState === "visible") navigator.wakeLock?.request("screen").then(l => { wl = l; }).catch(() => {}); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+      document.body.style.height = "";
+      document.body.style.touchAction = "";
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+      wl?.release().catch(() => {});
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
 
-  const snapshot = () => ({
+  // ── Auto-advance après 3 fléchettes ───────────────────────────────────────
+  useEffect(() => {
+    if (!advancing) return;
+    const t = setTimeout(() => {
+      const nextIdx = (actifIdx + 1) % joueurs.length;
+      setLastDarts(ld => ({ ...ld, [actifIdx]: darts }));
+      setJoueurs(js => js.map((j, i) => i === actifIdx ? { ...j, roundsDone: j.roundsDone + 1 } : j));
+      setDarts([]);
+      setMult(1);
+      setAdvancing(false);
+      setActifIdx(nextIdx);
+    }, 650);
+    return () => clearTimeout(t);
+  }, [advancing, actifIdx, darts, joueurs.length]);
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  const snap = () => ({
     joueurs: joueurs.map(j => ({ ...j, marks: { ...j.marks } })),
-    actifIdx,
-    mult,
+    actifIdx, mult, darts: [...darts],
   });
 
   const undo = () => {
-    if (!historique.length) return;
+    if (!historique.length || advancing) return;
     const prev = historique[historique.length - 1];
     setJoueurs(prev.joueurs);
     setActifIdx(prev.actifIdx);
-    setMult(prev.mult);
+    setMult(1);
+    setDarts(prev.darts);
     setHistorique(h => h.slice(0, -1));
   };
 
-  const nextPlayer = (idx, total) => (idx + 1) % total;
-
   const checkWin = (js, idx) => {
     const j = js[idx];
-    const allClosed = ZONES.every(z => j.marks[z] >= 3);
-    if (!allClosed) return false;
+    if (!ZONES.every(z => j.marks[z] >= 3)) return false;
+    if (!config.points) return true;
+    if (!config.cutThroat) return js.every((o, i) => i === idx || j.score >= o.score);
+    return true; // cut throat: end leg when anyone closes all
+  };
 
-    if (!config.points) return true; // Points OFF: first to close all
+  const ctWinner = (js) => {
+    let min = Infinity, mi = 0;
+    js.forEach((j, i) => { if (j.score < min) { min = j.score; mi = i; } });
+    return mi;
+  };
 
-    if (!config.cutThroat) {
-      // Normal: closed + score >= all opponents
-      return js.every((o, i) => i === idx || j.score >= o.score);
+  const handleLegWin = (js, wi) => {
+    const legsTarget = config.format === "bestOf" ? Math.ceil(config.legs / 2) : config.legs;
+    const setsTarget = config.format === "bestOf" ? Math.ceil(config.sets / 2) : config.sets;
+
+    let newJs = js.map((j, i) => i === wi ? { ...j, legsGagnes: j.legsGagnes + 1 } : j);
+    const winner = newJs[wi];
+
+    if (winner.legsGagnes >= legsTarget) {
+      newJs = newJs.map((j, i) =>
+        i === wi
+          ? { ...j, setsGagnes: j.setsGagnes + 1, legsGagnes: 0 }
+          : { ...j, legsGagnes: 0 }
+      );
+      if (newJs[wi].setsGagnes >= setsTarget) {
+        setJoueurs(newJs);
+        setDarts([]); setAdvancing(false); setHistorique([]); setMult(1);
+        setInterInfo({ type:"fin", winner: winner.pseudo, wi });
+        setPhase("fin");
+        return;
+      }
+      const resetJs = newJs.map(j => ({ ...j, marks: initMarks(), score: 0, roundsDone: 0 }));
+      setJoueurs(resetJs);
+      setDarts([]); setAdvancing(false); setHistorique([]); setMult(1); setLastDarts({});
+      setInterInfo({ type:"set", winner: winner.pseudo });
+      setPhase("inter");
     } else {
-      // Cut Throat: game ends when someone closes all zones
-      // winner = lowest score
-      return true;
+      const resetJs = newJs.map(j => ({ ...j, marks: initMarks(), score: 0, roundsDone: 0 }));
+      setJoueurs(resetJs);
+      setDarts([]); setAdvancing(false); setHistorique([]); setMult(1); setLastDarts({});
+      setInterInfo({ type:"leg", winner: winner.pseudo });
+      setPhase("inter");
     }
   };
 
-  // In cut throat, determine real winner by lowest score
-  const cutThroatWinner = (js) => {
-    let minScore = Infinity, minIdx = 0;
-    js.forEach((j, i) => { if (j.score < minScore) { minScore = j.score; minIdx = i; } });
-    return minIdx;
-  };
-
-  const frapper = (zone) => {
-    if (phase !== "jeu") return;
-    setHistorique(h => [...h.slice(-29), snapshot()]);
+  // ── Enregistrer une fléchette ──────────────────────────────────────────────
+  const hit = (zone) => {
+    if (darts.length >= 3 || phase !== "jeu" || advancing) return;
+    setHistorique(h => [...h.slice(-29), snap()]);
 
     const nb = mult;
     const zv = ZONE_VAL[zone];
-
     let js = joueurs.map(j => ({ ...j, marks: { ...j.marks } }));
-
     const cur = js[actifIdx].marks[zone];
-    const newMarks = Math.min(3, cur + nb);
-    const excess = Math.max(0, cur + nb - 3);
+    const nm = Math.min(3, cur + nb);
+    const ex = Math.max(0, cur + nb - 3);
 
-    js[actifIdx] = { ...js[actifIdx], marks: { ...js[actifIdx].marks, [zone]: newMarks } };
+    js[actifIdx] = { ...js[actifIdx], marks: { ...js[actifIdx].marks, [zone]: nm } };
 
     if (config.points) {
       if (!config.cutThroat) {
-        // Normal: active player scores on excess (if opponent(s) open)
-        const someOpen = joueurs.some((o, i) => i !== actifIdx && o.marks[zone] < 3);
-        if (someOpen) {
-          const scoringHits = cur >= 3 ? nb : excess;
-          if (scoringHits > 0)
-            js[actifIdx] = { ...js[actifIdx], score: js[actifIdx].score + scoringHits * zv };
+        const open = joueurs.some((o, i) => i !== actifIdx && o.marks[zone] < 3);
+        if (open) {
+          const sh = cur >= 3 ? nb : ex;
+          if (sh > 0) js[actifIdx] = { ...js[actifIdx], score: js[actifIdx].score + sh * zv };
         }
       } else {
-        // Cut Throat: excess hits → points to opponents who haven't closed
-        const scoringHits = cur >= 3 ? nb : excess;
-        if (scoringHits > 0) {
+        const sh = cur >= 3 ? nb : ex;
+        if (sh > 0) {
           js = js.map((j, i) => {
-            if (i === actifIdx) return j;
-            if (j.marks[zone] >= 3) return j;
-            return { ...j, score: j.score + scoringHits * zv };
+            if (i === actifIdx || j.marks[zone] >= 3) return j;
+            return { ...j, score: j.score + sh * zv };
           });
         }
       }
     }
 
+    const label = nb === 1 ? String(zone) : (nb === 2 ? "D" : "T") + zone;
+    const nd = [...darts, { zone, mult: nb, label }];
+    setMult(1); // auto-reset to simple
+
     if (checkWin(js, actifIdx)) {
-      const winnerIdx = config.cutThroat ? cutThroatWinner(js) : actifIdx;
-      handleLegWin(js, winnerIdx);
+      setJoueurs(js); setDarts(nd);
+      handleLegWin(js, config.cutThroat ? ctWinner(js) : actifIdx);
       return;
     }
 
     setJoueurs(js);
-    setActifIdx(nextPlayer(actifIdx, joueurs.length));
+    if (nd.length >= 3) { setDarts(nd); setAdvancing(true); }
+    else setDarts(nd);
+  };
+
+  const miss = () => {
+    if (darts.length >= 3 || phase !== "jeu" || advancing) return;
+    setHistorique(h => [...h.slice(-29), snap()]);
     setMult(1);
+    const nd = [...darts, { zone: null, label: "—" }];
+    if (nd.length >= 3) { setDarts(nd); setAdvancing(true); }
+    else setDarts(nd);
   };
 
-  const handleLegWin = (js, winnerIdx) => {
-    const legsTarget = config.format === "bestOf" ? Math.ceil(config.legs / 2) : config.legs;
-    const setsTarget = config.format === "bestOf" ? Math.ceil(config.sets / 2) : config.sets;
-
-    let newJs = js.map((j, i) =>
-      i === winnerIdx ? { ...j, legsGagnes: j.legsGagnes + 1 } : j
-    );
-
-    const winner = newJs[winnerIdx];
-
-    if (winner.legsGagnes >= legsTarget) {
-      // Won a set
-      newJs = newJs.map((j, i) =>
-        i === winnerIdx
-          ? { ...j, setsGagnes: j.setsGagnes + 1, legsGagnes: 0 }
-          : { ...j, legsGagnes: 0 }
-      );
-
-      if (newJs[winnerIdx].setsGagnes >= setsTarget) {
-        // Game over
-        setJoueurs(newJs);
-        setInterInfo({ type: "fin", winner: winner.pseudo, winnerIdx });
-        setPhase("fin");
-        return;
-      }
-
-      // New set: reset marks + scores
-      const resetJs = newJs.map(j => ({
-        ...j,
-        marks: initMarks(),
-        score: 0,
-      }));
-      setJoueurs(resetJs);
-      setInterInfo({ type: "set", winner: winner.pseudo });
-      setPhase("inter");
-    } else {
-      // New leg in same set: reset marks + scores
-      const resetJs = newJs.map(j => ({
-        ...j,
-        marks: initMarks(),
-        score: 0,
-      }));
-      setJoueurs(resetJs);
-      setInterInfo({ type: "leg", winner: winner.pseudo });
-      setPhase("inter");
-    }
-    setHistorique([]);
-    setMult(1);
+  // ── MPR ───────────────────────────────────────────────────────────────────
+  const mpr = (j) => {
+    const tm = ZONES.reduce((s, z) => s + j.marks[z], 0);
+    return j.roundsDone > 0 ? (tm / j.roundsDone).toFixed(2).replace(".", ",") : "0,00";
   };
 
-  const startNextLeg = () => {
-    setPhase("jeu");
-    setActifIdx(nextPlayer(actifIdx, joueurs.length));
-    setInterInfo(null);
-  };
-
-  // Mark display
+  // ── Mark display ──────────────────────────────────────────────────────────
   const markEl = (n, col) => {
-    if (n === 0) return <span style={{ color:"#333", fontSize:22 }}>·</span>;
-    if (n === 1) return <span style={{ color:C.muted, fontSize:24, fontWeight:300 }}>/</span>;
-    if (n === 2) return <span style={{ color:C.text, fontSize:20, fontWeight:700 }}>✕</span>;
-    return <span style={{ color:col || C.green, fontSize:20, fontWeight:900 }}>⊕</span>;
+    if (n === 0) return <span style={{ color:"#2a2a2a", fontSize:20 }}>·</span>;
+    if (n === 1) return <span style={{ color:"#555", fontSize:26, fontWeight:200, lineHeight:1 }}>/</span>;
+    if (n === 2) return <span style={{ color:C.text, fontSize:18, fontWeight:700 }}>✕</span>;
+    // closed
+    return (
+      <div style={{ width:28, height:28, borderRadius:"50%", background:`${col}22`, border:`2px solid ${col}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <span style={{ color:col, fontSize:12, fontWeight:900 }}>✕</span>
+      </div>
+    );
   };
 
-  // Column width
-  const colW = Math.max(72, Math.min(110, Math.floor((window.innerWidth - 64) / joueurs.length)));
-  const leftW = 56;
+  // ── Dart box label style ──────────────────────────────────────────────────
+  const dartStyle = (d) => {
+    if (!d) return { color:"#333", fontSize:11 };
+    if (!d.zone) return { color:"#444", fontSize:12, fontStyle:"italic" }; // miss
+    if (d.mult === 3) return { color:C.accent, fontSize:12, fontWeight:800 };
+    if (d.mult === 2) return { color:C.blue, fontSize:12, fontWeight:700 };
+    return { color:C.muted, fontSize:12, fontWeight:600 };
+  };
 
-  // ── FIN ───────────────────────────────────────────────────────────────────
+  // ── ÉCRANs INTER / FIN ────────────────────────────────────────────────────
   if (phase === "fin" && interInfo) {
-    const w = joueurs.find(j => j.pseudo === interInfo.winner) || joueurs[0];
     const sorted = config.cutThroat
       ? [...joueurs].sort((a, b) => a.score - b.score)
-      : [...joueurs].sort((a, b) => b.setsGagnes - a.setsGagnes || b.legsGagnes - a.legsGagnes);
+      : [...joueurs].sort((a, b) => b.setsGagnes - a.setsGagnes);
+    const w = sorted[0];
     return (
       <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:"Inter,sans-serif", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, textAlign:"center" }}>
         <div style={{ background:"linear-gradient(135deg,#14532d,#166534)", borderRadius:24, padding:"40px 32px", maxWidth:380, width:"100%", marginBottom:20 }}>
           <div style={{ fontSize:72, marginBottom:12 }}>🏆</div>
-          <div style={{ fontWeight:900, fontSize:32, color:C.green, marginBottom:6 }}>VICTOIRE !</div>
-          <div style={{ fontSize:24, fontWeight:800, color:"#fff", marginBottom:16 }}>{interInfo.winner}</div>
-          <div style={{ display:"flex", justifyContent:"center", gap:20 }}>
+          <div style={{ fontWeight:900, fontSize:32, color:C.green }}>VICTOIRE !</div>
+          <div style={{ fontSize:24, fontWeight:800, color:"#fff", marginTop:8 }}>{interInfo.winner}</div>
+          <div style={{ display:"flex", justifyContent:"center", gap:24, marginTop:16 }}>
             <div><div style={{ fontWeight:900, fontSize:22, color:C.green }}>{w.setsGagnes}</div><div style={{ fontSize:12, color:"#86efac" }}>Sets</div></div>
-            {config.points && <div><div style={{ fontWeight:900, fontSize:22, color:C.green }}>{w.score}</div><div style={{ fontSize:12, color:"#86efac" }}>{config.cutThroat ? "Score final" : "Points"}</div></div>}
+            {config.points && <div><div style={{ fontWeight:900, fontSize:22, color:C.green }}>{config.cutThroat?"+" : ""}{w.score}</div><div style={{ fontSize:12, color:"#86efac" }}>Points</div></div>}
           </div>
         </div>
-
-        {/* Classement */}
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"16px", width:"100%", maxWidth:380, marginBottom:20 }}>
-          <div style={{ fontWeight:700, fontSize:13, color:C.muted, marginBottom:10 }}>Classement</div>
           {sorted.map((j, i) => (
-            <div key={j.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"8px 0", borderBottom: i < sorted.length-1 ? `1px solid ${C.border}` : "none" }}>
-              <div style={{ fontWeight:800, fontSize:16, color: i===0 ? C.yellow : C.muted, width:24 }}>{i+1}</div>
-              <div style={{ flex:1, fontWeight:700, fontSize:14 }}>{j.pseudo}</div>
+            <div key={j.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"8px 0", borderBottom: i<sorted.length-1 ? `1px solid ${C.border}` : "none" }}>
+              <div style={{ fontWeight:800, fontSize:16, color: i===0?C.yellow:C.muted, width:24 }}>{i+1}</div>
+              <div style={{ flex:1, fontWeight:700 }}>{j.pseudo}</div>
               <div style={{ fontSize:13, color:C.muted }}>{j.setsGagnes} set{j.setsGagnes!==1?"s":""}</div>
-              {config.points && <div style={{ fontSize:13, color: config.cutThroat ? (i===0?C.green:C.muted) : C.accent, fontWeight:700 }}>{j.score} pts</div>}
+              {config.points && <div style={{ fontSize:13, fontWeight:700, color: config.cutThroat?(i===0?C.green:C.red):j.color }}>{j.score} pts</div>}
             </div>
           ))}
         </div>
-
         <div style={{ display:"flex", gap:12, width:"100%", maxWidth:380 }}>
-          <button onClick={() => { setJoueurs(initJoueurs(config)); setActifIdx(0); setMult(1); setHistorique([]); setInterInfo(null); setPhase("jeu"); }}
-            style={{ flex:1, padding:"16px", borderRadius:12, border:"none", fontWeight:800, fontSize:16, cursor:"pointer", background:`linear-gradient(135deg,${C.accent},#ea580c)`, color:"#fff" }}>
+          <button onClick={() => { setJoueurs(initJoueurs(config)); setActifIdx(0); setMult(1); setDarts([]); setLastDarts({}); setHistorique([]); setInterInfo(null); setAdvancing(false); setPhase("jeu"); }}
+            style={{ flex:1, padding:"16px", borderRadius:12, border:"none", fontWeight:800, fontSize:15, cursor:"pointer", background:`linear-gradient(135deg,${C.accent},#ea580c)`, color:"#fff" }}>
             🔄 Rejouer
           </button>
           <button onClick={() => setPage("jeux-flechettes")}
-            style={{ flex:1, padding:"16px", borderRadius:12, border:`1px solid ${C.border}`, fontWeight:800, fontSize:16, cursor:"pointer", background:C.card, color:C.muted }}>
+            style={{ flex:1, padding:"16px", borderRadius:12, border:`1px solid ${C.border}`, fontWeight:800, fontSize:15, cursor:"pointer", background:C.card, color:C.muted }}>
             ← Quitter
           </button>
         </div>
@@ -446,31 +470,27 @@ export const ScoreurCricket = ({ config, setPage }) => {
     );
   }
 
-  // ── INTER-LEG ─────────────────────────────────────────────────────────────
   if (phase === "inter" && interInfo) {
     return (
       <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:"Inter,sans-serif", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
         <div style={{ textAlign:"center", maxWidth:360 }}>
-          <div style={{ fontSize:56, marginBottom:12 }}>{interInfo.type === "set" ? "🏅" : "🎯"}</div>
-          <div style={{ fontWeight:900, fontSize:26, marginBottom:6, color:interInfo.type === "set" ? C.yellow : C.green }}>
-            {interInfo.type === "set" ? "Set gagné !" : "Leg gagné !"}
+          <div style={{ fontSize:56, marginBottom:12 }}>{interInfo.type==="set"?"🏅":"🎯"}</div>
+          <div style={{ fontWeight:900, fontSize:26, color: interInfo.type==="set"?C.yellow:C.green, marginBottom:6 }}>
+            {interInfo.type==="set" ? "Set gagné !" : "Leg gagné !"}
           </div>
-          <div style={{ fontSize:20, fontWeight:700, marginBottom:20, color:C.text }}>{interInfo.winner}</div>
-
-          {/* Scores sets */}
-          <div style={{ display:"flex", justifyContent:"center", gap:16, marginBottom:28, flexWrap:"wrap" }}>
-            {joueurs.map((j, i) => (
-              <div key={j.id} style={{ background:C.card, border:`1px solid ${j.color}44`, borderRadius:12, padding:"12px 18px", minWidth:80 }}>
+          <div style={{ fontSize:20, fontWeight:700, marginBottom:24 }}>{interInfo.winner}</div>
+          <div style={{ display:"flex", justifyContent:"center", gap:14, marginBottom:28, flexWrap:"wrap" }}>
+            {joueurs.map(j => (
+              <div key={j.id} style={{ background:C.card, border:`1px solid ${j.color}44`, borderRadius:12, padding:"12px 16px", textAlign:"center" }}>
                 <div style={{ fontSize:11, color:j.color, fontWeight:700, marginBottom:4 }}>{j.pseudo}</div>
-                <div style={{ fontSize:24, fontWeight:900, color:j.color }}>{j.setsGagnes}</div>
-                <div style={{ fontSize:11, color:C.muted }}>sets</div>
-                <div style={{ fontSize:14, fontWeight:700, color:C.text, marginTop:4 }}>{j.legsGagnes} legs</div>
+                <div style={{ fontSize:22, fontWeight:900, color:j.color }}>{j.setsGagnes}</div>
+                <div style={{ fontSize:10, color:C.muted }}>sets</div>
+                <div style={{ fontSize:13, fontWeight:700, marginTop:4 }}>{j.legsGagnes} legs</div>
               </div>
             ))}
           </div>
-
-          <button onClick={startNextLeg}
-            style={{ background:`linear-gradient(135deg,${C.accent},#ea580c)`, border:"none", borderRadius:14, padding:"18px 40px", color:"#fff", fontWeight:900, fontSize:18, cursor:"pointer" }}>
+          <button onClick={() => { setPhase("jeu"); setInterInfo(null); setActifIdx(a => (a+1)%joueurs.length); }}
+            style={{ background:`linear-gradient(135deg,${C.accent},#ea580c)`, border:"none", borderRadius:14, padding:"18px 48px", color:"#fff", fontWeight:900, fontSize:18, cursor:"pointer" }}>
             Leg suivant →
           </button>
         </div>
@@ -478,28 +498,27 @@ export const ScoreurCricket = ({ config, setPage }) => {
     );
   }
 
-  // ── JEU ───────────────────────────────────────────────────────────────────
+  // ── ÉCRAN JEU ─────────────────────────────────────────────────────────────
   const actif = joueurs[actifIdx];
-  const MULT_LABELS = { 1:"Simple", 2:"Double", 3:"Triple" };
-  const MULT_COLORS = { 1:C.muted, 2:C.blue, 3:C.accent };
+  const leftW = 46;
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100dvh", background:C.bg, color:C.text, fontFamily:"Inter,sans-serif", overflow:"hidden", userSelect:"none" }}>
+    <div style={{ position:"fixed", inset:0, display:"flex", flexDirection:"column", background:C.bg, color:C.text, fontFamily:"Inter,sans-serif", overflow:"hidden", touchAction:"none" }}>
 
       {/* ── Modale quitter ── */}
       {showQuit && (
-        <div style={{ position:"fixed", inset:0, background:"#000c", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-          <div style={{ background:C.card, border:`2px solid ${C.red}`, borderRadius:16, padding:28, maxWidth:320, width:"100%", textAlign:"center" }}>
-            <div style={{ fontSize:44, marginBottom:12 }}>⚠️</div>
-            <h3 style={{ fontWeight:800, fontSize:18, marginBottom:8 }}>Abandonner la partie ?</h3>
-            <p style={{ color:C.muted, fontSize:14, marginBottom:24 }}>La partie en cours sera perdue.</p>
+        <div style={{ position:"absolute", inset:0, background:"#000c", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div style={{ background:C.card, border:`2px solid ${C.red}`, borderRadius:16, padding:28, maxWidth:300, width:"100%", textAlign:"center" }}>
+            <div style={{ fontSize:40, marginBottom:10 }}>⚠️</div>
+            <div style={{ fontWeight:800, fontSize:17, marginBottom:8 }}>Abandonner ?</div>
+            <p style={{ color:C.muted, fontSize:13, marginBottom:20 }}>La partie en cours sera perdue.</p>
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={() => setShowQuit(false)}
-                style={{ flex:1, padding:"14px", borderRadius:10, border:`1px solid ${C.border}`, background:"#111", color:C.text, fontWeight:700, cursor:"pointer" }}>
-                ← Continuer
+                style={{ flex:1, padding:"13px", borderRadius:10, border:`1px solid ${C.border}`, background:"#111", color:C.text, fontWeight:700, cursor:"pointer" }}>
+                Continuer
               </button>
               <button onClick={() => setPage("jeux-flechettes")}
-                style={{ flex:1, padding:"14px", borderRadius:10, border:"none", background:"#7f1d1d", color:C.red, fontWeight:700, cursor:"pointer" }}>
+                style={{ flex:1, padding:"13px", borderRadius:10, border:"none", background:"#7f1d1d", color:C.red, fontWeight:700, cursor:"pointer" }}>
                 Quitter
               </button>
             </div>
@@ -508,153 +527,195 @@ export const ScoreurCricket = ({ config, setPage }) => {
       )}
 
       {/* ── Header ── */}
-      <div style={{ background:C.card, borderBottom:`1px solid ${C.border}`, padding:"6px 10px", display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+      <div style={{ height:38, background:"#111", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 10px", flexShrink:0 }}>
         <button onClick={() => setShowQuit(true)}
-          style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, padding:"4px 6px" }}>✕</button>
-        <div style={{ flex:1, textAlign:"center", fontSize:13, fontWeight:700, color:C.muted }}>
-          🎯 Cricket · {config.points ? (config.cutThroat ? "Cut Throat" : "Normal") : "Points OFF"}
-        </div>
-        {/* Sets scores compacts */}
-        <div style={{ display:"flex", gap:6 }}>
-          {joueurs.map((j, i) => (
-            <div key={j.id} style={{ textAlign:"center", minWidth:28 }}>
-              <div style={{ fontSize:9, color:j.color, fontWeight:700, lineHeight:1 }}>{j.pseudo.slice(0,3).toUpperCase()}</div>
-              <div style={{ fontSize:16, fontWeight:900, color: i===actifIdx ? j.color : C.muted, lineHeight:1 }}>{j.setsGagnes}</div>
+          style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:18, lineHeight:1, padding:"2px 8px 2px 0", touchAction:"manipulation" }}>✕</button>
+        <span style={{ flex:1, textAlign:"center", fontSize:12, color:C.muted, fontWeight:600 }}>
+          🦗 Cricket {config.points ? (config.cutThroat ? "· Cut Throat" : "· Normal") : "· Points OFF"}
+        </span>
+        <span style={{ fontSize:11, color:C.muted }}>
+          {joueurs.map(j => j.setsGagnes).join("-")}
+        </span>
+      </div>
+
+      {/* ── Grille principale ── */}
+      <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
+
+        {/* Colonne gauche fixe — zones */}
+        <div style={{ width:leftW, flexShrink:0, display:"flex", flexDirection:"column", background:"#0a0a0a", borderRight:`2px solid ${C.border}` }}>
+          {/* Espace header joueur */}
+          <div style={{ flexShrink:0, height:68 }} />
+          {/* Zones */}
+          {ZONES.map(z => (
+            <div key={z} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", borderBottom:`1px solid ${C.border}18` }}>
+              <span style={{ fontWeight:900, fontSize:z==="Bull"?11:15, color: z==="Bull"?C.red:C.text, letterSpacing: z==="Bull"?-0.5:0 }}>
+                {z === "Bull" ? "BULL" : z}
+              </span>
             </div>
           ))}
+          {/* Espace stats */}
+          <div style={{ flexShrink:0, height:40 }} />
+          {/* Espace dart boxes */}
+          <div style={{ flexShrink:0, height:48 }} />
         </div>
-      </div>
 
-      {/* ── Tour actif ── */}
-      <div style={{ padding:"6px 10px", background:`${actif.color}18`, borderBottom:`2px solid ${actif.color}44`, flexShrink:0, display:"flex", alignItems:"center", gap:10 }}>
-        <div style={{ width:10, height:10, borderRadius:"50%", background:actif.color, boxShadow:`0 0 8px ${actif.color}` }} />
-        <span style={{ fontWeight:800, fontSize:15, color:actif.color }}>{actif.pseudo}</span>
-        <span style={{ fontSize:12, color:C.muted }}>joue</span>
-        <div style={{ marginLeft:"auto", fontSize:13, color:C.muted }}>
-          Leg {joueurs.map(j => j.legsGagnes).join("-")}
-        </div>
-      </div>
+        {/* Colonnes joueurs scrollables */}
+        <div style={{ flex:1, overflowX:joueurs.length > 3 ? "auto" : "hidden", display:"flex" }}>
+          {joueurs.map((j, ji) => {
+            const isActive = ji === actifIdx;
+            const curDarts = isActive ? darts : (lastDarts[ji] || []);
+            const totalM = ZONES.reduce((s, z) => s + j.marks[z], 0);
 
-      {/* ── Grille ── */}
-      <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
-        <div ref={scrollRef} style={{ flex:1, overflowX:"auto", overflowY:"auto", display:"flex" }}>
-          {/* Left fixed column */}
-          <div style={{ width:leftW, flexShrink:0, position:"sticky", left:0, zIndex:10, background:C.bg }}>
-            {/* Header row */}
-            <div style={{ height:48, display:"flex", alignItems:"center", justifyContent:"center", borderBottom:`1px solid ${C.border}`, borderRight:`2px solid ${C.border}` }}>
-              <span style={{ fontSize:11, color:C.muted, fontWeight:700 }}>ZONE</span>
-            </div>
-            {ZONES.map(z => (
-              <div key={z} style={{ height:52, display:"flex", alignItems:"center", justifyContent:"center", borderBottom:`1px solid ${C.border}22`, borderRight:`2px solid ${C.border}` }}>
-                <span style={{ fontWeight:800, fontSize:16, color: z === "Bull" ? C.red : C.text }}>{z}</span>
-              </div>
-            ))}
-            {/* Score row */}
-            {config.points && (
-              <div style={{ height:44, display:"flex", alignItems:"center", justifyContent:"center", borderTop:`2px solid ${C.border}`, borderRight:`2px solid ${C.border}`, background:C.card }}>
-                <span style={{ fontSize:11, color:C.accent, fontWeight:700 }}>PTS</span>
-              </div>
-            )}
-          </div>
+            return (
+              <div key={j.id}
+                style={{ flex:1, minWidth: joueurs.length > 3 ? 80 : "auto", display:"flex", flexDirection:"column",
+                  borderRight: ji < joueurs.length-1 ? `1px solid ${C.border}33` : "none",
+                  background: isActive ? `${j.color}06` : "transparent" }}>
 
-          {/* Player columns */}
-          <div style={{ display:"flex", flex:1 }}>
-            {joueurs.map((j, ji) => {
-              const isActive = ji === actifIdx;
-              return (
-                <div key={j.id} style={{ minWidth:colW, flex:1, borderRight: ji < joueurs.length-1 ? `1px solid ${C.border}22` : "none", background: isActive ? `${j.color}08` : "transparent" }}>
-                  {/* Name header */}
-                  <div style={{ height:48, display:"flex", alignItems:"center", justifyContent:"center", borderBottom:`1px solid ${C.border}`, padding:"0 4px" }}>
-                    <span style={{ fontWeight:800, fontSize:13, color: isActive ? j.color : C.muted, textAlign:"center", lineHeight:1.2 }}>
-                      {j.pseudo.length > 8 ? j.pseudo.slice(0, 7) + "…" : j.pseudo}
-                      {isActive && <span style={{ display:"block", width:6, height:6, borderRadius:"50%", background:j.color, margin:"2px auto 0" }} />}
+                {/* ── Nom + score + barre active ── */}
+                <div style={{ flexShrink:0, height:68, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:2, padding:"4px 2px 0" }}>
+                  <span style={{ fontSize:13, fontWeight:800, color: isActive ? j.color : C.muted, textAlign:"center", maxWidth:"100%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", padding:"0 4px" }}>
+                    {j.pseudo}
+                  </span>
+                  {config.points && (
+                    <span style={{ fontSize:22, fontWeight:900, color: isActive ? j.color : C.text, lineHeight:1 }}>
+                      {j.score}
                     </span>
-                  </div>
-                  {/* Zone marks */}
+                  )}
+                  {/* Barre active */}
+                  <div style={{ width:"80%", height:3, borderRadius:2, marginTop:2,
+                    background: isActive ? j.color : "#222",
+                    boxShadow: isActive ? `0 0 8px ${j.color}88` : "none",
+                    transition:"background .2s" }} />
+                </div>
+
+                {/* ── Zones (flex:1, fills space) ── */}
+                <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
                   {ZONES.map(z => {
                     const m = j.marks[z];
                     const closed = m >= 3;
                     return (
-                      <div key={z} style={{ height:52, display:"flex", alignItems:"center", justifyContent:"center", borderBottom:`1px solid ${C.border}22`, background: closed ? `${j.color}18` : "transparent" }}>
+                      <div key={z} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center",
+                        background: closed ? `${j.color}18` : "transparent",
+                        borderBottom:`1px solid ${C.border}18` }}>
                         {markEl(m, j.color)}
                       </div>
                     );
                   })}
-                  {/* Score */}
-                  {config.points && (
-                    <div style={{ height:44, display:"flex", alignItems:"center", justifyContent:"center", borderTop:`2px solid ${C.border}`, background: isActive ? `${j.color}22` : C.card }}>
-                      <span style={{ fontWeight:900, fontSize:16, color: config.cutThroat ? (isActive ? C.red : C.text) : j.color }}>
-                        {j.score}
-                      </span>
-                    </div>
-                  )}
                 </div>
-              );
-            })}
-          </div>
+
+                {/* ── Stats ── */}
+                <div style={{ flexShrink:0, height:40, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", borderTop:`1px solid ${C.border}44`, background:"#0d0d0d", gap:2 }}>
+                  <span style={{ fontSize:10, color:C.muted }}>Sets {j.setsGagnes} · Legs {j.legsGagnes}</span>
+                  <span style={{ fontSize:10, color:C.muted }}>
+                    <span style={{ marginRight:4 }}>✏</span>{totalM}
+                    <span style={{ marginLeft:8 }}>MPR {mpr(j)}</span>
+                  </span>
+                </div>
+
+                {/* ── 3 boîtes fléchettes ── */}
+                <div style={{ flexShrink:0, height:48, display:"flex", gap:3, padding:"5px 4px",
+                  borderTop:`2px solid ${isActive ? j.color+"66" : C.border}`,
+                  background: isActive ? `${j.color}10` : "#0a0a0a" }}>
+                  {[0,1,2].map(di => {
+                    const d = curDarts[di];
+                    const filled = !!d;
+                    return (
+                      <div key={di} style={{ flex:1, borderRadius:6,
+                        background: filled ? "#1a1a1a" : "#111",
+                        border:`1px solid ${filled && isActive ? j.color+"55" : C.border}`,
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                        transition:"all .15s" }}>
+                        {filled && (
+                          <span style={{ ...dartStyle(d), textAlign:"center", lineHeight:1 }}>
+                            {d.label}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* ── Barre de saisie fixe ── */}
-      <div style={{ background:C.card, borderTop:`2px solid ${C.border}`, padding:"10px 8px", flexShrink:0 }}>
+      {/* ── Barre de saisie ── */}
+      <div style={{ background:"#111", borderTop:`2px solid ${actif.color}55`, padding:"8px 8px 10px", flexShrink:0 }}>
 
-        {/* Multiplicateurs */}
-        <div style={{ display:"flex", gap:6, marginBottom:8 }}>
-          {[1,2,3].map(m => (
-            <button key={m} onClick={() => setMult(m)}
-              style={{
-                flex:1, padding:"10px 4px", borderRadius:10, border:`2px solid ${mult===m ? MULT_COLORS[m] : C.border}`,
-                background: mult===m ? `${MULT_COLORS[m]}22` : "#111",
-                color: mult===m ? MULT_COLORS[m] : C.muted,
-                fontWeight:800, fontSize:13, cursor:"pointer", transition:"all .1s",
-              }}>
-              {m === 1 ? "S" : m === 2 ? "D" : "T"}·{m}×
-            </button>
-          ))}
+        {/* Rang 1 : modificateurs + annuler */}
+        <div style={{ display:"flex", gap:6, marginBottom:7 }}>
+          {/* Double */}
+          <button onClick={() => setMult(mult === 2 ? 1 : 2)}
+            style={{ flex:1, padding:"10px 4px", borderRadius:9, border:`2px solid ${mult===2?C.blue:C.border}`,
+              background: mult===2 ? `${C.blue}22` : "#0d0d0d",
+              color: mult===2 ? C.blue : C.muted,
+              fontWeight:800, fontSize:14, cursor:"pointer", touchAction:"manipulation", transition:"all .1s" }}>
+            D ×2
+          </button>
+          {/* Triple */}
+          <button onClick={() => setMult(mult === 3 ? 1 : 3)}
+            style={{ flex:1, padding:"10px 4px", borderRadius:9, border:`2px solid ${mult===3?C.accent:C.border}`,
+              background: mult===3 ? `${C.accent}22` : "#0d0d0d",
+              color: mult===3 ? C.accent : C.muted,
+              fontWeight:800, fontSize:14, cursor:"pointer", touchAction:"manipulation", transition:"all .1s" }}>
+            T ×3
+          </button>
+          {/* Miss */}
+          <button onClick={miss} disabled={darts.length>=3||advancing}
+            style={{ flex:1, padding:"10px 4px", borderRadius:9, border:`1px solid ${C.border}`,
+              background:"#0d0d0d", color: darts.length>=3||advancing ? "#333" : C.muted,
+              fontWeight:700, fontSize:13, cursor: darts.length>=3||advancing?"not-allowed":"pointer", touchAction:"manipulation" }}>
+            MISS
+          </button>
+          {/* Annuler */}
+          <button onClick={undo} disabled={!historique.length || advancing}
+            style={{ flex:1, padding:"10px 4px", borderRadius:9, border:`1px solid ${C.border}`,
+              background:"#0d0d0d", color: historique.length && !advancing ? C.yellow : "#333",
+              fontWeight:700, fontSize:13, cursor: historique.length&&!advancing?"pointer":"not-allowed", touchAction:"manipulation" }}>
+            ↩
+          </button>
         </div>
 
-        {/* Zones */}
-        <div style={{ display:"flex", gap:5, marginBottom:8 }}>
+        {/* Rang 2 : zones */}
+        <div style={{ display:"flex", gap:5 }}>
           {[15,16,17,18,19,20].map(z => {
             const m = actif.marks[z];
             const closed = m >= 3;
+            const disabled = darts.length >= 3 || advancing;
             return (
-              <button key={z} onClick={() => frapper(z)}
-                style={{
-                  flex:1, padding:"12px 4px", borderRadius:10,
-                  border:`2px solid ${closed ? `${actif.color}66` : C.border}`,
-                  background: closed ? `${actif.color}22` : "#111",
-                  color: closed ? actif.color : C.text,
-                  fontWeight:800, fontSize:15, cursor:"pointer",
-                  boxShadow: closed ? `0 0 8px ${actif.color}33` : "none",
-                }}>
+              <button key={z} onClick={() => hit(z)} disabled={disabled}
+                style={{ flex:1, padding:"13px 2px", borderRadius:9,
+                  border:`2px solid ${closed ? actif.color+"88" : (disabled?"#1a1a1a":C.border)}`,
+                  background: closed ? `${actif.color}22` : (disabled?"#0a0a0a":"#0d0d0d"),
+                  color: closed ? actif.color : (disabled?"#333":C.text),
+                  fontWeight:800, fontSize:16, cursor: disabled?"not-allowed":"pointer",
+                  touchAction:"manipulation",
+                  boxShadow: closed && !disabled ? `0 0 8px ${actif.color}44` : "none",
+                  transition:"all .1s" }}>
                 {z}
               </button>
             );
           })}
-          <button onClick={() => frapper("Bull")}
-            style={{
-              flex:1, padding:"12px 4px", borderRadius:10,
-              border:`2px solid ${actif.marks["Bull"] >= 3 ? `${C.red}88` : `${C.red}44`}`,
-              background: actif.marks["Bull"] >= 3 ? `${C.red}22` : "#111",
-              color: actif.marks["Bull"] >= 3 ? C.red : "#fca5a5",
-              fontWeight:900, fontSize:11, cursor:"pointer",
-              boxShadow: actif.marks["Bull"] >= 3 ? `0 0 8px ${C.red}44` : "none",
-            }}>
-            BULL
-          </button>
-        </div>
-
-        {/* Actions */}
-        <div style={{ display:"flex", gap:8 }}>
-          <button onClick={undo} disabled={!historique.length}
-            style={{ flex:1, padding:"12px", borderRadius:10, border:`1px solid ${C.border}`, background:"#111", color: historique.length ? C.yellow : "#333", fontWeight:700, fontSize:13, cursor: historique.length ? "pointer" : "not-allowed" }}>
-            ↩ Annuler
-          </button>
-          <button onClick={() => { setActifIdx(nextPlayer(actifIdx, joueurs.length)); setMult(1); }}
-            style={{ flex:2, padding:"12px", borderRadius:10, border:"none", background:`linear-gradient(135deg,${actif.color},${actif.color}aa)`, color:"#fff", fontWeight:800, fontSize:14, cursor:"pointer" }}>
-            Joueur suivant →
-          </button>
+          {/* Bull */}
+          {(() => {
+            const m = actif.marks["Bull"];
+            const closed = m >= 3;
+            const disabled = darts.length >= 3 || advancing;
+            return (
+              <button onClick={() => hit("Bull")} disabled={disabled}
+                style={{ flex:1, padding:"13px 2px", borderRadius:9,
+                  border:`2px solid ${closed ? `${C.red}88` : (disabled?"#1a1a1a":`${C.red}44`)}`,
+                  background: closed ? `${C.red}22` : (disabled?"#0a0a0a":"#0d0d0d"),
+                  color: closed ? C.red : (disabled?"#333":"#fca5a5"),
+                  fontWeight:900, fontSize:10, cursor: disabled?"not-allowed":"pointer",
+                  touchAction:"manipulation",
+                  boxShadow: closed && !disabled ? `0 0 8px ${C.red}44` : "none" }}>
+                BULL
+              </button>
+            );
+          })()}
         </div>
       </div>
     </div>
