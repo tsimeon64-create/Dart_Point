@@ -1632,6 +1632,9 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const [amiStatut, setAmiStatut] = useState(null);
   const [tab, setTab]           = useState("analyse");
   const [expandedDuel, setExpandedDuel] = useState(null);
+  const [showDefi, setShowDefi] = useState(false);
+  const [defiForm, setDefiForm] = useState({ mode:"501", manches:1 });
+  const [sending, setSending]   = useState(false);
 
   // ── Chargement données ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1903,14 +1906,90 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
               style={{flex:1,background:"#1d4ed8",border:"none",color:"#fff",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:700,fontSize:14,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
               💬 Message
             </button>
-            <button onClick={()=>setPage("defi")}
-              style={{flex:1,background:CJ.accent,border:"none",color:"#fff",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:700,fontSize:14,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-              🎯 Défier
+            <button onClick={()=>setShowDefi(v=>!v)}
+              style={{flex:1,background:showDefi?"#1a1a1a":CJ.accent,border:showDefi?`2px solid ${CJ.accent}`:"none",color:showDefi?CJ.accent:"#fff",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:700,fontSize:14,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",gap:6,transition:"all .2s"}}>
+              {showDefi ? "✕ Annuler" : "🎯 Défier"}
             </button>
           </div>
-          <button style={{width:"100%",background:"transparent",border:`1px solid ${CJ.border}`,color:CJ.muted,borderRadius:12,padding:"11px 0",cursor:"pointer",fontWeight:600,fontSize:13,touchAction:"manipulation"}}>
-            📅 Inviter à jouer plus tard
-          </button>
+
+          {/* Formulaire inline déroulant */}
+          {showDefi && (()=>{
+            // Calcul DRIX enjeu
+            const drixMoi = moi.drix||1000, drixAdv = j.drix||1000;
+            const K = 32 * Math.max(1, defiForm.manches);
+            const EA = 1/(1+Math.pow(10,(drixAdv-drixMoi)/400));
+            const gain  = Math.round(K*(1-EA));
+            const perte = Math.round(K*EA);
+
+            const lancerDefi = async () => {
+              if (sending) return;
+              setSending(true);
+              try {
+                const res = await sbJ("duels", { method:"POST", body:JSON.stringify({
+                  challenger_id:moi.id, challenger_pseudo:moi.pseudo,
+                  defie_id:j.id, defie_pseudo:j.pseudo,
+                  statut:"accepte", type:"drix",
+                  mode:defiForm.mode, manches:defiForm.manches,
+                  date:Date.now(), valide_challenger:false, valide_defie:false,
+                  score_manches_challenger:0, score_manches_defie:0,
+                })});
+                const newDuel = Array.isArray(res)?res[0]:res;
+                if (newDuel?.id) setPage("scoreur-duel-"+newDuel.id);
+              } catch(e) { alert("Erreur : "+e.message); }
+              setSending(false);
+            };
+
+            return (
+              <div style={{background:"#111",border:`1px solid ${CJ.accent}44`,borderRadius:14,padding:16,animation:"slideDown .2s ease"}}>
+                <style>{`@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}`}</style>
+
+                {/* Mode de jeu */}
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:11,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:8}}>MODE DE JEU</div>
+                  <div style={{display:"flex",gap:8}}>
+                    {[["501","🎯 501"],["301","⚡ 301"]].map(([v,l])=>(
+                      <button key={v} onClick={()=>setDefiForm(f=>({...f,mode:v}))}
+                        style={{flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${defiForm.mode===v?CJ.accent:"#2a2a2a"}`,background:defiForm.mode===v?CJ.accent+"22":"#1a1a1a",color:defiForm.mode===v?CJ.accent:"#94a3b8",fontWeight:700,fontSize:13,cursor:"pointer",touchAction:"manipulation",transition:"all .15s"}}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Nombre de manches */}
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:11,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:8}}>NOMBRE DE MANCHES</div>
+                  <div style={{display:"flex",gap:6}}>
+                    {[1,2,3,5].map(n=>(
+                      <button key={n} onClick={()=>setDefiForm(f=>({...f,manches:n}))}
+                        style={{flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${defiForm.manches===n?CJ.accent:"#2a2a2a"}`,background:defiForm.manches===n?CJ.accent+"22":"#1a1a1a",color:defiForm.manches===n?CJ.accent:"#94a3b8",fontWeight:800,fontSize:15,cursor:"pointer",touchAction:"manipulation",transition:"all .15s"}}>
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Enjeu DRIX */}
+                <div style={{display:"flex",justifyContent:"space-between",background:"#1a1a1a",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
+                  <div style={{textAlign:"center"}}>
+                    <div style={{fontSize:11,color:CJ.muted,marginBottom:2}}>Si tu gagnes</div>
+                    <div style={{fontWeight:900,fontSize:18,color:CJ.green}}>+{gain} DRIX</div>
+                  </div>
+                  <div style={{width:1,background:"#2a2a2a"}}/>
+                  <div style={{textAlign:"center"}}>
+                    <div style={{fontSize:11,color:CJ.muted,marginBottom:2}}>Si tu perds</div>
+                    <div style={{fontWeight:900,fontSize:18,color:CJ.red}}>−{perte} DRIX</div>
+                  </div>
+                </div>
+
+                {/* Bouton lancer */}
+                <button onClick={lancerDefi} disabled={sending}
+                  style={{width:"100%",background:CJ.accent,border:"none",color:"#fff",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:800,fontSize:15,touchAction:"manipulation",opacity:sending?.6:1}}>
+                  {sending ? "⏳ Lancement…" : `⚔️ Lancer le défi contre ${j.pseudo}`}
+                </button>
+              </div>
+            );
+          })()}
         </div>
       )}
 
