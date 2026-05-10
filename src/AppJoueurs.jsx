@@ -593,7 +593,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
           {[
             { emoji:"📊", label:"Stats",       sub:"Mes performances",  action:()=>setPage("profil-stats"),      color:CJ.blue },
             { emoji:"👥", label:"Amis",        sub:"Mes connexions",    action:()=>setPage("profil-amis"),       color:CJ.green, badge:demandesAmisCount },
-            { emoji:"🏅", label:"Badges",      sub:"Mes récompenses",   action:()=>setPage("profil-badges"),     color:CJ.yellow },
+            { emoji:"🏅", label:"Badges",      sub:`${getBadgesStored(joueur.id).size}/${ALL_BADGES.length} débloqués`, action:()=>setPage("profil-badges"), color:CJ.yellow },
             { emoji:"📜", label:"Historique",  sub:"Mes duels",         action:()=>setPage("profil-historique"), color:CJ.accent },
           ].map(({ emoji, label, sub, action, color: col, badge }) => (
             <button key={label} onClick={action}
