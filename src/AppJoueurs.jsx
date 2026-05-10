@@ -1016,7 +1016,6 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
 export const PageProfilAmis = ({ joueur, setPage }) => (
   <div style={{ maxWidth:860, margin:"0 auto", padding:"24px 20px" }}>
     <button onClick={()=>setPage("mon-profil")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:20,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
-    <h2 style={{ fontWeight:800,fontSize:22,marginBottom:20 }}>👥 Mes amis</h2>
     <AmiSection joueur={joueur} setPage={setPage}/>
   </div>
 );
