@@ -474,7 +474,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Suivi live session ────────────────────────────────────────────────────
   const createLiveSession = async () => {
-    if (!modeDuel || !duel?.id) return;
+    console.log("[Live] createLiveSession appelé — modeDuel:", modeDuel, "duel.id:", duel?.id);
+    if (!modeDuel || !duel?.id) { console.log("[Live] aborted (pas de duel)"); return; }
     try {
       const mode = duel.mode || "501";
       const manches = duel.manches || 1;
