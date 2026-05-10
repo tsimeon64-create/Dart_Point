@@ -7,6 +7,7 @@ import {
   AmiSection,
   appliquerDrixDuel, getDrixTitre, calculerDrix,
   dbJoueurs, todayStr, hashPwd,
+  ALL_BADGES, computeBadgeValues, getBadgesStored, storeBadgesSet,
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
 import { JeuCapital } from "./AppJeuDecalePoint";
@@ -3376,11 +3377,38 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
   );
 };
 
+// ── BADGES RECAP MODAL ────────────────────────────────────────────────────────
+const BadgesRecapModal = ({ badges, onClose, setPage }) => (
+  <div style={{ position:"fixed",inset:0,background:"#000c",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }} onClick={onClose}>
+    <div style={{ background:"#1a1a1a",border:"1px solid #ffd70066",borderRadius:20,padding:28,maxWidth:380,width:"100%",textAlign:"center" }} onClick={e=>e.stopPropagation()}>
+      <div style={{ fontSize:40, marginBottom:8 }}>🏅</div>
+      <h2 style={{ fontWeight:900, fontSize:20, color:"#ffd700", marginBottom:4 }}>Badge{badges.length>1?"s":""} débloqué{badges.length>1?"s":""}!</h2>
+      <p style={{ color:"#94a3b8", fontSize:13, marginBottom:20 }}>Félicitations !</p>
+      <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:24 }}>
+        {badges.map(b=>(
+          <div key={b.id} style={{ background:b.couleur+"18", border:`1px solid ${b.couleur}44`, borderRadius:12, padding:"12px 16px", display:"flex", alignItems:"center", gap:12 }}>
+            <span style={{ fontSize:28 }}>{b.emoji}</span>
+            <div style={{ textAlign:"left" }}>
+              <div style={{ fontWeight:700, fontSize:14, color:b.couleur }}>{b.nom}</div>
+              <div style={{ fontSize:11, color:"#94a3b8" }}>{b.desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display:"flex", gap:10 }}>
+        <button onClick={()=>{onClose();setPage("profil-badges");}} style={{ flex:1,background:"#ffd70022",border:"1px solid #ffd70066",color:"#ffd700",borderRadius:10,padding:"10px",cursor:"pointer",fontWeight:700,fontSize:13 }}>Voir mes badges</button>
+        <button onClick={onClose} style={{ flex:1,background:"#ffffff12",border:"1px solid #ffffff22",color:"#fff",borderRadius:10,padding:"10px",cursor:"pointer",fontWeight:700,fontSize:13 }}>Continuer</button>
+      </div>
+    </div>
+  </div>
+);
+
 // ── SCOREUR DUEL (charge le duel depuis Supabase) ─────────────────────────────
 const ScoreurDuel = ({ duelId, joueur, setPage }) => {
   const [duel, setDuel] = useState(null);
   const [drixData, setDrixData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [newBadges, setNewBadges] = useState([]);
 
   useEffect(() => {
     sb(`duels?id=eq.${duelId}&select=*`)
@@ -3413,10 +3441,40 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
       .catch(() => setLoading(false));
   }, [duelId]);
 
+  const handleDuelTermine = async ({ gagnantId } = {}) => {
+    if (!joueur) return;
+    try {
+      const [stats, duels, drixMvts, amis, trn, wtrn] = await Promise.all([
+        sb(`stats_joueurs?joueur_id=eq.${joueur.id}&select=*`).then(r=>r?.[0]),
+        sb(`duels?or=(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id})&order=date.desc&select=*`),
+        sb(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=200&select=drix_apres`).catch(()=>[]),
+        sb(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&select=statut`).catch(()=>[]),
+        sb(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
+        sb(`tournois_potes?gagnant_id=eq.${joueur.id}&select=id`).catch(()=>[]),
+      ]);
+      const vals = computeBadgeValues(joueur, stats, duels||[], drixMvts||[], amis||[], (trn||[]).length, (wtrn||[]).length, 0, 0);
+      const stored = getBadgesStored(joueur.id);
+      const freshUnlocked = ALL_BADGES.filter(b=>b.val(vals)>=b.seuil);
+      const justUnlocked = freshUnlocked.filter(b=>!stored.has(b.id));
+      const newSet = new Set([...stored, ...freshUnlocked.map(b=>b.id)]);
+      storeBadgesSet(joueur.id, newSet);
+      if (justUnlocked.length > 0) setNewBadges(justUnlocked);
+    } catch (e) {
+      console.warn("Badge check failed", e);
+    }
+  };
+
   if (loading) return <Spinner/>;
   if (!duel) return <div style={{ textAlign:"center",padding:60,color:C.muted }}>Duel introuvable</div>;
 
-  return <Scoreur duel={duel} drixData={drixData} onDuelTermine={()=>{}} setPage={setPage}/>;
+  return (
+    <>
+      <Scoreur duel={duel} drixData={drixData} onDuelTermine={handleDuelTermine} setPage={setPage}/>
+      {newBadges.length > 0 && (
+        <BadgesRecapModal badges={newBadges} onClose={()=>setNewBadges([])} setPage={setPage}/>
+      )}
+    </>
+  );
 };
 
 // ── FOOTER ────────────────────────────────────────────────────────────────────

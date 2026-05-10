@@ -213,6 +213,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       loser_80plus:   cnt(lTours, 80, 99),
       loser_60plus:   cnt(lTours, 60, 79),
       loser_max:      lTours.length > 0 ? Math.max(...lTours) : 0,
+      winner_26:      cnt(wTours, 26, 26),
+      loser_26:       cnt(lTours, 26, 26),
     };
   };
 

@@ -1049,84 +1049,206 @@ export const PageProfilHistorique = ({ joueur, setPage }) => {
   );
 };
 
+// ── BADGES SYSTÈME ────────────────────────────────────────────────────────────
+
+const BADGE_CATS = [
+  { id:"scoring",   label:"🎯 Précision / Scoring" },
+  { id:"finish",    label:"👑 Finish" },
+  { id:"duels",     label:"⚔️ Duels" },
+  { id:"parties",   label:"🎮 Parties" },
+  { id:"anti26",    label:"😂 Anti-26" },
+  { id:"drix",      label:"🏆 DRIX" },
+  { id:"social",    label:"🫂 Social" },
+  { id:"streak",    label:"🔥 Streak" },
+  { id:"doublette", label:"👥 Doublette" },
+];
+
+export const ALL_BADGES = [
+  // Scoring
+  { id:"s_180_1",   cat:"scoring",   emoji:"🎯",  nom:"Premier 180",           desc:"Marquer un 180",               seuil:1,   couleur:"#ef4444", val:d=>d.nb180 },
+  { id:"s_180_10",  cat:"scoring",   emoji:"💥",  nom:"Machine à triples",     desc:"10 × 180",                     seuil:10,  couleur:"#ef4444", val:d=>d.nb180 },
+  { id:"s_180_50",  cat:"scoring",   emoji:"🔥",  nom:"Canonnier",             desc:"50 × 180",                     seuil:50,  couleur:"#ef4444", val:d=>d.nb180 },
+  { id:"s_180_100", cat:"scoring",   emoji:"⚡",  nom:"Mitrailleur",            desc:"100 × 180",                    seuil:100, couleur:"#ef4444", val:d=>d.nb180 },
+  { id:"s_100_100", cat:"scoring",   emoji:"🎯",  nom:"Centurion",             desc:"100 scores à 100+",            seuil:100, couleur:"#f59e0b", val:d=>d.nb100 },
+  { id:"s_140_50",  cat:"scoring",   emoji:"🚀",  nom:"Lance-flammes",         desc:"50 scores à 140+",             seuil:50,  couleur:"#f59e0b", val:d=>d.nb140 },
+  { id:"s_140_100", cat:"scoring",   emoji:"💣",  nom:"Bombardier",            desc:"100 scores à 140+",            seuil:100, couleur:"#f59e0b", val:d=>d.nb140 },
+  // Finish
+  { id:"f_bigfish", cat:"finish",    emoji:"🐟",  nom:"Big Fish",              desc:"Finish 170",                   seuil:1,   couleur:"#22c55e", val:d=>d.plusGrosFinish>=170?1:0 },
+  { id:"f_100_10",  cat:"finish",    emoji:"🎯",  nom:"Chirurgien",            desc:"10 finishes 100+",             seuil:10,  couleur:"#22c55e", val:d=>d.nbFinishes100 },
+  { id:"f_100_50",  cat:"finish",    emoji:"🔥",  nom:"Bourreau",              desc:"50 finishes 100+",             seuil:50,  couleur:"#22c55e", val:d=>d.nbFinishes100 },
+  { id:"f_bull",    cat:"finish",    emoji:"🎯",  nom:"Bullseye Killer",       desc:"Finish bull (50 pts)",         seuil:1,   couleur:"#22c55e", val:d=>d.hasBullFinish?1:0 },
+  { id:"f_67",      cat:"finish",    emoji:"🍀",  nom:"Six Seven",             desc:"Finish 67",                    seuil:1,   couleur:"#22c55e", val:d=>d.hasSixSevenFinish?1:0 },
+  // Duels
+  { id:"d_first",   cat:"duels",     emoji:"🥊",  nom:"Premier sang",          desc:"Premier duel joué",            seuil:1,   couleur:"#60a5fa", val:d=>d.parties },
+  { id:"d_win1",    cat:"duels",     emoji:"🏆",  nom:"Première victoire",     desc:"Gagner son premier duel",      seuil:1,   couleur:"#22c55e", val:d=>d.victoires },
+  { id:"d_win10",   cat:"duels",     emoji:"⚔️",  nom:"Gladiateur",            desc:"10 victoires",                 seuil:10,  couleur:"#22c55e", val:d=>d.victoires },
+  { id:"d_win50",   cat:"duels",     emoji:"🛡️",  nom:"Vétéran",               desc:"50 victoires",                 seuil:50,  couleur:"#22c55e", val:d=>d.victoires },
+  { id:"d_win100",  cat:"duels",     emoji:"👑",  nom:"Conquérant",            desc:"100 victoires",                seuil:100, couleur:"#ffd700", val:d=>d.victoires },
+  { id:"d_serie3",  cat:"duels",     emoji:"🔥",  nom:"Sur série",             desc:"3 victoires d'affilée",        seuil:3,   couleur:"#f97316", val:d=>d.meilleureSerieW },
+  { id:"d_serie5",  cat:"duels",     emoji:"💀",  nom:"Intouchable",           desc:"5 victoires d'affilée",        seuil:5,   couleur:"#f97316", val:d=>d.meilleureSerieW },
+  { id:"d_serie10", cat:"duels",     emoji:"☠️",  nom:"Légende noire",         desc:"10 victoires d'affilée",       seuil:10,  couleur:"#f97316", val:d=>d.meilleureSerieW },
+  { id:"d_giant",   cat:"duels",     emoji:"🦁",  nom:"Tueur de géants",       desc:"Battre un joueur +200 DRIX",   seuil:1,   couleur:"#ffd700", val:d=>d.hasGiantKill?1:0 },
+  // Parties
+  { id:"p_10",      cat:"parties",   emoji:"🎮",  nom:"Échauffement",          desc:"10 parties jouées",            seuil:10,  couleur:"#a78bfa", val:d=>d.parties },
+  { id:"p_50",      cat:"parties",   emoji:"🕹️",  nom:"Habitué",               desc:"50 parties jouées",            seuil:50,  couleur:"#a78bfa", val:d=>d.parties },
+  { id:"p_100",     cat:"parties",   emoji:"🎲",  nom:"Marathonien",           desc:"100 parties jouées",           seuil:100, couleur:"#a78bfa", val:d=>d.parties },
+  { id:"p_500",     cat:"parties",   emoji:"🏆",  nom:"Pilier du bar",         desc:"500 parties jouées",           seuil:500, couleur:"#ffd700", val:d=>d.parties },
+  // Anti-26
+  { id:"a26_10",    cat:"anti26",    emoji:"🍌",  nom:"Le 26 classique",       desc:"10 fois 26",                   seuil:10,  couleur:"#f59e0b", val:d=>d.nb26 },
+  { id:"a26_50",    cat:"anti26",    emoji:"🤡",  nom:"Abonné au 26",          desc:"50 fois 26",                   seuil:50,  couleur:"#f59e0b", val:d=>d.nb26 },
+  { id:"a26_100",   cat:"anti26",    emoji:"💩",  nom:"Roi du 26",             desc:"100 fois 26",                  seuil:100, couleur:"#f59e0b", val:d=>d.nb26 },
+  { id:"a26_500",   cat:"anti26",    emoji:"🎪",  nom:"Légende du 26",         desc:"500 fois 26",                  seuil:500, couleur:"#f59e0b", val:d=>d.nb26 },
+  // DRIX
+  { id:"dr_1200",   cat:"drix",      emoji:"📈",  nom:"Ascension",             desc:"Atteindre 1200 DRIX",          seuil:1,   couleur:"#22c55e", val:d=>d.maxDrix>=1200?1:0 },
+  { id:"dr_1500",   cat:"drix",      emoji:"💎",  nom:"Confirmé",              desc:"Atteindre 1500 DRIX",          seuil:1,   couleur:"#a78bfa", val:d=>d.maxDrix>=1500?1:0 },
+  { id:"dr_2000",   cat:"drix",      emoji:"🚀",  nom:"Élite",                 desc:"Atteindre 2000 DRIX",          seuil:1,   couleur:"#ffd700", val:d=>d.maxDrix>=2000?1:0 },
+  // Social
+  { id:"soc_1",     cat:"social",    emoji:"🤝",  nom:"Premier pote",          desc:"Premier ami ajouté",           seuil:1,   couleur:"#10b981", val:d=>d.nbAmis },
+  { id:"soc_5",     cat:"social",    emoji:"👥",  nom:"Petit cercle",          desc:"5 amis",                       seuil:5,   couleur:"#10b981", val:d=>d.nbAmis },
+  { id:"soc_10",    cat:"social",    emoji:"🫂",  nom:"La bande",              desc:"10 amis",                      seuil:10,  couleur:"#10b981", val:d=>d.nbAmis },
+  { id:"soc_20",    cat:"social",    emoji:"🌍",  nom:"Le réseau",             desc:"20 amis",                      seuil:20,  couleur:"#10b981", val:d=>d.nbAmis },
+  { id:"soc_trn",   cat:"social",    emoji:"🎯",  nom:"Tournoi entre potes",   desc:"Participer à un tournoi privé",seuil:1,   couleur:"#10b981", val:d=>d.nbTournois },
+  { id:"soc_wtrn",  cat:"social",    emoji:"🏆",  nom:"Boss de la bande",      desc:"Gagner un tournoi privé",      seuil:1,   couleur:"#ffd700", val:d=>d.nbTournoisGagnes },
+  // Streak
+  { id:"str_7",     cat:"streak",    emoji:"📆",  nom:"Régulier",              desc:"7 jours avec au moins 1 duel", seuil:7,   couleur:"#06b6d4", val:d=>d.streakJours },
+  { id:"str_30",    cat:"streak",    emoji:"🗓️",  nom:"Accroché au comptoir",  desc:"30 jours avec un duel",        seuil:30,  couleur:"#06b6d4", val:d=>d.streakJours },
+  { id:"str_100",   cat:"streak",    emoji:"📅",  nom:"Impossible à décrocher",desc:"100 jours avec un duel",       seuil:100, couleur:"#06b6d4", val:d=>d.streakJours },
+  // Doublette
+  { id:"dbl_1",     cat:"doublette", emoji:"🤝",  nom:"Premier duo",           desc:"Première doublette jouée",     seuil:1,   couleur:"#8b5cf6", val:d=>d.nbDoublettes },
+  { id:"dbl_10",    cat:"doublette", emoji:"⚔️",  nom:"Binôme solide",         desc:"10 victoires en doublette",    seuil:10,  couleur:"#8b5cf6", val:d=>d.nbWinsDoublette },
+  { id:"dbl_50",    cat:"doublette", emoji:"🏆",  nom:"Duo légendaire",        desc:"50 victoires en doublette",    seuil:50,  couleur:"#8b5cf6", val:d=>d.nbWinsDoublette },
+];
+
+export const computeBadgeValues = (joueur, stats, duels, drixMvts, amis, nbTournois=0, nbTournoisGagnes=0, nbDoublettes=0, nbWinsDoublette=0) => {
+  const termines = (duels||[]).filter(d=>d.statut==="termine");
+  const victoires = stats?.victoires??0;
+  const parties   = stats?.parties??0;
+
+  let nb180=0, nb140=0, nb100=0, nb26=0, nbFinishes100=0, plusGrosFinish=0;
+  let hasBullFinish=false, hasSixSevenFinish=false;
+
+  termines.forEach(d=>{
+    (d.manches_detail||[]).forEach(m=>{
+      const isW = m.winner===joueur.pseudo;
+      nb180 += isW?(m.winner_180||0):(m.loser_180||0);
+      nb140 += isW?(m.winner_140plus||0):(m.loser_140plus||0);
+      nb100 += isW?(m.winner_100plus||0):(m.loser_100plus||0);
+      nb26  += isW?(m.winner_26||0):(m.loser_26||0);
+      if(isW){
+        const fin = m.winner_finish||0;
+        if(fin>=100) nbFinishes100++;
+        if(fin>plusGrosFinish) plusGrosFinish=fin;
+        if(fin===50) hasBullFinish=true;
+        if(fin===67) hasSixSevenFinish=true;
+      }
+    });
+  });
+
+  // Meilleure série de victoires
+  const sortedChron=[...termines].sort((a,b)=>(a.date||0)-(b.date||0));
+  let meilleureSerieW=0, tmp=0;
+  sortedChron.forEach(d=>{ if(d.gagnant_id===joueur.id){tmp++;meilleureSerieW=Math.max(meilleureSerieW,tmp);}else tmp=0; });
+
+  // Max DRIX atteint (ever)
+  const mvtsMax=(drixMvts||[]).map(m=>m.drix_apres||0);
+  const maxDrix=Math.max(joueur.drix||1000,...mvtsMax);
+
+  // Streak jours consécutifs (jours avec au moins 1 duel)
+  let streakJours=0;
+  if(termines.length>0){
+    const duelDays=[...new Set(termines.map(d=>new Date(d.date||0).toDateString()))].map(s=>new Date(s)).sort((a,b)=>a-b);
+    let curr=1, best=1;
+    for(let i=1;i<duelDays.length;i++){
+      const diff=(duelDays[i]-duelDays[i-1])/(1000*3600*24);
+      if(diff<=1.5) { curr++; best=Math.max(best,curr); } else curr=1;
+    }
+    streakJours=best;
+  }
+
+  // Amis acceptés
+  const nbAmis=(amis||[]).filter(a=>a.statut==="accepte").length;
+
+  // Tueur de géants : non trackable précisément sans info adversaire au moment du match
+  const hasGiantKill=false;
+
+  return {
+    nb180, nb140, nb100, nb26, nbFinishes100, plusGrosFinish,
+    hasBullFinish, hasSixSevenFinish,
+    victoires, parties, meilleureSerieW, maxDrix, streakJours,
+    nbAmis, nbTournois, nbTournoisGagnes, nbDoublettes, nbWinsDoublette,
+    hasGiantKill,
+  };
+};
+
+// localStorage helpers
+export const getBadgesStored = (joueurId) => {
+  try { return new Set(JSON.parse(localStorage.getItem(`dp_badges_${joueurId}`)||"[]")); }
+  catch { return new Set(); }
+};
+export const storeBadgesSet = (joueurId, badgeSet) => {
+  try { localStorage.setItem(`dp_badges_${joueurId}`, JSON.stringify([...badgeSet])); } catch {}
+};
+
 // ── PAGE BADGES ───────────────────────────────────────────────────────────────
 export const PageProfilBadges = ({ joueur, setPage }) => {
   const [stats, setStats]   = useState(null);
   const [duels, setDuels]   = useState([]);
+  const [drixMvts, setDrixMvts] = useState([]);
+  const [amis, setAmis]     = useState([]);
+  const [nbTournois, setNbTournois] = useState(0);
+  const [nbTournoisGagnes, setNbTournoisGagnes] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       dbJ.getStats(joueur.id),
       dbJ.getDuels(joueur.id),
-    ]).then(([s,d])=>{ setStats(s); setDuels(d||[]); setLoading(false); }).catch(()=>setLoading(false));
+      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=200&select=drix_apres`).catch(()=>[]),
+      sbJ(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&select=statut`).catch(()=>[]),
+      sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
+      sbJ(`tournois_potes?gagnant_id=eq.${joueur.id}&select=id`).catch(()=>[]),
+    ]).then(([s,d,dm,a,trn,wtrn])=>{
+      setStats(s);
+      setDuels(d||[]);
+      setDrixMvts(dm||[]);
+      setAmis(a||[]);
+      setNbTournois((trn||[]).length);
+      setNbTournoisGagnes((wtrn||[]).length);
+      setLoading(false);
+    }).catch(()=>setLoading(false));
   }, [joueur.id]);
 
   if (loading) return <SpinnerJ/>;
 
-  const termines = (duels||[]).filter(d=>d.statut==="termine");
-  const victoires = stats?.victoires ?? 0;
-  const parties   = stats?.parties   ?? 0;
-  const drix      = joueur.drix || 1000;
-
-  // Scoring depuis manches_detail
-  let nb180=0, nb140=0, nb100=0, plusGrosFinish=0;
-  termines.forEach(d => {
-    (d.manches_detail||[]).forEach(m => {
-      const isW = m.winner === joueur.pseudo;
-      nb180 += isW ? (m.winner_180||0) : (m.loser_180||0);
-      nb140 += isW ? (m.winner_140plus||0) : (m.loser_140plus||0);
-      nb100 += isW ? (m.winner_100plus||0) : (m.loser_100plus||0);
-      const fin = isW ? (m.winner_finish||0) : 0;
-      plusGrosFinish = Math.max(plusGrosFinish, fin);
-    });
-  });
-
-  const BADGES = [
-    // Duels
-    { id:"first_duel",    emoji:"🎯", nom:"Premier duel",     desc:"Jouer son premier duel",           seuil:1,   valeur:parties,   couleur:"#60a5fa" },
-    { id:"duel_10",       emoji:"⚔️", nom:"Combattant",        desc:"Jouer 10 duels",                  seuil:10,  valeur:parties,   couleur:"#60a5fa" },
-    { id:"duel_50",       emoji:"🔱", nom:"Guerrier",          desc:"Jouer 50 duels",                  seuil:50,  valeur:parties,   couleur:"#a78bfa" },
-    { id:"duel_100",      emoji:"💎", nom:"Vétéran",           desc:"Jouer 100 duels",                 seuil:100, valeur:parties,   couleur:"#ffd700" },
-    // Victoires
-    { id:"first_win",     emoji:"🏆", nom:"Première victoire", desc:"Gagner son premier duel",         seuil:1,   valeur:victoires, couleur:"#22c55e" },
-    { id:"win_10",        emoji:"🔥", nom:"En feu",            desc:"10 victoires",                    seuil:10,  valeur:victoires, couleur:"#f97316" },
-    { id:"win_50",        emoji:"👑", nom:"Champion",          desc:"50 victoires",                    seuil:50,  valeur:victoires, couleur:"#f59e0b" },
-    { id:"win_100",       emoji:"🌟", nom:"Légende vivante",   desc:"100 victoires",                   seuil:100, valeur:victoires, couleur:"#ffd700" },
-    // Rangs DRIX
-    { id:"rank_confirmé", emoji:"⭐", nom:"Confirmé",          desc:"Atteindre 1100 DRIX",             seuil:1,   valeur:drix>=1100?1:0,  couleur:"#22c55e" },
-    { id:"rank_expert",   emoji:"⭐⭐", nom:"Expert",           desc:"Atteindre 1300 DRIX",             seuil:1,   valeur:drix>=1300?1:0,  couleur:"#f59e0b" },
-    { id:"rank_elite",    emoji:"💎", nom:"Élite",             desc:"Atteindre 1500 DRIX",             seuil:1,   valeur:drix>=1500?1:0,  couleur:"#a78bfa" },
-    { id:"rank_legende",  emoji:"🏆", nom:"Légende",           desc:"Atteindre 1700 DRIX",             seuil:1,   valeur:drix>=1700?1:0,  couleur:"#f97316" },
-    // Scoring
-    { id:"s_180",         emoji:"🎯", nom:"Le 180",            desc:"Marquer un premier 180",          seuil:1,   valeur:nb180,     couleur:"#ef4444" },
-    { id:"s_5x180",       emoji:"🎯🎯", nom:"Machine à 180",   desc:"Marquer 5 fois 180",              seuil:5,   valeur:nb180,     couleur:"#ef4444" },
-    { id:"s_finish100",   emoji:"💯", nom:"Finish 100+",       desc:"Réussir un finish 100 ou plus",   seuil:1,   valeur:plusGrosFinish>=100?1:0, couleur:"#22c55e" },
-    { id:"s_finish120",   emoji:"🎯💯", nom:"Gros finish",      desc:"Réussir un finish 120 ou plus",   seuil:1,   valeur:plusGrosFinish>=120?1:0, couleur:"#ffd700" },
-  ];
-
-  const debloqués  = BADGES.filter(b => b.valeur >= b.seuil);
-  const verrouillés = BADGES.filter(b => b.valeur < b.seuil);
+  const vals = computeBadgeValues(joueur, stats, duels, drixMvts, amis, nbTournois, nbTournoisGagnes, 0, 0);
+  const totalUnlocked = ALL_BADGES.filter(b=>b.val(vals)>=b.seuil).length;
 
   const BadgeCard = ({ b }) => {
-    const unlocked = b.valeur >= b.seuil;
-    const pct = unlocked ? 100 : Math.min(99, Math.round((b.valeur / b.seuil) * 100));
+    const current = b.val(vals);
+    const unlocked = current >= b.seuil;
+    const pct = Math.min(100, Math.round((current/b.seuil)*100));
+    const isIncremental = b.seuil > 1;
     return (
-      <div style={{ background:unlocked?b.couleur+"18":CJ.card, border:`1px solid ${unlocked?b.couleur+"66":CJ.border}`, borderRadius:14, padding:14, position:"relative", overflow:"hidden" }}>
-        <div style={{ fontSize:30, marginBottom:8 }}>{b.emoji}</div>
-        <div style={{ fontWeight:700, fontSize:13, marginBottom:3, color:unlocked?b.couleur:CJ.text }}>{b.nom}</div>
-        <div style={{ fontSize:11, color:CJ.muted, marginBottom:unlocked?0:10 }}>{b.desc}</div>
-        {!unlocked && (
+      <div style={{
+        background: unlocked ? b.couleur+"18" : "#ffffff06",
+        border: `1px solid ${unlocked ? b.couleur+"66" : "#2a2a2a"}`,
+        borderRadius:14, padding:14, position:"relative", overflow:"hidden",
+        filter: unlocked ? "none" : "grayscale(0.8)",
+        opacity: unlocked ? 1 : 0.55,
+        transition:"all .2s"
+      }}>
+        <div style={{ fontSize:28, marginBottom:6 }}>{b.emoji}</div>
+        <div style={{ fontWeight:700, fontSize:13, color: unlocked ? b.couleur : CJ.muted, marginBottom:3 }}>{b.nom}</div>
+        <div style={{ fontSize:10, color:CJ.muted, marginBottom: isIncremental&&!unlocked ? 8 : 0 }}>{b.desc}</div>
+        {isIncremental && !unlocked && (
           <>
             <div style={{ background:"#ffffff12", borderRadius:4, height:4, overflow:"hidden" }}>
-              <div style={{ height:"100%", width:`${pct}%`, background:b.couleur, borderRadius:4, transition:"width 0.6s ease" }}/>
+              <div style={{ height:"100%", width:`${pct}%`, background:b.couleur, borderRadius:4 }}/>
             </div>
-            <div style={{ fontSize:10, color:CJ.muted, marginTop:4 }}>{b.valeur} / {b.seuil}</div>
+            <div style={{ fontSize:10, color:CJ.muted, marginTop:4 }}>{current} / {b.seuil}</div>
           </>
         )}
-        {unlocked && (
-          <div style={{ position:"absolute", top:8, right:8, fontSize:12 }}>✅</div>
-        )}
+        {unlocked && <div style={{ position:"absolute", top:8, right:8, fontSize:14 }}>✅</div>}
       </div>
     );
   };
@@ -1135,25 +1257,23 @@ export const PageProfilBadges = ({ joueur, setPage }) => {
     <div style={{ maxWidth:600, margin:"0 auto", padding:"16px 16px 40px" }}>
       <button onClick={()=>setPage("mon-profil")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
       <h1 style={{ fontWeight:900, fontSize:22, marginBottom:4 }}>🏅 Mes badges</h1>
-      <p style={{ color:CJ.muted, fontSize:13, marginBottom:20 }}>{debloqués.length} / {BADGES.length} débloqués</p>
+      <p style={{ color:CJ.muted, fontSize:13, marginBottom:24 }}>{totalUnlocked} / {ALL_BADGES.length} débloqués</p>
 
-      {debloqués.length > 0 && (
-        <>
-          <div style={{ fontSize:11,color:CJ.muted,fontWeight:700,letterSpacing:1,marginBottom:10 }}>DÉBLOQUÉS ({debloqués.length})</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10, marginBottom:20 }}>
-            {debloqués.map(b=><BadgeCard key={b.id} b={b}/>)}
+      {BADGE_CATS.map(cat => {
+        const catBadges = ALL_BADGES.filter(b=>b.cat===cat.id);
+        const catUnlocked = catBadges.filter(b=>b.val(vals)>=b.seuil).length;
+        return (
+          <div key={cat.id} style={{ marginBottom:24 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+              <h3 style={{ fontWeight:800, fontSize:14, color:CJ.accent, letterSpacing:.5, margin:0 }}>{cat.label}</h3>
+              <span style={{ fontSize:11, color:CJ.muted }}>{catUnlocked}/{catBadges.length}</span>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8 }}>
+              {catBadges.map(b=><BadgeCard key={b.id} b={b} vals={vals}/>)}
+            </div>
           </div>
-        </>
-      )}
-
-      {verrouillés.length > 0 && (
-        <>
-          <div style={{ fontSize:11,color:CJ.muted,fontWeight:700,letterSpacing:1,marginBottom:10 }}>EN COURS ({verrouillés.length})</div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:10, opacity:0.7 }}>
-            {verrouillés.map(b=><BadgeCard key={b.id} b={b}/>)}
-          </div>
-        </>
-      )}
+        );
+      })}
     </div>
   );
 };
