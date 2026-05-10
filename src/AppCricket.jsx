@@ -500,10 +500,11 @@ export const ScoreurCricket = ({ config, setPage }) => {
 
   // ── ÉCRAN JEU ─────────────────────────────────────────────────────────────
   const actif = joueurs[actifIdx];
-  const leftW = 46;
+  const leftW = 54;
+  const colMinW = 110; // chaque colonne joueur a au minimum 110px → scroll horizontal si besoin
 
   return (
-    <div style={{ position:"fixed", inset:0, display:"flex", flexDirection:"column", background:C.bg, color:C.text, fontFamily:"Inter,sans-serif", overflow:"hidden", touchAction:"none" }}>
+    <div style={{ position:"fixed", inset:0, zIndex:9999, display:"flex", flexDirection:"column", background:C.bg, color:C.text, fontFamily:"Inter,sans-serif", overflow:"hidden", touchAction:"none" }}>
 
       {/* ── Modale quitter ── */}
       {showQuit && (
@@ -548,7 +549,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
           {/* Zones */}
           {ZONES.map(z => (
             <div key={z} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", borderBottom:`1px solid ${C.border}18` }}>
-              <span style={{ fontWeight:900, fontSize:z==="Bull"?11:15, color: z==="Bull"?C.red:C.text, letterSpacing: z==="Bull"?-0.5:0 }}>
+              <span style={{ fontWeight:900, fontSize:z==="Bull"?13:20, color: z==="Bull"?C.red:C.text }}>
                 {z === "Bull" ? "BULL" : z}
               </span>
             </div>
@@ -560,7 +561,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
         </div>
 
         {/* Colonnes joueurs scrollables */}
-        <div style={{ flex:1, overflowX:joueurs.length > 3 ? "auto" : "hidden", display:"flex" }}>
+        <div style={{ flex:1, overflowX:"auto", overflowY:"hidden", display:"flex" }}>
           {joueurs.map((j, ji) => {
             const isActive = ji === actifIdx;
             const curDarts = isActive ? darts : (lastDarts[ji] || []);
@@ -568,13 +569,13 @@ export const ScoreurCricket = ({ config, setPage }) => {
 
             return (
               <div key={j.id}
-                style={{ flex:1, minWidth: joueurs.length > 3 ? 80 : "auto", display:"flex", flexDirection:"column",
+                style={{ flex:1, minWidth:`${colMinW}px`, display:"flex", flexDirection:"column",
                   borderRight: ji < joueurs.length-1 ? `1px solid ${C.border}33` : "none",
                   background: isActive ? `${j.color}06` : "transparent" }}>
 
                 {/* ── Nom + score + barre active ── */}
-                <div style={{ flexShrink:0, height:68, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:2, padding:"4px 2px 0" }}>
-                  <span style={{ fontSize:13, fontWeight:800, color: isActive ? j.color : C.muted, textAlign:"center", maxWidth:"100%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", padding:"0 4px" }}>
+                <div style={{ flexShrink:0, height:68, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:2, padding:"4px 6px 0" }}>
+                  <span style={{ fontSize:14, fontWeight:800, color: isActive ? j.color : C.muted, textAlign:"center", width:"100%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                     {j.pseudo}
                   </span>
                   {config.points && (
