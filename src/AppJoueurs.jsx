@@ -312,6 +312,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   const [classement, setClassement] = useState(null);
   const [loading, setLoading]     = useState(true);
   const [tournoisPotes, setTournoisPotes] = useState([]);
+  const [badgeCount, setBadgeCount] = useState(getBadgesStored(joueur.id).size);
 
   // Edit mode
   const [editMode, setEditMode]   = useState(false);
@@ -337,12 +338,18 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       dbJ.getDuels(joueur.id),
       sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=20&select=*`).catch(()=>[]),
       sbJ(`joueurs?order=drix.desc&select=id`).catch(()=>[]),
-    ]).then(([s, d, mvts, allJ]) => {
+      sbJ(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&select=statut`).catch(()=>[]),
+    ]).then(([s, d, mvts, allJ, amis]) => {
       setStats(s); setDuels(d||[]); setDrixMvts(mvts||[]);
       if (allJ?.length) {
         const pos = allJ.findIndex(j => j.id === joueur.id);
         setClassement({ position: pos >= 0 ? pos + 1 : null, total: allJ.length });
       }
+      // Calcul badge count réel
+      const vals = computeBadgeValues(joueur, s, d||[], mvts||[], amis||[]);
+      const unlocked = ALL_BADGES.filter(b=>b.val(vals)>=b.seuil).length;
+      setBadgeCount(unlocked);
+      storeBadgesSet(joueur.id, new Set(ALL_BADGES.filter(b=>b.val(vals)>=b.seuil).map(b=>b.id)));
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [joueur.id]);
@@ -593,7 +600,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
           {[
             { emoji:"📊", label:"Stats",       sub:"Mes performances",  action:()=>setPage("profil-stats"),      color:CJ.blue },
             { emoji:"👥", label:"Amis",        sub:"Mes connexions",    action:()=>setPage("profil-amis"),       color:CJ.green, badge:demandesAmisCount },
-            { emoji:"🏅", label:"Badges",      sub:`${getBadgesStored(joueur.id).size}/${ALL_BADGES.length} débloqués`, action:()=>setPage("profil-badges"), color:CJ.yellow },
+            { emoji:"🏅", label:"Badges",      sub:`${badgeCount}/${ALL_BADGES.length} débloqués`, action:()=>setPage("profil-badges"), color:CJ.yellow },
             { emoji:"📜", label:"Historique",  sub:"Mes duels",         action:()=>setPage("profil-historique"), color:CJ.accent },
           ].map(({ emoji, label, sub, action, color: col, badge }) => (
             <button key={label} onClick={action}
