@@ -1576,6 +1576,47 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
 
   const renderPost = (item) => {
     const p = item.data;
+
+    // ── Badge post ──────────────────────────────────────────────────────────
+    if (p.contenu?.startsWith("__BADGE__|")) {
+      let badge = null;
+      try { badge = JSON.parse(p.contenu.slice(10)); } catch {}
+      if (badge) return (
+        <div key={`post-${p.id}`} style={{ ...cardBase,
+          background:`linear-gradient(135deg,${badge.couleur}12,#1a1a1a)`,
+          border:`1px solid ${badge.couleur}44`,
+          boxShadow:`0 0 20px ${badge.couleur}18` }}>
+          {/* Header */}
+          <div style={{ display:"flex",gap:10,alignItems:"center",marginBottom:12 }}>
+            <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={40}/>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:700,fontSize:14 }}>
+                <span style={{ color:C.text }}>{p.joueur_pseudo}</span>
+                <span style={{ color:C.muted,fontWeight:400 }}> a débloqué un badge !</span>
+              </div>
+              <div style={{ fontSize:11,color:C.muted }}>{tempsDepuis(p.date)}</div>
+            </div>
+            <span style={{ fontSize:22 }}>🏅</span>
+          </div>
+          {/* Badge card */}
+          <div style={{ display:"flex",alignItems:"center",gap:14,background:badge.couleur+"18",border:`1px solid ${badge.couleur}55`,borderRadius:12,padding:"12px 16px",marginBottom:10 }}>
+            <span style={{ fontSize:36,filter:`drop-shadow(0 0 8px ${badge.couleur})` }}>{badge.emoji}</span>
+            <div>
+              <div style={{ fontWeight:800,fontSize:16,color:badge.couleur }}>{badge.nom}</div>
+              <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>{badge.desc}</div>
+            </div>
+            <div style={{ marginLeft:"auto",fontSize:18 }}>✅</div>
+          </div>
+          {/* Likes */}
+          <div style={{ display:"flex",gap:8,marginTop:4 }}>
+            <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
+          </div>
+          <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
+        </div>
+      );
+    }
+
+    // ── Post texte normal ────────────────────────────────────────────────────
     return (
       <div key={`post-${p.id}`} style={cardBase}>
         <div style={{ display:"flex",gap:10,alignItems:"flex-start",marginBottom:10 }}>
@@ -3479,7 +3520,19 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
       const justUnlocked = freshUnlocked.filter(b=>!stored.has(b.id));
       const newSet = new Set([...stored, ...freshUnlocked.map(b=>b.id)]);
       storeBadgesSet(joueur.id, newSet);
-      if (justUnlocked.length > 0) setNewBadges(justUnlocked);
+      if (justUnlocked.length > 0) {
+        setNewBadges(justUnlocked);
+        // Publier chaque nouveau badge sur le Comptoir
+        for (const badge of justUnlocked) {
+          sb("wall_posts", { method:"POST", body:JSON.stringify({
+            joueur_id: joueur.id,
+            joueur_pseudo: joueur.pseudo,
+            joueur_photo: joueur.photo || null,
+            contenu: `__BADGE__|${JSON.stringify({id:badge.id,emoji:badge.emoji,nom:badge.nom,desc:badge.desc,couleur:badge.couleur})}`,
+            date: Date.now(),
+          })}).catch(()=>{});
+        }
+      }
     } catch (e) {
       console.warn("Badge check failed", e);
     }
