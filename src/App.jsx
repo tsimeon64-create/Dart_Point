@@ -687,9 +687,18 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
       <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes slideUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
       {/* ── Carte profil ── */}
-      <div onClick={()=>setPage("mon-profil")} style={{ position:"relative",display:"flex",alignItems:"center",gap:16,background:"linear-gradient(135deg,#1a1a1a,#111)",border:`1px solid ${color}55`,borderRadius:16,padding:"14px 18px",marginBottom:12,cursor:"pointer",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s" }}
-        onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 8px 28px #0008";}}
-        onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
+      <div onClick={()=>setPage("mon-profil")} style={{ position:"relative",overflow:"hidden",display:"flex",alignItems:"center",gap:16,
+        background:`linear-gradient(135deg,#0d0d1a 0%,#1a0a00 60%,#0d0d1a 100%)`,
+        border:`1px solid ${color}66`,borderRadius:18,padding:"14px 18px",marginBottom:12,
+        cursor:"pointer",userSelect:"none",touchAction:"manipulation",
+        transition:"transform .15s, box-shadow .15s",
+        boxShadow:`0 0 24px ${color}18, 0 0 48px ${color}0a` }}
+        onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 8px 32px #0008, 0 0 32px ${color}33`;}}
+        onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow=`0 0 24px ${color}18`;}}>
+
+        {/* Fond neon décoratif */}
+        <div style={{ position:"absolute",top:-30,right:-30,width:140,height:140,borderRadius:"50%",background:`radial-gradient(circle,${color}18 0%,transparent 70%)`,pointerEvents:"none" }}/>
+        <div style={{ position:"absolute",bottom:-20,left:-20,width:90,height:90,borderRadius:"50%",background:`radial-gradient(circle,${color}10 0%,transparent 70%)`,pointerEvents:"none" }}/>
 
         {/* Badge demandes d'amis */}
         {demandesAmisCount > 0 && (
@@ -698,24 +707,36 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
           </div>
         )}
 
-        {/* Photo */}
-        <div style={{ width:68,height:68,borderRadius:"50%",border:`3px solid ${color}`,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:color+"22",fontSize:28 }}>
-          {j.photo
-            ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
-            : emoji
-          }
+        {/* Photo avec halo */}
+        <div style={{ position:"relative",flexShrink:0,zIndex:1 }}>
+          <div style={{ position:"absolute",inset:-5,borderRadius:"50%",background:`radial-gradient(circle,${color}44 0%,transparent 70%)`,filter:"blur(6px)",zIndex:0 }}/>
+          <div style={{ position:"relative",zIndex:1,width:68,height:68,borderRadius:"50%",
+            border:`2px solid ${color}`,
+            boxShadow:`0 0 10px ${color}88, 0 0 20px ${color}44`,
+            overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",background:color+"22",fontSize:28 }}>
+            {j.photo
+              ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
+              : emoji
+            }
+          </div>
         </div>
 
         {/* Infos */}
-        <div style={{ flex:1,minWidth:0 }}>
-          <div style={{ fontWeight:900,fontSize:"clamp(16px,4.5vw,22px)",color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{j.pseudo}</div>
-          <div style={{ color,fontWeight:700,fontSize:"clamp(11px,3vw,14px)",marginTop:2 }}>{emoji} {titre}</div>
-          {stats && <div style={{ color:"#94a3b8",fontSize:11,marginTop:3 }}>{stats.victoires}V · {stats.defaites}D · {stats.parties > 0 ? Math.round(stats.victoires/stats.parties*100) : 0}% winrate</div>}
+        <div style={{ flex:1,minWidth:0,position:"relative",zIndex:1 }}>
+          <div style={{ fontWeight:900,fontSize:"clamp(16px,4.5vw,22px)",color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
+            textShadow:`0 0 16px ${color}66` }}>{j.pseudo}</div>
+          <div style={{ color,fontWeight:700,fontSize:"clamp(11px,3vw,13px)",marginTop:2 }}>{emoji} {titre}</div>
+          {stats && <div style={{ color:"#94a3b8",fontSize:11,marginTop:3 }}>{stats.victoires}V · {stats.defaites}D · {stats.parties > 0 ? Math.round(stats.victoires/stats.parties*100) : 0}% WR</div>}
         </div>
 
-        {/* DRIX */}
-        <div style={{ textAlign:"center",background:color+"18",border:`1px solid ${color}44`,borderRadius:12,padding:"8px 14px",flexShrink:0 }}>
-          <div style={{ fontWeight:900,fontSize:"clamp(16px,4.5vw,24px)",color,lineHeight:1 }}>{j.drix||1000}</div>
+        {/* DRIX pill neon */}
+        <div style={{ textAlign:"center",position:"relative",zIndex:1,
+          background:`linear-gradient(135deg,${color}22,${color}11)`,
+          border:`1px solid ${color}66`,
+          boxShadow:`0 0 12px ${color}44`,
+          borderRadius:12,padding:"8px 14px",flexShrink:0 }}>
+          <div style={{ fontWeight:900,fontSize:"clamp(16px,4.5vw,24px)",color,lineHeight:1,
+            textShadow:`0 0 12px ${color}` }}>{j.drix||1000}</div>
           <div style={{ fontSize:9,color,fontWeight:700,marginTop:2,letterSpacing:1 }}>DRIX</div>
         </div>
       </div>
