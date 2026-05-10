@@ -481,25 +481,32 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       const format = manches === 1 ? "Bo1" : `Bo${manches * 2 - 1}`;
       const sv = parseInt(mode) || 501;
       const initSt = { moy:0, volees:0, total_pts:0, nb180:0, reste:sv, max_finish:0, busts:0 };
+      const body = {
+        mode, format,
+        joueur1_id:String(duel.challenger_id), joueur1_pseudo:duel.challenger_pseudo, joueur1_drix:duel.challenger_drix||1000,
+        joueur2_id:String(duel.defie_id), joueur2_pseudo:duel.defie_pseudo, joueur2_drix:duel.defie_drix||1000,
+        debut:Date.now(), statut:"en_cours",
+        score1:0, score2:0, stats_j1:initSt, stats_j2:initSt,
+      };
       const r = await fetch(`${SB_URL}/rest/v1/live_sessions`, {
         method:"POST",
-        headers:{ apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, "Content-Type":"application/json", Prefer:"return=representation" },
-        body: JSON.stringify({
-          duel_id:duel.id, mode, format,
-          joueur1_id:duel.challenger_id, joueur1_pseudo:duel.challenger_pseudo, joueur1_drix:duel.challenger_drix||1000,
-          joueur2_id:duel.defie_id, joueur2_pseudo:duel.defie_pseudo, joueur2_drix:duel.defie_drix||1000,
-          debut:Date.now(), statut:"en_cours",
-          score1:0, score2:0, stats_j1:initSt, stats_j2:initSt,
-        }),
+        headers:{ "apikey":SB_KEY, "Authorization":`Bearer ${SB_KEY}`, "Content-Type":"application/json", "Prefer":"return=representation" },
+        body: JSON.stringify(body),
       });
-      const d = await r.json();
-      if (d?.[0]?.id) {
-        liveIdRef.current = d[0].id;
+      const text = await r.text();
+      if (!r.ok) { console.error("createLiveSession HTTP error:", r.status, text); return; }
+      const d = text ? JSON.parse(text) : null;
+      const row = Array.isArray(d) ? d[0] : d;
+      if (row?.id) {
+        liveIdRef.current = row.id;
         liveVoleeNumRef.current = [0,0];
         liveMaxFinishRef.current = [0,0];
         liveBustsRef.current = [0,0];
+        console.log("✅ Live session créée:", row.id);
+      } else {
+        console.error("createLiveSession: pas d'id dans la réponse", d);
       }
-    } catch(e) { console.warn("createLiveSession:", e); }
+    } catch(e) { console.error("createLiveSession exception:", e); }
   };
 
   const pushLiveVolee = async (joueurIdx, score, isBust, isFinish, updatedJoueurs) => {
