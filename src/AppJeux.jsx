@@ -10,7 +10,7 @@ const Confetti = () => {
     const W = canvas.width = window.innerWidth;
     const H = canvas.height = window.innerHeight;
     const cols = ["#f97316","#22c55e","#60a5fa","#a78bfa","#f59e0b","#ec4899","#ef4444","#fff","#fde047"];
-    const particles = Array.from({ length: 140 }, (_, i) => ({
+    const particles = Array.from({ length: 140 }, () => ({
       x: Math.random() * W,
       y: -10 - Math.random() * 200,
       vx: (Math.random() - 0.5) * 5,
@@ -21,32 +21,46 @@ const Confetti = () => {
       rot: Math.random() * 360,
       rotV: (Math.random() - 0.5) * 8,
       circle: Math.random() > 0.6,
+      active: true, // false = ne recycle plus, continue à tomber jusqu'en bas
     }));
-    let alive = true;
+    // burst initial depuis le centre
+    particles.slice(0, 60).forEach(p => { p.x = W / 2 + (Math.random() - 0.5) * W * 0.8; p.y = -5; });
+
+    let running = true;
     let frame;
+
     const draw = () => {
-      if (!alive) return;
+      if (!running) return;
       ctx.clearRect(0, 0, W, H);
+      let anyVisible = false;
       particles.forEach(p => {
+        if (p.y > H + 40) {
+          // Recycle si encore actif, sinon disparaît
+          if (p.active) { p.y = -10; p.x = Math.random() * W; p.vy = 1.5 + Math.random() * 3; }
+          else return; // hors écran et inactif → skip
+        }
         p.x += p.vx; p.y += p.vy; p.rot += p.rotV; p.vy += 0.04;
-        const alpha = p.y > H * 0.75 ? Math.max(0, 1 - (p.y - H * 0.75) / (H * 0.25)) : 1;
+        if (p.y <= H + 40) anyVisible = true;
         ctx.save();
-        ctx.globalAlpha = alpha;
+        ctx.globalAlpha = 1;
         ctx.translate(p.x, p.y);
         ctx.rotate(p.rot * Math.PI / 180);
         ctx.fillStyle = p.color;
         if (p.circle) { ctx.beginPath(); ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2); ctx.fill(); }
         else { ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); }
         ctx.restore();
-        if (p.y > H + 20) { p.y = -10; p.x = Math.random() * W; p.vy = 1.5 + Math.random() * 3; }
       });
+      // Si plus rien de visible → arrêter
+      if (!anyVisible && particles.every(p => !p.active)) { running = false; ctx.clearRect(0, 0, W, H); return; }
       frame = requestAnimationFrame(draw);
     };
-    // burst initial : lancer depuis le centre
-    particles.slice(0, 60).forEach(p => { p.x = W / 2 + (Math.random() - 0.5) * W * 0.8; p.y = -5; });
+
     draw();
-    const t = setTimeout(() => { alive = false; cancelAnimationFrame(frame); }, 4500);
-    return () => { alive = false; cancelAnimationFrame(frame); clearTimeout(t); };
+
+    // Après 3s : stopper le recyclage → les particules tombent hors écran et disparaissent
+    const tStop = setTimeout(() => { particles.forEach(p => { p.active = false; }); }, 3000);
+
+    return () => { running = false; cancelAnimationFrame(frame); clearTimeout(tStop); };
   }, []);
   return <canvas ref={canvasRef} style={{ position:"fixed",inset:0,zIndex:9999,pointerEvents:"none" }}/>;
 };
