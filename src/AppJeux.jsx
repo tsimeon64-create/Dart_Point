@@ -310,6 +310,16 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     };
   }, [etape]);
 
+  // ── Live session : démarre quand etape passe à "jeu" ──
+  useEffect(() => {
+    if (etape === "jeu" && modeDuel && duel?.id && !liveIdRef.current) {
+      createLiveSession();
+    }
+    if (etape === "fin" || etape === "config") {
+      closeLiveSession();
+    }
+  }, [etape]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Plein écran auto + blocage scroll pendant le jeu ──
   useEffect(() => {
     if (etape !== "jeu") return;
@@ -367,8 +377,6 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     setManchesHistory([]);
     setMancheStart({ vol:[0,0], pts:[0,0], nbtours:[0,0], flechettes:[0,0] });
     setEtape("jeu");
-    console.error("[LIVE-DEBUG] demarrerAvecBulle appelé, modeDuel=", modeDuel, "duel=", duel?.id);
-    createLiveSession();
   };
 
   // Construit le détail d'une manche à partir des données courantes vs. début de manche
@@ -414,8 +422,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   const quitterPartie = () => {
     setShowConfirmQuitter(false);
-    closeLiveSession();
-    if (modeDuel && setPage) { setPage("mon-profil"); return; }
+    if (modeDuel && setPage) { closeLiveSession(); setPage("mon-profil"); return; }
     setJoueurs(null); setGagnant(null); setInput("");
     setResultEnregistre(false); setHistorique([]);
     setEtape("config");
@@ -475,8 +482,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Suivi live session ────────────────────────────────────────────────────
   const createLiveSession = async () => {
-    console.error("[LIVE-DEBUG] createLiveSession — modeDuel:", modeDuel, "duel.id:", duel?.id);
-    if (!modeDuel || !duel?.id) { console.error("[LIVE-DEBUG] aborted — pas de duel"); return; }
+    if (!modeDuel || !duel?.id) return;
     try {
       const mode = duel.mode || "501";
       const manches = duel.manches || 1;
@@ -621,9 +627,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         const moyC = parseFloat(moyenneCalc(updated[0]));
         const moyD = parseFloat(moyenneCalc(updated[1]));
         setGagnant({ ...joueur, manchesGagnees:newManches, tours:[...joueur.tours,val], totalPoints:joueur.totalPoints+val, flechettes:joueur.flechettes+nbFlechettes });
-        setEtape("fin");
         pushLiveVolee(actifIdx, val, false, true, updated);
-        closeLiveSession();
+        setEtape("fin");
         if (modeDuel) enregistrerResultatDuel(joueur.nom, scoreC, scoreD, moyC, moyD, allManches);
         return;
       }
