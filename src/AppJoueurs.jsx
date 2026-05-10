@@ -221,8 +221,6 @@ export const Connexion = ({ onLogin, setPage }) => {
   const register = async () => {
     if (!pseudo.trim() || !pwd || pwd !== pwd2) { setErr(pwd !== pwd2 ? "Les mots de passe ne correspondent pas" : "Champs obligatoires"); return; }
     if (pseudo.trim().length < 3) { setErr("Pseudo trop court (min 3 caractères)"); return; }
-    // Caractères autorisés : lettres, chiffres, _, -, .
-    if (!/^[\w.\-]+$/i.test(pseudo.trim())) { setErr("Pseudo invalide (lettres, chiffres, _ - . uniquement)"); return; }
     setLoading(true); setErr("");
     try {
       // Vérification insensible à la casse — "TOTO" bloqué si "toto" existe déjà
