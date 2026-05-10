@@ -1,4 +1,152 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+
+// ── Confetti ──────────────────────────────────────────────────────────────────
+const Confetti = () => {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width = window.innerWidth;
+    const H = canvas.height = window.innerHeight;
+    const cols = ["#f97316","#22c55e","#60a5fa","#a78bfa","#f59e0b","#ec4899","#ef4444","#fff","#fde047"];
+    const particles = Array.from({ length: 140 }, (_, i) => ({
+      x: Math.random() * W,
+      y: -10 - Math.random() * 200,
+      vx: (Math.random() - 0.5) * 5,
+      vy: 1.5 + Math.random() * 4,
+      color: cols[Math.floor(Math.random() * cols.length)],
+      w: 7 + Math.random() * 9,
+      h: 4 + Math.random() * 5,
+      rot: Math.random() * 360,
+      rotV: (Math.random() - 0.5) * 8,
+      circle: Math.random() > 0.6,
+    }));
+    let alive = true;
+    let frame;
+    const draw = () => {
+      if (!alive) return;
+      ctx.clearRect(0, 0, W, H);
+      particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.rot += p.rotV; p.vy += 0.04;
+        const alpha = p.y > H * 0.75 ? Math.max(0, 1 - (p.y - H * 0.75) / (H * 0.25)) : 1;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot * Math.PI / 180);
+        ctx.fillStyle = p.color;
+        if (p.circle) { ctx.beginPath(); ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2); ctx.fill(); }
+        else { ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); }
+        ctx.restore();
+        if (p.y > H + 20) { p.y = -10; p.x = Math.random() * W; p.vy = 1.5 + Math.random() * 3; }
+      });
+      frame = requestAnimationFrame(draw);
+    };
+    // burst initial : lancer depuis le centre
+    particles.slice(0, 60).forEach(p => { p.x = W / 2 + (Math.random() - 0.5) * W * 0.8; p.y = -5; });
+    draw();
+    const t = setTimeout(() => { alive = false; cancelAnimationFrame(frame); }, 4500);
+    return () => { alive = false; cancelAnimationFrame(frame); clearTimeout(t); };
+  }, []);
+  return <canvas ref={canvasRef} style={{ position:"fixed",inset:0,zIndex:9999,pointerEvents:"none" }}/>;
+};
+
+// ── Nombre animé (compte de 0 → target) ──────────────────────────────────────
+const AnimCount = ({ target, duration=1400, prefix="", suffix="" }) => {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    let start = null;
+    const step = ts => {
+      if (!start) start = ts;
+      const p = Math.min((ts - start) / duration, 1);
+      const e = 1 - Math.pow(1 - p, 3); // ease-out cubic
+      setVal(Math.round(e * target));
+      if (p < 1) requestAnimationFrame(step);
+    };
+    const id = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(id);
+  }, [target, duration]);
+  return <>{prefix}{val}{suffix}</>;
+};
+
+// ── Écran de fin (composant séparé pour pouvoir utiliser des hooks) ────────────
+const FinScreen = ({ gagnant, duel, drixData, modeDuel, moyenne, demarrer, quitterPartie }) => {
+  const [show, setShow] = useState(false);
+  const [drixShow, setDrixShow] = useState(false);
+  useEffect(() => {
+    setShow(true);
+    const t = setTimeout(() => setDrixShow(true), 800);
+    return () => clearTimeout(t);
+  }, []);
+
+  const gagnantIsChallenger = gagnant?.nom === duel?.challenger_pseudo;
+  const perdantNom = gagnantIsChallenger ? duel?.defie_pseudo : duel?.challenger_pseudo;
+  const dxGagnant = drixData ? (gagnantIsChallenger ? drixData.challenger : drixData.defie) : null;
+  const dxPerdant = drixData ? (gagnantIsChallenger ? drixData.defie : drixData.challenger) : null;
+
+  return (
+    <div style={{ maxWidth:480,margin:"0 auto",padding:"40px 16px",textAlign:"center",fontFamily:"Inter,sans-serif",position:"relative",zIndex:1 }}>
+      <Confetti/>
+
+      {/* Carte victoire */}
+      <div style={{
+        background:"linear-gradient(135deg,#14532d,#166534)",
+        borderRadius:20, padding:"40px 24px", marginBottom:20,
+        transform: show ? "scale(1)" : "scale(0.85)",
+        opacity: show ? 1 : 0,
+        transition: "transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.4s ease",
+      }}>
+        <div style={{ fontSize:72,marginBottom:12,animation:"trophy-bounce 0.6s 0.2s both" }}>🏆</div>
+        <style>{`@keyframes trophy-bounce{0%{transform:scale(0) rotate(-20deg);opacity:0}70%{transform:scale(1.2) rotate(5deg)}100%{transform:scale(1) rotate(0);opacity:1}}`}</style>
+        <h2 style={{ fontWeight:900,fontSize:32,color:"#22c55e",marginBottom:6 }}>VICTOIRE !</h2>
+        <p style={{ fontSize:24,fontWeight:800,color:"#fff",marginBottom:20 }}>{gagnant?.nom}</p>
+        <div style={{ display:"flex",justifyContent:"center",gap:24 }}>
+          <div><div style={{ fontSize:22,fontWeight:900,color:"#22c55e" }}>{moyenne(gagnant)}</div><div style={{ fontSize:12,color:"#86efac" }}>Moyenne</div></div>
+          <div><div style={{ fontSize:22,fontWeight:900,color:"#22c55e" }}>{gagnant?.flechettes}</div><div style={{ fontSize:12,color:"#86efac" }}>Fléchettes</div></div>
+          <div><div style={{ fontSize:22,fontWeight:900,color:"#22c55e" }}>{gagnant?.tours.length}</div><div style={{ fontSize:12,color:"#86efac" }}>Tours</div></div>
+        </div>
+      </div>
+
+      {/* Carte DRIX */}
+      {modeDuel && (
+        <div style={{
+          background:"#0f1a0f",border:"2px solid #22c55e44",borderRadius:14,padding:20,marginBottom:16,
+          transform: drixShow ? "translateY(0)" : "translateY(30px)",
+          opacity: drixShow ? 1 : 0,
+          transition: "transform 0.5s ease, opacity 0.4s ease",
+        }}>
+          <p style={{ fontWeight:700,fontSize:15,color:"#22c55e",marginBottom:12,textAlign:"center" }}>✅ Résultat enregistré !</p>
+          {drixData && drixShow && (
+            <div style={{ display:"flex",gap:10,marginBottom:12 }}>
+              <div style={{ flex:1,background:"#14532d",borderRadius:12,padding:"12px 10px",textAlign:"center" }}>
+                <div style={{ fontSize:11,color:"#86efac",marginBottom:4 }}>🏆 {gagnant?.nom}</div>
+                <div style={{ fontWeight:900,fontSize:28,color:"#22c55e" }}>
+                  +<AnimCount target={dxGagnant?.gain||0} duration={1200}/>
+                </div>
+                <div style={{ fontSize:10,color:"#86efac" }}>DRIX gagnés</div>
+              </div>
+              <div style={{ flex:1,background:"#7f1d1d",borderRadius:12,padding:"12px 10px",textAlign:"center" }}>
+                <div style={{ fontSize:11,color:"#fca5a5",marginBottom:4 }}>💔 {perdantNom}</div>
+                <div style={{ fontWeight:900,fontSize:28,color:"#ef4444" }}>
+                  −<AnimCount target={dxPerdant?.perte||0} duration={1200}/>
+                </div>
+                <div style={{ fontSize:10,color:"#fca5a5" }}>DRIX perdus</div>
+              </div>
+            </div>
+          )}
+          <p style={{ color:"#94a3b8",fontSize:12,textAlign:"center" }}>L'adversaire peut contester dans les 24h s'il n'était pas présent.</p>
+        </div>
+      )}
+
+      <div style={{ display:"flex",gap:10 }}>
+        {!modeDuel && <button onClick={demarrer} style={{ flex:1,padding:"16px",borderRadius:12,border:"none",fontWeight:800,fontSize:16,cursor:"pointer",background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff" }}>🔄 Rejouer</button>}
+        <button onClick={quitterPartie} style={{ flex:1,padding:"16px",borderRadius:12,border:"1px solid #2a2a2a",fontWeight:800,fontSize:16,cursor:"pointer",background:"#1a1a1a",color:"#94a3b8" }}>
+          {modeDuel?"← Mon profil":"⚙️ Config"}
+        </button>
+      </div>
+    </div>
+  );
+};
 import { finaliserDuel } from "./AppJoueurs";
 
 // ── AppJeux.jsx ───────────────────────────────────────────────────────────────
@@ -500,50 +648,15 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── ÉCRAN FIN ─────────────────────────────────────────────────────────────
   if (etape === "fin") return (
-    <div style={{ maxWidth:480, margin:"0 auto", padding:"40px 16px", textAlign:"center", fontFamily:"Inter,sans-serif" }}>
-      <div style={{ background:"linear-gradient(135deg,#14532d,#166534)", borderRadius:20, padding:"40px 24px", marginBottom:20 }}>
-        <div style={{ fontSize:72, marginBottom:12 }}>🏆</div>
-        <h2 style={{ fontWeight:900, fontSize:32, color:"#22c55e", marginBottom:6 }}>VICTOIRE !</h2>
-        <p style={{ fontSize:24, fontWeight:800, color:"#fff", marginBottom:20 }}>{gagnant?.nom}</p>
-        <div style={{ display:"flex", justifyContent:"center", gap:24 }}>
-          <div><div style={{ fontSize:22, fontWeight:900, color:"#22c55e" }}>{moyenne(gagnant)}</div><div style={{ fontSize:12, color:"#86efac" }}>Moyenne</div></div>
-          <div><div style={{ fontSize:22, fontWeight:900, color:"#22c55e" }}>{gagnant?.flechettes}</div><div style={{ fontSize:12, color:"#86efac" }}>Fléchettes</div></div>
-          <div><div style={{ fontSize:22, fontWeight:900, color:"#22c55e" }}>{gagnant?.tours.length}</div><div style={{ fontSize:12, color:"#86efac" }}>Tours</div></div>
-        </div>
-      </div>
-      {modeDuel && (() => {
-        const gagnantIsChallenger = gagnant?.nom === duel?.challenger_pseudo;
-        const perdantNom = gagnantIsChallenger ? duel?.defie_pseudo : duel?.challenger_pseudo;
-        const dxGagnant  = drixData ? (gagnantIsChallenger ? drixData.challenger : drixData.defie)    : null;
-        const dxPerdant  = drixData ? (gagnantIsChallenger ? drixData.defie      : drixData.challenger) : null;
-        return (
-          <div style={{ background:"#0f1a0f", border:"2px solid #22c55e44", borderRadius:14, padding:20, marginBottom:16 }}>
-            <p style={{ fontWeight:700, fontSize:15, color:"#22c55e", marginBottom:12, textAlign:"center" }}>✅ Résultat enregistré !</p>
-            {drixData && (
-              <div style={{ display:"flex", gap:10, marginBottom:12 }}>
-                <div style={{ flex:1, background:"#14532d", borderRadius:12, padding:"12px 10px", textAlign:"center" }}>
-                  <div style={{ fontSize:11, color:"#86efac", marginBottom:4 }}>🏆 {gagnant?.nom}</div>
-                  <div style={{ fontWeight:900, fontSize:22, color:"#22c55e" }}>+{dxGagnant?.gain}</div>
-                  <div style={{ fontSize:10, color:"#86efac" }}>DRIX gagnés</div>
-                </div>
-                <div style={{ flex:1, background:"#7f1d1d", borderRadius:12, padding:"12px 10px", textAlign:"center" }}>
-                  <div style={{ fontSize:11, color:"#fca5a5", marginBottom:4 }}>💔 {perdantNom}</div>
-                  <div style={{ fontWeight:900, fontSize:22, color:"#ef4444" }}>−{dxPerdant?.perte}</div>
-                  <div style={{ fontSize:10, color:"#fca5a5" }}>DRIX perdus</div>
-                </div>
-              </div>
-            )}
-            <p style={{ color:"#94a3b8", fontSize:12, textAlign:"center" }}>L'adversaire peut contester dans les 24h s'il n'était pas présent.</p>
-          </div>
-        );
-      })()}
-      <div style={{ display:"flex", gap:10 }}>
-        {!modeDuel && <button onClick={demarrer} style={{ flex:1,padding:"16px",borderRadius:12,border:"none",fontWeight:800,fontSize:16,cursor:"pointer",background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff" }}>🔄 Rejouer</button>}
-        <button onClick={quitterPartie} style={{ flex:1,padding:"16px",borderRadius:12,border:"1px solid #2a2a2a",fontWeight:800,fontSize:16,cursor:"pointer",background:"#1a1a1a",color:"#94a3b8" }}>
-          {modeDuel?"← Mon profil":"⚙️ Config"}
-        </button>
-      </div>
-    </div>
+    <FinScreen
+      gagnant={gagnant}
+      duel={duel}
+      drixData={drixData}
+      modeDuel={modeDuel}
+      moyenne={moyenne}
+      demarrer={demarrer}
+      quitterPartie={quitterPartie}
+    />
   );
 
   // ── ÉCRAN JEU — position fixed, plein écran, zero scroll ─────────────────
