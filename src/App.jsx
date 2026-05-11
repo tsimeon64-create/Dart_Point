@@ -3202,45 +3202,450 @@ const Associations = ({ associations, setPage, setAssoSlug }) => {
   );
 };
 
-const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin }) => {
-  const asso=associations.find(a=>a.slug===slug); if(!asso) return null;
-  return (
-    <div style={{ maxWidth:860,margin:"0 auto",padding:"36px 20px" }}>
-      <button onClick={()=>setPage("associations")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:18,fontSize:13 }}>← Retour</button>
-      <div style={{ display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:6 }}><h1 style={{ fontWeight:800,fontSize:28 }}>{asso.nom}</h1><Badge color={typeInfo(asso.type).color}>{typeInfo(asso.type).l}</Badge></div>
-      <p style={{ color:C.muted,marginBottom:24 }}>📍 {asso.ville}{asso.zone?" — "+asso.zone:""}</p>
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:12,marginBottom:16 }}>
-        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18 }}>
-          {[["🗓","Entraînements",asso.jours],["📍","Lieu",asso.lieu],["📞","Tél",asso.tel||"—"],["🔗","Contact",asso.contact]].map(([i,l,v])=>{
-            const isUrl=v&&(v.startsWith("http://")||v.startsWith("https://"));
-            const isTel=v&&v.match(/^[0-9 +().-]{6,}$/);
+const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, joueur }) => {
+  const asso = associations.find(a => a.slug === slug);
+  if (!asso) return null;
+
+  const [tab, setTab] = useState("club");
+  const [membres, setMembres] = useState([]);
+  const [loadMembres, setLoadMembres] = useState(true);
+  const [events, setEvents] = useState([]);
+  const [showPresForm, setShowPresForm] = useState(false);
+  const [presForm, setPresForm] = useState({ nom:"", prenom:"", role:"President", tel:"", message:"" });
+  const [presFormSent, setPresFormSent] = useState(false);
+  const [presFormLoading, setPresFormLoading] = useState(false);
+
+  useEffect(() => {
+    sb(`joueurs?asso_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo,victoires,defaites&limit=50`)
+      .then(d => setMembres(Array.isArray(d) ? d : []))
+      .catch(() => [])
+      .finally(() => setLoadMembres(false));
+    sb(`tournois?association=eq.${encodeURIComponent(asso.nom)}&order=date.desc&select=*&limit=10`)
+      .then(d => setEvents(Array.isArray(d) ? d : []))
+      .catch(() => []);
+  }, [slug]);
+
+  const stats = useMemo(() => {
+    const n = membres.length;
+    const drixMoyen = n > 0 ? Math.round(membres.reduce((s,m) => s + (m.drix||1000), 0) / n) : null;
+    const totalM = membres.reduce((s,m) => s + (m.victoires||0) + (m.defaites||0), 0);
+    const totalV = membres.reduce((s,m) => s + (m.victoires||0), 0);
+    const wr = totalM > 0 ? Math.round(totalV / totalM * 100) : null;
+    return { n, drixMoyen, totalM, wr };
+  }, [membres]);
+
+  const badges = useMemo(() => {
+    const b = [];
+    if (stats.n >= 5) b.push({ e:"🔥", l:"Club actif" });
+    if (stats.wr != null && stats.wr >= 55) b.push({ e:"🏆", l:"Club compétitif" });
+    if (stats.drixMoyen != null && stats.drixMoyen >= 1100) b.push({ e:"💎", l:"Elite" });
+    if (events.length > 0) b.push({ e:"🎉", l:"Événements" });
+    b.push({ e:"🍻", l:"Ambiance" });
+    return b;
+  }, [stats, events]);
+
+  const ti = typeInfo(asso.type);
+  const isUrl = v => v && (v.startsWith("http://") || v.startsWith("https://"));
+  const isTel = v => v && /^[0-9 +().-]{6,}$/.test(v);
+
+  const renderContact = (icon, label, val) => {
+    if (!val) return null;
+    return (
+      <div style={{ display:"flex", gap:10, padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
+        <span style={{ fontSize:18, width:24, textAlign:"center", flexShrink:0 }}>{icon}</span>
+        <div>
+          <div style={{ fontSize:11, color:C.muted, marginBottom:2 }}>{label}</div>
+          {isUrl(val) ? (
+            <a href={val} target="_blank" rel="noreferrer"
+              style={{ fontSize:13, color:"#60a5fa", textDecoration:"none", wordBreak:"break-all" }}>
+              {val.includes("facebook") ? "📘 Voir sur Facebook" : val.includes("instagram") ? "📸 Instagram" : val}
+            </a>
+          ) : isTel(val) ? (
+            <a href={`tel:${val.replace(/\s/g,"")}`} style={{ fontSize:13, color:"#4ade80", textDecoration:"none" }}>{val}</a>
+          ) : (
+            <span style={{ fontSize:13 }}>{val}</span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const TABS = [
+    { id:"club", l:"🏠 Club" },
+    { id:"membres", l:`👥 Membres${stats.n > 0 ? ` (${stats.n})` : ""}` },
+    { id:"events", l:`📅 Événements${events.length > 0 ? ` (${events.length})` : ""}` },
+    { id:"photos", l:"📸 Photos" },
+  ];
+
+  const submitPresForm = async () => {
+    if (!presForm.nom || !presForm.prenom) return;
+    setPresFormLoading(true);
+    try {
+      await sb("propositions", {
+        method:"POST",
+        body: JSON.stringify({
+          type_prop: "president_club",
+          nom: `${presForm.prenom} ${presForm.nom}`,
+          ville: asso.ville,
+          commentaire: `Club: ${asso.nom}\nRôle: ${presForm.role}\nTél: ${presForm.tel}\n\n${presForm.message}`,
+          date: Date.now()
+        })
+      });
+      setPresFormSent(true);
+    } catch {}
+    setPresFormLoading(false);
+  };
+
+  // ── HEADER ──
+  const Header = () => (
+    <div style={{ position:"relative", marginBottom:24, borderRadius:20, overflow:"hidden",
+      background:"linear-gradient(135deg,#0a0a0a 0%,#1a0a00 50%,#0a0a0a 100%)",
+      border:`1px solid ${C.accent}44`, boxShadow:`0 0 40px ${C.accent}22` }}>
+      {/* Bannière déco */}
+      <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse at 30% 50%, #f9731611 0%, transparent 60%)", pointerEvents:"none" }}/>
+      <div style={{ position:"absolute", top:0, right:0, width:200, height:200,
+        background:"radial-gradient(circle, #f9731608 0%, transparent 70%)", pointerEvents:"none" }}/>
+      <div style={{ padding:"28px 24px 24px" }}>
+        {/* Logo + titre */}
+        <div style={{ display:"flex", alignItems:"flex-start", gap:18, marginBottom:20 }}>
+          <div style={{ width:72, height:72, borderRadius:18, background:`linear-gradient(135deg,${C.accent}33,#7c3aed33)`,
+            border:`2px solid ${C.accent}66`, display:"flex", alignItems:"center", justifyContent:"center",
+            fontSize:32, flexShrink:0, boxShadow:`0 0 20px ${C.accent}33` }}>
+            🎯
+          </div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <h1 style={{ fontWeight:900, fontSize:24, marginBottom:4, lineHeight:1.2 }}>{asso.nom}</h1>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, alignItems:"center", marginBottom:8 }}>
+              <span style={{ color:C.muted, fontSize:13 }}>📍 {asso.ville}</span>
+              {asso.zone && <span style={{ color:C.muted, fontSize:13 }}>· {asso.zone}</span>}
+              <Badge color={ti.color}>{ti.l}</Badge>
+            </div>
+            {/* Badges */}
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+              {badges.map(b => (
+                <span key={b.l} style={{ background:"#ffffff0d", border:"1px solid #ffffff22", borderRadius:20,
+                  padding:"3px 10px", fontSize:11, fontWeight:600, color:"#e2e8f0" }}>
+                  {b.e} {b.l}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Stats rapides */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(90px,1fr))", gap:10 }}>
+          {[
+            { e:"👥", v: stats.n > 0 ? stats.n : "—", l:"Membres" },
+            { e:"💎", v: stats.drixMoyen ? stats.drixMoyen : "—", l:"DRIX moy." },
+            { e:"⚔️", v: stats.totalM > 0 ? stats.totalM : "—", l:"Matchs" },
+            { e:"🏆", v: stats.wr != null ? `${stats.wr}%` : "—", l:"Winrate" },
+            { e:"📅", v: events.length > 0 ? events.length : "—", l:"Tournois" },
+          ].map(s => (
+            <div key={s.l} style={{ background:"#ffffff08", borderRadius:12, padding:"12px 8px", textAlign:"center",
+              border:"1px solid #ffffff11" }}>
+              <div style={{ fontSize:18, marginBottom:4 }}>{s.e}</div>
+              <div style={{ fontWeight:800, fontSize:18, color: s.v === "—" ? C.muted : C.accent, lineHeight:1 }}>{s.v}</div>
+              <div style={{ fontSize:10, color:C.muted, marginTop:3, fontWeight:600, letterSpacing:.5, textTransform:"uppercase" }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── BLOC PRÉSIDENT ──
+  const PresidentBlock = () => (
+    <div style={{ background:"linear-gradient(135deg,#7c3aed18,#f9731618)",
+      border:`1px solid #7c3aed44`, borderRadius:16, padding:"20px 20px", marginBottom:20 }}>
+      {!showPresForm && !presFormSent && (
+        <>
+          <div style={{ display:"flex", gap:12, alignItems:"flex-start", marginBottom:14 }}>
+            <span style={{ fontSize:28 }}>👑</span>
+            <div>
+              <div style={{ fontWeight:800, fontSize:15, marginBottom:4 }}>Vous êtes président du club ?</div>
+              <div style={{ color:C.muted, fontSize:13, lineHeight:1.6 }}>
+                Demandez l'accès administrateur pour gérer votre association, publier des événements, modérer le mur communautaire et personnaliser votre page.
+              </div>
+            </div>
+          </div>
+          <button onClick={() => setShowPresForm(true)}
+            style={{ background:`linear-gradient(135deg,#7c3aed,#f97316)`, color:"#fff", border:"none",
+              borderRadius:12, padding:"11px 22px", fontWeight:700, fontSize:14, cursor:"pointer",
+              boxShadow:"0 4px 20px #7c3aed44", width:"100%" }}>
+            🔥 Demander l'accès administrateur
+          </button>
+        </>
+      )}
+      {showPresForm && !presFormSent && (
+        <div>
+          <div style={{ fontWeight:700, fontSize:15, marginBottom:16 }}>👑 Demande d'accès administrateur</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+            {[["Prénom","prenom"],["Nom","nom"]].map(([label,k]) => (
+              <div key={k}>
+                <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>{label}</label>
+                <input value={presForm[k]} onChange={e=>setPresForm(f=>({...f,[k]:e.target.value}))}
+                  style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,boxSizing:"border-box" }}/>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginBottom:10 }}>
+            <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Rôle dans le club</label>
+            <select value={presForm.role} onChange={e=>setPresForm(f=>({...f,role:e.target.value}))}
+              style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13 }}>
+              {["Président","Vice-président","Secrétaire","Trésorier","Responsable communication","Autre"].map(r=><option key={r}>{r}</option>)}
+            </select>
+          </div>
+          <div style={{ marginBottom:10 }}>
+            <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Téléphone</label>
+            <input value={presForm.tel} onChange={e=>setPresForm(f=>({...f,tel:e.target.value}))} placeholder="06 …"
+              style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,boxSizing:"border-box" }}/>
+          </div>
+          <div style={{ marginBottom:14 }}>
+            <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Message (optionnel)</label>
+            <textarea value={presForm.message} onChange={e=>setPresForm(f=>({...f,message:e.target.value}))} rows={3} placeholder="Présentez-vous…"
+              style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,resize:"vertical",boxSizing:"border-box" }}/>
+          </div>
+          <div style={{ display:"flex",gap:10 }}>
+            <button onClick={()=>setShowPresForm(false)} style={{ flex:1,background:C.card,color:C.muted,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 0",cursor:"pointer",fontSize:13 }}>Annuler</button>
+            <button onClick={submitPresForm} disabled={!presForm.nom||!presForm.prenom||presFormLoading}
+              style={{ flex:2,background:`linear-gradient(135deg,#7c3aed,#f97316)`,color:"#fff",border:"none",borderRadius:10,padding:"10px 0",fontWeight:700,fontSize:14,cursor:"pointer",opacity:(!presForm.nom||!presForm.prenom)?0.5:1 }}>
+              {presFormLoading ? "⏳ Envoi…" : "🔥 Envoyer la demande"}
+            </button>
+          </div>
+        </div>
+      )}
+      {presFormSent && (
+        <div style={{ textAlign:"center",padding:"8px 0" }}>
+          <div style={{ fontSize:36,marginBottom:10 }}>✅</div>
+          <div style={{ fontWeight:700,fontSize:15,marginBottom:6 }}>Demande envoyée !</div>
+          <div style={{ color:C.muted,fontSize:13 }}>L'équipe Dart Point va examiner votre demande et vous contacter rapidement.</div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── TAB CLUB ──
+  const TabClub = () => (
+    <div>
+      <PresidentBlock/>
+
+      {/* Description */}
+      {asso.description && (
+        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20,marginBottom:16 }}>
+          <div style={{ fontWeight:700,fontSize:13,color:C.accent,marginBottom:10,letterSpacing:.5 }}>ℹ️ À PROPOS</div>
+          <p style={{ color:"#cbd5e1",lineHeight:1.8,fontSize:13 }}>{asso.description}</p>
+        </div>
+      )}
+
+      {/* Infos pratiques */}
+      <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20,marginBottom:16 }}>
+        <div style={{ fontWeight:700,fontSize:13,color:C.accent,marginBottom:14,letterSpacing:.5 }}>📋 INFORMATIONS PRATIQUES</div>
+        {renderContact("🗓", "Entraînements", asso.jours)}
+        {renderContact("📍", "Lieu", asso.lieu)}
+        {renderContact("📞", "Téléphone", asso.tel)}
+        {renderContact("🔗", "Contact / Réseaux", asso.contact)}
+        {!asso.jours && !asso.lieu && !asso.tel && !asso.contact && (
+          <p style={{ color:C.muted,fontSize:13 }}>Aucune information pratique renseignée.</p>
+        )}
+        {asso.lat && (
+          <a href={`https://www.google.com/maps/dir/?api=1&destination=${asso.lat},${asso.lng}`} target="_blank" rel="noreferrer"
+            style={{ display:"block",marginTop:14,background:`${C.accent}22`,border:`1px solid ${C.accent}44`,borderRadius:10,
+              padding:"10px 0",textAlign:"center",color:C.accent,textDecoration:"none",fontWeight:700,fontSize:13 }}>
+            🧭 Itinéraire Google Maps
+          </a>
+        )}
+      </div>
+
+      {/* Bars affiliés */}
+      {asso.bars?.length > 0 && (
+        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20,marginBottom:16 }}>
+          <div style={{ fontWeight:700,fontSize:13,color:C.accent,marginBottom:14,letterSpacing:.5 }}>🍺 BARS AFFILIÉS</div>
+          {asso.bars.map(nom => {
+            const b = bars.find(x => x.nom === nom);
             return (
-              <div key={l} style={{ display:"flex",gap:8,marginBottom:10 }}>
-                <span>{i}</span>
-                <div>
-                  <div style={{ fontSize:11,color:C.muted }}>{l}</div>
-                  {isUrl?(
-                    <a href={v} target="_blank" rel="noreferrer"
-                      style={{ fontSize:13,color:"#60a5fa",textDecoration:"none",wordBreak:"break-all",display:"flex",alignItems:"center",gap:5 }}>
-                      {v.includes("facebook")?<>📘 Voir sur Facebook</>:v}
-                    </a>
-                  ):isTel?(
-                    <a href={`tel:${v.replace(/\s/g,"")}`} style={{ fontSize:13,color:"#4ade80",textDecoration:"none" }}>{v}</a>
-                  ):(
-                    <div style={{ fontSize:13 }}>{v||"—"}</div>
-                  )}
-                </div>
+              <div key={nom} onClick={b ? ()=>{setBarSlug(b.slug);setPage("bar");} : undefined}
+                style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",
+                  borderBottom:`1px solid ${C.border}`,cursor:b?"pointer":"default" }}>
+                <span style={{ fontWeight:600 }}>🍺 {nom}</span>
+                {b && <span style={{ color:C.muted,fontSize:12 }}>📍 {b.ville} →</span>}
               </div>
             );
           })}
         </div>
-        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18 }}><p style={{ color:C.muted,lineHeight:1.7,fontSize:13 }}>{asso.description}</p></div>
+      )}
+
+      {/* Carte */}
+      {asso.lat && (
+        <div style={{ borderRadius:16,overflow:"hidden",marginBottom:16,border:`1px solid ${C.border}` }}>
+          <div style={{ padding:"14px 20px",background:C.card,borderBottom:`1px solid ${C.border}` }}>
+            <div style={{ fontWeight:700,fontSize:13,color:C.accent,letterSpacing:.5 }}>🗺️ LOCALISATION</div>
+          </div>
+          <LeafletMap associations={[asso]} centerSlug={asso.slug} height={260}/>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── TAB MEMBRES ──
+  const TabMembres = () => (
+    <div>
+      <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden",marginBottom:16 }}>
+        <div style={{ padding:"14px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+          <div style={{ fontWeight:700,fontSize:15 }}>🏆 Classement interne</div>
+          <span style={{ fontSize:12,color:C.muted }}>{membres.length} membre{membres.length>1?"s":""}</span>
+        </div>
+        {loadMembres ? (
+          <div style={{ padding:40,textAlign:"center" }}><Spinner/></div>
+        ) : membres.length === 0 ? (
+          <div style={{ padding:"32px 20px",textAlign:"center" }}>
+            <div style={{ fontSize:40,marginBottom:12 }}>👥</div>
+            <p style={{ color:C.muted,fontSize:14,marginBottom:8 }}>Aucun membre lié à ce club pour l'instant.</p>
+            <p style={{ color:C.muted,fontSize:12 }}>Les membres peuvent rejoindre ce club depuis leur profil.</p>
+          </div>
+        ) : membres.map((m, i) => {
+          const totalM = (m.victoires||0) + (m.defaites||0);
+          const wr = totalM > 0 ? Math.round((m.victoires||0)/totalM*100) : null;
+          const isTop = i === 0;
+          return (
+            <div key={m.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 20px",
+              borderBottom:`1px solid ${C.border}`, background: isTop ? `${C.accent}08` : "transparent" }}>
+              {/* Rang */}
+              <div style={{ width:28,textAlign:"center",flexShrink:0 }}>
+                {i < 3 ? (
+                  <span style={{ fontSize:18 }}>{["🥇","🥈","🥉"][i]}</span>
+                ) : (
+                  <span style={{ fontWeight:700,color:C.muted,fontSize:14 }}>#{i+1}</span>
+                )}
+              </div>
+              {/* Avatar */}
+              <div style={{ width:40,height:40,borderRadius:"50%",flexShrink:0,
+                background:`linear-gradient(135deg,${C.accent}44,#7c3aed44)`,
+                border:`2px solid ${isTop?C.accent:C.border}`,
+                overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center" }}>
+                {m.photo
+                  ? <img src={m.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
+                  : <span style={{ fontSize:18 }}>🎯</span>
+                }
+              </div>
+              {/* Infos */}
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ fontWeight:700,fontSize:14,truncate:true }}>{m.pseudo}</div>
+                <div style={{ fontSize:11,color:C.muted }}>
+                  {wr != null ? `${wr}% winrate · ` : ""}{totalM > 0 ? `${totalM} matchs` : "Aucun match"}
+                </div>
+              </div>
+              {/* DRIX */}
+              <div style={{ textAlign:"right",flexShrink:0 }}>
+                <div style={{ fontWeight:800,fontSize:16,color: isTop?C.accent:"#e2e8f0" }}>
+                  {m.drix ?? 1000}
+                </div>
+                <div style={{ fontSize:10,color:C.muted,fontWeight:600 }}>DRIX</div>
+              </div>
+            </div>
+          );
+        })}
       </div>
-      {asso.bars?.length>0&&<div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18,marginBottom:16 }}>
-        {asso.bars.map(nom=>{const b=bars.find(x=>x.nom===nom);return b?<div key={nom} onClick={()=>{setBarSlug(b.slug);setPage("bar");}} style={{ display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${C.border}`,cursor:"pointer" }}><span style={{ fontWeight:500 }}>{nom}</span><span style={{ color:C.muted,fontSize:12 }}>📍 {b.ville} →</span></div>:null;})}
-      </div>}
-      {asso.lat&&<div style={{ marginBottom:16 }}><LeafletMap associations={[asso]} centerSlug={asso.slug} height={200}/></div>}
-      <GalerieSection slug={asso.slug} type="asso" isAdmin={isAdmin}/>
+    </div>
+  );
+
+  // ── TAB ÉVÉNEMENTS ──
+  const TabEvents = () => {
+    const now = Date.now();
+    const upcoming = events.filter(e => new Date(e.date).getTime() >= now).sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const past = events.filter(e => new Date(e.date).getTime() < now).sort((a,b)=>new Date(b.date)-new Date(a.date));
+    return (
+      <div>
+        {events.length === 0 ? (
+          <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"40px 20px",textAlign:"center" }}>
+            <div style={{ fontSize:40,marginBottom:12 }}>📅</div>
+            <p style={{ color:C.muted,fontSize:14,marginBottom:6 }}>Aucun événement référencé pour ce club.</p>
+            <p style={{ color:C.muted,fontSize:12 }}>Les tournois et événements organisés par ce club apparaîtront ici.</p>
+          </div>
+        ) : (
+          <>
+            {upcoming.length > 0 && (
+              <div style={{ marginBottom:20 }}>
+                <div style={{ fontSize:12,fontWeight:700,color:C.accent,letterSpacing:.5,marginBottom:12 }}>À VENIR</div>
+                <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+                  {upcoming.map(ev => {
+                    const d = new Date(ev.date);
+                    return (
+                      <div key={ev.id} style={{ background:C.card,border:`1px solid ${C.accent}44`,borderRadius:14,padding:16,
+                        boxShadow:`0 0 20px ${C.accent}11` }}>
+                        <div style={{ display:"flex",gap:16,alignItems:"flex-start" }}>
+                          <div style={{ background:`${C.accent}22`,border:`1px solid ${C.accent}44`,borderRadius:10,padding:"8px 12px",textAlign:"center",minWidth:48,flexShrink:0 }}>
+                            <div style={{ fontWeight:800,fontSize:18,color:C.accent,lineHeight:1 }}>{d.getDate()}</div>
+                            <div style={{ fontSize:10,color:C.muted,fontWeight:600 }}>{d.toLocaleString("fr",{month:"short"}).toUpperCase()}</div>
+                          </div>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontWeight:700,fontSize:14,marginBottom:4 }}>{ev.nom}</div>
+                            <div style={{ color:C.muted,fontSize:12 }}>📍 {ev.ville}{ev.bar?` · 🍺 ${ev.bar}`:""}</div>
+                            {ev.description&&<div style={{ color:C.muted,fontSize:12,marginTop:4 }}>{ev.description.slice(0,80)}…</div>}
+                          </div>
+                          <Badge color={typeInfo(ev.type).color}>{typeInfo(ev.type).l}</Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {past.length > 0 && (
+              <div>
+                <div style={{ fontSize:12,fontWeight:700,color:C.muted,letterSpacing:.5,marginBottom:12 }}>PASSÉS</div>
+                <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+                  {past.map(ev => (
+                    <div key={ev.id} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14,opacity:.7 }}>
+                      <div style={{ fontWeight:600,fontSize:13 }}>{ev.nom}</div>
+                      <div style={{ color:C.muted,fontSize:12 }}>{new Date(ev.date).toLocaleDateString("fr")} · {ev.ville}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+        {/* Encart admin */}
+        {(isAdmin || joueur) && (
+          <div style={{ marginTop:20,background:"#7c3aed11",border:"1px solid #7c3aed33",borderRadius:14,padding:16,textAlign:"center" }}>
+            <p style={{ color:C.muted,fontSize:13,marginBottom:10 }}>Un tournoi organisé par ce club n'est pas répertorié ?</p>
+            <button onClick={()=>setPage("proposer-tournoi")} style={{ background:"#7c3aed",color:"#fff",border:"none",borderRadius:10,padding:"9px 20px",fontSize:13,fontWeight:700,cursor:"pointer" }}>
+              🏅 Proposer un tournoi
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ maxWidth:860, margin:"0 auto", padding:"20px 16px 88px" }}>
+      {/* Retour */}
+      <button onClick={() => setPage("associations")}
+        style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:20,fontSize:13,display:"flex",alignItems:"center",gap:6 }}>
+        ← Associations
+      </button>
+
+      {/* HEADER PREMIUM */}
+      <Header/>
+
+      {/* ONGLETS */}
+      <div style={{ display:"flex",gap:0,marginBottom:20,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden" }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ flex:1,padding:"11px 4px",background:tab===t.id?C.accent:"transparent",
+              color:tab===t.id?"#fff":C.muted,border:"none",cursor:"pointer",fontWeight:tab===t.id?700:400,
+              fontSize:12,transition:"all .15s",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>
+            {t.l}
+          </button>
+        ))}
+      </div>
+
+      {/* CONTENU ONGLETS */}
+      {tab === "club"    && <TabClub/>}
+      {tab === "membres" && <TabMembres/>}
+      {tab === "events"  && <TabEvents/>}
+      {tab === "photos"  && <GalerieSection slug={asso.slug} type="asso" isAdmin={isAdmin}/>}
     </div>
   );
 };
@@ -4609,7 +5014,7 @@ export default function App() {
         {page==="bars"             && <Bars bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} villeFilter={villeFilter} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="bar"              && <BarDetail slug={barSlug} allBars={bars} associations={associations} setBars={setBars} setPage={nav} setAssoSlug={setAssoSlug} isAdmin={isAdmin} joueur={joueur} setJoueurId={setJoueurId}/>}
         {page==="associations"     && <Associations associations={associations} setPage={nav} setAssoSlug={setAssoSlug}/>}
-        {page==="asso"             && <AssoDetail slug={assoSlug} associations={associations} bars={bars} setPage={nav} setBarSlug={setBarSlug} isAdmin={isAdmin}/>}
+        {page==="asso"             && <AssoDetail slug={assoSlug} associations={associations} bars={bars} setPage={nav} setBarSlug={setBarSlug} isAdmin={isAdmin} joueur={joueur}/>}
         {page==="tournois"         && <Tournois tournois={tournois} setPage={nav} setTournoiSlug={setTournoiSlug}/>}
         {page==="tournoi-detail"   && <TournoiDetail slug={tournoiSlug} tournois={tournois} setTournois={setTournois} bars={bars} setPage={nav} setBarSlug={setBarSlug} joueur={joueur}/>}
         {page==="joueurs"          && <PageJoueurs joueur={joueur} setPage={nav} setJoueurId={setJoueurId}/>}
