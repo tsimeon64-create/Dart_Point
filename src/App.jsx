@@ -3211,9 +3211,28 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin }) 
       <p style={{ color:C.muted,marginBottom:24 }}>📍 {asso.ville}{asso.zone?" — "+asso.zone:""}</p>
       <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:12,marginBottom:16 }}>
         <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18 }}>
-          {[["🗓","Entraînements",asso.jours],["📍","Lieu",asso.lieu],["📞","Tél",asso.tel||"—"],["📧","Contact",asso.contact]].map(([i,l,v])=>(
-            <div key={l} style={{ display:"flex",gap:8,marginBottom:10 }}><span>{i}</span><div><div style={{ fontSize:11,color:C.muted }}>{l}</div><div style={{ fontSize:13 }}>{v}</div></div></div>
-          ))}
+          {[["🗓","Entraînements",asso.jours],["📍","Lieu",asso.lieu],["📞","Tél",asso.tel||"—"],["🔗","Contact",asso.contact]].map(([i,l,v])=>{
+            const isUrl=v&&(v.startsWith("http://")||v.startsWith("https://"));
+            const isTel=v&&v.match(/^[0-9 +().-]{6,}$/);
+            return (
+              <div key={l} style={{ display:"flex",gap:8,marginBottom:10 }}>
+                <span>{i}</span>
+                <div>
+                  <div style={{ fontSize:11,color:C.muted }}>{l}</div>
+                  {isUrl?(
+                    <a href={v} target="_blank" rel="noreferrer"
+                      style={{ fontSize:13,color:"#60a5fa",textDecoration:"none",wordBreak:"break-all",display:"flex",alignItems:"center",gap:5 }}>
+                      {v.includes("facebook")?<>📘 Voir sur Facebook</>:v}
+                    </a>
+                  ):isTel?(
+                    <a href={`tel:${v.replace(/\s/g,"")}`} style={{ fontSize:13,color:"#4ade80",textDecoration:"none" }}>{v}</a>
+                  ):(
+                    <div style={{ fontSize:13 }}>{v||"—"}</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
         <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18 }}><p style={{ color:C.muted,lineHeight:1.7,fontSize:13 }}>{asso.description}</p></div>
       </div>
