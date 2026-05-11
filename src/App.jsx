@@ -2752,7 +2752,7 @@ const Home = ({ joueur, setJoueur, defisCount, demandesAmisCount=0, bars, associ
 };
 
 // ── PAGE BARS ─────────────────────────────────────────────────────────────────
-const Bars = ({ bars, setPage, setBarSlug, villeFilter, setVilleFilter, barsActifs }) => {
+const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, villeFilter, setVilleFilter, barsActifs }) => {
   const [search,setSearch]=useState("");
   const [view,setView]=useState("carte");
   const [userPos,setUserPos]=useState(null);
@@ -2780,13 +2780,16 @@ const Bars = ({ bars, setPage, setBarSlug, villeFilter, setVilleFilter, barsActi
   const resetFilters=()=>{setFilterType("tous");setFilterCibles(0);setFilterAsso(false);setFilterTournoi(false);setFilterDist(0);};
   const activeFilters=[filterType!=="tous",filterCibles>0,filterAsso,filterTournoi,filterDist>0].filter(Boolean).length;
 
+  // Set of bar names referenced by at least one association
+  const assoBarNames=useMemo(()=>new Set(associations.flatMap(a=>a.bars||[])),[associations]);
+
   const filtered=useMemo(()=>{
     const q=search.toLowerCase();
     let list=bars.filter(b=>{
       if(q&&!b.ville.toLowerCase().includes(q)&&!b.nom.toLowerCase().includes(q)) return false;
       if(filterType!=="tous"&&b.type!==filterType) return false;
       if(filterCibles>0&&(b.cibles||0)<filterCibles) return false;
-      if(filterAsso&&!b.association) return false;
+      if(filterAsso&&!b.association&&!assoBarNames.has(b.nom)) return false;
       if(filterTournoi&&!b.tournois) return false;
       return true;
     });
@@ -2795,7 +2798,17 @@ const Bars = ({ bars, setPage, setBarSlug, villeFilter, setVilleFilter, barsActi
       if(filterDist>0) list=list.filter(b=>b._dist<=filterDist);
     }
     return list;
-  },[bars,search,filterType,filterCibles,filterAsso,filterTournoi,filterDist,userPos]);
+  },[bars,associations,search,filterType,filterCibles,filterAsso,filterTournoi,filterDist,userPos,assoBarNames]);
+
+  // Filtered associations (shown when filterAsso is checked)
+  const filteredAssos=useMemo(()=>{
+    if(!filterAsso) return [];
+    const q=search.toLowerCase();
+    return associations.filter(a=>{
+      if(q&&!a.ville?.toLowerCase().includes(q)&&!a.nom?.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  },[associations,filterAsso,search]);
 
   return (
     <div style={{ maxWidth:980,margin:"0 auto",padding:"24px 16px 88px" }}>
@@ -2804,7 +2817,7 @@ const Bars = ({ bars, setPage, setBarSlug, villeFilter, setVilleFilter, barsActi
       <div style={{ marginBottom:20 }}>
         <h1 style={{ fontWeight:800,fontSize:24,marginBottom:4 }}>Bars à fléchettes près de toi</h1>
         <p style={{ color:C.muted,fontSize:13 }}>
-          {filtered.length} lieu{filtered.length>1?"x":""} trouvé{filtered.length>1?"s":""}
+          {filtered.length} bar{filtered.length>1?"s":""}{filteredAssos.length>0?` · ${filteredAssos.length} association${filteredAssos.length>1?"s":""}`:""} trouvé{filtered.length+filteredAssos.length>1?"s":""}
           {userPos&&<span style={{ color:"#22c55e" }}> · triés par distance</span>}
         </p>
       </div>
@@ -2886,7 +2899,7 @@ const Bars = ({ bars, setPage, setBarSlug, villeFilter, setVilleFilter, barsActi
       {/* CARTE — priorité visuelle */}
       {view==="carte"&&(
         <div style={{ marginBottom:16 }}>
-          <LeafletMap bars={filtered} onBarClick={s=>{setBarSlug(s);setPage("bar");}} centerVille={search||null} height="55vh" barsActifs={barsActifs} userPos={userPos}/>
+          <LeafletMap bars={filtered} associations={filterAsso?filteredAssos:[]} onBarClick={s=>{setBarSlug(s);setPage("bar");}} onAssoClick={s=>{setAssoSlug(s);setPage("asso");}} centerVille={search||null} height="55vh" barsActifs={barsActifs} userPos={userPos}/>
         </div>
       )}
 
@@ -2898,16 +2911,45 @@ const Bars = ({ bars, setPage, setBarSlug, villeFilter, setVilleFilter, barsActi
       </div>
 
       {/* RÉSULTATS */}
-      {filtered.length===0?(
+      {filtered.length===0&&filteredAssos.length===0?(
         <div style={{ textAlign:"center",padding:"40px 20px",color:C.muted }}>
           <div style={{ fontSize:44,marginBottom:10 }}>🔍</div>
-          <p style={{ marginBottom:10 }}>Aucun bar trouvé.</p>
+          <p style={{ marginBottom:10 }}>Aucun résultat trouvé.</p>
           {activeFilters>0&&<button onClick={resetFilters} style={{ background:"none",border:"none",color:C.accent,cursor:"pointer",fontSize:13 }}>Effacer les filtres</button>}
         </div>
       ):(
-        <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
-          {filtered.map(b=><BarCard key={b.id} bar={b} onClick={()=>{setBarSlug(b.slug);setPage("bar");}} barsActifs={barsActifs} dist={b._dist!=null&&b._dist!==Infinity?b._dist:null}/>)}
-        </div>
+        <>
+          {filtered.length>0&&(
+            <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+              {filtered.map(b=><BarCard key={b.id} bar={b} onClick={()=>{setBarSlug(b.slug);setPage("bar");}} barsActifs={barsActifs} dist={b._dist!=null&&b._dist!==Infinity?b._dist:null}/>)}
+            </div>
+          )}
+          {filteredAssos.length>0&&(
+            <div style={{ marginTop: filtered.length>0?24:0 }}>
+              {filtered.length>0&&<h2 style={{ fontSize:15,fontWeight:700,color:C.muted,marginBottom:12,letterSpacing:.5 }}>🫂 ASSOCIATIONS ({filteredAssos.length})</h2>}
+              <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+                {filteredAssos.map(a=>(
+                  <div key={a.slug} onClick={()=>{setAssoSlug(a.slug);setPage("asso");}}
+                    style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px",cursor:"pointer",transition:"border-color .15s" }}
+                    onMouseEnter={e=>e.currentTarget.style.borderColor="#7c3aed"}
+                    onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8 }}>
+                      <div>
+                        <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:4 }}>
+                          <span style={{ fontWeight:700,fontSize:15 }}>🫂 {a.nom}</span>
+                          <span style={{ background:"#7c3aed18",color:"#a78bfa",border:"1px solid #7c3aed33",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>Association</span>
+                        </div>
+                        <div style={{ fontSize:12,color:C.muted }}>📍 {a.ville}{a.zone?` · ${a.zone}`:""}</div>
+                        {a.description&&<div style={{ fontSize:12,color:C.muted,marginTop:3 }}>{a.description}</div>}
+                      </div>
+                      <span style={{ color:C.muted,fontSize:18,flexShrink:0 }}>→</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* FAB */}
@@ -4545,7 +4587,7 @@ export default function App() {
         {page==="home"             && <Home joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="defi"             && joueur && <PageDefi joueur={joueur} setPage={nav}/>}
         {page==="communaute"       && <PageCommunaute joueur={joueur} setPage={nav} bars={bars}/>}
-        {page==="bars"             && <Bars bars={bars} setPage={nav} setBarSlug={setBarSlug} villeFilter={villeFilter} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
+        {page==="bars"             && <Bars bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} villeFilter={villeFilter} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="bar"              && <BarDetail slug={barSlug} allBars={bars} associations={associations} setBars={setBars} setPage={nav} setAssoSlug={setAssoSlug} isAdmin={isAdmin} joueur={joueur} setJoueurId={setJoueurId}/>}
         {page==="associations"     && <Associations associations={associations} setPage={nav} setAssoSlug={setAssoSlug}/>}
         {page==="asso"             && <AssoDetail slug={assoSlug} associations={associations} bars={bars} setPage={nav} setBarSlug={setBarSlug} isAdmin={isAdmin}/>}
