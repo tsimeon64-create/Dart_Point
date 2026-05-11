@@ -2041,39 +2041,6 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                   </div>
                 </div>
 
-                {/* ── Bloc comparaison DRIX ── */}
-                <div style={{padding:"14px 18px",borderBottom:"1px solid #1e1e1e"}}>
-                  <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
-                    <div style={{flex:1,textAlign:"center"}}>
-                      <div style={{fontSize:11,color:CJ.muted,fontWeight:700}}>TOI</div>
-                      <div style={{fontSize:26,fontWeight:900,color:CJ.text,lineHeight:1.1}}>{monDrix}</div>
-                      <div style={{fontSize:10,color:CJ.muted}}>DRIX</div>
-                      {classementMoi?.position&&<div style={{fontSize:10,color:CJ.muted}}>Rang #{classementMoi.position}</div>}
-                    </div>
-                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                      <span style={{fontSize:20}}>⚔️</span>
-                      <span style={{fontSize:11,color:CJ.muted,fontWeight:700}}>VS</span>
-                    </div>
-                    <div style={{flex:1,textAlign:"center"}}>
-                      <div style={{fontSize:11,color:CJ.muted,fontWeight:700}}>{j.pseudo.toUpperCase()}</div>
-                      <div style={{fontSize:26,fontWeight:900,color:CJ.text,lineHeight:1.1}}>{drix}</div>
-                      <div style={{fontSize:10,color:CJ.muted}}>DRIX</div>
-                      {classement?.position&&<div style={{fontSize:10,color:CJ.muted}}>Rang #{classement.position}</div>}
-                    </div>
-                  </div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-                    <div style={{background:"#14532d",border:"1px solid #22c55e33",borderRadius:10,padding:"10px 12px"}}>
-                      <div style={{fontWeight:900,fontSize:20,color:"#22c55e"}}>+{gainElo} DRIX</div>
-                      <div style={{fontSize:11,color:"#86efac"}}>si victoire</div>
-                    </div>
-                    <div style={{background:"#7f1d1d",border:"1px solid #ef444433",borderRadius:10,padding:"10px 12px"}}>
-                      <div style={{fontWeight:900,fontSize:20,color:"#ef4444"}}>-{perteElo} DRIX</div>
-                      <div style={{fontSize:11,color:"#fca5a5"}}>si défaite</div>
-                    </div>
-                  </div>
-                  <div style={{fontSize:10,color:CJ.muted,textAlign:"center"}}>ⓘ Gain / perte de DRIX calculé par notre algorithme (type ELO)</div>
-                </div>
-
                 {/* ── Bloc analyse ── */}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:6,padding:"14px 18px",borderBottom:"1px solid #1e1e1e"}}>
                   {/* Face-à-face */}
@@ -2122,6 +2089,39 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                     <div style={{fontSize:9,color:CJ.muted,marginTop:2}}>de gagner</div>
                     <div style={{fontSize:8,color:CJ.muted,lineHeight:1.3}}>Stats et forme actuelle</div>
                   </div>
+                </div>
+
+                {/* ── Bloc comparaison DRIX ── */}
+                <div style={{padding:"14px 18px",borderBottom:"1px solid #1e1e1e"}}>
+                  <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
+                    <div style={{flex:1,textAlign:"center"}}>
+                      <div style={{fontSize:11,color:CJ.muted,fontWeight:700}}>TOI</div>
+                      <div style={{fontSize:26,fontWeight:900,color:CJ.text,lineHeight:1.1}}>{monDrix}</div>
+                      <div style={{fontSize:10,color:CJ.muted}}>DRIX</div>
+                      {classementMoi?.position&&<div style={{fontSize:10,color:CJ.muted}}>Rang #{classementMoi.position}</div>}
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                      <span style={{fontSize:20}}>⚔️</span>
+                      <span style={{fontSize:11,color:CJ.muted,fontWeight:700}}>VS</span>
+                    </div>
+                    <div style={{flex:1,textAlign:"center"}}>
+                      <div style={{fontSize:11,color:CJ.muted,fontWeight:700}}>{j.pseudo.toUpperCase()}</div>
+                      <div style={{fontSize:26,fontWeight:900,color:CJ.text,lineHeight:1.1}}>{drix}</div>
+                      <div style={{fontSize:10,color:CJ.muted}}>DRIX</div>
+                      {classement?.position&&<div style={{fontSize:10,color:CJ.muted}}>Rang #{classement.position}</div>}
+                    </div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                    <div style={{background:"#14532d",border:"1px solid #22c55e33",borderRadius:10,padding:"10px 12px"}}>
+                      <div style={{fontWeight:900,fontSize:20,color:"#22c55e"}}>+{gainElo} DRIX</div>
+                      <div style={{fontSize:11,color:"#86efac"}}>si victoire</div>
+                    </div>
+                    <div style={{background:"#7f1d1d",border:"1px solid #ef444433",borderRadius:10,padding:"10px 12px"}}>
+                      <div style={{fontWeight:900,fontSize:20,color:"#ef4444"}}>-{perteElo} DRIX</div>
+                      <div style={{fontSize:11,color:"#fca5a5"}}>si défaite</div>
+                    </div>
+                  </div>
+                  <div style={{fontSize:10,color:CJ.muted,textAlign:"center"}}>ⓘ Gain / perte de DRIX calculé par notre algorithme (type ELO)</div>
                 </div>
 
                 {/* ── Bloc configuration ── */}
