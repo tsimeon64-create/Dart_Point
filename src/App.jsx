@@ -3216,9 +3216,9 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
   const [presFormLoading, setPresFormLoading] = useState(false);
 
   useEffect(() => {
-    sb(`joueurs?asso_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo,victoires,defaites&limit=50`)
+    sb(`joueurs?asso_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo,ville&limit=50`)
       .then(d => setMembres(Array.isArray(d) ? d : []))
-      .catch(() => [])
+      .catch(() => setMembres([]))
       .finally(() => setLoadMembres(false));
     sb(`tournois?association=eq.${encodeURIComponent(asso.nom)}&order=date.desc&select=*&limit=10`)
       .then(d => setEvents(Array.isArray(d) ? d : []))
@@ -3228,10 +3228,7 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
   const stats = useMemo(() => {
     const n = membres.length;
     const drixMoyen = n > 0 ? Math.round(membres.reduce((s,m) => s + (m.drix||1000), 0) / n) : null;
-    const totalM = membres.reduce((s,m) => s + (m.victoires||0) + (m.defaites||0), 0);
-    const totalV = membres.reduce((s,m) => s + (m.victoires||0), 0);
-    const wr = totalM > 0 ? Math.round(totalV / totalM * 100) : null;
-    return { n, drixMoyen, totalM, wr };
+    return { n, drixMoyen, totalM: 0, wr: null };
   }, [membres]);
 
   const badges = useMemo(() => {
@@ -3503,8 +3500,6 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
             <p style={{ color:C.muted,fontSize:12 }}>Les membres peuvent rejoindre ce club depuis leur profil.</p>
           </div>
         ) : membres.map((m, i) => {
-          const totalM = (m.victoires||0) + (m.defaites||0);
-          const wr = totalM > 0 ? Math.round((m.victoires||0)/totalM*100) : null;
           const isTop = i === 0;
           return (
             <div key={m.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 20px",
@@ -3529,10 +3524,8 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
               </div>
               {/* Infos */}
               <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ fontWeight:700,fontSize:14,truncate:true }}>{m.pseudo}</div>
-                <div style={{ fontSize:11,color:C.muted }}>
-                  {wr != null ? `${wr}% winrate · ` : ""}{totalM > 0 ? `${totalM} matchs` : "Aucun match"}
-                </div>
+                <div style={{ fontWeight:700,fontSize:14 }}>{m.pseudo}</div>
+                {m.ville && <div style={{ fontSize:11,color:C.muted }}>📍 {m.ville}</div>}
               </div>
               {/* DRIX */}
               <div style={{ textAlign:"right",flexShrink:0 }}>
