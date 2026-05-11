@@ -1802,8 +1802,8 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const formeDefi = wins5>=4?"Très en forme":wins5>=3?"En forme":wins5>=2?"Stable":"En difficulté";
   const formeDefiColor = wins5>=4?"#22c55e":wins5>=3?"#60a5fa":wins5>=2?"#f59e0b":"#ef4444";
 
-  // ELO gain/perte fixe (K=32, pas d'ajustement par manches)
-  const K_ELO = 32;
+  // ELO gain/perte ajusté selon le nombre de manches
+  const K_ELO = 32 * Math.max(1, defiForm.manches);
   const EA_ELO = 1/(1+Math.pow(10,(drix-monDrix)/400));
   const gainElo = Math.round(K_ELO*(1-EA_ELO));
   const perteElo = Math.round(K_ELO*EA_ELO);
