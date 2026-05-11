@@ -325,6 +325,8 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   // Affiliations expand
   const [affilBar, setAffilBar]   = useState(false);
   const [affilAsso, setAffilAsso] = useState(false);
+  const [searchAsso, setSearchAsso] = useState("");
+  const [searchBar, setSearchBar]   = useState("");
 
   const bar  = bars.find(b => b.slug === joueur.bar_slug);
   const asso = associations.find(a => a.slug === joueur.asso_slug);
@@ -707,14 +709,23 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             </button>
           </div>
           {affilBar && (
-            <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:220,overflowY:"auto",border:`1px solid ${CJ.border}`,borderRadius:10,padding:8 }}>
-              {bars.map(b=>(
-                <div key={b.slug} onClick={()=>choisirBar(b.slug)}
-                  style={{ background:joueur.bar_slug===b.slug?"#1a0800":"#111",border:`1px solid ${joueur.bar_slug===b.slug?CJ.accent:CJ.border}`,borderRadius:8,padding:"9px 12px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",touchAction:"manipulation" }}>
-                  <span style={{ fontWeight:joueur.bar_slug===b.slug?700:400,fontSize:13 }}>{b.nom}</span>
-                  <span style={{ color:CJ.muted,fontSize:11 }}>📍 {b.ville}</span>
-                </div>
-              ))}
+            <div style={{ border:`1px solid ${CJ.border}`,borderRadius:10,overflow:"hidden" }}>
+              <input value={searchBar} onChange={e=>setSearchBar(e.target.value)} placeholder="🔍 Rechercher un bar…"
+                style={{ width:"100%",background:"#111",border:"none",borderBottom:`1px solid ${CJ.border}`,padding:"9px 12px",color:CJ.text,fontSize:13,boxSizing:"border-box" }}/>
+              <div style={{ display:"flex",flexDirection:"column",gap:0,maxHeight:200,overflowY:"auto",padding:6 }}>
+                {joueur.bar_slug && (
+                  <div onClick={()=>choisirBar(null)} style={{ background:"#1a0000",border:`1px solid #7f1d1d`,borderRadius:8,padding:"8px 12px",cursor:"pointer",marginBottom:4,fontSize:12,color:"#f87171",textAlign:"center",touchAction:"manipulation" }}>
+                    ✕ Se désaffilier du bar
+                  </div>
+                )}
+                {bars.filter(b=>!searchBar||b.nom.toLowerCase().includes(searchBar.toLowerCase())||b.ville?.toLowerCase().includes(searchBar.toLowerCase())).map(b=>(
+                  <div key={b.slug} onClick={()=>choisirBar(b.slug)}
+                    style={{ background:joueur.bar_slug===b.slug?"#1a0800":"transparent",border:`1px solid ${joueur.bar_slug===b.slug?CJ.accent:"transparent"}`,borderRadius:8,padding:"9px 12px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",touchAction:"manipulation" }}>
+                    <span style={{ fontWeight:joueur.bar_slug===b.slug?700:400,fontSize:13 }}>{b.nom}</span>
+                    <span style={{ color:CJ.muted,fontSize:11 }}>📍 {b.ville}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -738,14 +749,23 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             </button>
           </div>
           {affilAsso && (
-            <div style={{ display:"flex",flexDirection:"column",gap:6,maxHeight:200,overflowY:"auto",border:`1px solid ${CJ.border}`,borderRadius:10,padding:8 }}>
-              {associations.map(a=>(
-                <div key={a.slug} onClick={()=>choisirAsso(a.slug)}
-                  style={{ background:joueur.asso_slug===a.slug?"#1a0f1a":"#111",border:`1px solid ${joueur.asso_slug===a.slug?"#7c3aed":CJ.border}`,borderRadius:8,padding:"9px 12px",cursor:"pointer",display:"flex",justifyContent:"space-between",touchAction:"manipulation" }}>
-                  <span style={{ fontWeight:joueur.asso_slug===a.slug?700:400,fontSize:13 }}>{a.nom}</span>
-                  <span style={{ color:CJ.muted,fontSize:11 }}>📍 {a.ville}</span>
-                </div>
-              ))}
+            <div style={{ border:`1px solid ${CJ.border}`,borderRadius:10,overflow:"hidden" }}>
+              <input value={searchAsso} onChange={e=>setSearchAsso(e.target.value)} placeholder="🔍 Rechercher une association…"
+                style={{ width:"100%",background:"#111",border:"none",borderBottom:`1px solid ${CJ.border}`,padding:"9px 12px",color:CJ.text,fontSize:13,boxSizing:"border-box" }}/>
+              <div style={{ display:"flex",flexDirection:"column",gap:0,maxHeight:200,overflowY:"auto",padding:6 }}>
+                {joueur.asso_slug && (
+                  <div onClick={()=>choisirAsso(null)} style={{ background:"#1a0020",border:"1px solid #4c1d95",borderRadius:8,padding:"8px 12px",cursor:"pointer",marginBottom:4,fontSize:12,color:"#c4b5fd",textAlign:"center",touchAction:"manipulation" }}>
+                    ✕ Se désaffilier de l'association
+                  </div>
+                )}
+                {associations.filter(a=>!searchAsso||a.nom.toLowerCase().includes(searchAsso.toLowerCase())||a.ville?.toLowerCase().includes(searchAsso.toLowerCase())).map(a=>(
+                  <div key={a.slug} onClick={()=>choisirAsso(a.slug)}
+                    style={{ background:joueur.asso_slug===a.slug?"#1a0f1a":"transparent",border:`1px solid ${joueur.asso_slug===a.slug?"#7c3aed":"transparent"}`,borderRadius:8,padding:"9px 12px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",touchAction:"manipulation" }}>
+                    <span style={{ fontWeight:joueur.asso_slug===a.slug?700:400,fontSize:13 }}>{a.nom}</span>
+                    <span style={{ color:CJ.muted,fontSize:11 }}>📍 {a.ville}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
