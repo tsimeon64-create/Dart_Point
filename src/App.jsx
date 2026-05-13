@@ -2833,212 +2833,398 @@ const Home = ({ joueur, setJoueur, defisCount, demandesAmisCount=0, bars, associ
   );
 };
 
-// ── PAGE BARS ─────────────────────────────────────────────────────────────────
+// ── PAGE BARS — REWORK COMPLET ────────────────────────────────────────────────
 const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, villeFilter, setVilleFilter, barsActifs }) => {
-  const [search,setSearch]=useState("");
-  const [view,setView]=useState("carte");
-  const [userPos,setUserPos]=useState(null);
-  const [geoLoading,setGeoLoading]=useState(false);
-  const [geoErr,setGeoErr]=useState("");
-  const [filtersOpen,setFiltersOpen]=useState(false);
-  const [filterType,setFilterType]=useState("tous");
-  const [filterCibles,setFilterCibles]=useState(0);
-  const [filterAsso,setFilterAsso]=useState(false);
-  const [filterTournoi,setFilterTournoi]=useState(false);
-  const [filterDist,setFilterDist]=useState(0);
+  const [search, setSearch]       = useState("");
+  const [view, setView]           = useState("carte");
+  const [typeVue, setTypeVue]     = useState("bars");
+  const [userPos, setUserPos]     = useState(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoErr, setGeoErr]       = useState("");
+  const [chipFilter, setChipFilter] = useState("tous"); // pour bars : tous/actifs/traditionnel/electronique/tournois
+  const [joueursPresentAujourd, setJoueursPresentAujourd] = useState(0);
 
-  useEffect(()=>{ if(villeFilter){setSearch(villeFilter);setVilleFilter(null);} },[villeFilter]);
+  useEffect(() => { if (villeFilter) { setSearch(villeFilter); setVilleFilter(null); } }, [villeFilter]);
 
-  const geolocate=()=>{
-    if(!navigator.geolocation){setGeoErr("Géolocalisation non supportée par ce navigateur");return;}
-    if(userPos){setUserPos(null);setGeoErr("");return;}
-    setGeoLoading(true);setGeoErr("");
+  // Stats live : nb joueurs actifs aujourd'hui
+  useEffect(() => {
+    sb(`presences?date_jour=eq.${new Date().toISOString().slice(0,10)}&select=joueur_id`).then(r => {
+      setJoueursPresentAujourd((r||[]).length);
+    }).catch(() => {});
+  }, []);
+
+  const geolocate = () => {
+    if (!navigator.geolocation) { setGeoErr("Géolocalisation non supportée"); return; }
+    if (userPos) { setUserPos(null); setGeoErr(""); return; }
+    setGeoLoading(true); setGeoErr("");
     navigator.geolocation.getCurrentPosition(
-      pos=>{setUserPos({lat:pos.coords.latitude,lng:pos.coords.longitude});setGeoLoading(false);setSearch("");},
-      ()=>{setGeoErr("Position non disponible — vérifiez les permissions");setGeoLoading(false);}
+      pos => { setUserPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setGeoLoading(false); setSearch(""); },
+      ()  => { setGeoErr("Position non disponible — vérifiez les permissions"); setGeoLoading(false); }
     );
   };
 
-  const resetFilters=()=>{setFilterType("tous");setFilterCibles(0);setFilterAsso(false);setFilterTournoi(false);setFilterDist(0);};
-  const activeFilters=[filterType!=="tous",filterCibles>0,filterAsso,filterTournoi,filterDist>0].filter(Boolean).length;
-
-  // Set of bar names referenced by at least one association
-  const assoBarNames=useMemo(()=>new Set(associations.flatMap(a=>a.bars||[])),[associations]);
-
-  const filtered=useMemo(()=>{
-    const q=search.toLowerCase();
-    let list=bars.filter(b=>{
-      if(q&&!b.ville.toLowerCase().includes(q)&&!b.nom.toLowerCase().includes(q)) return false;
-      if(filterType!=="tous"&&b.type!==filterType) return false;
-      if(filterCibles>0&&(b.cibles||0)<filterCibles) return false;
-      if(filterAsso&&!b.association&&!assoBarNames.has(b.nom)) return false;
-      if(filterTournoi&&!b.tournois) return false;
+  const filteredBars = useMemo(() => {
+    const q = search.toLowerCase();
+    let list = bars.filter(b => {
+      if (q && !b.ville?.toLowerCase().includes(q) && !b.nom?.toLowerCase().includes(q)) return false;
+      if (chipFilter === "actifs"        && !barsActifs.includes(b.slug)) return false;
+      if (chipFilter === "traditionnel"  && b.type !== "traditionnel")    return false;
+      if (chipFilter === "electronique"  && b.type !== "electronique")    return false;
+      if (chipFilter === "tournois"      && !b.tournois)                  return false;
+      if (typeVue === "tournois"         && !b.tournois)                  return false;
       return true;
     });
-    if(userPos){
-      list=list.map(b=>({...b,_dist:b.lat&&b.lng?haversine(userPos.lat,userPos.lng,b.lat,b.lng):Infinity})).sort((a,b)=>a._dist-b._dist);
-      if(filterDist>0) list=list.filter(b=>b._dist<=filterDist);
+    if (userPos) {
+      list = list.map(b => ({ ...b, _dist: b.lat&&b.lng ? haversine(userPos.lat,userPos.lng,b.lat,b.lng) : Infinity }))
+                 .sort((a,b) => a._dist - b._dist);
     }
     return list;
-  },[bars,associations,search,filterType,filterCibles,filterAsso,filterTournoi,filterDist,userPos,assoBarNames]);
+  }, [bars, search, chipFilter, typeVue, barsActifs, userPos]);
 
-  // Filtered associations (shown when filterAsso is checked)
-  const filteredAssos=useMemo(()=>{
-    if(!filterAsso) return [];
-    const q=search.toLowerCase();
-    return associations.filter(a=>{
-      if(q&&!a.ville?.toLowerCase().includes(q)&&!a.nom?.toLowerCase().includes(q)) return false;
+  const filteredAssos = useMemo(() => {
+    const q = search.toLowerCase();
+    return associations.filter(a => {
+      if (q && !a.ville?.toLowerCase().includes(q) && !a.nom?.toLowerCase().includes(q)) return false;
       return true;
     });
-  },[associations,filterAsso,search]);
+  }, [associations, search]);
+
+  // ── Thèmes par onglet ────────────────────────────────────────────────────────
+  const THEMES = {
+    bars:    { accent:"#f97316", glow:"#f9731644", bg:"linear-gradient(160deg,#0f0f0f 0%,#1a0800 60%,#0f0f0f 100%)", chip:"#f97316" },
+    assos:   { accent:"#7c3aed", glow:"#7c3aed44", bg:"linear-gradient(160deg,#0a0a14 0%,#0d0722 60%,#0a0a14 100%)", chip:"#a78bfa" },
+    tournois:{ accent:"#dc2626", glow:"#dc262644", bg:"linear-gradient(160deg,#0f0a0a 0%,#1a0a0a 60%,#0a0a0f 100%)", chip:"#fbbf24" },
+  };
+  const T = THEMES[typeVue];
+
+  // ── Styles partagés ──────────────────────────────────────────────────────────
+  const tabBtn = (active, col) => ({
+    flex:1, padding:"13px 6px", borderRadius:14,
+    border: `2px solid ${active ? col : "#2a2a2a"}`,
+    background: active ? col+"22" : "transparent",
+    color: active ? col : "#64748b",
+    fontWeight: active ? 800 : 500, fontSize:13,
+    cursor:"pointer", transition:"all .2s",
+    display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+  });
 
   return (
-    <div style={{ maxWidth:980,margin:"0 auto",padding:"24px 16px 88px" }}>
+    <div style={{ minHeight:"100vh", background:T.bg, fontFamily:"Inter,sans-serif" }}>
+      <style>{`
+        @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(1.4)} }
+        @keyframes glow-bar { 0%,100%{box-shadow:0 0 20px ${T.glow}} 50%{box-shadow:0 0 40px ${T.glow},0 0 80px ${T.glow}55} }
+        .chip-scroll::-webkit-scrollbar{display:none}
+      `}</style>
 
-      {/* HEADER */}
-      <div style={{ marginBottom:20 }}>
-        <h1 style={{ fontWeight:800,fontSize:24,marginBottom:4 }}>Bars à fléchettes près de toi</h1>
-        <p style={{ color:C.muted,fontSize:13 }}>
-          {filtered.length} bar{filtered.length>1?"s":""}{filteredAssos.length>0?` · ${filteredAssos.length} association${filteredAssos.length>1?"s":""}`:""} trouvé{filtered.length+filteredAssos.length>1?"s":""}
-          {userPos&&<span style={{ color:"#22c55e" }}> · triés par distance</span>}
-        </p>
-      </div>
+      <div style={{ maxWidth:980, margin:"0 auto", padding:"20px 16px 100px" }}>
 
-      {/* SEARCH + GEO fusionnés */}
-      <div style={{ display:"flex",gap:8,marginBottom:12 }}>
-        <div style={{ position:"relative",flex:1 }}>
-          <span style={{ position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",fontSize:15,pointerEvents:"none",color:C.muted }}>🔍</span>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher un bar ou une ville…"
-            style={{ width:"100%",background:C.card,border:`1px solid ${search?C.accent:C.border}`,borderRadius:10,padding:"11px 38px 11px 38px",color:C.text,fontSize:14,boxSizing:"border-box" }}/>
-          {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16 }}>✕</button>}
+        {/* ── ONGLETS PRINCIPAUX ─────────────────────────────────────────────── */}
+        <div style={{ display:"flex", gap:8, marginBottom:20 }}>
+          <button onClick={()=>{ setTypeVue("bars"); setChipFilter("tous"); }} style={tabBtn(typeVue==="bars","#f97316")}>
+            <span style={{ fontSize:22 }}>🍺</span><span>Bars</span>
+          </button>
+          <button onClick={()=>{ setTypeVue("assos"); setChipFilter("tous"); }} style={tabBtn(typeVue==="assos","#7c3aed")}>
+            <span style={{ fontSize:22 }}>👥</span><span>Associations</span>
+          </button>
+          <button onClick={()=>{ setTypeVue("tournois"); setChipFilter("tous"); }} style={tabBtn(typeVue==="tournois","#dc2626")}>
+            <span style={{ fontSize:22 }}>🏆</span><span>Tournois</span>
+          </button>
         </div>
-        <button onClick={geolocate} disabled={geoLoading}
-          style={{ background:userPos?"#22c55e22":C.card,color:userPos?"#22c55e":C.text,border:`1px solid ${userPos?"#22c55e":C.border}`,borderRadius:10,padding:"0 16px",cursor:geoLoading?"default":"pointer",fontSize:13,fontWeight:600,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,transition:"all .2s",flexShrink:0 }}>
-          <span style={{ fontSize:16 }}>{geoLoading?"⏳":"📍"}</span>
-          <span>{geoLoading?"…":userPos?"Actif ✕":"Autour de moi"}</span>
-        </button>
-      </div>
-      {geoErr&&<p style={{ color:"#f87171",fontSize:12,marginBottom:10 }}>⚠️ {geoErr}</p>}
 
-      {/* TOGGLE + FILTRES */}
-      <div style={{ display:"flex",gap:8,marginBottom:filtersOpen?0:14,alignItems:"stretch" }}>
-        <div style={{ display:"flex",background:C.card,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden",flex:1 }}>
-          {[["carte","🗺️ Carte"],["liste","📋 Liste"]].map(([v,l])=>(
-            <button key={v} onClick={()=>setView(v)} style={{ flex:1,padding:"9px 0",background:view===v?C.accent:"transparent",color:view===v?"#fff":C.muted,border:"none",cursor:"pointer",fontWeight:view===v?700:400,fontSize:13,transition:"all .15s" }}>{l}</button>
-          ))}
-        </div>
-        <button onClick={()=>setFiltersOpen(o=>!o)}
-          style={{ background:activeFilters>0?C.accent+"22":C.card,color:activeFilters>0?C.accent:C.muted,border:`1px solid ${activeFilters>0?C.accent:C.border}`,borderRadius:10,padding:"9px 14px",cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",gap:7,flexShrink:0,fontWeight:activeFilters>0?700:400 }}>
-          Filtres ⚙️{activeFilters>0&&<span style={{ background:C.accent,color:"#fff",borderRadius:"50%",width:18,height:18,fontSize:10,display:"inline-flex",alignItems:"center",justifyContent:"center",fontWeight:700 }}>{activeFilters}</span>}
-        </button>
-      </div>
+        {/* ══════════════════════════════════════════════════════════════════════ */}
+        {/* ── VUE BARS ──────────────────────────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════════════ */}
+        {typeVue === "bars" && (<>
 
-      {/* PANEL FILTRES */}
-      {filtersOpen&&(
-        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16,marginBottom:14,marginTop:8 }}>
-          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:12 }}>
-            <div>
-              <label style={{ fontSize:11,color:C.muted,fontWeight:700,display:"block",marginBottom:6,letterSpacing:.5 }}>TYPE DE LIEU</label>
-              <select value={filterType} onChange={e=>setFilterType(e.target.value)} style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:13 }}>
-                <option value="tous">Tous</option>
-                {TYPES.map(t=><option key={t.v} value={t.v}>{t.l}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize:11,color:C.muted,fontWeight:700,display:"block",marginBottom:6,letterSpacing:.5 }}>CIBLES MIN.</label>
-              <select value={filterCibles} onChange={e=>setFilterCibles(+e.target.value)} style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:13 }}>
-                <option value={0}>Toutes</option>
-                {[1,2,3,4].map(n=><option key={n} value={n}>{n}+</option>)}
-              </select>
-            </div>
-            {userPos&&(
-              <div>
-                <label style={{ fontSize:11,color:C.muted,fontWeight:700,display:"block",marginBottom:6,letterSpacing:.5 }}>DISTANCE MAX</label>
-                <select value={filterDist} onChange={e=>setFilterDist(+e.target.value)} style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:13 }}>
-                  <option value={0}>Toutes</option>
-                  {[5,10,25,50].map(d=><option key={d} value={d}>{d} km</option>)}
-                </select>
+          {/* Header orange avec stats live */}
+          <div style={{ background:"linear-gradient(135deg,#1a0f00,#2a1500)", border:"1px solid #f9731630", borderRadius:20, padding:"20px 20px 16px", marginBottom:16, position:"relative", overflow:"hidden" }}>
+            <div style={{ position:"absolute", top:-30, right:-30, width:120, height:120, borderRadius:"50%", background:"radial-gradient(circle,#f9731620,transparent)", pointerEvents:"none" }}/>
+            <h1 style={{ fontWeight:900, fontSize:22, color:"#fff", marginBottom:12, textShadow:"0 0 20px #f9731688" }}>🍺 Bars à fléchettes</h1>
+            <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                <div style={{ width:8, height:8, borderRadius:"50%", background:"#f97316", animation:"pulse-dot 2s infinite" }}/>
+                <span style={{ fontWeight:700, fontSize:14, color:"#f97316" }}>{bars.length}</span>
+                <span style={{ fontSize:12, color:"#94a3b8" }}>bars référencés</span>
               </div>
+              {barsActifs.length > 0 && (
+                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:"#22c55e", animation:"pulse-dot 2s .5s infinite" }}/>
+                  <span style={{ fontWeight:700, fontSize:14, color:"#22c55e" }}>{barsActifs.length}</span>
+                  <span style={{ fontSize:12, color:"#94a3b8" }}>actifs ce soir</span>
+                </div>
+              )}
+              {joueursPresentAujourd > 0 && (
+                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:"#60a5fa", animation:"pulse-dot 2s 1s infinite" }}/>
+                  <span style={{ fontWeight:700, fontSize:14, color:"#60a5fa" }}>{joueursPresentAujourd}</span>
+                  <span style={{ fontSize:12, color:"#94a3b8" }}>joueurs présents aujourd'hui</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Chips filtres horizontaux scrollables */}
+          <div className="chip-scroll" style={{ display:"flex", gap:8, overflowX:"auto", marginBottom:14, paddingBottom:4 }}>
+            {[
+              ["tous","🍺","Tous"],
+              ["actifs","🟢","Actifs ce soir"],
+              ["traditionnel","🎯","Traditionnel"],
+              ["electronique","⚡","Électronique"],
+              ["tournois","🏆","Avec tournois"],
+            ].map(([v,e,l]) => (
+              <button key={v} onClick={()=>setChipFilter(v)} style={{
+                whiteSpace:"nowrap", flexShrink:0,
+                padding:"8px 14px", borderRadius:20,
+                border:`1.5px solid ${chipFilter===v?"#f97316":"#2a2a2a"}`,
+                background: chipFilter===v?"linear-gradient(135deg,#f97316,#ea580c)":"#1a1a1a",
+                color: chipFilter===v?"#fff":"#94a3b8",
+                fontWeight: chipFilter===v?700:400, fontSize:12,
+                cursor:"pointer", transition:"all .15s",
+                display:"flex", alignItems:"center", gap:5,
+              }}>
+                <span>{e}</span><span>{l}</span>
+                {v==="actifs" && barsActifs.length>0 && chipFilter!=="actifs" && (
+                  <span style={{ background:"#22c55e", color:"#fff", borderRadius:10, padding:"0 5px", fontSize:10, fontWeight:700, marginLeft:2 }}>{barsActifs.length}</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Search + Geo */}
+          <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+            <div style={{ position:"relative", flex:1 }}>
+              <span style={{ position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",fontSize:14,pointerEvents:"none",color:"#64748b" }}>🔍</span>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher un bar ou une ville…"
+                style={{ width:"100%",background:"#1a1a1a",border:`1px solid ${search?"#f97316":"#2a2a2a"}`,borderRadius:10,padding:"10px 36px 10px 36px",color:"#f1f5f9",fontSize:14,boxSizing:"border-box",outline:"none" }}/>
+              {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:15 }}>✕</button>}
+            </div>
+            <button onClick={geolocate} disabled={geoLoading}
+              style={{ background:userPos?"#22c55e22":"#1a1a1a",color:userPos?"#22c55e":"#94a3b8",border:`1px solid ${userPos?"#22c55e":"#2a2a2a"}`,borderRadius:10,padding:"0 14px",cursor:"pointer",fontSize:12,fontWeight:600,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5,flexShrink:0 }}>
+              <span>{geoLoading?"⏳":"📍"}</span>
+              <span>{geoLoading?"…":userPos?"✕ Désactiver":"Autour de moi"}</span>
+            </button>
+          </div>
+          {geoErr&&<p style={{ color:"#f87171",fontSize:12,marginBottom:10 }}>⚠️ {geoErr}</p>}
+
+          {/* Carte/Liste */}
+          <div style={{ display:"flex",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:10,overflow:"hidden",marginBottom:14 }}>
+            {[["carte","🗺️ Carte"],["liste","📋 Liste"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setView(v)} style={{ flex:1,padding:"9px 0",background:view===v?"#f97316":"transparent",color:view===v?"#fff":"#94a3b8",border:"none",cursor:"pointer",fontWeight:view===v?700:400,fontSize:13,transition:"all .15s" }}>{l}</button>
+            ))}
+          </div>
+
+          {/* Carte */}
+          {view==="carte"&&(
+            <div style={{ marginBottom:16,borderRadius:16,overflow:"hidden",border:"1px solid #f9731620",boxShadow:"0 0 30px #f9731620" }}>
+              <LeafletMap bars={filteredBars} associations={[]} onBarClick={s=>{setBarSlug(s);setPage("bar");}} centerVille={search||null} height="48vh" barsActifs={barsActifs} userPos={userPos}/>
+            </div>
+          )}
+
+          {/* Liste */}
+          {(view==="liste")&&(
+            filteredBars.length===0
+              ? <div style={{ textAlign:"center",padding:"40px 20px",color:"#64748b" }}><div style={{ fontSize:44,marginBottom:10 }}>🔍</div><p>Aucun bar trouvé.</p></div>
+              : <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
+                  {filteredBars.map(b=>(
+                    <div key={b.id} onClick={()=>{setBarSlug(b.slug);setPage("bar");}}
+                      style={{ background:"#1a1a1a",border:`1px solid ${barsActifs.includes(b.slug)?"#22c55e44":"#2a2a2a"}`,borderRadius:14,padding:"14px 16px",cursor:"pointer",transition:"all .15s",position:"relative",overflow:"hidden" }}
+                      onMouseEnter={e=>{e.currentTarget.style.borderColor="#f97316";e.currentTarget.style.boxShadow="0 0 20px #f9731620";}}
+                      onMouseLeave={e=>{e.currentTarget.style.borderColor=barsActifs.includes(b.slug)?"#22c55e44":"#2a2a2a";e.currentTarget.style.boxShadow="none";}}>
+                      {barsActifs.includes(b.slug)&&<div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,#22c55e,transparent)" }}/>}
+                      <div style={{ display:"flex",alignItems:"center",gap:14 }}>
+                        <div style={{ width:46,height:46,borderRadius:12,background:"#f9731620",border:"1px solid #f9731640",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0 }}>
+                          {b.type==="traditionnel"?"🎯":b.type==="electronique"?"⚡":"🍺"}
+                        </div>
+                        <div style={{ flex:1,minWidth:0 }}>
+                          <div style={{ display:"flex",alignItems:"center",gap:7,marginBottom:3,flexWrap:"wrap" }}>
+                            <span style={{ fontWeight:700,fontSize:15,color:"#f1f5f9" }}>{b.nom}</span>
+                            {barsActifs.includes(b.slug)&&<span style={{ background:"#22c55e20",color:"#22c55e",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:700 }}>🟢 Ce soir</span>}
+                            {b.tournois&&<span style={{ background:"#fbbf2420",color:"#fbbf24",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:700 }}>🏆 Tournois</span>}
+                          </div>
+                          <div style={{ color:"#64748b",fontSize:12,marginBottom:5 }}>📍 {b.ville}{b.adresse?` · ${b.adresse}`:""}</div>
+                          <div style={{ display:"flex",gap:5,flexWrap:"wrap" }}>
+                            <span style={{ background:"#a78bfa18",color:"#a78bfa",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>🎯 {b.cibles} cible{b.cibles>1?"s":""}</span>
+                            <span style={{ background:"#f9731618",color:"#f97316",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>{b.type==="traditionnel"?"🎯 Traditionnel":b.type==="electronique"?"⚡ Électronique":"🍺 Bar"}</span>
+                          </div>
+                        </div>
+                        <div style={{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,flexShrink:0 }}>
+                          {b._dist!=null&&b._dist!==Infinity&&<span style={{ color:"#60a5fa",fontWeight:700,fontSize:13 }}>{b._dist<1?(b._dist*1000).toFixed(0)+" m":b._dist.toFixed(1)+" km"}</span>}
+                          <span style={{ background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff",padding:"6px 12px",borderRadius:8,fontSize:12,fontWeight:700 }}>Voir →</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+          )}
+
+          {/* FABs */}
+          <div style={{ position:"fixed",bottom:24,right:16,zIndex:500,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end" }}>
+            {barsActifs.length>0&&(
+              <button onClick={()=>{ setChipFilter("actifs"); setView("liste"); }} style={{ background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",border:"none",borderRadius:50,padding:"11px 18px",cursor:"pointer",fontSize:13,fontWeight:700,boxShadow:"0 4px 20px #22c55e55",display:"flex",alignItems:"center",gap:7 }}>
+                🎯 Trouver une partie
+              </button>
             )}
-            <div>
-              <label style={{ fontSize:11,color:C.muted,fontWeight:700,display:"block",marginBottom:8,letterSpacing:.5 }}>OPTIONS</label>
-              <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
-                <label style={{ display:"flex",alignItems:"center",gap:9,cursor:"pointer",fontSize:13 }}>
-                  <input type="checkbox" checked={filterTournoi} onChange={e=>setFilterTournoi(e.target.checked)} style={{ accentColor:C.accent,width:15,height:15 }}/>
-                  🏆 Avec tournois
-                </label>
-                <label style={{ display:"flex",alignItems:"center",gap:9,cursor:"pointer",fontSize:13 }}>
-                  <input type="checkbox" checked={filterAsso} onChange={e=>setFilterAsso(e.target.checked)} style={{ accentColor:C.accent,width:15,height:15 }}/>
-                  👥 Avec association
-                </label>
+            <button onClick={()=>setPage("proposer")} style={{ background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff",border:"none",borderRadius:50,padding:"11px 18px",cursor:"pointer",fontSize:13,fontWeight:700,boxShadow:"0 4px 20px #f9731655",display:"flex",alignItems:"center",gap:7 }}>
+              <span style={{ fontSize:16 }}>+</span> Ajouter un bar
+            </button>
+          </div>
+        </>)}
+
+        {/* ══════════════════════════════════════════════════════════════════════ */}
+        {/* ── VUE ASSOCIATIONS ──────────────────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════════════ */}
+        {typeVue === "assos" && (<>
+
+          {/* Header violet */}
+          <div style={{ background:"linear-gradient(135deg,#0f0a1e,#1a1030)", border:"1px solid #7c3aed30", borderRadius:20, padding:"20px 20px 16px", marginBottom:16, position:"relative", overflow:"hidden" }}>
+            <div style={{ position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,#7c3aed20,transparent)",pointerEvents:"none" }}/>
+            <h1 style={{ fontWeight:900,fontSize:22,color:"#fff",marginBottom:8,textShadow:"0 0 20px #a78bfa88" }}>👥 Associations</h1>
+            <div style={{ display:"flex",gap:16,flexWrap:"wrap" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:7 }}>
+                <span style={{ fontWeight:700,fontSize:14,color:"#a78bfa" }}>{associations.length}</span>
+                <span style={{ fontSize:12,color:"#94a3b8" }}>clubs référencés</span>
+              </div>
+              <div style={{ display:"flex",alignItems:"center",gap:7 }}>
+                <span style={{ fontWeight:700,fontSize:14,color:"#c4b5fd" }}>{filteredAssos.filter(a=>a.description||a.ville).length}</span>
+                <span style={{ fontSize:12,color:"#94a3b8" }}>clubs actifs</span>
               </div>
             </div>
           </div>
-          {activeFilters>0&&<button onClick={resetFilters} style={{ marginTop:12,background:"none",border:"none",color:"#f87171",cursor:"pointer",fontSize:12 }}>✕ Réinitialiser les filtres</button>}
-        </div>
-      )}
 
-      {/* CARTE — priorité visuelle */}
-      {view==="carte"&&(
-        <div style={{ marginBottom:16 }}>
-          <LeafletMap bars={filtered} associations={filterAsso?filteredAssos:[]} onBarClick={s=>{setBarSlug(s);setPage("bar");}} onAssoClick={s=>{setAssoSlug(s);setPage("asso");}} centerVille={search||null} height="55vh" barsActifs={barsActifs} userPos={userPos}/>
-        </div>
-      )}
+          {/* Search */}
+          <div style={{ position:"relative",marginBottom:14 }}>
+            <span style={{ position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",fontSize:14,pointerEvents:"none",color:"#64748b" }}>🔍</span>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher une association ou une ville…"
+              style={{ width:"100%",background:"#13101e",border:`1px solid ${search?"#7c3aed":"#2a2a3e"}`,borderRadius:10,padding:"10px 36px",color:"#f1f5f9",fontSize:14,boxSizing:"border-box",outline:"none" }}/>
+            {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:15 }}>✕</button>}
+          </div>
 
-      {/* LÉGENDE */}
-      <div style={{ display:"flex",gap:14,marginBottom:14,flexWrap:"wrap" }}>
-        {[["🍺","Bar"],["👥","Association"],["🏆","Tournoi"]].map(([e,l])=>(
-          <span key={l} style={{ display:"flex",alignItems:"center",gap:5,fontSize:12,color:C.muted }}><span style={{ fontSize:14 }}>{e}</span>{l}</span>
-        ))}
-      </div>
+          {/* Carte/Liste */}
+          <div style={{ display:"flex",background:"#13101e",border:"1px solid #2a2a3e",borderRadius:10,overflow:"hidden",marginBottom:14 }}>
+            {[["carte","🗺️ Carte"],["liste","📋 Liste"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setView(v)} style={{ flex:1,padding:"9px 0",background:view===v?"#7c3aed":"transparent",color:view===v?"#fff":"#94a3b8",border:"none",cursor:"pointer",fontWeight:view===v?700:400,fontSize:13,transition:"all .15s" }}>{l}</button>
+            ))}
+          </div>
 
-      {/* RÉSULTATS */}
-      {filtered.length===0&&filteredAssos.length===0?(
-        <div style={{ textAlign:"center",padding:"40px 20px",color:C.muted }}>
-          <div style={{ fontSize:44,marginBottom:10 }}>🔍</div>
-          <p style={{ marginBottom:10 }}>Aucun résultat trouvé.</p>
-          {activeFilters>0&&<button onClick={resetFilters} style={{ background:"none",border:"none",color:C.accent,cursor:"pointer",fontSize:13 }}>Effacer les filtres</button>}
-        </div>
-      ):(
-        <>
-          {filtered.length>0&&(
-            <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
-              {filtered.map(b=><BarCard key={b.id} bar={b} onClick={()=>{setBarSlug(b.slug);setPage("bar");}} barsActifs={barsActifs} dist={b._dist!=null&&b._dist!==Infinity?b._dist:null}/>)}
+          {/* Carte */}
+          {view==="carte"&&(
+            <div style={{ marginBottom:16,borderRadius:16,overflow:"hidden",border:"1px solid #7c3aed20",boxShadow:"0 0 30px #7c3aed15" }}>
+              <LeafletMap bars={[]} associations={filteredAssos} onAssoClick={s=>{setAssoSlug(s);setPage("asso");}} centerVille={search||null} height="48vh"/>
             </div>
           )}
-          {filteredAssos.length>0&&(
-            <div style={{ marginTop: filtered.length>0?24:0 }}>
-              {filtered.length>0&&<h2 style={{ fontSize:15,fontWeight:700,color:C.muted,marginBottom:12,letterSpacing:.5 }}>🫂 ASSOCIATIONS ({filteredAssos.length})</h2>}
-              <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
-                {filteredAssos.map(a=>(
-                  <div key={a.slug} onClick={()=>{setAssoSlug(a.slug);setPage("asso");}}
-                    style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px",cursor:"pointer",transition:"border-color .15s" }}
-                    onMouseEnter={e=>e.currentTarget.style.borderColor="#7c3aed"}
-                    onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
-                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8 }}>
-                      <div>
-                        <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:4 }}>
-                          <span style={{ fontWeight:700,fontSize:15 }}>🫂 {a.nom}</span>
-                          <span style={{ background:"#7c3aed18",color:"#a78bfa",border:"1px solid #7c3aed33",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>Association</span>
+
+          {/* Liste associations */}
+          {view==="liste"&&(
+            filteredAssos.length===0
+              ? <div style={{ textAlign:"center",padding:"40px 20px",color:"#64748b" }}><div style={{ fontSize:44,marginBottom:10 }}>🔍</div><p>Aucune association trouvée.</p></div>
+              : <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+                  {filteredAssos.map(a=>(
+                    <div key={a.slug} onClick={()=>{setAssoSlug(a.slug);setPage("asso");}}
+                      style={{ background:"#13101e",border:"1px solid #2a2a3e",borderRadius:14,padding:"16px 18px",cursor:"pointer",transition:"all .15s" }}
+                      onMouseEnter={e=>{e.currentTarget.style.borderColor="#7c3aed";e.currentTarget.style.boxShadow="0 0 20px #7c3aed20";}}
+                      onMouseLeave={e=>{e.currentTarget.style.borderColor="#2a2a3e";e.currentTarget.style.boxShadow="none";}}>
+                      <div style={{ display:"flex",alignItems:"center",gap:14 }}>
+                        <div style={{ width:48,height:48,borderRadius:12,background:"linear-gradient(135deg,#7c3aed22,#a78bfa22)",border:"1px solid #7c3aed44",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0 }}>🫂</div>
+                        <div style={{ flex:1,minWidth:0 }}>
+                          <div style={{ fontWeight:700,fontSize:15,color:"#f1f5f9",marginBottom:3 }}>{a.nom}</div>
+                          <div style={{ fontSize:12,color:"#64748b" }}>📍 {a.ville}{a.zone?` · ${a.zone}`:""}</div>
+                          {a.description&&<div style={{ fontSize:11,color:"#94a3b8",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{a.description}</div>}
                         </div>
-                        <div style={{ fontSize:12,color:C.muted }}>📍 {a.ville}{a.zone?` · ${a.zone}`:""}</div>
-                        {a.description&&<div style={{ fontSize:12,color:C.muted,marginTop:3 }}>{a.description}</div>}
+                        <div style={{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,flexShrink:0 }}>
+                          <span style={{ background:"#7c3aed18",color:"#a78bfa",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>Club</span>
+                          <span style={{ color:"#a78bfa",fontSize:18 }}>›</span>
+                        </div>
                       </div>
-                      <span style={{ color:C.muted,fontSize:18,flexShrink:0 }}>→</span>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+          )}
+
+          {/* Bloc président */}
+          <div style={{ background:"linear-gradient(135deg,#1a1030,#0f0a1e)",border:"1px solid #7c3aed44",borderRadius:16,padding:"18px 20px",marginTop:20 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:8 }}>
+              <span style={{ fontSize:28 }}>👑</span>
+              <div>
+                <div style={{ fontWeight:800,fontSize:15,color:"#f1f5f9" }}>Vous êtes président de club ?</div>
+                <div style={{ fontSize:12,color:"#94a3b8" }}>Demandez l'accès admin pour gérer votre association</div>
               </div>
             </div>
-          )}
-        </>
-      )}
+            <button onClick={()=>setPage("proposer-asso")} style={{ background:"linear-gradient(135deg,#7c3aed,#6d28d9)",color:"#fff",border:"none",borderRadius:10,padding:"10px 18px",cursor:"pointer",fontSize:13,fontWeight:700,width:"100%",marginTop:4 }}>
+              🔥 Demander accès administrateur
+            </button>
+          </div>
+        </>)}
 
-      {/* FAB */}
-      <button onClick={()=>setPage("proposer")}
-        style={{ position:"fixed",bottom:24,right:24,zIndex:500,background:C.accent,color:"#fff",border:"none",borderRadius:50,padding:"13px 20px",cursor:"pointer",fontSize:14,fontWeight:700,boxShadow:"0 4px 24px rgba(249,115,22,.45)",display:"flex",alignItems:"center",gap:8,letterSpacing:.3 }}>
-        <span style={{ fontSize:18,lineHeight:1 }}>+</span> Ajouter un bar
-      </button>
+        {/* ══════════════════════════════════════════════════════════════════════ */}
+        {/* ── VUE TOURNOIS ──────────────────────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════════════ */}
+        {typeVue === "tournois" && (<>
+
+          {/* Header rouge/or */}
+          <div style={{ background:"linear-gradient(135deg,#1a0a0a,#2a0f0f)",border:"1px solid #dc262630",borderRadius:20,padding:"20px 20px 16px",marginBottom:16,position:"relative",overflow:"hidden" }}>
+            <div style={{ position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,#dc262620,transparent)",pointerEvents:"none" }}/>
+            <h1 style={{ fontWeight:900,fontSize:22,color:"#fff",marginBottom:8,textShadow:"0 0 20px #ef444488" }}>🏆 Bars avec tournois</h1>
+            <div style={{ display:"flex",gap:16,flexWrap:"wrap" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:7 }}>
+                <div style={{ width:8,height:8,borderRadius:"50%",background:"#fbbf24",animation:"pulse-dot 2s infinite" }}/>
+                <span style={{ fontWeight:700,fontSize:14,color:"#fbbf24" }}>{bars.filter(b=>b.tournois).length}</span>
+                <span style={{ fontSize:12,color:"#94a3b8" }}>bars avec tournois</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div style={{ position:"relative",marginBottom:14 }}>
+            <span style={{ position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",fontSize:14,pointerEvents:"none",color:"#64748b" }}>🔍</span>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher un bar ou une ville…"
+              style={{ width:"100%",background:"#1a0f0f",border:`1px solid ${search?"#dc2626":"#3a1a1a"}`,borderRadius:10,padding:"10px 36px",color:"#f1f5f9",fontSize:14,boxSizing:"border-box",outline:"none" }}/>
+            {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:15 }}>✕</button>}
+          </div>
+
+          {/* Carte/Liste */}
+          <div style={{ display:"flex",background:"#1a0f0f",border:"1px solid #3a1a1a",borderRadius:10,overflow:"hidden",marginBottom:14 }}>
+            {[["carte","🗺️ Carte"],["liste","📋 Liste"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setView(v)} style={{ flex:1,padding:"9px 0",background:view===v?"#dc2626":"transparent",color:view===v?"#fff":"#94a3b8",border:"none",cursor:"pointer",fontWeight:view===v?700:400,fontSize:13,transition:"all .15s" }}>{l}</button>
+            ))}
+          </div>
+
+          {/* Carte */}
+          {view==="carte"&&(
+            <div style={{ marginBottom:16,borderRadius:16,overflow:"hidden",border:"1px solid #dc262620",boxShadow:"0 0 30px #dc262615" }}>
+              <LeafletMap bars={filteredBars} associations={[]} onBarClick={s=>{setBarSlug(s);setPage("bar");}} centerVille={search||null} height="48vh" barsActifs={barsActifs} userPos={userPos}/>
+            </div>
+          )}
+
+          {/* Liste tournois */}
+          {view==="liste"&&(
+            filteredBars.length===0
+              ? <div style={{ textAlign:"center",padding:"40px 20px",color:"#64748b" }}><div style={{ fontSize:44,marginBottom:10 }}>🏆</div><p>Aucun bar avec tournois trouvé.</p></div>
+              : <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+                  {filteredBars.map(b=>(
+                    <div key={b.id} onClick={()=>{setBarSlug(b.slug);setPage("bar");}}
+                      style={{ background:"linear-gradient(135deg,#1a0f0f,#1a1a0f)",border:"1px solid #3a1a1a",borderRadius:14,padding:"16px 18px",cursor:"pointer",transition:"all .15s" }}
+                      onMouseEnter={e=>{e.currentTarget.style.borderColor="#fbbf24";e.currentTarget.style.boxShadow="0 0 20px #fbbf2420";}}
+                      onMouseLeave={e=>{e.currentTarget.style.borderColor="#3a1a1a";e.currentTarget.style.boxShadow="none";}}>
+                      <div style={{ display:"flex",alignItems:"center",gap:14 }}>
+                        <div style={{ width:48,height:48,borderRadius:12,background:"linear-gradient(135deg,#fbbf2420,#dc262620)",border:"1px solid #fbbf2444",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0 }}>🏆</div>
+                        <div style={{ flex:1,minWidth:0 }}>
+                          <div style={{ fontWeight:700,fontSize:15,color:"#f1f5f9",marginBottom:3 }}>{b.nom}</div>
+                          <div style={{ fontSize:12,color:"#64748b",marginBottom:5 }}>📍 {b.ville}</div>
+                          <div style={{ display:"flex",gap:5,flexWrap:"wrap" }}>
+                            <span style={{ background:"#fbbf2420",color:"#fbbf24",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:700 }}>🏆 Tournois</span>
+                            {barsActifs.includes(b.slug)&&<span style={{ background:"#22c55e20",color:"#22c55e",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:700 }}>🟢 Actif ce soir</span>}
+                            <span style={{ background:"#f9731618",color:"#f97316",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>🎯 {b.cibles} cible{b.cibles>1?"s":""}</span>
+                          </div>
+                        </div>
+                        <span style={{ background:"linear-gradient(135deg,#dc2626,#991b1b)",color:"#fff",padding:"7px 13px",borderRadius:8,fontSize:12,fontWeight:700,flexShrink:0 }}>Voir →</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+          )}
+        </>)}
+
+      </div>
     </div>
   );
 };
