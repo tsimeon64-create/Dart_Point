@@ -6166,7 +6166,7 @@ const Footer = ({ setPage, onOpenHelp }) => (
         ))}
         {onOpenHelp && (
           <button onClick={onOpenHelp} style={{ background:"none",border:"1px solid #2a2a3a",borderRadius:8,color:"#6b7280",cursor:"pointer",fontSize:12,padding:"3px 10px",display:"flex",alignItems:"center",gap:5,touchAction:"manipulation" }}>
-            <span style={{ fontSize:13 }}>📋</span> Notice / Aide
+            <span style={{ fontSize:13 }}>📋</span> Aide
           </button>
         )}
         <button onClick={()=>setPage("adminlogin")} style={{ background:"none",border:"none",color:"#3a3a3a",cursor:"pointer",fontSize:11 }}>⚙</button>
