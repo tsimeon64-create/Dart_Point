@@ -113,9 +113,15 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
 
   useEffect(() => {
     if (!ready || !divRef.current || mapRef.current) return;
+    // Nettoie une ancienne instance Leaflet sur le même div (évite les marqueurs fantômes)
+    if (divRef.current._leaflet_id) {
+      try { window.L.map(divRef.current).remove(); } catch(e) {}
+      divRef.current._leaflet_id = undefined;
+    }
     const map = window.L.map(divRef.current, { scrollWheelZoom:false }).setView([43.47,-1.52], 9);
     window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution:"© OpenStreetMap", maxZoom:19 }).addTo(map);
     mapRef.current = map;
+    return () => { try { map.remove(); } catch(e) {} mapRef.current = null; };
   }, [ready]);
 
   useEffect(() => {
