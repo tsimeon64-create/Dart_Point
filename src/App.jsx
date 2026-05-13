@@ -6994,7 +6994,7 @@ export default function App() {
     return () => { clearInterval(interval); document.removeEventListener("visibilitychange", onVisible); };
   },[joueur?.id]);
 
-  const handleLogin=(j)=>{ setJoueur(j); localStorage.setItem("dp_joueur",JSON.stringify(j)); nav("mon-profil"); };
+  const handleLogin=(j)=>{ setJoueur(j); localStorage.setItem("dp_joueur",JSON.stringify(j)); nav("home"); };
   const handleProposal=async f=>{
     const slug = slugify(f.nom+"-"+f.ville);
     // Ajout direct dans la table bars
