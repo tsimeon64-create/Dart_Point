@@ -5941,11 +5941,9 @@ const Onboarding = ({ onDone }) => {
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
-    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 60;
-    if (nearBottom) setBtnVisible(true);
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 60) setBtnVisible(true);
   };
 
-  // Révéler le bouton si le contenu est trop court pour défiler
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -5957,55 +5955,167 @@ const Onboarding = ({ onDone }) => {
     onDone();
   };
 
+  // ── Mini-courbe DRIX (SVG) ────────────────────────────────────────────────
+  const drixPts = [118, 132, 125, 148, 162, 155, 178, 196, 185, 218, 240, 228, 262];
+  const svgW = 280, svgH = 76;
+  const dMin = Math.min(...drixPts), dMax = Math.max(...drixPts);
+  const toX = i => (i / (drixPts.length - 1)) * svgW;
+  const toY = v => svgH - ((v - dMin) / (dMax - dMin)) * (svgH - 16) - 8;
+  const lineD = drixPts.map((v, i) => `${i===0?"M":"L"}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" ");
+  const areaD = `${lineD} L${svgW},${svgH} L0,${svgH} Z`;
+  const lastX = toX(drixPts.length - 1);
+  const lastY = toY(drixPts[drixPts.length - 1]);
+
+  // ── Jauge dangerosité ─────────────────────────────────────────────────────
+  const danger = 78;
+  const gR = 42, gCx = 52, gCy = 52;
+  const gCirc = 2 * Math.PI * gR;
+  const gDash = gCirc * (danger / 100);
+  const gColor = "#ef4444";
+
+  // ── Section card helper ───────────────────────────────────────────────────
+  const SCard = ({ s }) => (
+    <div style={{ marginBottom:16, borderRadius:18,
+      background: s.highlight
+        ? `linear-gradient(135deg,${s.accent}18,#12120a)`
+        : "linear-gradient(135deg,#111118,#0e0e14)",
+      border:`1px solid ${s.accent}${s.highlight?"44":"25"}`,
+      padding:"18px 16px",
+      boxShadow: s.highlight ? `0 0 32px ${s.accent}14` : "none",
+    }}>
+      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:10 }}>
+        <div style={{ width:44, height:44, borderRadius:13, background:`${s.accent}18`, border:`1px solid ${s.accent}33`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:21, flexShrink:0 }}>
+          {s.emoji}
+        </div>
+        <h2 style={{ fontWeight:800, fontSize:16, color:"#f1f5f9", margin:0, lineHeight:1.3 }}>{s.title}</h2>
+      </div>
+      <p style={{ color:"#94a3b8", fontSize:13.5, lineHeight:1.75, margin:0, marginBottom: s.sub ? 10 : 0 }}>{s.body}</p>
+      {s.sub && (
+        <div style={{ marginTop:10, background:`${s.accent}12`, border:`1px solid ${s.accent}30`, borderRadius:10, padding:"8px 13px", fontSize:12.5, fontWeight:700, color:s.accent }}>
+          {s.sub}
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <div style={{ position:"fixed", inset:0, zIndex:9999, background:"#0a0a0a", display:"flex", flexDirection:"column" }}>
-      {/* Header fixe */}
-      <div style={{ flexShrink:0, padding:"20px 20px 0", textAlign:"center", borderBottom:"1px solid #1a1a1a", paddingBottom:16 }}>
-        <img src="/logo dart point/logo bandeau.png" alt="DartPoint" style={{ height:38, objectFit:"contain", filter:"drop-shadow(0 0 14px rgba(249,115,22,.5))" }}/>
+    <div style={{ position:"fixed", inset:0, zIndex:9999, background:"#090909", display:"flex", flexDirection:"column" }}>
+      {/* ── Header ── */}
+      <div style={{ flexShrink:0, padding:"18px 20px 16px", textAlign:"center", borderBottom:"1px solid #161616" }}>
+        <img src="/logo dart point/logo bandeau.png" alt="DartPoint"
+          style={{ height:36, objectFit:"contain", filter:"drop-shadow(0 0 16px rgba(249,115,22,.55))" }}/>
       </div>
 
-      {/* Contenu scrollable */}
+      {/* ── Scroll area ── */}
       <div ref={scrollRef} onScroll={onScroll}
-        style={{ flex:1, overflowY:"auto", overflowX:"hidden", padding:"24px 20px 32px", WebkitOverflowScrolling:"touch" }}>
+        style={{ flex:1, overflowY:"auto", overflowX:"hidden", padding:"20px 18px 28px", WebkitOverflowScrolling:"touch" }}>
 
-        {ONBOARDING_SECTIONS.map((s, i) => (
-          <div key={i} style={{ marginBottom:20, borderRadius:18,
-            background: s.highlight
-              ? `linear-gradient(135deg,${s.accent}14,#1a1a0a)`
-              : "linear-gradient(135deg,#111118,#0e0e14)",
-            border:`1px solid ${s.accent}${s.highlight?"44":"22"}`,
-            padding:"20px 18px",
-            boxShadow: s.highlight ? `0 0 30px ${s.accent}18` : "none",
-          }}>
-            <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12 }}>
-              <div style={{ width:46, height:46, borderRadius:14, background:`${s.accent}18`, border:`1px solid ${s.accent}33`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>
-                {s.emoji}
-              </div>
-              <h2 style={{ fontWeight:800, fontSize:17, color:"#f1f5f9", margin:0, lineHeight:1.3 }}>{s.title}</h2>
+        {/* Sections 0 & 1 */}
+        {ONBOARDING_SECTIONS.slice(0, 2).map((s, i) => <SCard key={i} s={s}/>)}
+
+        {/* Section DRIX */}
+        <SCard s={ONBOARDING_SECTIONS[2]}/>
+
+        {/* ── BLOC VISUEL : Courbe + Dangerosité ── */}
+        <div style={{ marginBottom:16, borderRadius:18, background:"linear-gradient(145deg,#0d0d1e,#080812)", border:"1px solid #a78bfa30", padding:"18px 16px", boxShadow:"0 0 40px #a78bfa0a" }}>
+          <div style={{ fontWeight:800, fontSize:15, color:"#f1f5f9", marginBottom:3 }}>📊 Retrouve tes stats</div>
+          <div style={{ color:"#4b5563", fontSize:12.5, marginBottom:16 }}>Ta progression DRIX, visible en temps réel</div>
+
+          {/* Courbe DRIX */}
+          <div style={{ background:"#07071a", borderRadius:14, padding:"12px 10px 6px", marginBottom:16, position:"relative", overflow:"hidden" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, paddingLeft:2, paddingRight:2 }}>
+              <span style={{ fontSize:11, color:"#4b5563", fontWeight:600 }}>DRIX</span>
+              <span style={{ fontSize:11.5, fontWeight:800, color:"#a78bfa" }}>+144 pts cette saison</span>
             </div>
-            <p style={{ color:"#94a3b8", fontSize:14, lineHeight:1.75, margin:0, marginBottom: s.sub ? 10 : 0 }}>{s.body}</p>
-            {s.sub && (
-              <div style={{ marginTop:10, background:`${s.accent}12`, border:`1px solid ${s.accent}30`, borderRadius:10, padding:"9px 14px", fontSize:13, fontWeight:600, color:s.accent }}>
-                {s.sub}
-              </div>
-            )}
+            <svg width="100%" viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="none" style={{ display:"block", overflow:"visible" }}>
+              <defs>
+                <linearGradient id="ob-area" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#a78bfa" stopOpacity="0.28"/>
+                  <stop offset="100%" stopColor="#a78bfa" stopOpacity="0"/>
+                </linearGradient>
+                <filter id="ob-glow">
+                  <feGaussianBlur stdDeviation="2" result="blur"/>
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+              </defs>
+              {/* Zone remplie */}
+              <path d={areaD} fill="url(#ob-area)"/>
+              {/* Ligne principale */}
+              <path d={lineD} fill="none" stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" filter="url(#ob-glow)"/>
+              {/* Point final animé */}
+              <circle cx={lastX} cy={lastY} r="5" fill="#a78bfa" stroke="#07071a" strokeWidth="2.5"/>
+              <circle cx={lastX} cy={lastY} r="9" fill="none" stroke="#a78bfa" strokeOpacity="0.3" strokeWidth="1.5">
+                <animate attributeName="r" values="6;12;6" dur="2s" repeatCount="indefinite"/>
+                <animate attributeName="stroke-opacity" values="0.5;0;0.5" dur="2s" repeatCount="indefinite"/>
+              </circle>
+              {/* Valeur finale */}
+              <text x={lastX} y={lastY - 13} textAnchor="middle" fill="#a78bfa" fontSize="11" fontWeight="800">262</text>
+            </svg>
+            {/* Labels axe X */}
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"4px 2px 0", marginTop:2 }}>
+              {["Jan","Mar","Mai","Juil","Sep","Nov","Jan"].map((m,i)=>(
+                <span key={i} style={{ fontSize:9.5, color:"#2a2a3a" }}>{m}</span>
+              ))}
+            </div>
           </div>
-        ))}
 
-        {/* Indicateur de scroll si bouton pas encore visible */}
+          {/* Jauge de dangerosité */}
+          <div style={{ display:"flex", alignItems:"center", gap:14, background:"#07071a", borderRadius:14, padding:"14px" }}>
+            {/* Cercle SVG */}
+            <div style={{ flexShrink:0, position:"relative" }}>
+              <svg width={gCx*2} height={gCy*2} viewBox={`0 0 ${gCx*2} ${gCy*2}`}>
+                {/* Fond piste */}
+                <circle cx={gCx} cy={gCy} r={gR} fill="none" stroke="#1a0a0a" strokeWidth="9"/>
+                {/* Arc dangerosité */}
+                <circle cx={gCx} cy={gCy} r={gR} fill="none"
+                  stroke={gColor} strokeWidth="9" strokeLinecap="round"
+                  strokeDasharray={`${gDash.toFixed(1)} ${gCirc.toFixed(1)}`}
+                  transform={`rotate(-90 ${gCx} ${gCy})`}
+                  style={{ filter:`drop-shadow(0 0 8px ${gColor}99)` }}
+                />
+                {/* Score au centre */}
+                <text x={gCx} y={gCy - 5} textAnchor="middle" dominantBaseline="middle"
+                  fill="#f1f5f9" fontSize="22" fontWeight="900" fontFamily="Inter,sans-serif">{danger}</text>
+                <text x={gCx} y={gCy + 14} textAnchor="middle"
+                  fill="#64748b" fontSize="9" fontWeight="600" fontFamily="Inter,sans-serif">/100</text>
+              </svg>
+            </div>
+            {/* Légende */}
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:900, fontSize:16, color:gColor, marginBottom:4, letterSpacing:.3 }}>
+                ⚡ Dangerosité
+              </div>
+              <div style={{ fontSize:12.5, color:"#94a3b8", lineHeight:1.65 }}>
+                Un score calculé sur tes victoires, ton niveau DRIX et ta régularité. Plus tu joues, plus tu deviens <span style={{ color:gColor, fontWeight:700 }}>redoutable</span>.
+              </div>
+              <div style={{ marginTop:8, display:"flex", gap:6 }}>
+                {[["🟢","0–30"],["🟡","30–60"],["🟠","60–80"],["🔴","80+"]].map(([e,l],i)=>(
+                  <div key={i} style={{ fontSize:10, color: i===2?"#f97316":i===3?"#ef4444":"#4b5563", fontWeight: i>=2?700:400 }}>{e} {l}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sections 3, 4, 5 */}
+        {ONBOARDING_SECTIONS.slice(3).map((s, i) => <SCard key={i+3} s={s}/>)}
+
+        {/* Indicateur de scroll */}
         {!btnVisible && (
-          <div style={{ textAlign:"center", color:"#2a2a3a", fontSize:12, marginBottom:8, animation:"nav-pulse 2s infinite" }}>
+          <div style={{ textAlign:"center", color:"#222230", fontSize:12, marginBottom:10 }}>
             ↓ continue à défiler
           </div>
         )}
 
-        {/* Bouton — toujours en bas du contenu */}
-        <div style={{ transition:"opacity .4s, transform .4s", opacity: btnVisible ? 1 : 0, transform: btnVisible ? "translateY(0)" : "translateY(16px)", pointerEvents: btnVisible ? "auto" : "none" }}>
+        {/* Bouton CTA révélé après scroll */}
+        <div style={{ transition:"opacity .45s, transform .45s", opacity: btnVisible?1:0, transform: btnVisible?"translateY(0)":"translateY(18px)", pointerEvents: btnVisible?"auto":"none" }}>
           <button onClick={done}
-            style={{ width:"100%", padding:"16px 0", background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", border:"none", borderRadius:16, fontWeight:800, fontSize:17, cursor:"pointer", boxShadow:"0 6px 30px #f9731450", touchAction:"manipulation", letterSpacing:.3 }}>
+            style={{ width:"100%", padding:"17px 0", background:"linear-gradient(135deg,#f97316,#dc4e08)", color:"#fff", border:"none", borderRadius:16, fontWeight:900, fontSize:17, cursor:"pointer", boxShadow:"0 8px 32px #f9731460", touchAction:"manipulation", letterSpacing:.4 }}>
             J'ai compris, je me lance ! 🎯
           </button>
-          <p style={{ textAlign:"center", color:"#374151", fontSize:11, marginTop:12 }}>Tu peux retrouver ces infos dans "À propos" à tout moment.</p>
+          <p style={{ textAlign:"center", color:"#2a2a3a", fontSize:11, marginTop:12 }}>
+            Tu peux retrouver ces infos dans "À propos" à tout moment.
+          </p>
         </div>
       </div>
     </div>
