@@ -4504,7 +4504,7 @@ const Proposer = ({ bars, onSubmit }) => {
   const [sent,setSent]=useState(false); const [doublon,setDoublon]=useState(null);
   const set=k=>v=>setF(p=>({...p,[k]:v})); const valid=f.nom.trim()&&f.ville.trim()&&!doublon;
   useEffect(()=>{ if(!f.nom.trim()||!f.ville.trim()){setDoublon(null);return;} const q=f.nom.toLowerCase(),v=f.ville.toLowerCase(); setDoublon(bars.find(b=>b.nom.toLowerCase().includes(q)&&b.ville.toLowerCase().includes(v))||null); },[f.nom,f.ville,bars]);
-  if(sent) return <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}><div style={{ fontSize:50,marginBottom:12 }}>✅</div><h2 style={{ fontWeight:700,marginBottom:8 }}>Merci !</h2><p style={{ color:C.muted }}>Votre proposition est en attente de validation.</p></div>;
+  if(sent) return <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}><div style={{ fontSize:50,marginBottom:12 }}>✅</div><h2 style={{ fontWeight:700,marginBottom:8 }}>Bar ajouté !</h2><p style={{ color:C.muted }}>Il est maintenant visible dans la liste des bars.</p></div>;
   return (
     <div style={{ maxWidth:660,margin:"0 auto",padding:"36px 20px" }}>
       <h1 style={{ fontWeight:800,fontSize:26,marginBottom:24 }}>➕ Proposer un bar</h1>
@@ -4994,6 +4994,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
   const refuser=async(id,nom)=>{await db.updateProposition(id,{statut:"refuse"});setPropositions(x=>x.map(y=>y.id===id?{...y,statut:"refuse"}:y));addLog("Proposition refusée",nom||id,"warning");};
 
   const allPending = propositions.filter(p=>p.statut==="en_attente" && p.type_prop !== "president_club");
+  const barsAjoutes = propositions.filter(p=>p.statut==="auto_accepte" && !p.type_prop);
   const demandesClubs = propositions.filter(p=>p.type_prop==="president_club");
   const demandesClubsPending = demandesClubs.filter(p=>p.statut==="en_attente");
   const sigPending = signalements.filter(s=>!s.traite);
@@ -5249,6 +5250,35 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
   );
 
   // ── DEMANDES CLUBS (présidents) ──
+  const renderBarsAjoutes = () => (
+    <div>
+      {barsAjoutes.length === 0 ? (
+        <div style={{ textAlign:"center", padding:60, color:C.muted }}>
+          <div style={{ fontSize:40, marginBottom:12 }}>🍺</div>
+          <p>Aucun bar ajouté par des utilisateurs pour l'instant.</p>
+        </div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <div style={{ fontSize:12, color:C.muted, marginBottom:4 }}>
+            {barsAjoutes.length} bar{barsAjoutes.length>1?"s":""} ajouté{barsAjoutes.length>1?"s":""} directement par des utilisateurs — vérification possible via l'onglet 🎯 Bars.
+          </div>
+          {barsAjoutes.map(p => (
+            <div key={p.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:16 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:15, marginBottom:4 }}>🍺 {p.nom} <span style={{ color:C.muted, fontWeight:400, fontSize:13 }}>— {p.ville}</span></div>
+                  {p.commentaire && <div style={{ fontSize:12, color:C.muted, lineHeight:1.6 }}>{p.commentaire}</div>}
+                  <div style={{ fontSize:11, color:"#374151", marginTop:6 }}>{new Date(p.date).toLocaleDateString("fr", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" })}</div>
+                </div>
+                <span style={{ background:"#22c55e18", color:"#22c55e", border:"1px solid #22c55e33", borderRadius:20, padding:"3px 10px", fontSize:11, fontWeight:700, flexShrink:0 }}>✅ Ajouté</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   const renderDemandes = () => (
     <div>
       {demandesClubs.length === 0 ? (
@@ -5345,6 +5375,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
   const TABS = [
     ["dashboard","📊 Dashboard"],
     ["pending",`⏳ En attente${allPending.length>0?` (${allPending.length})`:""}`,allPending.length>0?"urgent":null],
+    ["bars-ajoutes",`🆕 Bars ajoutés${barsAjoutes.length>0?` (${barsAjoutes.length})`:""}`,barsAjoutes.length>0?"important":null],
     ["demandes-clubs",`👑 Clubs${demandesClubsPending.length>0?` (${demandesClubsPending.length})`:""}`,demandesClubsPending.length>0?"urgent":null],
     ["avismod",`💬 Avis${avisCount>0?` (${avisCount})`:""}`,avisCount>0?"important":null],
     ["allbars",`🎯 Bars (${bars.length})`],
@@ -5442,6 +5473,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
         {loading ? <Spinner/>
           : tab==="dashboard"       ? renderDashboard()
           : tab==="pending"         ? renderPending()
+          : tab==="bars-ajoutes"    ? renderBarsAjoutes()
           : tab==="demandes-clubs"  ? renderDemandes()
           : tab==="avismod"         ? <AvisAdminSection/>
           : tab==="allbars"     ? renderBars()
@@ -6001,7 +6033,18 @@ export default function App() {
   },[joueur?.id]);
 
   const handleLogin=(j)=>{ setJoueur(j); localStorage.setItem("dp_joueur",JSON.stringify(j)); nav("mon-profil"); };
-  const handleProposal=async f=>{ await db.addProposition({...f,slug:slugify(f.nom+"-"+f.ville),statut:"en_attente",date:Date.now()}); };
+  const handleProposal=async f=>{
+    const slug = slugify(f.nom+"-"+f.ville);
+    // Ajout direct dans la table bars
+    const result = await db.addBar({
+      nom:f.nom, ville:f.ville, adresse:f.adresse||"", cp:f.cp||"",
+      type:f.type, cibles:parseInt(f.cibles)||1, tournois:f.tournois==="oui",
+      tel:f.tel||"", slug, source:"user", verifie:false,
+    }).catch(()=>null);
+    if (result?.[0]) setBars(prev=>[...prev, result[0]]);
+    // Log pour l'admin (info seulement)
+    await db.addProposition({ nom:f.nom, ville:f.ville, slug, statut:"auto_accepte", date:Date.now(), commentaire:`Bar ajouté directement. ${f.commentaire||""}`.trim() }).catch(()=>{});
+  };
   const handleProposalAsso=async f=>{ await db.addProposition({...f,slug:slugify(f.nom+"-"+f.ville),statut:"en_attente",date:Date.now(),type_prop:"association"}); };
   const handleProposalTournoi=async f=>{ await db.addProposition({...f,slug:slugify(f.nom+"-"+f.ville),statut:"en_attente",date:Date.now(),type_prop:"tournoi"}); };
 
