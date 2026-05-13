@@ -66,6 +66,15 @@ const CHECKOUTS_OPT = {
 
 const TOUS_FINISHES = Object.keys(CHECKOUTS_OPT).map(Number);
 
+// Niveaux de progression (basés sur le format de la solution)
+const FINISHES_N1 = TOUS_FINISHES.filter(f => !CHECKOUTS_OPT[f].includes(" "));         // double pur : "D20", "Bull"
+const FINISHES_N2 = TOUS_FINISHES.filter(f => { const p = CHECKOUTS_OPT[f].split(" "); return p.length === 2 && p[0].startsWith("T"); }); // triple+double : "T20 D20"
+const FINISHES_N3 = TOUS_FINISHES.filter(f => CHECKOUTS_OPT[f].split(" ").length === 3); // 3 fléchettes
+
+const FINISHES_NIVEAU = [FINISHES_N1, FINISHES_N2, FINISHES_N3];
+
+const getNiveau = (ok) => ok < 2 ? 0 : ok < 4 ? 1 : 2;
+
 const DIFFICULTES = [
   { id:"facile",    label:"Facile",    emoji:"🟢", desc:"2–60",    finishes: TOUS_FINISHES.filter(f=>f<=60) },
   { id:"moyen",     label:"Moyen",     emoji:"🟡", desc:"61–100",  finishes: TOUS_FINISHES.filter(f=>f>60&&f<=100) },
@@ -208,6 +217,8 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
   const timeOutHandledRef               = useRef(false);
   const drixSerieRef                    = useRef(drixSerie);
   useEffect(() => { drixSerieRef.current = drixSerie; }, [drixSerie]);
+  const statsOkRef                      = useRef(0);
+  useEffect(() => { statsOkRef.current = stats.ok; }, [stats.ok]);
   // Synchronise les compteurs locaux si le joueur change
   useEffect(() => { if (joueur?.drix) setDrixLocal(joueur.drix); }, [joueur?.drix]);
 
@@ -215,7 +226,12 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
   const diffCurrent = DIFFICULTES.find(d => d.id === diffId);
 
   const nouveauFinish = useCallback((dId = diffId) => {
-    const liste = DIFFICULTES.find(d => d.id === dId)?.finishes || TOUS_FINISHES;
+    const baseListe = DIFFICULTES.find(d => d.id === dId)?.finishes || TOUS_FINISHES;
+    // Progression par niveau selon le nombre de bonnes réponses
+    const ok = statsOkRef.current;
+    const niveauFinishes = FINISHES_NIVEAU[getNiveau(ok)];
+    const candidate = baseListe.filter(f => niveauFinishes.includes(f));
+    const liste = candidate.length > 0 ? candidate : baseListe;
     setFinish(randFrom(liste));
     setDarts([]);
     setMultSel(null);
@@ -367,6 +383,21 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
         <div style={{ flex:1, fontWeight:800, fontSize:14, color: isDrix ? C.accent : C.green }}>
           {isDrix ? "⚡ Chasse aux DRIX" : "😌 Mode Paisible"}
         </div>
+        {/* Indicateur de niveau */}
+        {(() => {
+          const niv = getNiveau(stats.ok);
+          const NIVEAUX = [
+            { label:"Double", emoji:"🎯", color:C.green },
+            { label:"T+Double", emoji:"🔥", color:C.accent },
+            { label:"3 fléchettes", emoji:"⚡", color:"#a78bfa" },
+          ];
+          const n = NIVEAUX[niv];
+          return (
+            <div style={{ background:n.color+"22", border:`1px solid ${n.color}44`, borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:800, color:n.color, whiteSpace:"nowrap" }}>
+              {n.emoji} {n.label}
+            </div>
+          );
+        })()}
         {isDrix && joueur && (
           <div style={{ background:C.card2, border:`1px solid ${C.purple}44`, borderRadius:8, padding:"3px 9px", fontSize:12, fontWeight:800, color:C.purple }}>
             💎 {drixLocal}
