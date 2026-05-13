@@ -6313,11 +6313,11 @@ const Onboarding = ({ onDone }) => {
 // ── HELP CONTENT par page ─────────────────────────────────────────────────────
 const HELP_CONTENT = {
   home:           { emoji:"🏠", title:"Tableau de bord", items:[
-    {icon:"🎯",label:"Ton activité",text:"Retrouve tes derniers duels, ton score DRIX et ta progression en un coup d'œil."},
-    {icon:"⚡",label:"Défis",text:"Consulte les défis reçus et envoyés. Un badge rouge indique les défis en attente de réponse."},
-    {icon:"🍺",label:"Bars actifs",text:"Vois quels bars ont des joueurs présents aujourd'hui. Clique sur un bar pour voir qui est là."},
-    {icon:"🏅",label:"Prochains tournois",text:"Les tournois à venir s'affichent ici. Inscris-toi directement depuis la fiche tournoi."},
-    {icon:"💎",label:"DRIX",text:"Ton classement DRIX évolue à chaque duel enregistré. Plus ton adversaire est fort, plus tu gagnes de points en cas de victoire."},
+    {icon:"💬",label:"Le Comptoir",text:"Le Comptoir, c'est le fil social de DartPoint. Retrouve les posts, victoires et présences de tes amis. Tu peux aussi publier un message ou partager un résultat depuis cette section."},
+    {icon:"⚔️",label:"Défis",text:"Consulte les défis reçus et envoyés. Un badge rouge indique les défis en attente de réponse. Les duels classés impactent ton score DRIX."},
+    {icon:"💎",label:"Classement DRIX",text:"Ton classement DRIX évolue à chaque duel enregistré. Clique sur la tuile Classement pour voir ton rang et l'historique de ta progression."},
+    {icon:"🎮",label:"Modes de jeu",text:"Accède directement aux mini-jeux : Scoreur 501/301, Cricket, Rush Mode et Le Capital. Lance une partie en solo ou avec des amis."},
+    {icon:"🍺",label:"Trouve un bar",text:"Localise les bars à fléchettes près de chez toi. Les bars avec des joueurs présents ce soir sont mis en avant."},
   ]},
   bars:           { emoji:"🍺", title:"Bars & Associations", items:[
     {icon:"🔍",label:"Recherche",text:"Tape le nom d'une ville ou d'un bar pour filtrer les résultats instantanément. Tu peux aussi utiliser ta géolocalisation pour trouver les bars près de toi."},
@@ -6345,18 +6345,6 @@ const HELP_CONTENT = {
     {icon:"👥",label:"Onglet Membres",text:"Classement interne des membres du club par score DRIX. Tu peux cliquer sur un joueur pour voir son profil et le défier."},
     {icon:"📅",label:"Onglet Événements",text:"Les tournois organisés par ce club apparaissent ici, avec les événements à venir et passés."},
     {icon:"✏️",label:"Modifier",text:"Le bouton ✏️ Modifier à côté du nom du club permet de corriger les informations (réservé aux membres et admins)."},
-  ]},
-  tournois:       { emoji:"🏅", title:"Tournois & événements", items:[
-    {icon:"📅",label:"Tournois à venir",text:"Les compétitions à venir sont affichées en premier. Clique sur un tournoi pour voir les détails et t'inscrire."},
-    {icon:"🗺️",label:"Vue carte",text:"Bascule sur la carte pour voir géographiquement où se déroulent les prochains tournois près de chez toi."},
-    {icon:"➕",label:"Proposer un tournoi",text:"Tu organises un tournoi ? Utilise le bouton 'Proposer un tournoi' pour le faire apparaître dans le calendrier."},
-    {icon:"📆",label:"Tournois passés",text:"Les tournois passés sont archivés en bas de page pour garder un historique des événements."},
-  ]},
-  "tournoi-detail":{ emoji:"🏅", title:"Fiche tournoi", items:[
-    {icon:"📋",label:"Informations",text:"Format, niveau requis, nombre de places, dotations et contact de l'organisateur sont indiqués sur cette page."},
-    {icon:"✅",label:"S'inscrire",text:"Connecte-toi puis clique sur 'S'inscrire' pour réserver ta place. Tu peux te désinscrire à tout moment avant le tournoi."},
-    {icon:"👥",label:"Participants",text:"La liste des inscrits est visible en bas de page. Tu peux voir le niveau DRIX de chaque joueur inscrit."},
-    {icon:"🍺",label:"Bar organisateur",text:"Clique sur le nom du bar pour accéder à la fiche complète et voir comment y aller."},
   ]},
   jeux:           { emoji:"🎮", title:"Mini-jeux", items:[
     {icon:"🎯",label:"Jeux avec fléchettes",text:"Lance un Scoreur 501/301 pour t'entraîner ou jouer avec des amis. Tu peux aussi lancer une partie de Cricket, Around the Clock ou un tournoi entre potes."},
