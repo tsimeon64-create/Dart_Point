@@ -3229,9 +3229,6 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
           <button onClick={()=>{ setTypeVue("assos"); setChipFilter("tous"); }} style={tabBtn(typeVue==="assos","#7c3aed")}>
             <span style={{ fontSize:22 }}>👥</span><span>Associations</span>
           </button>
-          <button onClick={()=>{ setTypeVue("tournois"); setChipFilter("tous"); }} style={tabBtn(typeVue==="tournois","#dc2626")}>
-            <span style={{ fontSize:22 }}>🏆</span><span>Tournois</span>
-          </button>
         </div>
 
         {/* ══════════════════════════════════════════════════════════════════════ */}
