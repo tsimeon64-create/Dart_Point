@@ -1593,14 +1593,6 @@ export const AmiSection = ({ joueur, setPage }) => {
   const [searchAmis, setSearchAmis] = useState("");
   const [searchGlobal, setSearchGlobal] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  // Géoloc
-  const [geoLoading, setGeoLoading] = useState(false);
-  const [geoActive, setGeoActive] = useState(false);
-  const [geoError, setGeoError] = useState(null);
-  const [nearbyPlayers, setNearbyPlayers] = useState([]);
-  const [userCity, setUserCity] = useState("");
-  const [geoRadius, setGeoRadius] = useState(20);
-  const [userLatLng, setUserLatLng] = useState(null);
 
   useEffect(() => {
     Promise.all([dbAmis.getAmis(joueur.id), dbAmis.getDemandesRecues(joueur.id)])
@@ -1642,96 +1634,6 @@ export const AmiSection = ({ joueur, setPage }) => {
   const refuser = async (d) => {
     await dbAmis.refuserAmi(d.id);
     setDemandes(x=>x.filter(x=>x.id!==d.id));
-  };
-
-  // Haversine distance km entre deux coordonnées GPS
-  const haversine = (lat1, lon1, lat2, lon2) => {
-    const R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  };
-
-  // Geocode une ville via Nominatim (avec cache localStorage)
-  const geocodeCity = async (ville) => {
-    const key = `dp_geo_${ville.toLowerCase().trim()}`;
-    try {
-      const cached = JSON.parse(localStorage.getItem(key)||"null");
-      if (cached && Date.now()-cached.ts < 7*24*3600*1000) return cached; // cache 7j
-    } catch {}
-    try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(ville)}&format=json&limit=1&accept-language=fr&countrycodes=fr`, { headers:{"User-Agent":"DartPoint-App"} });
-      const d = await r.json();
-      if (!d?.[0]) return null;
-      const result = { lat: parseFloat(d[0].lat), lng: parseFloat(d[0].lon), ts: Date.now() };
-      try { localStorage.setItem(key, JSON.stringify(result)); } catch {}
-      return result;
-    } catch { return null; }
-  };
-
-  const loadNearby = (radius = geoRadius) => {
-    if (!("geolocation" in navigator)) { setGeoError("Géolocalisation non supportée par votre navigateur."); return; }
-    setGeoLoading(true); setGeoError(null); setNearbyPlayers([]); setGeoActive(false);
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      try {
-        const { latitude: userLat, longitude: userLng } = pos.coords;
-        setUserLatLng({ lat: userLat, lng: userLng });
-        // Reverse geocode position utilisateur
-        const revResp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${userLat}&lon=${userLng}&format=json&accept-language=fr`, { headers:{"User-Agent":"DartPoint-App"} });
-        const revData = await revResp.json();
-        const city = revData.address?.city || revData.address?.town || revData.address?.village || revData.address?.municipality || "";
-        setUserCity(city);
-        // Charge tous les joueurs avec une ville
-        const all = await sbJ(`joueurs?ville=not.is.null&select=id,pseudo,drix,photo,ville&limit=300`).catch(()=>[]);
-        const amisIdsSet = new Set(amis.map(a => a.joueur_id===joueur.id ? a.ami_id : a.joueur_id));
-        const candidats = (all||[]).filter(p => p.id !== joueur.id && !amisIdsSet.has(p.id));
-        // Géocode les villes uniques (avec délai pour respecter Nominatim)
-        const uniqueVilles = [...new Set(candidats.map(p => p.ville))];
-        const coordsMap = {};
-        for (let i = 0; i < uniqueVilles.length; i++) {
-          const v = uniqueVilles[i];
-          const coords = await geocodeCity(v);
-          if (coords) coordsMap[v] = coords;
-          if (i < uniqueVilles.length - 1) await new Promise(r => setTimeout(r, 120)); // délai Nominatim
-        }
-        // Filtre par distance réelle
-        const nearby = candidats
-          .filter(p => {
-            const c = coordsMap[p.ville];
-            if (!c) return false;
-            return haversine(userLat, userLng, c.lat, c.lng) <= radius;
-          })
-          .map(p => ({ ...p, _dist: Math.round(haversine(userLat, userLng, coordsMap[p.ville].lat, coordsMap[p.ville].lng)) }))
-          .sort((a, b) => a._dist - b._dist);
-        setNearbyPlayers(nearby);
-        setGeoActive(true);
-      } catch(e) {
-        setGeoError("Erreur lors de la recherche de joueurs proches.");
-      }
-      setGeoLoading(false);
-    }, () => {
-      setGeoError("Géolocalisation refusée. Vérifie les permissions de ton navigateur.");
-      setGeoLoading(false);
-    }, { timeout:12000 });
-  };
-
-  // Recalcule les joueurs proches quand le rayon change (sans re-géolocaliser)
-  const applyRadius = async (radius) => {
-    if (!userLatLng) return;
-    setGeoRadius(radius);
-    const all = await sbJ(`joueurs?ville=not.is.null&select=id,pseudo,drix,photo,ville&limit=300`).catch(()=>[]);
-    const amisIdsSet = new Set(amis.map(a => a.joueur_id===joueur.id ? a.ami_id : a.joueur_id));
-    const candidats = (all||[]).filter(p => p.id !== joueur.id && !amisIdsSet.has(p.id));
-    const uniqueVilles = [...new Set(candidats.map(p => p.ville))];
-    const coordsMap = {};
-    for (const v of uniqueVilles) {
-      const c = await geocodeCity(v); // utilise le cache, pas d'appels réseau
-      if (c) coordsMap[v] = c;
-    }
-    const nearby = candidats
-      .filter(p => { const c = coordsMap[p.ville]; return c && haversine(userLatLng.lat, userLatLng.lng, c.lat, c.lng) <= radius; })
-      .map(p => ({ ...p, _dist: Math.round(haversine(userLatLng.lat, userLatLng.lng, coordsMap[p.ville].lat, coordsMap[p.ville].lng)) }))
-      .sort((a,b) => a._dist - b._dist);
-    setNearbyPlayers(nearby);
   };
 
   if (loading) return <SpinnerJ/>;
@@ -1781,67 +1683,6 @@ export const AmiSection = ({ joueur, setPage }) => {
           <button onClick={()=>{ setSearchAmis(""); setSearchGlobal([]); }} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:16,padding:0,lineHeight:1 }}>✕</button>
         )}
       </div>
-
-      {/* ── Géoloc : bouton + sélecteur rayon ── */}
-      <div style={{ marginBottom:12 }}>
-        {/* Sélecteur de rayon */}
-        <div style={{ display:"flex",gap:6,marginBottom:8,flexWrap:"wrap" }}>
-          {[5,10,20,50,100].map(km => (
-            <button key={km} onClick={()=>{ setGeoRadius(km); if(geoActive) applyRadius(km); }}
-              style={{ flex:1,minWidth:44,padding:"6px 4px",borderRadius:8,border:`1px solid ${geoRadius===km?"#22c55e":"#22c55e33"}`,background:geoRadius===km?"#22c55e22":"transparent",color:geoRadius===km?"#22c55e":CJ.muted,fontWeight:700,fontSize:12,cursor:"pointer",transition:"all .15s" }}>
-              {km}km
-            </button>
-          ))}
-        </div>
-        {!geoActive ? (
-          <button onClick={()=>loadNearby(geoRadius)} disabled={geoLoading}
-            style={{ display:"flex",alignItems:"center",gap:8,background:"#0d1f12",border:"1px solid #22c55e44",borderRadius:10,padding:"9px 14px",cursor:geoLoading?"default":"pointer",width:"100%",color:"#22c55e",fontWeight:600,fontSize:13,transition:"all .15s",opacity:geoLoading?.7:1 }}>
-            <span style={{ fontSize:16 }}>{geoLoading?"⏳":"📍"}</span>
-            <span>{geoLoading ? `Recherche dans un rayon de ${geoRadius} km…` : `Trouver des joueurs à moins de ${geoRadius} km`}</span>
-          </button>
-        ) : (
-          <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between" }}>
-            <span style={{ color:"#22c55e",fontWeight:600,fontSize:12 }}>📍 {userCity} · rayon {geoRadius} km</span>
-            <button onClick={()=>{ setGeoActive(false); setNearbyPlayers([]); setUserCity(""); setUserLatLng(null); }}
-              style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:11 }}>Effacer ✕</button>
-          </div>
-        )}
-      </div>
-      {geoError && <p style={{ color:"#ef4444",fontSize:12,marginBottom:10 }}>⚠️ {geoError}</p>}
-
-      {/* ── Joueurs proches ── */}
-      {geoActive && (
-        <div style={{ marginBottom:20 }}>
-          <div style={{ fontSize:11,color:"#22c55e",fontWeight:700,letterSpacing:.5,marginBottom:8,display:"flex",alignItems:"center",gap:6 }}>
-            📍 JOUEURS PROCHES
-            <span style={{ color:"#4b5563",fontWeight:400 }}>({nearbyPlayers.length} à moins de {geoRadius} km)</span>
-          </div>
-          {nearbyPlayers.length === 0 ? (
-            <p style={{ color:CJ.muted,fontSize:13,background:CJ.card,borderRadius:10,padding:14 }}>Aucun joueur DartPoint trouvé dans un rayon de {geoRadius} km. Essaie avec un rayon plus grand.</p>
-          ) : nearbyPlayers.map(p => {
-            const { emoji, color } = getDrixTitreLocal(p.drix||1000);
-            return (
-              <div key={p.id} onClick={()=>setPage("profil-joueur-"+p.id)}
-                style={{ background:CJ.card,border:"1px solid #22c55e33",borderRadius:10,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
-                onMouseEnter={e=>e.currentTarget.style.borderColor="#22c55e88"} onMouseLeave={e=>e.currentTarget.style.borderColor="#22c55e33"}>
-                <div style={{ display:"flex",alignItems:"center",gap:12 }}>
-                  <div style={{ width:40,height:40,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:`2px solid ${color}66`,background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>
-                    {p.photo ? <img src={p.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{emoji}</span>}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight:600 }}>{p.pseudo}</div>
-                    <div style={{ fontSize:11,color,fontWeight:600 }}>{emoji} {p.drix||1000} DRIX</div>
-                    <div style={{ fontSize:10,color:"#22c55e",marginTop:1 }}>📍 {p.ville} · {p._dist} km</div>
-                  </div>
-                </div>
-                <div style={{ textAlign:"right" }}>
-                  <div style={{ fontSize:12,color:"#22c55e",fontWeight:600 }}>Voir →</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
 
       {/* ── Résultats amis ── */}
       {amis.length === 0 && !q ? (
