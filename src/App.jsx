@@ -1155,74 +1155,47 @@ const EditTournoiModal = ({ tournoi, onSave, onClose }) => {
   );
 };
 
-// ── PAGE HELP (bouton ? + bottom-sheet mode d'emploi) ────────────────────────
-const PageHelp = ({ title, emoji="📖", items=[] }) => {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button onClick={()=>setOpen(true)} title="Mode d'emploi" style={{
-        position:"fixed", bottom:74, right:14, zIndex:490,
-        width:38, height:38, borderRadius:"50%",
-        background:"linear-gradient(135deg,#1a1228,#0e0e18)",
-        border:"1px solid #a78bfa55",
-        color:"#a78bfa", fontSize:18, fontWeight:900,
-        cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
-        boxShadow:"0 4px 18px #00000099, 0 0 12px #a78bfa22",
-        touchAction:"manipulation", lineHeight:1,
-      }}>?</button>
-
-      {open && (
-        <div onClick={()=>setOpen(false)} style={{
-          position:"fixed", inset:0, background:"#000000bb", zIndex:2000,
-          display:"flex", alignItems:"flex-end",
-        }}>
-          <div onClick={e=>e.stopPropagation()} style={{
-            width:"100%", background:"#0f0f18",
-            border:"1px solid #1e1e30", borderRadius:"22px 22px 0 0",
-            padding:"0 0 32px", maxHeight:"82vh", overflowY:"auto",
-            boxShadow:"0 -8px 40px #00000099",
-          }}>
-            {/* Handle */}
-            <div style={{ display:"flex", justifyContent:"center", padding:"14px 0 4px" }}>
-              <div style={{ width:40, height:4, borderRadius:2, background:"#2a2a3a" }}/>
-            </div>
-            {/* Header */}
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 20px 16px" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <span style={{ fontSize:24 }}>{emoji}</span>
-                <h2 style={{ fontWeight:900, fontSize:18, color:"#f1f5f9", margin:0 }}>{title}</h2>
-              </div>
-              <button onClick={()=>setOpen(false)} style={{ background:"none", border:"none", color:"#4b5563", fontSize:22, cursor:"pointer", lineHeight:1 }}>✕</button>
-            </div>
-            {/* Items */}
-            <div style={{ padding:"0 16px" }}>
-              {items.map((it,i)=>(
-                <div key={i} style={{
-                  marginBottom:10, borderRadius:14,
-                  background:"linear-gradient(135deg,#111120,#0c0c18)",
-                  border:"1px solid #1e1e2e", padding:"14px 16px",
-                }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-                    <span style={{ fontSize:18 }}>{it.icon}</span>
-                    <span style={{ fontWeight:800, fontSize:14, color:"#f97316" }}>{it.label}</span>
-                  </div>
-                  <p style={{ color:"#94a3b8", fontSize:13, lineHeight:1.75, margin:0 }}>{it.text}</p>
-                </div>
-              ))}
-            </div>
-            <div style={{ padding:"8px 16px 0" }}>
-              <button onClick={()=>setOpen(false)} style={{
-                width:"100%", padding:"13px", borderRadius:14,
-                background:"#1a1a28", border:"1px solid #2a2a3a",
-                color:"#64748b", fontSize:14, fontWeight:700, cursor:"pointer",
-              }}>Fermer</button>
-            </div>
-          </div>
+// ── HELP MODAL (bottom-sheet, déclenché depuis App globalement) ───────────────
+const HelpModal = ({ emoji="📖", title, items=[], onClose }) => (
+  <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000000cc", zIndex:2000, display:"flex", alignItems:"flex-end" }}>
+    <div onClick={e=>e.stopPropagation()} style={{
+      width:"100%", background:"#0b0b16",
+      border:"1px solid #1e1e30", borderRadius:"22px 22px 0 0",
+      padding:"0 0 32px", maxHeight:"82vh", overflowY:"auto",
+      boxShadow:"0 -8px 48px #000000bb",
+    }}>
+      <div style={{ display:"flex", justifyContent:"center", padding:"14px 0 4px" }}>
+        <div style={{ width:40, height:4, borderRadius:2, background:"#2a2a3a" }}/>
+      </div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 20px 16px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ fontSize:24 }}>{emoji}</span>
+          <h2 style={{ fontWeight:900, fontSize:18, color:"#f1f5f9", margin:0 }}>{title}</h2>
         </div>
-      )}
-    </>
-  );
-};
+        <button onClick={onClose} style={{ background:"none", border:"none", color:"#4b5563", fontSize:22, cursor:"pointer", lineHeight:1 }}>✕</button>
+      </div>
+      <div style={{ padding:"0 16px" }}>
+        {items.map((it,i)=>(
+          <div key={i} style={{ marginBottom:10, borderRadius:14, background:"linear-gradient(135deg,#111120,#0c0c18)", border:"1px solid #1e1e2e", padding:"14px 16px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+              <span style={{ fontSize:18 }}>{it.icon}</span>
+              <span style={{ fontWeight:800, fontSize:14, color:"#f97316" }}>{it.label}</span>
+            </div>
+            <p style={{ color:"#94a3b8", fontSize:13, lineHeight:1.75, margin:0 }}>{it.text}</p>
+          </div>
+        ))}
+      </div>
+      <div style={{ padding:"12px 16px 0" }}>
+        <button onClick={onClose} style={{
+          width:"100%", padding:"15px", borderRadius:14,
+          background:"linear-gradient(135deg,#f97316,#ea580c)",
+          border:"none", color:"#fff", fontSize:15, fontWeight:800,
+          cursor:"pointer", boxShadow:"0 4px 20px #f9731440", touchAction:"manipulation",
+        }}>J'ai compris ✓</button>
+      </div>
+    </div>
+  </div>
+);
 
 // ── CARTE ACCUEIL ─────────────────────────────────────────────────────────────
 const HomeMap = ({ bars, associations, tournois, setPage, setBarSlug, setAssoSlug, setTournoiSlug, centerVille, barsActifs }) => {
@@ -1780,13 +1753,6 @@ const PageDefi = ({ joueur, setPage }) => {
 
   return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
-      <PageHelp emoji="⚔️" title="Défis" items={[
-        {icon:"🎯",label:"Lancer un défi",text:"Choisis un ami dans la liste et configure le duel : mode (501/301/Cricket), nombre de manches, et type (classé ou amical). Le duel classé affecte vos DRIX."},
-        {icon:"💎",label:"Duels DRIX vs Amical",text:"Un duel 'Classé' modifie vos scores DRIX selon le résultat. Un duel 'Amical' ne change pas les DRIX — idéal pour s'entraîner sans pression."},
-        {icon:"📊",label:"Fiche adversaire",text:"Clique sur un ami pour voir sa fiche : dangerosité, taux de victoire, historique face à toi, forme récente et estimation des gains/pertes DRIX."},
-        {icon:"⚠️",label:"Contester un résultat",text:"Si un résultat ne correspond pas à la réalité, tu peux le contester dans les 24h. Le duel sera signalé à l'admin."},
-        {icon:"👥",label:"Doublette 2v2",text:"Le mode Doublette permet de jouer en équipe de 2. Associe-toi à un ami et affrontez une autre équipe."},
-      ]}/>
       <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Accueil</button>
       <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>⚔️ Défis</h1>
       <p style={{ color:C.muted,fontSize:13,marginBottom:14 }}>Défie tes amis et gagne des DRIX</p>
@@ -3145,13 +3111,6 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
 
   return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
-      <PageHelp emoji="👥" title="Communauté" items={[
-        {icon:"📰",label:"Fil d'actualité",text:"Le fil affiche les dernières activités de tes amis : résultats de duels, évolutions DRIX, présences dans les bars et posts publiés."},
-        {icon:"✍️",label:"Publier un post",text:"Partage une pensée, une photo de partie ou une victoire avec ta communauté. Tous tes amis verront ton post dans leur fil."},
-        {icon:"❤️",label:"Likes & commentaires",text:"Tu peux liker et commenter les posts et résultats de tes amis directement depuis le fil."},
-        {icon:"🍺",label:"Présences",text:"Quand un ami signale sa présence dans un bar, ça apparaît dans le fil. Clique pour voir la fiche du bar."},
-        {icon:"🔄",label:"Rafraîchir",text:"Appuie sur le bouton 🔄 pour recharger le fil et voir les dernières activités."},
-      ]}/>
       <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Accueil</button>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4 }}>
         <h1 style={{ fontWeight:800,fontSize:22,margin:0 }}>👥 Communauté</h1>
@@ -3271,12 +3230,6 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
 
   if (!categorie) return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
-      <PageHelp emoji="🎮" title="Mini-jeux" items={[
-        {icon:"🎯",label:"Jeux avec fléchettes",text:"Lance un Scoreur 501/301 pour t'entraîner ou jouer avec des amis. Tu peux aussi lancer une partie de Cricket, Around the Clock ou un tournoi entre potes."},
-        {icon:"🧠",label:"Jeux sans fléchettes",text:"Entraîne ton mental avec le Rush Mode (calcul rapide de finishes), les quiz de règles et d'autres jeux de réflexion."},
-        {icon:"⚔️",label:"Duel officiel",text:"Pour enregistrer un duel qui compte dans le classement DRIX, utilise l'onglet Défi depuis ton profil."},
-        {icon:"📊",label:"Scores sauvegardés",text:"Les parties jouées via le scoreur sont enregistrées dans ton historique de profil si tu es connecté."},
-      ]}/>
       <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Accueil</button>
       <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🎮 Mode de jeu</h1>
       <p style={{ color:C.muted,fontSize:13,marginBottom:24 }}>Choisis ta catégorie</p>
@@ -3336,7 +3289,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
 
 // ── PAGE HOME ─────────────────────────────────────────────────────────────────
 const Home = ({ joueur, setJoueur, defisCount, demandesAmisCount=0, bars, associations, tournois, setPage, setBarSlug, setAssoSlug, setTournoiSlug, setVilleFilter, barsActifs }) => {
-  if (joueur) return <><HomeDashboard joueur={joueur} setJoueur={setJoueur} setPage={setPage} bars={bars} defisCount={defisCount} demandesAmisCount={demandesAmisCount} associations={associations} tournois={tournois} barsActifs={barsActifs} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug}/><PageHelp emoji="🏠" title="Tableau de bord" items={[{icon:"🎯",label:"Ton activité",text:"Retrouve tes derniers duels, ton score DRIX et ta progression en un coup d'œil."},{icon:"⚡",label:"Défis",text:"Consulte les défis reçus et envoyés. Un badge rouge indique les défis en attente de réponse."},{icon:"🍺",label:"Bars actifs",text:"Vois quels bars ont des joueurs présents aujourd'hui. Clique sur un bar pour voir qui est là."},{icon:"🏅",label:"Prochains tournois",text:"Les tournois à venir s'affichent ici. Inscris-toi directement depuis la fiche tournoi."},{icon:"💎",label:"DRIX",text:"Ton classement DRIX évolue à chaque duel enregistré. Plus ton adversaire est fort, plus tu gagnes de points en cas de victoire."}]}/></>;
+  if (joueur) return <HomeDashboard joueur={joueur} setJoueur={setJoueur} setPage={setPage} bars={bars} defisCount={defisCount} demandesAmisCount={demandesAmisCount} associations={associations} tournois={tournois} barsActifs={barsActifs} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug}/>;
 
   // ── Landing page publique ─────────────────────────────────────────────────────
   return (
@@ -3543,14 +3496,6 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
         @keyframes glow-bar { 0%,100%{box-shadow:0 0 20px ${T.glow}} 50%{box-shadow:0 0 40px ${T.glow},0 0 80px ${T.glow}55} }
         .chip-scroll::-webkit-scrollbar{display:none}
       `}</style>
-      <PageHelp emoji="🍺" title="Bars & Associations" items={[
-        {icon:"🔍",label:"Recherche",text:"Tape le nom d'une ville ou d'un bar pour filtrer les résultats instantanément. Tu peux aussi utiliser ta géolocalisation pour trouver les bars près de toi."},
-        {icon:"🗺️",label:"Vue carte / liste",text:"Bascule entre la carte interactive et la liste pour explorer à ta façon. Sur la carte, clique sur un marqueur pour accéder à la fiche du bar."},
-        {icon:"⚡",label:"Bars actifs",text:"Le filtre 'Actifs' montre les bars où des joueurs ont signalé leur présence aujourd'hui. Idéal pour trouver où jouer ce soir !"},
-        {icon:"🏅",label:"Tournois",text:"Le filtre 'Tournois' affiche uniquement les bars qui organisent régulièrement des compétitions."},
-        {icon:"👥",label:"Associations",text:"L'onglet Associations liste les clubs affiliés. Clique sur un club pour voir ses membres, son président et ses informations de contact."},
-        {icon:"➕",label:"Ajouter un bar",text:"Tu connais un bar pas encore référencé ? Utilise 'Proposer un bar' depuis le menu. Il sera ajouté automatiquement."},
-      ]}/>
 
       <div style={{ maxWidth:980, margin:"0 auto", padding:"20px 16px 100px" }}>
 
@@ -3936,14 +3881,6 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
 
   return (
     <div style={{ maxWidth:860,margin:"0 auto",paddingBottom:100 }}>
-      <PageHelp emoji="🍺" title="Fiche du bar" items={[
-        {icon:"📍",label:"Infos pratiques",text:"Adresse, téléphone, type de cibles (électroniques ou sisal), nombre de cibles disponibles et association affiliée."},
-        {icon:"👥",label:"Présences",text:"Signale ta présence ce soir pour que les autres joueurs te trouvent. Les présences se réinitialisent chaque jour à minuit."},
-        {icon:"⚔️",label:"Défier un joueur",text:"Depuis la liste des joueurs présents, tu peux lancer un défi directement. Le score sera enregistré et affectera vos DRIX."},
-        {icon:"📸",label:"Photos",text:"Ajoute des photos du bar pour aider la communauté. Les photos sont modérées avant publication."},
-        {icon:"⭐",label:"Avis",text:"Laisse un avis sur le bar (note + commentaire). Les avis des membres de la communauté sont visibles par tous."},
-        {icon:"⚠️",label:"Signaler",text:"Si les informations du bar sont incorrectes ou obsolètes, signale-le. Notre équipe corrigera la fiche."},
-      ]}/>
       {showSignal&&<SignalForm barSlug={bar.slug} barNom={bar.nom} onClose={()=>setShowSignal(false)}/>}
       {showEdit&&<EditBarModal bar={bar} onSave={u=>{setBar(u);setBars(p=>p.map(x=>x.slug===slug?u:x));}} onClose={()=>setShowEdit(false)}/>}
 
@@ -4087,12 +4024,6 @@ const Associations = ({ associations, setPage, setAssoSlug }) => {
   const [view,setView]=useState("liste");
   return (
     <div style={{ maxWidth:1100,margin:"0 auto",padding:"36px 20px" }}>
-      <PageHelp emoji="🫂" title="Associations & clubs" items={[
-        {icon:"🔍",label:"Trouver un club",text:"Parcours la liste ou la carte pour trouver une association de fléchettes près de chez toi."},
-        {icon:"📋",label:"Infos du club",text:"Chaque fiche club affiche les jours et lieux d'entraînement, le président et le contact pour rejoindre le club."},
-        {icon:"🍺",label:"Bar affilié",text:"Les associations sont souvent liées à un bar. Clique sur le bar affilié pour voir les présences et les joueurs."},
-        {icon:"➕",label:"Proposer un club",text:"Ton club n'est pas encore référencé ? Utilise le bouton 'Proposer une association' en bas de page."},
-      ]}/>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12,marginBottom:6 }}>
         <div><h1 style={{ fontWeight:800,fontSize:26 }}>🫂 Associations & clubs</h1><p style={{ color:C.muted,marginTop:4 }}>{associations.length} associations référencées</p></div>
         <div style={{ display:"flex",gap:4 }}>{[["liste","☰"],["carte","🗺️"]].map(([vv,ll])=><button key={vv} onClick={()=>setView(vv)} style={{ background:view===vv?"#7c3aed":"transparent",color:view===vv?"#fff":C.muted,border:`1px solid ${view===vv?"#7c3aed":C.border}`,borderRadius:8,padding:"9px 14px",cursor:"pointer",fontSize:15 }}>{ll}</button>)}</div>
@@ -4443,12 +4374,6 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
 
   return (
     <div style={{ maxWidth:860, margin:"0 auto", padding:"20px 16px 88px" }}>
-      <PageHelp emoji="🫂" title="Fiche du club" items={[
-        {icon:"🏠",label:"Onglet Club",text:"Infos pratiques du club : jours et lieu d'entraînement, président, contact, bar affilié et carte de localisation."},
-        {icon:"👥",label:"Onglet Membres",text:"Classement interne des membres du club par score DRIX. Tu peux cliquer sur un joueur pour voir son profil et le défier."},
-        {icon:"📅",label:"Onglet Événements",text:"Les tournois organisés par ce club apparaissent ici, avec les événements à venir et passés."},
-        {icon:"✏️",label:"Modifier",text:"Le bouton ✏️ Modifier à côté du nom du club permet de corriger les informations (réservé aux membres et admins)."},
-      ]}/>
       {/* Modal édition */}
       {editingAsso && (
         <EditAssoModal
@@ -4504,12 +4429,6 @@ const Tournois = ({ tournois, setPage, setTournoiSlug }) => {
   );};
   return (
     <div style={{ maxWidth:1000,margin:"0 auto",padding:"36px 20px" }}>
-      <PageHelp emoji="🏅" title="Tournois & événements" items={[
-        {icon:"📅",label:"Tournois à venir",text:"Les compétitions à venir sont affichées en premier. Clique sur un tournoi pour voir les détails et t'inscrire."},
-        {icon:"🗺️",label:"Vue carte",text:"Bascule sur la carte pour voir géographiquement où se déroulent les prochains tournois près de chez toi."},
-        {icon:"➕",label:"Proposer un tournoi",text:"Tu organises un tournoi ? Utilise le bouton 'Proposer un tournoi' pour le faire apparaître dans le calendrier."},
-        {icon:"📆",label:"Tournois passés",text:"Les tournois passés sont archivés en bas de page pour garder un historique des événements."},
-      ]}/>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12,marginBottom:20 }}>
         <h1 style={{ fontWeight:800,fontSize:26 }}>🏅 Tournois & événements</h1>
         <div style={{ display:"flex",gap:4 }}>{[["liste","☰"],["carte","🗺️"]].map(([vv,ll])=><button key={vv} onClick={()=>setView(vv)} style={{ background:view===vv?C.yellow:"transparent",color:view===vv?"#000":C.muted,border:`1px solid ${view===vv?C.yellow:C.border}`,borderRadius:8,padding:"9px 14px",cursor:"pointer",fontSize:15 }}>{ll}</button>)}</div>
@@ -4564,12 +4483,6 @@ const TournoiDetail = ({ slug, tournois, setTournois, bars, setPage, setBarSlug,
 
   return (
     <div style={{ maxWidth:860,margin:"0 auto",padding:"36px 20px" }}>
-      <PageHelp emoji="🏅" title="Fiche tournoi" items={[
-        {icon:"📋",label:"Informations",text:"Format, niveau requis, nombre de places, dotations et contact de l'organisateur sont indiqués sur cette page."},
-        {icon:"✅",label:"S'inscrire",text:"Connecte-toi puis clique sur 'S'inscrire' pour réserver ta place. Tu peux te désinscrire à tout moment avant le tournoi."},
-        {icon:"👥",label:"Participants",text:"La liste des inscrits est visible en bas de page. Tu peux voir le niveau DRIX de chaque joueur inscrit."},
-        {icon:"🍺",label:"Bar organisateur",text:"Clique sur le nom du bar pour accéder à la fiche complète et voir comment y aller."},
-      ]}/>
       {showEdit && <EditTournoiModal tournoi={t} onSave={u=>{setTournois(ts=>ts.map(x=>x.slug===u.slug?{...x,...u}:x));setShowEdit(false);}} onClose={()=>setShowEdit(false)}/>}
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:18 }}>
         <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13 }}>← Retour</button>
@@ -6391,6 +6304,75 @@ const Onboarding = ({ onDone }) => {
 };
 
 // ── APP ───────────────────────────────────────────────────────────────────────
+// ── HELP CONTENT par page ─────────────────────────────────────────────────────
+const HELP_CONTENT = {
+  home:           { emoji:"🏠", title:"Tableau de bord", items:[
+    {icon:"🎯",label:"Ton activité",text:"Retrouve tes derniers duels, ton score DRIX et ta progression en un coup d'œil."},
+    {icon:"⚡",label:"Défis",text:"Consulte les défis reçus et envoyés. Un badge rouge indique les défis en attente de réponse."},
+    {icon:"🍺",label:"Bars actifs",text:"Vois quels bars ont des joueurs présents aujourd'hui. Clique sur un bar pour voir qui est là."},
+    {icon:"🏅",label:"Prochains tournois",text:"Les tournois à venir s'affichent ici. Inscris-toi directement depuis la fiche tournoi."},
+    {icon:"💎",label:"DRIX",text:"Ton classement DRIX évolue à chaque duel enregistré. Plus ton adversaire est fort, plus tu gagnes de points en cas de victoire."},
+  ]},
+  bars:           { emoji:"🍺", title:"Bars & Associations", items:[
+    {icon:"🔍",label:"Recherche",text:"Tape le nom d'une ville ou d'un bar pour filtrer les résultats instantanément. Tu peux aussi utiliser ta géolocalisation pour trouver les bars près de toi."},
+    {icon:"🗺️",label:"Vue carte / liste",text:"Bascule entre la carte interactive et la liste pour explorer à ta façon. Sur la carte, clique sur un marqueur pour accéder à la fiche du bar."},
+    {icon:"⚡",label:"Bars actifs",text:"Le filtre 'Actifs' montre les bars où des joueurs ont signalé leur présence aujourd'hui. Idéal pour trouver où jouer ce soir !"},
+    {icon:"👥",label:"Associations",text:"L'onglet Associations liste les clubs affiliés. Clique sur un club pour voir ses membres, son président et ses informations de contact."},
+    {icon:"➕",label:"Ajouter un bar",text:"Tu connais un bar pas encore référencé ? Utilise 'Proposer un bar' depuis le menu. Il sera ajouté automatiquement."},
+  ]},
+  bar:            { emoji:"🍺", title:"Fiche du bar", items:[
+    {icon:"📍",label:"Infos pratiques",text:"Adresse, téléphone, type de cibles (électroniques ou sisal), nombre de cibles disponibles et association affiliée."},
+    {icon:"👥",label:"Présences",text:"Signale ta présence ce soir pour que les autres joueurs te trouvent. Les présences se réinitialisent chaque jour à minuit."},
+    {icon:"⚔️",label:"Défier un joueur",text:"Depuis la liste des joueurs présents, tu peux lancer un défi directement. Le score sera enregistré et affectera vos DRIX."},
+    {icon:"📸",label:"Photos",text:"Ajoute des photos du bar pour aider la communauté. Les photos sont modérées avant publication."},
+    {icon:"⭐",label:"Avis",text:"Laisse un avis sur le bar (note + commentaire). Les avis des membres de la communauté sont visibles par tous."},
+    {icon:"⚠️",label:"Signaler",text:"Si les informations du bar sont incorrectes ou obsolètes, signale-le. Notre équipe corrigera la fiche."},
+  ]},
+  associations:   { emoji:"🫂", title:"Associations & clubs", items:[
+    {icon:"🔍",label:"Trouver un club",text:"Parcours la liste ou la carte pour trouver une association de fléchettes près de chez toi."},
+    {icon:"📋",label:"Infos du club",text:"Chaque fiche club affiche les jours et lieux d'entraînement, le président et le contact pour rejoindre le club."},
+    {icon:"🍺",label:"Bar affilié",text:"Les associations sont souvent liées à un bar. Clique sur le bar affilié pour voir les présences et les joueurs."},
+    {icon:"➕",label:"Proposer un club",text:"Ton club n'est pas encore référencé ? Utilise le bouton 'Proposer une association' en bas de page."},
+  ]},
+  asso:           { emoji:"🫂", title:"Fiche du club", items:[
+    {icon:"🏠",label:"Onglet Club",text:"Infos pratiques du club : jours et lieu d'entraînement, président, contact, bar affilié et carte de localisation."},
+    {icon:"👥",label:"Onglet Membres",text:"Classement interne des membres du club par score DRIX. Tu peux cliquer sur un joueur pour voir son profil et le défier."},
+    {icon:"📅",label:"Onglet Événements",text:"Les tournois organisés par ce club apparaissent ici, avec les événements à venir et passés."},
+    {icon:"✏️",label:"Modifier",text:"Le bouton ✏️ Modifier à côté du nom du club permet de corriger les informations (réservé aux membres et admins)."},
+  ]},
+  tournois:       { emoji:"🏅", title:"Tournois & événements", items:[
+    {icon:"📅",label:"Tournois à venir",text:"Les compétitions à venir sont affichées en premier. Clique sur un tournoi pour voir les détails et t'inscrire."},
+    {icon:"🗺️",label:"Vue carte",text:"Bascule sur la carte pour voir géographiquement où se déroulent les prochains tournois près de chez toi."},
+    {icon:"➕",label:"Proposer un tournoi",text:"Tu organises un tournoi ? Utilise le bouton 'Proposer un tournoi' pour le faire apparaître dans le calendrier."},
+    {icon:"📆",label:"Tournois passés",text:"Les tournois passés sont archivés en bas de page pour garder un historique des événements."},
+  ]},
+  "tournoi-detail":{ emoji:"🏅", title:"Fiche tournoi", items:[
+    {icon:"📋",label:"Informations",text:"Format, niveau requis, nombre de places, dotations et contact de l'organisateur sont indiqués sur cette page."},
+    {icon:"✅",label:"S'inscrire",text:"Connecte-toi puis clique sur 'S'inscrire' pour réserver ta place. Tu peux te désinscrire à tout moment avant le tournoi."},
+    {icon:"👥",label:"Participants",text:"La liste des inscrits est visible en bas de page. Tu peux voir le niveau DRIX de chaque joueur inscrit."},
+    {icon:"🍺",label:"Bar organisateur",text:"Clique sur le nom du bar pour accéder à la fiche complète et voir comment y aller."},
+  ]},
+  jeux:           { emoji:"🎮", title:"Mini-jeux", items:[
+    {icon:"🎯",label:"Jeux avec fléchettes",text:"Lance un Scoreur 501/301 pour t'entraîner ou jouer avec des amis. Tu peux aussi lancer une partie de Cricket, Around the Clock ou un tournoi entre potes."},
+    {icon:"🧠",label:"Jeux sans fléchettes",text:"Entraîne ton mental avec le Rush Mode (calcul rapide de finishes), les quiz de règles et d'autres jeux de réflexion."},
+    {icon:"⚔️",label:"Duel officiel",text:"Pour enregistrer un duel qui compte dans le classement DRIX, utilise l'onglet Défi depuis ton profil."},
+    {icon:"📊",label:"Scores sauvegardés",text:"Les parties jouées via le scoreur sont enregistrées dans ton historique de profil si tu es connecté."},
+  ]},
+  defi:           { emoji:"⚔️", title:"Défis", items:[
+    {icon:"🎯",label:"Lancer un défi",text:"Choisis un ami dans la liste et configure le duel : mode (501/301/Cricket), nombre de manches, et type (classé ou amical). Le duel classé affecte vos DRIX."},
+    {icon:"💎",label:"Duels DRIX vs Amical",text:"Un duel 'Classé' modifie vos scores DRIX selon le résultat. Un duel 'Amical' ne change pas les DRIX — idéal pour s'entraîner sans pression."},
+    {icon:"📊",label:"Fiche adversaire",text:"Clique sur un ami pour voir sa fiche : dangerosité, taux de victoire, historique face à toi, forme récente et estimation des gains/pertes DRIX."},
+    {icon:"⚠️",label:"Contester un résultat",text:"Si un résultat ne correspond pas à la réalité, tu peux le contester dans les 24h. Le duel sera signalé à l'admin."},
+    {icon:"👥",label:"Doublette 2v2",text:"Le mode Doublette permet de jouer en équipe de 2. Associe-toi à un ami et affrontez une autre équipe."},
+  ]},
+  communaute:     { emoji:"👥", title:"Communauté", items:[
+    {icon:"📰",label:"Fil d'actualité",text:"Le fil affiche les dernières activités de tes amis : résultats de duels, évolutions DRIX, présences dans les bars et posts publiés."},
+    {icon:"✍️",label:"Publier un post",text:"Partage une pensée, une photo de partie ou une victoire avec ta communauté. Tous tes amis verront ton post dans leur fil."},
+    {icon:"❤️",label:"Likes & commentaires",text:"Tu peux liker et commenter les posts et résultats de tes amis directement depuis le fil."},
+    {icon:"🍺",label:"Présences",text:"Quand un ami signale sa présence dans un bar, ça apparaît dans le fil. Clique pour voir la fiche du bar."},
+  ]},
+};
+
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("dp_onboarding_done"));
   const [page,setPage]=useState("home");
@@ -6405,6 +6387,8 @@ export default function App() {
   const [loading,setLoading]=useState(true);
   const [villeFilter,setVilleFilter]=useState(null);
   const [history,setHistory]=useState(["home"]);
+  // ── Help modal global ─────────────────────────────────────────────────────
+  const [helpOpen,setHelpOpen]=useState(false);
   const [joueur,setJoueur]=useState(null);
   const [defisCount,setDefisCount]=useState(0);
   const [notifCount,setNotifCount]=useState(0);
@@ -6584,6 +6568,19 @@ export default function App() {
     else { nav(targetPage); }
   };
 
+  // ── Auto-ouvre l'aide à la première visite de chaque page ────────────────────
+  useEffect(() => {
+    const h = HELP_CONTENT[page];
+    if (!h) { setHelpOpen(false); return; }
+    const key = `dp_help_seen_${page}`;
+    if (!localStorage.getItem(key)) {
+      setHelpOpen(true);
+      localStorage.setItem(key, "1");
+    } else {
+      setHelpOpen(false);
+    }
+  }, [page]);
+
   // ── HANDLER POPSTATE — monté UNE SEULE FOIS, utilise les refs ─────────────────
   useEffect(() => {
     // Injecter un état initial pour toujours avoir quelque chose à intercepter
@@ -6639,6 +6636,19 @@ export default function App() {
 .leaflet-popup-content { color:#111 !important; -webkit-text-fill-color:#111 !important; }
 .leaflet-popup-tip { background:#fff !important; }
       `}</style>
+      {/* ── Notice / Aide — barre fixe bas ── */}
+      {HELP_CONTENT[page] && (
+        <div style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:450, background:"#080812", borderTop:"1px solid #1a1a28", display:"flex", justifyContent:"center", padding:"6px 0 max(10px, env(safe-area-inset-bottom))" }}>
+          <button onClick={()=>setHelpOpen(true)} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"4px 16px", touchAction:"manipulation" }}>
+            <span style={{ fontSize:16 }}>📋</span>
+            <span style={{ fontSize:10, fontWeight:700, color:"#4b5572", letterSpacing:.5 }}>NOTICE / AIDE</span>
+          </button>
+        </div>
+      )}
+      {/* ── Help modal ── */}
+      {helpOpen && HELP_CONTENT[page] && (
+        <HelpModal {...HELP_CONTENT[page]} onClose={()=>setHelpOpen(false)}/>
+      )}
       {/* Bannière installation PWA */}
       {installPrompt && !isInstalled && (
         <div style={{ position:"fixed",bottom:64,left:"50%",transform:"translateX(-50%)",zIndex:999,width:"calc(100% - 32px)",maxWidth:420 }}>
