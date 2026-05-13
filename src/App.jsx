@@ -4004,6 +4004,13 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
               🔥 Demander accès administrateur
             </button>
           </div>
+
+          {/* FAB asso */}
+          <div style={{ position:"fixed",bottom:24,right:16,zIndex:500 }}>
+            <button onClick={()=>setPage("proposer-asso")} style={{ background:"linear-gradient(135deg,#7c3aed,#6d28d9)",color:"#fff",border:"none",borderRadius:50,padding:"11px 18px",cursor:"pointer",fontSize:13,fontWeight:700,boxShadow:"0 4px 20px #7c3aed55",display:"flex",alignItems:"center",gap:7 }}>
+              <span style={{ fontSize:16 }}>+</span> Ajouter une asso
+            </button>
+          </div>
         </>)}
 
         {/* ══════════════════════════════════════════════════════════════════════ */}
