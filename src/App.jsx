@@ -217,28 +217,29 @@ const Spinner = () => <div style={{ display:"flex",alignItems:"center",justifyCo
 // ── NAV ───────────────────────────────────────────────────────────────────────
 const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAmisCount=0, unreadMessages, onBack, canGoBack, bars=[], barsActifs=[], associations=[], tournois=[] }) => {
   const [open, setOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [liveStats, setLiveStats] = useState({ joueursConnectes:0, matchsLive:0 });
   const [joueurStats, setJoueurStats] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
 
-  // Fetch live data when menu opens
+  // Fetch live on mount (for ticker)
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0,10);
+    const fetchLive = () => Promise.all([
+      sb(`presences?date_jour=eq.${today}&select=joueur_id`).catch(()=>[]),
+      sb(`duels?statut=eq.accepte&select=id&limit=50`).catch(()=>[]),
+    ]).then(([pres, duels]) => {
+      setLiveStats({ joueursConnectes: new Set((pres||[]).map(p=>p.joueur_id)).size, matchsLive: duels?.length||0 });
+    }).catch(()=>{});
+    fetchLive();
+    const iv = setInterval(fetchLive, 60000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Fetch recent activity when menu opens
   useEffect(() => {
     if (!open) return;
-    const today = new Date().toISOString().slice(0,10);
-    const fetchAll = () => {
-      Promise.all([
-        sb(`presences?date_jour=eq.${today}&select=joueur_id`).catch(()=>[]),
-        sb(`duels?statut=eq.accepte&select=id&limit=50`).catch(()=>[]),
-        sb(`duels?statut=eq.termine&order=date.desc&limit=8&select=gagnant_pseudo,challenger_pseudo,defie_pseudo,score_challenger,score_defie,date`).catch(()=>[]),
-      ]).then(([pres, duels, recent]) => {
-        const unique = new Set((pres||[]).map(p=>p.joueur_id));
-        setLiveStats({ joueursConnectes: unique.size, matchsLive: duels?.length || 0 });
-        setRecentActivity(recent||[]);
-      }).catch(()=>{});
-    };
-    fetchAll();
-    const iv = setInterval(fetchAll, 30000);
-    return () => clearInterval(iv);
+    sb(`duels?statut=eq.termine&order=date.desc&limit=8&select=gagnant_pseudo,challenger_pseudo,score_challenger,score_defie,date`).then(r => setRecentActivity(r||[])).catch(()=>{});
   }, [open]);
 
   useEffect(() => {
@@ -246,7 +247,15 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
     sb(`stats?joueur_id=eq.${joueur.id}&select=victoires,defaites,parties`).then(r => setJoueurStats(r?.[0]||null)).catch(()=>{});
   }, [open, joueur?.id]);
 
-  const go = (p) => { setPage(p); setOpen(false); };
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    if (!profileOpen) return;
+    const h = (e) => { if (!e.target.closest("[data-pdrop]")) setProfileOpen(false); };
+    document.addEventListener("mousedown", h); document.addEventListener("touchstart", h);
+    return () => { document.removeEventListener("mousedown", h); document.removeEventListener("touchstart", h); };
+  }, [profileOpen]);
+
+  const go = (p) => { setPage(p); setOpen(false); setProfileOpen(false); };
 
   const drix = joueur?.drix || 1000;
   const { titre: drixTitre, emoji: drixEmoji, color: drixColor } = getDrixTitre(drix);
@@ -256,6 +265,23 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
     const today = new Date().toISOString().slice(0,10);
     return tournois.filter(t => t.date && String(t.date).startsWith(today)).length;
   }, [tournois]);
+
+  // Status dynamique
+  const gamePagesNav = ["jeux-capital","scoreur","scoreur-doublette","cricket-config","rush-mode"];
+  const isInGame = gamePagesNav.includes(page) || page.startsWith("scoreur-duel-") || page.startsWith("scoreur-potes-");
+  const playerStatus = isInGame
+    ? { dot:"🎯", label:"En partie", color:"#f97316" }
+    : { dot:"●", label:"En ligne", color:"#4ade80" };
+
+  // Ticker items
+  const tickerItems = [
+    liveStats.matchsLive > 0 ? `🔥 ${liveStats.matchsLive} matchs live` : null,
+    liveStats.joueursConnectes > 0 ? `👥 ${liveStats.joueursConnectes} joueurs aujourd'hui` : null,
+    barsActifs.length > 0 ? `🍺 ${barsActifs.length} bars actifs ce soir` : null,
+    tournoisDuJour > 0 ? `🏆 ${tournoisDuJour} tournoi${tournoisDuJour>1?"s":""} aujourd'hui` : null,
+    `🎯 ${bars.length} bars répertoriés`,
+    `🫂 ${associations.length} associations`,
+  ].filter(Boolean).join("   ·   ");
 
   // Sub-components
   const SecTitle = ({ children }) => (
@@ -295,74 +321,175 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
   return (
     <>
       <style>{`
-        @keyframes nav-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.35)} }
-        @keyframes nav-fade  { from{opacity:0} to{opacity:1} }
-        @keyframes nav-slide { from{transform:translateX(100%)} to{transform:translateX(0)} }
-        @keyframes dp-glow   { 0%,100%{box-shadow:0 0 12px #f9731625} 50%{box-shadow:0 0 28px #f9731650,0 0 56px #f9731622} }
+        @keyframes nav-pulse   { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.35)} }
+        @keyframes nav-fade    { from{opacity:0} to{opacity:1} }
+        @keyframes dp-glow     { 0%,100%{box-shadow:0 0 12px #f9731625,0 2px 20px #f9731615} 50%{box-shadow:0 0 28px #f9731650,0 0 56px #f9731622} }
+        @keyframes dp-breathe  { 0%,100%{filter:drop-shadow(0 0 6px rgba(249,115,22,.3))} 50%{filter:drop-shadow(0 0 18px rgba(249,115,22,.65))} }
+        @keyframes dp-ticker   { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+        @keyframes dp-msg-glow { 0%,100%{box-shadow:0 0 0 #7c3aed00} 50%{box-shadow:0 0 14px #7c3aed88,0 0 28px #f9731633} }
+        @keyframes dp-pdrop-in { from{opacity:0;transform:translateY(-8px) scale(.97)} to{opacity:1;transform:translateY(0) scale(1)} }
         .dp-menu-scroll::-webkit-scrollbar{width:3px}
         .dp-menu-scroll::-webkit-scrollbar-thumb{background:#2a2a35;border-radius:3px}
+        .dp-topbtn:active{transform:scale(.94)}
       `}</style>
 
       {/* ═══ TOP BAR ══════════════════════════════════════════════════ */}
-      <nav style={{ background:"rgba(10,10,14,0.98)", borderBottom:"1px solid #1e1e28", position:"sticky", top:0, zIndex:200, backdropFilter:"blur(16px)" }}>
-        <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 10px", display:"flex", alignItems:"center", justifyContent:"space-between", height:56, gap:6 }}>
-          {/* Gauche : bouton retour OU logo */}
-          <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+      <nav style={{ background:"rgba(8,8,13,0.97)", borderBottom:"1px solid #1a1a26", position:"sticky", top:0, zIndex:200, backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)" }}>
+
+        {/* ── Barre principale ─────────────────────────────────────── */}
+        <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 10px", position:"relative", display:"flex", alignItems:"center", height:56, gap:4 }}>
+
+          {/* GAUCHE — Retour */}
+          <div style={{ flex:1, display:"flex", alignItems:"center", minWidth:0 }}>
             {canGoBack && page !== "home" ? (
-              <>
-                <button onClick={onBack}
-                  style={{ background:"#12121a", border:"1px solid #252530", color:"#94a3b8", cursor:"pointer", borderRadius:8, padding:"6px 10px", fontSize:13, fontWeight:700, display:"flex", alignItems:"center", gap:5, touchAction:"manipulation", transition:"all .18s", whiteSpace:"nowrap" }}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor="#f9731644";e.currentTarget.style.color="#f97316";}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor="#252530";e.currentTarget.style.color="#94a3b8";}}>
-                  ‹ Retour
-                </button>
-                <div onClick={()=>go("home")} style={{ cursor:"pointer", flexShrink:0 }}>
-                  <img src="/logo dart point/logo bandeau.png" alt="DartPoint" style={{ height:34, objectFit:"contain", filter:"drop-shadow(0 2px 8px rgba(249,115,22,0.25))", opacity:0.7 }}/>
-                </div>
-              </>
-            ) : (
-              <div onClick={()=>go("home")} style={{ cursor:"pointer", flexShrink:0 }}>
-                <img src="/logo dart point/logo bandeau.png" alt="DartPoint" style={{ height:40, objectFit:"contain", filter:"drop-shadow(0 2px 10px rgba(249,115,22,0.35))" }}/>
-              </div>
-            )}
+              <button className="dp-topbtn" onClick={onBack}
+                style={{ background:"#0f0f18", border:"1px solid #2a2a3a", color:"#7c8ca0", cursor:"pointer", borderRadius:9, padding:"6px 11px", fontSize:12, fontWeight:700, display:"flex", alignItems:"center", gap:4, touchAction:"manipulation", transition:"all .2s", whiteSpace:"nowrap", flexShrink:0, boxShadow:"0 0 0 transparent" }}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="#f9731655";e.currentTarget.style.color="#f97316";e.currentTarget.style.boxShadow="0 0 10px #f9731622";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="#2a2a3a";e.currentTarget.style.color="#7c8ca0";e.currentTarget.style.boxShadow="none";}}>
+                ‹ Retour
+              </button>
+            ) : <div style={{ width:4 }}/>}
           </div>
-          {/* Right actions */}
-          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+
+          {/* CENTRE — Logo (centré absolument) */}
+          <div onClick={()=>go("home")} style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", cursor:"pointer", flexShrink:0, zIndex:1 }}>
+            <img src="/logo dart point/logo bandeau.png" alt="DartPoint"
+              style={{ height: canGoBack && page !== "home" ? 32 : 40, objectFit:"contain", display:"block",
+                animation:"dp-breathe 4s ease-in-out infinite",
+                transition:"height .25s" }}/>
+          </div>
+
+          {/* DROITE — Actions */}
+          <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"flex-end", gap:5 }}>
+
+            {/* Messages */}
             {joueur && (
-              <button onClick={()=>go("messagerie")} style={{ background:"#12121a", color:"#60a5fa", border:"1px solid #60a5fa22", cursor:"pointer", padding:"6px 10px", borderRadius:8, fontSize:13, fontWeight:600, display:"flex", alignItems:"center", gap:5, transition:"all .15s", touchAction:"manipulation" }}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor="#60a5fa55";}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor="#60a5fa22";}}>
+              <button className="dp-topbtn" onClick={()=>go("messagerie")}
+                style={{ background:"#0f0f18", border:`1px solid ${unreadMessages>0?"#7c3aed55":"#1e1e2e"}`, cursor:"pointer", padding:"7px 10px", borderRadius:10, fontSize:16, display:"flex", alignItems:"center", gap:5, transition:"all .2s", touchAction:"manipulation", position:"relative",
+                  animation: unreadMessages>0 ? "dp-msg-glow 2s infinite" : "none",
+                  boxShadow: unreadMessages>0 ? "0 0 14px #7c3aed44" : "none" }}>
                 💬
-                {unreadMessages>0 && <span style={{ background:"#3b82f6", color:"#fff", borderRadius:"50%", width:17, height:17, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800 }}>{unreadMessages>9?"9+":unreadMessages}</span>}
+                {unreadMessages>0 && (
+                  <span style={{ position:"absolute", top:-4, right:-4, background:"linear-gradient(135deg,#7c3aed,#f97316)", color:"#fff", borderRadius:"50%", minWidth:17, height:17, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, padding:"0 2px", border:"1.5px solid #08080d" }}>{unreadMessages>9?"9+":unreadMessages}</span>
+                )}
               </button>
             )}
-            {joueur && (
-              <button onClick={()=>go("mon-profil")} style={{ background:"#12121a", color:C.text, border:"1px solid #252530", cursor:"pointer", padding:"6px 10px", borderRadius:8, fontSize:12, fontWeight:600, display:"flex", alignItems:"center", gap:6, position:"relative", transition:"all .15s", touchAction:"manipulation" }}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor="#f9731644";}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor="#252530";}}>
-                {joueur.photo ? <img src={joueur.photo} style={{ width:20,height:20,borderRadius:"50%",objectFit:"cover" }} alt=""/> : "👤"}
-                <span style={{ maxWidth:72, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{joueur.pseudo}</span>
-                {defisCount>0 && <span style={{ background:C.red, color:"#fff", borderRadius:"50%", width:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800 }}>{defisCount}</span>}
-                {demandesAmisCount>0 && <span style={{ background:"#10b981", color:"#fff", borderRadius:"50%", width:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800 }}>{demandesAmisCount>9?"9+":demandesAmisCount}</span>}
-              </button>
-            )}
-            {!joueur && (
-              <button onClick={()=>go("connexion")} style={{ background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", border:"none", cursor:"pointer", padding:"7px 14px", borderRadius:8, fontSize:13, fontWeight:700, boxShadow:"0 4px 14px #f9731440", touchAction:"manipulation" }}>
+
+            {/* Profil joueur */}
+            {joueur ? (
+              <div style={{ position:"relative" }} data-pdrop>
+                <button className="dp-topbtn" data-pdrop onClick={()=>setProfileOpen(o=>!o)}
+                  style={{ background: profileOpen ? "#f9731614" : "#0f0f18", border:`1px solid ${profileOpen?"#f9731655":"#1e1e2e"}`, cursor:"pointer", padding:"5px 8px 5px 5px", borderRadius:11, display:"flex", alignItems:"center", gap:7, transition:"all .2s", touchAction:"manipulation", maxWidth:160,
+                    boxShadow: profileOpen ? "0 0 16px #f9731628" : "none" }}>
+                  {/* Avatar */}
+                  <div style={{ position:"relative", flexShrink:0 }}>
+                    <div style={{ width:30, height:30, borderRadius:"50%", background:`linear-gradient(135deg,${drixColor}44,#141428)`, border:`2px solid ${drixColor}66`, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>
+                      {joueur.photo ? <img src={joueur.photo} style={{ width:"100%",height:"100%",objectFit:"cover" }} alt=""/> : "👤"}
+                    </div>
+                    {/* Dot statut */}
+                    <div style={{ position:"absolute", bottom:-1, right:-1, width:9, height:9, borderRadius:"50%", background:playerStatus.color, border:"1.5px solid #08080d", boxShadow:`0 0 6px ${playerStatus.color}` }}/>
+                  </div>
+                  {/* Infos */}
+                  <div style={{ minWidth:0, flex:1 }}>
+                    <div style={{ fontWeight:700, fontSize:12, color:"#f1f5f9", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", lineHeight:1.2 }}>{joueur.pseudo}</div>
+                    <div style={{ fontSize:10, color:drixColor, fontWeight:600, lineHeight:1.2, display:"flex", alignItems:"center", gap:3 }}>
+                      <span>{drixEmoji}</span><span>{drixTitre}</span>
+                      <span style={{ color:"#475569", marginLeft:2 }}>·</span>
+                      <span style={{ color:"#64748b" }}>{drix}</span>
+                    </div>
+                  </div>
+                  {/* Badges notif */}
+                  {(defisCount>0||demandesAmisCount>0) && (
+                    <span style={{ background:C.red, color:"#fff", borderRadius:"50%", minWidth:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, flexShrink:0 }}>{(defisCount+demandesAmisCount)>9?"9+":(defisCount+demandesAmisCount)}</span>
+                  )}
+                </button>
+
+                {/* Dropdown profil */}
+                {profileOpen && (
+                  <div data-pdrop style={{ position:"absolute", top:"calc(100% + 8px)", right:0, width:200, background:"rgba(10,10,16,0.98)", border:"1px solid #f9731630", borderRadius:14, overflow:"hidden", zIndex:500, backdropFilter:"blur(20px)", boxShadow:"0 20px 60px rgba(0,0,0,.9),0 0 30px #f9731618", animation:"dp-pdrop-in .18s ease" }}>
+                    {/* Mini profil top */}
+                    <div style={{ padding:"12px 14px 10px", borderBottom:"1px solid #1a1a28", display:"flex", alignItems:"center", gap:10 }}>
+                      <div style={{ width:36, height:36, borderRadius:"50%", border:`2px solid ${drixColor}66`, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                        {joueur.photo ? <img src={joueur.photo} style={{ width:"100%",height:"100%",objectFit:"cover" }} alt=""/> : <span style={{ fontSize:18 }}>👤</span>}
+                      </div>
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ fontWeight:800, fontSize:13, color:"#f1f5f9", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{joueur.pseudo}</div>
+                        <div style={{ fontSize:11, color:playerStatus.color, fontWeight:600 }}>{playerStatus.dot==="●"?"● ":""}{playerStatus.label}</div>
+                      </div>
+                    </div>
+                    {/* Menu items */}
+                    {[
+                      { icon:"👤", label:"Mon profil",    target:"mon-profil" },
+                      { icon:"📊", label:"Mes stats",     target:"mon-profil" },
+                      { icon:"👥", label:"Mes amis",      target:"mon-profil", badge: demandesAmisCount },
+                      { icon:"⚔️", label:"Mes défis",     target:"defi",       badge: defisCount },
+                      { icon:"✉️", label:"Messages",      target:"messagerie", badge: unreadMessages },
+                    ].map(({ icon, label, target, badge }) => (
+                      <button key={label} onClick={()=>go(target)}
+                        style={{ display:"flex", alignItems:"center", gap:10, width:"100%", padding:"10px 14px", background:"transparent", border:"none", cursor:"pointer", color:"#c8ccd4", fontSize:13, fontWeight:500, textAlign:"left", transition:"background .15s", touchAction:"manipulation" }}
+                        onMouseEnter={e=>{e.currentTarget.style.background="#f9731610";}}
+                        onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
+                        <span style={{ fontSize:16, width:20, textAlign:"center" }}>{icon}</span>
+                        <span style={{ flex:1 }}>{label}</span>
+                        {badge>0 && <span style={{ background:C.red, color:"#fff", borderRadius:99, minWidth:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, padding:"0 3px" }}>{badge>9?"9+":badge}</span>}
+                      </button>
+                    ))}
+                    <div style={{ borderTop:"1px solid #1a1a28" }}>
+                      <button onClick={()=>{ setJoueur(null); localStorage.removeItem("dp_joueur"); go("home"); }}
+                        style={{ display:"flex", alignItems:"center", gap:10, width:"100%", padding:"10px 14px", background:"transparent", border:"none", cursor:"pointer", color:"#f87171", fontSize:13, fontWeight:500, textAlign:"left", touchAction:"manipulation", transition:"background .15s" }}
+                        onMouseEnter={e=>{e.currentTarget.style.background="#ef444410";}}
+                        onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
+                        <span style={{ fontSize:16, width:20, textAlign:"center" }}>🚪</span>
+                        <span>Déconnexion</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button className="dp-topbtn" onClick={()=>go("connexion")}
+                style={{ background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", border:"none", cursor:"pointer", padding:"7px 13px", borderRadius:9, fontSize:12, fontWeight:700, boxShadow:"0 4px 14px #f9731440", touchAction:"manipulation", transition:"all .2s" }}
+                onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 4px 22px #f9731466";}}
+                onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 4px 14px #f9731440";}}>
                 Connexion
               </button>
             )}
+
+            {/* Admin */}
             {isAdmin && (
-              <button onClick={()=>go("admin")} style={{ background:"#1a1000", color:C.yellow, border:"1px solid #78350f", cursor:"pointer", padding:"6px 9px", borderRadius:8, fontSize:12, fontWeight:700, touchAction:"manipulation" }}>⚙️</button>
+              <button className="dp-topbtn" onClick={()=>go("admin")}
+                style={{ background:"#120d00", color:C.yellow, border:"1px solid #78350f55", cursor:"pointer", padding:"6px 8px", borderRadius:9, fontSize:13, fontWeight:700, touchAction:"manipulation", transition:"all .2s" }}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="#f59e0b88";e.currentTarget.style.boxShadow="0 0 12px #f59e0b33";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="#78350f55";e.currentTarget.style.boxShadow="none";}}>⚙️</button>
             )}
+
             {/* Hamburger */}
-            <button onClick={()=>setOpen(o=>!o)}
-              style={{ background:open?"#f9731618":"#12121a", border:`1px solid ${open?"#f9731644":"#252530"}`, color:open?"#f97316":C.text, cursor:"pointer", fontSize:17, padding:"7px 11px", borderRadius:8, transition:"all .2s", touchAction:"manipulation", display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1 }}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor="#f9731655";e.currentTarget.style.color="#f97316";}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor=open?"#f9731644":"#252530";e.currentTarget.style.color=open?"#f97316":C.text;}}>
-              <span style={{ display:"inline-block", transition:"transform .3s", transform:open?"rotate(90deg)":"none" }}>{open?"✕":"☰"}</span>
+            <button className="dp-topbtn" onClick={()=>setOpen(o=>!o)}
+              style={{ background: open ? "#f9731620" : "#0f0f18", border:`1px solid ${open?"#f9731660":"#1e1e2e"}`, color: open ? "#f97316" : "#94a3b8", cursor:"pointer", padding:"7px 11px", borderRadius:10, transition:"all .22s", touchAction:"manipulation", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+                boxShadow: open ? "0 0 18px #f9731430" : "none" }}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor="#f9731660";e.currentTarget.style.color="#f97316";e.currentTarget.style.boxShadow="0 0 14px #f9731428";}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=open?"#f9731660":"#1e1e2e";e.currentTarget.style.color=open?"#f97316":"#94a3b8";e.currentTarget.style.boxShadow=open?"0 0 18px #f9731430":"none";}}>
+              <span style={{ display:"inline-block", transition:"transform .3s cubic-bezier(.4,0,.2,1)", transform:open?"rotate(90deg)":"none", fontSize:17, lineHeight:1 }}>{open?"✕":"☰"}</span>
             </button>
           </div>
         </div>
+
+        {/* ── Live ticker ──────────────────────────────────────────── */}
+        <div style={{ borderTop:"1px solid #f9731612", height:22, overflow:"hidden", background:"rgba(249,115,22,0.03)", position:"relative" }}>
+          <div style={{ display:"flex", alignItems:"center", height:"100%", whiteSpace:"nowrap", animation:"dp-ticker 28s linear infinite" }}>
+            {[tickerText, tickerText].map((t,i) => (
+              <span key={i} style={{ fontSize:10, color:"#4a5568", fontWeight:600, letterSpacing:.3, padding:"0 40px" }}>
+                {t.split("   ·   ").map((item,j) => (
+                  <span key={j}>
+                    <span style={{ color:"#64748b" }}>{item}</span>
+                    {j < t.split("   ·   ").length-1 && <span style={{ color:"#1e2030", margin:"0 12px" }}>·</span>}
+                  </span>
+                ))}
+              </span>
+            ))}
+          </div>
+        </div>
+
       </nav>
 
       {/* ═══ BACKDROP ═════════════════════════════════════════════════ */}
