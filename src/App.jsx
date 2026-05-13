@@ -5892,8 +5892,129 @@ const Footer = ({ setPage }) => (
   </footer>
 );
 
+// ── ONBOARDING ────────────────────────────────────────────────────────────────
+const ONBOARDING_SECTIONS = [
+  {
+    emoji: "🎯",
+    title: "Bienvenue sur DartPoint",
+    body: "Le premier réseau social dédié aux joueurs de fléchettes en France. DartPoint n'est pas un jeu en ligne — tout se passe en physique, dans les bars, entre amis.",
+    accent: "#f97316",
+  },
+  {
+    emoji: "👥",
+    title: "Un réseau social de la fléchette",
+    body: "Crée ton profil, affilie-toi à un bar, défie tes amis en physique et enregistre vos scores ensemble.",
+    accent: "#60a5fa",
+  },
+  {
+    emoji: "💎",
+    title: "Le système DRIX",
+    body: "Un classement ELO propre aux fléchettes. Chaque duel physique te fait gagner ou perdre des points DRIX selon le niveau de ton adversaire.",
+    sub: "Monte dans les rangs : Débutant → Amateur → Confirmé → Expert → Élite",
+    accent: "#a78bfa",
+  },
+  {
+    emoji: "🎮",
+    title: "Les mini-jeux",
+    body: "Entraîne-toi avec le Scoreur 501/301, apprends à calculer les finishes, et découvre Le Capital et d'autres jeux pour progresser.",
+    accent: "#34d399",
+  },
+  {
+    emoji: "🍺",
+    title: "Trouve ton bar",
+    body: "Recherche les bars à fléchettes près de chez toi, consulte leurs fiches, photos et avis. Tu connais un bar pas encore référencé ? Propose-le en 2 minutes !",
+    accent: "#f97316",
+  },
+  {
+    emoji: "📍",
+    title: "Important",
+    body: "DartPoint est une communauté. Plus vous êtes nombreux à référencer vos bars et enregistrer vos duels, plus le réseau devient puissant.",
+    accent: "#facc15",
+    highlight: true,
+  },
+];
+
+const Onboarding = ({ onDone }) => {
+  const [btnVisible, setBtnVisible] = useState(false);
+  const scrollRef = useRef(null);
+
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 60;
+    if (nearBottom) setBtnVisible(true);
+  };
+
+  // Révéler le bouton si le contenu est trop court pour défiler
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (el.scrollHeight <= el.clientHeight + 60) setBtnVisible(true);
+  }, []);
+
+  const done = () => {
+    localStorage.setItem("dp_onboarding_done", "true");
+    onDone();
+  };
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:9999, background:"#0a0a0a", display:"flex", flexDirection:"column" }}>
+      {/* Header fixe */}
+      <div style={{ flexShrink:0, padding:"20px 20px 0", textAlign:"center", borderBottom:"1px solid #1a1a1a", paddingBottom:16 }}>
+        <img src="/logo dart point/logo bandeau.png" alt="DartPoint" style={{ height:38, objectFit:"contain", filter:"drop-shadow(0 0 14px rgba(249,115,22,.5))" }}/>
+      </div>
+
+      {/* Contenu scrollable */}
+      <div ref={scrollRef} onScroll={onScroll}
+        style={{ flex:1, overflowY:"auto", overflowX:"hidden", padding:"24px 20px 32px", WebkitOverflowScrolling:"touch" }}>
+
+        {ONBOARDING_SECTIONS.map((s, i) => (
+          <div key={i} style={{ marginBottom:20, borderRadius:18,
+            background: s.highlight
+              ? `linear-gradient(135deg,${s.accent}14,#1a1a0a)`
+              : "linear-gradient(135deg,#111118,#0e0e14)",
+            border:`1px solid ${s.accent}${s.highlight?"44":"22"}`,
+            padding:"20px 18px",
+            boxShadow: s.highlight ? `0 0 30px ${s.accent}18` : "none",
+          }}>
+            <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12 }}>
+              <div style={{ width:46, height:46, borderRadius:14, background:`${s.accent}18`, border:`1px solid ${s.accent}33`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>
+                {s.emoji}
+              </div>
+              <h2 style={{ fontWeight:800, fontSize:17, color:"#f1f5f9", margin:0, lineHeight:1.3 }}>{s.title}</h2>
+            </div>
+            <p style={{ color:"#94a3b8", fontSize:14, lineHeight:1.75, margin:0, marginBottom: s.sub ? 10 : 0 }}>{s.body}</p>
+            {s.sub && (
+              <div style={{ marginTop:10, background:`${s.accent}12`, border:`1px solid ${s.accent}30`, borderRadius:10, padding:"9px 14px", fontSize:13, fontWeight:600, color:s.accent }}>
+                {s.sub}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* Indicateur de scroll si bouton pas encore visible */}
+        {!btnVisible && (
+          <div style={{ textAlign:"center", color:"#2a2a3a", fontSize:12, marginBottom:8, animation:"nav-pulse 2s infinite" }}>
+            ↓ continue à défiler
+          </div>
+        )}
+
+        {/* Bouton — toujours en bas du contenu */}
+        <div style={{ transition:"opacity .4s, transform .4s", opacity: btnVisible ? 1 : 0, transform: btnVisible ? "translateY(0)" : "translateY(16px)", pointerEvents: btnVisible ? "auto" : "none" }}>
+          <button onClick={done}
+            style={{ width:"100%", padding:"16px 0", background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", border:"none", borderRadius:16, fontWeight:800, fontSize:17, cursor:"pointer", boxShadow:"0 6px 30px #f9731450", touchAction:"manipulation", letterSpacing:.3 }}>
+            J'ai compris, je me lance ! 🎯
+          </button>
+          <p style={{ textAlign:"center", color:"#374151", fontSize:11, marginTop:12 }}>Tu peux retrouver ces infos dans "À propos" à tout moment.</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── APP ───────────────────────────────────────────────────────────────────────
 export default function App() {
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("dp_onboarding_done"));
   const [page,setPage]=useState("home");
   const [barSlug,setBarSlug]=useState(null);
   const [assoSlug,setAssoSlug]=useState(null);
@@ -6124,6 +6245,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight:"100vh",display:"flex",flexDirection:"column",background:C.bg,color:C.text }}>
+      {showOnboarding && <Onboarding onDone={()=>setShowOnboarding(false)}/>}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
