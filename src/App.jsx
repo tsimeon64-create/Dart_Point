@@ -1391,7 +1391,7 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
       {/* ── Scoreur + Trouve un bar ── */}
       <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
         <ImgBtn src="/scoreur.png"        onClick={()=>setPage("scoreur")}/>
-        <ImgBtn src="/trouve un bar.png"  onClick={()=>setPage("bars")}/>
+        <ImgBtn src="/trouve ton spot.png"  onClick={()=>setPage("bars")}/>
       </div>
     </div>
   );
