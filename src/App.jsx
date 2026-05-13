@@ -868,11 +868,22 @@ const EditBarModal = ({ bar, onSave, onClose }) => {
   );
 };
 
-const EditAssoModal = ({ asso, onSave, onClose }) => {
+const EditAssoModal = ({ asso, allBars=[], onSave, onClose }) => {
   const [f,setF]=useState({ nom:asso.nom||"",ville:asso.ville||"",zone:asso.zone||"",type:asso.type||"electronique",president:asso.president||"",contact_nom:asso.contact_nom||"",jours:asso.jours||"",lieu:asso.lieu||"",tel:asso.tel||"",contact:asso.contact||"",description:asso.description||"",lat:String(asso.lat||""),lng:String(asso.lng||"") });
+  const [selectedBars, setSelectedBars] = useState(Array.isArray(asso.bars) ? asso.bars : []);
+  const [barSearch, setBarSearch] = useState("");
   const [saving,setSaving]=useState(false);
   const set=k=>v=>setF(p=>({...p,[k]:v}));
-  const save=async()=>{ setSaving(true); await db.updateAssociation(asso.slug,{...f,lat:parseFloat(f.lat)||null,lng:parseFloat(f.lng)||null}); onSave({...asso,...f}); setSaving(false); onClose(); };
+  const toggleBar = (nom) => setSelectedBars(prev => prev.includes(nom) ? prev.filter(n=>n!==nom) : [...prev, nom]);
+  const filteredBars = allBars.filter(b => b.nom.toLowerCase().includes(barSearch.toLowerCase()) || b.ville.toLowerCase().includes(barSearch.toLowerCase()));
+  const save=async()=>{
+    setSaving(true);
+    const payload = {...f, bars:selectedBars, lat:parseFloat(f.lat)||null, lng:parseFloat(f.lng)||null};
+    await db.updateAssociation(asso.slug, payload);
+    onSave({...asso,...payload});
+    setSaving(false);
+    onClose();
+  };
   return (
     <div style={{ position:"fixed",inset:0,background:"#000c",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}>
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,maxWidth:600,width:"100%",maxHeight:"90vh",overflowY:"auto" }}>
@@ -884,8 +895,38 @@ const EditAssoModal = ({ asso, onSave, onClose }) => {
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Téléphone" value={f.tel} onChange={set("tel")} placeholder="06 XX"/><Field label="Contact / Réseaux" value={f.contact} onChange={set("contact")} placeholder="email ou lien"/></div>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Jours" value={f.jours} onChange={set("jours")} placeholder="Vendredi 20h"/><Field label="Lieu" value={f.lieu} onChange={set("lieu")} placeholder="Bar des Sports"/></div>
           <Field label="Description" value={f.description} onChange={set("description")} placeholder="Description…" as="textarea"/>
+          {/* Bars affiliés */}
+          <div>
+            <div style={{ fontSize:12,color:C.muted,fontWeight:600,marginBottom:8 }}>🍺 BARS AFFILIÉS {selectedBars.length>0&&<span style={{ color:C.accent }}>({selectedBars.length} sélectionné{selectedBars.length>1?"s":""})</span>}</div>
+            <input value={barSearch} onChange={e=>setBarSearch(e.target.value)} placeholder="Rechercher un bar…"
+              style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:13,marginBottom:8,boxSizing:"border-box" }}/>
+            <div style={{ maxHeight:180,overflowY:"auto",display:"flex",flexDirection:"column",gap:4,border:`1px solid ${C.border}`,borderRadius:8,padding:8 }}>
+              {filteredBars.length===0 && <span style={{ color:C.muted,fontSize:13,padding:4 }}>Aucun bar trouvé</span>}
+              {filteredBars.map(b => {
+                const checked = selectedBars.includes(b.nom);
+                return (
+                  <label key={b.slug} style={{ display:"flex",alignItems:"center",gap:10,padding:"7px 8px",borderRadius:8,cursor:"pointer",background:checked?"#f9731612":"transparent",border:`1px solid ${checked?C.accent+"44":"transparent"}`,transition:"all .15s" }}>
+                    <input type="checkbox" checked={checked} onChange={()=>toggleBar(b.nom)}
+                      style={{ accentColor:C.accent,width:16,height:16,flexShrink:0 }}/>
+                    <span style={{ fontWeight:checked?700:400,fontSize:13,flex:1 }}>{b.nom}</span>
+                    <span style={{ fontSize:11,color:C.muted }}>📍 {b.ville}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {selectedBars.length>0 && (
+              <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginTop:8 }}>
+                {selectedBars.map(nom=>(
+                  <span key={nom} style={{ background:C.accent+"22",border:`1px solid ${C.accent}44`,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:600,color:C.accent,display:"flex",alignItems:"center",gap:5 }}>
+                    {nom}
+                    <span onClick={()=>toggleBar(nom)} style={{ cursor:"pointer",opacity:.7 }}>✕</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Latitude" value={f.lat} onChange={set("lat")} placeholder="43.49" type="number"/><Field label="Longitude" value={f.lng} onChange={set("lng")} placeholder="-1.47" type="number"/></div>
-          <div style={{ display:"flex",gap:10 }}><Btn onClick={save} disabled={saving||!f.nom||!f.ville} style={{ flex:1 }}>{saving?"…":"💾 Sauvegarder"}</Btn><Btn onClick={onClose} variant="dark" style={{ flex:1 }}>Annuler</Btn></div>
+          <div style={{ display:"flex",gap:10 }}><Btn onClick={save} disabled={saving||!f.nom||!f.ville} style={{ flex:1 }}>{saving?"⏳ Sauvegarde…":"💾 Sauvegarder"}</Btn><Btn onClick={onClose} variant="dark" style={{ flex:1 }}>Annuler</Btn></div>
         </div>
       </div>
     </div>
@@ -4101,6 +4142,7 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
       {editingAsso && (
         <EditAssoModal
           asso={asso}
+          allBars={bars}
           onSave={u => { setAssociations(a => a.map(x => x.slug === u.slug ? {...x,...u} : x)); setEditingAsso(false); }}
           onClose={() => setEditingAsso(false)}
         />
@@ -5122,7 +5164,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
   return (
     <div style={{maxWidth:1100,margin:"0 auto",padding:"0 0 60px"}}>
       {editBar&&<EditBarModal bar={editBar} onSave={u=>{setBars(b=>b.map(x=>x.slug===u.slug?u:x));setEditBar(null);addLog("Bar édité",u.nom,"info");}} onClose={()=>setEditBar(null)}/>}
-      {editAsso&&<EditAssoModal asso={editAsso} onSave={u=>{setAssociations(a=>a.map(x=>x.slug===u.slug?u:x));setEditAsso(null);addLog("Association éditée",u.nom,"info");}} onClose={()=>setEditAsso(null)}/>}
+      {editAsso&&<EditAssoModal asso={editAsso} allBars={bars} onSave={u=>{setAssociations(a=>a.map(x=>x.slug===u.slug?u:x));setEditAsso(null);addLog("Association éditée",u.nom,"info");}} onClose={()=>setEditAsso(null)}/>}
       {editTournoi&&<EditTournoiModal tournoi={editTournoi} onSave={u=>{setTournois(t=>t.map(x=>x.slug===u.slug?u:x));setEditTournoi(null);addLog("Tournoi édité",u.nom,"info");}} onClose={()=>setEditTournoi(null)}/>}
 
       {/* ── HEADER ── */}
