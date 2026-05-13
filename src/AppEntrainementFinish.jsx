@@ -521,11 +521,15 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
             )}
             {!isDrix && (
               <div style={{ background:"#052e16",borderRadius:10,padding:"8px 12px",textAlign:"center",width:"100%" }}>
-                <div style={{ fontSize:10,color:C.muted,marginBottom:3 }}>
-                  💡 {isOptimal?"C'est la solution optimale 🏆":"Solution optimale officielle :"}
+                {!isOptimal && (
+                  <>
+                    <div style={{ fontSize:10,color:C.muted,marginBottom:3 }}>💡 Une des solutions optimales :</div>
+                    <div style={{ fontWeight:800,color:C.green,fontSize:16,letterSpacing:1,marginBottom:4 }}>{optSol}</div>
+                  </>
+                )}
+                <div style={{ fontSize:10,color:"#86efac",fontStyle:"italic",lineHeight:1.6 }}>
+                  chacun ses triples, chacun ses doubles.<br/>chacun sa route, chacun son chemin
                 </div>
-                <div style={{ fontWeight:800,color:C.green,fontSize:16,letterSpacing:1 }}>{optSol}</div>
-                {!isOptimal&&<div style={{ fontSize:10,color:"#86efac",marginTop:3 }}>Ta route est valide mais il existe une meilleure route.</div>}
               </div>
             )}
             <button onClick={()=>nouveauFinish()} style={{ background:C.green,color:"#fff",border:"none",borderRadius:10,padding:"12px 0",fontWeight:800,fontSize:14,cursor:"pointer",width:"100%" }}>
