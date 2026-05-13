@@ -305,10 +305,26 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
 
       {/* ═══ TOP BAR ══════════════════════════════════════════════════ */}
       <nav style={{ background:"rgba(10,10,14,0.98)", borderBottom:"1px solid #1e1e28", position:"sticky", top:0, zIndex:200, backdropFilter:"blur(16px)" }}>
-        <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 14px", display:"flex", alignItems:"center", justifyContent:"space-between", height:56 }}>
-          {/* Logo */}
-          <div onClick={()=>go("home")} style={{ cursor:"pointer", flexShrink:0 }}>
-            <img src="/logo dart point/logo bandeau.png" alt="DartPoint" style={{ height:40, objectFit:"contain", filter:"drop-shadow(0 2px 10px rgba(249,115,22,0.35))" }}/>
+        <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 10px", display:"flex", alignItems:"center", justifyContent:"space-between", height:56, gap:6 }}>
+          {/* Gauche : bouton retour OU logo */}
+          <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+            {canGoBack && page !== "home" ? (
+              <>
+                <button onClick={onBack}
+                  style={{ background:"#12121a", border:"1px solid #252530", color:"#94a3b8", cursor:"pointer", borderRadius:8, padding:"6px 10px", fontSize:13, fontWeight:700, display:"flex", alignItems:"center", gap:5, touchAction:"manipulation", transition:"all .18s", whiteSpace:"nowrap" }}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="#f9731644";e.currentTarget.style.color="#f97316";}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="#252530";e.currentTarget.style.color="#94a3b8";}}>
+                  ‹ Retour
+                </button>
+                <div onClick={()=>go("home")} style={{ cursor:"pointer", flexShrink:0 }}>
+                  <img src="/logo dart point/logo bandeau.png" alt="DartPoint" style={{ height:34, objectFit:"contain", filter:"drop-shadow(0 2px 8px rgba(249,115,22,0.25))", opacity:0.7 }}/>
+                </div>
+              </>
+            ) : (
+              <div onClick={()=>go("home")} style={{ cursor:"pointer", flexShrink:0 }}>
+                <img src="/logo dart point/logo bandeau.png" alt="DartPoint" style={{ height:40, objectFit:"contain", filter:"drop-shadow(0 2px 10px rgba(249,115,22,0.35))" }}/>
+              </div>
+            )}
           </div>
           {/* Right actions */}
           <div style={{ display:"flex", gap:6, alignItems:"center" }}>
@@ -5732,38 +5748,70 @@ export default function App() {
   const handleProposalAsso=async f=>{ await db.addProposition({...f,slug:slugify(f.nom+"-"+f.ville),statut:"en_attente",date:Date.now(),type_prop:"association"}); };
   const handleProposalTournoi=async f=>{ await db.addProposition({...f,slug:slugify(f.nom+"-"+f.ville),statut:"en_attente",date:Date.now(),type_prop:"tournoi"}); };
 
-  const nav=p=>{ setHistory(h=>[...h,p]); setPage(p); try{window.scrollTo(0,0);}catch{} };
-  const goBack=()=>{ if(history.length>1){ const nh=history.slice(0,-1); setHistory(nh); setPage(nh[nh.length-1]); try{window.scrollTo(0,0);}catch{} } };
+  // ── NAVIGATION ────────────────────────────────────────────────────────────────
+  // nav() : déduplique les pages consécutives identiques, limite l'historique à 60 entrées
+  const nav = (p) => {
+    setHistory(h => {
+      if (h[h.length - 1] === p) return h;   // ne pas doubler la même page
+      return [...h.slice(-59), p];            // max 60 entrées
+    });
+    setPage(p);
+    try { window.scrollTo(0, 0); } catch {}
+  };
+
+  // goBack() via refs pour éviter les closures périmées
+  const historyRef = useRef(history);
+  const pageRef    = useRef(page);
+  useEffect(() => { historyRef.current = history; }, [history]);
+  useEffect(() => { pageRef.current    = page;    }, [page]);
+
+  const goBack = useCallback(() => {
+    const h = historyRef.current;
+    if (h.length <= 1) return;
+    const nh = h.slice(0, -1);
+    setHistory(nh);
+    setPage(nh[nh.length - 1]);
+    try { window.scrollTo(0, 0); } catch {}
+  }, []);
 
   const [pendingNav, setPendingNav] = useState(null);
-  const isGamePage = (p) => p==="jeux-capital" || p==="scoreur" || p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-") || p==="scoreur-doublette" || p==="cricket-config";
+  const isGamePage = (p) =>
+    p === "jeux-capital" || p === "scoreur" || p === "scoreur-doublette" ||
+    p === "cricket-config" || p === "rush-mode" ||
+    p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-");
+
   const navSafe = (targetPage) => {
-    if (isGamePage(page)) { setPendingNav(targetPage); }
+    if (isGamePage(pageRef.current)) { setPendingNav(targetPage); }
     else { nav(targetPage); }
   };
 
-  // Bouton retour — pages normales
-  useEffect(()=>{
-    if (isGamePage(page) || page === "jeux") return;
-    const handlePop=(e)=>{ e.preventDefault(); goBack(); window.history.pushState(null,"",window.location.href); };
-    window.history.pushState(null,"",window.location.href);
-    window.addEventListener("popstate",handlePop);
-    return ()=>window.removeEventListener("popstate",handlePop);
-  },[history, page]);
+  // ── HANDLER POPSTATE — monté UNE SEULE FOIS, utilise les refs ─────────────────
+  useEffect(() => {
+    // Injecter un état initial pour toujours avoir quelque chose à intercepter
+    window.history.pushState({ dp: true }, "");
 
-  // Bouton retour — pages de jeu → modale de confirmation
-  useEffect(()=>{
-    if (!isGamePage(page)) return;
-    const handlePop=(e)=>{
-      e.preventDefault();
-      const prevPage = history.length > 1 ? history[history.length - 2] : "home";
-      setPendingNav(prevPage);
-      window.history.pushState(null,"",window.location.href);
+    const onPop = () => {
+      const p = pageRef.current;
+      const h = historyRef.current;
+
+      if (isGamePage(p)) {
+        // Page de jeu → modale de confirmation
+        const prev = h.length > 1 ? h[h.length - 2] : "home";
+        setPendingNav(prev);
+      } else if (h.length > 1) {
+        // Navigation normale → retour dans l'historique interne
+        const nh = h.slice(0, -1);
+        setHistory(nh);
+        setPage(nh[nh.length - 1]);
+        try { window.scrollTo(0, 0); } catch {}
+      }
+      // Toujours réinjecter un état pour bloquer la sortie de l'appli
+      window.history.pushState({ dp: true }, "");
     };
-    window.history.pushState(null,"",window.location.href);
-    window.addEventListener("popstate",handlePop);
-    return ()=>window.removeEventListener("popstate",handlePop);
-  },[history, page]);
+
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []); // [] = monté une seule fois, les refs gèrent la fraîcheur
 
   if(loading) return (
     <div style={{ height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,flexDirection:"column",gap:16 }}>
