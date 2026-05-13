@@ -507,20 +507,48 @@ export const ScoreurCricket = ({ config, setPage }) => {
     const newChallengerDrix = Math.max(0, d.challengerDrix + challengerGain);
     const newDefiDrix = Math.max(0, d.defiDrix + defiGain);
     const loserPseudo = challengerWon ? d.defiPseudo : d.challengerPseudo;
-    const loserGain = challengerWon ? defiGain : challengerGain;
 
-    Promise.all([
+    const now = Date.now();
+    const winnerGain = challengerWon ? challengerGain : defiGain;
+
+    // Async IIFE pour récupérer les photos puis tout publier
+    (async () => {
+      const [jCFull, jDFull] = await Promise.all([
+        sbC(`joueurs?id=eq.${d.challengerId}&select=photo,drix,id`).then(r=>r?.[0]).catch(()=>null),
+        sbC(`joueurs?id=eq.${d.defiId}&select=photo,drix,id`).then(r=>r?.[0]).catch(()=>null),
+      ]);
+      const winnerPhoto = challengerWon ? jCFull?.photo : jDFull?.photo;
+
+      Promise.all([
+      // Mise à jour DRIX joueurs
       sbC(`joueurs?id=eq.${d.challengerId}`, { method:"PATCH", body:JSON.stringify({ drix:newChallengerDrix }), prefer:"return=minimal" }).catch(()=>{}),
-      sbC(`joueurs?id=eq.${d.defiId}`, { method:"PATCH", body:JSON.stringify({ drix:newDefiDrix }), prefer:"return=minimal" }).catch(()=>{}),
+      sbC(`joueurs?id=eq.${d.defiId}`,       { method:"PATCH", body:JSON.stringify({ drix:newDefiDrix }),       prefer:"return=minimal" }).catch(()=>{}),
+      // Historique DRIX mouvements (pour le Comptoir + classement)
+      sbC("drix_mouvements", { method:"POST", body:JSON.stringify({ joueur_id:d.challengerId, joueur_pseudo:d.challengerPseudo, adversaire_pseudo:d.defiPseudo,    variation:challengerGain, drix_avant:d.challengerDrix, drix_apres:newChallengerDrix, resultat:challengerWon?"victoire":"defaite", duel_id:d.duelId, date:now }) }).catch(()=>{}),
+      sbC("drix_mouvements", { method:"POST", body:JSON.stringify({ joueur_id:d.defiId,       joueur_pseudo:d.defiPseudo,       adversaire_pseudo:d.challengerPseudo, variation:defiGain,       drix_avant:d.defiDrix,       drix_apres:newDefiDrix,       resultat:challengerWon?"defaite":"victoire", duel_id:d.duelId, date:now }) }).catch(()=>{}),
+      // Mise à jour stats_joueurs (victoires / défaites / parties)
+      sbC(`stats_joueurs?joueur_id=eq.${d.challengerId}&select=id,parties,victoires,defaites`).then(r => {
+        const s = r?.[0]; if (!s) return;
+        return sbC(`stats_joueurs?id=eq.${s.id}`, { method:"PATCH", prefer:"return=minimal", body:JSON.stringify({ parties:(s.parties||0)+1, victoires:challengerWon?(s.victoires||0)+1:s.victoires, defaites:challengerWon?s.defaites:(s.defaites||0)+1 }) });
+      }).catch(()=>{}),
+      sbC(`stats_joueurs?joueur_id=eq.${d.defiId}&select=id,parties,victoires,defaites`).then(r => {
+        const s = r?.[0]; if (!s) return;
+        return sbC(`stats_joueurs?id=eq.${s.id}`, { method:"PATCH", prefer:"return=minimal", body:JSON.stringify({ parties:(s.parties||0)+1, victoires:challengerWon?s.victoires:(s.victoires||0)+1, defaites:challengerWon?(s.defaites||0)+1:s.defaites }) });
+      }).catch(()=>{}),
+      // Fermeture du duel
       sbC(`duels?id=eq.${d.duelId}`, { method:"PATCH", body:JSON.stringify({ statut:"termine", gagnant_id:winnerId, gagnant_pseudo:winnerJ?.pseudo, valide_challenger:true, valide_defie:true }), prefer:"return=minimal" }).catch(()=>{}),
-      // Post sur le mur
+      // Publication sur le Comptoir
       sbC("wall_posts", { method:"POST", body:JSON.stringify({
-        joueur_id: winnerId, joueur_pseudo: winnerJ?.pseudo,
-        contenu: `⚔️🏏 Cricket DRIX — ${winnerJ?.pseudo} bat ${loserPseudo} ! (+${challengerWon?challengerGain:-loserGain} DRIX)`,
-        type:"defi",
+        joueur_id: winnerId,
+        joueur_pseudo: winnerJ?.pseudo,
+        joueur_photo: winnerPhoto || null,
+        contenu: `⚔️🏏 Cricket DRIX — ${winnerJ?.pseudo} bat ${loserPseudo} ! (+${winnerGain} DRIX)`,
+        type: "defi",
+        date: now,
       })}).catch(()=>{}),
-    ]).catch(()=>{});
-    localStorage.removeItem("dp_cricket_duel");
+      ]).catch(()=>{});
+      localStorage.removeItem("dp_cricket_duel");
+    })();
   }, [phase, config.defi, drixPublished, joueurs]);
 
   if (phase === "fin" && interInfo) {
