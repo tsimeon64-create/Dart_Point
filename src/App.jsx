@@ -215,7 +215,7 @@ const Field = ({ label, value, onChange, placeholder, type="text", as="input", o
 const Spinner = () => <div style={{ display:"flex",alignItems:"center",justifyContent:"center",padding:40 }}><div style={{ width:32,height:32,border:`3px solid ${C.border}`,borderTop:`3px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite" }}/></div>;
 
 // ── NAV ───────────────────────────────────────────────────────────────────────
-const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAmisCount=0, unreadMessages, onBack, canGoBack, bars=[], barsActifs=[], associations=[], tournois=[] }) => {
+const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAmisCount=0, unreadMessages=0, newBadgesCount=0, onBadgesSeen, onBack, canGoBack, bars=[], barsActifs=[], associations=[], tournois=[] }) => {
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [liveStats, setLiveStats] = useState({ joueursConnectes:0, matchsLive:0 });
@@ -362,18 +362,6 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
           {/* DROITE — Actions */}
           <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"flex-end", gap:5 }}>
 
-            {/* Messages */}
-            {joueur && (
-              <button className="dp-topbtn" onClick={()=>go("messagerie")}
-                style={{ background:"#0f0f18", border:`1px solid ${unreadMessages>0?"#7c3aed55":"#1e1e2e"}`, cursor:"pointer", padding:"7px 10px", borderRadius:10, fontSize:16, display:"flex", alignItems:"center", gap:5, transition:"all .2s", touchAction:"manipulation", position:"relative",
-                  animation: unreadMessages>0 ? "dp-msg-glow 2s infinite" : "none",
-                  boxShadow: unreadMessages>0 ? "0 0 14px #7c3aed44" : "none" }}>
-                💬
-                {unreadMessages>0 && (
-                  <span style={{ position:"absolute", top:-4, right:-4, background:"linear-gradient(135deg,#7c3aed,#f97316)", color:"#fff", borderRadius:"50%", minWidth:17, height:17, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, padding:"0 2px", border:"1.5px solid #08080d" }}>{unreadMessages>9?"9+":unreadMessages}</span>
-                )}
-              </button>
-            )}
 
             {/* Profil joueur */}
             {joueur ? (
@@ -392,10 +380,17 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                       <span style={{ color:"#64748b" }}>{drix}</span>
                     </div>
                   </div>
-                  {/* Badges notif */}
-                  {(defisCount>0||demandesAmisCount>0) && (
-                    <span style={{ background:C.red, color:"#fff", borderRadius:"50%", minWidth:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, flexShrink:0 }}>{(defisCount+demandesAmisCount)>9?"9+":(defisCount+demandesAmisCount)}</span>
-                  )}
+                  {/* Badges notif — total de toutes les notifs */}
+                  {((defisCount||0)+(demandesAmisCount||0)+(unreadMessages||0)+(newBadgesCount||0))>0 && (() => {
+                    const total = (defisCount||0)+(demandesAmisCount||0)+(unreadMessages||0)+(newBadgesCount||0);
+                    // Couleur selon le type dominant
+                    const color = newBadgesCount>0 && defisCount===0 && demandesAmisCount===0 && unreadMessages===0 ? "#f59e0b" : C.red;
+                    return (
+                      <span style={{ background:color, color:"#fff", borderRadius:"50%", minWidth:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, flexShrink:0, boxShadow:`0 0 8px ${color}88`, animation:"dp-notif-pulse 2s infinite" }}>
+                        {total>9?"9+":total}
+                      </span>
+                    );
+                  })()}
                 </button>
 
                 {/* Dropdown profil */}
@@ -413,19 +408,23 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                     </div>
                     {/* Menu items */}
                     {[
-                      { icon:"👤", label:"Mon profil",    target:"mon-profil" },
-                      { icon:"📊", label:"Mes stats",     target:"mon-profil" },
-                      { icon:"👥", label:"Mes amis",      target:"mon-profil", badge: demandesAmisCount },
-                      { icon:"⚔️", label:"Mes défis",     target:"defi",       badge: defisCount },
-                      { icon:"✉️", label:"Messages",      target:"messagerie", badge: unreadMessages },
-                    ].map(({ icon, label, target, badge }) => (
-                      <button key={label} onClick={()=>go(target)}
+                      { icon:"👤", label:"Mon profil",    target:"mon-profil", badge: newBadgesCount, badgeColor:"#f59e0b", badgeTitle: newBadgesCount>0 ? "🏅 Nouveaux badges" : null },
+                      { icon:"📊", label:"Mes stats",     target:"profil-stats" },
+                      { icon:"👥", label:"Mes amis",      target:"profil-amis",  badge: demandesAmisCount, badgeColor:C.red },
+                      { icon:"⚔️", label:"Mes défis",     target:"defi",         badge: defisCount, badgeColor:C.red },
+                      { icon:"✉️", label:"Messages",      target:"messagerie",   badge: unreadMessages, badgeColor:"#7c3aed" },
+                    ].map(({ icon, label, target, badge, badgeColor=C.red, badgeTitle }) => (
+                      <button key={label} onClick={()=>{ if(target==="mon-profil"&&newBadgesCount>0&&onBadgesSeen) {} go(target); }}
                         style={{ display:"flex", alignItems:"center", gap:10, width:"100%", padding:"10px 14px", background:"transparent", border:"none", cursor:"pointer", color:"#c8ccd4", fontSize:13, fontWeight:500, textAlign:"left", transition:"background .15s", touchAction:"manipulation" }}
                         onMouseEnter={e=>{e.currentTarget.style.background="#f9731610";}}
                         onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
                         <span style={{ fontSize:16, width:20, textAlign:"center" }}>{icon}</span>
                         <span style={{ flex:1 }}>{label}</span>
-                        {badge>0 && <span style={{ background:C.red, color:"#fff", borderRadius:99, minWidth:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, padding:"0 3px" }}>{badge>9?"9+":badge}</span>}
+                        {badge>0 && (
+                          <span style={{ background:badgeColor, color:"#fff", borderRadius:99, minWidth:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, padding:"0 3px", boxShadow:`0 0 6px ${badgeColor}88` }} title={badgeTitle||""}>
+                            {badge>9?"9+":badge}
+                          </span>
+                        )}
                       </button>
                     ))}
                     <div style={{ borderTop:"1px solid #1a1a28" }}>
@@ -962,11 +961,20 @@ const ShareBar = ({ bar }) => {
 };
 
 // ── MODALS ÉDITION ────────────────────────────────────────────────────────────
-const EditBarModal = ({ bar, onSave, onClose }) => {
+const EditBarModal = ({ bar, onSave, onClose, joueur=null }) => {
   const [f,setF]=useState({ nom:bar.nom||"",ville:bar.ville||"",cp:bar.cp||"",adresse:bar.adresse||"",tel:bar.tel||"",type:bar.type||"electronique",cibles:String(bar.cibles||1),horaires:bar.horaires||"",description:bar.description||"",tournois:bar.tournois?"oui":"non",lat:String(bar.lat||""),lng:String(bar.lng||"") });
   const [saving,setSaving]=useState(false);
   const set=k=>v=>setF(p=>({...p,[k]:v}));
-  const save=async()=>{ setSaving(true); await db.updateBar(bar.slug,{nom:f.nom,ville:f.ville,cp:f.cp,adresse:f.adresse,tel:f.tel,type:f.type,cibles:parseInt(f.cibles)||1,horaires:f.horaires,description:f.description,tournois:f.tournois==="oui",lat:parseFloat(f.lat)||null,lng:parseFloat(f.lng)||null}); onSave({...bar,...f,cibles:parseInt(f.cibles)||1,tournois:f.tournois==="oui",lat:parseFloat(f.lat)||null,lng:parseFloat(f.lng)||null}); setSaving(false); onClose(); };
+  const save=async()=>{
+    setSaving(true);
+    await db.updateBar(bar.slug,{nom:f.nom,ville:f.ville,cp:f.cp,adresse:f.adresse,tel:f.tel,type:f.type,cibles:parseInt(f.cibles)||1,horaires:f.horaires,description:f.description,tournois:f.tournois==="oui",lat:parseFloat(f.lat)||null,lng:parseFloat(f.lng)||null});
+    // Log de modification
+    const champs = Object.entries(f).filter(([k,v])=>String(bar[k]||"")!==v).map(([k])=>k).join(", ");
+    db.addProposition({ nom:bar.nom, ville:bar.ville, slug:bar.slug, statut:"info", date:Date.now(), type_prop:"modif_bar", commentaire:`Modifié par ${joueur?.pseudo||"admin"} (ID:${joueur?.id||"admin"}). Champs: ${champs||"(aucun changement détecté)"}` }).catch(()=>{});
+    onSave({...bar,...f,cibles:parseInt(f.cibles)||1,tournois:f.tournois==="oui",lat:parseFloat(f.lat)||null,lng:parseFloat(f.lng)||null});
+    setSaving(false);
+    onClose();
+  };
   return (
     <div style={{ position:"fixed",inset:0,background:"#000c",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}>
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,maxWidth:600,width:"100%",maxHeight:"90vh",overflowY:"auto" }}>
@@ -989,7 +997,7 @@ const EditBarModal = ({ bar, onSave, onClose }) => {
   );
 };
 
-const EditAssoModal = ({ asso, allBars=[], onSave, onClose }) => {
+const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
   const [f,setF]=useState({ nom:asso.nom||"",ville:asso.ville||"",zone:asso.zone||"",type:asso.type||"electronique",president:asso.president||"",contact_nom:asso.contact_nom||"",jours:asso.jours||"",lieu:asso.lieu||"",tel:asso.tel||"",contact:asso.contact||"",description:asso.description||"",lat:String(asso.lat||""),lng:String(asso.lng||"") });
   const [selectedBars, setSelectedBars] = useState(Array.isArray(asso.bars) ? asso.bars : []);
   const [barSearch, setBarSearch] = useState("");
@@ -1004,6 +1012,9 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose }) => {
     try {
       const payload = { nom:f.nom, ville:f.ville, zone:f.zone, type:f.type, president:f.president, contact_nom:f.contact_nom, jours:f.jours, lieu:f.lieu, tel:f.tel, contact:f.contact, description:f.description, bars:selectedBars, lat:parseFloat(f.lat)||null, lng:parseFloat(f.lng)||null };
       await db.updateAssociation(asso.slug, payload);
+      // Log de modification
+      const champs = Object.entries(f).filter(([k,v])=>String(asso[k]||"")!==v).map(([k])=>k).join(", ");
+      db.addProposition({ nom:asso.nom, ville:asso.ville, slug:asso.slug, statut:"info", date:Date.now(), type_prop:"modif_asso", commentaire:`Modifié par ${joueur?.pseudo||"?"} (ID:${joueur?.id||"?"}) — Champs: ${champs||"(aucun changement détecté)"}` }).catch(()=>{});
       onSave({...asso,...payload});
       onClose();
     } catch(e) {
@@ -2326,6 +2337,78 @@ const MancheDetail = ({ manches, joueur0, joueur1 }) => {
 
 // ── LIVE ──────────────────────────────────────────────────────────────────────
 
+// Tronque un pseudo intelligemment
+const TruncPseudo = ({ pseudo="", max=11, style={}, onClick }) => {
+  const [showFull, setShowFull] = useState(false);
+  const truncated = pseudo.length > max ? pseudo.slice(0, max) + "…" : pseudo;
+  return (
+    <span
+      onClick={e=>{ if(pseudo.length>max){ e.stopPropagation(); setShowFull(v=>!v); } if(onClick) onClick(e); }}
+      title={pseudo}
+      style={{ cursor: pseudo.length > max ? "pointer" : "default", ...style }}>
+      {showFull ? pseudo : truncated}
+    </span>
+  );
+};
+
+// Heatmap des 5 dernières volées
+const HeatmapStrip = ({ volees=[] }) => {
+  const last5 = [...volees].slice(-5);
+  const getColor = (v) => {
+    if (v.score === -1) return ["#7f1d1d","💥"];
+    if (v.score === 180) return ["#4c1d95","💜"];
+    if (v.score >= 140) return ["#1e3a5f","💎"];
+    if (v.score >= 100) return ["#1c3a1c","🟢"];
+    if (v.score >= 60)  return ["#2d2a1c","🟡"];
+    return ["#1a1a1a","⚪"];
+  };
+  if (!last5.length) return null;
+  return (
+    <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+      {Array.from({length:5}).map((_,i) => {
+        const v = last5[i];
+        if (!v) return <div key={i} style={{ width:28,height:28,borderRadius:6,background:"#111",border:"1px solid #2a2a2a" }}/>;
+        const [bg, em] = getColor(v);
+        return (
+          <div key={i} title={v.score===-1?"Bust":String(v.score)} style={{ width:28,height:28,borderRadius:6,background:bg,border:`1px solid ${bg}88`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12 }}>
+            {em}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// Groupe les volées en manches en détectant reste=0
+const groupVoleesByManche = (allVolees, id1, id2) => {
+  const sorted = [...allVolees].sort((a,b)=>(a.date||0)-(b.date||0));
+  const manches = [];
+  let cur = { id:1, volees:[], winner:null };
+  for (const v of sorted) {
+    cur.volees.push(v);
+    if (v.reste === 0 || v.reste === "0") {
+      cur.winner = v.joueur_id === id1 ? 1 : 2;
+      manches.push({...cur, volees:[...cur.volees]});
+      cur = { id: manches.length+1, volees:[], winner:null };
+    }
+  }
+  if (cur.volees.length) manches.push(cur);
+  return manches;
+};
+
+// Dernier événement notable
+const getLastEvent = (volees, pseudo1, pseudo2, id1) => {
+  const last = [...volees].sort((a,b)=>(b.date||0)-(a.date||0))[0];
+  if (!last) return null;
+  const who = last.joueur_id === id1 ? pseudo1 : pseudo2;
+  if (last.score === 180) return { emoji:"💥", text:`180 par ${who} !`, color:"#a78bfa" };
+  if (last.score === -1)  return { emoji:"💀", text:`Bust de ${who}`, color:"#ef4444" };
+  if (last.reste === 0)   return { emoji:"🏆", text:`${who} remporte la manche !`, color:"#f59e0b" };
+  if (last.score >= 140)  return { emoji:"🔥", text:`${last.score} par ${who} !`, color:"#f97316" };
+  if (last.score >= 100)  return { emoji:"🎯", text:`${last.score} par ${who}`, color:"#22c55e" };
+  return null;
+};
+
 const generateLiveAI = (s) => {
   const s1 = s.stats_j1||{}, s2 = s.stats_j2||{};
   const lines = [];
@@ -2355,54 +2438,76 @@ const LiveMatchCard = ({ session:s, onClick, setPage }) => {
   const { emoji:e1, color:c1 } = getDrixTitre(s.joueur1_drix||1000);
   const { emoji:e2, color:c2 } = getDrixTitre(s.joueur2_drix||1000);
   const st1 = s.stats_j1||{}, st2 = s.stats_j2||{};
+  const sc1 = s.score1||0, sc2 = s.score2||0;
+  const leader = sc1>sc2?1:sc2>sc1?2:0;
   return (
-    <div onClick={onClick} style={{ background:C.card, border:"1px solid #ef444433", borderRadius:16, padding:"14px 16px", marginBottom:12, cursor:"pointer", position:"relative", overflow:"hidden" }}>
-      <style>{`@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.35)}}`}</style>
-      <div style={{ position:"absolute",top:10,right:10,display:"flex",alignItems:"center",gap:5,background:"#ef444422",borderRadius:20,padding:"3px 10px" }}>
-        <div style={{ width:7,height:7,borderRadius:"50%",background:"#ef4444",animation:"livePulse 1.2s infinite" }}/>
-        <span style={{ fontSize:10,fontWeight:800,color:"#ef4444",letterSpacing:0.8 }}>LIVE</span>
+    <div onClick={onClick} style={{ background:"linear-gradient(145deg,#12121e,#0d0d18)", border:"1px solid #ef444428", borderRadius:18, padding:"14px 16px", marginBottom:12, cursor:"pointer", position:"relative", overflow:"hidden", boxShadow:"0 4px 24px #00000066" }}>
+      <style>{`@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(1.5)}}`}</style>
+      {/* Glow accent bar top */}
+      <div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,transparent,#ef444488,transparent)" }}/>
+
+      {/* Header row */}
+      <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:12 }}>
+        <div style={{ display:"flex",alignItems:"center",gap:5,background:"#ef444418",border:"1px solid #ef444444",borderRadius:20,padding:"3px 9px" }}>
+          <div style={{ width:6,height:6,borderRadius:"50%",background:"#ef4444",animation:"livePulse 1.4s infinite" }}/>
+          <span style={{ fontSize:10,fontWeight:800,color:"#ef4444",letterSpacing:1 }}>LIVE</span>
+        </div>
+        <span style={{ fontSize:10,color:C.muted }}>⏱ {elStr}</span>
+        <span style={{ background:"#f9731618",color:"#f97316",border:"1px solid #f9731630",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700 }}>{s.mode}</span>
+        {s.format && <span style={{ background:"#ffffff0a",color:C.muted,borderRadius:6,padding:"2px 8px",fontSize:10 }}>{s.format}</span>}
       </div>
-      <div style={{ display:"flex",gap:8,alignItems:"center",marginBottom:10 }}>
-        <span style={{ fontSize:11,color:C.muted }}>⏱ {elStr}</span>
-        <span style={{ background:"#f9731622",color:"#f97316",borderRadius:6,padding:"2px 8px",fontSize:11,fontWeight:700 }}>{s.mode}</span>
-        {s.format && <span style={{ background:"#ffffff11",color:C.muted,borderRadius:6,padding:"2px 8px",fontSize:11 }}>{s.format}</span>}
-      </div>
-      <div style={{ display:"grid",gridTemplateColumns:"1fr 56px 1fr",gap:8,alignItems:"center" }}>
-        <div>
-          <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:6 }}>
-            <FeedAvatar pseudo={s.joueur1_pseudo} size={36} onClick={e=>{e.stopPropagation();if(s.joueur1_id&&setPage)setPage("profil-joueur-"+s.joueur1_id);}}/>
-            <div style={{ minWidth:0 }}>
-              <div style={{ fontWeight:700,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{s.joueur1_pseudo}</div>
-              <div style={{ fontSize:10,color:c1 }}>{e1} {s.joueur1_drix}</div>
-            </div>
+
+      {/* Scoreboard */}
+      <div style={{ display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:10,alignItems:"center",marginBottom:10 }}>
+        {/* J1 */}
+        <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+          <div style={{ position:"relative",flexShrink:0 }}>
+            <FeedAvatar pseudo={s.joueur1_pseudo} size={38} onClick={e=>{e.stopPropagation();if(s.joueur1_id&&setPage)setPage("profil-joueur-"+s.joueur1_id);}}/>
+            {leader===1 && <div style={{ position:"absolute",top:-3,right:-3,width:10,height:10,borderRadius:"50%",background:"#f59e0b",boxShadow:"0 0 8px #f59e0b" }}/>}
           </div>
-          <div style={{ fontSize:11,color:C.muted,display:"flex",flexDirection:"column",gap:2 }}>
-            <span>Moy <b style={{ color:"#f97316" }}>{st1.moy||0}</b></span>
-            <span>180s <b style={{ color:"#a78bfa" }}>{st1.nb180||0}</b></span>
-            <span>Reste <b style={{ color:C.text }}>{st1.reste!=null?st1.reste:s.mode}</b></span>
+          <div style={{ minWidth:0 }}>
+            <TruncPseudo pseudo={s.joueur1_pseudo} max={10} style={{ fontWeight:800,fontSize:13,color:leader===1?"#fff":C.muted,display:"block" }}/>
+            <div style={{ fontSize:10,color:c1,marginTop:1 }}>{e1} {s.joueur1_drix}</div>
+            <div style={{ fontSize:10,color:C.muted,marginTop:2 }}>Reste <b style={{ color:leader===1?C.accent:C.muted }}>{st1.reste!=null?st1.reste:"—"}</b></div>
           </div>
         </div>
-        <div style={{ textAlign:"center" }}>
-          <div style={{ fontWeight:900,fontSize:26,lineHeight:1 }}>{s.score1||0}</div>
-          <div style={{ color:C.muted,fontSize:11,margin:"4px 0" }}>—</div>
-          <div style={{ fontWeight:900,fontSize:26,lineHeight:1 }}>{s.score2||0}</div>
-        </div>
-        <div style={{ textAlign:"right" }}>
-          <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:6,justifyContent:"flex-end" }}>
-            <div style={{ minWidth:0 }}>
-              <div style={{ fontWeight:700,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{s.joueur2_pseudo}</div>
-              <div style={{ fontSize:10,color:c2 }}>{e2} {s.joueur2_drix}</div>
-            </div>
-            <FeedAvatar pseudo={s.joueur2_pseudo} size={36} onClick={e=>{e.stopPropagation();if(s.joueur2_id&&setPage)setPage("profil-joueur-"+s.joueur2_id);}}/>
+
+        {/* Score central */}
+        <div style={{ textAlign:"center",padding:"0 6px" }}>
+          <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+            <span style={{ fontWeight:900,fontSize:28,color:leader===1?"#f59e0b":C.text,textShadow:leader===1?"0 0 14px #f59e0b66":"none",lineHeight:1 }}>{sc1}</span>
+            <span style={{ color:"#ef4444",fontSize:14,fontWeight:800 }}>⚔</span>
+            <span style={{ fontWeight:900,fontSize:28,color:leader===2?"#f59e0b":C.text,textShadow:leader===2?"0 0 14px #f59e0b66":"none",lineHeight:1 }}>{sc2}</span>
           </div>
-          <div style={{ fontSize:11,color:C.muted,display:"flex",flexDirection:"column",gap:2,alignItems:"flex-end" }}>
-            <span>Moy <b style={{ color:"#f97316" }}>{st2.moy||0}</b></span>
-            <span>180s <b style={{ color:"#a78bfa" }}>{st2.nb180||0}</b></span>
-            <span>Reste <b style={{ color:C.text }}>{st2.reste!=null?st2.reste:s.mode}</b></span>
+          <div style={{ fontSize:9,color:"#ef444466",fontWeight:700,letterSpacing:1,marginTop:2 }}>MANCHES</div>
+        </div>
+
+        {/* J2 */}
+        <div style={{ display:"flex",alignItems:"center",gap:8,justifyContent:"flex-end" }}>
+          <div style={{ minWidth:0,textAlign:"right" }}>
+            <TruncPseudo pseudo={s.joueur2_pseudo} max={10} style={{ fontWeight:800,fontSize:13,color:leader===2?"#fff":C.muted,display:"block" }}/>
+            <div style={{ fontSize:10,color:c2,marginTop:1 }}>{e2} {s.joueur2_drix}</div>
+            <div style={{ fontSize:10,color:C.muted,marginTop:2 }}>Reste <b style={{ color:leader===2?C.accent:C.muted }}>{st2.reste!=null?st2.reste:"—"}</b></div>
+          </div>
+          <div style={{ position:"relative",flexShrink:0 }}>
+            <FeedAvatar pseudo={s.joueur2_pseudo} size={38} onClick={e=>{e.stopPropagation();if(s.joueur2_id&&setPage)setPage("profil-joueur-"+s.joueur2_id);}}/>
+            {leader===2 && <div style={{ position:"absolute",top:-3,right:-3,width:10,height:10,borderRadius:"50%",background:"#f59e0b",boxShadow:"0 0 8px #f59e0b" }}/>}
           </div>
         </div>
       </div>
-      <div style={{ marginTop:10,textAlign:"center",fontSize:12,color:"#f97316",fontWeight:600 }}>👁 Regarder le live →</div>
+
+      {/* Mini stats row */}
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:8,borderTop:"1px solid #1e1e2e" }}>
+        <div style={{ display:"flex",gap:10,fontSize:10,color:C.muted }}>
+          <span>Moy <b style={{ color:"#f97316" }}>{st1.moy||0}</b></span>
+          <span>180s <b style={{ color:"#a78bfa" }}>{st1.nb180||0}</b></span>
+        </div>
+        <div style={{ fontSize:11,color:"#ef444488",fontWeight:700,letterSpacing:.5 }}>👁 Regarder →</div>
+        <div style={{ display:"flex",gap:10,fontSize:10,color:C.muted }}>
+          <span>180s <b style={{ color:"#a78bfa" }}>{st2.nb180||0}</b></span>
+          <span>Moy <b style={{ color:"#f97316" }}>{st2.moy||0}</b></span>
+        </div>
+      </div>
     </div>
   );
 };
@@ -2416,13 +2521,14 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
   const [comments, setComments] = useState([]);
   const [reactions, setReactions] = useState({});
   const [activeTab, setActiveTab] = useState("volees");
+  const commentsEndRef = useRef(null);
 
   const REACTIONS = [
     { type:"feu",    emoji:"🔥", label:"Chaud" },
-    { type:"finish", emoji:"🎯", label:"Beau finish" },
+    { type:"finish", emoji:"🎯", label:"Finish" },
     { type:"180",    emoji:"💥", label:"180" },
     { type:"bust",   emoji:"😱", label:"Bust" },
-    { type:"bravo",  emoji:"👏", label:"Bien joué" },
+    { type:"bravo",  emoji:"👏", label:"Bravo" },
   ];
 
   const loadData = useCallback(async () => {
@@ -2446,6 +2552,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
   }, [initSession?.id, aiTick]);
 
   useEffect(() => { loadData(); const iv = setInterval(loadData, 8000); return () => clearInterval(iv); }, [loadData]);
+  useEffect(() => { commentsEndRef.current?.scrollIntoView({ behavior:"smooth" }); }, [comments.length]);
 
   const sendComment = async () => {
     if (!comment.trim() || !joueur) return;
@@ -2467,164 +2574,345 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
   const { emoji:e1, color:c1 } = getDrixTitre(session.joueur1_drix||1000);
   const { emoji:e2, color:c2 } = getDrixTitre(session.joueur2_drix||1000);
   const elapsed = Math.floor((Date.now()-(session.debut||Date.now()))/60000);
-  const elStr = elapsed < 60 ? `${elapsed} min` : `${Math.floor(elapsed/60)}h${elapsed%60}`;
+  const elStr = elapsed < 60 ? `${elapsed}min` : `${Math.floor(elapsed/60)}h${elapsed%60}`;
   const vJ1 = volees.filter(v=>v.joueur_id===session.joueur1_id);
   const vJ2 = volees.filter(v=>v.joueur_id===session.joueur2_id);
+  const sc1 = session.score1||0, sc2 = session.score2||0;
+  const leader = sc1 > sc2 ? 1 : sc2 > sc1 ? 2 : 0;
+  const totalReacs = Object.values(reactions).reduce((a,b)=>a+b,0);
+  const isFinished = session.statut === "termine";
+  const lastEvent = getLastEvent(volees, session.joueur1_pseudo, session.joueur2_pseudo, session.joueur1_id);
+  const manches = groupVoleesByManche(volees, session.joueur1_id, session.joueur2_id);
 
-  const tabBtn = (key, label) => (
-    <button key={key} onClick={()=>setActiveTab(key)} style={{ flex:1,padding:"8px 4px",border:"none",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",transition:"all .15s",background:activeTab===key?"#f97316":"transparent",color:activeTab===key?"#fff":C.muted }}>
+  /* ── helpers ── */
+  const volee_color = (v) => {
+    if (v.score === -1) return "#ef4444";
+    if (v.score === 180) return "#a78bfa";
+    if (v.score >= 140) return "#60a5fa";
+    if (v.score >= 100) return "#f97316";
+    if (v.score >= 60)  return "#22c55e";
+    return C.muted;
+  };
+
+  /* ── Tab bar ── */
+  const tabBtn = (key, label, badge=0) => (
+    <button key={key} onClick={()=>setActiveTab(key)} style={{ flex:1,padding:"9px 4px",border:"none",borderRadius:9,fontWeight:700,fontSize:11,cursor:"pointer",transition:"all .15s",background:activeTab===key?"#f97316":"transparent",color:activeTab===key?"#fff":C.muted,position:"relative",display:"flex",alignItems:"center",justifyContent:"center",gap:4 }}>
       {label}
+      {badge>0&&<span style={{ background:"#ef4444",color:"#fff",borderRadius:"50%",minWidth:14,height:14,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800 }}>{badge}</span>}
     </button>
   );
 
-  return (
-    <div style={{ maxWidth:700,margin:"0 auto",padding:"16px" }}>
-      <style>{`@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.35)}}`}</style>
-      <button onClick={onBack} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:12,fontSize:13 }}>← Retour aux matchs</button>
+  /* ── stat comparison row ── */
+  const StatCompare = ({ label, v1, v2, higherBetter=true, format=x=>x }) => {
+    const n1 = parseFloat(v1)||0, n2 = parseFloat(v2)||0;
+    const max = Math.max(n1,n2,1);
+    const win1 = higherBetter ? n1>=n2 : n1<=n2;
+    const win2 = higherBetter ? n2>=n1 : n2<=n1;
+    return (
+      <div style={{ marginBottom:10 }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4 }}>
+          <span style={{ fontWeight:700,fontSize:13,color:win1&&n1>0?"#fff":C.muted }}>{format(v1)||"—"}</span>
+          <span style={{ fontSize:10,color:C.muted,textAlign:"center",flex:1 }}>{label}</span>
+          <span style={{ fontWeight:700,fontSize:13,color:win2&&n2>0?"#fff":C.muted,textAlign:"right" }}>{format(v2)||"—"}</span>
+        </div>
+        <div style={{ display:"flex",gap:2,height:4,borderRadius:4,overflow:"hidden" }}>
+          <div style={{ flex:n1/max||0,background:win1&&n1>0?c1:"#2a2a2a",borderRadius:4,transition:"flex .4s" }}/>
+          <div style={{ flex:n2/max||0,background:win2&&n2>0?c2:"#2a2a2a",borderRadius:4,transition:"flex .4s" }}/>
+        </div>
+      </div>
+    );
+  };
 
-      {/* ── Header match ── */}
-      <div style={{ background:"linear-gradient(135deg,#1a0a00,#0d0d1a)",border:"1px solid #f9731644",borderRadius:16,padding:16,marginBottom:14 }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
-          <div style={{ display:"flex",gap:6 }}>
-            <span style={{ background:"#f9731622",color:"#f97316",borderRadius:6,padding:"2px 8px",fontSize:11,fontWeight:700 }}>{session.mode}</span>
-            {session.format && <span style={{ background:"#ffffff11",color:C.muted,borderRadius:6,padding:"2px 8px",fontSize:11 }}>{session.format}</span>}
+  /* ── End-of-match recap ── */
+  if (isFinished) {
+    const winnerPseudo = sc1>sc2?session.joueur1_pseudo:sc2>sc1?session.joueur2_pseudo:null;
+    const winnerColor = sc1>sc2?c1:c2;
+    return (
+      <div style={{ maxWidth:700,margin:"0 auto",padding:"16px" }}>
+        <style>{`@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.35)}} @keyframes liveGoldShine{0%,100%{box-shadow:0 0 24px #f59e0b44}50%{box-shadow:0 0 48px #f59e0baa}}`}</style>
+        <button onClick={onBack} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:12,fontSize:13 }}>← Retour aux matchs</button>
+        <div style={{ background:"linear-gradient(145deg,#12121e,#0d0d18)",border:"1px solid #f59e0b66",borderRadius:20,padding:24,textAlign:"center",animation:"liveGoldShine 2s infinite" }}>
+          <div style={{ fontSize:48,marginBottom:8 }}>🏆</div>
+          <div style={{ fontSize:13,color:"#f59e0b",fontWeight:700,letterSpacing:2,marginBottom:4 }}>MATCH TERMINÉ</div>
+          {winnerPseudo && <div style={{ fontSize:22,fontWeight:900,color:winnerColor,marginBottom:16 }}>{winnerPseudo} remporte la partie !</div>}
+          <div style={{ display:"flex",justifyContent:"center",gap:24,marginBottom:20 }}>
+            <div>
+              <div style={{ fontSize:11,color:C.muted,marginBottom:2 }}>{session.joueur1_pseudo}</div>
+              <div style={{ fontSize:48,fontWeight:900,color:sc1>sc2?"#f59e0b":C.muted,lineHeight:1 }}>{sc1}</div>
+            </div>
+            <div style={{ fontSize:20,color:C.muted,alignSelf:"center" }}>—</div>
+            <div>
+              <div style={{ fontSize:11,color:C.muted,marginBottom:2 }}>{session.joueur2_pseudo}</div>
+              <div style={{ fontSize:48,fontWeight:900,color:sc2>sc1?"#f59e0b":C.muted,lineHeight:1 }}>{sc2}</div>
+            </div>
           </div>
-          <div style={{ display:"flex",alignItems:"center",gap:5 }}>
-            <div style={{ width:7,height:7,borderRadius:"50%",background:"#ef4444",animation:"livePulse 1.2s infinite" }}/>
-            <span style={{ fontSize:11,fontWeight:800,color:"#ef4444" }}>LIVE · {elStr}</span>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,maxWidth:320,margin:"0 auto" }}>
+            {[["Moy.", s1.moy?.toFixed?.(1)||"—", s2.moy?.toFixed?.(1)||"—"],["180s", s1.nb180||0, s2.nb180||0],["Meilleur finish", s1.max_finish||"—", s2.max_finish||"—"],["Busts", s1.busts||0, s2.busts||0]].map(([lbl,v1,v2])=>(
+              <div key={lbl} style={{ background:"#ffffff08",borderRadius:10,padding:"8px 10px" }}>
+                <div style={{ fontSize:10,color:C.muted,marginBottom:4 }}>{lbl}</div>
+                <div style={{ display:"flex",justifyContent:"space-between" }}>
+                  <span style={{ fontWeight:700,fontSize:13,color:c1 }}>{v1}</span>
+                  <span style={{ fontWeight:700,fontSize:13,color:c2 }}>{v2}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ maxWidth:700,margin:"0 auto",padding:"12px 16px 24px" }}>
+      <style>{`@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.35)}} @keyframes liveEventSlide{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}`}</style>
+
+      {/* ── Back row ── */}
+      <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:14 }}>
+        <button onClick={onBack} style={{ background:"#1a1a2a",border:"1px solid #2a2a3a",color:C.muted,cursor:"pointer",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:600 }}>← Retour</button>
+        <div style={{ display:"flex",gap:6,marginLeft:"auto" }}>
+          <span style={{ background:"#1a1a2a",color:C.muted,borderRadius:8,padding:"4px 10px",fontSize:11,fontWeight:600 }}>{session.mode}</span>
+          {session.format&&<span style={{ background:"#1a1a2a",color:C.muted,borderRadius:8,padding:"4px 10px",fontSize:11 }}>{session.format}</span>}
+        </div>
+        <div style={{ display:"flex",alignItems:"center",gap:5,background:"#1a0808",border:"1px solid #ef444430",borderRadius:10,padding:"4px 10px" }}>
+          <div style={{ width:6,height:6,borderRadius:"50%",background:"#ef4444",animation:"livePulse 1.2s infinite" }}/>
+          <span style={{ fontSize:11,fontWeight:800,color:"#ef4444" }}>LIVE</span>
+          <span style={{ fontSize:10,color:C.muted }}>{elStr}</span>
+          {totalReacs>0&&<span style={{ fontSize:10,color:C.muted }}>· {totalReacs} 🔥</span>}
+        </div>
+      </div>
+
+      {/* ── Main scoreboard ── */}
+      <div style={{ background:"linear-gradient(145deg,#12121e 0%,#0d0d18 60%,#100a1a 100%)",border:"1px solid #1e1e30",borderRadius:20,padding:"18px 16px 14px",marginBottom:10,position:"relative",overflow:"hidden" }}>
+        {/* top glow bar */}
+        <div style={{ position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${c1},#f97316,${c2})`,borderRadius:"20px 20px 0 0" }}/>
+
         <div style={{ display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:10,alignItems:"center" }}>
-          <div>
-            <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:8 }}>
-              <FeedAvatar pseudo={session.joueur1_pseudo} size={44} onClick={()=>session.joueur1_id&&setPage("profil-joueur-"+session.joueur1_id)}/>
-              <div>
-                <div style={{ fontWeight:800,fontSize:15 }}>{session.joueur1_pseudo}</div>
-                <div style={{ fontSize:11,color:c1 }}>{e1} {session.joueur1_drix} DRIX</div>
+          {/* ── Player 1 ── */}
+          <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+              <div style={{ position:"relative",flexShrink:0 }}>
+                <FeedAvatar pseudo={session.joueur1_pseudo} size={46} onClick={()=>session.joueur1_id&&setPage("profil-joueur-"+session.joueur1_id)}/>
+                {leader===1&&<div style={{ position:"absolute",top:-4,right:-4,width:14,height:14,borderRadius:"50%",background:"#f59e0b",border:"2px solid #12121e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7 }}>★</div>}
+              </div>
+              <div style={{ minWidth:0 }}>
+                <TruncPseudo pseudo={session.joueur1_pseudo} max={10} style={{ fontWeight:800,fontSize:14,color:leader===1?"#fff":C.muted,display:"block" }}/>
+                <span style={{ fontSize:10,color:c1,fontWeight:700 }}>{e1} {session.joueur1_drix}</span>
               </div>
             </div>
-            <div style={{ fontSize:13,color:"#f97316",fontWeight:700 }}>Moy {s1.moy||0}</div>
-            <div style={{ fontSize:12,color:C.muted }}>Reste <b style={{ color:C.text }}>{s1.reste!=null?s1.reste:session.mode}</b></div>
-          </div>
-          <div style={{ textAlign:"center",padding:"0 8px" }}>
-            <div style={{ fontWeight:900,fontSize:34,lineHeight:1 }}>{session.score1||0}</div>
-            <div style={{ color:C.muted,fontSize:14,margin:"4px 0" }}>—</div>
-            <div style={{ fontWeight:900,fontSize:34,lineHeight:1 }}>{session.score2||0}</div>
-          </div>
-          <div style={{ textAlign:"right" }}>
-            <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:8,justifyContent:"flex-end" }}>
-              <div>
-                <div style={{ fontWeight:800,fontSize:15 }}>{session.joueur2_pseudo}</div>
-                <div style={{ fontSize:11,color:c2 }}>{e2} {session.joueur2_drix} DRIX</div>
-              </div>
-              <FeedAvatar pseudo={session.joueur2_pseudo} size={44} onClick={()=>session.joueur2_id&&setPage("profil-joueur-"+session.joueur2_id)}/>
+            <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
+              <span style={{ fontSize:11,color:"#f97316",fontWeight:700 }}>Moy {typeof s1.moy==="number"?s1.moy.toFixed(1):s1.moy||"—"}</span>
+              {(s1.nb180||0)>0&&<span style={{ fontSize:11,color:"#a78bfa" }}>💥×{s1.nb180}</span>}
             </div>
-            <div style={{ fontSize:13,color:"#f97316",fontWeight:700 }}>Moy {s2.moy||0}</div>
-            <div style={{ fontSize:12,color:C.muted }}>Reste <b style={{ color:C.text }}>{s2.reste!=null?s2.reste:session.mode}</b></div>
+            <div style={{ fontSize:11,color:C.muted }}>Reste : <b style={{ color:leader===1?"#f59e0b":C.text,fontSize:13 }}>{s1.reste!=null?s1.reste:"—"}</b></div>
+            <HeatmapStrip volees={vJ1}/>
+          </div>
+
+          {/* ── Score central ── */}
+          <div style={{ textAlign:"center",padding:"0 10px",minWidth:70 }}>
+            <div style={{ fontWeight:900,fontSize:42,lineHeight:1,color:leader===1?"#f59e0b":C.text,textShadow:leader===1?"0 0 20px #f59e0b88":"none",transition:"all .3s" }}>{sc1}</div>
+            <div style={{ color:"#2a2a3a",fontSize:20,fontWeight:900,margin:"4px 0",letterSpacing:2 }}>⚔</div>
+            <div style={{ fontWeight:900,fontSize:42,lineHeight:1,color:leader===2?"#f59e0b":C.text,textShadow:leader===2?"0 0 20px #f59e0b88":"none",transition:"all .3s" }}>{sc2}</div>
+          </div>
+
+          {/* ── Player 2 ── */}
+          <div style={{ display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end" }}>
+            <div style={{ display:"flex",alignItems:"center",gap:8,flexDirection:"row-reverse" }}>
+              <div style={{ position:"relative",flexShrink:0 }}>
+                <FeedAvatar pseudo={session.joueur2_pseudo} size={46} onClick={()=>session.joueur2_id&&setPage("profil-joueur-"+session.joueur2_id)}/>
+                {leader===2&&<div style={{ position:"absolute",top:-4,left:-4,width:14,height:14,borderRadius:"50%",background:"#f59e0b",border:"2px solid #12121e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7 }}>★</div>}
+              </div>
+              <div style={{ minWidth:0,textAlign:"right" }}>
+                <TruncPseudo pseudo={session.joueur2_pseudo} max={10} style={{ fontWeight:800,fontSize:14,color:leader===2?"#fff":C.muted,display:"block" }}/>
+                <span style={{ fontSize:10,color:c2,fontWeight:700 }}>{e2} {session.joueur2_drix}</span>
+              </div>
+            </div>
+            <div style={{ display:"flex",gap:10,flexWrap:"wrap",justifyContent:"flex-end" }}>
+              <span style={{ fontSize:11,color:"#f97316",fontWeight:700 }}>Moy {typeof s2.moy==="number"?s2.moy.toFixed(1):s2.moy||"—"}</span>
+              {(s2.nb180||0)>0&&<span style={{ fontSize:11,color:"#a78bfa" }}>💥×{s2.nb180}</span>}
+            </div>
+            <div style={{ fontSize:11,color:C.muted }}>Reste : <b style={{ color:leader===2?"#f59e0b":C.text,fontSize:13 }}>{s2.reste!=null?s2.reste:"—"}</b></div>
+            <HeatmapStrip volees={vJ2}/>
           </div>
         </div>
       </div>
 
-      {/* ── Réactions rapides ── */}
-      <div style={{ display:"flex",gap:8,marginBottom:14,overflowX:"auto",paddingBottom:2 }}>
+      {/* ── Last event banner ── */}
+      {lastEvent && (
+        <div key={lastEvent.text} style={{ background:`${lastEvent.color}18`,border:`1px solid ${lastEvent.color}44`,borderRadius:12,padding:"8px 14px",marginBottom:10,display:"flex",alignItems:"center",gap:8,animation:"liveEventSlide .3s ease" }}>
+          <span style={{ fontSize:18 }}>{lastEvent.emoji}</span>
+          <span style={{ fontSize:13,fontWeight:700,color:lastEvent.color }}>{lastEvent.text}</span>
+        </div>
+      )}
+
+      {/* ── Réactions ── */}
+      <div style={{ display:"flex",gap:6,marginBottom:12,overflowX:"auto",paddingBottom:2 }}>
         {REACTIONS.map(r => (
-          <button key={r.type} onClick={()=>sendReaction(r.type)} style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:3,background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"8px 12px",cursor:"pointer",flexShrink:0,minWidth:52 }}>
-            <span style={{ fontSize:20 }}>{r.emoji}</span>
-            <span style={{ fontSize:9,color:C.muted,fontWeight:600 }}>{r.label}</span>
-            {(reactions[r.type]||0) > 0 && <span style={{ fontSize:10,fontWeight:800,color:"#f97316" }}>{reactions[r.type]}</span>}
+          <button key={r.type} onClick={()=>sendReaction(r.type)} style={{ display:"flex",alignItems:"center",gap:5,background:(reactions[r.type]||0)>0?"#1e1e30":"#111118",border:`1px solid ${(reactions[r.type]||0)>0?"#f9731644":"#1e1e30"}`,borderRadius:20,padding:"6px 12px",cursor:"pointer",flexShrink:0,transition:"all .15s" }}>
+            <span style={{ fontSize:15 }}>{r.emoji}</span>
+            <span style={{ fontSize:10,color:(reactions[r.type]||0)>0?"#f97316":C.muted,fontWeight:700 }}>{r.label}</span>
+            {(reactions[r.type]||0)>0&&<span style={{ fontSize:11,fontWeight:800,color:"#f97316" }}>{reactions[r.type]}</span>}
           </button>
         ))}
       </div>
 
       {/* ── Tabs ── */}
-      <div style={{ display:"flex",background:"#111",borderRadius:10,padding:3,gap:2,marginBottom:14 }}>
+      <div style={{ display:"flex",background:"#0b0b16",border:"1px solid #1e1e30",borderRadius:12,padding:4,gap:2,marginBottom:14 }}>
         {tabBtn("volees","🎯 Volées")}
         {tabBtn("stats","📊 Stats")}
-        {tabBtn("ai","🤖 Analyse")}
-        {tabBtn("comments","💬 Live")}
+        {tabBtn("ai","🤖 IA")}
+        {tabBtn("comments","💬 Live",comments.length)}
       </div>
 
-      {/* ── Volées ── */}
+      {/* ══ VOLÉES tab ══ */}
       {activeTab==="volees" && (
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
-          {[{pseudo:session.joueur1_pseudo,vols:vJ1,color:c1},{pseudo:session.joueur2_pseudo,vols:vJ2,color:c2}].map((p,i)=>(
-            <div key={i} style={{ background:C.card,border:`1px solid ${p.color}44`,borderRadius:12,padding:12 }}>
-              <div style={{ fontWeight:700,fontSize:13,marginBottom:10,color:p.color }}>{p.pseudo}</div>
-              {p.vols.length===0 ? (
-                <div style={{ color:C.muted,fontSize:12,textAlign:"center",padding:16 }}>En attente…</div>
-              ) : [...p.vols].reverse().map((v,idx)=>(
-                <div key={idx} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:`1px solid ${C.border}` }}>
-                  <span style={{ fontSize:11,color:C.muted }}>V{v.numero_volee}</span>
-                  <span style={{ fontWeight:700,fontSize:14,color:v.score===180?"#a78bfa":v.score>=100?"#f97316":v.score===-1?"#ef4444":C.text }}>
-                    {v.score===-1?"💥 Bust":v.score}
+        <div>
+          {manches.length===0 ? (
+            <div style={{ textAlign:"center",padding:"32px 0",color:C.muted,fontSize:14 }}>
+              <div style={{ fontSize:32,marginBottom:8 }}>⏳</div>
+              En attente des premières volées…
+            </div>
+          ) : [...manches].reverse().map((manche, mi) => {
+            const mancheNum = manches.length - mi;
+            const vM1 = manche.volees.filter(v=>v.joueur_id===session.joueur1_id);
+            const vM2 = manche.volees.filter(v=>v.joueur_id===session.joueur2_id);
+            const maxRows = Math.max(vM1.length, vM2.length);
+            const isCurrentManche = mi === 0 && !manche.winner;
+            return (
+              <div key={manche.id} style={{ marginBottom:12,border:`1px solid ${isCurrentManche?"#f9731644":"#1e1e30"}`,borderRadius:14,overflow:"hidden" }}>
+                {/* Manche header */}
+                <div style={{ background:isCurrentManche?"#1a0e00":"#0f0f1a",padding:"8px 14px",display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+                  <span style={{ fontSize:12,fontWeight:700,color:isCurrentManche?"#f97316":C.muted }}>
+                    {isCurrentManche&&<span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:"#ef4444",animation:"livePulse 1.2s infinite",marginRight:6 }}/>}
+                    Manche {mancheNum}
                   </span>
-                  <span style={{ fontSize:11,color:C.muted }}>{v.reste}</span>
+                  {manche.winner && (
+                    <span style={{ fontSize:11,fontWeight:700,color:"#f59e0b" }}>
+                      🏆 {manche.winner===1?session.joueur1_pseudo:session.joueur2_pseudo}
+                    </span>
+                  )}
                 </div>
-              ))}
-            </div>
-          ))}
+                {/* Column headers */}
+                <div style={{ display:"grid",gridTemplateColumns:"1fr 40px 40px 1fr",gap:0,background:"#0b0b14",padding:"5px 14px",borderBottom:"1px solid #1e1e30" }}>
+                  <span style={{ fontSize:10,fontWeight:700,color:c1 }}>{session.joueur1_pseudo.slice(0,9)}</span>
+                  <span style={{ fontSize:9,color:C.muted,textAlign:"center" }}>Score</span>
+                  <span style={{ fontSize:9,color:C.muted,textAlign:"center" }}>Score</span>
+                  <span style={{ fontSize:10,fontWeight:700,color:c2,textAlign:"right" }}>{session.joueur2_pseudo.slice(0,9)}</span>
+                </div>
+                {/* Volées rows */}
+                {Array.from({length:maxRows}).map((_,ri)=>{
+                  const v1 = vM1[ri], v2 = vM2[ri];
+                  return (
+                    <div key={ri} style={{ display:"grid",gridTemplateColumns:"1fr 40px 40px 1fr",gap:0,padding:"5px 14px",borderBottom:ri<maxRows-1?"1px solid #1a1a28":"none",background:ri%2===0?"transparent":"#ffffff03" }}>
+                      {/* J1 reste */}
+                      <span style={{ fontSize:11,color:C.muted }}>{v1?v1.reste:""}</span>
+                      {/* J1 score */}
+                      <span style={{ fontSize:12,fontWeight:700,color:v1?volee_color(v1):"transparent",textAlign:"center" }}>{v1?(v1.score===-1?"💥":v1.score):""}</span>
+                      {/* J2 score */}
+                      <span style={{ fontSize:12,fontWeight:700,color:v2?volee_color(v2):"transparent",textAlign:"center" }}>{v2?(v2.score===-1?"💥":v2.score):""}</span>
+                      {/* J2 reste */}
+                      <span style={{ fontSize:11,color:C.muted,textAlign:"right" }}>{v2?v2.reste:""}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* ── Stats ── */}
+      {/* ══ STATS tab ══ */}
       {activeTab==="stats" && (
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
-          {[{pseudo:session.joueur1_pseudo,st:s1,color:c1},{pseudo:session.joueur2_pseudo,st:s2,color:c2}].map((p,i)=>(
-            <div key={i} style={{ background:C.card,border:`1px solid ${p.color}44`,borderRadius:12,padding:14 }}>
-              <div style={{ fontWeight:700,fontSize:13,marginBottom:12,color:p.color }}>{p.pseudo}</div>
-              {[["Moyenne",p.st.moy||0,"#f97316"],["Volées",p.st.volees||0,C.muted],["180s",p.st.nb180||0,"#a78bfa"],["Meilleur finish",p.st.max_finish||"—","#22c55e"],["Busts",p.st.busts||0,"#ef4444"],["Reste",p.st.reste!=null?p.st.reste:"—",C.text]].map(([label,val,col])=>(
-                <div key={label} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-                  <span style={{ fontSize:12,color:C.muted }}>{label}</span>
-                  <span style={{ fontWeight:700,fontSize:14,color:col }}>{val}</span>
-                </div>
-              ))}
+        <div style={{ background:"#0b0b16",border:"1px solid #1e1e30",borderRadius:16,padding:16 }}>
+          {/* player name headers */}
+          <div style={{ display:"flex",justifyContent:"space-between",marginBottom:16 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+              <FeedAvatar pseudo={session.joueur1_pseudo} size={28}/>
+              <span style={{ fontSize:12,fontWeight:700,color:c1 }}>{session.joueur1_pseudo}</span>
             </div>
-          ))}
+            <div style={{ display:"flex",alignItems:"center",gap:6,flexDirection:"row-reverse" }}>
+              <FeedAvatar pseudo={session.joueur2_pseudo} size={28}/>
+              <span style={{ fontSize:12,fontWeight:700,color:c2 }}>{session.joueur2_pseudo}</span>
+            </div>
+          </div>
+          <StatCompare label="Moyenne" v1={typeof s1.moy==="number"?s1.moy.toFixed(1):s1.moy||0} v2={typeof s2.moy==="number"?s2.moy.toFixed(1):s2.moy||0} higherBetter={true} format={x=>x}/>
+          <StatCompare label="Volées jouées" v1={s1.volees||vJ1.length} v2={s2.volees||vJ2.length} higherBetter={false}/>
+          <StatCompare label="180s" v1={s1.nb180||0} v2={s2.nb180||0} higherBetter={true}/>
+          <StatCompare label="Meilleur finish" v1={s1.max_finish||0} v2={s2.max_finish||0} higherBetter={true}/>
+          <StatCompare label="Busts" v1={s1.busts||0} v2={s2.busts||0} higherBetter={false}/>
+          <div style={{ marginTop:14,padding:"10px 12px",background:"#ffffff05",borderRadius:10 }}>
+            <div style={{ fontSize:10,color:C.muted,marginBottom:6 }}>RESTE ACTUEL</div>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"baseline" }}>
+              <span style={{ fontSize:28,fontWeight:900,color:c1 }}>{s1.reste!=null?s1.reste:"—"}</span>
+              <span style={{ fontSize:11,color:C.muted }}>restant</span>
+              <span style={{ fontSize:28,fontWeight:900,color:c2 }}>{s2.reste!=null?s2.reste:"—"}</span>
+            </div>
+          </div>
+          {/* Heatmaps */}
+          <div style={{ marginTop:14 }}>
+            <div style={{ fontSize:10,color:C.muted,marginBottom:8 }}>5 DERNIÈRES VOLÉES</div>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+              <HeatmapStrip volees={vJ1}/>
+              <HeatmapStrip volees={vJ2}/>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ── Analyse IA ── */}
+      {/* ══ IA tab ══ */}
       {activeTab==="ai" && (
-        <div style={{ background:"linear-gradient(135deg,#0d1117,#1a0d2e)",border:"1px solid #a78bfa44",borderRadius:12,padding:16 }}>
-          <div style={{ fontWeight:700,fontSize:14,color:"#a78bfa",marginBottom:12,display:"flex",alignItems:"center",gap:8 }}>
-            🤖 Analyse en direct <span style={{ fontSize:11,color:C.muted,fontWeight:400 }}>· mise à jour auto</span>
+        <div style={{ background:"linear-gradient(145deg,#0d0f1a,#14102a)",border:"1px solid #a78bfa33",borderRadius:16,padding:16 }}>
+          <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:14 }}>
+            <span style={{ fontSize:20 }}>🤖</span>
+            <div>
+              <div style={{ fontWeight:800,fontSize:14,color:"#a78bfa" }}>Analyse en direct</div>
+              <div style={{ fontSize:10,color:C.muted }}>Mise à jour toutes les 2 volées</div>
+            </div>
           </div>
           {aiLines.length===0 ? (
-            <div style={{ color:C.muted,fontSize:13 }}>En attente des premières volées…</div>
+            <div style={{ color:C.muted,fontSize:13,textAlign:"center",padding:"24px 0" }}>
+              <div style={{ fontSize:28,marginBottom:8 }}>📡</div>
+              En attente des premières volées…
+            </div>
           ) : aiLines.map((line,i)=>(
-            <div key={i} style={{ padding:"8px 10px",marginBottom:6,background:"#ffffff08",borderRadius:8,fontSize:13,lineHeight:1.5 }}>{line}</div>
+            <div key={i} style={{ padding:"10px 12px",marginBottom:6,background:"#ffffff08",border:"1px solid #a78bfa18",borderRadius:10,fontSize:13,lineHeight:1.6,color:C.text }}>{line}</div>
           ))}
         </div>
       )}
 
-      {/* ── Commentaires ── */}
+      {/* ══ COMMENTS tab ══ */}
       {activeTab==="comments" && (
-        <div>
-          <div style={{ marginBottom:12,maxHeight:320,overflowY:"auto",display:"flex",flexDirection:"column",gap:8 }}>
+        <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+          <div style={{ maxHeight:340,overflowY:"auto",display:"flex",flexDirection:"column",gap:8,paddingRight:4 }}>
             {comments.length===0 ? (
-              <div style={{ color:C.muted,fontSize:13,textAlign:"center",padding:24 }}>Sois le premier à commenter !</div>
+              <div style={{ color:C.muted,fontSize:13,textAlign:"center",padding:"32px 0" }}>
+                <div style={{ fontSize:28,marginBottom:8 }}>💬</div>
+                Sois le premier à commenter !
+              </div>
             ) : comments.map((c,i)=>(
               <div key={c.id||i} style={{ display:"flex",gap:8,alignItems:"flex-start" }}>
                 <FeedAvatar photo={c.joueur_photo} pseudo={c.joueur_pseudo} size={30} onClick={()=>c.joueur_id&&setPage("profil-joueur-"+c.joueur_id)}/>
-                <div style={{ background:"#1a1a1a",borderRadius:10,padding:"7px 12px",flex:1 }}>
-                  <span style={{ fontWeight:700,fontSize:12,color:C.text }}>{c.joueur_pseudo} </span>
-                  <span style={{ fontSize:13,color:C.text }}>{c.contenu}</span>
-                  <div style={{ fontSize:10,color:C.muted,marginTop:3 }}>{tempsDepuis(c.date)}</div>
+                <div style={{ background:"#12121e",border:"1px solid #1e1e30",borderRadius:12,padding:"7px 12px",flex:1,maxWidth:"100%" }}>
+                  <span style={{ fontWeight:700,fontSize:11,color:"#f97316" }}>{c.joueur_pseudo} </span>
+                  <span style={{ fontSize:13,color:C.text,wordBreak:"break-word" }}>{c.contenu}</span>
+                  <div style={{ fontSize:9,color:C.muted,marginTop:4 }}>{tempsDepuis(c.date)}</div>
                 </div>
               </div>
             ))}
+            <div ref={commentsEndRef}/>
           </div>
           {joueur ? (
-            <div style={{ display:"flex",gap:8,alignItems:"center" }}>
-              <FeedAvatar photo={joueur.photo} pseudo={joueur.pseudo} size={30}/>
+            <div style={{ display:"flex",gap:8,alignItems:"center",background:"#0b0b16",border:"1px solid #1e1e30",borderRadius:14,padding:"8px 10px" }}>
+              <FeedAvatar photo={joueur.photo} pseudo={joueur.pseudo} size={28}/>
               <input value={comment} onChange={e=>setComment(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendComment()} placeholder="Commenter le match…" maxLength={200}
-                style={{ flex:1,background:"#1a1a1a",border:`1px solid ${C.border}`,borderRadius:20,padding:"8px 14px",color:C.text,fontSize:13,outline:"none",fontFamily:"inherit" }}/>
-              <button onClick={sendComment} disabled={!comment.trim()} style={{ background:comment.trim()?"#f97316":"#2a2a2a",border:"none",borderRadius:20,padding:"8px 14px",color:comment.trim()?"#fff":C.muted,cursor:comment.trim()?"pointer":"default",fontWeight:700,fontSize:13 }}>
+                style={{ flex:1,background:"transparent",border:"none",color:C.text,fontSize:13,outline:"none",fontFamily:"inherit" }}/>
+              <button onClick={sendComment} disabled={!comment.trim()} style={{ background:comment.trim()?"#f97316":"#1e1e30",border:"none",borderRadius:10,padding:"7px 14px",color:comment.trim()?"#fff":C.muted,cursor:comment.trim()?"pointer":"default",fontWeight:700,fontSize:12,transition:"all .15s",flexShrink:0 }}>
                 Envoyer
               </button>
             </div>
           ) : (
-            <div style={{ color:C.muted,fontSize:13,textAlign:"center" }}>Connecte-toi pour commenter</div>
+            <div style={{ color:C.muted,fontSize:12,textAlign:"center",padding:"8px 0" }}>
+              <span style={{ color:"#f97316",cursor:"pointer",fontWeight:700 }} onClick={()=>setPage("connexion")}>Connecte-toi</span> pour commenter
+            </div>
           )}
         </div>
       )}
@@ -3320,90 +3608,37 @@ const Home = ({ joueur, setJoueur, defisCount, demandesAmisCount=0, bars, associ
       {/* Boutons */}
       <div style={{ width:"100%", maxWidth:420, display:"flex", flexDirection:"column", gap:16, animation:"fadeUp .5s .1s ease-out both" }}>
 
-        {/* Bouton 1 — Trouve un bar */}
+        {/* Bouton 1 — Trouve ton spot (image 16:9) */}
         <div
           className="lp-btn"
           onClick={() => setPage("bars")}
-          style={{
-            background:"linear-gradient(135deg,#f97316,#ea580c)",
-            borderRadius:18, padding:"26px 24px",
-            cursor:"pointer", userSelect:"none",
-            boxShadow:"0 8px 32px #f9731644",
-          }}
+          style={{ borderRadius:18, overflow:"hidden", cursor:"pointer", userSelect:"none", boxShadow:"0 8px 32px #f9731644" }}
           onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 14px 40px #f9731666"; }}
           onMouseLeave={e=>{ e.currentTarget.style.transform="translateY(0)";    e.currentTarget.style.boxShadow="0 8px 32px #f9731644"; }}
         >
-          <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-            <div style={{ fontSize:42, lineHeight:1 }}>🎯</div>
-            <div>
-              <div style={{ fontWeight:900, fontSize:"clamp(17px,4.5vw,20px)", color:"#fff", marginBottom:4 }}>
-                Trouve un bar pour jouer
-              </div>
-              <div style={{ fontSize:13, color:"#ffffffbb", lineHeight:1.5 }}>
-                Trouve un bar près de toi<br/>
-                Une association ou un tournoi
-              </div>
-            </div>
-            <div style={{ marginLeft:"auto", fontSize:22, color:"#ffffffaa" }}>›</div>
-          </div>
+          <img src="/trouve ton spot 16.92.png" alt="Trouve ton spot" style={{ width:"100%", display:"block" }}/>
         </div>
 
         {/* Bouton 2 — Scoreur rapide */}
         <div
           className="lp-btn"
           onClick={() => setPage("scoreur-libre")}
-          style={{
-            background:"linear-gradient(135deg,#064e3b,#065f46)",
-            border:"2px solid #22c55e44",
-            borderRadius:18, padding:"26px 24px",
-            cursor:"pointer", userSelect:"none",
-            boxShadow:"0 8px 32px #22c55e22",
-          }}
-          onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.borderColor="#22c55eaa"; e.currentTarget.style.boxShadow="0 14px 40px #22c55e44"; }}
-          onMouseLeave={e=>{ e.currentTarget.style.transform="translateY(0)";    e.currentTarget.style.borderColor="#22c55e44"; e.currentTarget.style.boxShadow="0 8px 32px #22c55e22"; }}
+          style={{ borderRadius:18, overflow:"hidden", cursor:"pointer", userSelect:"none", boxShadow:"0 8px 32px #22c55e22" }}
+          onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 14px 40px #22c55e44"; }}
+          onMouseLeave={e=>{ e.currentTarget.style.transform="translateY(0)";    e.currentTarget.style.boxShadow="0 8px 32px #22c55e22"; }}
         >
-          <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-            <div style={{ fontSize:42, lineHeight:1 }}>⚡</div>
-            <div>
-              <div style={{ fontWeight:900, fontSize:"clamp(17px,4.5vw,20px)", color:"#fff", marginBottom:4 }}>
-                Scoreur simple
-              </div>
-              <div style={{ fontSize:13, color:"#ffffffbb", lineHeight:1.5 }}>
-                Sans compte · Saisie les prénoms<br/>
-                Stats complètes à la fin
-              </div>
-            </div>
-            <div style={{ marginLeft:"auto", fontSize:22, color:"#22c55eaa" }}>›</div>
-          </div>
+          <img src="/scoreur 16.9.png" alt="Scoreur" style={{ width:"100%", display:"block" }}/>
         </div>
 
-        {/* Bouton 3 — Mon profil DRIX */}
+        {/* Bouton 3 — Créer mon compte */}
         <div
           className="lp-btn"
           onClick={() => setPage("connexion")}
-          style={{
-            background:"linear-gradient(135deg,#1a1a2e,#0f0f1a)",
-            border:"2px solid #a78bfa55",
-            borderRadius:18, padding:"26px 24px",
-            cursor:"pointer", userSelect:"none",
-            boxShadow:"0 8px 32px #a78bfa22",
-          }}
-          onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.borderColor="#a78bfaaa"; e.currentTarget.style.boxShadow="0 14px 40px #a78bfa44"; }}
-          onMouseLeave={e=>{ e.currentTarget.style.transform="translateY(0)";    e.currentTarget.style.borderColor="#a78bfa55"; e.currentTarget.style.boxShadow="0 8px 32px #a78bfa22"; }}
+          style={{ borderRadius:18, overflow:"hidden", cursor:"pointer", userSelect:"none", boxShadow:"0 8px 32px #a78bfa22" }}
+          onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 14px 40px #a78bfa44"; }}
+          onMouseLeave={e=>{ e.currentTarget.style.transform="translateY(0)";    e.currentTarget.style.boxShadow="0 8px 32px #a78bfa22"; }}
         >
-          <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-            <div style={{ fontSize:42, lineHeight:1 }}>💎</div>
-            <div>
-              <div style={{ fontWeight:900, fontSize:"clamp(17px,4.5vw,20px)", color:"#fff", marginBottom:4 }}>
-                Mon profil DRIX
-              </div>
-              <div style={{ fontSize:13, color:"#ffffffbb", lineHeight:1.5 }}>
-                Affronte tes amis<br/>
-                Suis ta progression
-              </div>
-            </div>
-            <div style={{ marginLeft:"auto", fontSize:22, color:"#a78bfaaa" }}>›</div>
-          </div>
+          <img src="/créer un compte 16.9.png" alt="Créer mon compte" style={{ width:"100%", display:"block" }}/>
         </div>
       </div>
 
@@ -3883,7 +4118,7 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
   return (
     <div style={{ maxWidth:860,margin:"0 auto",paddingBottom:100 }}>
       {showSignal&&<SignalForm barSlug={bar.slug} barNom={bar.nom} onClose={()=>setShowSignal(false)}/>}
-      {showEdit&&<EditBarModal bar={bar} onSave={u=>{setBar(u);setBars(p=>p.map(x=>x.slug===slug?u:x));}} onClose={()=>setShowEdit(false)}/>}
+      {showEdit&&<EditBarModal bar={bar} joueur={joueur} onSave={u=>{setBar(u);setBars(p=>p.map(x=>x.slug===slug?u:x));}} onClose={()=>setShowEdit(false)}/>}
 
       {/* ── HERO COVER ── */}
       <div style={{ position:"relative",height:220,overflow:"hidden" }}>
@@ -3895,7 +4130,7 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
         }
         <div style={{ position:"absolute",inset:0,background:"linear-gradient(to bottom,rgba(0,0,0,.5) 0%,transparent 45%,rgba(15,15,15,.97) 100%)" }}/>
         <button onClick={()=>window.history.back()} style={{ position:"absolute",top:16,left:16,background:"rgba(0,0,0,.55)",border:"none",color:"#fff",cursor:"pointer",borderRadius:10,padding:"7px 14px",fontSize:13,backdropFilter:"blur(10px)",fontWeight:500 }}>← Retour</button>
-        {isAdmin&&<button onClick={()=>setShowEdit(true)} style={{ position:"absolute",top:16,right:16,background:"rgba(0,0,0,.55)",border:`1px solid ${C.yellow}66`,color:C.yellow,cursor:"pointer",borderRadius:10,padding:"7px 13px",fontSize:12,backdropFilter:"blur(10px)" }}>✏️ Modifier</button>}
+        {(isAdmin||joueur)&&<button onClick={()=>joueur?setShowEdit(true):null} style={{ position:"absolute",top:16,right:16,background:"rgba(0,0,0,.55)",border:`1px solid ${isAdmin?C.yellow+"66":"#ffffff44"}`,color:isAdmin?C.yellow:"#fff",cursor:"pointer",borderRadius:10,padding:"7px 13px",fontSize:12,backdropFilter:"blur(10px)" }}>✏️ Modifier</button>}
       </div>
 
       <div style={{ padding:"0 16px" }}>
@@ -4137,12 +4372,21 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
               <h1 style={{ fontWeight:900, fontSize:24, lineHeight:1.2, margin:0, flex:1 }}>{asso.nom}</h1>
-              <button onClick={()=>setEditingAsso(true)}
-                style={{ background:"#ffffff14", border:"1px solid #ffffff22", borderRadius:8,
-                  padding:"5px 12px", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer",
-                  flexShrink:0, touchAction:"manipulation" }}>
-                ✏️ Modifier
-              </button>
+              {joueur ? (
+                <button onClick={()=>setEditingAsso(true)}
+                  style={{ background:"#ffffff14", border:"1px solid #ffffff22", borderRadius:8,
+                    padding:"5px 12px", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer",
+                    flexShrink:0, touchAction:"manipulation" }}>
+                  ✏️ Modifier
+                </button>
+              ) : (
+                <button onClick={()=>setPage("connexion")}
+                  style={{ background:"#f9731614", border:"1px solid #f9731644", borderRadius:8,
+                    padding:"5px 12px", color:C.accent, fontSize:11, fontWeight:600, cursor:"pointer",
+                    flexShrink:0, touchAction:"manipulation" }}>
+                  🔒 Connexion requise
+                </button>
+              )}
             </div>
             <div style={{ display:"flex", flexWrap:"wrap", gap:6, alignItems:"center", marginBottom:8 }}>
               <span style={{ color:C.muted, fontSize:13 }}>📍 {asso.ville}</span>
@@ -4380,6 +4624,7 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
         <EditAssoModal
           asso={asso}
           allBars={bars}
+          joueur={joueur}
           onSave={u => { setAssociations(a => a.map(x => x.slug === u.slug ? {...x,...u} : x)); setEditingAsso(false); }}
           onClose={() => setEditingAsso(false)}
         />
@@ -5209,6 +5454,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
   const sigPending = signalements.filter(s=>!s.traite);
   const contacts = propositions.filter(p=>p.type_prop==="contact");
   const contactsNonLus = contacts.filter(p=>p.statut==="non_lu");
+  const modifications = propositions.filter(p=>p.type_prop==="modif_bar"||p.type_prop==="modif_asso").sort((a,b)=>(b.date||0)-(a.date||0));
   const totalUrgent = allPending.length + sigPending.length + avisCount + demandesClubsPending.length;
 
   // Global search
@@ -5654,6 +5900,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
     ["contacts",`✉️ Messages${contactsNonLus.length>0?` (${contactsNonLus.length})`:""}`,contactsNonLus.length>0?"urgent":null],
     ["bars-ajoutes",`🆕 Bars ajoutés${barsAjoutes.length>0?` (${barsAjoutes.length})`:""}`,barsAjoutes.length>0?"important":null],
     ["demandes-clubs",`👑 Clubs${demandesClubsPending.length>0?` (${demandesClubsPending.length})`:""}`,demandesClubsPending.length>0?"urgent":null],
+    ["modifications",`✏️ Modifs${modifications.length>0?` (${modifications.length})`:""}`,modifications.length>0?"important":null],
     ["avismod",`💬 Avis${avisCount>0?` (${avisCount})`:""}`,avisCount>0?"important":null],
     ["allbars",`🎯 Bars (${bars.length})`],
     ["allassos",`🫂 Assos (${associations.length})`],
@@ -5753,6 +6000,35 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
           : tab==="contacts"        ? renderContacts()
           : tab==="bars-ajoutes"    ? renderBarsAjoutes()
           : tab==="demandes-clubs"  ? renderDemandes()
+          : tab==="modifications"    ? (
+            <div style={{ padding:"0 20px" }}>
+              <h2 style={{ fontWeight:800, fontSize:18, marginBottom:16, color:C.accent }}>✏️ Historique des modifications</h2>
+              {modifications.length === 0 ? (
+                <div style={{ textAlign:"center", padding:40, color:C.muted }}>Aucune modification enregistrée</div>
+              ) : (
+                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                  {modifications.map(m => {
+                    const isBar = m.type_prop==="modif_bar";
+                    const date = m.date ? new Date(m.date).toLocaleString("fr-FR",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "—";
+                    return (
+                      <div key={m.id} style={{ background:C.card, border:`1px solid ${isBar?C.accent+"44":"#a78bfa44"}`, borderRadius:12, padding:"14px 16px" }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6, flexWrap:"wrap" }}>
+                          <span style={{ fontSize:16 }}>{isBar?"🍺":"🫂"}</span>
+                          <span style={{ fontWeight:800, fontSize:14, color:C.text }}>{m.nom}</span>
+                          <span style={{ fontSize:11, color:C.muted }}>📍 {m.ville}</span>
+                          <span style={{ marginLeft:"auto", fontSize:11, color:C.muted }}>{date}</span>
+                          <span style={{ background:isBar?C.accent+"22":"#a78bfa22", border:`1px solid ${isBar?C.accent+"44":"#a78bfa44"}`, borderRadius:20, padding:"2px 10px", fontSize:10, fontWeight:700, color:isBar?C.accent:"#a78bfa" }}>
+                            {isBar?"BAR":"ASSO"}
+                          </span>
+                        </div>
+                        <p style={{ fontSize:12, color:C.muted, margin:0, lineHeight:1.6 }}>{m.commentaire}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )
           : tab==="avismod"         ? <AvisAdminSection/>
           : tab==="allbars"     ? renderBars()
           : tab==="allassos"    ? renderAssos()
@@ -6126,6 +6402,18 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
       storeBadgesSet(joueur.id, newSet);
       if (justUnlocked.length > 0) {
         setNewBadges(justUnlocked);
+        // Notification navigateur pour les nouveaux badges
+        if ("Notification" in window && Notification.permission === "granted") {
+          try {
+            const cnt = justUnlocked.length;
+            const body = cnt === 1
+              ? `Tu as débloqué le badge "${justUnlocked[0].nom}" ! 🏅`
+              : `Tu as débloqué ${cnt} nouveaux badges ! 🏅`;
+            navigator.serviceWorker?.ready.then(reg => {
+              reg.showNotification("🎯 DartPoint", { body, icon:"/icon-192.png", badge:"/icon-192.png", tag:"new-badge" });
+            }).catch(() => { try { new Notification("🎯 DartPoint", { body, icon:"/icon-192.png" }); } catch {} });
+          } catch {}
+        }
         // Publier chaque nouveau badge sur le Comptoir
         for (const badge of justUnlocked) {
           sb("wall_posts", { method:"POST", body:JSON.stringify({
@@ -6523,6 +6811,7 @@ export default function App() {
   const [notifCount,setNotifCount]=useState(0);
   const [demandesAmisCount,setDemandesAmisCount]=useState(0);
   const [unreadMessages,setUnreadMessages]=useState(0);
+  const [newBadgesCount,setNewBadgesCount]=useState(0);
   const prevDemandesRef = useRef(0);
   const [barsActifs,setBarsActifs]=useState([]);
   const [installPrompt,setInstallPrompt]=useState(null);
@@ -6590,7 +6879,7 @@ export default function App() {
   useEffect(()=>{ dbJoueurs.getBarsActifs().then(r=>{ if(r) setBarsActifs([...new Set(r.map(x=>x.bar_slug))]); }).catch(()=>{}); },[]);
 
   useEffect(()=>{
-    if (!joueur) { setDefisCount(0); setNotifCount(0); setDemandesAmisCount(0); setUnreadMessages(0); prevDemandesRef.current=0; return; }
+    if (!joueur) { setDefisCount(0); setNotifCount(0); setDemandesAmisCount(0); setUnreadMessages(0); setNewBadgesCount(0); prevDemandesRef.current=0; return; }
     // Demander la permission de notifications au navigateur
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
@@ -6611,6 +6900,12 @@ export default function App() {
         setNotifCount(matchsN + amisN + contestN);
         setDemandesAmisCount(amisN);
         setUnreadMessages(msgN);
+        // Nouveaux badges non vus
+        try {
+          const badgeStored = getBadgesStored(joueur.id).size;
+          const badgeSeen = parseInt(localStorage.getItem(`dp_badges_seen_${joueur.id}`) || "0");
+          setNewBadgesCount(Math.max(0, badgeStored - badgeSeen));
+        } catch {}
         // Notification navigateur si nouvelle demande d'ami détectée
         if (amisN > prevDemandesRef.current && prevDemandesRef.current >= 0) {
           const nouvelles = amisN - prevDemandesRef.current;
@@ -6710,6 +7005,17 @@ export default function App() {
     }
   }, [page]);
 
+  // ── Clear badge count quand l'utilisateur arrive sur la page badges ───────────
+  useEffect(() => {
+    if (page === "profil-badges" && joueur) {
+      try {
+        const total = getBadgesStored(joueur.id).size;
+        localStorage.setItem(`dp_badges_seen_${joueur.id}`, String(total));
+      } catch {}
+      setNewBadgesCount(0);
+    }
+  }, [page, joueur?.id]);
+
   // ── HANDLER POPSTATE — monté UNE SEULE FOIS, utilise les refs ─────────────────
   useEffect(() => {
     // Injecter un état initial pour toujours avoir quelque chose à intercepter
@@ -6761,6 +7067,7 @@ export default function App() {
         ::-webkit-scrollbar-track { background:#111; }
         ::-webkit-scrollbar-thumb { background:#333; border-radius:3px; }
         @keyframes spin { to { transform:rotate(360deg); } }
+        @keyframes dp-notif-pulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.18);} }
         .leaflet-popup-content-wrapper { background:#fff !important; color:#111 !important; }
 .leaflet-popup-content { color:#111 !important; -webkit-text-fill-color:#111 !important; }
 .leaflet-popup-tip { background:#fff !important; }
@@ -6809,7 +7116,7 @@ export default function App() {
           </div>
         </div>
       )}
-      <Nav page={page} setPage={navSafe} isAdmin={isAdmin} joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} unreadMessages={unreadMessages} onBack={goBack} canGoBack={history.length>1} bars={bars} barsActifs={barsActifs} associations={associations} tournois={tournois}/>
+      <Nav page={page} setPage={navSafe} isAdmin={isAdmin} joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} unreadMessages={unreadMessages} newBadgesCount={newBadgesCount} onBadgesSeen={()=>setNewBadgesCount(0)} onBack={goBack} canGoBack={history.length>1} bars={bars} barsActifs={barsActifs} associations={associations} tournois={tournois}/>
       <main style={{ flex:1 }}>
         {page==="home"             && <Home joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="defi"             && joueur && <PageDefi joueur={joueur} setPage={nav}/>}
