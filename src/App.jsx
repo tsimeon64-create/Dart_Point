@@ -891,51 +891,116 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose }) => {
       setSaving(false);
     }
   };
+
+  const inp = { width:"100%", background:"#111", border:`1px solid ${C.border}`, borderRadius:10, padding:"12px 14px", color:C.text, fontSize:15, boxSizing:"border-box" };
+  const lbl = { fontSize:12, color:C.muted, fontWeight:600, display:"block", marginBottom:6, letterSpacing:.4 };
+  const sec = { background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"16px 14px", display:"flex", flexDirection:"column", gap:14 };
+
   return (
-    <div style={{ position:"fixed",inset:0,background:"#000c",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}>
-      <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,maxWidth:600,width:"100%",maxHeight:"90vh",overflowY:"auto" }}>
-        <h3 style={{ fontWeight:700,fontSize:18,marginBottom:20 }}>✏️ Modifier — {asso.nom}</h3>
-        <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Club"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/></div>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Zone" value={f.zone} onChange={set("zone")} placeholder="Côte Basque"/><Field label="Type" as="select" value={f.type} onChange={set("type")} options={TYPES.slice(0,3)}/></div>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="👑 Président" value={f.president} onChange={set("president")} placeholder="Jean Dupont"/><Field label="👤 Personne à contacter" value={f.contact_nom} onChange={set("contact_nom")} placeholder="Marie Martin"/></div>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Téléphone" value={f.tel} onChange={set("tel")} placeholder="06 XX"/><Field label="Contact / Réseaux" value={f.contact} onChange={set("contact")} placeholder="email ou lien"/></div>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Jours" value={f.jours} onChange={set("jours")} placeholder="Vendredi 20h"/><Field label="Lieu" value={f.lieu} onChange={set("lieu")} placeholder="Bar des Sports"/></div>
-          <Field label="Description" value={f.description} onChange={set("description")} placeholder="Description…" as="textarea"/>
-          {/* Bars affiliés */}
-          <div>
-            <div style={{ fontSize:12,color:C.muted,fontWeight:600,marginBottom:8 }}>🍺 BARS AFFILIÉS {selectedBars.length>0&&<span style={{ color:C.accent }}>({selectedBars.length} sélectionné{selectedBars.length>1?"s":""})</span>}</div>
-            <input value={barSearch} onChange={e=>setBarSearch(e.target.value)} placeholder="Rechercher un bar…"
-              style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:13,marginBottom:8,boxSizing:"border-box" }}/>
-            <div style={{ maxHeight:180,overflowY:"auto",display:"flex",flexDirection:"column",gap:4,border:`1px solid ${C.border}`,borderRadius:8,padding:8 }}>
-              {filteredBars.length===0 && <span style={{ color:C.muted,fontSize:13,padding:4 }}>Aucun bar trouvé</span>}
-              {filteredBars.map(b => {
-                const checked = selectedBars.includes(b.nom);
-                return (
-                  <label key={b.slug} style={{ display:"flex",alignItems:"center",gap:10,padding:"7px 8px",borderRadius:8,cursor:"pointer",background:checked?"#f9731612":"transparent",border:`1px solid ${checked?C.accent+"44":"transparent"}`,transition:"all .15s" }}>
-                    <input type="checkbox" checked={checked} onChange={()=>toggleBar(b.nom)}
-                      style={{ accentColor:C.accent,width:16,height:16,flexShrink:0 }}/>
-                    <span style={{ fontWeight:checked?700:400,fontSize:13,flex:1 }}>{b.nom}</span>
-                    <span style={{ fontSize:11,color:C.muted }}>📍 {b.ville}</span>
-                  </label>
-                );
-              })}
-            </div>
-            {selectedBars.length>0 && (
-              <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginTop:8 }}>
-                {selectedBars.map(nom=>(
-                  <span key={nom} style={{ background:C.accent+"22",border:`1px solid ${C.accent}44`,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:600,color:C.accent,display:"flex",alignItems:"center",gap:5 }}>
-                    {nom}
-                    <span onClick={()=>toggleBar(nom)} style={{ cursor:"pointer",opacity:.7 }}>✕</span>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Latitude" value={f.lat} onChange={set("lat")} placeholder="43.49" type="number"/><Field label="Longitude" value={f.lng} onChange={set("lng")} placeholder="-1.47" type="number"/></div>
-          {errMsg && <div style={{ fontSize:12, padding:"10px 14px", borderRadius:10, background: errMsg.startsWith("✅")?"#22c55e18":"#ef444418", border:`1px solid ${errMsg.startsWith("✅")?"#22c55e44":"#ef444444"}`, color: errMsg.startsWith("✅")?C.green:C.red, lineHeight:1.6 }}>{errMsg}</div>}
-          <div style={{ display:"flex",gap:10 }}><Btn onClick={save} disabled={saving||!f.nom||!f.ville} style={{ flex:1 }}>{saving?"⏳ Sauvegarde…":"💾 Sauvegarder"}</Btn><Btn onClick={onClose} variant="dark" style={{ flex:1 }}>Annuler</Btn></div>
+    <div style={{ position:"fixed", inset:0, background:C.bg, zIndex:600, overflowY:"auto", overflowX:"hidden" }}>
+      {/* Header fixe */}
+      <div style={{ position:"sticky", top:0, zIndex:10, background:C.bg, borderBottom:`1px solid ${C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
+        <button onClick={onClose} style={{ background:"none", border:"none", color:C.muted, fontSize:22, cursor:"pointer", lineHeight:1, padding:"0 4px" }}>‹</button>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontWeight:800, fontSize:16, color:C.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>✏️ {asso.nom}</div>
         </div>
+        <button onClick={save} disabled={saving||!f.nom||!f.ville}
+          style={{ background:saving||!f.nom||!f.ville?C.border:`linear-gradient(135deg,${C.accent},#ea580c)`, color:"#fff", border:"none", borderRadius:10, padding:"9px 18px", fontWeight:700, fontSize:14, cursor:"pointer", flexShrink:0, touchAction:"manipulation" }}>
+          {saving?"⏳…":"💾 Sauvegarder"}
+        </button>
+      </div>
+
+      <div style={{ padding:"16px 16px 100px", display:"flex", flexDirection:"column", gap:14, maxWidth:600, margin:"0 auto" }}>
+
+        {/* Identification */}
+        <div style={sec}>
+          <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}>📋 IDENTIFICATION</div>
+          <div><label style={lbl}>Nom du club *</label><input value={f.nom} onChange={e=>set("nom")(e.target.value)} placeholder="Ex : Euskal Dardoa" style={inp}/></div>
+          <div><label style={lbl}>Ville *</label><input value={f.ville} onChange={e=>set("ville")(e.target.value)} placeholder="Ex : Bayonne" style={inp}/></div>
+          <div><label style={lbl}>Zone / Région</label><input value={f.zone} onChange={e=>set("zone")(e.target.value)} placeholder="Ex : Pays Basque" style={inp}/></div>
+          <div>
+            <label style={lbl}>Type de jeu</label>
+            <select value={f.type} onChange={e=>set("type")(e.target.value)} style={{...inp}}>
+              {TYPES.slice(0,3).map(t=><option key={t.v} value={t.v}>{t.l}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Contact */}
+        <div style={sec}>
+          <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}>👑 CONTACT</div>
+          <div><label style={lbl}>Président</label><input value={f.president} onChange={e=>set("president")(e.target.value)} placeholder="Ex : Jean Dupont" style={inp}/></div>
+          <div><label style={lbl}>Personne à contacter</label><input value={f.contact_nom} onChange={e=>set("contact_nom")(e.target.value)} placeholder="Ex : Marie Martin" style={inp}/></div>
+          <div><label style={lbl}>Téléphone</label><input value={f.tel} onChange={e=>set("tel")(e.target.value)} placeholder="06 XX XX XX XX" style={inp} type="tel"/></div>
+          <div><label style={lbl}>Contact / Réseaux sociaux</label><input value={f.contact} onChange={e=>set("contact")(e.target.value)} placeholder="email, Facebook, Instagram…" style={inp}/></div>
+        </div>
+
+        {/* Entraînements */}
+        <div style={sec}>
+          <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}>🎯 ENTRAÎNEMENTS</div>
+          <div><label style={lbl}>Jour et heure d'entraînement</label><input value={f.jours} onChange={e=>set("jours")(e.target.value)} placeholder="Ex : Vendredi 20h00" style={inp}/></div>
+          <div><label style={lbl}>Lieu d'entraînement</label><input value={f.lieu} onChange={e=>set("lieu")(e.target.value)} placeholder="Ex : Salle des sports, Bar du Centre…" style={inp}/></div>
+        </div>
+
+        {/* Description */}
+        <div style={sec}>
+          <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}>ℹ️ DESCRIPTION</div>
+          <div>
+            <textarea value={f.description} onChange={e=>set("description")(e.target.value)} rows={4} placeholder="Présentez votre association…"
+              style={{...inp, resize:"vertical"}}/>
+          </div>
+        </div>
+
+        {/* Bars affiliés */}
+        <div style={sec}>
+          <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}>
+            🍺 BARS AFFILIÉS {selectedBars.length>0&&<span style={{ color:C.text }}>({selectedBars.length})</span>}
+          </div>
+          <input value={barSearch} onChange={e=>setBarSearch(e.target.value)} placeholder="Rechercher un bar…"
+            style={{...inp}}/>
+          <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:240, overflowY:"auto" }}>
+            {filteredBars.length===0 && <span style={{ color:C.muted, fontSize:13 }}>Aucun bar trouvé</span>}
+            {filteredBars.map(b => {
+              const checked = selectedBars.includes(b.nom);
+              return (
+                <label key={b.slug} style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 12px", borderRadius:10, cursor:"pointer", background:checked?`${C.accent}14`:"#ffffff06", border:`1px solid ${checked?C.accent+"55":C.border}`, transition:"all .15s" }}>
+                  <input type="checkbox" checked={checked} onChange={()=>toggleBar(b.nom)} style={{ accentColor:C.accent, width:18, height:18, flexShrink:0 }}/>
+                  <span style={{ fontWeight:checked?700:400, fontSize:14, flex:1 }}>{b.nom}</span>
+                  <span style={{ fontSize:12, color:C.muted }}>📍 {b.ville}</span>
+                </label>
+              );
+            })}
+          </div>
+          {selectedBars.length>0 && (
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+              {selectedBars.map(nom=>(
+                <span key={nom} style={{ background:`${C.accent}22`, border:`1px solid ${C.accent}44`, borderRadius:20, padding:"4px 12px", fontSize:12, fontWeight:600, color:C.accent, display:"flex", alignItems:"center", gap:6 }}>
+                  {nom}
+                  <span onClick={()=>toggleBar(nom)} style={{ cursor:"pointer", opacity:.7, fontSize:14 }}>✕</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Localisation */}
+        <div style={sec}>
+          <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}>📍 LOCALISATION</div>
+          <div><label style={lbl}>Latitude</label><input value={f.lat} onChange={e=>set("lat")(e.target.value)} placeholder="43.49" style={inp} type="number" inputMode="decimal"/></div>
+          <div><label style={lbl}>Longitude</label><input value={f.lng} onChange={e=>set("lng")(e.target.value)} placeholder="-1.47" style={inp} type="number" inputMode="decimal"/></div>
+        </div>
+
+        {errMsg && <div style={{ fontSize:13, padding:"12px 16px", borderRadius:12, background:"#ef444418", border:"1px solid #ef444444", color:C.red, lineHeight:1.6 }}>{errMsg}</div>}
+
+        {/* Boutons bas de page */}
+        <div style={{ display:"flex", gap:10 }}>
+          <button onClick={onClose} style={{ flex:1, background:C.card, color:C.muted, border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 0", fontWeight:600, fontSize:15, cursor:"pointer", touchAction:"manipulation" }}>Annuler</button>
+          <button onClick={save} disabled={saving||!f.nom||!f.ville}
+            style={{ flex:2, background:saving||!f.nom||!f.ville?C.border:`linear-gradient(135deg,${C.accent},#ea580c)`, color:"#fff", border:"none", borderRadius:12, padding:"14px 0", fontWeight:700, fontSize:15, cursor:"pointer", touchAction:"manipulation" }}>
+            {saving?"⏳ Sauvegarde…":"💾 Sauvegarder"}
+          </button>
+        </div>
+
       </div>
     </div>
   );
@@ -3971,8 +4036,8 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
         {renderContact("👑", "Président", asso.president)}
         {renderContact("👤", "Personne à contacter", asso.contact_nom)}
         {renderContact("📞", "Téléphone", asso.tel)}
-        {renderContact("🗓", "Entraînements", asso.jours)}
-        {renderContact("📍", "Lieu", asso.lieu)}
+        {renderContact("🗓", "Jour et heure d'entraînement", asso.jours)}
+        {renderContact("📍", "Lieu d'entraînement", asso.lieu)}
         {renderContact("🔗", "Contact / Réseaux", asso.contact)}
         {!asso.president && !asso.contact_nom && !asso.jours && !asso.lieu && !asso.tel && !asso.contact && (
           <p style={{ color:C.muted,fontSize:13 }}>Aucune information pratique renseignée.</p>
