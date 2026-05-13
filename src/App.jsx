@@ -5719,6 +5719,7 @@ const Footer = ({ setPage }) => (
       {[["bars","Bars"],["associations","Assos"],["tournois","Tournois"],["joueurs","Joueurs"],["drix","DRIX"],["scoreur","Scoreur"],["jeux","Jeux"],["proposer","Proposer"],["apropos","À propos"],["contact","Contact"],["mentions","Mentions légales"]].map(([p,l])=>(
           <button key={p} onClick={()=>setPage(p)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:12 }}>{l}</button>
         ))}
+        <button onClick={()=>setPage("adminlogin")} style={{ background:"none",border:"none",color:"#3a3a3a",cursor:"pointer",fontSize:11 }}>⚙</button>
       </div>
     </div>
   </footer>
