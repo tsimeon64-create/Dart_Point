@@ -2432,6 +2432,18 @@ const generateLiveAI = (s) => {
   return lines;
 };
 
+// Génère un commentaire texte pour une volée individuelle (3 fléchettes)
+const commentVolee = (v, pseudo, moyGlobal=0) => {
+  if (v.score === -1) return { emoji:"💀", text:`Bust ! ${pseudo} dépasse le reste — retour à ${v.reste}`, color:"#ef4444" };
+  if (v.reste === 0 || v.reste === "0") return { emoji:"🏆", text:`${pseudo} GAGNE LA MANCHE ! Finish ${v.score}`, color:"#f59e0b" };
+  if (v.score === 180) return { emoji:"💥", text:`180 parfait par ${pseudo} ! Score maximal sur 3 fléchettes`, color:"#a78bfa" };
+  if (v.score >= 140) return { emoji:"🔥", text:`Excellente volée de ${pseudo} : ${v.score} pts — reste ${v.reste}`, color:"#f97316" };
+  if (v.score >= 100) return { emoji:"🎯", text:`Bonne volée de ${pseudo} : ${v.score} pts — reste ${v.reste}`, color:"#22c55e" };
+  if (v.score >= 60)  return { emoji:"✅", text:`${pseudo} marque ${v.score} — reste ${v.reste}`, color:"#6b7280" };
+  if (v.score < 40 && moyGlobal > 60) return { emoji:"😬", text:`${pseudo} en dessous de sa moyenne : ${v.score} seulement — reste ${v.reste}`, color:"#ef444488" };
+  return { emoji:"⚪", text:`${pseudo} : ${v.score} pts — reste ${v.reste}`, color:"#4b5563" };
+};
+
 const LiveMatchCard = ({ session:s, onClick, setPage }) => {
   const elapsed = Math.floor((Date.now()-(s.debut||Date.now()))/60000);
   const elStr = elapsed < 60 ? `${elapsed} min` : `${Math.floor(elapsed/60)}h${elapsed%60}`;
@@ -2682,56 +2694,56 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
       </div>
 
       {/* ── Main scoreboard ── */}
-      <div style={{ background:"linear-gradient(145deg,#12121e 0%,#0d0d18 60%,#100a1a 100%)",border:"1px solid #1e1e30",borderRadius:20,padding:"18px 16px 14px",marginBottom:10,position:"relative",overflow:"hidden" }}>
+      <div style={{ background:"linear-gradient(145deg,#12121e 0%,#0d0d18 60%,#100a1a 100%)",border:"1px solid #1e1e30",borderRadius:20,padding:"18px 14px 14px",marginBottom:10,position:"relative",overflow:"hidden" }}>
         {/* top glow bar */}
         <div style={{ position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${c1},#f97316,${c2})`,borderRadius:"20px 20px 0 0" }}/>
 
-        <div style={{ display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:10,alignItems:"center" }}>
-          {/* ── Player 1 ── */}
-          <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
-            <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-              <div style={{ position:"relative",flexShrink:0 }}>
-                <FeedAvatar pseudo={session.joueur1_pseudo} size={46} onClick={()=>session.joueur1_id&&setPage("profil-joueur-"+session.joueur1_id)}/>
-                {leader===1&&<div style={{ position:"absolute",top:-4,right:-4,width:14,height:14,borderRadius:"50%",background:"#f59e0b",border:"2px solid #12121e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7 }}>★</div>}
-              </div>
-              <div style={{ minWidth:0 }}>
-                <TruncPseudo pseudo={session.joueur1_pseudo} max={10} style={{ fontWeight:800,fontSize:14,color:leader===1?"#fff":C.muted,display:"block" }}/>
-                <span style={{ fontSize:10,color:c1,fontWeight:700 }}>{e1} {session.joueur1_drix}</span>
-              </div>
-            </div>
-            <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
-              <span style={{ fontSize:11,color:"#f97316",fontWeight:700 }}>Moy {typeof s1.moy==="number"?s1.moy.toFixed(1):s1.moy||"—"}</span>
-              {(s1.nb180||0)>0&&<span style={{ fontSize:11,color:"#a78bfa" }}>💥×{s1.nb180}</span>}
-            </div>
-            <div style={{ fontSize:11,color:C.muted }}>Reste : <b style={{ color:leader===1?"#f59e0b":C.text,fontSize:13 }}>{s1.reste!=null?s1.reste:"—"}</b></div>
-            <HeatmapStrip volees={vJ1}/>
+        {/* ── Joueur 1 ── */}
+        <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:8 }}>
+          <div style={{ position:"relative",flexShrink:0 }}>
+            <FeedAvatar pseudo={session.joueur1_pseudo} size={44} onClick={()=>session.joueur1_id&&setPage("profil-joueur-"+session.joueur1_id)}/>
+            {leader===1&&<div style={{ position:"absolute",top:-4,right:-4,width:14,height:14,borderRadius:"50%",background:"#f59e0b",border:"2px solid #12121e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7 }}>★</div>}
           </div>
-
-          {/* ── Score central ── */}
-          <div style={{ textAlign:"center",padding:"0 10px",minWidth:70 }}>
-            <div style={{ fontWeight:900,fontSize:42,lineHeight:1,color:leader===1?"#f59e0b":C.text,textShadow:leader===1?"0 0 20px #f59e0b88":"none",transition:"all .3s" }}>{sc1}</div>
-            <div style={{ color:"#2a2a3a",fontSize:20,fontWeight:900,margin:"4px 0",letterSpacing:2 }}>⚔</div>
-            <div style={{ fontWeight:900,fontSize:42,lineHeight:1,color:leader===2?"#f59e0b":C.text,textShadow:leader===2?"0 0 20px #f59e0b88":"none",transition:"all .3s" }}>{sc2}</div>
+          <div style={{ flex:1,minWidth:0 }}>
+            <TruncPseudo pseudo={session.joueur1_pseudo} max={13} style={{ fontWeight:800,fontSize:14,color:leader===1?"#fff":C.muted,display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}/>
+            <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:1 }}>
+              <span style={{ fontSize:10,color:c1,fontWeight:700 }}>{e1} {session.joueur1_drix}</span>
+              <span style={{ fontSize:10,color:"#f97316",fontWeight:700 }}>Moy {typeof s1.moy==="number"?s1.moy.toFixed(1):s1.moy||"—"}</span>
+              {(s1.nb180||0)>0&&<span style={{ fontSize:10,color:"#a78bfa" }}>💥×{s1.nb180}</span>}
+            </div>
+            <div style={{ fontSize:10,color:C.muted,marginTop:1 }}>Reste : <b style={{ color:leader===1?"#f59e0b":C.text }}>{s1.reste!=null?s1.reste:"—"}</b></div>
+            <div style={{ marginTop:4 }}><HeatmapStrip volees={vJ1}/></div>
           </div>
+          <div style={{ flexShrink:0,textAlign:"right" }}>
+            <div style={{ fontWeight:900,fontSize:40,lineHeight:1,color:leader===1?"#f59e0b":C.text,textShadow:leader===1?"0 0 18px #f59e0b88":"none",transition:"all .3s",minWidth:36,textAlign:"center" }}>{sc1}</div>
+          </div>
+        </div>
 
-          {/* ── Player 2 ── */}
-          <div style={{ display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end" }}>
-            <div style={{ display:"flex",alignItems:"center",gap:8,flexDirection:"row-reverse" }}>
-              <div style={{ position:"relative",flexShrink:0 }}>
-                <FeedAvatar pseudo={session.joueur2_pseudo} size={46} onClick={()=>session.joueur2_id&&setPage("profil-joueur-"+session.joueur2_id)}/>
-                {leader===2&&<div style={{ position:"absolute",top:-4,left:-4,width:14,height:14,borderRadius:"50%",background:"#f59e0b",border:"2px solid #12121e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7 }}>★</div>}
-              </div>
-              <div style={{ minWidth:0,textAlign:"right" }}>
-                <TruncPseudo pseudo={session.joueur2_pseudo} max={10} style={{ fontWeight:800,fontSize:14,color:leader===2?"#fff":C.muted,display:"block" }}/>
-                <span style={{ fontSize:10,color:c2,fontWeight:700 }}>{e2} {session.joueur2_drix}</span>
-              </div>
+        {/* ── Séparateur ⚔ ── */}
+        <div style={{ display:"flex",alignItems:"center",gap:8,margin:"6px 0" }}>
+          <div style={{ flex:1,height:1,background:"#1e1e30" }}/>
+          <span style={{ fontSize:16,color:"#2a2a3a",fontWeight:900 }}>⚔</span>
+          <div style={{ flex:1,height:1,background:"#1e1e30" }}/>
+        </div>
+
+        {/* ── Joueur 2 ── */}
+        <div style={{ display:"flex",alignItems:"center",gap:10,marginTop:8 }}>
+          <div style={{ position:"relative",flexShrink:0 }}>
+            <FeedAvatar pseudo={session.joueur2_pseudo} size={44} onClick={()=>session.joueur2_id&&setPage("profil-joueur-"+session.joueur2_id)}/>
+            {leader===2&&<div style={{ position:"absolute",top:-4,right:-4,width:14,height:14,borderRadius:"50%",background:"#f59e0b",border:"2px solid #12121e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7 }}>★</div>}
+          </div>
+          <div style={{ flex:1,minWidth:0 }}>
+            <TruncPseudo pseudo={session.joueur2_pseudo} max={13} style={{ fontWeight:800,fontSize:14,color:leader===2?"#fff":C.muted,display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}/>
+            <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:1 }}>
+              <span style={{ fontSize:10,color:c2,fontWeight:700 }}>{e2} {session.joueur2_drix}</span>
+              <span style={{ fontSize:10,color:"#f97316",fontWeight:700 }}>Moy {typeof s2.moy==="number"?s2.moy.toFixed(1):s2.moy||"—"}</span>
+              {(s2.nb180||0)>0&&<span style={{ fontSize:10,color:"#a78bfa" }}>💥×{s2.nb180}</span>}
             </div>
-            <div style={{ display:"flex",gap:10,flexWrap:"wrap",justifyContent:"flex-end" }}>
-              <span style={{ fontSize:11,color:"#f97316",fontWeight:700 }}>Moy {typeof s2.moy==="number"?s2.moy.toFixed(1):s2.moy||"—"}</span>
-              {(s2.nb180||0)>0&&<span style={{ fontSize:11,color:"#a78bfa" }}>💥×{s2.nb180}</span>}
-            </div>
-            <div style={{ fontSize:11,color:C.muted }}>Reste : <b style={{ color:leader===2?"#f59e0b":C.text,fontSize:13 }}>{s2.reste!=null?s2.reste:"—"}</b></div>
-            <HeatmapStrip volees={vJ2}/>
+            <div style={{ fontSize:10,color:C.muted,marginTop:1 }}>Reste : <b style={{ color:leader===2?"#f59e0b":C.text }}>{s2.reste!=null?s2.reste:"—"}</b></div>
+            <div style={{ marginTop:4 }}><HeatmapStrip volees={vJ2}/></div>
+          </div>
+          <div style={{ flexShrink:0,textAlign:"right" }}>
+            <div style={{ fontWeight:900,fontSize:40,lineHeight:1,color:leader===2?"#f59e0b":C.text,textShadow:leader===2?"0 0 18px #f59e0b88":"none",transition:"all .3s",minWidth:36,textAlign:"center" }}>{sc2}</div>
           </div>
         </div>
       </div>
@@ -2759,7 +2771,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
       <div style={{ display:"flex",background:"#0b0b16",border:"1px solid #1e1e30",borderRadius:12,padding:4,gap:2,marginBottom:14 }}>
         {tabBtn("volees","🎯 Volées")}
         {tabBtn("stats","📊 Stats")}
-        {tabBtn("ai","🤖 IA")}
+        {tabBtn("ai","📋 Résumé")}
         {tabBtn("comments","💬 Live",comments.length)}
       </div>
 
@@ -2858,24 +2870,52 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
         </div>
       )}
 
-      {/* ══ IA tab ══ */}
+      {/* ══ RÉSUMÉ tab ══ */}
       {activeTab==="ai" && (
-        <div style={{ background:"linear-gradient(145deg,#0d0f1a,#14102a)",border:"1px solid #a78bfa33",borderRadius:16,padding:16 }}>
-          <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:14 }}>
-            <span style={{ fontSize:20 }}>🤖</span>
-            <div>
-              <div style={{ fontWeight:800,fontSize:14,color:"#a78bfa" }}>Analyse en direct</div>
-              <div style={{ fontSize:10,color:C.muted }}>Mise à jour toutes les 2 volées</div>
+        <div>
+          {/* Synthèse globale */}
+          {aiLines.length > 0 && (
+            <div style={{ background:"linear-gradient(145deg,#0d0f1a,#14102a)",border:"1px solid #a78bfa33",borderRadius:14,padding:14,marginBottom:12 }}>
+              <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:10 }}>
+                <span style={{ fontSize:16 }}>🤖</span>
+                <span style={{ fontWeight:800,fontSize:13,color:"#a78bfa" }}>Synthèse</span>
+              </div>
+              {aiLines.map((line,i)=>(
+                <div key={i} style={{ padding:"7px 10px",marginBottom:5,background:"#ffffff08",borderRadius:8,fontSize:12,lineHeight:1.5,color:C.text }}>{line}</div>
+              ))}
             </div>
+          )}
+
+          {/* Analyse volée par volée */}
+          <div style={{ background:"#0b0b16",border:"1px solid #1e1e30",borderRadius:14,padding:14 }}>
+            <div style={{ fontWeight:800,fontSize:13,color:C.text,marginBottom:12,display:"flex",alignItems:"center",gap:6 }}>
+              🎯 <span>Analyse des 3 fléchettes</span>
+              <span style={{ fontSize:10,color:C.muted,fontWeight:400,marginLeft:2 }}>— volée par volée</span>
+            </div>
+            {volees.length === 0 ? (
+              <div style={{ color:C.muted,fontSize:13,textAlign:"center",padding:"20px 0" }}>
+                <div style={{ fontSize:26,marginBottom:6 }}>📡</div>
+                En attente des premières volées…
+              </div>
+            ) : (
+              <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+                {[...volees].sort((a,b)=>(b.date||0)-(a.date||0)).map((v,i) => {
+                  const pseudo = v.joueur_id === session.joueur1_id ? session.joueur1_pseudo : session.joueur2_pseudo;
+                  const moy = v.joueur_id === session.joueur1_id ? (s1.moy||0) : (s2.moy||0);
+                  const { emoji, text, color } = commentVolee(v, pseudo, moy);
+                  return (
+                    <div key={v.id||i} style={{ display:"flex",gap:8,alignItems:"flex-start",padding:"8px 10px",background:"#ffffff05",border:`1px solid ${color}28`,borderRadius:10 }}>
+                      <span style={{ fontSize:16,flexShrink:0 }}>{emoji}</span>
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <span style={{ fontSize:12,color,lineHeight:1.5 }}>{text}</span>
+                        <div style={{ fontSize:9,color:C.muted,marginTop:2 }}>{tempsDepuis(v.date)}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-          {aiLines.length===0 ? (
-            <div style={{ color:C.muted,fontSize:13,textAlign:"center",padding:"24px 0" }}>
-              <div style={{ fontSize:28,marginBottom:8 }}>📡</div>
-              En attente des premières volées…
-            </div>
-          ) : aiLines.map((line,i)=>(
-            <div key={i} style={{ padding:"10px 12px",marginBottom:6,background:"#ffffff08",border:"1px solid #a78bfa18",borderRadius:10,fontSize:13,lineHeight:1.6,color:C.text }}>{line}</div>
-          ))}
         </div>
       )}
 
