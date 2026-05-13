@@ -3921,8 +3921,8 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
     </div>
   );
 
-  // ── BLOC PRÉSIDENT ──
-  const PresidentBlock = () => (
+  // ── BLOC PRÉSIDENT — rendu inline (pas de sous-composant pour éviter le démontage des inputs) ──
+  const presidentBlockJSX = (
     <div style={{ background:"linear-gradient(135deg,#7c3aed18,#f9731618)",
       border:`1px solid #7c3aed44`, borderRadius:16, padding:"20px 20px", marginBottom:20 }}>
       {!showPresForm && !presFormSent && (
@@ -3939,7 +3939,7 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
           <button onClick={() => setShowPresForm(true)}
             style={{ background:`linear-gradient(135deg,#7c3aed,#f97316)`, color:"#fff", border:"none",
               borderRadius:12, padding:"11px 22px", fontWeight:700, fontSize:14, cursor:"pointer",
-              boxShadow:"0 4px 20px #7c3aed44", width:"100%" }}>
+              boxShadow:"0 4px 20px #7c3aed44", width:"100%", touchAction:"manipulation" }}>
             🔥 Demander l'accès administrateur
           </button>
         </>
@@ -3948,13 +3948,16 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
         <div>
           <div style={{ fontWeight:700, fontSize:15, marginBottom:16 }}>👑 Demande d'accès administrateur</div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
-            {[["Prénom","prenom"],["Nom","nom"]].map(([label,k]) => (
-              <div key={k}>
-                <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>{label}</label>
-                <input value={presForm[k]} onChange={e=>setPresForm(f=>({...f,[k]:e.target.value}))}
-                  style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,boxSizing:"border-box" }}/>
-              </div>
-            ))}
+            <div>
+              <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Prénom</label>
+              <input value={presForm.prenom} onChange={e=>setPresForm(f=>({...f,prenom:e.target.value}))}
+                style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,boxSizing:"border-box" }}/>
+            </div>
+            <div>
+              <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Nom</label>
+              <input value={presForm.nom} onChange={e=>setPresForm(f=>({...f,nom:e.target.value}))}
+                style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,boxSizing:"border-box" }}/>
+            </div>
           </div>
           <div style={{ marginBottom:10 }}>
             <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Rôle dans le club</label>
@@ -3974,9 +3977,9 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
               style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,resize:"vertical",boxSizing:"border-box" }}/>
           </div>
           <div style={{ display:"flex",gap:10 }}>
-            <button onClick={()=>setShowPresForm(false)} style={{ flex:1,background:C.card,color:C.muted,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 0",cursor:"pointer",fontSize:13 }}>Annuler</button>
+            <button onClick={()=>setShowPresForm(false)} style={{ flex:1,background:C.card,color:C.muted,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 0",cursor:"pointer",fontSize:13,touchAction:"manipulation" }}>Annuler</button>
             <button onClick={submitPresForm} disabled={!presForm.nom||!presForm.prenom||presFormLoading}
-              style={{ flex:2,background:`linear-gradient(135deg,#7c3aed,#f97316)`,color:"#fff",border:"none",borderRadius:10,padding:"10px 0",fontWeight:700,fontSize:14,cursor:"pointer",opacity:(!presForm.nom||!presForm.prenom)?0.5:1 }}>
+              style={{ flex:2,background:`linear-gradient(135deg,#7c3aed,#f97316)`,color:"#fff",border:"none",borderRadius:10,padding:"10px 0",fontWeight:700,fontSize:14,cursor:"pointer",opacity:(!presForm.nom||!presForm.prenom)?0.5:1,touchAction:"manipulation" }}>
               {presFormLoading ? "⏳ Envoi…" : "🔥 Envoyer la demande"}
             </button>
           </div>
@@ -3995,7 +3998,7 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
   // ── TAB CLUB ──
   const TabClub = () => (
     <div>
-      <PresidentBlock/>
+      {presidentBlockJSX}
 
       {/* Description */}
       {asso.description && (
@@ -4835,9 +4838,11 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
   const validerTournoi=async p=>{const slug=slugify(p.nom+"-"+p.ville+"-"+(p.date||""));const nb={slug,nom:p.nom,ville:p.ville,date:p.date||"",bar:p.bar||"",association:p.association||"",type:p.type||"electronique",format:p.format||"individuel",niveau:p.niveau||"tous",prix:p.prix||"",dotations:p.dotations||"",places:p.places||"",description:p.description||"",contact:p.contact||"",lien:p.lien||"",source:"user",statut:"publie",lat:null,lng:null};const r=await db.addTournoi(nb);if(r?.[0])setTournois(t=>[...t,r[0]]);await db.updateProposition(p.id,{statut:"publie"});setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));addLog("Tournoi validé",p.nom,"success");};
   const refuser=async(id,nom)=>{await db.updateProposition(id,{statut:"refuse"});setPropositions(x=>x.map(y=>y.id===id?{...y,statut:"refuse"}:y));addLog("Proposition refusée",nom||id,"warning");};
 
-  const allPending = propositions.filter(p=>p.statut==="en_attente");
+  const allPending = propositions.filter(p=>p.statut==="en_attente" && p.type_prop !== "president_club");
+  const demandesClubs = propositions.filter(p=>p.type_prop==="president_club");
+  const demandesClubsPending = demandesClubs.filter(p=>p.statut==="en_attente");
   const sigPending = signalements.filter(s=>!s.traite);
-  const totalUrgent = allPending.length + sigPending.length + avisCount;
+  const totalUrgent = allPending.length + sigPending.length + avisCount + demandesClubsPending.length;
 
   // Global search
   const doSearch = (q) => {
@@ -5088,9 +5093,104 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
     </div>
   );
 
+  // ── DEMANDES CLUBS (présidents) ──
+  const renderDemandes = () => (
+    <div>
+      {demandesClubs.length === 0 ? (
+        <div style={{ textAlign:"center", padding:60, color:C.muted }}>
+          <div style={{ fontSize:40, marginBottom:12 }}>👑</div>
+          <div>Aucune demande de club reçue.</div>
+        </div>
+      ) : (
+        <>
+          {/* En attente */}
+          {demandesClubsPending.length > 0 && (
+            <div style={{ marginBottom:24 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}>
+                ⏳ En attente — {demandesClubsPending.length} demande{demandesClubsPending.length>1?"s":""}
+              </div>
+              {demandesClubsPending.map(p => {
+                const lines = (p.commentaire||"").split("\n");
+                const club = lines[0]?.replace("Club: ","") || p.ville || "";
+                const role = lines[1]?.replace("Rôle: ","") || "";
+                const tel  = lines[2]?.replace("Tél: ","") || "";
+                const msg  = lines.slice(4).join("\n").trim();
+                return (
+                  <div key={p.id} style={{ background:"linear-gradient(135deg,#7c3aed0a,#f9731608)", border:"1px solid #7c3aed44", borderRadius:16, padding:20, marginBottom:12 }}>
+                    <div style={{ display:"flex", alignItems:"flex-start", gap:14, marginBottom:14 }}>
+                      <div style={{ width:46, height:46, borderRadius:12, background:"#7c3aed22", border:"1px solid #7c3aed44", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>👑</div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontWeight:800, fontSize:16, marginBottom:3 }}>{p.nom}</div>
+                        <div style={{ color:"#a78bfa", fontWeight:600, fontSize:13, marginBottom:2 }}>{role}</div>
+                        <div style={{ color:C.muted, fontSize:12 }}>🏛️ {club}</div>
+                      </div>
+                      <div style={{ background:"#ef444420", border:"1px solid #ef444440", borderRadius:8, padding:"3px 10px", fontSize:11, color:C.red, fontWeight:700, flexShrink:0 }}>🔴 Nouveau</div>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+                      {tel && (
+                        <div style={{ background:"#ffffff08", borderRadius:10, padding:"10px 12px" }}>
+                          <div style={{ fontSize:10, color:C.muted, marginBottom:3, fontWeight:600, textTransform:"uppercase", letterSpacing:.5 }}>📞 Téléphone</div>
+                          <div style={{ fontWeight:600, fontSize:13 }}>{tel}</div>
+                        </div>
+                      )}
+                      <div style={{ background:"#ffffff08", borderRadius:10, padding:"10px 12px" }}>
+                        <div style={{ fontSize:10, color:C.muted, marginBottom:3, fontWeight:600, textTransform:"uppercase", letterSpacing:.5 }}>📅 Date</div>
+                        <div style={{ fontWeight:600, fontSize:13 }}>{p.date ? new Date(p.date).toLocaleDateString("fr-FR") : "—"}</div>
+                      </div>
+                    </div>
+                    {msg && (
+                      <div style={{ background:"#111", borderRadius:10, padding:"10px 14px", marginBottom:14, borderLeft:"3px solid #7c3aed" }}>
+                        <div style={{ fontSize:10, color:C.muted, marginBottom:4, fontWeight:600, textTransform:"uppercase", letterSpacing:.5 }}>💬 Message</div>
+                        <p style={{ color:"#cbd5e1", fontSize:13, lineHeight:1.7, margin:0 }}>{msg}</p>
+                      </div>
+                    )}
+                    <div style={{ display:"flex", gap:8 }}>
+                      <button onClick={async()=>{ await db.updateProposition(p.id,{statut:"publie"}); setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y)); addLog("Demande club acceptée",p.nom,"success"); }}
+                        style={{ flex:1, background:"#14532d", color:C.green, border:`1px solid ${C.green}44`, borderRadius:10, padding:"11px", fontWeight:700, fontSize:13, cursor:"pointer" }}>
+                        ✅ Accepter
+                      </button>
+                      <button onClick={()=>refuser(p.id,p.nom)}
+                        style={{ flex:1, background:"#1a0000", color:C.red, border:`1px solid ${C.red}44`, borderRadius:10, padding:"11px", fontWeight:700, fontSize:13, cursor:"pointer" }}>
+                        ❌ Refuser
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {/* Traitées */}
+          {demandesClubs.filter(p=>p.statut!=="en_attente").length > 0 && (
+            <div>
+              <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}>✅ Traitées</div>
+              {demandesClubs.filter(p=>p.statut!=="en_attente").map(p => {
+                const lines = (p.commentaire||"").split("\n");
+                const club = lines[0]?.replace("Club: ","") || p.ville || "";
+                const role = lines[1]?.replace("Rôle: ","") || "";
+                return (
+                  <div key={p.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px", marginBottom:8, display:"flex", alignItems:"center", gap:12, opacity:0.65 }}>
+                    <span style={{ fontSize:20 }}>👑</span>
+                    <div style={{ flex:1 }}>
+                      <span style={{ fontWeight:700, fontSize:14 }}>{p.nom}</span>
+                      <span style={{ color:C.muted, fontSize:12, marginLeft:8 }}>· {role} · {club}</span>
+                    </div>
+                    <span style={{ fontSize:11, fontWeight:700, color:p.statut==="publie"?C.green:C.red }}>
+                      {p.statut==="publie"?"✅ Acceptée":"❌ Refusée"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+
   const TABS = [
     ["dashboard","📊 Dashboard"],
     ["pending",`⏳ En attente${allPending.length>0?` (${allPending.length})`:""}`,allPending.length>0?"urgent":null],
+    ["demandes-clubs",`👑 Clubs${demandesClubsPending.length>0?` (${demandesClubsPending.length})`:""}`,demandesClubsPending.length>0?"urgent":null],
     ["avismod",`💬 Avis${avisCount>0?` (${avisCount})`:""}`,avisCount>0?"important":null],
     ["allbars",`🎯 Bars (${bars.length})`],
     ["allassos",`🫂 Assos (${associations.length})`],
@@ -5185,9 +5285,10 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
       {/* ── CONTENT ── */}
       <div style={{maxWidth:1060,margin:"0 auto",padding:"24px 20px"}}>
         {loading ? <Spinner/>
-          : tab==="dashboard"   ? renderDashboard()
-          : tab==="pending"     ? renderPending()
-          : tab==="avismod"     ? <AvisAdminSection/>
+          : tab==="dashboard"       ? renderDashboard()
+          : tab==="pending"         ? renderPending()
+          : tab==="demandes-clubs"  ? renderDemandes()
+          : tab==="avismod"         ? <AvisAdminSection/>
           : tab==="allbars"     ? renderBars()
           : tab==="allassos"    ? renderAssos()
           : tab==="alltournois" ? renderTournois()
