@@ -1020,6 +1020,8 @@ const PageDefi = ({ joueur, setPage }) => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("1v1");
   const [searchDefi, setSearchDefi] = useState("");
+  const [searchGlobal, setSearchGlobal] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   // ── modal défi premium ──
   const [modalAmi, setModalAmi] = useState(null); // { amiId, amiPseudo, profil }
   const [modalData, setModalData] = useState(null);
@@ -1051,6 +1053,21 @@ const PageDefi = ({ joueur, setPage }) => {
     }).catch(() => setLoading(false));
   };
   useEffect(charger, [joueur?.id]);
+
+  // ── Recherche globale debounced ──
+  useEffect(() => {
+    const q = searchDefi.trim();
+    if (q.length < 2) { setSearchGlobal([]); setSearchLoading(false); return; }
+    setSearchLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await sb(`joueurs?pseudo=ilike.*${encodeURIComponent(q)}*&select=id,pseudo,drix,photo&limit=10`);
+        setSearchGlobal(Array.isArray(res) ? res : []);
+      } catch { setSearchGlobal([]); }
+      setSearchLoading(false);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchDefi]);
 
   const ouvrirModal = async (a) => {
     const amiId = a.joueur_id===joueur.id ? a.ami_id : a.joueur_id;
@@ -1232,12 +1249,8 @@ const PageDefi = ({ joueur, setPage }) => {
       )}
 
       <h2 style={{ fontWeight:700,fontSize:16,marginBottom:12 }}>👥 Défier un ami</h2>
-      {amis.length === 0 ? (
-        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:24,textAlign:"center" }}>
-          <p style={{ color:C.muted,fontSize:14,marginBottom:12 }}>Tu n'as pas encore d'amis sur DartPoint.</p>
-          <Btn onClick={()=>setPage("joueurs")} style={{ fontSize:13 }}>👥 Trouver des joueurs</Btn>
-        </div>
-      ) : (() => {
+      {(() => {
+        const amisIds = new Set(amis.map(a => a.joueur_id===joueur.id ? a.ami_id : a.joueur_id));
         const amisTries = [...amis].sort((a, b) => {
           const pa = (a.joueur_id===joueur.id ? a.ami_pseudo : a.joueur_pseudo)||"";
           const pb = (b.joueur_id===joueur.id ? b.ami_pseudo : b.joueur_pseudo)||"";
@@ -1248,47 +1261,87 @@ const PageDefi = ({ joueur, setPage }) => {
           const pseudo = (a.joueur_id===joueur.id ? a.ami_pseudo : a.joueur_pseudo)||"";
           return pseudo.toLowerCase().includes(q);
         }) : amisTries;
+
         return (
           <>
-            {/* Barre de recherche */}
+            {/* Barre de recherche globale */}
             <div style={{ display:"flex",alignItems:"center",gap:8,background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",marginBottom:12 }}>
               <span style={{ fontSize:15,flexShrink:0 }}>🔍</span>
               <input
                 value={searchDefi}
-                onChange={e=>setSearchDefi(e.target.value)}
-                placeholder="Rechercher un ami…"
+                onChange={e=>{ setSearchDefi(e.target.value); setSearchGlobal([]); setSearchLoading(false); }}
+                placeholder="Rechercher un joueur…"
                 style={{ flex:1,background:"transparent",border:"none",color:C.text,fontSize:14,outline:"none",minWidth:0 }}
               />
               {searchDefi && (
-                <button onClick={()=>setSearchDefi("")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16,padding:0,lineHeight:1 }}>✕</button>
+                <button onClick={()=>{ setSearchDefi(""); setSearchGlobal([]); }} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16,padding:0,lineHeight:1 }}>✕</button>
               )}
             </div>
-            <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
-              {amisFiltres.length === 0 ? (
-                <div style={{ textAlign:"center",padding:"20px 0",color:C.muted,fontSize:13 }}>Aucun ami trouvé pour « {searchDefi} »</div>
-              ) : amisFiltres.map(a => {
-                const amiId = a.joueur_id===joueur.id?a.ami_id:a.joueur_id;
-                const amiPseudo = a.joueur_id===joueur.id?a.ami_pseudo:a.joueur_pseudo;
-                const profil = amisData[amiId];
-                const { emoji:amiEmoji, color:amiColor } = getDrixTitre(profil?.drix||1000);
-                const hisDrix = profil?.drix || 1000;
-                return (
-                  <div key={amiId} onClick={()=>ouvrirModal(a)}
-                    style={{ background:C.card,border:`2px solid ${C.border}`,borderRadius:12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"all .12s" }}>
-                    <div style={{ width:44,height:44,borderRadius:"50%",background:amiColor+"22",border:`2px solid ${amiColor}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,overflow:"hidden" }}>
-                      {profil?.photo ? <img src={profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{amiEmoji}</span>}
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontWeight:700,fontSize:15 }}>{amiPseudo}</div>
-                      <div style={{ display:"flex",gap:8,marginTop:2 }}>
-                        <span style={{ fontSize:11,color:amiColor,fontWeight:600 }}>{amiEmoji} {hisDrix} DRIX</span>
+
+            {/* ── Résultats amis ── */}
+            {(amis.length === 0 && !q) ? (
+              <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:24,textAlign:"center",marginBottom:16 }}>
+                <p style={{ color:C.muted,fontSize:14,marginBottom:12 }}>Tu n'as pas encore d'amis sur DartPoint.</p>
+                <p style={{ color:C.muted,fontSize:12,marginBottom:16 }}>Recherche un joueur ci-dessus pour l'ajouter en ami !</p>
+              </div>
+            ) : amisFiltres.length > 0 ? (
+              <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
+                {q && <div style={{ fontSize:11,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:4 }}>AMIS</div>}
+                {amisFiltres.map(a => {
+                  const amiId = a.joueur_id===joueur.id?a.ami_id:a.joueur_id;
+                  const amiPseudo = a.joueur_id===joueur.id?a.ami_pseudo:a.joueur_pseudo;
+                  const profil = amisData[amiId];
+                  const { emoji:amiEmoji, color:amiColor } = getDrixTitre(profil?.drix||1000);
+                  const hisDrix = profil?.drix || 1000;
+                  return (
+                    <div key={amiId} onClick={()=>ouvrirModal(a)}
+                      style={{ background:C.card,border:`2px solid ${C.border}`,borderRadius:12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"all .12s" }}>
+                      <div style={{ width:44,height:44,borderRadius:"50%",background:amiColor+"22",border:`2px solid ${amiColor}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,overflow:"hidden" }}>
+                        {profil?.photo ? <img src={profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{amiEmoji}</span>}
                       </div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontWeight:700,fontSize:15 }}>{amiPseudo}</div>
+                        <div style={{ fontSize:11,color:amiColor,fontWeight:600,marginTop:2 }}>{amiEmoji} {hisDrix} DRIX</div>
+                      </div>
+                      <span style={{ color:C.muted,fontSize:20 }}>⚔️</span>
                     </div>
-                    <span style={{ color:C.muted,fontSize:13,fontWeight:600 }}>⚔️</span>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            ) : q ? (
+              <div style={{ fontSize:12,color:C.muted,textAlign:"center",padding:"8px 0 4px",marginBottom:8 }}>Aucun ami pour « {searchDefi} »</div>
+            ) : null}
+
+            {/* ── Résultats globaux (non-amis) ── */}
+            {searchGlobal.length > 0 && (() => {
+              const nonAmis = searchGlobal.filter(p => p.id !== joueur.id && !amisIds.has(p.id));
+              if (nonAmis.length === 0) return null;
+              return (
+                <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
+                  <div style={{ fontSize:11,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:4 }}>AUTRES JOUEURS</div>
+                  {nonAmis.map(p => {
+                    const { emoji:pEmoji, color:pColor } = getDrixTitre(p.drix||1000);
+                    return (
+                      <div key={p.id} onClick={()=>setPage("profil-joueur-"+p.id)}
+                        style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"all .12s" }}>
+                        <div style={{ width:44,height:44,borderRadius:"50%",background:pColor+"22",border:`2px solid ${pColor}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,overflow:"hidden" }}>
+                          {p.photo ? <img src={p.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{pEmoji}</span>}
+                        </div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontWeight:700,fontSize:15 }}>{p.pseudo}</div>
+                          <div style={{ fontSize:11,color:pColor,fontWeight:600,marginTop:2 }}>{pEmoji} {p.drix||1000} DRIX</div>
+                        </div>
+                        <div style={{ textAlign:"right",flexShrink:0 }}>
+                          <div style={{ fontSize:11,color:"#60a5fa",fontWeight:600 }}>Voir le profil →</div>
+                          <div style={{ fontSize:10,color:C.muted,marginTop:2 }}>+ demande d'ami</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+            {searchLoading && <div style={{ textAlign:"center",color:C.muted,fontSize:13,padding:"8px 0" }}>Recherche…</div>}
           </>
         );
       })()}
