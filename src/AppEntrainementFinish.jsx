@@ -512,12 +512,25 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
             <div style={{ fontSize:28 }}>🎉</div>
             <div style={{ fontWeight:800,fontSize:16,color:C.green }}>Bonne combinaison !</div>
             {isDrix && (
-              <div style={{ background:"#052e16",borderRadius:10,padding:"6px 14px",textAlign:"center" }}>
-                <span style={{ fontSize:13,color:"#86efac",fontWeight:700 }}>
-                  Série : <b style={{ color: drixSerie >= 7 ? C.yellow : C.green }}>{drixSerie}/10</b>
-                  {drixSerie === 0 && " 🎊 +5 DRIX remportés !"}
-                </span>
-              </div>
+              <>
+                <div style={{ background:"#052e16",borderRadius:10,padding:"6px 14px",textAlign:"center" }}>
+                  <span style={{ fontSize:13,color:"#86efac",fontWeight:700 }}>
+                    Série : <b style={{ color: drixSerie >= 7 ? C.yellow : C.green }}>{drixSerie}/10</b>
+                    {drixSerie === 0 && " 🎊 +5 DRIX remportés !"}
+                  </span>
+                </div>
+                <div style={{ background:"#052e16",borderRadius:10,padding:"8px 12px",textAlign:"center",width:"100%" }}>
+                  {!isOptimal && (
+                    <>
+                      <div style={{ fontSize:10,color:C.muted,marginBottom:3 }}>💡 Une des solutions optimales :</div>
+                      <div style={{ fontWeight:800,color:C.green,fontSize:16,letterSpacing:1,marginBottom:4 }}>{optSol}</div>
+                    </>
+                  )}
+                  <div style={{ fontSize:10,color:"#86efac",fontStyle:"italic",lineHeight:1.6 }}>
+                    chacun ses triples, chacun ses doubles.<br/>chacun sa route, chacun son chemin
+                  </div>
+                </div>
+              </>
             )}
             {!isDrix && (
               <div style={{ background:"#052e16",borderRadius:10,padding:"8px 12px",textAlign:"center",width:"100%" }}>
