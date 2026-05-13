@@ -1511,12 +1511,13 @@ export const AmiSection = ({ joueur, setPage }) => {
   const [photosAmis, setPhotosAmis] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchAmis, setSearchAmis] = useState("");
+  const [searchGlobal, setSearchGlobal] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   useEffect(() => {
     Promise.all([dbAmis.getAmis(joueur.id), dbAmis.getDemandesRecues(joueur.id)])
       .then(async ([a,d]) => {
         setAmis(a||[]); setDemandes(d||[]);
-        // Charger les photos des amis
         const ids = (a||[]).map(x => x.joueur_id===joueur.id ? x.ami_id : x.joueur_id);
         if (ids.length > 0) {
           const profils = await sbJ(`joueurs?id=in.(${ids.join(",")})&select=id,photo,drix`).catch(()=>[]);
@@ -1528,6 +1529,21 @@ export const AmiSection = ({ joueur, setPage }) => {
       })
       .catch(() => setLoading(false));
   }, [joueur.id]);
+
+  // Recherche globale debounced
+  useEffect(() => {
+    const q = searchAmis.trim();
+    if (q.length < 2) { setSearchGlobal([]); setSearchLoading(false); return; }
+    setSearchLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await sbJ(`joueurs?pseudo=ilike.*${encodeURIComponent(q)}*&select=id,pseudo,drix,photo&limit=10`);
+        setSearchGlobal(Array.isArray(res) ? res : []);
+      } catch { setSearchGlobal([]); }
+      setSearchLoading(false);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchAmis]);
 
   const accepter = async (d) => {
     await dbAmis.accepterAmi(d.id);
@@ -1541,6 +1557,19 @@ export const AmiSection = ({ joueur, setPage }) => {
   };
 
   if (loading) return <SpinnerJ/>;
+
+  const amisIds = new Set(amis.map(a => a.joueur_id===joueur.id ? a.ami_id : a.joueur_id));
+  const amisTries = [...amis].sort((a, b) => {
+    const pa = (a.joueur_id===joueur.id ? a.ami_pseudo : a.joueur_pseudo)||"";
+    const pb = (b.joueur_id===joueur.id ? b.ami_pseudo : b.joueur_pseudo)||"";
+    return pa.localeCompare(pb, "fr", { sensitivity:"base" });
+  });
+  const q = searchAmis.trim().toLowerCase();
+  const amisFiltres = q ? amisTries.filter(a => {
+    const pseudo = (a.joueur_id===joueur.id ? a.ami_pseudo : a.joueur_pseudo)||"";
+    return pseudo.toLowerCase().includes(q);
+  }) : amisTries;
+  const nonAmis = searchGlobal.filter(p => p.id !== joueur.id && !amisIds.has(p.id));
 
   return (
     <div>
@@ -1560,63 +1589,83 @@ export const AmiSection = ({ joueur, setPage }) => {
       )}
 
       <h3 style={{ fontWeight:700,fontSize:15,marginBottom:12,color:CJ.accent }}>👥 Mes amis ({amis.length})</h3>
-      {amis.length === 0
-        ? <p style={{ color:CJ.muted,fontSize:13 }}>Aucun ami pour l'instant. Va sur la fiche d'un joueur pour l'ajouter !</p>
-        : (() => {
-            const amisTries = [...amis].sort((a, b) => {
-              const pa = (a.joueur_id===joueur.id ? a.ami_pseudo : a.joueur_pseudo)||"";
-              const pb = (b.joueur_id===joueur.id ? b.ami_pseudo : b.joueur_pseudo)||"";
-              return pa.localeCompare(pb, "fr", { sensitivity:"base" });
-            });
-            const q = searchAmis.trim().toLowerCase();
-            const amisFiltres = q ? amisTries.filter(a => {
-              const pseudo = (a.joueur_id===joueur.id ? a.ami_pseudo : a.joueur_pseudo)||"";
-              return pseudo.toLowerCase().includes(q);
-            }) : amisTries;
+
+      {/* Barre de recherche globale */}
+      <div style={{ display:"flex",alignItems:"center",gap:8,background:CJ.bg,border:`1px solid ${CJ.border}`,borderRadius:10,padding:"10px 14px",marginBottom:12 }}>
+        <span style={{ fontSize:15,flexShrink:0 }}>🔍</span>
+        <input
+          value={searchAmis}
+          onChange={e=>{ setSearchAmis(e.target.value); setSearchGlobal([]); setSearchLoading(false); }}
+          placeholder="Rechercher un joueur…"
+          style={{ flex:1,background:"transparent",border:"none",color:CJ.text,fontSize:14,outline:"none",minWidth:0 }}
+        />
+        {searchAmis && (
+          <button onClick={()=>{ setSearchAmis(""); setSearchGlobal([]); }} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:16,padding:0,lineHeight:1 }}>✕</button>
+        )}
+      </div>
+
+      {/* ── Résultats amis ── */}
+      {amis.length === 0 && !q ? (
+        <p style={{ color:CJ.muted,fontSize:13 }}>Aucun ami pour l'instant. Recherche un joueur ci-dessus pour l'ajouter !</p>
+      ) : amisFiltres.length > 0 ? (
+        <div style={{ marginBottom:nonAmis.length>0?16:0 }}>
+          {q && <div style={{ fontSize:11,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:6 }}>AMIS</div>}
+          {amisFiltres.map(a => {
+            const amiId = a.joueur_id === joueur.id ? a.ami_id : a.joueur_id;
+            const amiPseudo = a.joueur_id === joueur.id ? a.ami_pseudo : a.joueur_pseudo;
+            const profil = photosAmis[amiId];
+            const { emoji, color } = getDrixTitreLocal(profil?.drix||1000);
             return (
-              <>
-                {/* Barre de recherche */}
-                <div style={{ display:"flex",alignItems:"center",gap:8,background:CJ.bg,border:`1px solid ${CJ.border}`,borderRadius:10,padding:"10px 14px",marginBottom:12 }}>
-                  <span style={{ fontSize:15,flexShrink:0 }}>🔍</span>
-                  <input
-                    value={searchAmis}
-                    onChange={e=>setSearchAmis(e.target.value)}
-                    placeholder="Rechercher un ami…"
-                    style={{ flex:1,background:"transparent",border:"none",color:CJ.text,fontSize:14,outline:"none",minWidth:0 }}
-                  />
-                  {searchAmis && (
-                    <button onClick={()=>setSearchAmis("")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:16,padding:0,lineHeight:1 }}>✕</button>
-                  )}
+              <div key={a.id} onClick={()=>setPage("profil-joueur-"+amiId)}
+                style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:10,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onMouseEnter={e=>e.currentTarget.style.borderColor=CJ.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
+                <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+                  <div style={{ width:40,height:40,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:`2px solid ${color}`,background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>
+                    {profil?.photo ? <img src={profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{emoji}</span>}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight:600 }}>{amiPseudo}</div>
+                    <div style={{ fontSize:11,color,fontWeight:600 }}>{emoji} {profil?.drix||1000} DRIX</div>
+                  </div>
                 </div>
-                {amisFiltres.length === 0
-                  ? <p style={{ color:CJ.muted,fontSize:13,textAlign:"center",padding:"16px 0" }}>Aucun ami trouvé pour « {searchAmis} »</p>
-                  : amisFiltres.map(a => {
-                      const amiId = a.joueur_id === joueur.id ? a.ami_id : a.joueur_id;
-                      const amiPseudo = a.joueur_id === joueur.id ? a.ami_pseudo : a.joueur_pseudo;
-                      const profil = photosAmis[amiId];
-                      const { emoji, color } = getDrixTitreLocal(profil?.drix||1000);
-                      return (
-                        <div key={a.id} onClick={()=>setPage("profil-joueur-"+amiId)}
-                          style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:10,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
-                          onMouseEnter={e=>e.currentTarget.style.borderColor=CJ.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
-                          <div style={{ display:"flex",alignItems:"center",gap:12 }}>
-                            <div style={{ width:40,height:40,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:`2px solid ${color}`,background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>
-                              {profil?.photo
-                                ? <img src={profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
-                                : <span>{emoji}</span>
-                              }
-                            </div>
-                            <span style={{ fontWeight:600 }}>{amiPseudo}</span>
-                          </div>
-                          <span style={{ color:CJ.accent,fontSize:12 }}>⚔️ Voir le profil →</span>
-                        </div>
-                      );
-                    })
-                }
-              </>
+                <span style={{ color:CJ.accent,fontSize:12 }}>Voir le profil →</span>
+              </div>
             );
-          })()
-      }
+          })}
+        </div>
+      ) : q ? (
+        <p style={{ color:CJ.muted,fontSize:13,textAlign:"center",padding:"8px 0 4px" }}>Aucun ami pour « {searchAmis} »</p>
+      ) : null}
+
+      {/* ── Résultats globaux (non-amis) ── */}
+      {nonAmis.length > 0 && (
+        <div>
+          <div style={{ fontSize:11,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:6 }}>AUTRES JOUEURS</div>
+          {nonAmis.map(p => {
+            const { emoji, color } = getDrixTitreLocal(p.drix||1000);
+            return (
+              <div key={p.id} onClick={()=>setPage("profil-joueur-"+p.id)}
+                style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:10,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onMouseEnter={e=>e.currentTarget.style.borderColor="#60a5fa"} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
+                <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+                  <div style={{ width:40,height:40,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:`2px solid ${color}44`,background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>
+                    {p.photo ? <img src={p.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{emoji}</span>}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight:600 }}>{p.pseudo}</div>
+                    <div style={{ fontSize:11,color,fontWeight:600 }}>{emoji} {p.drix||1000} DRIX</div>
+                  </div>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <div style={{ fontSize:12,color:"#60a5fa",fontWeight:600 }}>Voir le profil →</div>
+                  <div style={{ fontSize:10,color:CJ.muted,marginTop:2 }}>+ demande d'ami</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {searchLoading && <p style={{ color:CJ.muted,fontSize:13,textAlign:"center",padding:"8px 0" }}>Recherche…</p>}
     </div>
   );
 };
