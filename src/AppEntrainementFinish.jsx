@@ -322,6 +322,13 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
   const annulerDernier = () => { if (phase !== "jeu") return; setDarts(p => p.slice(0, -1)); setErrMsg(""); };
   const reinitialiser  = () => { setDarts([]); setMultSel(null); setErrMsg(""); };
 
+  const rejouer = () => {
+    statsOkRef.current = 0;
+    setStats({ ok:0, nok:0, serie:0, best:0 });
+    setDrixSerie(0);
+    nouveauFinish();
+  };
+
   const valider = async () => {
     if (phase !== "jeu" || darts.length === 0) return;
     const total    = darts.reduce((s, d) => s + d.value, 0);
@@ -329,8 +336,9 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
     const correct  = total === finish && isFinishDart(lastDart.mult);
 
     if (correct) {
+      const newOk = stats.ok + 1;
       setStats(s => { const ns = s.serie + 1; return { ok:s.ok+1, nok:s.nok, serie:ns, best:Math.max(s.best,ns) }; });
-      setPhase("correct");
+      setPhase(newOk >= 10 ? "fin" : "correct");
       if (isDrix) {
         const newSerie = drixSerie + 1;
         if (newSerie >= 10) {
@@ -610,6 +618,49 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
             </div>
           </div>
         )}
+
+        {/* ── Écran de fin (10 bonnes réponses) ── */}
+        {phase === "fin" && (() => {
+          const total10 = stats.ok + 1; // inclut la dernière bonne réponse pas encore comptée dans state
+          const erreurs = stats.nok;
+          const pctFin  = Math.round(10 / (10 + erreurs) * 100);
+          const medal   = erreurs === 0 ? "🏆" : erreurs <= 3 ? "🥇" : erreurs <= 6 ? "🥈" : "🥉";
+          return (
+            <div style={{ flex:1,background:"linear-gradient(135deg,#14532d,#1a0800)",border:`2px solid ${C.green}`,borderRadius:12,padding:"16px 12px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,minHeight:0,overflow:"auto" }}>
+              <div style={{ fontSize:48 }}>{medal}</div>
+              <div style={{ fontWeight:900,fontSize:20,color:C.green,textAlign:"center" }}>Parcours terminé !</div>
+              <div style={{ fontSize:13,color:"#86efac",textAlign:"center",fontStyle:"italic" }}>
+                chacun ses triples, chacun ses doubles.<br/>chacun sa route, chacun son chemin
+              </div>
+              {/* Stats */}
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,width:"100%" }}>
+                {[
+                  { e:"✅", l:"Bonnes",   v:"10",          c:C.green  },
+                  { e:"❌", l:"Erreurs",  v:erreurs,        c:erreurs===0?C.green:C.red },
+                  { e:"📊", l:"Réussite", v:`${pctFin}%`,  c:C.blue   },
+                  { e:"🔥", l:"Meilleure série", v:stats.best, c:C.yellow },
+                ].map(s => (
+                  <div key={s.l} style={{ background:"#ffffff0a",borderRadius:10,padding:"10px 8px",textAlign:"center" }}>
+                    <div style={{ fontSize:18,marginBottom:2 }}>{s.e}</div>
+                    <div style={{ fontWeight:900,fontSize:22,color:s.c }}>{s.v}</div>
+                    <div style={{ fontSize:10,color:C.muted }}>{s.l}</div>
+                  </div>
+                ))}
+              </div>
+              {/* Boutons */}
+              <div style={{ display:"flex",gap:8,width:"100%",marginTop:4 }}>
+                <button onClick={()=>setPage("entrainement-finish")}
+                  style={{ flex:1,background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px",fontWeight:700,fontSize:13,cursor:"pointer" }}>
+                  ← Quitter
+                </button>
+                <button onClick={rejouer}
+                  style={{ flex:1,background:`linear-gradient(135deg,${C.accent},#ea580c)`,color:"#fff",border:"none",borderRadius:10,padding:"12px",fontWeight:800,fontSize:14,cursor:"pointer" }}>
+                  🔄 Rejouer
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── Temps écoulé ── */}
         {phase === "timeout" && (
