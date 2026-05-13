@@ -324,7 +324,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
               <button onClick={()=>go("mon-profil")} style={{ background:"#12121a", color:C.text, border:"1px solid #252530", cursor:"pointer", padding:"6px 10px", borderRadius:8, fontSize:12, fontWeight:600, display:"flex", alignItems:"center", gap:6, position:"relative", transition:"all .15s", touchAction:"manipulation" }}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor="#f9731644";}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor="#252530";}}>
-                {joueur.avatar_url ? <img src={joueur.avatar_url} style={{ width:20,height:20,borderRadius:"50%",objectFit:"cover" }} alt=""/> : "👤"}
+                {joueur.photo ? <img src={joueur.photo} style={{ width:20,height:20,borderRadius:"50%",objectFit:"cover" }} alt=""/> : "👤"}
                 <span style={{ maxWidth:72, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{joueur.pseudo}</span>
                 {defisCount>0 && <span style={{ background:C.red, color:"#fff", borderRadius:"50%", width:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800 }}>{defisCount}</span>}
                 {demandesAmisCount>0 && <span style={{ background:"#10b981", color:"#fff", borderRadius:"50%", width:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800 }}>{demandesAmisCount>9?"9+":demandesAmisCount}</span>}
@@ -381,7 +381,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
               {/* Avatar + pseudo + DRIX */}
               <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:11 }}>
                 <div style={{ width:54,height:54,borderRadius:"50%",background:`linear-gradient(135deg,${drixColor}33,#141428)`,border:`2.5px solid ${drixColor}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0,overflow:"hidden" }}>
-                  {joueur.avatar_url ? <img src={joueur.avatar_url} style={{ width:"100%",height:"100%",objectFit:"cover" }} alt=""/> : "👤"}
+                  {joueur.photo ? <img src={joueur.photo} style={{ width:"100%",height:"100%",objectFit:"cover" }} alt=""/> : "👤"}
                 </div>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontWeight:800, fontSize:17, color:"#f1f5f9", marginBottom:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{joueur.pseudo}</div>
