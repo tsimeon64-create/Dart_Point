@@ -873,16 +873,37 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose }) => {
   const [selectedBars, setSelectedBars] = useState(Array.isArray(asso.bars) ? asso.bars : []);
   const [barSearch, setBarSearch] = useState("");
   const [saving,setSaving]=useState(false);
+  const [errMsg, setErrMsg]=useState("");
   const set=k=>v=>setF(p=>({...p,[k]:v}));
   const toggleBar = (nom) => setSelectedBars(prev => prev.includes(nom) ? prev.filter(n=>n!==nom) : [...prev, nom]);
   const filteredBars = allBars.filter(b => b.nom.toLowerCase().includes(barSearch.toLowerCase()) || b.ville.toLowerCase().includes(barSearch.toLowerCase()));
   const save=async()=>{
     setSaving(true);
-    const payload = {...f, bars:selectedBars, lat:parseFloat(f.lat)||null, lng:parseFloat(f.lng)||null};
-    await db.updateAssociation(asso.slug, payload);
-    onSave({...asso,...payload});
-    setSaving(false);
-    onClose();
+    setErrMsg("");
+    const lat = parseFloat(f.lat)||null;
+    const lng = parseFloat(f.lng)||null;
+    // Champs de base (colonnes existantes dans la table)
+    const base = { nom:f.nom, ville:f.ville, zone:f.zone, type:f.type, jours:f.jours, lieu:f.lieu, tel:f.tel, contact:f.contact, description:f.description, bars:selectedBars, lat, lng };
+    // Champs extra (colonnes peut-être pas encore créées)
+    const extra = { president:f.president, contact_nom:f.contact_nom };
+    try {
+      // On tente d'abord tout ensemble
+      await db.updateAssociation(asso.slug, {...base, ...extra});
+      onSave({...asso,...base,...extra});
+      onClose();
+    } catch(e1) {
+      // Si ça échoue (colonnes manquantes), on sauve juste les champs de base
+      try {
+        await db.updateAssociation(asso.slug, base);
+        onSave({...asso,...base});
+        setErrMsg("✅ Sauvegardé ! Note : les champs Président/Contact nécessitent d'être ajoutés dans Supabase (colonnes president et contact_nom dans la table associations).");
+        // On ne ferme pas pour que l'utilisateur voie le message
+      } catch(e2) {
+        setErrMsg("❌ Erreur : " + (e2?.message || "impossible de sauvegarder"));
+      }
+    } finally {
+      setSaving(false);
+    }
   };
   return (
     <div style={{ position:"fixed",inset:0,background:"#000c",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}>
@@ -926,6 +947,7 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose }) => {
             )}
           </div>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Latitude" value={f.lat} onChange={set("lat")} placeholder="43.49" type="number"/><Field label="Longitude" value={f.lng} onChange={set("lng")} placeholder="-1.47" type="number"/></div>
+          {errMsg && <div style={{ fontSize:12, padding:"10px 14px", borderRadius:10, background: errMsg.startsWith("✅")?"#22c55e18":"#ef444418", border:`1px solid ${errMsg.startsWith("✅")?"#22c55e44":"#ef444444"}`, color: errMsg.startsWith("✅")?C.green:C.red, lineHeight:1.6 }}>{errMsg}</div>}
           <div style={{ display:"flex",gap:10 }}><Btn onClick={save} disabled={saving||!f.nom||!f.ville} style={{ flex:1 }}>{saving?"⏳ Sauvegarde…":"💾 Sauvegarder"}</Btn><Btn onClick={onClose} variant="dark" style={{ flex:1 }}>Annuler</Btn></div>
         </div>
       </div>
