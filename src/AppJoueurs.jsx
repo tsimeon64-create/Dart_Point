@@ -1593,6 +1593,12 @@ export const AmiSection = ({ joueur, setPage }) => {
   const [searchAmis, setSearchAmis] = useState("");
   const [searchGlobal, setSearchGlobal] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  // Géoloc
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoActive, setGeoActive] = useState(false);
+  const [geoError, setGeoError] = useState(null);
+  const [nearbyPlayers, setNearbyPlayers] = useState([]);
+  const [userCity, setUserCity] = useState("");
 
   useEffect(() => {
     Promise.all([dbAmis.getAmis(joueur.id), dbAmis.getDemandesRecues(joueur.id)])
@@ -1634,6 +1640,43 @@ export const AmiSection = ({ joueur, setPage }) => {
   const refuser = async (d) => {
     await dbAmis.refuserAmi(d.id);
     setDemandes(x=>x.filter(x=>x.id!==d.id));
+  };
+
+  const loadNearby = () => {
+    if (!("geolocation" in navigator)) { setGeoError("Géolocalisation non supportée par votre navigateur."); return; }
+    setGeoLoading(true); setGeoError(null); setNearbyPlayers([]); setGeoActive(false);
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      try {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        // Reverse geocoding gratuit via Nominatim
+        const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=fr`, { headers:{ "User-Agent":"DartPoint-App" } });
+        const data = await resp.json();
+        const city = data.address?.city || data.address?.town || data.address?.village || data.address?.municipality || data.address?.suburb || "";
+        const dept = data.address?.county || data.address?.state_district || "";
+        if (!city) { setGeoError("Impossible de déterminer votre ville depuis votre position."); setGeoLoading(false); return; }
+        setUserCity(city);
+        // Cherche tous les joueurs ayant une ville renseignée
+        const all = await sbJ(`joueurs?ville=not.is.null&select=id,pseudo,drix,photo,ville&limit=200`).catch(()=>[]);
+        const cityNorm = city.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+        const deptNorm = dept.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+        const amisIds = new Set(amis.map(a => a.joueur_id===joueur.id ? a.ami_id : a.joueur_id));
+        const nearby = (all||[])
+          .filter(p => {
+            if (p.id === joueur.id || amisIds.has(p.id)) return false;
+            const v = (p.ville||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+            return v.includes(cityNorm) || cityNorm.includes(v) || (deptNorm && v.includes(deptNorm));
+          })
+          .sort((a,b) => (b.drix||1000)-(a.drix||1000));
+        setNearbyPlayers(nearby);
+        setGeoActive(true);
+      } catch(e) {
+        setGeoError("Erreur lors de la recherche de joueurs proches.");
+      }
+      setGeoLoading(false);
+    }, () => {
+      setGeoError("Géolocalisation refusée. Vérifie les permissions de ton navigateur.");
+      setGeoLoading(false);
+    }, { timeout:10000 });
   };
 
   if (loading) return <SpinnerJ/>;
@@ -1683,6 +1726,56 @@ export const AmiSection = ({ joueur, setPage }) => {
           <button onClick={()=>{ setSearchAmis(""); setSearchGlobal([]); }} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:16,padding:0,lineHeight:1 }}>✕</button>
         )}
       </div>
+
+      {/* ── Bouton géoloc ── */}
+      {!geoActive && (
+        <button onClick={loadNearby} disabled={geoLoading}
+          style={{ display:"flex",alignItems:"center",gap:8,background:"#0d1f12",border:"1px solid #22c55e44",borderRadius:10,padding:"9px 14px",marginBottom:12,cursor:geoLoading?"default":"pointer",width:"100%",color:"#22c55e",fontWeight:600,fontSize:13,transition:"all .15s",opacity:geoLoading?.7:1 }}>
+          <span style={{ fontSize:16 }}>{geoLoading?"⏳":"📍"}</span>
+          <span>{geoLoading ? "Localisation en cours…" : "Trouver des joueurs près de moi"}</span>
+        </button>
+      )}
+      {geoActive && (
+        <button onClick={()=>{ setGeoActive(false); setNearbyPlayers([]); setUserCity(""); }}
+          style={{ display:"flex",alignItems:"center",gap:6,background:"transparent",border:"none",color:"#22c55e",fontWeight:600,fontSize:12,cursor:"pointer",marginBottom:8,padding:"2px 0" }}>
+          <span>📍 {userCity}</span><span style={{ color:"#4b5563",fontSize:10 }}>— Effacer</span>
+        </button>
+      )}
+      {geoError && <p style={{ color:"#ef4444",fontSize:12,marginBottom:10 }}>⚠️ {geoError}</p>}
+
+      {/* ── Joueurs proches ── */}
+      {geoActive && (
+        <div style={{ marginBottom:20 }}>
+          <div style={{ fontSize:11,color:"#22c55e",fontWeight:700,letterSpacing:.5,marginBottom:8,display:"flex",alignItems:"center",gap:6 }}>
+            📍 JOUEURS PROCHES — {userCity.toUpperCase()}
+            <span style={{ color:"#4b5563",fontWeight:400 }}>({nearbyPlayers.length})</span>
+          </div>
+          {nearbyPlayers.length === 0 ? (
+            <p style={{ color:CJ.muted,fontSize:13,background:CJ.card,borderRadius:10,padding:14 }}>Aucun joueur DartPoint trouvé à {userCity} pour l'instant.</p>
+          ) : nearbyPlayers.map(p => {
+            const { emoji, color } = getDrixTitreLocal(p.drix||1000);
+            return (
+              <div key={p.id} onClick={()=>setPage("profil-joueur-"+p.id)}
+                style={{ background:CJ.card,border:"1px solid #22c55e33",borderRadius:10,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
+                onMouseEnter={e=>e.currentTarget.style.borderColor="#22c55e88"} onMouseLeave={e=>e.currentTarget.style.borderColor="#22c55e33"}>
+                <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+                  <div style={{ width:40,height:40,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:`2px solid ${color}66`,background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>
+                    {p.photo ? <img src={p.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{emoji}</span>}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight:600 }}>{p.pseudo}</div>
+                    <div style={{ fontSize:11,color,fontWeight:600 }}>{emoji} {p.drix||1000} DRIX</div>
+                    {p.ville && <div style={{ fontSize:10,color:"#22c55e",marginTop:1 }}>📍 {p.ville}</div>}
+                  </div>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <div style={{ fontSize:12,color:"#22c55e",fontWeight:600 }}>Voir le profil →</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Résultats amis ── */}
       {amis.length === 0 && !q ? (

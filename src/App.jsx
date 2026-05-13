@@ -367,26 +367,23 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
             {joueur ? (
               <div style={{ position:"relative" }} data-pdrop>
                 <button className="dp-topbtn" data-pdrop onClick={()=>setProfileOpen(o=>!o)}
-                  style={{ background: profileOpen ? "#f9731614" : "#0f0f18", border:`1px solid ${profileOpen?"#f9731655":"#1e1e2e"}`, cursor:"pointer", padding:"6px 10px 6px 8px", borderRadius:11, display:"flex", alignItems:"center", gap:6, transition:"all .2s", touchAction:"manipulation",
-                    boxShadow: profileOpen ? "0 0 16px #f9731628" : "none" }}>
-                  {/* Dot statut */}
-                  <div style={{ width:8, height:8, borderRadius:"50%", background:playerStatus.color, boxShadow:`0 0 6px ${playerStatus.color}`, flexShrink:0 }}/>
-                  {/* Infos */}
-                  <div style={{ minWidth:0 }}>
-                    <div style={{ fontWeight:700, fontSize:12, color:"#f1f5f9", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", lineHeight:1.2 }}>{joueur.pseudo}</div>
-                    <div style={{ fontSize:10, color:drixColor, fontWeight:600, lineHeight:1.2, display:"flex", alignItems:"center", gap:3 }}>
-                      <span>{drixEmoji}</span><span>{drixTitre}</span>
-                      <span style={{ color:"#475569", marginLeft:2 }}>·</span>
-                      <span style={{ color:"#64748b" }}>{drix}</span>
+                  style={{ background: profileOpen ? "#f9731614" : "#0f0f18", border:`1px solid ${profileOpen?"#f9731655":"#1e1e2e"}`, cursor:"pointer", padding:"6px 8px", borderRadius:11, display:"flex", alignItems:"center", gap:6, transition:"all .2s", touchAction:"manipulation",
+                    boxShadow: profileOpen ? "0 0 16px #f9731628" : "none", position:"relative" }}>
+                  {/* Avatar initiale + dot statut */}
+                  <div style={{ position:"relative", flexShrink:0 }}>
+                    <div style={{ width:28, height:28, borderRadius:"50%", background:`linear-gradient(135deg,${drixColor}99,${drixColor}44)`, border:`1px solid ${drixColor}66`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:"#fff" }}>
+                      {joueur.photo
+                        ? <img src={joueur.photo} style={{ width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%" }} alt=""/>
+                        : (joueur.pseudo||"?")[0].toUpperCase()}
                     </div>
+                    <div style={{ position:"absolute", bottom:-1, right:-1, width:8, height:8, borderRadius:"50%", background:playerStatus.color, boxShadow:`0 0 5px ${playerStatus.color}`, border:"1.5px solid #0f0f18" }}/>
                   </div>
-                  {/* Badges notif — total de toutes les notifs */}
+                  {/* Badge notif */}
                   {((defisCount||0)+(demandesAmisCount||0)+(unreadMessages||0)+(newBadgesCount||0))>0 && (() => {
                     const total = (defisCount||0)+(demandesAmisCount||0)+(unreadMessages||0)+(newBadgesCount||0);
-                    // Couleur selon le type dominant
                     const color = newBadgesCount>0 && defisCount===0 && demandesAmisCount===0 && unreadMessages===0 ? "#f59e0b" : C.red;
                     return (
-                      <span style={{ background:color, color:"#fff", borderRadius:"50%", minWidth:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, flexShrink:0, boxShadow:`0 0 8px ${color}88`, animation:"dp-notif-pulse 2s infinite" }}>
+                      <span style={{ position:"absolute", top:-5, right:-5, background:color, color:"#fff", borderRadius:"50%", minWidth:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:800, boxShadow:`0 0 8px ${color}88`, animation:"dp-notif-pulse 2s infinite", border:"1.5px solid #0f0f18" }}>
                         {total>9?"9+":total}
                       </span>
                     );
