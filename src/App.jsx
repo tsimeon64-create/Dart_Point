@@ -869,7 +869,7 @@ const EditBarModal = ({ bar, onSave, onClose }) => {
 };
 
 const EditAssoModal = ({ asso, onSave, onClose }) => {
-  const [f,setF]=useState({ nom:asso.nom||"",ville:asso.ville||"",zone:asso.zone||"",type:asso.type||"electronique",jours:asso.jours||"",lieu:asso.lieu||"",tel:asso.tel||"",contact:asso.contact||"",description:asso.description||"",lat:String(asso.lat||""),lng:String(asso.lng||"") });
+  const [f,setF]=useState({ nom:asso.nom||"",ville:asso.ville||"",zone:asso.zone||"",type:asso.type||"electronique",president:asso.president||"",contact_nom:asso.contact_nom||"",jours:asso.jours||"",lieu:asso.lieu||"",tel:asso.tel||"",contact:asso.contact||"",description:asso.description||"",lat:String(asso.lat||""),lng:String(asso.lng||"") });
   const [saving,setSaving]=useState(false);
   const set=k=>v=>setF(p=>({...p,[k]:v}));
   const save=async()=>{ setSaving(true); await db.updateAssociation(asso.slug,{...f,lat:parseFloat(f.lat)||null,lng:parseFloat(f.lng)||null}); onSave({...asso,...f}); setSaving(false); onClose(); };
@@ -880,8 +880,9 @@ const EditAssoModal = ({ asso, onSave, onClose }) => {
         <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Club"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/></div>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Zone" value={f.zone} onChange={set("zone")} placeholder="Côte Basque"/><Field label="Type" as="select" value={f.type} onChange={set("type")} options={TYPES.slice(0,3)}/></div>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="👑 Président" value={f.president} onChange={set("president")} placeholder="Jean Dupont"/><Field label="👤 Personne à contacter" value={f.contact_nom} onChange={set("contact_nom")} placeholder="Marie Martin"/></div>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Téléphone" value={f.tel} onChange={set("tel")} placeholder="06 XX"/><Field label="Contact / Réseaux" value={f.contact} onChange={set("contact")} placeholder="email ou lien"/></div>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Jours" value={f.jours} onChange={set("jours")} placeholder="Vendredi 20h"/><Field label="Lieu" value={f.lieu} onChange={set("lieu")} placeholder="Bar des Sports"/></div>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Téléphone" value={f.tel} onChange={set("tel")} placeholder="06 XX"/><Field label="Contact" value={f.contact} onChange={set("contact")} placeholder="email"/></div>
           <Field label="Description" value={f.description} onChange={set("description")} placeholder="Description…" as="textarea"/>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Latitude" value={f.lat} onChange={set("lat")} placeholder="43.49" type="number"/><Field label="Longitude" value={f.lng} onChange={set("lng")} placeholder="-1.47" type="number"/></div>
           <div style={{ display:"flex",gap:10 }}><Btn onClick={save} disabled={saving||!f.nom||!f.ville} style={{ flex:1 }}>{saving?"…":"💾 Sauvegarder"}</Btn><Btn onClick={onClose} variant="dark" style={{ flex:1 }}>Annuler</Btn></div>
@@ -3770,125 +3771,7 @@ const Associations = ({ associations, setPage, setAssoSlug }) => {
   );
 };
 
-// ── FORMULAIRE PRÉSIDENT — composant externe à AssoDetail pour éviter
-//    le démontage des inputs à chaque frappe (le re-render ne remonte pas dans AssoDetail) ──
-const PresidentForm = ({ asso }) => {
-  const [show, setShow]       = useState(false);
-  const [sent, setSent]       = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [form, setForm]       = useState({ prenom:"", nom:"", role:"Président", tel:"", message:"" });
-
-  const submit = async () => {
-    if (!form.nom || !form.prenom) return;
-    setLoading(true);
-    try {
-      await sb("propositions", {
-        method:"POST",
-        body: JSON.stringify({
-          type_prop: "president_club",
-          nom: `${form.prenom} ${form.nom}`,
-          ville: asso.ville,
-          commentaire: `Club: ${asso.nom}\nRôle: ${form.role}\nTél: ${form.tel}\n\n${form.message}`,
-          date: Date.now()
-        })
-      });
-      setSent(true);
-    } catch {}
-    setLoading(false);
-  };
-
-  return (
-    <div style={{ background:"linear-gradient(135deg,#7c3aed18,#f9731618)",
-      border:"1px solid #7c3aed44", borderRadius:16, padding:"20px", marginBottom:20 }}>
-      {!show && !sent && (
-        <>
-          <div style={{ display:"flex", gap:12, alignItems:"flex-start", marginBottom:14 }}>
-            <span style={{ fontSize:28 }}>👑</span>
-            <div>
-              <div style={{ fontWeight:800, fontSize:15, marginBottom:4 }}>Vous êtes président du club ?</div>
-              <div style={{ color:C.muted, fontSize:13, lineHeight:1.6 }}>
-                Demandez l'accès administrateur pour gérer votre association, publier des événements,
-                modérer le mur communautaire et personnaliser votre page.
-              </div>
-            </div>
-          </div>
-          <button onClick={() => setShow(true)}
-            style={{ background:"linear-gradient(135deg,#7c3aed,#f97316)", color:"#fff", border:"none",
-              borderRadius:12, padding:"11px 22px", fontWeight:700, fontSize:14, cursor:"pointer",
-              boxShadow:"0 4px 20px #7c3aed44", width:"100%", touchAction:"manipulation" }}>
-            🔥 Demander l'accès administrateur
-          </button>
-        </>
-      )}
-      {show && !sent && (
-        <div>
-          <div style={{ fontWeight:700, fontSize:15, marginBottom:16 }}>👑 Demande d'accès administrateur</div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
-            <div>
-              <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Prénom</label>
-              <input value={form.prenom} onChange={e => setForm(f => ({...f, prenom:e.target.value}))}
-                style={{ width:"100%",background:"#111",border:"1px solid #2a2a2a",borderRadius:8,
-                  padding:"9px 12px",color:"#f1f5f9",fontSize:13,boxSizing:"border-box" }}/>
-            </div>
-            <div>
-              <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Nom</label>
-              <input value={form.nom} onChange={e => setForm(f => ({...f, nom:e.target.value}))}
-                style={{ width:"100%",background:"#111",border:"1px solid #2a2a2a",borderRadius:8,
-                  padding:"9px 12px",color:"#f1f5f9",fontSize:13,boxSizing:"border-box" }}/>
-            </div>
-          </div>
-          <div style={{ marginBottom:10 }}>
-            <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Rôle dans le club</label>
-            <select value={form.role} onChange={e => setForm(f => ({...f, role:e.target.value}))}
-              style={{ width:"100%",background:"#111",border:"1px solid #2a2a2a",borderRadius:8,
-                padding:"9px 12px",color:"#f1f5f9",fontSize:13 }}>
-              {["Président","Vice-président","Secrétaire","Trésorier","Responsable communication","Autre"]
-                .map(r => <option key={r}>{r}</option>)}
-            </select>
-          </div>
-          <div style={{ marginBottom:10 }}>
-            <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Téléphone</label>
-            <input value={form.tel} onChange={e => setForm(f => ({...f, tel:e.target.value}))}
-              placeholder="06 …"
-              style={{ width:"100%",background:"#111",border:"1px solid #2a2a2a",borderRadius:8,
-                padding:"9px 12px",color:"#f1f5f9",fontSize:13,boxSizing:"border-box" }}/>
-          </div>
-          <div style={{ marginBottom:14 }}>
-            <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Message (optionnel)</label>
-            <textarea value={form.message} onChange={e => setForm(f => ({...f, message:e.target.value}))}
-              rows={3} placeholder="Présentez-vous…"
-              style={{ width:"100%",background:"#111",border:"1px solid #2a2a2a",borderRadius:8,
-                padding:"9px 12px",color:"#f1f5f9",fontSize:13,resize:"vertical",boxSizing:"border-box" }}/>
-          </div>
-          <div style={{ display:"flex", gap:10 }}>
-            <button onClick={() => setShow(false)}
-              style={{ flex:1,background:"#1a1a1a",color:"#94a3b8",border:"1px solid #2a2a2a",
-                borderRadius:10,padding:"10px 0",cursor:"pointer",fontSize:13,touchAction:"manipulation" }}>
-              Annuler
-            </button>
-            <button onClick={submit} disabled={!form.nom || !form.prenom || loading}
-              style={{ flex:2,background:"linear-gradient(135deg,#7c3aed,#f97316)",color:"#fff",border:"none",
-                borderRadius:10,padding:"10px 0",fontWeight:700,fontSize:14,cursor:"pointer",
-                opacity:(!form.nom||!form.prenom)?0.5:1,touchAction:"manipulation" }}>
-              {loading ? "⏳ Envoi…" : "🔥 Envoyer la demande"}
-            </button>
-          </div>
-        </div>
-      )}
-      {sent && (
-        <div style={{ textAlign:"center", padding:"8px 0" }}>
-          <div style={{ fontSize:36, marginBottom:10 }}>✅</div>
-          <div style={{ fontWeight:700, fontSize:15, marginBottom:6 }}>Demande envoyée !</div>
-          <div style={{ color:C.muted, fontSize:13 }}>
-            L'équipe Dart Point va examiner votre demande et vous contacter rapidement.
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, joueur }) => {
+const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBarSlug, isAdmin, joueur }) => {
   const asso = associations.find(a => a.slug === slug);
   if (!asso) return null;
 
@@ -3896,6 +3779,7 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
   const [membres, setMembres] = useState([]);
   const [loadMembres, setLoadMembres] = useState(true);
   const [events, setEvents] = useState([]);
+  const [editingAsso, setEditingAsso] = useState(false);
   useEffect(() => {
     sb(`joueurs?asso_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo,ville&limit=50`)
       .then(d => setMembres(Array.isArray(d) ? d : []))
@@ -3973,7 +3857,15 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
             🎯
           </div>
           <div style={{ flex:1, minWidth:0 }}>
-            <h1 style={{ fontWeight:900, fontSize:24, marginBottom:4, lineHeight:1.2 }}>{asso.nom}</h1>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
+              <h1 style={{ fontWeight:900, fontSize:24, lineHeight:1.2, margin:0, flex:1 }}>{asso.nom}</h1>
+              <button onClick={()=>setEditingAsso(true)}
+                style={{ background:"#ffffff14", border:"1px solid #ffffff22", borderRadius:8,
+                  padding:"5px 12px", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer",
+                  flexShrink:0, touchAction:"manipulation" }}>
+                ✏️ Modifier
+              </button>
+            </div>
             <div style={{ display:"flex", flexWrap:"wrap", gap:6, alignItems:"center", marginBottom:8 }}>
               <span style={{ color:C.muted, fontSize:13 }}>📍 {asso.ville}</span>
               {asso.zone && <span style={{ color:C.muted, fontSize:13 }}>· {asso.zone}</span>}
@@ -4015,7 +3907,6 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
   // ── TAB CLUB — JSX inline ──
   const tabClubJSX = (
     <div>
-      <PresidentForm asso={asso}/>
 
       {/* Description */}
       {asso.description && (
@@ -4028,11 +3919,13 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
       {/* Infos pratiques */}
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20,marginBottom:16 }}>
         <div style={{ fontWeight:700,fontSize:13,color:C.accent,marginBottom:14,letterSpacing:.5 }}>📋 INFORMATIONS PRATIQUES</div>
+        {renderContact("👑", "Président", asso.president)}
+        {renderContact("👤", "Personne à contacter", asso.contact_nom)}
+        {renderContact("📞", "Téléphone", asso.tel)}
         {renderContact("🗓", "Entraînements", asso.jours)}
         {renderContact("📍", "Lieu", asso.lieu)}
-        {renderContact("📞", "Téléphone", asso.tel)}
         {renderContact("🔗", "Contact / Réseaux", asso.contact)}
-        {!asso.jours && !asso.lieu && !asso.tel && !asso.contact && (
+        {!asso.president && !asso.contact_nom && !asso.jours && !asso.lieu && !asso.tel && !asso.contact && (
           <p style={{ color:C.muted,fontSize:13 }}>Aucune information pratique renseignée.</p>
         )}
         {asso.lat && (
@@ -4204,6 +4097,15 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
 
   return (
     <div style={{ maxWidth:860, margin:"0 auto", padding:"20px 16px 88px" }}>
+      {/* Modal édition */}
+      {editingAsso && (
+        <EditAssoModal
+          asso={asso}
+          onSave={u => { setAssociations(a => a.map(x => x.slug === u.slug ? {...x,...u} : x)); setEditingAsso(false); }}
+          onClose={() => setEditingAsso(false)}
+        />
+      )}
+
       {/* Retour */}
       <button onClick={() => window.history.back()}
         style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:20,fontSize:13,display:"flex",alignItems:"center",gap:6 }}>
@@ -6006,7 +5908,7 @@ export default function App() {
         {page==="bars"             && <Bars bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} villeFilter={villeFilter} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="bar"              && <BarDetail slug={barSlug} allBars={bars} associations={associations} setBars={setBars} setPage={nav} setAssoSlug={setAssoSlug} isAdmin={isAdmin} joueur={joueur} setJoueurId={setJoueurId}/>}
         {page==="associations"     && <Associations associations={associations} setPage={nav} setAssoSlug={setAssoSlug}/>}
-        {page==="asso"             && <AssoDetail slug={assoSlug} associations={associations} bars={bars} setPage={nav} setBarSlug={setBarSlug} isAdmin={isAdmin} joueur={joueur}/>}
+        {page==="asso"             && <AssoDetail slug={assoSlug} associations={associations} setAssociations={setAssociations} bars={bars} setPage={nav} setBarSlug={setBarSlug} isAdmin={isAdmin} joueur={joueur}/>}
         {page==="tournois"         && <Tournois tournois={tournois} setPage={nav} setTournoiSlug={setTournoiSlug}/>}
         {page==="tournoi-detail"   && <TournoiDetail slug={tournoiSlug} tournois={tournois} setTournois={setTournois} bars={bars} setPage={nav} setBarSlug={setBarSlug} joueur={joueur}/>}
         {page==="joueurs"          && <PageJoueurs joueur={joueur} setPage={nav} setJoueurId={setJoueurId}/>}
