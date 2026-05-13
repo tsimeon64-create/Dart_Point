@@ -3593,7 +3593,7 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
   },[bar]);
 
   if(loading) return <Spinner/>;
-  if(!bar) return <div style={{ maxWidth:860,margin:"0 auto",padding:"36px 20px",textAlign:"center" }}><Btn onClick={()=>setPage("bars")}>← Retour</Btn></div>;
+  if(!bar) return <div style={{ maxWidth:860,margin:"0 auto",padding:"36px 20px",textAlign:"center" }}><Btn onClick={()=>window.history.back()}>← Retour</Btn></div>;
 
   const asso=associations.find(a=>a.nom===bar.association);
   const ti=typeInfo(bar.type);
@@ -3618,7 +3618,7 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
             </div>
         }
         <div style={{ position:"absolute",inset:0,background:"linear-gradient(to bottom,rgba(0,0,0,.5) 0%,transparent 45%,rgba(15,15,15,.97) 100%)" }}/>
-        <button onClick={()=>setPage("bars")} style={{ position:"absolute",top:16,left:16,background:"rgba(0,0,0,.55)",border:"none",color:"#fff",cursor:"pointer",borderRadius:10,padding:"7px 14px",fontSize:13,backdropFilter:"blur(10px)",fontWeight:500 }}>← Bars</button>
+        <button onClick={()=>window.history.back()} style={{ position:"absolute",top:16,left:16,background:"rgba(0,0,0,.55)",border:"none",color:"#fff",cursor:"pointer",borderRadius:10,padding:"7px 14px",fontSize:13,backdropFilter:"blur(10px)",fontWeight:500 }}>← Retour</button>
         {isAdmin&&<button onClick={()=>setShowEdit(true)} style={{ position:"absolute",top:16,right:16,background:"rgba(0,0,0,.55)",border:`1px solid ${C.yellow}66`,color:C.yellow,cursor:"pointer",borderRadius:10,padding:"7px 13px",fontSize:12,backdropFilter:"blur(10px)" }}>✏️ Modifier</button>}
       </div>
 
@@ -4285,7 +4285,7 @@ const TournoiDetail = ({ slug, tournois, setTournois, bars, setPage, setBarSlug,
     <div style={{ maxWidth:860,margin:"0 auto",padding:"36px 20px" }}>
       {showEdit && <EditTournoiModal tournoi={t} onSave={u=>{setTournois(ts=>ts.map(x=>x.slug===u.slug?{...x,...u}:x));setShowEdit(false);}} onClose={()=>setShowEdit(false)}/>}
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:18 }}>
-        <button onClick={()=>setPage("tournois")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13 }}>← Retour</button>
+        <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13 }}>← Retour</button>
         {isCreateur && <Btn onClick={()=>setShowEdit(true)} style={{ fontSize:12,background:"transparent",border:`1px solid ${C.yellow}`,color:C.yellow,padding:"6px 14px" }}>✏️ Modifier le tournoi</Btn>}
       </div>
       <div style={{ display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:6 }}><h1 style={{ fontWeight:800,fontSize:28 }}>{t.nom}</h1><Badge color={isPast?C.muted:C.green}>{isPast?"Passé":"À venir"}</Badge></div>

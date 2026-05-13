@@ -976,7 +976,7 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
 
   return (
     <div style={{ maxWidth:860, margin:"0 auto", padding:"16px 16px 40px" }}>
-      <button onClick={()=>setPage("mon-profil")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour</button>
+      <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour</button>
 
       {/* Hero DRIX */}
       <div style={{ background:`linear-gradient(135deg,#1a0800,#1a1a2e)`,border:`2px solid ${drixColor}44`,borderRadius:16,padding:20,marginBottom:4,display:"flex",alignItems:"center",gap:16 }}>
@@ -1111,7 +1111,7 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
 // ── PAGE AMIS (nouvelle page) ──────────────────────────────────────────────────
 export const PageProfilAmis = ({ joueur, setPage }) => (
   <div style={{ maxWidth:860, margin:"0 auto", padding:"24px 20px" }}>
-    <button onClick={()=>setPage("mon-profil")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:20,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
+    <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:20,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
     <AmiSection joueur={joueur} setPage={setPage}/>
   </div>
 );
@@ -1141,7 +1141,7 @@ export const PageProfilHistorique = ({ joueur, setPage }) => {
 
   return (
     <div style={{ maxWidth:860, margin:"0 auto", padding:"16px 16px 40px" }}>
-      <button onClick={()=>setPage("mon-profil")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
+      <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
       <h1 style={{ fontWeight:900, fontSize:22, marginBottom:4 }}>📜 Historique</h1>
       <p style={{ color:CJ.muted, fontSize:13, marginBottom:20 }}>{termines.length} duel{termines.length>1?"s":""} terminé{termines.length>1?"s":""}</p>
       <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:18 }}>
@@ -1395,7 +1395,7 @@ export const PageProfilBadges = ({ joueur, setPage }) => {
 
   return (
     <div style={{ maxWidth:600, margin:"0 auto", padding:"16px 16px 40px" }}>
-      <button onClick={()=>setPage("mon-profil")} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
+      <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
       <h1 style={{ fontWeight:900, fontSize:22, marginBottom:4 }}>🏅 Mes badges</h1>
       <p style={{ color:CJ.muted, fontSize:13, marginBottom:24 }}>{totalUnlocked} / {ALL_BADGES.length} débloqués</p>
 
@@ -2084,7 +2084,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
     <div style={{maxWidth:480,margin:"0 auto",padding:"16px 16px 80px",background:CJ.bg,minHeight:"100vh"}}>
 
       {/* ── Retour ── */}
-      <button onClick={()=>setPage("joueurs")} style={{background:"none",border:"none",color:CJ.muted,cursor:"pointer",marginBottom:14,fontSize:13,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation"}}>← Retour</button>
+      <button onClick={()=>window.history.back()} style={{background:"none",border:"none",color:CJ.muted,cursor:"pointer",marginBottom:14,fontSize:13,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation"}}>← Retour</button>
 
       {/* ── HEADER ── */}
       <div style={{...card,marginBottom:10}}>

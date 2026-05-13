@@ -574,7 +574,7 @@ const MenuRush = ({ onStart, setPage }) => {
   return (
     <div style={{position:"fixed",inset:0,background:C.bg,display:"flex",flexDirection:"column",zIndex:200}}>
       <div style={{background:C.card,borderBottom:`1px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-        <button onClick={()=>setPage("jeux")} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0}}>← Retour</button>
+        <button onClick={()=>window.history.back()} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0}}>← Retour</button>
         <div style={{flex:1,fontWeight:800,fontSize:16,color:C.accent}}>⚡ Rush Mode</div>
       </div>
 

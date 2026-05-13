@@ -705,7 +705,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       {/* Header */}
       <div style={{marginBottom:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-          <button onClick={()=>setPage("tournois-potes")} style={{background:"none",border:"none",color:CT.muted,cursor:"pointer",fontSize:13,padding:0}}>← Retour</button>
+          <button onClick={()=>window.history.back()} style={{background:"none",border:"none",color:CT.muted,cursor:"pointer",fontSize:13,padding:0}}>← Retour</button>
           {isCreateur&&tournoi.statut!=="termine"&&(
             <button onClick={supprimerTournoi} style={{background:"none",border:`1px solid ${CT.red}44`,color:CT.red,cursor:"pointer",fontSize:12,padding:"5px 12px",borderRadius:8,fontWeight:600}}>🗑 Supprimer</button>
           )}
