@@ -4732,14 +4732,16 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
             }
           } catch {}
           setDuel({ ...d, challenger_drix: drix1, defie_drix: drix2 });
-          const K   = 32 * Math.max(1, d.manches || 1);
-          const EA1 = 1 / (1 + Math.pow(10, (drix2 - drix1) / 400)); // P(challenger gagne)
-          const EA2 = 1 - EA1;                                         // P(défié gagne)
-          // gain = K × P(adversaire gagnait) | perte = K × P(soi-même gagnait)
-          setDrixData({
-            challenger: { gain: Math.round(K * EA2), perte: Math.round(K * EA1) },
-            defie:      { gain: Math.round(K * EA1), perte: Math.round(K * EA2) },
-          });
+          // Partie amicale → pas de DRIX affiché
+          if (d.type !== "amical") {
+            const K   = 32 * Math.max(1, d.manches || 1);
+            const EA1 = 1 / (1 + Math.pow(10, (drix2 - drix1) / 400)); // P(challenger gagne)
+            const EA2 = 1 - EA1;                                         // P(défié gagne)
+            setDrixData({
+              challenger: { gain: Math.round(K * EA2), perte: Math.round(K * EA1) },
+              defie:      { gain: Math.round(K * EA1), perte: Math.round(K * EA2) },
+            });
+          }
         }
         setLoading(false);
       })

@@ -2795,6 +2795,8 @@ const dbDrix = {
 };
 
 export const appliquerDrixDuel = async (duel) => {
+  // Partie amicale → aucune variation DRIX
+  if (duel.type === "amical") return;
   try {
     const [jC, jD] = await Promise.all([dbJ.getJoueur(duel.challenger_id), dbJ.getJoueur(duel.defie_id)]);
     if (!jC || !jD) return;

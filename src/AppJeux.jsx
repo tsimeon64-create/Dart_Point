@@ -143,34 +143,50 @@ const FinScreen = ({ gagnant, duel, drixData, modeDuel, moyenne, demarrer, quitt
         </div>
       </div>
 
-      {/* Carte DRIX */}
+      {/* Carte résultat duel */}
       {modeDuel && (
         <div style={{
-          background:"#0f1a0f",border:"2px solid #22c55e44",borderRadius:14,padding:20,marginBottom:16,
+          background: duel?.type==="amical" ? "#0f0f1a" : "#0f1a0f",
+          border: `2px solid ${duel?.type==="amical" ? "#7c3aed44" : "#22c55e44"}`,
+          borderRadius:14, padding:20, marginBottom:16,
           transform: drixShow ? "translateY(0)" : "translateY(30px)",
           opacity: drixShow ? 1 : 0,
           transition: "transform 0.5s ease, opacity 0.4s ease",
         }}>
-          <p style={{ fontWeight:700,fontSize:15,color:"#22c55e",marginBottom:12,textAlign:"center" }}>✅ Résultat enregistré !</p>
-          {drixData && drixShow && (
-            <div style={{ display:"flex",gap:10,marginBottom:12 }}>
-              <div style={{ flex:1,background:"#14532d",borderRadius:12,padding:"12px 10px",textAlign:"center" }}>
-                <div style={{ fontSize:11,color:"#86efac",marginBottom:4 }}>🏆 {gagnant?.nom}</div>
-                <div style={{ fontWeight:900,fontSize:28,color:"#22c55e" }}>
-                  +<AnimCount target={dxGagnant?.gain||0} duration={1200}/>
-                </div>
-                <div style={{ fontSize:10,color:"#86efac" }}>DRIX gagnés</div>
+          {duel?.type === "amical" ? (
+            <>
+              <p style={{ fontWeight:700,fontSize:15,color:"#a78bfa",marginBottom:8,textAlign:"center" }}>✅ Résultat enregistré !</p>
+              <div style={{ background:"#1a0f2e",borderRadius:10,padding:"12px 16px",textAlign:"center",marginBottom:8 }}>
+                <span style={{ fontSize:22 }}>🤝</span>
+                <p style={{ color:"#c4b5fd",fontWeight:700,fontSize:14,margin:"6px 0 2px" }}>Partie amicale</p>
+                <p style={{ color:"#94a3b8",fontSize:12 }}>Les DRIX ne sont pas affectés</p>
               </div>
-              <div style={{ flex:1,background:"#7f1d1d",borderRadius:12,padding:"12px 10px",textAlign:"center" }}>
-                <div style={{ fontSize:11,color:"#fca5a5",marginBottom:4 }}>💔 {perdantNom}</div>
-                <div style={{ fontWeight:900,fontSize:28,color:"#ef4444" }}>
-                  −<AnimCount target={dxPerdant?.perte||0} duration={1200}/>
+              <p style={{ color:"#94a3b8",fontSize:12,textAlign:"center" }}>L'adversaire peut contester dans les 24h s'il n'était pas présent.</p>
+            </>
+          ) : (
+            <>
+              <p style={{ fontWeight:700,fontSize:15,color:"#22c55e",marginBottom:12,textAlign:"center" }}>✅ Résultat enregistré !</p>
+              {drixData && drixShow && (
+                <div style={{ display:"flex",gap:10,marginBottom:12 }}>
+                  <div style={{ flex:1,background:"#14532d",borderRadius:12,padding:"12px 10px",textAlign:"center" }}>
+                    <div style={{ fontSize:11,color:"#86efac",marginBottom:4 }}>🏆 {gagnant?.nom}</div>
+                    <div style={{ fontWeight:900,fontSize:28,color:"#22c55e" }}>
+                      +<AnimCount target={dxGagnant?.gain||0} duration={1200}/>
+                    </div>
+                    <div style={{ fontSize:10,color:"#86efac" }}>DRIX gagnés</div>
+                  </div>
+                  <div style={{ flex:1,background:"#7f1d1d",borderRadius:12,padding:"12px 10px",textAlign:"center" }}>
+                    <div style={{ fontSize:11,color:"#fca5a5",marginBottom:4 }}>💔 {perdantNom}</div>
+                    <div style={{ fontWeight:900,fontSize:28,color:"#ef4444" }}>
+                      −<AnimCount target={dxPerdant?.perte||0} duration={1200}/>
+                    </div>
+                    <div style={{ fontSize:10,color:"#fca5a5" }}>DRIX perdus</div>
+                  </div>
                 </div>
-                <div style={{ fontSize:10,color:"#fca5a5" }}>DRIX perdus</div>
-              </div>
-            </div>
+              )}
+              <p style={{ color:"#94a3b8",fontSize:12,textAlign:"center" }}>L'adversaire peut contester dans les 24h s'il n'était pas présent.</p>
+            </>
           )}
-          <p style={{ color:"#94a3b8",fontSize:12,textAlign:"center" }}>L'adversaire peut contester dans les 24h s'il n'était pas présent.</p>
         </div>
       )}
 
