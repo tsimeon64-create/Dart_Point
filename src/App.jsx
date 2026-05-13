@@ -379,18 +379,12 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
             {joueur ? (
               <div style={{ position:"relative" }} data-pdrop>
                 <button className="dp-topbtn" data-pdrop onClick={()=>setProfileOpen(o=>!o)}
-                  style={{ background: profileOpen ? "#f9731614" : "#0f0f18", border:`1px solid ${profileOpen?"#f9731655":"#1e1e2e"}`, cursor:"pointer", padding:"5px 8px 5px 5px", borderRadius:11, display:"flex", alignItems:"center", gap:7, transition:"all .2s", touchAction:"manipulation", maxWidth:160,
+                  style={{ background: profileOpen ? "#f9731614" : "#0f0f18", border:`1px solid ${profileOpen?"#f9731655":"#1e1e2e"}`, cursor:"pointer", padding:"6px 10px 6px 8px", borderRadius:11, display:"flex", alignItems:"center", gap:6, transition:"all .2s", touchAction:"manipulation",
                     boxShadow: profileOpen ? "0 0 16px #f9731628" : "none" }}>
-                  {/* Avatar */}
-                  <div style={{ position:"relative", flexShrink:0 }}>
-                    <div style={{ width:30, height:30, borderRadius:"50%", background:`linear-gradient(135deg,${drixColor}44,#141428)`, border:`2px solid ${drixColor}66`, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>
-                      {joueur.photo ? <img src={joueur.photo} style={{ width:"100%",height:"100%",objectFit:"cover" }} alt=""/> : "👤"}
-                    </div>
-                    {/* Dot statut */}
-                    <div style={{ position:"absolute", bottom:-1, right:-1, width:9, height:9, borderRadius:"50%", background:playerStatus.color, border:"1.5px solid #08080d", boxShadow:`0 0 6px ${playerStatus.color}` }}/>
-                  </div>
+                  {/* Dot statut */}
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:playerStatus.color, boxShadow:`0 0 6px ${playerStatus.color}`, flexShrink:0 }}/>
                   {/* Infos */}
-                  <div style={{ minWidth:0, flex:1 }}>
+                  <div style={{ minWidth:0 }}>
                     <div style={{ fontWeight:700, fontSize:12, color:"#f1f5f9", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", lineHeight:1.2 }}>{joueur.pseudo}</div>
                     <div style={{ fontSize:10, color:drixColor, fontWeight:600, lineHeight:1.2, display:"flex", alignItems:"center", gap:3 }}>
                       <span>{drixEmoji}</span><span>{drixTitre}</span>
