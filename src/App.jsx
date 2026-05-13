@@ -477,7 +477,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
         {/* ── Live ticker ──────────────────────────────────────────── */}
         <div style={{ borderTop:"1px solid #f9731612", height:22, overflow:"hidden", background:"rgba(249,115,22,0.03)", position:"relative" }}>
           <div style={{ display:"flex", alignItems:"center", height:"100%", whiteSpace:"nowrap", animation:"dp-ticker 28s linear infinite" }}>
-            {[tickerText, tickerText].map((t,i) => (
+            {[tickerItems, tickerItems].map((t,i) => (
               <span key={i} style={{ fontSize:10, color:"#4a5568", fontWeight:600, letterSpacing:.3, padding:"0 40px" }}>
                 {t.split("   ·   ").map((item,j) => (
                   <span key={j}>
