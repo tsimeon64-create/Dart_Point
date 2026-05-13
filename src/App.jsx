@@ -4594,20 +4594,39 @@ const ProposerTournoi = ({ onSubmit, joueur, onCreated }) => {
 
 // ── À PROPOS & CONTACT ────────────────────────────────────────────────────────
 const APropos = ({ bars, setPage }) => (
-  <div style={{ maxWidth:760,margin:"0 auto",padding:"36px 20px" }}>
-    <h1 style={{ fontWeight:800,fontSize:28,marginBottom:32 }}>ℹ️ À propos de DartPoint</h1>
-    {[["🎯","Notre mission","DartPoint est né d'un constat simple : trouver un bar où jouer aux fléchettes relevait du bouche-à-oreille. Nous avons créé le premier annuaire dédié, pensé par et pour les joueurs."],
-      ["🗺️","Comment ça marche ?","Chaque bar est vérifié par notre équipe ou signalé par la communauté. Les fiches contiennent infos pratiques, équipement, associations, avis et photos."],
-      ["🤝","Une plateforme communautaire","Inscrivez-vous, affiliez-vous à un bar, défiez des joueurs, signalez votre présence ce soir !"],
-      ["🏆","Associations et tournois","Les clubs sont au cœur du projet. Nous valorisons leurs tournois et événements locaux."]
-    ].map(([e,t,tx])=>(
-      <div key={t} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:22,marginBottom:14 }}>
-        <h2 style={{ fontWeight:700,fontSize:17,marginBottom:10 }}>{e} {t}</h2>
-        <p style={{ color:C.muted,lineHeight:1.8,fontSize:14 }}>{tx}</p>
+  <div style={{ maxWidth:680,margin:"0 auto",padding:"36px 20px 60px" }}>
+    <h1 style={{ fontWeight:800,fontSize:26,marginBottom:8 }}>ℹ️ À propos de DartPoint</h1>
+    <p style={{ color:C.muted,fontSize:14,marginBottom:28 }}>Tout ce qu'il faut savoir pour bien démarrer.</p>
+
+    {/* ── Guide DartPoint (sections onboarding) ── */}
+    {ONBOARDING_SECTIONS.map((s,i)=>(
+      <div key={i} style={{
+        marginBottom:14, borderRadius:16,
+        background: s.highlight
+          ? `linear-gradient(135deg,${s.accent}14,#12120a)`
+          : `linear-gradient(135deg,#111118,#0d0d14)`,
+        border:`1px solid ${s.accent}${s.highlight?"44":"25"}`,
+        padding:"18px 16px",
+        boxShadow: s.highlight ? `0 0 28px ${s.accent}10` : "none",
+      }}>
+        <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:10 }}>
+          <div style={{ width:44,height:44,borderRadius:13,background:`${s.accent}18`,border:`1px solid ${s.accent}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,flexShrink:0 }}>
+            {s.emoji}
+          </div>
+          <h2 style={{ fontWeight:800,fontSize:16,color:"#f1f5f9",margin:0,lineHeight:1.3 }}>{s.title}</h2>
+        </div>
+        <p style={{ color:"#94a3b8",fontSize:13.5,lineHeight:1.75,margin:0,marginBottom:s.sub?10:0 }}>{s.body}</p>
+        {s.sub&&(
+          <div style={{ marginTop:10,background:`${s.accent}12`,border:`1px solid ${s.accent}30`,borderRadius:10,padding:"8px 13px",fontSize:12.5,fontWeight:700,color:s.accent }}>
+            {s.sub}
+          </div>
+        )}
       </div>
     ))}
-    <div style={{ background:"linear-gradient(135deg,#1a0800,#111)",border:`1px solid ${C.accent}44`,borderRadius:12,padding:24,textAlign:"center" }}>
-      <p style={{ fontWeight:700,fontSize:16,marginBottom:16 }}>{bars.length} bars · {bars.filter(b=>b.verifie).length} vérifiés</p>
+
+    {/* ── Bloc infos + CTA ── */}
+    <div style={{ background:"linear-gradient(135deg,#1a0800,#111)",border:`1px solid ${C.accent}44`,borderRadius:14,padding:22,textAlign:"center",marginTop:8 }}>
+      <p style={{ fontWeight:700,fontSize:15,marginBottom:16,color:C.text }}>{bars.length} bars référencés · {bars.filter(b=>b.verifie).length} vérifiés</p>
       <div style={{ display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap" }}>
         <Btn onClick={()=>setPage("proposer")} style={{ fontSize:13 }}>Proposer un bar</Btn>
         <Btn onClick={()=>setPage("contact")} variant="ghost" style={{ fontSize:13 }}>Nous contacter</Btn>
