@@ -677,7 +677,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
             </div>
             <button onClick={()=>nouveauFinish()}
               style={{ width:"100%",background:`linear-gradient(135deg,${C.accent},#ea580c)`,color:"#fff",border:"none",borderRadius:10,padding:"13px",fontWeight:900,fontSize:15,cursor:"pointer" }}>
-              ⚡ Continuer →
+              🔄 Rejouer
             </button>
             <button onClick={()=>setPage("entrainement-finish")}
               style={{ width:"100%",background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px",fontWeight:600,fontSize:13,cursor:"pointer" }}>
