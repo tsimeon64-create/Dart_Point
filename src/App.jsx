@@ -1156,7 +1156,7 @@ const EditTournoiModal = ({ tournoi, onSave, onClose }) => {
 };
 
 // ── HELP MODAL (bottom-sheet, déclenché depuis App globalement) ───────────────
-const HelpModal = ({ emoji="📖", title, items=[], onClose }) => (
+const HelpModal = ({ emoji="📖", title, items=[], visual=null, onClose }) => (
   <div onClick={onClose} style={{ position:"fixed", inset:0, background:"#000000cc", zIndex:2000, display:"flex", alignItems:"flex-end" }}>
     <div onClick={e=>e.stopPropagation()} style={{
       width:"100%", background:"#0b0b16",
@@ -1174,6 +1174,7 @@ const HelpModal = ({ emoji="📖", title, items=[], onClose }) => (
         </div>
         <button onClick={onClose} style={{ background:"none", border:"none", color:"#4b5563", fontSize:22, cursor:"pointer", lineHeight:1 }}>✕</button>
       </div>
+      {visual && <div style={{ padding:"0 16px 14px" }}>{visual}</div>}
       <div style={{ padding:"0 16px" }}>
         {items.map((it,i)=>(
           <div key={i} style={{ marginBottom:10, borderRadius:14, background:"linear-gradient(135deg,#111120,#0c0c18)", border:"1px solid #1e1e2e", padding:"14px 16px" }}>
@@ -6155,14 +6156,19 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
 };
 
 // ── FOOTER ────────────────────────────────────────────────────────────────────
-const Footer = ({ setPage }) => (
+const Footer = ({ setPage, onOpenHelp }) => (
   <footer style={{ background:"#111",borderTop:`1px solid ${C.border}`,padding:"24px 20px",marginTop:40 }}>
     <div style={{ maxWidth:1100,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12 }}>
       <div><div style={{ fontWeight:800,fontSize:16,color:C.accent,marginBottom:2 }}>🎯 DartPoint</div><p style={{ color:C.muted,fontSize:12 }}>Le guide des bars à fléchettes en France</p></div>
-      <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
+      <div style={{ display:"flex",gap:12,flexWrap:"wrap",alignItems:"center" }}>
       {[["bars","Bars"],["associations","Assos"],["tournois","Tournois"],["joueurs","Joueurs"],["drix","DRIX"],["scoreur","Scoreur"],["jeux","Jeux"],["proposer","Proposer"],["apropos","À propos"],["contact","Contact"],["mentions","Mentions légales"]].map(([p,l])=>(
           <button key={p} onClick={()=>setPage(p)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:12 }}>{l}</button>
         ))}
+        {onOpenHelp && (
+          <button onClick={onOpenHelp} style={{ background:"none",border:"1px solid #2a2a3a",borderRadius:8,color:"#6b7280",cursor:"pointer",fontSize:12,padding:"3px 10px",display:"flex",alignItems:"center",gap:5,touchAction:"manipulation" }}>
+            <span style={{ fontSize:13 }}>📋</span> Notice / Aide
+          </button>
+        )}
         <button onClick={()=>setPage("adminlogin")} style={{ background:"none",border:"none",color:"#3a3a3a",cursor:"pointer",fontSize:11 }}>⚙</button>
       </div>
     </div>
@@ -6371,6 +6377,141 @@ const HELP_CONTENT = {
     {icon:"❤️",label:"Likes & commentaires",text:"Tu peux liker et commenter les posts et résultats de tes amis directement depuis le fil."},
     {icon:"🍺",label:"Présences",text:"Quand un ami signale sa présence dans un bar, ça apparaît dans le fil. Clique pour voir la fiche du bar."},
   ]},
+  drix: {
+    emoji:"💎", title:"Classement DRIX",
+    visual: (
+      <div style={{ borderRadius:16, background:"linear-gradient(135deg,#0e0e1e,#0a0a14)", border:"1px solid #1e1e35", padding:"14px 12px" }}>
+        {/* Explication ELO — duel visuel */}
+        <p style={{ color:"#94a3b8", fontSize:11, fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:10 }}>Comment les points évoluent ?</p>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-around", marginBottom:14 }}>
+          {/* Joueur A */}
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontSize:28, marginBottom:4 }}>🎯</div>
+            <div style={{ fontWeight:800, fontSize:13, color:"#f1f5f9" }}>Toi</div>
+            <div style={{ fontSize:12, color:"#a78bfa", fontWeight:700 }}>1 200 pts</div>
+            <div style={{ fontSize:10, color:"#94a3b8" }}>Confirmé</div>
+          </div>
+          {/* Flèches duel */}
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontSize:18 }}>⚔️</div>
+            <div style={{ fontSize:9, color:"#4b5572", marginTop:2 }}>DUEL CLASSÉ</div>
+          </div>
+          {/* Joueur B */}
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontSize:28, marginBottom:4 }}>🎯</div>
+            <div style={{ fontWeight:800, fontSize:13, color:"#f1f5f9" }}>Adversaire</div>
+            <div style={{ fontSize:12, color:"#60a5fa", fontWeight:700 }}>1 450 pts</div>
+            <div style={{ fontSize:10, color:"#94a3b8" }}>Expert</div>
+          </div>
+        </div>
+        {/* Résultats possibles */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
+          <div style={{ borderRadius:10, background:"#0d1f0d", border:"1px solid #166534", padding:"10px 12px" }}>
+            <div style={{ fontSize:11, fontWeight:700, color:"#22c55e", marginBottom:4 }}>✅ Tu gagnes</div>
+            <div style={{ fontSize:13, color:"#f1f5f9", fontWeight:800 }}>+32 pts DRIX</div>
+            <div style={{ fontSize:10, color:"#4b7c4b", marginTop:2 }}>Adversaire fort → gros gain</div>
+          </div>
+          <div style={{ borderRadius:10, background:"#1f0d0d", border:"1px solid #7f1d1d", padding:"10px 12px" }}>
+            <div style={{ fontSize:11, fontWeight:700, color:"#ef4444", marginBottom:4 }}>❌ Tu perds</div>
+            <div style={{ fontSize:13, color:"#f1f5f9", fontWeight:800 }}>−12 pts DRIX</div>
+            <div style={{ fontSize:10, color:"#7c4b4b", marginTop:2 }}>Adversaire fort → petite perte</div>
+          </div>
+        </div>
+        {/* Échelle des rangs */}
+        <p style={{ color:"#94a3b8", fontSize:11, fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:8 }}>Échelle des rangs</p>
+        <svg width="100%" height="36" viewBox="0 0 300 36" style={{ display:"block" }}>
+          <defs>
+            <linearGradient id="hc-ranks" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#60a5fa"/>
+              <stop offset="25%" stopColor="#22c55e"/>
+              <stop offset="50%" stopColor="#f59e0b"/>
+              <stop offset="75%" stopColor="#f97316"/>
+              <stop offset="100%" stopColor="#a78bfa"/>
+            </linearGradient>
+          </defs>
+          <rect x="2" y="14" width="296" height="8" rx="4" fill="url(#hc-ranks)" opacity="0.7"/>
+          {[["Déb.",0],["Ama.",75],["Conf.",150],["Exp.",225],["Élite",285]].map(([lbl,x],i)=>(
+            <g key={i}>
+              <circle cx={x===285?295:x+10} cy="18" r="5" fill={["#60a5fa","#22c55e","#f59e0b","#f97316","#a78bfa"][i]}/>
+              <text x={x===285?295:x+10} y="34" textAnchor="middle" fontSize="7" fill="#94a3b8">{lbl}</text>
+            </g>
+          ))}
+        </svg>
+      </div>
+    ),
+    items:[
+      {icon:"💎",label:"Qu'est-ce que le DRIX ?",text:"Le DRIX est un classement ELO adapté aux fléchettes physiques. Chaque joueur commence à 1 000 points et évolue selon ses duels."},
+      {icon:"⚖️",label:"Calcul des points",text:"Battre un joueur plus fort que toi rapporte beaucoup de points. Perdre contre un joueur plus faible en coûte beaucoup. L'écart entre vos DRIX détermine les gains/pertes."},
+      {icon:"🏅",label:"Les 5 rangs",text:"Débutant (< 1 000) → Amateur (1 000–1 200) → Confirmé (1 200–1 500) → Expert (1 500–1 800) → Élite (> 1 800). Chaque rang a son badge."},
+      {icon:"📊",label:"Historique DRIX",text:"Depuis ton profil, l'onglet DRIX affiche l'évolution de ton score duel par duel, ton meilleur score et ta série en cours."},
+      {icon:"⚔️",label:"Duel classé vs amical",text:"Seuls les duels 'Classés' affectent le DRIX. Un duel 'Amical' te permet de jouer sans pression, sans modifier ton classement."},
+    ],
+  },
+  "mon-profil": {
+    emoji:"👤", title:"Mon Profil",
+    visual: (
+      <div style={{ borderRadius:16, background:"linear-gradient(135deg,#0e0e1e,#0a0a14)", border:"1px solid #1e1e35", padding:"14px 12px" }}>
+        <p style={{ color:"#94a3b8", fontSize:11, fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:10 }}>Ta dangerosité</p>
+        <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:14 }}>
+          {/* Jauge circulaire dangerosité */}
+          <svg width="90" height="90" viewBox="0 0 90 90" style={{ flexShrink:0 }}>
+            <defs>
+              <linearGradient id="hc-danger" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#f97316"/>
+                <stop offset="100%" stopColor="#ef4444"/>
+              </linearGradient>
+            </defs>
+            <circle cx="45" cy="45" r="36" fill="none" stroke="#1e1e2e" strokeWidth="10"/>
+            <circle cx="45" cy="45" r="36" fill="none" stroke="url(#hc-danger)" strokeWidth="10"
+              strokeLinecap="round"
+              strokeDasharray={`${2*Math.PI*36*0.72} ${2*Math.PI*36*(1-0.72)}`}
+              strokeDashoffset={2*Math.PI*36*0.25}
+              transform="rotate(-90 45 45)"/>
+            <text x="45" y="44" textAnchor="middle" fontSize="14" fontWeight="800" fill="#f97316">72%</text>
+            <text x="45" y="57" textAnchor="middle" fontSize="8" fill="#94a3b8">Danger</text>
+          </svg>
+          <div style={{ flex:1 }}>
+            <div style={{ marginBottom:8 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                <span style={{ fontSize:11, color:"#94a3b8" }}>Taux victoire</span>
+                <span style={{ fontSize:11, color:"#22c55e", fontWeight:700 }}>61%</span>
+              </div>
+              <div style={{ height:5, borderRadius:3, background:"#1e1e2e" }}>
+                <div style={{ height:"100%", width:"61%", borderRadius:3, background:"#22c55e" }}/>
+              </div>
+            </div>
+            <div>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                <span style={{ fontSize:11, color:"#94a3b8" }}>DRIX</span>
+                <span style={{ fontSize:11, color:"#a78bfa", fontWeight:700 }}>1 340</span>
+              </div>
+              <div style={{ height:5, borderRadius:3, background:"#1e1e2e" }}>
+                <div style={{ height:"100%", width:"67%", borderRadius:3, background:"#a78bfa" }}/>
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* Onglets du profil */}
+        <p style={{ color:"#94a3b8", fontSize:11, fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:8 }}>Les onglets de ton profil</p>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+          {[["📊","Stats","Tes moyennes, MPR, PPR et évolution"],["👥","Amis","Amis, demandes et joueurs proches"],["🏅","Badges","Tes trophées débloqués"],["📜","Historique","Tous tes duels et résultats"]].map(([ic,lbl,desc],i)=>(
+            <div key={i} style={{ borderRadius:10, background:"#111120", border:"1px solid #1e1e2e", padding:"8px 10px" }}>
+              <div style={{ fontSize:14, marginBottom:3 }}>{ic} <span style={{ fontWeight:700, fontSize:11, color:"#f97316" }}>{lbl}</span></div>
+              <div style={{ fontSize:9, color:"#64748b", lineHeight:1.5 }}>{desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+    items:[
+      {icon:"📊",label:"Onglet Stats",text:"Tes statistiques détaillées : moyenne par volée, MPR (Marks Per Round), PPR, finishes réussis, séries en cours et meilleures performances."},
+      {icon:"🔥",label:"Dangerosité",text:"La dangerosité est un score entre 0 et 100% calculé à partir de ton DRIX, ton taux de victoire et ta régularité. Plus tu es dangereux, plus tes adversaires gagnent à te battre."},
+      {icon:"👥",label:"Onglet Amis",text:"Ajoute des amis pour les défier, voir leur activité dans le fil et comparer vos stats. Les demandes en attente apparaissent en haut."},
+      {icon:"🏅",label:"Onglet Badges",text:"Chaque badge correspond à un exploit (première victoire, série de 5 victoires, 100 duels joués…). Certains badges sont rares et difficiles à obtenir."},
+      {icon:"📜",label:"Onglet Historique",text:"Retrouve tous tes duels avec le résultat, l'adversaire, la date et l'évolution de ton DRIX. Filtre par mode de jeu ou par mois."},
+      {icon:"✏️",label:"Modifier ton profil",text:"Clique sur ✏️ Modifier pour mettre à jour ta pseudo, ta ville, ton bar affilié et ta photo. Ces infos sont visibles par tous les membres."},
+    ],
+  },
 };
 
 export default function App() {
@@ -6636,15 +6777,6 @@ export default function App() {
 .leaflet-popup-content { color:#111 !important; -webkit-text-fill-color:#111 !important; }
 .leaflet-popup-tip { background:#fff !important; }
       `}</style>
-      {/* ── Notice / Aide — barre fixe bas ── */}
-      {HELP_CONTENT[page] && (
-        <div style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:450, background:"#080812", borderTop:"1px solid #1a1a28", display:"flex", justifyContent:"center", padding:"6px 0 max(10px, env(safe-area-inset-bottom))" }}>
-          <button onClick={()=>setHelpOpen(true)} style={{ background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"4px 16px", touchAction:"manipulation" }}>
-            <span style={{ fontSize:16 }}>📋</span>
-            <span style={{ fontSize:10, fontWeight:700, color:"#4b5572", letterSpacing:.5 }}>NOTICE / AIDE</span>
-          </button>
-        </div>
-      )}
       {/* ── Help modal ── */}
       {helpOpen && HELP_CONTENT[page] && (
         <HelpModal {...HELP_CONTENT[page]} onClose={()=>setHelpOpen(false)}/>
@@ -6734,7 +6866,7 @@ export default function App() {
         {page==="adminlogin"       && <AdminLogin onLogin={()=>{setIsAdmin(true);nav("admin");}}/>}
         {page==="admin"            && (isAdmin?<Admin bars={bars} setBars={setBars} associations={associations} setAssociations={setAssociations} tournois={tournois} setTournois={setTournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug}/>:<AdminLogin onLogin={()=>{setIsAdmin(true);nav("admin");}}/>)}
       </main>
-      <Footer setPage={nav}/>
+      <Footer setPage={nav} onOpenHelp={HELP_CONTENT[page] ? ()=>setHelpOpen(true) : null}/>
     </div>
   );
 }
