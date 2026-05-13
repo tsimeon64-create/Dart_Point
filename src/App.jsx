@@ -3773,6 +3773,124 @@ const Associations = ({ associations, setPage, setAssoSlug }) => {
   );
 };
 
+// ── FORMULAIRE PRÉSIDENT — composant externe à AssoDetail pour éviter
+//    le démontage des inputs à chaque frappe (le re-render ne remonte pas dans AssoDetail) ──
+const PresidentForm = ({ asso }) => {
+  const [show, setShow]       = useState(false);
+  const [sent, setSent]       = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [form, setForm]       = useState({ prenom:"", nom:"", role:"Président", tel:"", message:"" });
+
+  const submit = async () => {
+    if (!form.nom || !form.prenom) return;
+    setLoading(true);
+    try {
+      await sb("propositions", {
+        method:"POST",
+        body: JSON.stringify({
+          type_prop: "president_club",
+          nom: `${form.prenom} ${form.nom}`,
+          ville: asso.ville,
+          commentaire: `Club: ${asso.nom}\nRôle: ${form.role}\nTél: ${form.tel}\n\n${form.message}`,
+          date: Date.now()
+        })
+      });
+      setSent(true);
+    } catch {}
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ background:"linear-gradient(135deg,#7c3aed18,#f9731618)",
+      border:"1px solid #7c3aed44", borderRadius:16, padding:"20px", marginBottom:20 }}>
+      {!show && !sent && (
+        <>
+          <div style={{ display:"flex", gap:12, alignItems:"flex-start", marginBottom:14 }}>
+            <span style={{ fontSize:28 }}>👑</span>
+            <div>
+              <div style={{ fontWeight:800, fontSize:15, marginBottom:4 }}>Vous êtes président du club ?</div>
+              <div style={{ color:C.muted, fontSize:13, lineHeight:1.6 }}>
+                Demandez l'accès administrateur pour gérer votre association, publier des événements,
+                modérer le mur communautaire et personnaliser votre page.
+              </div>
+            </div>
+          </div>
+          <button onClick={() => setShow(true)}
+            style={{ background:"linear-gradient(135deg,#7c3aed,#f97316)", color:"#fff", border:"none",
+              borderRadius:12, padding:"11px 22px", fontWeight:700, fontSize:14, cursor:"pointer",
+              boxShadow:"0 4px 20px #7c3aed44", width:"100%", touchAction:"manipulation" }}>
+            🔥 Demander l'accès administrateur
+          </button>
+        </>
+      )}
+      {show && !sent && (
+        <div>
+          <div style={{ fontWeight:700, fontSize:15, marginBottom:16 }}>👑 Demande d'accès administrateur</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+            <div>
+              <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Prénom</label>
+              <input value={form.prenom} onChange={e => setForm(f => ({...f, prenom:e.target.value}))}
+                style={{ width:"100%",background:"#111",border:"1px solid #2a2a2a",borderRadius:8,
+                  padding:"9px 12px",color:"#f1f5f9",fontSize:13,boxSizing:"border-box" }}/>
+            </div>
+            <div>
+              <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Nom</label>
+              <input value={form.nom} onChange={e => setForm(f => ({...f, nom:e.target.value}))}
+                style={{ width:"100%",background:"#111",border:"1px solid #2a2a2a",borderRadius:8,
+                  padding:"9px 12px",color:"#f1f5f9",fontSize:13,boxSizing:"border-box" }}/>
+            </div>
+          </div>
+          <div style={{ marginBottom:10 }}>
+            <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Rôle dans le club</label>
+            <select value={form.role} onChange={e => setForm(f => ({...f, role:e.target.value}))}
+              style={{ width:"100%",background:"#111",border:"1px solid #2a2a2a",borderRadius:8,
+                padding:"9px 12px",color:"#f1f5f9",fontSize:13 }}>
+              {["Président","Vice-président","Secrétaire","Trésorier","Responsable communication","Autre"]
+                .map(r => <option key={r}>{r}</option>)}
+            </select>
+          </div>
+          <div style={{ marginBottom:10 }}>
+            <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Téléphone</label>
+            <input value={form.tel} onChange={e => setForm(f => ({...f, tel:e.target.value}))}
+              placeholder="06 …"
+              style={{ width:"100%",background:"#111",border:"1px solid #2a2a2a",borderRadius:8,
+                padding:"9px 12px",color:"#f1f5f9",fontSize:13,boxSizing:"border-box" }}/>
+          </div>
+          <div style={{ marginBottom:14 }}>
+            <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Message (optionnel)</label>
+            <textarea value={form.message} onChange={e => setForm(f => ({...f, message:e.target.value}))}
+              rows={3} placeholder="Présentez-vous…"
+              style={{ width:"100%",background:"#111",border:"1px solid #2a2a2a",borderRadius:8,
+                padding:"9px 12px",color:"#f1f5f9",fontSize:13,resize:"vertical",boxSizing:"border-box" }}/>
+          </div>
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={() => setShow(false)}
+              style={{ flex:1,background:"#1a1a1a",color:"#94a3b8",border:"1px solid #2a2a2a",
+                borderRadius:10,padding:"10px 0",cursor:"pointer",fontSize:13,touchAction:"manipulation" }}>
+              Annuler
+            </button>
+            <button onClick={submit} disabled={!form.nom || !form.prenom || loading}
+              style={{ flex:2,background:"linear-gradient(135deg,#7c3aed,#f97316)",color:"#fff",border:"none",
+                borderRadius:10,padding:"10px 0",fontWeight:700,fontSize:14,cursor:"pointer",
+                opacity:(!form.nom||!form.prenom)?0.5:1,touchAction:"manipulation" }}>
+              {loading ? "⏳ Envoi…" : "🔥 Envoyer la demande"}
+            </button>
+          </div>
+        </div>
+      )}
+      {sent && (
+        <div style={{ textAlign:"center", padding:"8px 0" }}>
+          <div style={{ fontSize:36, marginBottom:10 }}>✅</div>
+          <div style={{ fontWeight:700, fontSize:15, marginBottom:6 }}>Demande envoyée !</div>
+          <div style={{ color:C.muted, fontSize:13 }}>
+            L'équipe Dart Point va examiner votre demande et vous contacter rapidement.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, joueur }) => {
   const asso = associations.find(a => a.slug === slug);
   if (!asso) return null;
@@ -3781,11 +3899,6 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
   const [membres, setMembres] = useState([]);
   const [loadMembres, setLoadMembres] = useState(true);
   const [events, setEvents] = useState([]);
-  const [showPresForm, setShowPresForm] = useState(false);
-  const [presForm, setPresForm] = useState({ nom:"", prenom:"", role:"President", tel:"", message:"" });
-  const [presFormSent, setPresFormSent] = useState(false);
-  const [presFormLoading, setPresFormLoading] = useState(false);
-
   useEffect(() => {
     sb(`joueurs?asso_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo,ville&limit=50`)
       .then(d => setMembres(Array.isArray(d) ? d : []))
@@ -3845,25 +3958,6 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
     { id:"photos", l:"📸 Photos" },
   ];
 
-  const submitPresForm = async () => {
-    if (!presForm.nom || !presForm.prenom) return;
-    setPresFormLoading(true);
-    try {
-      await sb("propositions", {
-        method:"POST",
-        body: JSON.stringify({
-          type_prop: "president_club",
-          nom: `${presForm.prenom} ${presForm.nom}`,
-          ville: asso.ville,
-          commentaire: `Club: ${asso.nom}\nRôle: ${presForm.role}\nTél: ${presForm.tel}\n\n${presForm.message}`,
-          date: Date.now()
-        })
-      });
-      setPresFormSent(true);
-    } catch {}
-    setPresFormLoading(false);
-  };
-
   // ── HEADER — JSX inline (pas de composant imbriqué pour éviter le démontage) ──
   const headerJSX = (
     <div style={{ position:"relative", marginBottom:24, borderRadius:20, overflow:"hidden",
@@ -3921,84 +4015,10 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
     </div>
   );
 
-  // ── BLOC PRÉSIDENT — rendu inline (pas de sous-composant pour éviter le démontage des inputs) ──
-  const presidentBlockJSX = (
-    <div style={{ background:"linear-gradient(135deg,#7c3aed18,#f9731618)",
-      border:`1px solid #7c3aed44`, borderRadius:16, padding:"20px 20px", marginBottom:20 }}>
-      {!showPresForm && !presFormSent && (
-        <>
-          <div style={{ display:"flex", gap:12, alignItems:"flex-start", marginBottom:14 }}>
-            <span style={{ fontSize:28 }}>👑</span>
-            <div>
-              <div style={{ fontWeight:800, fontSize:15, marginBottom:4 }}>Vous êtes président du club ?</div>
-              <div style={{ color:C.muted, fontSize:13, lineHeight:1.6 }}>
-                Demandez l'accès administrateur pour gérer votre association, publier des événements, modérer le mur communautaire et personnaliser votre page.
-              </div>
-            </div>
-          </div>
-          <button onClick={() => setShowPresForm(true)}
-            style={{ background:`linear-gradient(135deg,#7c3aed,#f97316)`, color:"#fff", border:"none",
-              borderRadius:12, padding:"11px 22px", fontWeight:700, fontSize:14, cursor:"pointer",
-              boxShadow:"0 4px 20px #7c3aed44", width:"100%", touchAction:"manipulation" }}>
-            🔥 Demander l'accès administrateur
-          </button>
-        </>
-      )}
-      {showPresForm && !presFormSent && (
-        <div>
-          <div style={{ fontWeight:700, fontSize:15, marginBottom:16 }}>👑 Demande d'accès administrateur</div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
-            <div>
-              <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Prénom</label>
-              <input value={presForm.prenom} onChange={e=>setPresForm(f=>({...f,prenom:e.target.value}))}
-                style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,boxSizing:"border-box" }}/>
-            </div>
-            <div>
-              <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Nom</label>
-              <input value={presForm.nom} onChange={e=>setPresForm(f=>({...f,nom:e.target.value}))}
-                style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,boxSizing:"border-box" }}/>
-            </div>
-          </div>
-          <div style={{ marginBottom:10 }}>
-            <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Rôle dans le club</label>
-            <select value={presForm.role} onChange={e=>setPresForm(f=>({...f,role:e.target.value}))}
-              style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13 }}>
-              {["Président","Vice-président","Secrétaire","Trésorier","Responsable communication","Autre"].map(r=><option key={r}>{r}</option>)}
-            </select>
-          </div>
-          <div style={{ marginBottom:10 }}>
-            <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Téléphone</label>
-            <input value={presForm.tel} onChange={e=>setPresForm(f=>({...f,tel:e.target.value}))} placeholder="06 …"
-              style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,boxSizing:"border-box" }}/>
-          </div>
-          <div style={{ marginBottom:14 }}>
-            <label style={{ fontSize:11,color:C.muted,display:"block",marginBottom:4 }}>Message (optionnel)</label>
-            <textarea value={presForm.message} onChange={e=>setPresForm(f=>({...f,message:e.target.value}))} rows={3} placeholder="Présentez-vous…"
-              style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,resize:"vertical",boxSizing:"border-box" }}/>
-          </div>
-          <div style={{ display:"flex",gap:10 }}>
-            <button onClick={()=>setShowPresForm(false)} style={{ flex:1,background:C.card,color:C.muted,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 0",cursor:"pointer",fontSize:13,touchAction:"manipulation" }}>Annuler</button>
-            <button onClick={submitPresForm} disabled={!presForm.nom||!presForm.prenom||presFormLoading}
-              style={{ flex:2,background:`linear-gradient(135deg,#7c3aed,#f97316)`,color:"#fff",border:"none",borderRadius:10,padding:"10px 0",fontWeight:700,fontSize:14,cursor:"pointer",opacity:(!presForm.nom||!presForm.prenom)?0.5:1,touchAction:"manipulation" }}>
-              {presFormLoading ? "⏳ Envoi…" : "🔥 Envoyer la demande"}
-            </button>
-          </div>
-        </div>
-      )}
-      {presFormSent && (
-        <div style={{ textAlign:"center",padding:"8px 0" }}>
-          <div style={{ fontSize:36,marginBottom:10 }}>✅</div>
-          <div style={{ fontWeight:700,fontSize:15,marginBottom:6 }}>Demande envoyée !</div>
-          <div style={{ color:C.muted,fontSize:13 }}>L'équipe Dart Point va examiner votre demande et vous contacter rapidement.</div>
-        </div>
-      )}
-    </div>
-  );
-
   // ── TAB CLUB — JSX inline ──
   const tabClubJSX = (
     <div>
-      {presidentBlockJSX}
+      <PresidentForm asso={asso}/>
 
       {/* Description */}
       {asso.description && (
