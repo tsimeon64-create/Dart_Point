@@ -3864,8 +3864,8 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
     setPresFormLoading(false);
   };
 
-  // ── HEADER ──
-  const Header = () => (
+  // ── HEADER — JSX inline (pas de composant imbriqué pour éviter le démontage) ──
+  const headerJSX = (
     <div style={{ position:"relative", marginBottom:24, borderRadius:20, overflow:"hidden",
       background:"linear-gradient(135deg,#0a0a0a 0%,#1a0a00 50%,#0a0a0a 100%)",
       border:`1px solid ${C.accent}44`, boxShadow:`0 0 40px ${C.accent}22` }}>
@@ -3995,8 +3995,8 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
     </div>
   );
 
-  // ── TAB CLUB ──
-  const TabClub = () => (
+  // ── TAB CLUB — JSX inline ──
+  const tabClubJSX = (
     <div>
       {presidentBlockJSX}
 
@@ -4057,8 +4057,8 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
     </div>
   );
 
-  // ── TAB MEMBRES ──
-  const TabMembres = () => (
+  // ── TAB MEMBRES — JSX inline ──
+  const tabMembresJSX = (
     <div>
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden",marginBottom:16 }}>
         <div style={{ padding:"14px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
@@ -4115,8 +4115,8 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
     </div>
   );
 
-  // ── TAB ÉVÉNEMENTS ──
-  const TabEvents = () => {
+  // ── TAB ÉVÉNEMENTS — JSX inline via IIFE ──
+  const tabEventsJSX = (() => {
     const now = Date.now();
     const upcoming = events.filter(e => new Date(e.date).getTime() >= now).sort((a,b)=>new Date(a.date)-new Date(b.date));
     const past = events.filter(e => new Date(e.date).getTime() < now).sort((a,b)=>new Date(b.date)-new Date(a.date));
@@ -4183,18 +4183,18 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
         )}
       </div>
     );
-  };
+  })();
 
   return (
     <div style={{ maxWidth:860, margin:"0 auto", padding:"20px 16px 88px" }}>
       {/* Retour */}
-      <button onClick={() => setPage("associations")}
+      <button onClick={() => window.history.back()}
         style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:20,fontSize:13,display:"flex",alignItems:"center",gap:6 }}>
-        ← Associations
+        ← Retour
       </button>
 
       {/* HEADER PREMIUM */}
-      <Header/>
+      {headerJSX}
 
       {/* ONGLETS */}
       <div style={{ display:"flex",gap:0,marginBottom:20,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden" }}>
@@ -4209,9 +4209,9 @@ const AssoDetail = ({ slug, associations, bars, setPage, setBarSlug, isAdmin, jo
       </div>
 
       {/* CONTENU ONGLETS */}
-      {tab === "club"    && <TabClub/>}
-      {tab === "membres" && <TabMembres/>}
-      {tab === "events"  && <TabEvents/>}
+      {tab === "club"    && tabClubJSX}
+      {tab === "membres" && tabMembresJSX}
+      {tab === "events"  && tabEventsJSX}
       {tab === "photos"  && <GalerieSection slug={asso.slug} type="asso" isAdmin={isAdmin}/>}
     </div>
   );
