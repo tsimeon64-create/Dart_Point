@@ -2766,7 +2766,36 @@ const Home = ({ joueur, setJoueur, defisCount, demandesAmisCount=0, bars, associ
           </div>
         </div>
 
-        {/* Bouton 2 — Mon profil DRIX */}
+        {/* Bouton 2 — Scoreur rapide */}
+        <div
+          className="lp-btn"
+          onClick={() => setPage("scoreur-libre")}
+          style={{
+            background:"linear-gradient(135deg,#064e3b,#065f46)",
+            border:"2px solid #22c55e44",
+            borderRadius:18, padding:"26px 24px",
+            cursor:"pointer", userSelect:"none",
+            boxShadow:"0 8px 32px #22c55e22",
+          }}
+          onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.borderColor="#22c55eaa"; e.currentTarget.style.boxShadow="0 14px 40px #22c55e44"; }}
+          onMouseLeave={e=>{ e.currentTarget.style.transform="translateY(0)";    e.currentTarget.style.borderColor="#22c55e44"; e.currentTarget.style.boxShadow="0 8px 32px #22c55e22"; }}
+        >
+          <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+            <div style={{ fontSize:42, lineHeight:1 }}>⚡</div>
+            <div>
+              <div style={{ fontWeight:900, fontSize:"clamp(17px,4.5vw,20px)", color:"#fff", marginBottom:4 }}>
+                Scoreur simple
+              </div>
+              <div style={{ fontSize:13, color:"#ffffffbb", lineHeight:1.5 }}>
+                Sans compte · Saisie les prénoms<br/>
+                Stats complètes à la fin
+              </div>
+            </div>
+            <div style={{ marginLeft:"auto", fontSize:22, color:"#22c55eaa" }}>›</div>
+          </div>
+        </div>
+
+        {/* Bouton 3 — Mon profil DRIX */}
         <div
           className="lp-btn"
           onClick={() => setPage("connexion")}
@@ -4708,6 +4737,281 @@ const BadgesRecapModal = ({ badges, onClose, setPage }) => (
   </div>
 );
 
+// ── SCOREUR LIBRE (sans compte, noms saisis manuellement) ─────────────────────
+const ScoreurLibre = ({ setPage }) => {
+  const [phase, setPhase] = useState("config"); // "config" | "jeu" | "stats"
+  const [config, setConfig] = useState({ nom1:"Joueur 1", nom2:"Joueur 2", mode:"501", manches:1 });
+  const [resultat, setResultat] = useState(null);
+
+  const CL = { bg:"#0a0a0f", card:"#13131f", border:"#1e1e2e", text:"#e2e8f0", sub:"#94a3b8", accent:"#f97316", green:"#22c55e" };
+
+  const handleResultat = (r) => {
+    setResultat(r);
+    setPhase("stats");
+  };
+
+  const rejouer = () => {
+    setResultat(null);
+    setPhase("jeu");
+  };
+
+  const backToConfig = () => {
+    setResultat(null);
+    setPhase("config");
+  };
+
+  // ── Config screen ──
+  if (phase === "config") {
+    const modeOptions = ["301","501","701"];
+    const manchesOptions = [1,3,5,7];
+    return (
+      <div style={{ minHeight:"100vh", background:CL.bg, fontFamily:"Inter,sans-serif", padding:"24px 16px" }}>
+        <div style={{ maxWidth:480, margin:"0 auto" }}>
+          {/* Header */}
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:28 }}>
+            <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:CL.sub,fontSize:22,cursor:"pointer",padding:0 }}>‹</button>
+            <div>
+              <div style={{ fontWeight:900, fontSize:22, color:CL.text }}>⚡ Scoreur rapide</div>
+              <div style={{ fontSize:12, color:CL.sub }}>Sans compte • Aucune donnée enregistrée</div>
+            </div>
+          </div>
+
+          {/* Noms */}
+          <div style={{ background:CL.card, borderRadius:16, padding:20, marginBottom:14, border:`1px solid ${CL.border}` }}>
+            <div style={{ fontSize:13, fontWeight:700, color:CL.sub, marginBottom:14, textTransform:"uppercase", letterSpacing:1 }}>Joueurs</div>
+            {["nom1","nom2"].map((k,i)=>(
+              <div key={k} style={{ marginBottom:12 }}>
+                <div style={{ fontSize:12, color:CL.sub, marginBottom:6 }}>Joueur {i+1}</div>
+                <input
+                  value={config[k]}
+                  onChange={e=>setConfig(c=>({...c,[k]:e.target.value}))}
+                  placeholder={`Joueur ${i+1}`}
+                  style={{ width:"100%", background:"#0a0a14", border:`1px solid ${CL.border}`, borderRadius:10, padding:"12px 14px", color:CL.text, fontSize:15, fontWeight:700, boxSizing:"border-box", outline:"none" }}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* Mode */}
+          <div style={{ background:CL.card, borderRadius:16, padding:20, marginBottom:14, border:`1px solid ${CL.border}` }}>
+            <div style={{ fontSize:13, fontWeight:700, color:CL.sub, marginBottom:14, textTransform:"uppercase", letterSpacing:1 }}>Mode de jeu</div>
+            <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+              {modeOptions.map(m=>(
+                <div key={m} onClick={()=>setConfig(c=>({...c,mode:m}))} style={{
+                  flex:1, padding:"12px 0", textAlign:"center", borderRadius:10, cursor:"pointer", fontWeight:800, fontSize:16,
+                  background: config.mode===m ? CL.accent : "#0a0a14",
+                  color: config.mode===m ? "#fff" : CL.sub,
+                  border: `2px solid ${config.mode===m ? CL.accent : CL.border}`,
+                  transition:"all .15s",
+                }}>{m}</div>
+              ))}
+            </div>
+            <div style={{ fontSize:13, fontWeight:700, color:CL.sub, marginBottom:10 }}>Nombre de manches</div>
+            <div style={{ display:"flex", gap:8 }}>
+              {manchesOptions.map(n=>(
+                <div key={n} onClick={()=>setConfig(c=>({...c,manches:n}))} style={{
+                  flex:1, padding:"10px 0", textAlign:"center", borderRadius:10, cursor:"pointer", fontWeight:800, fontSize:15,
+                  background: config.manches===n ? "#7c3aed" : "#0a0a14",
+                  color: config.manches===n ? "#fff" : CL.sub,
+                  border: `2px solid ${config.manches===n ? "#7c3aed" : CL.border}`,
+                  transition:"all .15s",
+                }}>{n}</div>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={()=>setPhase("jeu")}
+            style={{ width:"100%", padding:"16px", borderRadius:14, border:"none", background:`linear-gradient(135deg,${CL.accent},#ea580c)`, color:"#fff", fontWeight:900, fontSize:18, cursor:"pointer", boxShadow:"0 6px 24px #f9731644" }}
+          >
+            🎯 Lancer la partie
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Jeu screen ──
+  if (phase === "jeu") {
+    // On passe un faux "duel" null mais on surcharge config via props — on utilise onResultat
+    // Le Scoreur en mode non-duel commence par la config screen… on lui passe initialConfig
+    return (
+      <ScoreurLibreWrapper
+        config={config}
+        onResultat={handleResultat}
+        onBack={backToConfig}
+      />
+    );
+  }
+
+  // ── Stats screen ──
+  if (phase === "stats" && resultat) {
+    const { gagnantNom, scoreC, scoreD, moyC, moyD, joueurs: jData = [], manchesDetail = [] } = resultat;
+    const j0 = jData[0] || { nom: config.nom1, manchesGagnees: scoreC, tours:[], flechettes:0, totalPoints:0 };
+    const j1 = jData[1] || { nom: config.nom2, manchesGagnees: scoreD, tours:[], flechettes:0, totalPoints:0 };
+    const gagnantIdx = gagnantNom === j0.nom ? 0 : 1;
+    const perdantIdx = 1 - gagnantIdx;
+
+    const playerStat = (j, isWinner) => {
+      const tours = j.tours || [];
+      const moy = j.flechettes > 0 ? Math.round((j.totalPoints / j.flechettes) * 3 * 10) / 10 : 0;
+      const nb180 = tours.filter(v=>v===180).length;
+      const nb140 = tours.filter(v=>v>=140&&v<180).length;
+      const nb100 = tours.filter(v=>v>=100&&v<140).length;
+      const bestVolee = tours.length > 0 ? Math.max(...tours) : 0;
+      return { moy, nb180, nb140, nb100, bestVolee, tours };
+    };
+
+    const stats = [j0, j1].map((j, i) => ({ ...j, ...playerStat(j, i === gagnantIdx) }));
+
+    const StatRow = ({ label, v0, v1, highlight }) => (
+      <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", gap:8, padding:"8px 0", borderBottom:`1px solid ${CL.border}` }}>
+        <div style={{ textAlign:"right", fontWeight: highlight===0?"900":"600", color: highlight===0?CL.green:CL.text, fontSize:15 }}>{v0}</div>
+        <div style={{ textAlign:"center", fontSize:11, color:CL.sub, minWidth:90 }}>{label}</div>
+        <div style={{ textAlign:"left", fontWeight: highlight===1?"900":"600", color: highlight===1?CL.green:CL.text, fontSize:15 }}>{v1}</div>
+      </div>
+    );
+
+    const highlight = (a, b, highIsBetter=true) => {
+      if (a === b) return -1;
+      return highIsBetter ? (a > b ? 0 : 1) : (a < b ? 0 : 1);
+    };
+
+    return (
+      <div style={{ minHeight:"100vh", background:CL.bg, fontFamily:"Inter,sans-serif", padding:"24px 16px" }}>
+        <div style={{ maxWidth:480, margin:"0 auto" }}>
+          {/* Winner banner */}
+          <div style={{ background:"linear-gradient(135deg,#14532d,#166534)", borderRadius:20, padding:"28px 20px", textAlign:"center", marginBottom:16 }}>
+            <div style={{ fontSize:56, marginBottom:8 }}>🏆</div>
+            <div style={{ fontSize:13, color:"#86efac", fontWeight:700, marginBottom:4 }}>VAINQUEUR</div>
+            <div style={{ fontSize:28, fontWeight:900, color:CL.green }}>{gagnantNom}</div>
+            <div style={{ fontSize:15, color:"#86efac", marginTop:6 }}>
+              {j0.manchesGagnees} – {j1.manchesGagnees}
+            </div>
+          </div>
+
+          {/* Stats comparison */}
+          <div style={{ background:CL.card, borderRadius:16, padding:20, marginBottom:16, border:`1px solid ${CL.border}` }}>
+            {/* Headers */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", gap:8, marginBottom:12 }}>
+              <div style={{ textAlign:"right", fontWeight:800, fontSize:14, color: gagnantIdx===0?CL.green:CL.text }}>
+                {j0.nom} {gagnantIdx===0?"🏆":""}
+              </div>
+              <div style={{ minWidth:90 }}/>
+              <div style={{ textAlign:"left", fontWeight:800, fontSize:14, color: gagnantIdx===1?CL.green:CL.text }}>
+                {gagnantIdx===1?"🏆":""} {j1.nom}
+              </div>
+            </div>
+
+            <StatRow
+              label="Manches gagnées"
+              v0={j0.manchesGagnees}
+              v1={j1.manchesGagnees}
+              highlight={highlight(j0.manchesGagnees, j1.manchesGagnees)}
+            />
+            <StatRow
+              label="Moyenne"
+              v0={stats[0].moy}
+              v1={stats[1].moy}
+              highlight={highlight(stats[0].moy, stats[1].moy)}
+            />
+            <StatRow
+              label="Fléchettes"
+              v0={j0.flechettes}
+              v1={j1.flechettes}
+              highlight={highlight(j0.flechettes, j1.flechettes, false)}
+            />
+            <StatRow
+              label="Volées"
+              v0={(j0.tours||[]).length}
+              v1={(j1.tours||[]).length}
+              highlight={highlight((j0.tours||[]).length, (j1.tours||[]).length, false)}
+            />
+            <StatRow
+              label="Meilleure volée"
+              v0={stats[0].bestVolee || "—"}
+              v1={stats[1].bestVolee || "—"}
+              highlight={highlight(stats[0].bestVolee, stats[1].bestVolee)}
+            />
+            <StatRow
+              label="180"
+              v0={stats[0].nb180}
+              v1={stats[1].nb180}
+              highlight={highlight(stats[0].nb180, stats[1].nb180)}
+            />
+            <StatRow
+              label="140+"
+              v0={stats[0].nb140}
+              v1={stats[1].nb140}
+              highlight={highlight(stats[0].nb140, stats[1].nb140)}
+            />
+            <StatRow
+              label="100+"
+              v0={stats[0].nb100}
+              v1={stats[1].nb100}
+              highlight={highlight(stats[0].nb100, stats[1].nb100)}
+            />
+          </div>
+
+          {/* Détail manches */}
+          {manchesDetail.length > 0 && (
+            <div style={{ background:CL.card, borderRadius:16, padding:20, marginBottom:16, border:`1px solid ${CL.border}` }}>
+              <div style={{ fontSize:13, fontWeight:700, color:CL.sub, marginBottom:14, textTransform:"uppercase", letterSpacing:1 }}>Détail des manches</div>
+              {manchesDetail.map((m, i) => (
+                <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom: i<manchesDetail.length-1?`1px solid ${CL.border}`:"none" }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:700, fontSize:13, color:CL.green }}>🏆 {m.winner}</div>
+                    <div style={{ fontSize:11, color:CL.sub }}>{m.winner_volees} volées · moy {m.winner_moy}</div>
+                  </div>
+                  <div style={{ fontSize:11, color:CL.sub, padding:"0 12px" }}>Manche {i+1}</div>
+                  <div style={{ flex:1, textAlign:"right" }}>
+                    <div style={{ fontWeight:700, fontSize:13, color:CL.text }}>{m.loser}</div>
+                    <div style={{ fontSize:11, color:CL.sub }}>{m.loser_volees} volées · moy {m.loser_moy} · reste {m.reste_loser}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Boutons */}
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={rejouer} style={{ flex:1, padding:"15px", borderRadius:12, border:"none", background:`linear-gradient(135deg,${CL.accent},#ea580c)`, color:"#fff", fontWeight:800, fontSize:15, cursor:"pointer" }}>🔄 Rejouer</button>
+            <button onClick={backToConfig} style={{ flex:1, padding:"15px", borderRadius:12, border:`1px solid ${CL.border}`, background:CL.card, color:CL.sub, fontWeight:800, fontSize:15, cursor:"pointer" }}>⚙️ Config</button>
+            <button onClick={()=>setPage("home")} style={{ flex:1, padding:"15px", borderRadius:12, border:`1px solid ${CL.border}`, background:CL.card, color:CL.sub, fontWeight:800, fontSize:15, cursor:"pointer" }}>🏠 Accueil</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
+// Wrapper qui initialise le Scoreur en mode libre avec la config personnalisée
+const ScoreurLibreWrapper = ({ config, onResultat, onBack }) => {
+  // On utilise un duel "fantôme" pour pré-remplir les noms et éviter l'écran de config du Scoreur
+  const fakeDuel = {
+    id: null,
+    challenger_pseudo: config.nom1 || "Joueur 1",
+    defie_pseudo: config.nom2 || "Joueur 2",
+    mode: config.mode || "501",
+    manches: config.manches || 1,
+    type: "amical",
+    statut: "en_cours",
+  };
+  // onDuelTermine est volontairement null pour ne pas déclencher onBack après onResultat
+  // setPage intercepte "mon-profil" (bouton quitter) pour revenir à la config
+  return (
+    <Scoreur
+      duel={fakeDuel}
+      drixData={null}
+      onDuelTermine={null}
+      setPage={p => { if (p === "mon-profil") onBack(); }}
+      onResultat={onResultat}
+    />
+  );
+};
+
 // ── SCOREUR DUEL (charge le duel depuis Supabase) ─────────────────────────────
 const ScoreurDuel = ({ duelId, joueur, setPage }) => {
   const [duel, setDuel] = useState(null);
@@ -5075,6 +5379,7 @@ export default function App() {
         {page==="profil-historique" && joueur && <PageProfilHistorique joueur={joueur} setPage={nav}/>}
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav}/>}
         {page==="scoreur"          && <Scoreur setPage={nav}/>}
+        {page==="scoreur-libre"    && <ScoreurLibre setPage={nav}/>}
         {page==="jeux"             && <PageModeJeu joueur={joueur} setPage={nav}/>}
         {page==="jeux-flechettes"       && <PageModeJeu joueur={joueur} setPage={nav} initCat="fleche"/>}
         {page==="cricket-config"        && <ConfigCricket joueur={joueur} setPage={nav}/>}

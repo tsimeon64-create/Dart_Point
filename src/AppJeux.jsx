@@ -87,10 +87,11 @@ const AnimCount = ({ target, duration=1400, prefix="", suffix="" }) => {
 const SB_URL_J = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY_J = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 
-const FinScreen = ({ gagnant, duel, drixData, modeDuel, moyenne, demarrer, quitterPartie }) => {
+const FinScreen = ({ gagnant, duel, drixData, modeDuel, moyenne, demarrer, quitterPartie, joueurs: joueursData=[], manchesDetail=[] }) => {
   const [show, setShow] = useState(false);
   const [drixShow, setDrixShow] = useState(false);
   const [winnerPhoto, setWinnerPhoto] = useState(null);
+  const [showStats, setShowStats] = useState(false);
 
   useEffect(() => {
     setShow(true);
@@ -111,6 +112,41 @@ const FinScreen = ({ gagnant, duel, drixData, modeDuel, moyenne, demarrer, quitt
   const perdantNom = gagnantIsChallenger ? duel?.defie_pseudo : duel?.challenger_pseudo;
   const dxGagnant = drixData ? (gagnantIsChallenger ? drixData.challenger : drixData.defie) : null;
   const dxPerdant = drixData ? (gagnantIsChallenger ? drixData.defie : drixData.challenger) : null;
+
+  // ── Stats helpers ──────────────────────────────────────────────────────────
+  const computeStats = (j) => {
+    const tours = j?.tours || [];
+    const moy = j?.flechettes > 0 ? Math.round((j.totalPoints / j.flechettes) * 3 * 10) / 10 : 0;
+    return {
+      moy,
+      nb180:   tours.filter(v=>v===180).length,
+      nb140:   tours.filter(v=>v>=140&&v<180).length,
+      nb100:   tours.filter(v=>v>=100&&v<140).length,
+      nb80:    tours.filter(v=>v>=80&&v<100).length,
+      nb60:    tours.filter(v=>v>=60&&v<80).length,
+      bestVolee: tours.length > 0 ? Math.max(...tours) : 0,
+    };
+  };
+
+  // Reconstruit j0/j1 depuis joueursData ou fallback depuis duel+gagnant
+  const j0 = joueursData[0] || { nom: duel?.challenger_pseudo||"Joueur 1", manchesGagnees:0, tours:[], flechettes:0, totalPoints:0 };
+  const j1 = joueursData[1] || { nom: duel?.defie_pseudo||"Joueur 2", manchesGagnees:0, tours:[], flechettes:0, totalPoints:0 };
+  const s0 = computeStats(j0);
+  const s1 = computeStats(j1);
+  const gagnantIdx = gagnant?.nom === j0.nom ? 0 : 1;
+
+  const hi = (a, b, highIsBetter=true) => {
+    if (a === b || a == null || b == null) return -1;
+    return highIsBetter ? (a > b ? 0 : 1) : (a < b ? 0 : 1);
+  };
+
+  const StatRow = ({ label, v0, v1, h=-1 }) => (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 110px 1fr", alignItems:"center", padding:"7px 0", borderBottom:"1px solid #1e1e2e" }}>
+      <div style={{ textAlign:"right", fontWeight: h===0?"900":"500", color: h===0?"#22c55e":"#e2e8f0", fontSize:14 }}>{v0 ?? "—"}</div>
+      <div style={{ textAlign:"center", fontSize:11, color:"#64748b" }}>{label}</div>
+      <div style={{ textAlign:"left", fontWeight: h===1?"900":"500", color: h===1?"#22c55e":"#e2e8f0", fontSize:14 }}>{v1 ?? "—"}</div>
+    </div>
+  );
 
   return (
     <div style={{ maxWidth:480,margin:"0 auto",padding:"40px 16px",textAlign:"center",fontFamily:"Inter,sans-serif",position:"relative",zIndex:1 }}>
@@ -190,12 +226,88 @@ const FinScreen = ({ gagnant, duel, drixData, modeDuel, moyenne, demarrer, quitt
         </div>
       )}
 
-      <div style={{ display:"flex",gap:10 }}>
+      <div style={{ display:"flex",gap:10,marginBottom:10 }}>
         {!modeDuel && <button onClick={demarrer} style={{ flex:1,padding:"16px",borderRadius:12,border:"none",fontWeight:800,fontSize:16,cursor:"pointer",background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff" }}>🔄 Rejouer</button>}
+        <button onClick={()=>setShowStats(true)} style={{ flex:1,padding:"16px",borderRadius:12,border:"1px solid #22c55e44",fontWeight:800,fontSize:16,cursor:"pointer",background:"#0f1a0f",color:"#22c55e" }}>📊 Voir stats</button>
         <button onClick={quitterPartie} style={{ flex:1,padding:"16px",borderRadius:12,border:"1px solid #2a2a2a",fontWeight:800,fontSize:16,cursor:"pointer",background:"#1a1a1a",color:"#94a3b8" }}>
-          {modeDuel?"← Mon profil":"⚙️ Config"}
+          {modeDuel?"✅ Valider le match":"⚙️ Config"}
         </button>
       </div>
+
+      {/* ── Modal stats ─────────────────────────────────────────────────────── */}
+      {showStats && (
+        <div
+          onClick={()=>setShowStats(false)}
+          style={{ position:"fixed",inset:0,background:"#000000cc",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center" }}
+        >
+          <div
+            onClick={e=>e.stopPropagation()}
+            style={{ width:"100%",maxWidth:520,background:"#0d0d18",borderRadius:"20px 20px 0 0",padding:"0 0 32px",maxHeight:"88vh",overflowY:"auto",boxShadow:"0 -8px 40px #000a" }}
+          >
+            {/* Handle + titre */}
+            <div style={{ position:"sticky",top:0,background:"#0d0d18",padding:"14px 20px 10px",borderBottom:"1px solid #1e1e2e",zIndex:1 }}>
+              <div style={{ width:40,height:4,borderRadius:2,background:"#2a2a3e",margin:"0 auto 12px" }}/>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                <div style={{ fontWeight:900,fontSize:18,color:"#e2e8f0" }}>📊 Stats de la partie</div>
+                <button onClick={()=>setShowStats(false)} style={{ background:"none",border:"none",color:"#64748b",fontSize:22,cursor:"pointer",lineHeight:1 }}>✕</button>
+              </div>
+            </div>
+
+            <div style={{ padding:"16px 20px" }}>
+              {/* En-têtes joueurs */}
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 110px 1fr",marginBottom:4 }}>
+                <div style={{ textAlign:"right",fontWeight:800,fontSize:13,color: gagnantIdx===0?"#22c55e":"#94a3b8" }}>
+                  {j0.nom} {gagnantIdx===0?"🏆":""}
+                </div>
+                <div/>
+                <div style={{ textAlign:"left",fontWeight:800,fontSize:13,color: gagnantIdx===1?"#22c55e":"#94a3b8" }}>
+                  {gagnantIdx===1?"🏆":""} {j1.nom}
+                </div>
+              </div>
+
+              <StatRow label="Manches" v0={j0.manchesGagnees} v1={j1.manchesGagnees} h={hi(j0.manchesGagnees,j1.manchesGagnees)}/>
+              <StatRow label="Moyenne" v0={s0.moy} v1={s1.moy} h={hi(s0.moy,s1.moy)}/>
+              <StatRow label="Fléchettes" v0={j0.flechettes} v1={j1.flechettes} h={hi(j0.flechettes,j1.flechettes,false)}/>
+              <StatRow label="Volées" v0={(j0.tours||[]).length} v1={(j1.tours||[]).length} h={hi((j0.tours||[]).length,(j1.tours||[]).length,false)}/>
+              <StatRow label="Meilleure volée" v0={s0.bestVolee||"—"} v1={s1.bestVolee||"—"} h={hi(s0.bestVolee,s1.bestVolee)}/>
+              <StatRow label="180" v0={s0.nb180} v1={s1.nb180} h={hi(s0.nb180,s1.nb180)}/>
+              <StatRow label="140 → 179" v0={s0.nb140} v1={s1.nb140} h={hi(s0.nb140,s1.nb140)}/>
+              <StatRow label="100 → 139" v0={s0.nb100} v1={s1.nb100} h={hi(s0.nb100,s1.nb100)}/>
+              <StatRow label="80 → 99" v0={s0.nb80} v1={s1.nb80} h={hi(s0.nb80,s1.nb80)}/>
+              <StatRow label="60 → 79" v0={s0.nb60} v1={s1.nb60} h={hi(s0.nb60,s1.nb60)}/>
+
+              {/* Détail manches */}
+              {manchesDetail.length > 0 && (
+                <div style={{ marginTop:20 }}>
+                  <div style={{ fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:1,marginBottom:10 }}>Détail des manches</div>
+                  {manchesDetail.map((m,i)=>(
+                    <div key={i} style={{ background:"#13131f",borderRadius:12,padding:"12px 14px",marginBottom:8 }}>
+                      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
+                        <div style={{ fontSize:11,color:"#475569" }}>Manche {i+1}</div>
+                        <div style={{ fontSize:12,fontWeight:700,color:"#22c55e" }}>🏆 {m.winner}</div>
+                      </div>
+                      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:6 }}>
+                        <div style={{ background:"#0a0a14",borderRadius:8,padding:"8px 10px" }}>
+                          <div style={{ fontSize:11,color:"#22c55e",fontWeight:700,marginBottom:2 }}>{m.winner}</div>
+                          <div style={{ fontSize:12,color:"#94a3b8" }}>{m.winner_volees} volées · moy {m.winner_moy}</div>
+                          {m.winner_180>0 && <div style={{ fontSize:11,color:"#f97316" }}>💥 {m.winner_180}×180</div>}
+                          <div style={{ fontSize:11,color:"#64748b" }}>Finish : {m.winner_finish||"—"}</div>
+                        </div>
+                        <div style={{ background:"#0a0a14",borderRadius:8,padding:"8px 10px" }}>
+                          <div style={{ fontSize:11,color:"#94a3b8",fontWeight:700,marginBottom:2 }}>{m.loser}</div>
+                          <div style={{ fontSize:12,color:"#94a3b8" }}>{m.loser_volees} volées · moy {m.loser_moy}</div>
+                          {m.loser_180>0 && <div style={{ fontSize:11,color:"#f97316" }}>💥 {m.loser_180}×180</div>}
+                          <div style={{ fontSize:11,color:"#64748b" }}>Reste : {m.reste_loser}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -462,9 +574,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     setInput("");
   };
 
-  const enregistrerResultatDuel = async (gagnantNom, scoreC, scoreD, moyC, moyD, manchesDetail=[]) => {
+  const enregistrerResultatDuel = async (gagnantNom, scoreC, scoreD, moyC, moyD, manchesDetail=[], joueursData=[]) => {
     if (onResultat) {
-      onResultat({ gagnantNom, scoreC, scoreD, moyC, moyD });
+      onResultat({ gagnantNom, scoreC, scoreD, moyC, moyD, joueurs: joueursData, manchesDetail });
       setResultEnregistre(true);
       if (onDuelTermine) onDuelTermine();
       return;
@@ -638,6 +750,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       if (newManches >= manchesTotal) {
         const allManches = [...manchesHistory, mancheDetail];
         setJoueurs(updated);
+        setManchesHistory(allManches); // inclut la dernière manche pour les stats de fin
         const scoreC = actifIdx === 0 ? newManches : updated[0].manchesGagnees;
         const scoreD = actifIdx === 1 ? newManches : updated[1].manchesGagnees;
         const moyC = parseFloat(moyenneCalc(updated[0]));
@@ -645,7 +758,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         setGagnant({ ...joueur, manchesGagnees:newManches, tours:[...joueur.tours,val], totalPoints:joueur.totalPoints+val, flechettes:joueur.flechettes+nbFlechettes });
         pushLiveVolee(actifIdx, val, false, true, updated);
         setEtape("fin");
-        if (modeDuel) enregistrerResultatDuel(joueur.nom, scoreC, scoreD, moyC, moyD, allManches);
+        if (modeDuel || onResultat) enregistrerResultatDuel(joueur.nom, scoreC, scoreD, moyC, moyD, allManches, updated);
         return;
       }
       setManchesHistory(h => [...h, mancheDetail]);
@@ -808,6 +921,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       moyenne={moyenne}
       demarrer={demarrer}
       quitterPartie={quitterPartie}
+      joueurs={joueurs}
+      manchesDetail={manchesHistory}
     />
   );
 

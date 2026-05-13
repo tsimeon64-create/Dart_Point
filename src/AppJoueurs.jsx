@@ -35,6 +35,16 @@ export const hashPwd = async (pwd) => {
 
 export const todayStr = () => new Date().toISOString().slice(0, 10);
 
+// Pseudo : lettres (y compris accentuées), chiffres, tiret, underscore, point — pas de caractères spéciaux
+export const PSEUDO_REGEX = /^[a-zA-ZÀ-ÿ0-9_\-.]+$/;
+export const validerPseudo = (pseudo) => {
+  const p = pseudo.trim();
+  if (p.length < 3)  return "Pseudo trop court (min 3 caractères)";
+  if (p.length > 20) return "Pseudo trop long (max 20 caractères)";
+  if (!PSEUDO_REGEX.test(p)) return "Caractères spéciaux non autorisés (lettres, chiffres, - _ . uniquement)";
+  return null; // ok
+};
+
 // ── SYSTÈME BULL ──────────────────────────────────────────────────────────────
 export const BULL_MAX   = Infinity; // pas de plafond
 export const BULL_DAILY = 50;       // recharge quotidienne
@@ -220,7 +230,8 @@ export const Connexion = ({ onLogin, setPage }) => {
 
   const register = async () => {
     if (!pseudo.trim() || !pwd || pwd !== pwd2) { setErr(pwd !== pwd2 ? "Les mots de passe ne correspondent pas" : "Champs obligatoires"); return; }
-    if (pseudo.trim().length < 3) { setErr("Pseudo trop court (min 3 caractères)"); return; }
+    const pseudoErr = validerPseudo(pseudo);
+    if (pseudoErr) { setErr(pseudoErr); return; }
     setLoading(true); setErr("");
     try {
       // Vérification insensible à la casse — "TOTO" bloqué si "toto" existe déjà
@@ -313,14 +324,23 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   const [loading, setLoading]     = useState(true);
   const [tournoisPotes, setTournoisPotes] = useState([]);
   const [badgeCount, setBadgeCount] = useState(getBadgesStored(joueur.id).size);
+  const BADGES_SEEN_KEY = `dp_badges_seen_${joueur.id}`;
+  const [badgesSeen, setBadgesSeen] = useState(() => parseInt(localStorage.getItem(`dp_badges_seen_${joueur.id}`) || "0"));
+  const newBadgesCount = Math.max(0, badgeCount - badgesSeen);
 
   // Edit mode
   const [editMode, setEditMode]   = useState(false);
   const [editAge, setEditAge]     = useState(joueur.age||"");
   const [editVille, setEditVille] = useState(joueur.ville||"");
   const [editStyle, setEditStyle] = useState(joueur.style_jeu||"electronique");
+  const [editPseudo, setEditPseudo] = useState(joueur.pseudo||"");
+  const [pseudoErreur, setPseudoErreur] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const photoRef = useRef(null);
+
+  const PSEUDO_CHANGES_KEY = `dp_pseudo_changes_${joueur.id}`;
+  const getPseudoChanges = () => parseInt(localStorage.getItem(PSEUDO_CHANGES_KEY)||"0");
+  const [pseudoChanges, setPseudoChanges] = useState(getPseudoChanges);
 
   // Affiliations expand
   const [affilBar, setAffilBar]   = useState(false);
@@ -352,6 +372,11 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       const unlocked = ALL_BADGES.filter(b=>b.val(vals)>=b.seuil).length;
       setBadgeCount(unlocked);
       storeBadgesSet(joueur.id, new Set(ALL_BADGES.filter(b=>b.val(vals)>=b.seuil).map(b=>b.id)));
+      // Initialise le compteur "vus" si jamais défini (première connexion)
+      if (!localStorage.getItem(`dp_badges_seen_${joueur.id}`)) {
+        localStorage.setItem(`dp_badges_seen_${joueur.id}`, String(unlocked));
+        setBadgesSeen(unlocked);
+      }
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [joueur.id]);
@@ -365,11 +390,34 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   }, [joueur.id]);
 
   const sauvegarderProfil = async () => {
+    setPseudoErreur("");
+    const newPseudo = editPseudo.trim();
+    const pseudoChange = newPseudo && newPseudo !== joueur.pseudo;
+
+    // Validation pseudo
+    if (pseudoChange) {
+      const pseudoErr = validerPseudo(newPseudo);
+      if (pseudoErr) { setPseudoErreur(pseudoErr); return; }
+      if (pseudoChanges >= 2) { setPseudoErreur("Limite de 2 changements atteinte"); return; }
+      const exist = await dbJ.getJoueurByPseudoIlike(newPseudo);
+      if (exist && exist.id !== joueur.id) {
+        setPseudoErreur(`Ce pseudo est déjà pris${exist.pseudo !== newPseudo ? ` (par "${exist.pseudo}")` : ""}`);
+        return;
+      }
+    }
+
     setSavingEdit(true);
     const patch = { age: parseInt(editAge)||null, ville: editVille.trim()||null, style_jeu: editStyle };
+    if (pseudoChange) patch.pseudo = newPseudo;
     await dbJ.updateJoueur(joueur.id, patch);
     const updated = {...joueur, ...patch};
     setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
+
+    if (pseudoChange) {
+      const newCount = pseudoChanges + 1;
+      localStorage.setItem(PSEUDO_CHANGES_KEY, String(newCount));
+      setPseudoChanges(newCount);
+    }
     setSavingEdit(false); setEditMode(false);
   };
 
@@ -466,7 +514,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
                 textShadow:`0 0 20px ${color}88, 0 0 40px ${color}44`,
                 color:"#fff", letterSpacing:.5 }}>{joueur.pseudo}</h1>
               {!editMode && (
-                <button onClick={()=>setEditMode(true)}
+                <button onClick={()=>{ setEditMode(true); setEditPseudo(joueur.pseudo); setPseudoErreur(""); }}
                   style={{ background:"none",border:`1px solid ${CJ.border}`,color:CJ.muted,cursor:"pointer",borderRadius:6,padding:"2px 8px",fontSize:11,touchAction:"manipulation" }}>
                   ✏️
                 </button>
@@ -507,6 +555,34 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
         {/* Edit mode */}
         {editMode && (
           <div style={{ marginTop:16, paddingTop:16, borderTop:`1px solid ${CJ.border}33` }}>
+
+            {/* Pseudo */}
+            <div style={{ marginBottom:10 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                <label style={{ fontSize:11, color:CJ.muted }}>Pseudo</label>
+                <span style={{ fontSize:10, color: pseudoChanges>=2?"#ef4444":CJ.muted }}>
+                  {pseudoChanges}/2 changements utilisés
+                </span>
+              </div>
+              <input
+                value={editPseudo}
+                onChange={e=>{ setEditPseudo(e.target.value); setPseudoErreur(""); }}
+                placeholder={joueur.pseudo}
+                disabled={pseudoChanges >= 2}
+                style={{
+                  width:"100%", background: pseudoChanges>=2?"#0a0a0a":"#111",
+                  border:`1px solid ${pseudoErreur?"#ef4444":pseudoChanges>=2?"#2a2a2a":CJ.border}`,
+                  borderRadius:8, padding:"8px 10px", color: pseudoChanges>=2?CJ.muted:CJ.text,
+                  fontSize:13, boxSizing:"border-box", opacity: pseudoChanges>=2?0.5:1,
+                  cursor: pseudoChanges>=2?"not-allowed":"text",
+                }}
+              />
+              {pseudoErreur && <div style={{ fontSize:11, color:"#ef4444", marginTop:4 }}>⚠ {pseudoErreur}</div>}
+              {pseudoChanges >= 2 && <div style={{ fontSize:11, color:"#ef4444", marginTop:4 }}>🔒 Limite atteinte — le pseudo ne peut plus être modifié</div>}
+              {pseudoChanges < 2 && pseudoChanges > 0 && <div style={{ fontSize:11, color:"#f59e0b", marginTop:4 }}>⚠ Il te reste {2-pseudoChanges} changement{2-pseudoChanges>1?"s":""}</div>}
+              {pseudoChanges === 0 && <div style={{ fontSize:11, color:CJ.muted, marginTop:4 }}>Tu peux changer ton pseudo 2 fois au total</div>}
+            </div>
+
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
               <div>
                 <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Âge</label>
@@ -532,7 +608,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             </div>
             <div style={{ display:"flex",gap:8 }}>
               <BtnJ onClick={sauvegarderProfil} disabled={savingEdit} style={{ fontSize:12,padding:"7px 16px" }}>{savingEdit?"…":"💾 Sauvegarder"}</BtnJ>
-              <BtnJ onClick={()=>setEditMode(false)} variant="dark" style={{ fontSize:12,padding:"7px 16px" }}>Annuler</BtnJ>
+              <BtnJ onClick={()=>{ setEditMode(false); setEditPseudo(joueur.pseudo); setPseudoErreur(""); }} variant="dark" style={{ fontSize:12,padding:"7px 16px" }}>Annuler</BtnJ>
             </div>
           </div>
         )}
@@ -636,7 +712,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
           {[
             { emoji:"📊", label:"Stats",       sub:"Mes performances",  action:()=>setPage("profil-stats"),      color:CJ.blue },
             { emoji:"👥", label:"Amis",        sub:"Mes connexions",    action:()=>setPage("profil-amis"),       color:CJ.green, badge:demandesAmisCount },
-            { emoji:"🏅", label:"Badges",      sub:`${badgeCount}/${ALL_BADGES.length} débloqués`, action:()=>setPage("profil-badges"), color:CJ.yellow },
+            { emoji:"🏅", label:"Badges",      sub:`${badgeCount}/${ALL_BADGES.length} débloqués`, action:()=>{ const n=badgeCount; localStorage.setItem(BADGES_SEEN_KEY,String(n)); setBadgesSeen(n); setPage("profil-badges"); }, color:CJ.yellow, badge:newBadgesCount },
             { emoji:"📜", label:"Historique",  sub:"Mes duels",         action:()=>setPage("profil-historique"), color:CJ.accent },
           ].map(({ emoji, label, sub, action, color: col, badge }) => (
             <button key={label} onClick={action}
@@ -1282,6 +1358,10 @@ export const PageProfilBadges = ({ joueur, setPage }) => {
 
   const vals = computeBadgeValues(joueur, stats, duels, drixMvts, amis, nbTournois, nbTournoisGagnes, 0, 0);
   const totalUnlocked = ALL_BADGES.filter(b=>b.val(vals)>=b.seuil).length;
+
+  // Marque tous les badges comme vus dès l'ouverture de la page
+  try { localStorage.setItem(`dp_badges_seen_${joueur.id}`, String(totalUnlocked)); } catch {}
+
 
   const BadgeCard = ({ b }) => {
     const current = b.val(vals);
@@ -1951,6 +2031,40 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   ];
   const badgesOk = BADGES_CIBLE.filter(b=>b.valeur>=b.seuil);
 
+  // Vals complets pour l'onglet badges détaillé (même calcul que PageProfilBadges)
+  const valsComplets = computeBadgeValues(j, stats, duels, drixMvts, []);
+  const totalBadgesOk = ALL_BADGES.filter(b=>b.val(valsComplets)>=b.seuil).length;
+
+  const FicheBadgeCard = ({ b }) => {
+    const current = b.val(valsComplets);
+    const unlocked = current >= b.seuil;
+    const pct = Math.min(100, Math.round((current/b.seuil)*100));
+    const isIncremental = b.seuil > 1;
+    return (
+      <div style={{
+        background: unlocked ? b.couleur+"18" : "#ffffff06",
+        border: `1px solid ${unlocked ? b.couleur+"66" : "#2a2a2a"}`,
+        borderRadius:14, padding:14, position:"relative", overflow:"hidden",
+        filter: unlocked ? "none" : "grayscale(0.8)",
+        opacity: unlocked ? 1 : 0.5,
+        transition:"all .2s"
+      }}>
+        <div style={{ fontSize:28, marginBottom:6 }}>{b.emoji}</div>
+        <div style={{ fontWeight:700, fontSize:13, color: unlocked ? b.couleur : CJ.muted, marginBottom:3 }}>{b.nom}</div>
+        <div style={{ fontSize:10, color:CJ.muted, marginBottom: isIncremental&&!unlocked ? 8 : 0 }}>{b.desc}</div>
+        {isIncremental && !unlocked && (
+          <>
+            <div style={{ background:"#ffffff12", borderRadius:4, height:4, overflow:"hidden" }}>
+              <div style={{ height:"100%", width:`${pct}%`, background:b.couleur, borderRadius:4 }}/>
+            </div>
+            <div style={{ fontSize:10, color:CJ.muted, marginTop:4 }}>{current} / {b.seuil}</div>
+          </>
+        )}
+        {unlocked && <div style={{ position:"absolute", top:8, right:8, fontSize:14 }}>✅</div>}
+      </div>
+    );
+  };
+
   // Derniers résultats pour mini-card
   const derniers5 = duels.slice(0,5);
   const tempsDepuisMatch = (date) => {
@@ -1988,10 +2102,10 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
               <h1 style={{fontWeight:900,fontSize:18,margin:0}}>{j.pseudo}</h1>
               {moi&&moi.id!==j.id&&(
                 amiStatut===null
-                  ?<button onClick={ajouterAmi} style={{background:"none",border:`1px solid ${CJ.accent}`,color:CJ.accent,borderRadius:20,padding:"2px 10px",cursor:"pointer",fontSize:11,fontWeight:600,touchAction:"manipulation"}}>👥 Ajouter</button>
+                  ?<button onClick={ajouterAmi} style={{background:`linear-gradient(135deg,${CJ.accent},#ea580c)`,border:"none",color:"#fff",borderRadius:20,padding:"8px 20px",cursor:"pointer",fontSize:14,fontWeight:800,touchAction:"manipulation",boxShadow:`0 4px 16px ${CJ.accent}55`,letterSpacing:.3}}>👥 Ajouter</button>
                   :amiStatut==="en_attente"
-                    ?<span style={{background:"#78350f33",border:`1px solid ${CJ.yellow}44`,color:CJ.yellow,borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:600}}>⏳ En attente</span>
-                    :<span style={{background:"#14532d33",border:`1px solid ${CJ.green}44`,color:CJ.green,borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:600}}>✅ Ami(e)</span>
+                    ?<span style={{background:"#78350f33",border:`1px solid ${CJ.yellow}44`,color:CJ.yellow,borderRadius:20,padding:"6px 14px",fontSize:13,fontWeight:600}}>⏳ En attente</span>
+                    :<span style={{background:"#14532d33",border:`1px solid ${CJ.green}44`,color:CJ.green,borderRadius:20,padding:"6px 14px",fontSize:13,fontWeight:600}}>✅ Ami(e)</span>
               )}
             </div>
             {/* Badges infos */}
@@ -2567,34 +2681,22 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       {/* ══ TAB BADGES ═════════════════════════════════════════════════════════ */}
       {tab==="badges"&&(
         <div>
-          {badgesOk.length===0
-            ?<div style={{...card,textAlign:"center",padding:40,color:CJ.muted}}>Aucun badge débloqué pour l'instant.</div>
-            :<>
-              {/* Top 3 */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
-                {badgesOk.slice(0,3).map(b=>(
-                  <div key={b.nom} style={{background:`radial-gradient(circle at 30% 30%, ${b.couleur}22, transparent)`,border:`1px solid ${b.couleur}55`,borderRadius:16,padding:16,textAlign:"center"}}>
-                    <div style={{width:54,height:54,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%, ${b.couleur}, ${b.couleur}88)`,border:`2px solid ${b.couleur}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,margin:"0 auto 8px",boxShadow:`0 0 16px ${b.couleur}55`}}>{b.emoji}</div>
-                    <div style={{fontWeight:700,fontSize:11,color:b.couleur}}>{b.nom}</div>
-                  </div>
-                ))}
-              </div>
-              {/* Reste */}
-              {badgesOk.length>3&&(
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  {badgesOk.slice(3).map(b=>(
-                    <div key={b.nom} style={{...card,display:"flex",alignItems:"center",gap:10}}>
-                      <div style={{width:38,height:38,borderRadius:"50%",background:b.couleur+"22",border:`1px solid ${b.couleur}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{b.emoji}</div>
-                      <div>
-                        <div style={{fontWeight:600,fontSize:12,color:b.couleur}}>{b.nom}</div>
-                        <div style={{fontSize:10,color:CJ.green}}>✅ Débloqué</div>
-                      </div>
-                    </div>
-                  ))}
+          <p style={{color:CJ.muted,fontSize:13,marginBottom:16}}>{totalBadgesOk} / {ALL_BADGES.length} débloqués</p>
+          {BADGE_CATS.map(cat => {
+            const catBadges = ALL_BADGES.filter(b=>b.cat===cat.id);
+            const catUnlocked = catBadges.filter(b=>b.val(valsComplets)>=b.seuil).length;
+            return (
+              <div key={cat.id} style={{marginBottom:24}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <h3 style={{fontWeight:800,fontSize:14,color:CJ.accent,letterSpacing:.5,margin:0}}>{cat.label}</h3>
+                  <span style={{fontSize:11,color:CJ.muted}}>{catUnlocked}/{catBadges.length}</span>
                 </div>
-              )}
-            </>
-          }
+                <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
+                  {catBadges.map(b=><FicheBadgeCard key={b.id} b={b}/>)}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
