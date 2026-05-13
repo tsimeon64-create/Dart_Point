@@ -7190,7 +7190,7 @@ export default function App() {
         {page==="profil-amis"      && joueur && <PageProfilAmis joueur={joueur} setPage={nav}/>}
         {page==="profil-badges"    && joueur && <PageProfilBadges joueur={joueur} setPage={nav}/>}
         {page==="profil-historique" && joueur && <PageProfilHistorique joueur={joueur} setPage={nav}/>}
-        {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav}/>}
+        {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav} associations={associations}/>}
         {page==="scoreur"          && <Scoreur setPage={nav}/>}
         {page==="scoreur-libre"    && <ScoreurLibre setPage={nav}/>}
         {page==="jeux"             && <PageModeJeu joueur={joueur} setPage={nav}/>}

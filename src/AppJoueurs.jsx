@@ -204,7 +204,7 @@ const getProgression = (drix) => {
 const RESET_ADMIN_CODE = "jesuisunebrele";
 
 // ── CONNEXION / INSCRIPTION ───────────────────────────────────────────────────
-export const Connexion = ({ onLogin, setPage }) => {
+export const Connexion = ({ onLogin, setPage, associations=[] }) => {
   const [mode, setMode] = useState("login"); // "login" | "register" | "reset"
   const [pseudo, setPseudo] = useState("");
   const [pwd, setPwd] = useState("");
@@ -213,8 +213,20 @@ export const Connexion = ({ onLogin, setPage }) => {
   const [err, setErr] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  // Champs inscription
+  const [nom, setNom] = useState("");
+  const [prenom, setPrenom] = useState("");
+  const [email, setEmail] = useState("");
+  const [ville, setVille] = useState("");
+  const [assoQuery, setAssoQuery] = useState("");
+  const [selectedAsso, setSelectedAsso] = useState(null);
+  const [assoOpen, setAssoOpen] = useState(false);
 
-  const reset = () => { setErr(""); setSuccess(""); setPseudo(""); setPwd(""); setPwd2(""); setAdminCode(""); };
+  const assoSuggestions = assoQuery.length >= 1
+    ? associations.filter(a => a.nom.toLowerCase().includes(assoQuery.toLowerCase()) || (a.ville||"").toLowerCase().includes(assoQuery.toLowerCase())).slice(0, 6)
+    : [];
+
+  const resetFields = () => { setErr(""); setSuccess(""); setPseudo(""); setPwd(""); setPwd2(""); setAdminCode(""); setNom(""); setPrenom(""); setEmail(""); setVille(""); setAssoQuery(""); setSelectedAsso(null); };
 
   const login = async () => {
     if (!pseudo.trim() || !pwd) return;
@@ -229,16 +241,27 @@ export const Connexion = ({ onLogin, setPage }) => {
   };
 
   const register = async () => {
-    if (!pseudo.trim() || !pwd || pwd !== pwd2) { setErr(pwd !== pwd2 ? "Les mots de passe ne correspondent pas" : "Champs obligatoires"); return; }
+    if (!prenom.trim() || !nom.trim()) { setErr("Prénom et nom obligatoires"); return; }
+    if (!email.trim() || !email.includes("@")) { setErr("Adresse e-mail invalide"); return; }
+    if (!pseudo.trim() || !pwd || pwd !== pwd2) { setErr(pwd !== pwd2 ? "Les mots de passe ne correspondent pas" : "Pseudo et mots de passe obligatoires"); return; }
     const pseudoErr = validerPseudo(pseudo);
     if (pseudoErr) { setErr(pseudoErr); return; }
     setLoading(true); setErr("");
     try {
-      // Vérification insensible à la casse — "TOTO" bloqué si "toto" existe déjà
       const exist = await dbJ.getJoueurByPseudoIlike(pseudo.trim());
       if (exist) { setErr(`Ce pseudo est déjà pris${exist.pseudo !== pseudo.trim() ? ` (par "${exist.pseudo}")` : ""}`); setLoading(false); return; }
       const hash = await hashPwd(pwd);
-      const r = await dbJ.addJoueur({ pseudo: pseudo.trim(), password_hash: hash, date_inscription: Date.now() });
+      const payload = {
+        pseudo: pseudo.trim(),
+        password_hash: hash,
+        date_inscription: Date.now(),
+        nom: nom.trim(),
+        prenom: prenom.trim(),
+        email: email.trim().toLowerCase(),
+        ville: ville.trim() || null,
+        asso_slug: selectedAsso?.slug || null,
+      };
+      const r = await dbJ.addJoueur(payload);
       if (r?.[0]) {
         await dbJ.addStats({ joueur_id: r[0].id, saison: "2025", victoires: 0, defaites: 0, parties: 0 });
         onLogin(r[0]);
@@ -266,30 +289,102 @@ export const Connexion = ({ onLogin, setPage }) => {
   };
 
   return (
-    <div style={{ maxWidth:400, margin:"60px auto", padding:"0 20px" }}>
-      <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:28 }}>
-        <div style={{ fontSize:40, textAlign:"center", marginBottom:16 }}>🎯</div>
+    <div style={{ maxWidth:440, margin:"40px auto", padding:"0 16px 40px" }}>
+      <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:16, padding:"24px 20px" }}>
+        <div style={{ fontSize:36, textAlign:"center", marginBottom:14 }}>🎯</div>
 
         {mode !== "reset" ? (<>
-          <div style={{ display:"flex", gap:4, marginBottom:24, background:"#111", borderRadius:10, padding:4 }}>
+          <div style={{ display:"flex", gap:4, marginBottom:20, background:"#111", borderRadius:10, padding:4 }}>
             {[["login","Connexion"],["register","Inscription"]].map(([m,l])=>(
               <button key={m} onClick={()=>{setMode(m);setErr("");}} style={{ flex:1,background:mode===m?CJ.accent:"transparent",color:mode===m?"#fff":CJ.muted,border:"none",borderRadius:8,padding:"8px",cursor:"pointer",fontWeight:600,fontSize:14 }}>{l}</button>
             ))}
           </div>
-          <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
-            <FieldJ label="Pseudo" value={pseudo} onChange={setPseudo} placeholder="VotrePseudo"/>
-            <FieldJ label="Mot de passe" value={pwd} onChange={setPwd} placeholder="••••••••" type="password"/>
-            {mode==="register" && <FieldJ label="Confirmer le mot de passe" value={pwd2} onChange={setPwd2} placeholder="••••••••" type="password"/>}
-            {err && <p style={{ color:CJ.red, fontSize:13 }}>⚠️ {err}</p>}
-            <BtnJ onClick={mode==="login"?login:register} disabled={loading} style={{ marginTop:4 }}>
-              {loading?"Chargement…":mode==="login"?"Se connecter →":"Créer mon compte →"}
-            </BtnJ>
-            {mode==="login" && (
-              <button onClick={()=>{setMode("reset");reset();}} style={{ background:"none",border:"none",color:CJ.muted,fontSize:12,cursor:"pointer",textAlign:"center",marginTop:2 }}>
+
+          {/* ── CONNEXION ── */}
+          {mode === "login" && (
+            <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
+              <FieldJ label="Pseudo" value={pseudo} onChange={setPseudo} placeholder="VotrePseudo"/>
+              <FieldJ label="Mot de passe" value={pwd} onChange={setPwd} placeholder="••••••••" type="password"/>
+              {err && <p style={{ color:CJ.red, fontSize:13 }}>⚠️ {err}</p>}
+              <BtnJ onClick={login} disabled={loading} style={{ marginTop:4 }}>
+                {loading ? "Chargement…" : "Se connecter →"}
+              </BtnJ>
+              <button onClick={()=>{setMode("reset");resetFields();}} style={{ background:"none",border:"none",color:CJ.muted,fontSize:12,cursor:"pointer",textAlign:"center",marginTop:2 }}>
                 Mot de passe oublié ?
               </button>
-            )}
-          </div>
+            </div>
+          )}
+
+          {/* ── INSCRIPTION ── */}
+          {mode === "register" && (
+            <div style={{ display:"flex",flexDirection:"column",gap:11 }}>
+              {/* Identité */}
+              <div style={{ fontSize:11,fontWeight:700,color:CJ.muted,letterSpacing:.5,marginBottom:2 }}>IDENTITÉ</div>
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+                <FieldJ label="Prénom *" value={prenom} onChange={setPrenom} placeholder="Jean"/>
+                <FieldJ label="Nom *" value={nom} onChange={setNom} placeholder="Dupont"/>
+              </div>
+              <FieldJ label="Adresse e-mail *" value={email} onChange={setEmail} placeholder="jean@email.com" type="email"/>
+              <FieldJ label="Ville de résidence" value={ville} onChange={setVille} placeholder="Bayonne"/>
+
+              {/* Association */}
+              <div style={{ position:"relative" }}>
+                <div style={{ fontSize:12,color:CJ.muted,fontWeight:600,marginBottom:4 }}>Association</div>
+                {selectedAsso ? (
+                  <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",background:"#1a1a2a",border:`1px solid ${CJ.accent}66`,borderRadius:8,padding:"9px 12px" }}>
+                    <div>
+                      <div style={{ fontWeight:700,fontSize:13,color:CJ.text }}>{selectedAsso.nom}</div>
+                      {selectedAsso.ville && <div style={{ fontSize:11,color:CJ.muted }}>📍 {selectedAsso.ville}</div>}
+                    </div>
+                    <button onClick={()=>{ setSelectedAsso(null); setAssoQuery(""); }} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:16,padding:0 }}>✕</button>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display:"flex",alignItems:"center",gap:8,background:CJ.bg,border:`1px solid ${CJ.border}`,borderRadius:8,padding:"9px 12px" }}>
+                      <span style={{ fontSize:13,flexShrink:0 }}>🏛️</span>
+                      <input
+                        value={assoQuery}
+                        onChange={e=>{ setAssoQuery(e.target.value); setAssoOpen(true); }}
+                        onFocus={()=>setAssoOpen(true)}
+                        placeholder="Rechercher une association…"
+                        style={{ flex:1,background:"transparent",border:"none",color:CJ.text,fontSize:13,outline:"none",minWidth:0 }}
+                      />
+                      {assoQuery && <button onClick={()=>{ setAssoQuery(""); setAssoOpen(false); }} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,padding:0 }}>✕</button>}
+                    </div>
+                    {assoOpen && assoSuggestions.length > 0 && (
+                      <div style={{ position:"absolute",top:"100%",left:0,right:0,background:"rgba(15,15,24,0.98)",border:`1px solid ${CJ.border}`,borderRadius:10,zIndex:200,boxShadow:"0 8px 32px #000000aa",marginTop:4,overflow:"hidden" }}>
+                        {assoSuggestions.map(a => (
+                          <div key={a.slug} onClick={()=>{ setSelectedAsso(a); setAssoQuery(a.nom); setAssoOpen(false); }}
+                            style={{ padding:"10px 14px",cursor:"pointer",borderBottom:`1px solid ${CJ.border}`,transition:"background .1s" }}
+                            onMouseEnter={e=>e.currentTarget.style.background="#1a1a2a"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                            <div style={{ fontWeight:600,fontSize:13 }}>{a.nom}</div>
+                            {a.ville && <div style={{ fontSize:11,color:CJ.muted }}>📍 {a.ville}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {assoOpen && assoQuery.length >= 2 && assoSuggestions.length === 0 && (
+                      <div style={{ position:"absolute",top:"100%",left:0,right:0,background:"rgba(15,15,24,0.98)",border:`1px solid ${CJ.border}`,borderRadius:10,zIndex:200,padding:"10px 14px",marginTop:4,fontSize:12,color:CJ.muted }}>
+                        Aucune association trouvée
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Compte */}
+              <div style={{ fontSize:11,fontWeight:700,color:CJ.muted,letterSpacing:.5,marginTop:4,marginBottom:2 }}>COMPTE</div>
+              <FieldJ label="Pseudo *" value={pseudo} onChange={setPseudo} placeholder="VotrePseudo"/>
+              <FieldJ label="Mot de passe *" value={pwd} onChange={setPwd} placeholder="••••••••" type="password"/>
+              <FieldJ label="Confirmer le mot de passe *" value={pwd2} onChange={setPwd2} placeholder="••••••••" type="password"/>
+
+              {err && <p style={{ color:CJ.red, fontSize:13 }}>⚠️ {err}</p>}
+              <BtnJ onClick={register} disabled={loading} style={{ marginTop:6 }}>
+                {loading ? "Création en cours…" : "Créer mon compte →"}
+              </BtnJ>
+              <p style={{ fontSize:11,color:CJ.muted,textAlign:"center",marginTop:2 }}>* Champs obligatoires</p>
+            </div>
+          )}
         </>) : (<>
           <div style={{ marginBottom:20 }}>
             <div style={{ fontWeight:700,fontSize:16,marginBottom:4 }}>🔑 Réinitialiser le mot de passe</div>
@@ -303,9 +398,9 @@ export const Connexion = ({ onLogin, setPage }) => {
             {err && <p style={{ color:CJ.red, fontSize:13 }}>⚠️ {err}</p>}
             {success && <p style={{ color:"#22c55e", fontSize:13 }}>{success}</p>}
             <BtnJ onClick={resetPwd} disabled={loading} style={{ marginTop:4 }}>
-              {loading?"Réinitialisation…":"Réinitialiser le mot de passe"}
+              {loading ? "Réinitialisation…" : "Réinitialiser le mot de passe"}
             </BtnJ>
-            <button onClick={()=>{setMode("login");reset();}} style={{ background:"none",border:"none",color:CJ.muted,fontSize:12,cursor:"pointer",textAlign:"center" }}>
+            <button onClick={()=>{setMode("login");resetFields();}} style={{ background:"none",border:"none",color:CJ.muted,fontSize:12,cursor:"pointer",textAlign:"center" }}>
               ← Retour à la connexion
             </button>
           </div>
