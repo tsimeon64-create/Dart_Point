@@ -6941,10 +6941,25 @@ export default function App() {
         setDemandesAmisCount(amisN);
         setUnreadMessages(msgN);
         // Nouveaux badges non vus
+        let badgesN = 0;
         try {
           const badgeStored = getBadgesStored(joueur.id).size;
           const badgeSeen = parseInt(localStorage.getItem(`dp_badges_seen_${joueur.id}`) || "0");
-          setNewBadgesCount(Math.max(0, badgeStored - badgeSeen));
+          badgesN = Math.max(0, badgeStored - badgeSeen);
+          setNewBadgesCount(badgesN);
+        } catch {}
+        // Synchronise le badge icône de l'appli (PWA home screen)
+        const totalBadge = (matchsN + amisN + contestN) + msgN + badgesN;
+        try {
+          if (totalBadge > 0) {
+            navigator.setAppBadge?.(totalBadge);
+          } else {
+            navigator.clearAppBadge?.();
+            // Ferme aussi les notifications SW persistantes
+            navigator.serviceWorker?.ready.then(reg => {
+              reg.getNotifications().then(notifs => notifs.forEach(n => n.close())).catch(()=>{});
+            }).catch(()=>{});
+          }
         } catch {}
         // Notification navigateur si nouvelle demande d'ami détectée
         if (amisN > prevDemandesRef.current && prevDemandesRef.current >= 0) {
@@ -6976,7 +6991,10 @@ export default function App() {
     };
     fetchNotifs();
     const interval = setInterval(fetchNotifs, 10000);
-    return () => clearInterval(interval);
+    // Resynchro badge quand l'utilisateur revient sur l'appli
+    const onVisible = () => { if (document.visibilityState === "visible") fetchNotifs(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(interval); document.removeEventListener("visibilitychange", onVisible); };
   },[joueur?.id]);
 
   const handleLogin=(j)=>{ setJoueur(j); localStorage.setItem("dp_joueur",JSON.stringify(j)); nav("mon-profil"); };
