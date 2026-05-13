@@ -4637,16 +4637,53 @@ const MentionsLegales = () => (
 );
 
 const Contact = () => {
-  const [f,setF]=useState({nom:"",email:"",sujet:"",message:""}); const [sent,setSent]=useState(false); const set=k=>v=>setF(p=>({...p,[k]:v}));
-  if(sent) return <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}><div style={{ fontSize:50 }}>✉️</div><h2 style={{ fontWeight:700,marginTop:12 }}>Message envoyé !</h2></div>;
+  const [f,setF]=useState({nom:"",email:"",sujet:"",message:""});
+  const [sent,setSent]=useState(false);
+  const [sending,setSending]=useState(false);
+  const [err,setErr]=useState("");
+  const set=k=>v=>setF(p=>({...p,[k]:v}));
+
+  const send = async () => {
+    if(!f.email||!f.message){setErr("Remplis au moins l'email et le message.");return;}
+    setSending(true); setErr("");
+    try {
+      await db.addProposition({
+        nom: f.nom||"Anonyme",
+        ville: f.email,
+        slug: `contact-${Date.now()}`,
+        statut: "non_lu",
+        date: Date.now(),
+        commentaire: f.sujet ? `[${f.sujet}]\n${f.message}` : f.message,
+        type_prop: "contact",
+      });
+      setSent(true);
+    } catch(e) {
+      setErr("Erreur lors de l'envoi. Réessaie plus tard.");
+    } finally { setSending(false); }
+  };
+
+  if(sent) return (
+    <div style={{ maxWidth:580,margin:"80px auto",padding:"0 20px",textAlign:"center" }}>
+      <div style={{ fontSize:60,marginBottom:16 }}>✉️</div>
+      <h2 style={{ fontWeight:800,fontSize:22,marginBottom:10 }}>Message envoyé !</h2>
+      <p style={{ color:"#94a3b8",fontSize:15 }}>On te répondra dès que possible à <strong>{f.email}</strong>.</p>
+    </div>
+  );
+
   return (
     <div style={{ maxWidth:580,margin:"0 auto",padding:"36px 20px" }}>
       <h1 style={{ fontWeight:800,fontSize:26,marginBottom:24 }}>✉️ Contact</h1>
       <div style={{ display:"flex",flexDirection:"column",gap:13 }}>
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Nom" value={f.nom} onChange={set("nom")} placeholder="Jean Dupont"/><Field label="Email *" value={f.email} onChange={set("email")} placeholder="vous@email.com" type="email"/></div>
+        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}>
+          <Field label="Nom" value={f.nom} onChange={set("nom")} placeholder="Jean Dupont"/>
+          <Field label="Email *" value={f.email} onChange={set("email")} placeholder="vous@email.com" type="email"/>
+        </div>
         <Field label="Sujet" value={f.sujet} onChange={set("sujet")} placeholder="Partenariat, correction…"/>
         <Field label="Message *" value={f.message} onChange={set("message")} placeholder="Votre message…" as="textarea"/>
-        <Btn onClick={()=>f.email&&f.message?setSent(true):null} style={{ padding:"13px 22px",fontSize:15 }}>Envoyer →</Btn>
+        {err && <p style={{ color:"#ef4444",fontSize:13,margin:0 }}>{err}</p>}
+        <Btn onClick={send} style={{ padding:"13px 22px",fontSize:15 }} disabled={sending}>
+          {sending ? "Envoi…" : "Envoyer →"}
+        </Btn>
       </div>
     </div>
   );
@@ -4998,6 +5035,8 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
   const demandesClubs = propositions.filter(p=>p.type_prop==="president_club");
   const demandesClubsPending = demandesClubs.filter(p=>p.statut==="en_attente");
   const sigPending = signalements.filter(s=>!s.traite);
+  const contacts = propositions.filter(p=>p.type_prop==="contact");
+  const contactsNonLus = contacts.filter(p=>p.statut==="non_lu");
   const totalUrgent = allPending.length + sigPending.length + avisCount + demandesClubsPending.length;
 
   // Global search
@@ -5372,9 +5411,75 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
     </div>
   );
 
+  const markContactLu = async (id) => {
+    await db.updateProposition(id, { statut: "lu" }).catch(()=>{});
+    setPropositions(x => x.map(p => p.id===id ? {...p, statut:"lu"} : p));
+  };
+
+  const renderContacts = () => (
+    <div>
+      {contacts.length === 0 ? (
+        <div style={{ textAlign:"center", padding:60, color:C.muted }}>📭 Aucun message reçu.</div>
+      ) : (
+        <>
+          <div style={{ marginBottom:16, display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontWeight:800, fontSize:16, color:C.text }}>✉️ Messages reçus</span>
+            {contactsNonLus.length > 0 && (
+              <span style={{ background:`${C.accent}22`, border:`1px solid ${C.accent}`, borderRadius:8, padding:"2px 10px", fontSize:12, fontWeight:700, color:C.accent }}>
+                {contactsNonLus.length} non lu{contactsNonLus.length>1?"s":""}
+              </span>
+            )}
+          </div>
+          {contacts.map(p => {
+            const isNonLu = p.statut === "non_lu";
+            const sujet = p.commentaire?.startsWith("[") ? p.commentaire.match(/^\[([^\]]*)\]/)?.[1] || "" : "";
+            const message = p.commentaire?.startsWith("[") ? p.commentaire.replace(/^\[[^\]]*\]\n?/, "") : p.commentaire || "";
+            const dateStr = p.date ? new Date(typeof p.date==="number"?p.date:parseInt(p.date)).toLocaleString("fr-FR",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "—";
+            return (
+              <div key={p.id} style={{
+                background: isNonLu ? `linear-gradient(135deg,${C.accent}10,#111)` : C.card,
+                border: `1px solid ${isNonLu ? C.accent+"55" : C.border}`,
+                borderRadius:14, padding:"16px 18px", marginBottom:10,
+                boxShadow: isNonLu ? `0 0 20px ${C.accent}12` : "none",
+              }}>
+                <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:10 }}>
+                  <div style={{ width:40, height:40, borderRadius:12, background:`${C.accent}18`, border:`1px solid ${C.accent}33`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>✉️</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:2 }}>
+                      <span style={{ fontWeight:800, fontSize:15, color:C.text }}>{p.nom}</span>
+                      {isNonLu && <span style={{ background:C.accent, borderRadius:6, padding:"1px 8px", fontSize:10, fontWeight:700, color:"#fff" }}>NOUVEAU</span>}
+                    </div>
+                    <div style={{ color:C.muted, fontSize:12 }}>📧 {p.ville} · 🕒 {dateStr}</div>
+                    {sujet && <div style={{ marginTop:4, color:"#60a5fa", fontSize:12, fontWeight:600 }}>📌 {sujet}</div>}
+                  </div>
+                </div>
+                <div style={{ background:"#0a0a0a", borderRadius:10, padding:"12px 14px", fontSize:13.5, color:"#cbd5e1", lineHeight:1.7, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
+                  {message}
+                </div>
+                <div style={{ marginTop:10, display:"flex", gap:8, alignItems:"center" }}>
+                  <a href={`mailto:${p.ville}?subject=Re: ${sujet||"DartPoint"}`}
+                    style={{ background:"#1a1a2e", border:`1px solid #60a5fa44`, borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, color:"#60a5fa", textDecoration:"none", cursor:"pointer" }}>
+                    ↩️ Répondre
+                  </a>
+                  {isNonLu && (
+                    <button onClick={()=>markContactLu(p.id)}
+                      style={{ background:"#141a14", border:`1px solid ${C.green}44`, borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, color:C.green, cursor:"pointer" }}>
+                      ✅ Marquer comme lu
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
+    </div>
+  );
+
   const TABS = [
     ["dashboard","📊 Dashboard"],
     ["pending",`⏳ En attente${allPending.length>0?` (${allPending.length})`:""}`,allPending.length>0?"urgent":null],
+    ["contacts",`✉️ Messages${contactsNonLus.length>0?` (${contactsNonLus.length})`:""}`,contactsNonLus.length>0?"urgent":null],
     ["bars-ajoutes",`🆕 Bars ajoutés${barsAjoutes.length>0?` (${barsAjoutes.length})`:""}`,barsAjoutes.length>0?"important":null],
     ["demandes-clubs",`👑 Clubs${demandesClubsPending.length>0?` (${demandesClubsPending.length})`:""}`,demandesClubsPending.length>0?"urgent":null],
     ["avismod",`💬 Avis${avisCount>0?` (${avisCount})`:""}`,avisCount>0?"important":null],
@@ -5473,6 +5578,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
         {loading ? <Spinner/>
           : tab==="dashboard"       ? renderDashboard()
           : tab==="pending"         ? renderPending()
+          : tab==="contacts"        ? renderContacts()
           : tab==="bars-ajoutes"    ? renderBarsAjoutes()
           : tab==="demandes-clubs"  ? renderDemandes()
           : tab==="avismod"         ? <AvisAdminSection/>
