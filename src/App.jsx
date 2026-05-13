@@ -880,27 +880,13 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose }) => {
   const save=async()=>{
     setSaving(true);
     setErrMsg("");
-    const lat = parseFloat(f.lat)||null;
-    const lng = parseFloat(f.lng)||null;
-    // Champs de base (colonnes existantes dans la table)
-    const base = { nom:f.nom, ville:f.ville, zone:f.zone, type:f.type, jours:f.jours, lieu:f.lieu, tel:f.tel, contact:f.contact, description:f.description, bars:selectedBars, lat, lng };
-    // Champs extra (colonnes peut-être pas encore créées)
-    const extra = { president:f.president, contact_nom:f.contact_nom };
     try {
-      // On tente d'abord tout ensemble
-      await db.updateAssociation(asso.slug, {...base, ...extra});
-      onSave({...asso,...base,...extra});
+      const payload = { nom:f.nom, ville:f.ville, zone:f.zone, type:f.type, president:f.president, contact_nom:f.contact_nom, jours:f.jours, lieu:f.lieu, tel:f.tel, contact:f.contact, description:f.description, bars:selectedBars, lat:parseFloat(f.lat)||null, lng:parseFloat(f.lng)||null };
+      await db.updateAssociation(asso.slug, payload);
+      onSave({...asso,...payload});
       onClose();
-    } catch(e1) {
-      // Si ça échoue (colonnes manquantes), on sauve juste les champs de base
-      try {
-        await db.updateAssociation(asso.slug, base);
-        onSave({...asso,...base});
-        setErrMsg("✅ Sauvegardé ! Note : les champs Président/Contact nécessitent d'être ajoutés dans Supabase (colonnes president et contact_nom dans la table associations).");
-        // On ne ferme pas pour que l'utilisateur voie le message
-      } catch(e2) {
-        setErrMsg("❌ Erreur : " + (e2?.message || "impossible de sauvegarder"));
-      }
+    } catch(e) {
+      setErrMsg("❌ Erreur : " + (e?.message || "impossible de sauvegarder"));
     } finally {
       setSaving(false);
     }
