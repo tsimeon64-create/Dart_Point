@@ -512,11 +512,10 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       const newCount = pseudoChanges + 1;
       localStorage.setItem(PSEUDO_CHANGES_KEY, String(newCount));
       setPseudoChanges(newCount);
-      // Cascade : mettre à jour joueur_pseudo dans drix_mouvements
+      // Cascade : mettre à jour joueur_pseudo dans drix_mouvements (affichage uniquement)
       sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}`, { method:"PATCH", body:JSON.stringify({ joueur_pseudo:newPseudo }), prefer:"return=minimal" }).catch(()=>{});
-      // Cascade : mettre à jour challenger_pseudo / defie_pseudo dans les duels
-      sbJ(`duels?challenger_id=eq.${joueur.id}`, { method:"PATCH", body:JSON.stringify({ challenger_pseudo:newPseudo }), prefer:"return=minimal" }).catch(()=>{});
-      sbJ(`duels?defie_id=eq.${joueur.id}`, { method:"PATCH", body:JSON.stringify({ defie_pseudo:newPseudo }), prefer:"return=minimal" }).catch(()=>{});
+      // NOTE : on ne met PAS à jour challenger_pseudo/defie_pseudo dans les duels,
+      // car manches_detail[].winner stocke l'ancien pseudo — les modifier casserait le calcul des stats.
     }
     setSavingEdit(false); setEditMode(false);
   };
