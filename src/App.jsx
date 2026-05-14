@@ -345,22 +345,13 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
         {/* ── Barre principale ─────────────────────────────────────── */}
         <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 10px", position:"relative", display:"flex", alignItems:"center", height:56, gap:4 }}>
 
-          {/* GAUCHE — Retour */}
-          <div style={{ flex:1, display:"flex", alignItems:"center", minWidth:0 }}>
-            {canGoBack && page !== "home" ? (
-              <button className="dp-topbtn" onClick={onBack}
-                style={{ background:"#0f0f18", border:"1px solid #2a2a3a", color:"#7c8ca0", cursor:"pointer", borderRadius:9, padding:"6px 11px", fontSize:12, fontWeight:700, display:"flex", alignItems:"center", gap:4, touchAction:"manipulation", transition:"all .2s", whiteSpace:"nowrap", flexShrink:0, boxShadow:"0 0 0 transparent" }}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor="#f9731655";e.currentTarget.style.color="#f97316";e.currentTarget.style.boxShadow="0 0 10px #f9731622";}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor="#2a2a3a";e.currentTarget.style.color="#7c8ca0";e.currentTarget.style.boxShadow="none";}}>
-                ‹ Retour
-              </button>
-            ) : <div style={{ width:4 }}/>}
-          </div>
+          {/* GAUCHE — espace */}
+          <div style={{ flex:1, minWidth:0 }}/>
 
           {/* CENTRE — Logo (centré absolument) */}
           <div onClick={()=>go("home")} style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", cursor:"pointer", flexShrink:0, zIndex:1 }}>
             <img src="/logo dart point/logo bandeau.png" alt="DartPoint"
-              style={{ height: canGoBack && page !== "home" ? 32 : 40, objectFit:"contain", display:"block",
+              style={{ height: 40, objectFit:"contain", display:"block",
                 animation:"dp-breathe 4s ease-in-out infinite",
                 transition:"height .25s" }}/>
           </div>
