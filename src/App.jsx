@@ -492,7 +492,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
         transform: open ? "translateX(0)" : "translateX(100%)",
         transition:"transform 0.32s cubic-bezier(0.4,0,0.2,1)",
         zIndex:400, overflowY:"auto", display:"flex", flexDirection:"column",
-        boxShadow:"-30px 0 100px rgba(0,0,0,0.95)",
+        boxShadow: open ? "-30px 0 100px rgba(0,0,0,0.95)" : "none",
       }}>
         {/* ── Panel header ──────────────────────────────────────────── */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 16px 12px", borderBottom:"1px solid #1a1a22", flexShrink:0 }}>
