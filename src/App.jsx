@@ -345,8 +345,24 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
         {/* ── Barre principale ─────────────────────────────────────── */}
         <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 10px", position:"relative", display:"flex", alignItems:"center", height:56, gap:4 }}>
 
-          {/* GAUCHE — espace */}
-          <div style={{ flex:1, minWidth:0 }}/>
+          {/* GAUCHE — Hamburger */}
+          <div style={{ flex:1, display:"flex", alignItems:"center", gap:5 }}>
+            {/* Hamburger */}
+            <button className="dp-topbtn" onClick={()=>setOpen(o=>!o)}
+              style={{ background: open ? "#f9731620" : "#0f0f18", border:`1px solid ${open?"#f9731660":"#1e1e2e"}`, color: open ? "#f97316" : "#94a3b8", cursor:"pointer", padding:"7px 11px", borderRadius:10, transition:"all .22s", touchAction:"manipulation", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+                boxShadow: open ? "0 0 18px #f9731430" : "none" }}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor="#f9731660";e.currentTarget.style.color="#f97316";e.currentTarget.style.boxShadow="0 0 14px #f9731428";}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=open?"#f9731660":"#1e1e2e";e.currentTarget.style.color=open?"#f97316":"#94a3b8";e.currentTarget.style.boxShadow=open?"0 0 18px #f9731430":"none";}}>
+              <span style={{ display:"inline-block", transition:"transform .3s cubic-bezier(.4,0,.2,1)", transform:open?"rotate(90deg)":"none", fontSize:17, lineHeight:1 }}>{open?"✕":"☰"}</span>
+            </button>
+            {/* Admin */}
+            {isAdmin && (
+              <button className="dp-topbtn" onClick={()=>go("admin")}
+                style={{ background:"#120d00", color:C.yellow, border:"1px solid #78350f55", cursor:"pointer", padding:"6px 8px", borderRadius:9, fontSize:13, fontWeight:700, touchAction:"manipulation", transition:"all .2s" }}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="#f59e0b88";e.currentTarget.style.boxShadow="0 0 12px #f59e0b33";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="#78350f55";e.currentTarget.style.boxShadow="none";}}>⚙️</button>
+            )}
+          </div>
 
           {/* CENTRE — Logo (centré absolument) */}
           <div onClick={()=>go("home")} style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", cursor:"pointer", flexShrink:0, zIndex:1 }}>
@@ -356,7 +372,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                 transition:"height .25s" }}/>
           </div>
 
-          {/* DROITE — Actions */}
+          {/* DROITE — Profil */}
           <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"flex-end", gap:5 }}>
 
 
@@ -442,22 +458,6 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
               </button>
             )}
 
-            {/* Admin */}
-            {isAdmin && (
-              <button className="dp-topbtn" onClick={()=>go("admin")}
-                style={{ background:"#120d00", color:C.yellow, border:"1px solid #78350f55", cursor:"pointer", padding:"6px 8px", borderRadius:9, fontSize:13, fontWeight:700, touchAction:"manipulation", transition:"all .2s" }}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor="#f59e0b88";e.currentTarget.style.boxShadow="0 0 12px #f59e0b33";}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor="#78350f55";e.currentTarget.style.boxShadow="none";}}>⚙️</button>
-            )}
-
-            {/* Hamburger */}
-            <button className="dp-topbtn" onClick={()=>setOpen(o=>!o)}
-              style={{ background: open ? "#f9731620" : "#0f0f18", border:`1px solid ${open?"#f9731660":"#1e1e2e"}`, color: open ? "#f97316" : "#94a3b8", cursor:"pointer", padding:"7px 11px", borderRadius:10, transition:"all .22s", touchAction:"manipulation", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
-                boxShadow: open ? "0 0 18px #f9731430" : "none" }}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor="#f9731660";e.currentTarget.style.color="#f97316";e.currentTarget.style.boxShadow="0 0 14px #f9731428";}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor=open?"#f9731660":"#1e1e2e";e.currentTarget.style.color=open?"#f97316":"#94a3b8";e.currentTarget.style.boxShadow=open?"0 0 18px #f9731430":"none";}}>
-              <span style={{ display:"inline-block", transition:"transform .3s cubic-bezier(.4,0,.2,1)", transform:open?"rotate(90deg)":"none", fontSize:17, lineHeight:1 }}>{open?"✕":"☰"}</span>
-            </button>
           </div>
         </div>
 
