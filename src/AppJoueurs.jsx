@@ -512,6 +512,11 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       const newCount = pseudoChanges + 1;
       localStorage.setItem(PSEUDO_CHANGES_KEY, String(newCount));
       setPseudoChanges(newCount);
+      // Cascade : mettre à jour joueur_pseudo dans drix_mouvements
+      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}`, { method:"PATCH", body:JSON.stringify({ joueur_pseudo:newPseudo }), prefer:"return=minimal" }).catch(()=>{});
+      // Cascade : mettre à jour challenger_pseudo / defie_pseudo dans les duels
+      sbJ(`duels?challenger_id=eq.${joueur.id}`, { method:"PATCH", body:JSON.stringify({ challenger_pseudo:newPseudo }), prefer:"return=minimal" }).catch(()=>{});
+      sbJ(`duels?defie_id=eq.${joueur.id}`, { method:"PATCH", body:JSON.stringify({ defie_pseudo:newPseudo }), prefer:"return=minimal" }).catch(()=>{});
     }
     setSavingEdit(false); setEditMode(false);
   };
@@ -1022,7 +1027,10 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
   let nbFinishes100=0, manchesJouees=0, manchesGagnees=0;
   termines.forEach(d => {
     (d.manches_detail||[]).forEach(m => {
-      const isW = m.winner === joueur.pseudo;
+      // Gère le changement de pseudo : comparer au pseudo stocké dans le duel au moment de la partie
+      const isChallenger = d.challenger_id === joueur.id;
+      const myPseudoAtTime = isChallenger ? (d.challenger_pseudo || joueur.pseudo) : (d.defie_pseudo || joueur.pseudo);
+      const isW = m.winner === myPseudoAtTime || m.winner === joueur.pseudo;
       nb180        += isW ? (m.winner_180||0)     : (m.loser_180||0);
       nb140        += isW ? (m.winner_140plus||0)  : (m.loser_140plus||0);
       nb100        += isW ? (m.winner_100plus||0)  : (m.loser_100plus||0);
@@ -1360,7 +1368,10 @@ export const computeBadgeValues = (joueur, stats, duels, drixMvts, amis, nbTourn
 
   termines.forEach(d=>{
     (d.manches_detail||[]).forEach(m=>{
-      const isW = m.winner===joueur.pseudo;
+      // Gère le changement de pseudo : comparer au pseudo stocké dans le duel au moment de la partie
+      const isChallenger = d.challenger_id === joueur.id;
+      const myPseudoAtTime = isChallenger ? (d.challenger_pseudo || joueur.pseudo) : (d.defie_pseudo || joueur.pseudo);
+      const isW = m.winner === myPseudoAtTime || m.winner === joueur.pseudo;
       nb180 += isW?(m.winner_180||0):(m.loser_180||0);
       nb140 += isW?(m.winner_140plus||0):(m.loser_140plus||0);
       nb100 += isW?(m.winner_100plus||0):(m.loser_100plus||0);
@@ -1984,7 +1995,10 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   let nb180=0, plusGrosFinish=0;
   duels.forEach(d => {
     (d.manches_detail||[]).forEach(m => {
-      const isW = m.winner === j.pseudo;
+      // Gère le changement de pseudo : comparer au pseudo stocké dans le duel au moment de la partie
+      const isChallenger = d.challenger_id === joueurId;
+      const myPseudoAtTime = isChallenger ? (d.challenger_pseudo || j.pseudo) : (d.defie_pseudo || j.pseudo);
+      const isW = m.winner === myPseudoAtTime || m.winner === j.pseudo;
       nb180 += isW ? (m.winner_180||0) : (m.loser_180||0);
       if (isW) plusGrosFinish = Math.max(plusGrosFinish, m.winner_finish||0);
     });
