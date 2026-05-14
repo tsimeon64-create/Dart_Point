@@ -508,7 +508,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   };
 
   // Construit le détail d'une manche à partir des données courantes vs. début de manche
-  const buildMancheDetail = (updated, winnerIdx, start) => {
+  const buildMancheDetail = (updated, winnerIdx, start, startScore = 501) => {
     const w = updated[winnerIdx];
     const l = updated[1-winnerIdx];
     const wFlech = w.flechettes - (start.flechettes?.[winnerIdx] ?? start.vol[winnerIdx]*3);
@@ -520,6 +520,17 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     const wTours = w.tours.slice(start.nbtours[winnerIdx]);
     const lTours = l.tours.slice(start.nbtours[1-winnerIdx]);
     const cnt = (arr, min, max=Infinity) => arr.filter(v=>v>=min&&v<=max).length;
+
+    // Tentatives de checkout : volées où le score restant au DÉBUT de la volée était ≤ 170
+    const countCheckoutAttempts = (tours) => {
+      let remaining = startScore;
+      let attempts = 0;
+      for (const t of tours) {
+        if (remaining <= 170) attempts++;
+        remaining -= t;
+      }
+      return attempts;
+    };
 
     return {
       winner: w.nom, loser: l.nom,
@@ -543,6 +554,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       loser_max:      lTours.length > 0 ? Math.max(...lTours) : 0,
       winner_26:      cnt(wTours, 26, 26),
       loser_26:       cnt(lTours, 26, 26),
+      // Checkout % réel : tentatives (score ≤ 170 en début de volée) vs. succès (leg gagnée = 1)
+      winner_checkout_attempts: countCheckoutAttempts(wTours),
+      loser_checkout_attempts:  countCheckoutAttempts(lTours),
     };
   };
 
@@ -746,7 +760,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         : j
       );
       const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
-      const mancheDetail = buildMancheDetail(updated, actifIdx, mancheStart);
+      const startScore = modeDuel ? parseInt(duel?.mode || "501") : startVal;
+      const mancheDetail = buildMancheDetail(updated, actifIdx, mancheStart, startScore);
       if (newManches >= manchesTotal) {
         const allManches = [...manchesHistory, mancheDetail];
         setJoueurs(updated);

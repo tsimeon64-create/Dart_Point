@@ -1024,6 +1024,7 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
   // Stats scoring depuis manches_detail
   let nb180=0, nb140=0, nb100=0, nb80=0, nb60=0, plusGrosScore=0, plusGrosFinish=0;
   let nbFinishes100=0, manchesJouees=0, manchesGagnees=0;
+  let checkoutAttempts=0, checkoutSuccess=0;
   termines.forEach(d => {
     (d.manches_detail||[]).forEach(m => {
       // Gère le changement de pseudo : comparer au pseudo stocké dans le duel au moment de la partie
@@ -1041,10 +1042,14 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
       plusGrosFinish = Math.max(plusGrosFinish, fin);
       manchesJouees++;
       if (isW) { manchesGagnees++; if (fin >= 100) nbFinishes100++; }
+      // Vrai checkout % : tentatives (score ≤ 170 au début d'une volée)
+      const myAttempts = isW ? (m.winner_checkout_attempts||0) : (m.loser_checkout_attempts||0);
+      if (myAttempts > 0) { checkoutAttempts += myAttempts; if (isW) checkoutSuccess++; }
     });
   });
   const hasScoring    = termines.some(d=>(d.manches_detail||[]).some(m=>m.winner_180!==undefined));
-  const tauxCheckout  = manchesJouees > 0 ? Math.round((manchesGagnees/manchesJouees)*100) : null;
+  const hasCheckout   = checkoutAttempts > 0;
+  const tauxCheckout  = hasCheckout ? Math.round((checkoutSuccess / checkoutAttempts) * 100) : null;
 
   // Meilleure série de victoires (ordre chronologique)
   const sortedChron = [...termines].sort((a,b)=>(a.date||0)-(b.date||0));
@@ -1133,7 +1138,7 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
       <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
         <StatCard label="Plus gros finish" value={hasScoring && plusGrosFinish>0 ? plusGrosFinish : "—"} color={CJ.green} bientot={!hasScoring}/>
         <StatCard label="Finishes 100+"    value={hasScoring ? nbFinishes100 : "—"} color={CJ.yellow} bientot={!hasScoring}/>
-        <StatCard label="Taux checkout"    value={tauxCheckout!==null && manchesJouees>=3 ? `${tauxCheckout}%` : "—"} color={CJ.accent} sub={manchesJouees>=3?`${manchesGagnees}/${manchesJouees} legs`:null} bientot={manchesJouees<3}/>
+        <StatCard label="Checkout %" value={hasCheckout ? `${tauxCheckout}%` : "—"} color={CJ.accent} sub={hasCheckout?`${checkoutSuccess}/${checkoutAttempts} tentatives`:null} bientot={!hasCheckout}/>
 
       </div>
 
