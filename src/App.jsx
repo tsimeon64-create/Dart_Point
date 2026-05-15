@@ -6867,6 +6867,7 @@ export default function App() {
   const [barsActifs,setBarsActifs]=useState([]);
   const [installPrompt,setInstallPrompt]=useState(null);
   const [isInstalled,setIsInstalled]=useState(false);
+  const [showChronoPopup,setShowChronoPopup]=useState(false);
   // Vérification de version — mise à jour automatique sans bandeau
   useEffect(()=>{
     const VERSION_KEY = "dp_version";
@@ -6910,6 +6911,18 @@ export default function App() {
   };
 
   useEffect(()=>{ try{ const j=localStorage.getItem("dp_joueur"); if(j) setJoueur(JSON.parse(j)); }catch{} },[]);
+
+  // ── Popup défi quotidien Chrono Finish ────────────────────────────────────────
+  useEffect(()=>{
+    if (!joueur) return;
+    const today = new Date().toISOString().split("T")[0];
+    const popupKey = `dp_chrono_popup_${today}`;
+    const playedKey = `dp_chrono_${today}`;
+    if (!localStorage.getItem(popupKey) && !localStorage.getItem(playedKey)) {
+      localStorage.setItem(popupKey, "1");
+      setTimeout(() => setShowChronoPopup(true), 1200);
+    }
+  },[joueur?.id]);
 
   // Lien de partage tournoi entre potes (#t=UUID)
   useEffect(()=>{
@@ -7125,6 +7138,25 @@ export default function App() {
   return (
     <div style={{ minHeight:"100vh",display:"flex",flexDirection:"column",background:C.bg,color:C.text }}>
       {showOnboarding && <Onboarding onDone={()=>setShowOnboarding(false)}/>}
+      {/* ── Popup défi quotidien Chrono Finish ── */}
+      {showChronoPopup && (
+        <div style={{ position:"fixed",inset:0,background:"#000000cc",zIndex:1500,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:"0 16px 80px" }} onClick={()=>setShowChronoPopup(false)}>
+          <div onClick={e=>e.stopPropagation()} style={{ background:"linear-gradient(135deg,#1a1030,#0f0f20)",border:"2px solid #a78bfa",borderRadius:24,padding:"28px 24px 24px",maxWidth:400,width:"100%",textAlign:"center",boxShadow:"0 24px 64px #000000bb,0 0 40px #a78bfa33",position:"relative" }}>
+            <button onClick={()=>setShowChronoPopup(false)} style={{ position:"absolute",top:12,right:14,background:"none",border:"none",color:"#64748b",fontSize:20,cursor:"pointer",lineHeight:1,padding:4,touchAction:"manipulation" }}>✕</button>
+            <div style={{ fontSize:48,marginBottom:10 }}>⏱️</div>
+            <div style={{ fontWeight:900,fontSize:20,color:"#a78bfa",marginBottom:8,lineHeight:1.25 }}>
+              Tu n'as pas fait<br/>ton défi quotidien !
+            </div>
+            <div style={{ fontSize:14,color:"#94a3b8",lineHeight:1.65,marginBottom:24 }}>
+              Montre à tes amis dartistes que<br/>tu es le meilleur en comptage finish.
+            </div>
+            <button onClick={()=>{ setShowChronoPopup(false); nav("chrono-finish"); }}
+              style={{ width:"100%",background:"linear-gradient(135deg,#a78bfa,#7c3aed)",color:"#fff",border:"none",borderRadius:14,padding:"16px",fontWeight:900,fontSize:16,cursor:"pointer",touchAction:"manipulation",boxShadow:"0 4px 20px #a78bfa55" }}>
+              🎯 Jouer maintenant
+            </button>
+          </div>
+        </div>
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
