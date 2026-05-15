@@ -14,6 +14,7 @@ import { ConfigCricket } from "./AppCricket";
 import { JeuCapital } from "./AppJeuDecalePoint";
 import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper } from "./AppTournoiPotes";
 import { EntrainementFinish } from "./AppEntrainementFinish";
+import { ChronoFinish } from "./AppChronoFinish";
 import { RushMode } from "./AppRushMode";
 import { MessagesPage, dbM } from "./AppMessages";
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
@@ -3601,6 +3602,9 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           <ModeBtn icon="🎯" label="Calcul finish"
             sub="Entraîne-toi à construire tes finishes en 1, 2 ou 3 fléchettes."
             onClick={()=>setPage("entrainement-finish")} col="#f97316"/>
+          <ModeBtn icon="⏱" label="Chrono Finish"
+            sub="5 finishes à enchaîner le plus vite possible. Chronomètre lancé — à toi de jouer !"
+            onClick={()=>setPage("chrono-finish")} col="#a78bfa"/>
           <SoonBtn icon="🧩" label="Quiz fléchettes" sub="Teste tes connaissances sur les règles, les pros et l'histoire du fléché." />
           <SoonBtn icon="🧠" label="Défis mentaux" sub="Calcul rapide, mémoire des zones, routes optimales..." />
           <SoonBtn icon="👥" label="Jeux communautaires" sub="Défis partagés, classements hebdo, événements spéciaux." />
@@ -7049,7 +7053,7 @@ export default function App() {
   const [pendingNav, setPendingNav] = useState(null);
   const isGamePage = (p) =>
     p === "jeux-capital" || p === "scoreur" || p === "scoreur-doublette" ||
-    p === "cricket-config" || p === "rush-mode" ||
+    p === "cricket-config" || p === "rush-mode" || p === "chrono-finish" ||
     p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-");
 
   const navSafe = (targetPage) => {
@@ -7208,6 +7212,7 @@ export default function App() {
         {page==="cricket-config"        && <ConfigCricket joueur={joueur} setPage={nav}/>}
         {page==="jeux-capital"          && <JeuCapital setPage={nav}/>}
         {page==="entrainement-finish"   && <EntrainementFinish setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
+        {page==="chrono-finish"         && <ChronoFinish setPage={nav} joueur={joueur}/>}
         {page==="rush-mode"             && <RushMode setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="tournois-potes"   && <TournoiPotesPage joueur={joueur} setPage={nav}/>}
         {page.startsWith("tournoi-potes-") && <TournoiPotesDetail tournoiId={page.replace("tournoi-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
