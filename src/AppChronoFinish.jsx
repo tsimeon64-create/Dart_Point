@@ -182,10 +182,12 @@ const checkYesterdayReward = async (joueur, onWin) => {
   }
 };
 
-// ── Sauvegarde score ──────────────────────────────────────────────────────────
+// ── Sauvegarde score + récompense participation (+5 DRIX) ────────────────────
 const saveScore = async (joueur, today, tempsMs, erreurs, splits, finishes) => {
   localStorage.setItem(storeKey(today), JSON.stringify({ tempsMs, erreurs, splits }));
   if (!joueur?.id) return;
+
+  // Enregistrement du score
   await sb("chrono_finish_scores", {
     method: "POST",
     body: JSON.stringify({
@@ -200,6 +202,31 @@ const saveScore = async (joueur, today, tempsMs, erreurs, splits, finishes) => {
     }),
     prefer: "return=minimal",
   });
+
+  // +5 DRIX pour avoir complété le défi (participation)
+  const jArr = await sb(`joueurs?id=eq.${joueur.id}&select=id,drix`);
+  if (!jArr || jArr.length === 0) return;
+  const j = jArr[0];
+  const newDrix = (j.drix || 1000) + 5;
+  await sb(`joueurs?id=eq.${j.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ drix: newDrix }),
+    prefer: "return=minimal",
+  });
+  await sb("drix_mouvements", {
+    method: "POST",
+    body: JSON.stringify({
+      joueur_id:        j.id,
+      joueur_pseudo:    joueur.pseudo,
+      adversaire_pseudo:"⏱ Chrono Finish — Défi complété",
+      variation:        5,
+      drix_avant:       j.drix || 1000,
+      drix_apres:       newDrix,
+      resultat:         "victoire",
+      date:             Date.now(),
+    }),
+  });
+  return 5; // participation reward
 };
 
 const NB_FINISHES = 5;
@@ -217,6 +244,7 @@ export const ChronoFinish = ({ setPage, joueur }) => {
   const [screen,       setScreen]       = useState(stored ? "results" : "game");
   const [finalResults, setFinalResults] = useState(stored);
   const [drixNotif,    setDrixNotif]    = useState(null);
+  const [participDrix, setParticipDrix] = useState(null); // +5 DRIX participation
 
   useEffect(() => {
     checkYesterdayReward(joueur, (info) => setDrixNotif(info));
@@ -278,7 +306,8 @@ export const ChronoFinish = ({ setPage, joueur }) => {
           setRunning(false);
           const totalMs  = Date.now() - startRef.current;
           const erreurs  = newSplits.reduce((s, r) => s + r.mistakes, 0);
-          await saveScore(joueur, today, totalMs, erreurs, newSplits, finishes);
+          const reward   = await saveScore(joueur, today, totalMs, erreurs, newSplits, finishes);
+          if (reward && joueur?.id) setParticipDrix(reward);
           setFinalResults({ tempsMs: totalMs, erreurs, splits: newSplits });
           setScreen("results");
         } else {
@@ -411,12 +440,20 @@ export const ChronoFinish = ({ setPage, joueur }) => {
 
     return (
       <div style={{ position:"fixed",inset:0,zIndex:200,background:C.bg,display:"flex",flexDirection:"column",overflow:"hidden" }}>
-        {/* DRIX notif */}
+        {/* DRIX notif vainqueur +20 */}
         {drixNotif && (
           <div style={{ position:"absolute",top:60,left:"50%",transform:"translateX(-50%)",zIndex:999,background:"#000c",borderRadius:16,padding:"14px 24px",textAlign:"center",boxShadow:`0 0 40px ${C.yellow}55`,pointerEvents:"none" }}>
             <div style={{ fontSize:24,marginBottom:4 }}>🏆</div>
             <div style={{ fontWeight:900,fontSize:16,color:C.yellow }}>+20 DRIX remportés !</div>
             <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>Vainqueur du Chrono Finish d'hier</div>
+          </div>
+        )}
+        {/* DRIX notif participation +5 */}
+        {participDrix && !drixNotif && (
+          <div style={{ position:"absolute",top:60,left:"50%",transform:"translateX(-50%)",zIndex:999,background:"#000c",borderRadius:16,padding:"14px 24px",textAlign:"center",boxShadow:`0 0 40px ${C.purple}55`,pointerEvents:"none" }}>
+            <div style={{ fontSize:24,marginBottom:4 }}>💎</div>
+            <div style={{ fontWeight:900,fontSize:16,color:C.purple }}>+5 DRIX gagnés !</div>
+            <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>Défi quotidien complété</div>
           </div>
         )}
 
