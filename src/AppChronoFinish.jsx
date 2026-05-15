@@ -354,7 +354,6 @@ export const ChronoFinish = ({ setPage, joueur }) => {
               }}>
                 {d ? (<>
                   <div style={{ fontSize:17,fontWeight:800,color:phase==="correct"?C.green:phase==="incorrect"?C.red:C.purple }}>{d.label}</div>
-                  <div style={{ fontSize:9,color:C.muted }}>{d.value}pts</div>
                 </>) : (
                   <div style={{ fontSize:18,color:C.border }}>🎯</div>
                 )}
@@ -363,15 +362,6 @@ export const ChronoFinish = ({ setPage, joueur }) => {
           })}
         </div>
 
-        {/* Total courant */}
-        <div style={{ textAlign:"center",fontSize:11,color:C.muted,flexShrink:0,height:16 }}>
-          {darts.length > 0 && phase==="jeu" && (
-            <span>Total : <b style={{ color:total>finish?C.red:total===finish?C.green:C.text }}>{total}</b>
-            <span style={{ color:C.muted }}> / {finish}</span>
-            {total < finish && <span style={{ color:C.yellow }}> · reste {finish-total}</span>}
-            </span>
-          )}
-        </div>
 
         {/* Clavier (affiché seulement en phase jeu) */}
         {phase === "jeu" && (
