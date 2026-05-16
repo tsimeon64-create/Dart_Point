@@ -249,10 +249,8 @@ export const ChronoFinish = ({ setPage, joueur }) => {
 
   useEffect(() => {
     checkYesterdayReward(joueur, (info) => setDrixNotif(info));
-    // Charger le leader du jour pour l'écran d'accueil
-    sb(`chrono_finish_scores?date_jour=eq.${today}&order=temps_ms.asc&limit=1&select=joueur_pseudo,temps_ms`)
-      .then(r => { if (r && r[0]) setLeader(r[0]); })
-      .catch(() => {});
+    // Charger le classement complet pour l'écran d'accueil
+    loadLeaderboard();
   }, []); // eslint-disable-line
 
   // ── Jeu ──────────────────────────────────────────────────────────────────
@@ -358,7 +356,7 @@ export const ChronoFinish = ({ setPage, joueur }) => {
   // ÉCRAN : INTRO
   // ─────────────────────────────────────────────────────────────────────────
   if (screen === "intro") {
-    const niv = ["🎯 Double pur","⚡ Triple + Double","🔥 3 fléchettes","🔥 3 fléchettes","🔥 3 fléchettes"];
+    const medals = ["🥇","🥈","🥉"];
     return (
       <div style={{ position:"fixed",inset:0,zIndex:200,background:C.bg,display:"flex",flexDirection:"column",overflow:"hidden" }}>
         {/* Header */}
@@ -378,49 +376,46 @@ export const ChronoFinish = ({ setPage, joueur }) => {
               5 finishes à enchaîner le plus vite possible.<br/>
               Le chronomètre démarre dès que tu cliques <b style={{ color:C.text }}>Commencer</b>.
             </div>
+            <div style={{ marginTop:10,fontSize:12,color:C.muted,lineHeight:1.7 }}>
+              💎 <b style={{ color:C.purple }}>+5 DRIX</b> pour avoir complété le défi ·{" "}
+              🏆 <b style={{ color:C.yellow }}>+20 DRIX</b> au meilleur temps
+            </div>
           </div>
 
-          {/* Les 5 finishes du jour */}
+          {/* Classement du jour */}
           <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden" }}>
             <div style={{ padding:"10px 14px",borderBottom:`1px solid ${C.border}`,fontWeight:800,fontSize:13,color:C.text }}>
-              📋 Les 5 finishes du jour
+              🏆 Classement du jour
             </div>
-            {finishes.map((f, i) => (
-              <div key={i} style={{ display:"flex",alignItems:"center",padding:"10px 14px",borderBottom:i<4?`1px solid ${C.border}22`:"none",gap:12 }}>
-                <div style={{ width:26,height:26,borderRadius:"50%",background:C.card2,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:12,color:C.muted,flexShrink:0 }}>{i+1}</div>
-                <div style={{ fontWeight:900,fontSize:22,color:C.accent,flex:1 }}>{f}</div>
-                <div style={{ fontSize:11,color:C.muted }}>{niv[i]}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Leader du jour */}
-          {leader && (
-            <div style={{ background:`${C.yellow}11`,border:`1px solid ${C.yellow}44`,borderRadius:14,padding:"12px 16px",display:"flex",alignItems:"center",gap:12 }}>
-              <span style={{ fontSize:24 }}>🥇</span>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:11,color:C.muted,marginBottom:2 }}>Meilleur temps aujourd'hui</div>
-                <div style={{ fontWeight:800,fontSize:15,color:C.text }}>{leader.joueur_pseudo}</div>
-              </div>
-              <div style={{ fontWeight:900,fontSize:18,color:C.yellow,fontVariantNumeric:"tabular-nums" }}>{formatChrono(leader.temps_ms)}</div>
-            </div>
-          )}
-
-          {/* Règles rapides */}
-          <div style={{ background:C.card2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.muted,lineHeight:1.7 }}>
-            💎 <b style={{ color:C.purple }}>+5 DRIX</b> pour avoir complété le défi<br/>
-            🏆 <b style={{ color:C.yellow }}>+20 DRIX</b> au meilleur temps du jour (distribués à minuit)<br/>
-            🔒 Une seule tentative par jour
+            {loadingScores ? (
+              <div style={{ padding:"20px",textAlign:"center",color:C.muted,fontSize:13 }}>Chargement...</div>
+            ) : scores.length === 0 ? (
+              <div style={{ padding:"20px",textAlign:"center",color:C.muted,fontSize:13 }}>Sois le premier à jouer aujourd'hui !</div>
+            ) : (
+              scores.map((s, i) => {
+                const isMe = s.joueur_id === joueur?.id;
+                return (
+                  <div key={i} style={{ display:"flex",alignItems:"center",padding:"10px 14px",borderBottom:i<scores.length-1?`1px solid ${C.border}22`:"none",gap:10,background:isMe?`${C.purple}18`:"transparent" }}>
+                    <div style={{ width:26,textAlign:"center",fontWeight:900,fontSize:i<3?17:12,color:i<3?C.yellow:C.muted,flexShrink:0 }}>
+                      {i < 3 ? medals[i] : i+1}
+                    </div>
+                    <div style={{ flex:1,fontWeight:isMe?800:600,fontSize:14,color:isMe?C.purple:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                      {s.joueur_pseudo}{isMe?" (toi)":""}
+                    </div>
+                    {s.erreurs > 0 && <div style={{ fontSize:11,color:C.red }}>{s.erreurs} err.</div>}
+                    <div style={{ fontWeight:900,fontSize:15,color:i===0?C.yellow:isMe?C.purple:C.text,fontVariantNumeric:"tabular-nums",flexShrink:0 }}>
+                      {formatChrono(s.temps_ms)}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
 
           {/* Boutons */}
           <div style={{ display:"flex",gap:10,marginTop:4 }}>
-            <button onClick={openLeaderboard}
-              style={{ flex:1,background:C.card,color:C.purple,border:`1px solid ${C.purple}55`,borderRadius:12,padding:"14px",fontWeight:800,fontSize:15,cursor:"pointer",touchAction:"manipulation" }}>
-              🏆 Classement
-            </button>
             <button onClick={commencer}
-              style={{ flex:2,background:`linear-gradient(135deg,${C.purple},#7c3aed)`,color:"#fff",border:"none",borderRadius:12,padding:"14px",fontWeight:900,fontSize:16,cursor:"pointer",touchAction:"manipulation",boxShadow:`0 4px 20px ${C.purple}55` }}>
+              style={{ flex:1,background:`linear-gradient(135deg,${C.purple},#7c3aed)`,color:"#fff",border:"none",borderRadius:12,padding:"14px",fontWeight:900,fontSize:16,cursor:"pointer",touchAction:"manipulation",boxShadow:`0 4px 20px ${C.purple}55` }}>
               🎯 Commencer
             </button>
           </div>
