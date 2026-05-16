@@ -6921,9 +6921,15 @@ export default function App() {
     const playedKey = `dp_chrono_${today}`;
     if (!localStorage.getItem(popupKey) && !localStorage.getItem(playedKey)) {
       localStorage.setItem(popupKey, "1");
-      // Récupérer le leader du jour en parallèle
-      sb(`chrono_finish_scores?date_jour=eq.${today}&order=temps_ms.asc&limit=1&select=joueur_pseudo,temps_ms`)
-        .then(r=>{ if(r&&r[0]) setChronoLeader(r[0]); })
+      // Récupérer le leader du jour + sa photo
+      sb(`chrono_finish_scores?date_jour=eq.${today}&order=temps_ms.asc&limit=1&select=joueur_id,joueur_pseudo,temps_ms`)
+        .then(async r=>{
+          if(!r||!r[0]) return;
+          const leader = r[0];
+          const jArr = await sb(`joueurs?id=eq.${leader.joueur_id}&select=photo`).catch(()=>null);
+          leader.photo = jArr?.[0]?.photo || null;
+          setChronoLeader(leader);
+        })
         .catch(()=>{});
       setTimeout(() => setShowChronoPopup(true), 1200);
     }
@@ -7161,12 +7167,19 @@ export default function App() {
                 Montre à tes amis dartistes que<br/>tu es le meilleur en comptage finish.
               </div>
               {chronoLeader && (
-                <div style={{ background:"#ffffff0d",border:"1px solid #a78bfa44",borderRadius:14,padding:"10px 16px",marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10 }}>
-                  <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                    <span style={{ fontSize:18 }}>🥇</span>
-                    <span style={{ fontWeight:800,fontSize:14,color:"#f1f5f9" }}>{chronoLeader.joueur_pseudo}</span>
+                <div style={{ background:"#ffffff0d",border:"1px solid #f59e0b55",borderRadius:14,padding:"12px 16px",marginBottom:20 }}>
+                  <div style={{ fontSize:11,color:"#64748b",marginBottom:8,letterSpacing:1 }}>🏆 RECORD À BATTRE</div>
+                  <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+                    {chronoLeader.photo
+                      ? <img src={chronoLeader.photo} alt="" style={{ width:44,height:44,borderRadius:"50%",objectFit:"cover",border:"2px solid #f59e0b",flexShrink:0 }}/>
+                      : <div style={{ width:44,height:44,borderRadius:"50%",background:"#1a1a2e",border:"2px solid #f59e0b",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0 }}>🎯</div>
+                    }
+                    <div style={{ flex:1,textAlign:"left" }}>
+                      <div style={{ fontWeight:800,fontSize:15,color:"#f1f5f9" }}>{chronoLeader.joueur_pseudo}</div>
+                      <div style={{ fontSize:11,color:"#64748b",marginTop:1 }}>meilleur temps du jour</div>
+                    </div>
+                    <div style={{ fontWeight:900,fontSize:20,color:"#f59e0b",fontVariantNumeric:"tabular-nums",flexShrink:0 }}>{fmtMs(chronoLeader.temps_ms)}</div>
                   </div>
-                  <span style={{ fontWeight:900,fontSize:16,color:"#f59e0b",fontVariantNumeric:"tabular-nums" }}>{fmtMs(chronoLeader.temps_ms)}</span>
                 </div>
               )}
               <button onClick={()=>{ setShowChronoPopup(false); nav("chrono-finish"); }}
