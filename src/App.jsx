@@ -5562,9 +5562,23 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
   const [avisCount, setAvisCount]   = useState(0);
   const [adminLogs, setAdminLogs]   = useState([]);
   const [stats, setStats]           = useState({ matchsDuJour:0, joueursActifs:0, nouveauxJoueurs:0, totalJoueurs:0, connexionsJour:0 });
+  const [kpiDetail, setKpiDetail]   = useState(null); // "nouveaux" | "connexions" | null
+  const [connexionsDetail, setConnexionsDetail] = useState([]);
 
   const addLog = (action, cible, type="info") =>
     setAdminLogs(l => [{ id:Date.now(), action, cible, type, date:new Date().toLocaleString("fr-FR") }, ...l.slice(0,49)]);
+
+  // Charge le détail connexions quand on ouvre le modal
+  useEffect(()=>{
+    if (kpiDetail !== "connexions") return;
+    const today = new Date().toISOString().split("T")[0];
+    sb(`presences?date_jour=eq.${today}&select=joueur_id`).catch(()=>[]).then(async pres=>{
+      if (!pres || pres.length===0) { setConnexionsDetail([]); return; }
+      const ids = [...new Set(pres.map(p=>p.joueur_id))];
+      const joueurs = await sb(`joueurs?id=in.(${ids.join(",")})&select=id,pseudo,photo,ville`).catch(()=>[]);
+      setConnexionsDetail((joueurs||[]).map(j=>({...j, joueur_id:j.id})));
+    });
+  },[kpiDetail]);
 
   const fetchAdminStats = () => {
     const weekAgo = Date.now() - 7*24*60*60*1000;
@@ -5747,7 +5761,11 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
         ))
   );
 
-  const renderDashboard = () => (
+  const renderDashboard = () => {
+    const weekAgo = Date.now() - 7*24*60*60*1000;
+    const nouveauxJoueurs = joueursList.filter(x=>x.date_inscription&&new Date(x.date_inscription).getTime()>weekAgo).sort((a,b)=>new Date(b.date_inscription)-new Date(a.date_inscription));
+
+    return (
     <div style={{display:"flex",flexDirection:"column",gap:24}}>
       {/* KPI Cards */}
       <div>
@@ -5756,14 +5774,71 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
           <AdminKpiCard icon="⏳" label="En attente" count={allPending.length} prio={allPending.length>0?"urgent":"normal"} onClick={()=>setTab("pending")}/>
           <AdminKpiCard icon="💬" label="Avis à modérer" count={avisCount} prio={avisCount>0?"important":"normal"} onClick={()=>setTab("avismod")}/>
           <AdminKpiCard icon="⚠️" label="Signalements" count={sigPending.length} prio={sigPending.length>0?"urgent":"normal"} onClick={()=>setTab("signalements")}/>
-          <AdminKpiCard icon="👥" label="Total joueurs" count={stats.totalJoueurs} prio="normal"/>
-          <AdminKpiCard icon="🆕" label="Nouveaux (7j)" count={stats.nouveauxJoueurs} prio={stats.nouveauxJoueurs>0?"important":"normal"}/>
-          <AdminKpiCard icon="📡" label="Connexions aujourd'hui" count={stats.connexionsJour} prio={stats.connexionsJour>0?"important":"normal"}/>
+          <AdminKpiCard icon="👥" label="Total joueurs" count={stats.totalJoueurs} prio="normal" onClick={()=>setTab("joueurs")}/>
+          <AdminKpiCard icon="🆕" label="Nouveaux (7j)" count={stats.nouveauxJoueurs} prio={stats.nouveauxJoueurs>0?"important":"normal"} onClick={()=>setKpiDetail("nouveaux")}/>
+          <AdminKpiCard icon="📡" label="Connexions aujourd'hui" count={stats.connexionsJour} prio={stats.connexionsJour>0?"important":"normal"} onClick={()=>setKpiDetail("connexions")}/>
           <AdminKpiCard icon="🎯" label="Bars référencés" count={bars.length} prio="normal"/>
           <AdminKpiCard icon="🫂" label="Associations" count={associations.length} prio="normal"/>
           <AdminKpiCard icon="🏅" label="Tournois" count={tournois.length} prio="normal"/>
         </div>
       </div>
+
+      {/* Modal détail KPI */}
+      {kpiDetail && (
+        <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setKpiDetail(null)}>
+          <div style={{background:"#111",border:`1px solid ${C.border}`,borderRadius:18,padding:24,maxWidth:520,width:"100%",maxHeight:"80vh",overflowY:"auto",position:"relative"}} onClick={e=>e.stopPropagation()}>
+            <button onClick={()=>setKpiDetail(null)} style={{position:"absolute",top:14,right:14,background:"#222",border:`1px solid ${C.border}`,color:C.muted,borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:13}}>✕</button>
+
+            {kpiDetail==="nouveaux" && (<>
+              <div style={{fontSize:15,fontWeight:800,marginBottom:16,display:"flex",alignItems:"center",gap:8}}>
+                🆕 <span>Nouveaux joueurs (7 derniers jours)</span>
+                <span style={{background:"#f59e0b22",color:"#f59e0b",borderRadius:8,padding:"2px 10px",fontSize:12,fontWeight:700,marginLeft:4}}>{nouveauxJoueurs.length}</span>
+              </div>
+              {nouveauxJoueurs.length===0 ? (
+                <div style={{textAlign:"center",padding:40,color:C.muted}}>Aucun nouveau joueur cette semaine</div>
+              ) : nouveauxJoueurs.map(j=>(
+                <div key={j.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+                  {j.photo
+                    ? <img src={j.photo} style={{width:38,height:38,borderRadius:"50%",objectFit:"cover",border:`1px solid ${C.border}`}}/>
+                    : <div style={{width:38,height:38,borderRadius:"50%",background:C.card,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,border:`1px solid ${C.border}`}}>👤</div>
+                  }
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,fontSize:14}}>{j.pseudo}</div>
+                    <div style={{fontSize:11,color:C.muted}}>{j.email||"—"} · {j.ville||"Ville non renseignée"}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:12,color:"#f59e0b",fontWeight:700}}>💎 {j.drix} DRIX</div>
+                    <div style={{fontSize:10,color:C.muted}}>{j.date_inscription ? new Date(j.date_inscription).toLocaleDateString("fr-FR") : "—"}</div>
+                  </div>
+                </div>
+              ))}
+            </>)}
+
+            {kpiDetail==="connexions" && (<>
+              <div style={{fontSize:15,fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
+                📡 <span>Connexions aujourd'hui</span>
+                <span style={{background:"#f59e0b22",color:"#f59e0b",borderRadius:8,padding:"2px 10px",fontSize:12,fontWeight:700,marginLeft:4}}>{stats.connexionsJour}</span>
+              </div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Joueurs uniques connectés ce jour · Se raffraîchit toutes les 30 sec</div>
+              {connexionsDetail.length===0 ? (
+                <div style={{textAlign:"center",padding:40,color:C.muted}}>Chargement…</div>
+              ) : connexionsDetail.map(j=>(
+                <div key={j.joueur_id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+                  {j.photo
+                    ? <img src={j.photo} style={{width:36,height:36,borderRadius:"50%",objectFit:"cover",border:`1px solid ${C.border}`}}/>
+                    : <div style={{width:36,height:36,borderRadius:"50%",background:C.card,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,border:`1px solid ${C.border}`}}>👤</div>
+                  }
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,fontSize:14}}>{j.pseudo||j.joueur_id}</div>
+                    <div style={{fontSize:11,color:C.muted}}>{j.ville||""}</div>
+                  </div>
+                  <div style={{fontSize:11,color:"#10b981",fontWeight:600}}>🟢 Aujourd'hui</div>
+                </div>
+              ))}
+            </>)}
+          </div>
+        </div>
+      )}
 
       {/* Analytics */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
@@ -5845,7 +5920,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
             ))}
       </div>
     </div>
-  );
+  );};
 
   const renderLogs = () => (
     <div>
