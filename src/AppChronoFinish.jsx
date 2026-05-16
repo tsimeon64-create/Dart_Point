@@ -176,6 +176,21 @@ const checkYesterdayReward = async (joueur, onWin) => {
     }),
   });
 
+  // Post Comptoir — félicitation vainqueur
+  const jInfo = await sb(`joueurs?id=eq.${winner.joueur_id}&select=id,photo`);
+  const photo = jInfo?.[0]?.photo || null;
+  const [yd, mm, dd] = yesterday.split("-");
+  await sb("wall_posts", {
+    method: "POST",
+    body: JSON.stringify({
+      joueur_id:     winner.joueur_id,
+      joueur_pseudo: winner.joueur_pseudo,
+      joueur_photo:  photo,
+      contenu:       `🏆 Chrono Finish — Vainqueur du ${dd}/${mm}/${yd}\n👑 ${winner.joueur_pseudo} remporte le défi du jour en ${formatChrono(winner.temps_ms)} !\n🥇 +20 DRIX`,
+      date:          Date.now(),
+    }),
+  }).catch(() => {});
+
   // Notifier si c'est le joueur courant
   if (joueur?.id === winner.joueur_id) {
     onWin({ pseudo: winner.joueur_pseudo, drix: 20 });
@@ -226,6 +241,21 @@ const saveScore = async (joueur, today, tempsMs, erreurs, splits, finishes) => {
       date:             Date.now(),
     }),
   });
+
+  // Post Comptoir — score de participation
+  const [yy, mm, dd] = today.split("-");
+  const errLabel = erreurs > 0 ? `\n⚠️ ${erreurs} erreur${erreurs > 1 ? "s" : ""}` : "\n✅ Zéro erreur";
+  await sb("wall_posts", {
+    method: "POST",
+    body: JSON.stringify({
+      joueur_id:     joueur.id,
+      joueur_pseudo: joueur.pseudo,
+      joueur_photo:  joueur.photo || null,
+      contenu:       `⏱ Chrono Finish — Défi du ${dd}/${mm}/${yy}\n🎯 ${joueur.pseudo} a complété les 5 finishes en ${formatChrono(tempsMs)} !${errLabel}\n💎 +5 DRIX`,
+      date:          Date.now(),
+    }),
+  }).catch(() => {});
+
   return 5; // participation reward
 };
 
