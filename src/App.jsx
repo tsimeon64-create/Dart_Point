@@ -2105,11 +2105,95 @@ const PageDefi = ({ joueur, setPage }) => {
   );
 };
 
+// ── REPLAY CONFIG MODAL ───────────────────────────────────────────────────────
+// Modal partagée pour reconfigurer une partie avant de la rejouer
+const ReplayConfigModal = ({ title, players, form, setForm, onLancer, onClose, loading=false, showType=true }) => {
+  const CX = { bg:"#0a0a0f", card:"#13131f", border:"#1e1e2e", text:"#e2e8f0", muted:"#64748b", accent:"#f97316" };
+  const Pill = ({ options, value, onChange, colorActive="#f97316" }) => (
+    <div style={{ display:"flex", gap:8 }}>
+      {options.map(o => (
+        <div key={o.v} onClick={() => onChange(o.v)} style={{
+          flex:1, padding:"10px 0", textAlign:"center", borderRadius:10, cursor:"pointer",
+          fontWeight:800, fontSize:14,
+          background: value===o.v ? colorActive : "#0a0a14",
+          color: value===o.v ? "#fff" : CX.muted,
+          border:`2px solid ${value===o.v ? colorActive : CX.border}`,
+          transition:"all .15s",
+        }}>{o.l}</div>
+      ))}
+    </div>
+  );
+  return (
+    <div style={{ position:"fixed",inset:0,zIndex:3000,background:"#000000dd",display:"flex",alignItems:"flex-end",justifyContent:"center" }}
+      onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
+      <style>{`@keyframes slideUpReplay{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <div style={{ width:"100%",maxWidth:520,background:CX.bg,borderRadius:"20px 20px 0 0",padding:"0 0 32px",boxShadow:"0 -8px 40px #000a",animation:"slideUpReplay .22s ease" }}>
+        {/* Handle */}
+        <div style={{ padding:"14px 20px 0" }}>
+          <div style={{ width:40,height:4,borderRadius:2,background:"#2a2a3e",margin:"0 auto 16px" }}/>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+            <div style={{ fontWeight:900,fontSize:18,color:CX.text }}>🔁 {title}</div>
+            <button onClick={onClose} style={{ background:"#2a2a2a",border:"none",color:CX.text,borderRadius:"50%",width:30,height:30,cursor:"pointer",fontSize:15 }}>✕</button>
+          </div>
+        </div>
+        <div style={{ padding:"0 20px" }}>
+          {/* Joueurs (non modifiables) */}
+          <div style={{ background:CX.card,borderRadius:12,padding:"12px 16px",marginBottom:16,border:`1px solid ${CX.border}` }}>
+            <div style={{ fontSize:11,fontWeight:700,color:CX.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8 }}>Joueurs</div>
+            <div style={{ display:"flex",alignItems:"center",justifyContent:"center",gap:12,flexWrap:"wrap" }}>
+              {players.map((p,i) => (
+                <span key={i} style={{ fontWeight:800,fontSize:14,color:CX.text }}>{i===0?"":<span style={{color:CX.muted,margin:"0 4px"}}>vs</span>}{p}</span>
+              ))}
+            </div>
+          </div>
+          {/* Mode */}
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:12,fontWeight:700,color:CX.muted,marginBottom:8 }}>MODE DE JEU</div>
+            <Pill options={[{v:"501",l:"501"},{v:"301",l:"301"},{v:"701",l:"701"}]} value={form.mode} onChange={v=>setForm(f=>({...f,mode:v}))}/>
+          </div>
+          {/* Manches */}
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:12,fontWeight:700,color:CX.muted,marginBottom:8 }}>MANCHES</div>
+            <Pill options={[{v:1,l:"1"},{v:3,l:"3"},{v:5,l:"5"},{v:7,l:"7"}]} value={form.manches} onChange={v=>setForm(f=>({...f,manches:v}))}/>
+          </div>
+          {/* Type classé/amical */}
+          {showType && (
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:12,fontWeight:700,color:CX.muted,marginBottom:8 }}>FORMAT</div>
+              <Pill
+                options={[{v:"drix",l:"⚔️ Classé"},{v:"amical",l:"🤝 Amical"}]}
+                value={form.type}
+                onChange={v=>setForm(f=>({...f,type:v}))}
+                colorActive={form.type==="drix"?"#22c55e":"#7c3aed"}
+              />
+            </div>
+          )}
+          {/* Bouton lancer */}
+          <button onClick={onLancer} disabled={loading} style={{
+            width:"100%",padding:"16px",borderRadius:14,border:"none",
+            background:loading?"#2a2a2a":"linear-gradient(135deg,#f97316,#ea580c)",
+            color:loading?"#64748b":"#fff",fontWeight:900,fontSize:17,
+            cursor:loading?"not-allowed":"pointer",
+            boxShadow:loading?"none":"0 6px 24px #f9731644",
+            transition:"all .2s",
+          }}>
+            {loading ? "⏳ Création..." : "🎯 Lancer la partie"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── SCOREUR DOUBLETTE ──────────────────────────────────────────────────────────
 // Thin wrapper: reuses the existing <Scoreur> component entirely.
 // Team names displayed as first 3 letters uppercase: "THO / HER" vs "TOT / CYR"
 // DRIX applied to all 4 players via onResultat intercept.
 const ScoreurDoublette = ({ joueur, setPage }) => {
+  const [gameKey, setGameKey] = useState(0);
+  const [replayOpen, setReplayOpen] = useState(false);
+  const [replayForm, setReplayForm] = useState({ mode:"501", manches:1 });
+
   const config = (() => {
     try { return JSON.parse(localStorage.getItem("dp_doublette")||"null"); }
     catch { return window.__dpDoublette||null; }
@@ -2184,14 +2268,46 @@ const ScoreurDoublette = ({ joueur, setPage }) => {
     try { localStorage.removeItem("dp_doublette"); } catch {}
   };
 
+  const handleRejouer = () => {
+    setReplayForm({ mode: config.mode||"501", manches: config.manches||1 });
+    setReplayOpen(true);
+  };
+
+  const lancerReplay = () => {
+    const newConfig = { ...config, mode: replayForm.mode, manches: replayForm.manches };
+    try { localStorage.setItem("dp_doublette", JSON.stringify(newConfig)); } catch {}
+    setReplayOpen(false);
+    setGameKey(k => k + 1);
+  };
+
+  const teamPlayersDisplay = [
+    `${config.teamA[0]?.pseudo||"?"} & ${config.teamA[1]?.pseudo||"?"}`,
+    `${config.teamB[0]?.pseudo||"?"} & ${config.teamB[1]?.pseudo||"?"}`,
+  ];
+
   return (
-    <Scoreur
-      duel={fakeDuel}
-      drixData={drixData}
-      onResultat={handleResultat}
-      onDuelTermine={() => { try { localStorage.removeItem("dp_doublette"); } catch {} }}
-      setPage={setPage}
-    />
+    <>
+      {replayOpen && (
+        <ReplayConfigModal
+          title="Rejouer"
+          players={teamPlayersDisplay}
+          form={replayForm}
+          setForm={setReplayForm}
+          onLancer={lancerReplay}
+          onClose={() => setReplayOpen(false)}
+          showType={false}
+        />
+      )}
+      <Scoreur
+        key={gameKey}
+        duel={fakeDuel}
+        drixData={drixData}
+        onResultat={handleResultat}
+        onRejouer={handleRejouer}
+        onDuelTermine={() => { try { localStorage.removeItem("dp_doublette"); } catch {} }}
+        setPage={setPage}
+      />
+    </>
   );
 };
 
@@ -6404,7 +6520,7 @@ const ScoreurLibre = ({ setPage }) => {
 
   const rejouer = () => {
     setResultat(null);
-    setPhase("jeu");
+    setPhase("config"); // retour à la config avec noms pré-remplis
   };
 
   const backToConfig = () => {
@@ -6492,6 +6608,7 @@ const ScoreurLibre = ({ setPage }) => {
         config={config}
         onResultat={handleResultat}
         onBack={backToConfig}
+        onRejouer={rejouer}
       />
     );
   }
@@ -6626,10 +6743,16 @@ const ScoreurLibre = ({ setPage }) => {
           )}
 
           {/* Boutons */}
+          <button onClick={rejouer} style={{
+            width:"100%", padding:"15px", borderRadius:14, border:"2px solid #f9731677",
+            background:`linear-gradient(135deg,${CL.accent},#ea580c)`, color:"#fff",
+            fontWeight:900, fontSize:17, cursor:"pointer", marginBottom:10,
+            boxShadow:"0 0 24px #f9731655, 0 4px 20px #ea580c44",
+            animation:"rejouer-glow 2.2s ease-in-out infinite",
+          }}>🔁 Rejouer le match</button>
+          <style>{`@keyframes rejouer-glow{0%,100%{box-shadow:0 0 18px #f9731655,0 4px 20px #ea580c44}50%{box-shadow:0 0 38px #f97316aa,0 6px 36px #ea580c88}}`}</style>
           <div style={{ display:"flex", gap:10 }}>
-            <button onClick={rejouer} style={{ flex:1, padding:"15px", borderRadius:12, border:"none", background:`linear-gradient(135deg,${CL.accent},#ea580c)`, color:"#fff", fontWeight:800, fontSize:15, cursor:"pointer" }}>🔄 Rejouer</button>
-            <button onClick={backToConfig} style={{ flex:1, padding:"15px", borderRadius:12, border:`1px solid ${CL.border}`, background:CL.card, color:CL.sub, fontWeight:800, fontSize:15, cursor:"pointer" }}>⚙️ Config</button>
-            <button onClick={()=>setPage("home")} style={{ flex:1, padding:"15px", borderRadius:12, border:`1px solid ${CL.border}`, background:CL.card, color:CL.sub, fontWeight:800, fontSize:15, cursor:"pointer" }}>🏠 Accueil</button>
+            <button onClick={()=>setPage("home")} style={{ flex:1, padding:"13px", borderRadius:12, border:`1px solid ${CL.border}`, background:CL.card, color:CL.sub, fontWeight:800, fontSize:15, cursor:"pointer" }}>🏠 Accueil</button>
           </div>
         </div>
       </div>
@@ -6640,7 +6763,7 @@ const ScoreurLibre = ({ setPage }) => {
 };
 
 // Wrapper qui initialise le Scoreur en mode libre avec la config personnalisée
-const ScoreurLibreWrapper = ({ config, onResultat, onBack }) => {
+const ScoreurLibreWrapper = ({ config, onResultat, onBack, onRejouer }) => {
   // On utilise un duel "fantôme" pour pré-remplir les noms et éviter l'écran de config du Scoreur
   const fakeDuel = {
     id: null,
@@ -6660,6 +6783,7 @@ const ScoreurLibreWrapper = ({ config, onResultat, onBack }) => {
       onDuelTermine={null}
       setPage={p => { if (p === "mon-profil") onBack(); }}
       onResultat={onResultat}
+      onRejouer={onRejouer}
     />
   );
 };
@@ -6670,6 +6794,9 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
   const [drixData, setDrixData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [newBadges, setNewBadges] = useState([]);
+  const [replayOpen, setReplayOpen] = useState(false);
+  const [replayForm, setReplayForm] = useState({ mode:"501", manches:1, type:"drix" });
+  const [replayLoading, setReplayLoading] = useState(false);
 
   useEffect(() => {
     sb(`duels?id=eq.${duelId}&select=*`)
@@ -6751,12 +6878,48 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
     }
   };
 
+  const handleRejouer = () => {
+    if (!duel) return;
+    setReplayForm({ mode: duel.mode||"501", manches: duel.manches||1, type: duel.type==="amical"?"amical":"drix" });
+    setReplayOpen(true);
+  };
+
+  const lancerReplay = async () => {
+    if (replayLoading || !duel) return;
+    setReplayLoading(true);
+    try {
+      const res = await sb("duels", { method:"POST", body:JSON.stringify({
+        challenger_id: duel.challenger_id, challenger_pseudo: duel.challenger_pseudo,
+        defie_id: duel.defie_id, defie_pseudo: duel.defie_pseudo,
+        statut:"accepte", type: replayForm.type,
+        mode: replayForm.mode, manches: replayForm.manches,
+        date: Date.now(), valide_challenger:false, valide_defie:false,
+        score_manches_challenger:0, score_manches_defie:0,
+      }) });
+      const newDuel = Array.isArray(res) ? res[0] : res;
+      if (newDuel?.id) { setReplayOpen(false); setPage("scoreur-duel-"+newDuel.id); }
+    } catch(e) { console.error("Replay duel:", e); }
+    setReplayLoading(false);
+  };
+
   if (loading) return <Spinner/>;
   if (!duel) return <div style={{ textAlign:"center",padding:60,color:C.muted }}>Duel introuvable</div>;
 
   return (
     <>
-      <Scoreur duel={duel} drixData={drixData} onDuelTermine={handleDuelTermine} setPage={setPage}/>
+      {replayOpen && (
+        <ReplayConfigModal
+          title="Rejouer le match"
+          players={[duel.challenger_pseudo, duel.defie_pseudo]}
+          form={replayForm}
+          setForm={setReplayForm}
+          onLancer={lancerReplay}
+          onClose={() => setReplayOpen(false)}
+          loading={replayLoading}
+          showType={true}
+        />
+      )}
+      <Scoreur duel={duel} drixData={drixData} onDuelTermine={handleDuelTermine} onRejouer={handleRejouer} setPage={setPage}/>
       {newBadges.length > 0 && (
         <BadgesRecapModal badges={newBadges} onClose={()=>setNewBadges([])} setPage={setPage}/>
       )}

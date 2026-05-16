@@ -87,7 +87,7 @@ const AnimCount = ({ target, duration=1400, prefix="", suffix="" }) => {
 const SB_URL_J = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY_J = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 
-const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moyenne, demarrer, quitterPartie, joueurs: joueursData=[], manchesDetail=[] }) => {
+const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moyenne, demarrer, quitterPartie, onRejouer=null, joueurs: joueursData=[], manchesDetail=[] }) => {
   const [show, setShow] = useState(false);
   const [drixShow, setDrixShow] = useState(false);
   const [winnerPhoto, setWinnerPhoto] = useState(null);
@@ -278,11 +278,21 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
         </div>
       )}
 
+      {/* 🔁 Rejouer le match — bouton premium */}
+      {onRejouer && (
+        <button onClick={onRejouer} style={{
+          width:"100%", padding:"15px", borderRadius:14, border:"2px solid #f9731677",
+          background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff",
+          fontWeight:900, fontSize:17, cursor:"pointer", marginBottom:10,
+          boxShadow:"0 0 24px #f9731655, 0 4px 20px #ea580c44",
+          animation:"rejouer-glow 2.2s ease-in-out infinite", letterSpacing:0.4,
+        }}>🔁 Rejouer le match</button>
+      )}
+      <style>{`@keyframes rejouer-glow{0%,100%{box-shadow:0 0 18px #f9731655,0 4px 20px #ea580c44}50%{box-shadow:0 0 38px #f97316aa,0 6px 36px #ea580c88}}`}</style>
       <div style={{ display:"flex",gap:10,marginBottom:10 }}>
-        {!modeDuel && <button onClick={demarrer} style={{ flex:1,padding:"13px 8px",borderRadius:12,border:"none",fontWeight:800,fontSize:15,cursor:"pointer",background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff" }}>🔄 Rejouer</button>}
         <button onClick={()=>setShowStats(true)} style={{ flex:1,padding:"13px 8px",borderRadius:12,border:"1px solid #22c55e44",fontWeight:800,fontSize:15,cursor:"pointer",background:"#0f1a0f",color:"#22c55e" }}>📊 Stats</button>
         <button onClick={quitterPartie} style={{ flex:1,padding:"13px 8px",borderRadius:12,border:"1px solid #2a2a2a",fontWeight:800,fontSize:15,cursor:"pointer",background:"#1a1a1a",color:"#94a3b8" }}>
-          {modeDuel?"✅ Valider":"⚙️ Config"}
+          {modeDuel ? "✅ Valider" : "🏠 Accueil"}
         </button>
       </div>
 
@@ -443,7 +453,7 @@ const CHECKOUTS = {
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 
-export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, setPage = null, onResultat = null }) => {
+export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, setPage = null, onResultat = null, onRejouer = null }) => {
   const modeDuel = !!duel;
 
   const [etape, setEtape] = useState(modeDuel ? "bulle" : "config");
@@ -1092,6 +1102,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       moyenne={moyenne}
       demarrer={demarrer}
       quitterPartie={quitterPartie}
+      onRejouer={onRejouer}
       joueurs={joueurs}
       manchesDetail={manchesHistory}
     />
