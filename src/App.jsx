@@ -5483,7 +5483,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
       db.getPropositions(),
       db.getSignalements(),
       fetch(`${SB_URL}/rest/v1/avis?valide=eq.false&select=id`,{headers:{"apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`}}).then(r=>r.json()).catch(()=>[]),
-      sb(`joueurs?order=date_inscription.desc&limit=200&select=id,pseudo,drix,date_inscription,photo_url`).catch(()=>[]),
+      sb(`joueurs?order=date_inscription.desc&limit=500&select=id,pseudo,drix,date_inscription,photo`).catch(()=>[]),
       sb(`duels?statut=eq.en_cours&select=id`).catch(()=>[]),
     ]).then(([p,s,av,j,duels])=>{
       setPropositions(p||[]);
