@@ -241,13 +241,18 @@ export const ChronoFinish = ({ setPage, joueur }) => {
     catch { return null; }
   }, [today]);
 
-  const [screen,       setScreen]       = useState(stored ? "results" : "game");
+  const [screen,       setScreen]       = useState(stored ? "results" : "intro");
   const [finalResults, setFinalResults] = useState(stored);
   const [drixNotif,    setDrixNotif]    = useState(null);
   const [participDrix, setParticipDrix] = useState(null); // +5 DRIX participation
+  const [leader,       setLeader]       = useState(null);
 
   useEffect(() => {
     checkYesterdayReward(joueur, (info) => setDrixNotif(info));
+    // Charger le leader du jour pour l'écran d'accueil
+    sb(`chrono_finish_scores?date_jour=eq.${today}&order=temps_ms.asc&limit=1&select=joueur_pseudo,temps_ms`)
+      .then(r => { if (r && r[0]) setLeader(r[0]); })
+      .catch(() => {});
   }, []); // eslint-disable-line
 
   // ── Jeu ──────────────────────────────────────────────────────────────────
@@ -259,9 +264,9 @@ export const ChronoFinish = ({ setPage, joueur }) => {
   const [curMistakes, setCurMistakes] = useState(0);
 
   const [chronoMs,  setChronoMs]  = useState(0);
-  const [running,   setRunning]   = useState(true);
-  const startRef      = useRef(Date.now());
-  const splitStartRef = useRef(Date.now());
+  const [running,   setRunning]   = useState(false);
+  const startRef      = useRef(null);
+  const splitStartRef = useRef(null);
 
   useEffect(() => {
     if (!running) return;
@@ -341,6 +346,90 @@ export const ChronoFinish = ({ setPage, joueur }) => {
 
   const openLeaderboard = () => { setScreen("leaderboard"); loadLeaderboard(); };
 
+  const commencer = () => {
+    const now = Date.now();
+    startRef.current      = now;
+    splitStartRef.current = now;
+    setRunning(true);
+    setScreen("game");
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ÉCRAN : INTRO
+  // ─────────────────────────────────────────────────────────────────────────
+  if (screen === "intro") {
+    const niv = ["🎯 Double pur","⚡ Triple + Double","🔥 3 fléchettes","🔥 3 fléchettes","🔥 3 fléchettes"];
+    return (
+      <div style={{ position:"fixed",inset:0,zIndex:200,background:C.bg,display:"flex",flexDirection:"column",overflow:"hidden" }}>
+        {/* Header */}
+        <div style={{ background:C.card,borderBottom:`1px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0 }}>
+          <button onClick={()=>setPage("jeux")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}>← Retour</button>
+          <div style={{ flex:1,fontWeight:800,fontSize:16,color:C.purple }}>⏱ Chrono Finish</div>
+          <div style={{ fontSize:11,color:C.muted }}>{today}</div>
+        </div>
+
+        <div style={{ flex:1,overflowY:"auto",padding:"16px 14px 40px",display:"flex",flexDirection:"column",gap:12 }}>
+
+          {/* Titre du défi */}
+          <div style={{ background:"linear-gradient(135deg,#1a1030,#0f0f20)",border:`2px solid ${C.purple}`,borderRadius:20,padding:"24px 16px",textAlign:"center" }}>
+            <div style={{ fontSize:52,marginBottom:6 }}>⏱️</div>
+            <div style={{ fontWeight:900,fontSize:22,color:C.purple,marginBottom:6 }}>Défi du jour</div>
+            <div style={{ fontSize:13,color:C.muted,lineHeight:1.6 }}>
+              5 finishes à enchaîner le plus vite possible.<br/>
+              Le chronomètre démarre dès que tu cliques <b style={{ color:C.text }}>Commencer</b>.
+            </div>
+          </div>
+
+          {/* Les 5 finishes du jour */}
+          <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden" }}>
+            <div style={{ padding:"10px 14px",borderBottom:`1px solid ${C.border}`,fontWeight:800,fontSize:13,color:C.text }}>
+              📋 Les 5 finishes du jour
+            </div>
+            {finishes.map((f, i) => (
+              <div key={i} style={{ display:"flex",alignItems:"center",padding:"10px 14px",borderBottom:i<4?`1px solid ${C.border}22`:"none",gap:12 }}>
+                <div style={{ width:26,height:26,borderRadius:"50%",background:C.card2,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:12,color:C.muted,flexShrink:0 }}>{i+1}</div>
+                <div style={{ fontWeight:900,fontSize:22,color:C.accent,flex:1 }}>{f}</div>
+                <div style={{ fontSize:11,color:C.muted }}>{niv[i]}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Leader du jour */}
+          {leader && (
+            <div style={{ background:`${C.yellow}11`,border:`1px solid ${C.yellow}44`,borderRadius:14,padding:"12px 16px",display:"flex",alignItems:"center",gap:12 }}>
+              <span style={{ fontSize:24 }}>🥇</span>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:11,color:C.muted,marginBottom:2 }}>Meilleur temps aujourd'hui</div>
+                <div style={{ fontWeight:800,fontSize:15,color:C.text }}>{leader.joueur_pseudo}</div>
+              </div>
+              <div style={{ fontWeight:900,fontSize:18,color:C.yellow,fontVariantNumeric:"tabular-nums" }}>{formatChrono(leader.temps_ms)}</div>
+            </div>
+          )}
+
+          {/* Règles rapides */}
+          <div style={{ background:C.card2,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.muted,lineHeight:1.7 }}>
+            💎 <b style={{ color:C.purple }}>+5 DRIX</b> pour avoir complété le défi<br/>
+            🏆 <b style={{ color:C.yellow }}>+20 DRIX</b> au meilleur temps du jour (distribués à minuit)<br/>
+            🔒 Une seule tentative par jour
+          </div>
+
+          {/* Boutons */}
+          <div style={{ display:"flex",gap:10,marginTop:4 }}>
+            <button onClick={openLeaderboard}
+              style={{ flex:1,background:C.card,color:C.purple,border:`1px solid ${C.purple}55`,borderRadius:12,padding:"14px",fontWeight:800,fontSize:15,cursor:"pointer",touchAction:"manipulation" }}>
+              🏆 Classement
+            </button>
+            <button onClick={commencer}
+              style={{ flex:2,background:`linear-gradient(135deg,${C.purple},#7c3aed)`,color:"#fff",border:"none",borderRadius:12,padding:"14px",fontWeight:900,fontSize:16,cursor:"pointer",touchAction:"manipulation",boxShadow:`0 4px 20px ${C.purple}55` }}>
+              🎯 Commencer
+            </button>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // ÉCRAN : CLASSEMENT
   // ─────────────────────────────────────────────────────────────────────────
@@ -350,7 +439,7 @@ export const ChronoFinish = ({ setPage, joueur }) => {
       <div style={{ position:"fixed",inset:0,zIndex:200,background:C.bg,display:"flex",flexDirection:"column",overflow:"hidden" }}>
         {/* Header */}
         <div style={{ background:C.card,borderBottom:`1px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0 }}>
-          <button onClick={()=>setScreen("results")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}>← Retour</button>
+          <button onClick={()=>setScreen(finalResults ? "results" : "intro")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}>← Retour</button>
           <div style={{ flex:1,fontWeight:800,fontSize:16,color:C.purple }}>🏆 Classement du jour</div>
           <div style={{ fontSize:12,color:C.muted }}>{today}</div>
         </div>
