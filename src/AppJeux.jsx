@@ -704,20 +704,40 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         const perdantNom = gagnantIsChallenger ? duel.defie_pseudo : duel.challenger_pseudo;
         const bkW = gagnantIsChallenger ? bkC : bkD;
         const bkL = gagnantIsChallenger ? bkD : bkC;
-        const fmtLine = (b) => [
-          b.eloVariation >= 0 ? `+${b.eloVariation} DRIX ELO` : `${b.eloVariation} DRIX ELO`,
-          b.bonus.bonusManches > 0 ? `+${b.bonus.bonusManches} 💎 manches gagnées` : "",
-          b.bonus.bonusVolees > 0 ? `+${b.bonus.bonusVolees} 🔥 grosses volées` : "",
-          b.bonus.bonusFinish > 0 ? `+${b.bonus.bonusFinish} 🏆 gros finish` : "",
-        ].filter(Boolean).join("\n");
-        // Highlights
         const j0 = joueursData[0]; const j1 = joueursData[1];
         const all180 = [...(j0?.tours||[]),...(j1?.tours||[])].filter(v=>v===180).length;
         const highlights = [
           all180 > 0 ? `💥 ${all180}×180 dans ce match` : "",
           manchesDetail.some(m=>(m.winner_finish||0)>=160) ? `🐟 Big Fish ≥ 160 !` : "",
         ].filter(Boolean).join("  ");
-        const contenu = `🏆 ${gagnantNom} bat ${perdantNom} ${scoreC}-${scoreD}\n\n${gagnantNom}\n${fmtLine(bkW)}\n🔥 TOTAL : ${bkW.totalVariation>=0?"+":""}${bkW.totalVariation} DRIX\n\n${perdantNom}\n${fmtLine(bkL)}\n🔥 TOTAL : ${bkL.totalVariation>=0?"+":""}${bkL.totalVariation} DRIX${highlights ? "\n\n"+highlights : ""}`;
+        // Post structuré : headline courte + breakdown dans un objet JSON
+        const duelPost = {
+          headline: `🏆 ${gagnantNom} bat ${perdantNom} ${scoreC}-${scoreD}`,
+          highlights: highlights || null,
+          winner: {
+            nom: gagnantNom,
+            elo: bkW.eloVariation,
+            bonusManches: bkW.bonus.bonusManches,
+            nbManches: bkW.bonus.bonusManches > 0 ? Math.round(bkW.bonus.bonusManches / 7) : 0,
+            bonusVolees: bkW.bonus.bonusVolees,
+            nbVolees: bkW.bonus.nbGrossesVolees,
+            bonusFinish: bkW.bonus.bonusFinish,
+            nbFinish: bkW.bonus.nbGrosFinish,
+            total: bkW.totalVariation,
+          },
+          loser: {
+            nom: perdantNom,
+            elo: bkL.eloVariation,
+            bonusManches: bkL.bonus.bonusManches,
+            nbManches: bkL.bonus.bonusManches > 0 ? Math.round(bkL.bonus.bonusManches / 7) : 0,
+            bonusVolees: bkL.bonus.bonusVolees,
+            nbVolees: bkL.bonus.nbGrossesVolees,
+            bonusFinish: bkL.bonus.bonusFinish,
+            nbFinish: bkL.bonus.nbGrosFinish,
+            total: bkL.totalVariation,
+          },
+        };
+        const contenu = `__DUEL__|${JSON.stringify(duelPost)}`;
         fetch(`${SB_URL}/rest/v1/wall_posts`, {
           method:"POST",
           headers:{ "apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`,"Content-Type":"application/json","Prefer":"return=minimal" },

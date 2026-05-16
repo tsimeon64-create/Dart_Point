@@ -2335,6 +2335,79 @@ const MancheDetail = ({ manches, joueur0, joueur1 }) => {
   );
 };
 
+// ── Duel post avec breakdown DRIX replié ──────────────────────────────────────
+const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepuis, setPage }) => {
+  const [open, setOpen] = useState(false);
+  const w = d.winner; const l = d.loser;
+  const BLine = ({ icon, label, val, color }) => (
+    <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, padding:"3px 0", borderBottom:`1px solid #ffffff08` }}>
+      <span style={{ color:"#64748b" }}>{icon} {label}</span>
+      <span style={{ fontWeight:700, color }}>{val > 0 ? "+" : ""}{val} DRIX</span>
+    </div>
+  );
+  return (
+    <div key={`post-${p.id}`} style={{ ...cardBase, borderColor:"#22c55e22" }}>
+      {/* Header */}
+      <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:10 }}>
+        <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
+        <div style={{ flex:1 }}>
+          <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:700, fontSize:14, color:C.text, cursor:"pointer" }}>{p.joueur_pseudo}</div>
+          <div style={{ fontSize:11, color:C.muted }}>{tempsDepuis(p.date)}</div>
+        </div>
+        <span style={{ fontSize:18 }}>⚔️</span>
+      </div>
+
+      {/* Headline */}
+      <div style={{ paddingLeft:52 }}>
+        <div style={{ fontWeight:800, fontSize:15, color:"#e2e8f0", marginBottom:4 }}>{d.headline}</div>
+        {/* Résumé totaux */}
+        <div style={{ display:"flex", gap:10, marginBottom:6 }}>
+          <div style={{ background:"#0f1a0f", border:"1px solid #22c55e33", borderRadius:10, padding:"6px 12px", flex:1, textAlign:"center" }}>
+            <div style={{ fontSize:11, color:"#86efac", fontWeight:700, marginBottom:2 }}>🏆 {w.nom}</div>
+            <div style={{ fontSize:18, fontWeight:900, color:"#22c55e" }}>{w.total >= 0 ? "+" : ""}{w.total} <span style={{ fontSize:12 }}>DRIX</span></div>
+          </div>
+          <div style={{ background:"#1a0a0a", border:"1px solid #ef444433", borderRadius:10, padding:"6px 12px", flex:1, textAlign:"center" }}>
+            <div style={{ fontSize:11, color:"#fca5a5", fontWeight:700, marginBottom:2 }}>💔 {l.nom}</div>
+            <div style={{ fontSize:18, fontWeight:900, color:l.total >= 0 ? "#22c55e" : "#ef4444" }}>{l.total >= 0 ? "+" : ""}{l.total} <span style={{ fontSize:12 }}>DRIX</span></div>
+          </div>
+        </div>
+        {d.highlights && <div style={{ fontSize:12, color:"#f97316", fontWeight:700, marginBottom:6 }}>{d.highlights}</div>}
+
+        {/* Accordéon détail */}
+        <button onClick={()=>setOpen(o=>!o)} style={{ background:"none", border:"none", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer", padding:0, touchAction:"manipulation" }}>
+          {open ? "▾" : "▸"} Détail DRIX
+        </button>
+        {open && (
+          <div style={{ marginTop:8, display:"flex", gap:8 }}>
+            {/* Gagnant */}
+            <div style={{ flex:1, background:"#0f1a0f", border:"1px solid #22c55e22", borderRadius:10, padding:"8px 10px" }}>
+              <div style={{ fontSize:11, color:"#86efac", fontWeight:800, marginBottom:6 }}>🏆 {w.nom}</div>
+              <BLine icon="📈" label="ELO" val={w.elo} color={w.elo >= 0 ? "#22c55e" : "#ef4444"}/>
+              {w.bonusManches > 0 && <BLine icon="💎" label={`${w.nbManches} manche(s)`} val={w.bonusManches} color="#f59e0b"/>}
+              {w.bonusVolees > 0 && <BLine icon="🔥" label={`${w.nbVolees} grosse(s) volée(s)`} val={w.bonusVolees} color="#f97316"/>}
+              {w.bonusFinish > 0 && <BLine icon="🏆" label={`${w.nbFinish} gros finish`} val={w.bonusFinish} color="#a78bfa"/>}
+            </div>
+            {/* Perdant */}
+            <div style={{ flex:1, background:"#1a0a0a", border:"1px solid #ef444422", borderRadius:10, padding:"8px 10px" }}>
+              <div style={{ fontSize:11, color:"#fca5a5", fontWeight:800, marginBottom:6 }}>💔 {l.nom}</div>
+              <BLine icon="📈" label="ELO" val={l.elo} color={l.elo >= 0 ? "#22c55e" : "#ef4444"}/>
+              {l.bonusManches > 0 && <BLine icon="💎" label={`${l.nbManches} manche(s)`} val={l.bonusManches} color="#f59e0b"/>}
+              {l.bonusVolees > 0 && <BLine icon="🔥" label={`${l.nbVolees} grosse(s) volée(s)`} val={l.bonusVolees} color="#f97316"/>}
+              {l.bonusFinish > 0 && <BLine icon="🏆" label={`${l.nbFinish} gros finish`} val={l.bonusFinish} color="#a78bfa"/>}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Likes / Comments */}
+      <div style={{ display:"flex", gap:8, marginTop:10, paddingLeft:52 }}>
+        <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
+      </div>
+      <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
+    </div>
+  );
+};
+
 // ── LIVE ──────────────────────────────────────────────────────────────────────
 
 // Tronque un pseudo intelligemment
@@ -3217,6 +3290,17 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
 
   const renderPost = (item) => {
     const p = item.data;
+
+    // ── Duel post (breakdown DRIX) ───────────────────────────────────────────
+    if (p.contenu?.startsWith("__DUEL__|")) {
+      let d = null;
+      try { d = JSON.parse(p.contenu.slice(9)); } catch {}
+      if (d) return (
+        <DuelPost key={`post-${p.id}`} p={p} d={d} C={C} cardBase={cardBase}
+          joueur={joueur} likesMap={likesMap} commentsMap={commentsMap}
+          tempsDepuis={tempsDepuis} setPage={setPage}/>
+      );
+    }
 
     // ── Badge post ──────────────────────────────────────────────────────────
     if (p.contenu?.startsWith("__BADGE__|")) {
