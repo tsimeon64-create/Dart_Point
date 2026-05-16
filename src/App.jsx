@@ -1267,11 +1267,11 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
   const prog = getDrixProgression(j.drix || 1000);
 
   // Bouton image générique
-  const ImgBtn = ({ src, onClick, badge=0 }) => (
-    <div onClick={onClick} style={{ position:"relative",cursor:"pointer",borderRadius:16,overflow:"hidden",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s" }}
+  const ImgBtn = ({ src, onClick, badge=0, h=null }) => (
+    <div onClick={onClick} style={{ position:"relative",cursor:"pointer",borderRadius:16,overflow:"hidden",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s",...(h?{height:h}:{}) }}
       onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 12px 32px #00000088";}}
       onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
-      <img src={src} alt="" style={{ width:"100%",display:"block",borderRadius:16 }}/>
+      <img src={src} alt="" style={{ width:"100%",display:"block",borderRadius:16,...(h?{height:"100%",objectFit:"cover"}:{}) }}/>
       {badge>0 && (
         <div style={{ position:"absolute",top:10,right:10,background:"#ef4444",color:"#fff",borderRadius:"50%",minWidth:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,boxShadow:"0 2px 8px #00000066" }}>
           {badge>9?"9+":badge}
@@ -1396,10 +1396,10 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
 
       {/* ── Grille 2×2 ── */}
       <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10 }}>
-        <ImgBtn src="/lecomptoir2.png"  onClick={()=>setPage("communaute")}/>
-        <ImgBtn src="/defi.png"        onClick={()=>setPage("defi")} badge={defisCount}/>
+        <ImgBtn src="/lecomptoir3.png"  onClick={()=>setPage("communaute")}/>
+        <ImgBtn src="/defi2.png"       onClick={()=>setPage("defi")} badge={defisCount}/>
         <ImgBtn src="/classement.png"  onClick={()=>setPage("drix")}/>
-        <ImgBtn src="/mode de jeu.png" onClick={()=>setPage("jeux-sans")}/>
+        <ImgBtn src="/minijeux2.png"    onClick={()=>setPage("jeux-sans")}/>
       </div>
 
       {/* ── Scoreur + Trouve un bar ── */}
@@ -3576,7 +3576,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
 
   const back = categorie === "fleche"
     ? <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:2 }}>🎯 Jeux avec fléchettes</h1><p style={{ color:C.muted,fontSize:13,marginBottom:18 }}>Prends ta cible, on joue !</p></>
-    : <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:2 }}>🧠 Jeux sans fléchettes</h1><p style={{ color:C.muted,fontSize:13,marginBottom:18 }}>Entraîne ton mental, n'importe où !</p></>;
+    : <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:2 }}>🎮 Mini jeux & défis</h1><p style={{ color:C.muted,fontSize:13,marginBottom:18 }}>Entraîne ton mental, n'importe où !</p></>;
 
   return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
