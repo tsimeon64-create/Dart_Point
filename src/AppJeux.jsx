@@ -578,14 +578,30 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     setInput(next);
   };
 
+  const [annulMsg, setAnnulMsg] = useState(null);
+
   const annulerDernierCoup = () => {
-    if (historique.length === 0) return;
+    if (historique.length === 0 && !pendingVolee) return;
+    // Si popup finish/zero ouverte → on annule d'abord sans dépiler (l'entrée a déjà été pushée)
+    const wasFinishPopup = !!pendingVolee;
+    setPendingVolee(null);
+    if (historique.length === 0) { setInput(""); return; }
+
     const prev = historique[historique.length - 1];
-    // Restaure le state depuis le snapshot (shallow copy suffisante — tours est déjà un tableau immutable)
+    // Rollback TOTAL : scores + joueur actif + manche + starter + historique manches
     setJoueurs(prev.joueurs.map(j => ({ ...j, tours: [...j.tours] })));
     setActifIdx(prev.actifIdx);
+    if (prev.mancheEnCours !== undefined) setMancheEnCours(prev.mancheEnCours);
+    if (prev.mancheStart  !== undefined) setMancheStart(prev.mancheStart);
+    if (prev.manchesHistory !== undefined) setManchesHistory(prev.manchesHistory);
     setHistorique(h => h.slice(0, -1));
     setInput("");
+
+    // Message UX bref
+    if (wasFinishPopup) {
+      setAnnulMsg("↩️ Finish annulé — état précédent restauré.");
+      setTimeout(() => setAnnulMsg(null), 2500);
+    }
   };
 
   const enregistrerResultatDuel = async (gagnantNom, scoreC, scoreD, moyC, moyD, manchesDetail=[], joueursData=[]) => {
@@ -699,14 +715,17 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     liveIdRef.current = null;
   };
 
-  // Snapshot léger pour l'annulation (sans cloner le tableau tours qui grandit sans limite)
+  // Snapshot COMPLET pour rollback total (scores + tours + ordre + manche + historique manches)
   const snapshot = () => ({
     joueurs: joueurs.map(j => ({
       nom: j.nom, score: j.score, manchesGagnees: j.manchesGagnees,
       flechettes: j.flechettes, totalPoints: j.totalPoints,
-      scorePrecedent: j.scorePrecedent, tours: j.tours, // on garde tours mais on évite JSON deep-clone
+      scorePrecedent: j.scorePrecedent, tours: [...j.tours],
     })),
     actifIdx,
+    mancheEnCours,
+    mancheStart: { vol:[...mancheStart.vol], pts:[...mancheStart.pts], nbtours:[...mancheStart.nbtours], flechettes:[...mancheStart.flechettes] },
+    manchesHistory: [...manchesHistory],
   });
 
   const pushHistorique = () => setHistorique(h => [...h.slice(-14), snapshot()]);
@@ -749,6 +768,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // Appelé après sélection du nb de fléchettes dans la popup
   const confirmerVolee = (nbFlechettes) => {
     if (!pendingVolee || !joueurs) return;
+    // Anti-double validation : si pendingVolee est déjà null on sort immédiatement
+    if (nbFlechettes < 1 || nbFlechettes > 3) return;
     const { val, type } = pendingVolee;
     const joueur = joueurs[actifIdx];
     setPendingVolee(null);
@@ -963,21 +984,28 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       <style>{`.scoreur-wrap button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; } .scoreur-wrap button:active { opacity: 0.7; transform: scale(0.95); }`}</style>
       {showConfirmQuitter && <ModalConfirmQuitter/>}
 
+      {/* ── MESSAGE ANNULATION ── */}
+      {annulMsg && (
+        <div style={{ position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",zIndex:10000,background:"#14532d",border:"1px solid #22c55e55",borderRadius:12,padding:"12px 20px",color:"#22c55e",fontWeight:700,fontSize:14,boxShadow:"0 4px 20px #000a",whiteSpace:"nowrap" }}>
+          {annulMsg}
+        </div>
+      )}
+
       {/* ── POPUP FLÉCHETTES ── */}
       {pendingVolee && (
         <div style={{ position:"fixed",inset:0,background:"#000000dd",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24 }}>
           <div style={{ background:"#1a1a1a",border:`2px solid ${pendingVolee.type==="finish"?"#22c55e":"#f59e0b"}`,borderRadius:20,padding:28,maxWidth:340,width:"100%",textAlign:"center" }}>
-            <div style={{ fontSize:48,marginBottom:10 }}>{pendingVolee.type==="finish"?"🎯":"🎯"}</div>
+            <div style={{ fontSize:48,marginBottom:10 }}>{pendingVolee.type==="finish"?"🏆":"🎯"}</div>
             <h3 style={{ fontWeight:900,fontSize:19,color:"#f1f5f9",marginBottom:8 }}>
               {pendingVolee.type==="finish" ? "🏆 FINISH !" : "Volée à 0 point"}
             </h3>
-            <p style={{ color:"#94a3b8",fontSize:14,marginBottom:24,lineHeight:1.6 }}>
+            <p style={{ color:"#94a3b8",fontSize:14,marginBottom:20,lineHeight:1.6 }}>
               {pendingVolee.type==="finish"
                 ? "Combien de fléchettes as-tu utilisées pour finir ?"
                 : "Combien de fléchettes as-tu réellement lancées ?"
               }
             </p>
-            <div style={{ display:"flex",gap:10,justifyContent:"center" }}>
+            <div style={{ display:"flex",gap:10,justifyContent:"center",marginBottom:14 }}>
               {[1,2,3].map(n => (
                 <button key={n}
                   onPointerDown={e=>{ e.preventDefault(); confirmerVolee(n); }}
@@ -995,9 +1023,15 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                 </button>
               ))}
             </div>
-            <p style={{ color:"#4b5563",fontSize:11,marginTop:16 }}>
+            <p style={{ color:"#4b5563",fontSize:11,marginBottom:14 }}>
               Appuie sur le nombre de fléchettes utilisées
             </p>
+            {/* Bouton Retour — annule le finish immédiatement avec rollback complet */}
+            <button
+              onPointerDown={e=>{ e.preventDefault(); annulerDernierCoup(); }}
+              style={{ width:"100%",padding:"12px",borderRadius:12,border:"1px solid #ef444466",background:"#1a0000",color:"#ef4444",fontWeight:700,fontSize:15,cursor:"pointer",touchAction:"manipulation",WebkitTapHighlightColor:"transparent" }}>
+              ⬅ Retour — j'ai fait une erreur
+            </button>
           </div>
         </div>
       )}
