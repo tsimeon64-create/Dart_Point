@@ -5214,12 +5214,29 @@ const AdminJoueurs = ({ addLog }) => {
   const [msg, setMsg]             = useState({});
   const [expanded, setExpanded]   = useState({});
 
+  const [fiche, setFiche] = useState({}); // { [id]: { stats, duels, presences, mouvements } }
+  const [ficheLoading, setFicheLoading] = useState({});
+
   // Chargement initial — tous les joueurs
   useEffect(()=>{
-    sb(`joueurs?order=drix.desc&select=id,pseudo,drix,date_inscription,photo,bar_slug,asso_slug&limit=200`)
+    sb(`joueurs?order=drix.desc&select=id,pseudo,nom,prenom,email,ville,drix,date_inscription,photo,bar_slug,asso_slug&limit=500`)
       .then(r=>{ setTous(r||[]); setLoading(false); })
       .catch(()=>setLoading(false));
   },[]);
+
+  // Charger la fiche détaillée d'un joueur à l'ouverture
+  const chargerFiche = async (j) => {
+    if (fiche[j.id] || ficheLoading[j.id]) return;
+    setFicheLoading(f=>({...f,[j.id]:true}));
+    const [stats, duels, presences, mouvements] = await Promise.all([
+      sb(`stats_joueurs?joueur_id=eq.${j.id}&select=victoires,defaites,parties,moyenne`).catch(()=>[]),
+      sb(`duels?or=(challenger_id.eq.${j.id},defie_id.eq.${j.id})&statut=eq.termine&select=id,date&order=date.desc&limit=1`).catch(()=>[]),
+      sb(`presences?joueur_id=eq.${j.id}&select=date_jour&limit=1000`).catch(()=>[]),
+      sb(`drix_mouvements?joueur_id=eq.${j.id}&select=variation,date&order=date.desc&limit=5`).catch(()=>[]),
+    ]);
+    setFiche(f=>({...f,[j.id]:{ stats:stats?.[0]||null, lastDuel:duels?.[0]||null, nbPresences:(presences||[]).length, mouvements:mouvements||[] }}));
+    setFicheLoading(f=>({...f,[j.id]:false}));
+  };
 
   // Filtre local par pseudo
   const joueurs = recherche.trim()
@@ -5355,7 +5372,7 @@ const AdminJoueurs = ({ addLog }) => {
           <div key={j.id} style={{background:C.card,border:`1px solid ${isOpen?C.accent:C.border}`,borderRadius:14,marginBottom:10,overflow:"hidden",transition:"border-color .2s"}}>
             {/* Header carte — cliquable pour ouvrir */}
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px",cursor:"pointer"}}
-              onClick={()=>setExpanded(x=>({...x,[j.id]:!x[j.id]}))}>
+              onClick={()=>{ setExpanded(x=>({...x,[j.id]:!x[j.id]})); if(!expanded[j.id]) chargerFiche(j); }}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
                 {j.photo
                   ? <img src={j.photo} style={{width:42,height:42,borderRadius:"50%",objectFit:"cover",border:`2px solid ${C.accent}`}} alt=""/>
@@ -5380,6 +5397,78 @@ const AdminJoueurs = ({ addLog }) => {
             {/* Panel de gestion */}
             {isOpen && (
               <div style={{borderTop:`1px solid ${C.border}`,padding:"18px 18px",display:"flex",flexDirection:"column",gap:18}}>
+
+                {/* ── FICHE CLIENT ── */}
+                <div style={{background:"#0a0f1a",border:`1px solid ${C.blue}22`,borderRadius:12,padding:16}}>
+                  <div style={{fontSize:12,color:C.blue,fontWeight:700,letterSpacing:.5,marginBottom:12}}>👤 FICHE CLIENT</div>
+                  {ficheLoading[j.id] ? (
+                    <div style={{color:C.muted,fontSize:13}}>Chargement...</div>
+                  ) : (
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                      {/* Identité */}
+                      <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:14,marginBottom:4}}>
+                        {j.photo
+                          ? <img src={j.photo} style={{width:56,height:56,borderRadius:"50%",objectFit:"cover",border:`2px solid ${C.blue}`}} alt=""/>
+                          : <div style={{width:56,height:56,borderRadius:"50%",background:`${C.blue}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>{(j.pseudo||"?")[0].toUpperCase()}</div>}
+                        <div>
+                          <div style={{fontWeight:900,fontSize:17,color:C.text}}>{j.prenom||"—"} {j.nom||""}</div>
+                          <div style={{fontSize:13,color:C.accent,fontWeight:700}}>@{j.pseudo}</div>
+                        </div>
+                      </div>
+                      {/* Email */}
+                      <div style={{background:"#ffffff08",borderRadius:8,padding:"8px 12px"}}>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>✉️ EMAIL</div>
+                        <div style={{fontSize:13,color:C.text,wordBreak:"break-all"}}>{j.email||"—"}</div>
+                      </div>
+                      {/* Ville */}
+                      <div style={{background:"#ffffff08",borderRadius:8,padding:"8px 12px"}}>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>📍 VILLE</div>
+                        <div style={{fontSize:13,color:C.text}}>{j.ville||"—"}</div>
+                      </div>
+                      {/* Inscription */}
+                      <div style={{background:"#ffffff08",borderRadius:8,padding:"8px 12px"}}>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>📅 INSCRIPTION</div>
+                        <div style={{fontSize:13,color:C.text}}>{j.date_inscription?new Date(j.date_inscription).toLocaleDateString("fr-FR","long"):"—"}</div>
+                      </div>
+                      {/* Bar */}
+                      <div style={{background:"#ffffff08",borderRadius:8,padding:"8px 12px"}}>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>🍺 BAR</div>
+                        <div style={{fontSize:13,color:C.text}}>{j.bar_slug||"—"}</div>
+                      </div>
+                      {/* Connexions */}
+                      <div style={{background:"#ffffff08",borderRadius:8,padding:"8px 12px"}}>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>🔌 CONNEXIONS (jours)</div>
+                        <div style={{fontSize:20,fontWeight:900,color:C.blue}}>{fiche[j.id]?.nbPresences??"—"}</div>
+                      </div>
+                      {/* Dernière activité */}
+                      <div style={{background:"#ffffff08",borderRadius:8,padding:"8px 12px"}}>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>⏱ DERNIÈRE PARTIE</div>
+                        <div style={{fontSize:13,color:C.text}}>{fiche[j.id]?.lastDuel ? new Date(fiche[j.id].lastDuel.date).toLocaleDateString("fr-FR") : "—"}</div>
+                      </div>
+                      {/* Stats */}
+                      {fiche[j.id]?.stats && (
+                        <div style={{gridColumn:"1/-1",background:"#ffffff08",borderRadius:8,padding:"8px 12px",display:"flex",gap:20}}>
+                          <div><div style={{fontSize:10,color:C.muted}}>🏆 VICTOIRES</div><div style={{fontSize:18,fontWeight:900,color:C.green}}>{fiche[j.id].stats.victoires??0}</div></div>
+                          <div><div style={{fontSize:10,color:C.muted}}>💀 DÉFAITES</div><div style={{fontSize:18,fontWeight:900,color:C.red}}>{fiche[j.id].stats.defaites??0}</div></div>
+                          <div><div style={{fontSize:10,color:C.muted}}>🎯 PARTIES</div><div style={{fontSize:18,fontWeight:900,color:C.text}}>{fiche[j.id].stats.parties??0}</div></div>
+                          <div><div style={{fontSize:10,color:C.muted}}>📊 WR</div><div style={{fontSize:18,fontWeight:900,color:C.yellow}}>{fiche[j.id].stats.parties>0?Math.round((fiche[j.id].stats.victoires/fiche[j.id].stats.parties)*100):0}%</div></div>
+                        </div>
+                      )}
+                      {/* Derniers mouvements DRIX */}
+                      {fiche[j.id]?.mouvements?.length>0 && (
+                        <div style={{gridColumn:"1/-1",background:"#ffffff08",borderRadius:8,padding:"8px 12px"}}>
+                          <div style={{fontSize:10,color:C.muted,marginBottom:6}}>💎 DERNIERS MOUVEMENTS DRIX</div>
+                          {fiche[j.id].mouvements.map((m,i)=>(
+                            <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:m.variation>0?C.green:C.red,padding:"2px 0"}}>
+                              <span>{new Date(m.date).toLocaleDateString("fr-FR")}</span>
+                              <span style={{fontWeight:700}}>{m.variation>0?"+":""}{m.variation} DRIX</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {/* Section DRIX */}
                 <div style={{background:"#0a1a0a",border:`1px solid ${C.green}22`,borderRadius:12,padding:16}}>
