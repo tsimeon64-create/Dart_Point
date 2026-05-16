@@ -5561,33 +5561,49 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
   const [joueursList, setJoueursList] = useState([]);
   const [avisCount, setAvisCount]   = useState(0);
   const [adminLogs, setAdminLogs]   = useState([]);
-  const [stats, setStats]           = useState({ matchsDuJour:0, joueursActifs:0, nouveauxJoueurs:0, totalJoueurs:0 });
+  const [stats, setStats]           = useState({ matchsDuJour:0, joueursActifs:0, nouveauxJoueurs:0, totalJoueurs:0, connexionsJour:0 });
 
   const addLog = (action, cible, type="info") =>
     setAdminLogs(l => [{ id:Date.now(), action, cible, type, date:new Date().toLocaleString("fr-FR") }, ...l.slice(0,49)]);
 
-  useEffect(()=>{
+  const fetchAdminStats = () => {
     const weekAgo = Date.now() - 7*24*60*60*1000;
+    const today = new Date().toISOString().split("T")[0];
     Promise.all([
       db.getPropositions(),
       db.getSignalements(),
       fetch(`${SB_URL}/rest/v1/avis?valide=eq.false&select=id`,{headers:{"apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`}}).then(r=>r.json()).catch(()=>[]),
       sb(`joueurs?order=date_inscription.desc&limit=500&select=id,pseudo,drix,date_inscription,photo`).catch(()=>[]),
       sb(`duels?statut=eq.en_cours&select=id`).catch(()=>[]),
-    ]).then(([p,s,av,j,duels])=>{
+      sb(`presences?date_jour=eq.${today}&select=joueur_id`).catch(()=>[]),
+    ]).then(([p,s,av,j,duels,pres])=>{
       setPropositions(p||[]);
       setSignalements(s||[]);
       setAvisCount((av||[]).length);
       const jList = j||[];
       setJoueursList(jList);
+      const uniqueConns = new Set((pres||[]).map(x=>x.joueur_id)).size;
       setStats({
         matchsDuJour: (duels||[]).length,
         joueursActifs: 0,
         nouveauxJoueurs: jList.filter(x=>x.date_inscription&&new Date(x.date_inscription).getTime()>weekAgo).length,
         totalJoueurs: jList.length,
+        connexionsJour: uniqueConns,
       });
       setLoading(false);
     }).catch(()=>setLoading(false));
+  };
+
+  useEffect(()=>{
+    fetchAdminStats();
+    const interval = setInterval(()=>{
+      const today = new Date().toISOString().split("T")[0];
+      sb(`presences?date_jour=eq.${today}&select=joueur_id`).catch(()=>[]).then(pres=>{
+        const uniqueConns = new Set((pres||[]).map(x=>x.joueur_id)).size;
+        setStats(s=>({...s, connexionsJour: uniqueConns}));
+      });
+    }, 30000);
+    return () => clearInterval(interval);
   },[]);
 
   const validerBar=async p=>{const slug=slugify(p.nom+"-"+p.ville);let lat=null,lng=null;try{const q=encodeURIComponent(`${p.adresse||p.nom}, ${p.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const geoData=await geo.json();if(geoData?.[0]){lat=parseFloat(geoData[0].lat);lng=parseFloat(geoData[0].lon);}if(!lat){const q2=encodeURIComponent(`${p.ville}, France`);const geo2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);const geoData2=await geo2.json();if(geoData2?.[0]){lat=parseFloat(geoData2[0].lat);lng=parseFloat(geoData2[0].lon);}}}catch(e){}const nb={slug,nom:p.nom,ville:p.ville,cp:p.cp||"",adresse:p.adresse||"",tel:p.tel||"",type:p.type||"electronique",cibles:parseInt(p.cibles)||1,horaires:"",description:"",tournois:p.tournois==="oui",association:null,source:"user",verifie:true,vues:0,lat,lng};const r=await db.addBar(nb);if(r?.[0])setBars(b=>[...b,r[0]]);await db.updateProposition(p.id,{statut:"publie"});setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));addLog("Bar validé",p.nom,"success");};
@@ -5742,6 +5758,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
           <AdminKpiCard icon="⚠️" label="Signalements" count={sigPending.length} prio={sigPending.length>0?"urgent":"normal"} onClick={()=>setTab("signalements")}/>
           <AdminKpiCard icon="👥" label="Total joueurs" count={stats.totalJoueurs} prio="normal"/>
           <AdminKpiCard icon="🆕" label="Nouveaux (7j)" count={stats.nouveauxJoueurs} prio={stats.nouveauxJoueurs>0?"important":"normal"}/>
+          <AdminKpiCard icon="📡" label="Connexions aujourd'hui" count={stats.connexionsJour} prio={stats.connexionsJour>0?"important":"normal"}/>
           <AdminKpiCard icon="🎯" label="Bars référencés" count={bars.length} prio="normal"/>
           <AdminKpiCard icon="🫂" label="Associations" count={associations.length} prio="normal"/>
           <AdminKpiCard icon="🏅" label="Tournois" count={tournois.length} prio="normal"/>
