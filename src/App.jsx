@@ -228,6 +228,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
   const [liveStats, setLiveStats] = useState({ joueursConnectes:0, matchsLive:0 });
   const [joueurStats, setJoueurStats] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [chronoRecord, setChronoRecord] = useState(null);
 
   // Fetch live on mount (for ticker)
   useEffect(() => {
@@ -235,8 +236,10 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
     const fetchLive = () => Promise.all([
       sb(`presences?date_jour=eq.${today}&select=joueur_id`).catch(()=>[]),
       sb(`duels?statut=eq.accepte&select=id&limit=50`).catch(()=>[]),
-    ]).then(([pres, duels]) => {
+      sb(`chrono_finish_scores?date_jour=eq.${today}&order=temps_ms.asc&limit=1&select=joueur_pseudo,temps_ms`).catch(()=>[]),
+    ]).then(([pres, duels, chrono]) => {
       setLiveStats({ joueursConnectes: new Set((pres||[]).map(p=>p.joueur_id)).size, matchsLive: duels?.length||0 });
+      setChronoRecord(chrono?.[0] || null);
     }).catch(()=>{});
     fetchLive();
     const iv = setInterval(fetchLive, 60000);
@@ -281,11 +284,16 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
     : { dot:"●", label:"En ligne", color:"#4ade80" };
 
   // Ticker items
+  const fmtTickerMs = (ms) => {
+    const t=Math.floor(ms/100); const d=t%10; const s=Math.floor(t/10)%60; const m=Math.floor(t/600);
+    return m>0?`${m}:${String(s).padStart(2,"0")}.${d}s`:`${s}.${d}s`;
+  };
   const tickerItems = [
     liveStats.matchsLive > 0 ? `🔥 ${liveStats.matchsLive} matchs live` : null,
     liveStats.joueursConnectes > 0 ? `👥 ${liveStats.joueursConnectes} joueurs aujourd'hui` : null,
     barsActifs.length > 0 ? `🍺 ${barsActifs.length} bars actifs ce soir` : null,
     tournoisDuJour > 0 ? `🏆 ${tournoisDuJour} tournoi${tournoisDuJour>1?"s":""} aujourd'hui` : null,
+    chronoRecord ? `⏱ Chrono Finish — 🥇 ${chronoRecord.joueur_pseudo}  ${fmtTickerMs(chronoRecord.temps_ms)}` : null,
     `🎯 ${bars.length} bars répertoriés`,
     `🫂 ${associations.length} associations`,
   ].filter(Boolean).join("   ·   ");
