@@ -3580,7 +3580,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
 
   return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
-      <button onClick={()=>setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,padding:0 }}>← Catégories</button>
+      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,padding:0 }}>← Retour</button>
       {back}
       <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
         {categorie==="fleche" && <>
