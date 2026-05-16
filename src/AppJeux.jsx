@@ -149,33 +149,38 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
   );
 
   return (
-    <div style={{ maxWidth:480,margin:"0 auto",padding:"40px 16px",textAlign:"center",fontFamily:"Inter,sans-serif",position:"relative",zIndex:1 }}>
+    <div style={{ maxWidth:480,margin:"0 auto",padding:"12px 16px",textAlign:"center",fontFamily:"Inter,sans-serif",position:"relative",zIndex:1 }}>
       <Confetti/>
 
       {/* Carte victoire */}
       <div style={{
         background:"linear-gradient(135deg,#14532d,#166534)",
-        borderRadius:20, padding:"40px 24px", marginBottom:20,
+        borderRadius:16, padding:"16px 20px", marginBottom:12,
         transform: show ? "scale(1)" : "scale(0.85)",
         opacity: show ? 1 : 0,
         transition: "transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.4s ease",
+        display:"flex", alignItems:"center", gap:14, textAlign:"left",
       }}>
         <style>{`@keyframes trophy-bounce{0%{transform:scale(0) rotate(-20deg);opacity:0}70%{transform:scale(1.2) rotate(5deg)}100%{transform:scale(1) rotate(0);opacity:1}}`}</style>
-        <div style={{ display:"flex",justifyContent:"center",marginBottom:16,animation:"trophy-bounce 0.6s 0.2s both" }}>
+        {/* Photo / trophée */}
+        <div style={{ flexShrink:0, animation:"trophy-bounce 0.6s 0.2s both" }}>
           {winnerPhoto ? (
-            <div style={{ width:96,height:96,borderRadius:"50%",overflow:"hidden",border:"4px solid #22c55e",boxShadow:"0 0 24px #22c55e88" }}>
+            <div style={{ width:64,height:64,borderRadius:"50%",overflow:"hidden",border:"3px solid #22c55e",boxShadow:"0 0 16px #22c55e88" }}>
               <img src={winnerPhoto} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
             </div>
           ) : (
-            <span style={{ fontSize:72 }}>🏆</span>
+            <span style={{ fontSize:48 }}>🏆</span>
           )}
         </div>
-        <h2 style={{ fontWeight:900,fontSize:32,color:"#22c55e",marginBottom:6 }}>VICTOIRE !</h2>
-        <p style={{ fontSize:24,fontWeight:800,color:"#fff",marginBottom:20 }}>{gagnant?.nom}</p>
-        <div style={{ display:"flex",justifyContent:"center",gap:24 }}>
-          <div><div style={{ fontSize:22,fontWeight:900,color:"#22c55e" }}>{moyenne(gagnant)}</div><div style={{ fontSize:12,color:"#86efac" }}>Moyenne</div></div>
-          <div><div style={{ fontSize:22,fontWeight:900,color:"#22c55e" }}>{gagnant?.flechettes}</div><div style={{ fontSize:12,color:"#86efac" }}>Fléchettes</div></div>
-          <div><div style={{ fontSize:22,fontWeight:900,color:"#22c55e" }}>{gagnant?.tours.length}</div><div style={{ fontSize:12,color:"#86efac" }}>Tours</div></div>
+        {/* Texte */}
+        <div style={{ flex:1 }}>
+          <div style={{ fontWeight:900,fontSize:22,color:"#22c55e",lineHeight:1.1 }}>VICTOIRE !</div>
+          <div style={{ fontSize:18,fontWeight:800,color:"#fff",marginBottom:8 }}>{gagnant?.nom}</div>
+          <div style={{ display:"flex",gap:16 }}>
+            <div><div style={{ fontSize:17,fontWeight:900,color:"#22c55e" }}>{moyenne(gagnant)}</div><div style={{ fontSize:11,color:"#86efac" }}>Moyenne</div></div>
+            <div><div style={{ fontSize:17,fontWeight:900,color:"#22c55e" }}>{gagnant?.flechettes}</div><div style={{ fontSize:11,color:"#86efac" }}>Fléchettes</div></div>
+            <div><div style={{ fontSize:17,fontWeight:900,color:"#22c55e" }}>{gagnant?.tours.length}</div><div style={{ fontSize:11,color:"#86efac" }}>Tours</div></div>
+          </div>
         </div>
       </div>
 
@@ -184,7 +189,7 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
         <div style={{
           background: duel?.type==="amical" ? "#0f0f1a" : "#0f1a0f",
           border: `2px solid ${duel?.type==="amical" ? "#7c3aed44" : "#22c55e44"}`,
-          borderRadius:14, padding:20, marginBottom:16,
+          borderRadius:14, padding:"14px 16px", marginBottom:10,
           transform: drixShow ? "translateY(0)" : "translateY(30px)",
           opacity: drixShow ? 1 : 0,
           transition: "transform 0.5s ease, opacity 0.4s ease",
@@ -221,33 +226,33 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
                 return (
                   <div style={{ display:"flex",gap:10,marginBottom:12,flexWrap:"wrap" }}>
                     {/* Gagnant */}
-                    <div style={{ flex:1,minWidth:140,background:"#0f1a0f",border:"1px solid #22c55e33",borderRadius:14,padding:"14px 12px" }}>
-                      <div style={{ fontSize:12,color:"#86efac",fontWeight:800,marginBottom:10,textAlign:"center" }}>🏆 {wNom}</div>
+                    <div style={{ flex:1,minWidth:130,background:"#0f1a0f",border:"1px solid #22c55e33",borderRadius:14,padding:"10px 10px" }}>
+                      <div style={{ fontSize:11,color:"#86efac",fontWeight:800,marginBottom:6,textAlign:"center" }}>🏆 {wNom}</div>
                       <DrixLine label="ELO" val={bkW.eloVariation} color={bkW.eloVariation>=0?"#22c55e":"#ef4444"}/>
                       {bkW.bonus.bonusManches>0 && <DrixLine label={`💎 ${bkW.bonus.bonusManches/7} manche(s)`} val={bkW.bonus.bonusManches} color="#f59e0b"/>}
                       {bkW.bonus.nbGrossesVolees>0 && <DrixLine label={`🔥 ${bkW.bonus.nbGrossesVolees} grosse(s) volée(s)`} val={bkW.bonus.bonusVolees} color="#f97316"/>}
                       {bkW.bonus.nbGrosFinish>0 && <DrixLine label={`🏆 ${bkW.bonus.nbGrosFinish} gros finish`} val={bkW.bonus.bonusFinish} color="#a78bfa"/>}
-                      <div style={{ marginTop:10,paddingTop:8,borderTop:"1px solid #22c55e44",textAlign:"center" }}>
+                      <div style={{ marginTop:6,paddingTop:6,borderTop:"1px solid #22c55e44",textAlign:"center" }}>
                         <span style={{ fontSize:11,color:"#86efac" }}>TOTAL </span>
-                        <span style={{ fontSize:22,fontWeight:900,color:"#22c55e" }}>
+                        <span style={{ fontSize:20,fontWeight:900,color:"#22c55e" }}>
                           {bkW.totalVariation>=0?"+":""}<AnimCount target={Math.abs(bkW.totalVariation)} duration={1200}/>
                         </span>
-                        <span style={{ fontSize:14,fontWeight:900,color:"#22c55e" }}> DRIX</span>
+                        <span style={{ fontSize:13,fontWeight:900,color:"#22c55e" }}> DRIX</span>
                       </div>
                     </div>
                     {/* Perdant */}
-                    <div style={{ flex:1,minWidth:140,background:"#1a0a0a",border:"1px solid #ef444433",borderRadius:14,padding:"14px 12px" }}>
-                      <div style={{ fontSize:12,color:"#fca5a5",fontWeight:800,marginBottom:10,textAlign:"center" }}>💔 {lNom}</div>
+                    <div style={{ flex:1,minWidth:130,background:"#1a0a0a",border:"1px solid #ef444433",borderRadius:14,padding:"10px 10px" }}>
+                      <div style={{ fontSize:11,color:"#fca5a5",fontWeight:800,marginBottom:6,textAlign:"center" }}>💔 {lNom}</div>
                       <DrixLine label="ELO" val={bkL.eloVariation} color={bkL.eloVariation>=0?"#22c55e":"#ef4444"}/>
                       {bkL.bonus.bonusManches>0 && <DrixLine label={`💎 ${bkL.bonus.bonusManches/7} manche(s)`} val={bkL.bonus.bonusManches} color="#f59e0b"/>}
                       {bkL.bonus.nbGrossesVolees>0 && <DrixLine label={`🔥 ${bkL.bonus.nbGrossesVolees} grosse(s) volée(s)`} val={bkL.bonus.bonusVolees} color="#f97316"/>}
                       {bkL.bonus.nbGrosFinish>0 && <DrixLine label={`🏆 ${bkL.bonus.nbGrosFinish} gros finish`} val={bkL.bonus.bonusFinish} color="#a78bfa"/>}
-                      <div style={{ marginTop:10,paddingTop:8,borderTop:"1px solid #ef444433",textAlign:"center" }}>
+                      <div style={{ marginTop:6,paddingTop:6,borderTop:"1px solid #ef444433",textAlign:"center" }}>
                         <span style={{ fontSize:11,color:"#fca5a5" }}>TOTAL </span>
-                        <span style={{ fontSize:22,fontWeight:900,color:bkL.totalVariation>=0?"#22c55e":"#ef4444" }}>
+                        <span style={{ fontSize:20,fontWeight:900,color:bkL.totalVariation>=0?"#22c55e":"#ef4444" }}>
                           {bkL.totalVariation>=0?"+":""}<AnimCount target={Math.abs(bkL.totalVariation)} duration={1200}/>
                         </span>
-                        <span style={{ fontSize:14,fontWeight:900,color:bkL.totalVariation>=0?"#22c55e":"#ef4444" }}> DRIX</span>
+                        <span style={{ fontSize:13,fontWeight:900,color:bkL.totalVariation>=0?"#22c55e":"#ef4444" }}> DRIX</span>
                       </div>
                     </div>
                   </div>
@@ -274,10 +279,10 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
       )}
 
       <div style={{ display:"flex",gap:10,marginBottom:10 }}>
-        {!modeDuel && <button onClick={demarrer} style={{ flex:1,padding:"16px",borderRadius:12,border:"none",fontWeight:800,fontSize:16,cursor:"pointer",background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff" }}>🔄 Rejouer</button>}
-        <button onClick={()=>setShowStats(true)} style={{ flex:1,padding:"16px",borderRadius:12,border:"1px solid #22c55e44",fontWeight:800,fontSize:16,cursor:"pointer",background:"#0f1a0f",color:"#22c55e" }}>📊 Voir stats</button>
-        <button onClick={quitterPartie} style={{ flex:1,padding:"16px",borderRadius:12,border:"1px solid #2a2a2a",fontWeight:800,fontSize:16,cursor:"pointer",background:"#1a1a1a",color:"#94a3b8" }}>
-          {modeDuel?"✅ Valider le match":"⚙️ Config"}
+        {!modeDuel && <button onClick={demarrer} style={{ flex:1,padding:"13px 8px",borderRadius:12,border:"none",fontWeight:800,fontSize:15,cursor:"pointer",background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff" }}>🔄 Rejouer</button>}
+        <button onClick={()=>setShowStats(true)} style={{ flex:1,padding:"13px 8px",borderRadius:12,border:"1px solid #22c55e44",fontWeight:800,fontSize:15,cursor:"pointer",background:"#0f1a0f",color:"#22c55e" }}>📊 Stats</button>
+        <button onClick={quitterPartie} style={{ flex:1,padding:"13px 8px",borderRadius:12,border:"1px solid #2a2a2a",fontWeight:800,fontSize:15,cursor:"pointer",background:"#1a1a1a",color:"#94a3b8" }}>
+          {modeDuel?"✅ Valider":"⚙️ Config"}
         </button>
       </div>
 
