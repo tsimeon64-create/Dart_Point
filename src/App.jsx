@@ -1399,7 +1399,7 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
         <ImgBtn src="/comptoir.png"    onClick={()=>setPage("communaute")}/>
         <ImgBtn src="/defi.png"        onClick={()=>setPage("defi")} badge={defisCount}/>
         <ImgBtn src="/classement.png"  onClick={()=>setPage("drix")}/>
-        <ImgBtn src="/mode de jeu.png" onClick={()=>setPage("jeux")}/>
+        <ImgBtn src="/mode de jeu.png" onClick={()=>setPage("jeux-sans")}/>
       </div>
 
       {/* ── Scoreur + Trouve un bar ── */}
@@ -7282,6 +7282,7 @@ export default function App() {
         {page==="scoreur-libre"    && <ScoreurLibre setPage={nav}/>}
         {page==="jeux"             && <PageModeJeu joueur={joueur} setPage={nav}/>}
         {page==="jeux-flechettes"       && <PageModeJeu joueur={joueur} setPage={nav} initCat="fleche"/>}
+        {page==="jeux-sans"             && <PageModeJeu joueur={joueur} setPage={nav} initCat="sans"/>}
         {page==="cricket-config"        && <ConfigCricket joueur={joueur} setPage={nav}/>}
         {page==="jeux-capital"          && <JeuCapital setPage={nav}/>}
         {page==="entrainement-finish"   && <EntrainementFinish setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
