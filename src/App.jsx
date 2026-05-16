@@ -1267,13 +1267,14 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
   const prog = getDrixProgression(j.drix || 1000);
 
   // Bouton image générique
-  const ImgBtn = ({ src, onClick, badge=0, h=null }) => (
-    <div onClick={onClick} style={{ position:"relative",cursor:"pointer",borderRadius:16,overflow:"hidden",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s",...(h?{height:h}:{}) }}
+  const ImgBtn = ({ src, onClick, badge=0 }) => (
+    <div onClick={onClick}
+      style={{ position:"relative",cursor:"pointer",borderRadius:16,overflow:"hidden",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s",width:"100%",paddingTop:"100%" }}
       onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 12px 32px #00000088";}}
       onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
-      <img src={src} alt="" style={{ width:"100%",display:"block",borderRadius:16,...(h?{height:"100%",objectFit:"cover"}:{}) }}/>
+      <img src={src} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",display:"block",borderRadius:16,objectFit:"cover" }}/>
       {badge>0 && (
-        <div style={{ position:"absolute",top:10,right:10,background:"#ef4444",color:"#fff",borderRadius:"50%",minWidth:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,boxShadow:"0 2px 8px #00000066" }}>
+        <div style={{ position:"absolute",top:10,right:10,background:"#ef4444",color:"#fff",borderRadius:"50%",minWidth:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,boxShadow:"0 2px 8px #00000066",zIndex:2 }}>
           {badge>9?"9+":badge}
         </div>
       )}
@@ -1394,16 +1395,12 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
         </div>
       </div>
 
-      {/* ── Grille 2×2 ── */}
-      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10 }}>
-        <ImgBtn src="/lecomptoir3.png"  onClick={()=>setPage("communaute")}/>
-        <ImgBtn src="/defi2.png"       onClick={()=>setPage("defi")} badge={defisCount}/>
-        <ImgBtn src="/classement.png"  onClick={()=>setPage("drix")}/>
-        <ImgBtn src="/minijeux2.png"    onClick={()=>setPage("jeux-sans")}/>
-      </div>
-
-      {/* ── Scoreur + Trouve un bar ── */}
+      {/* ── Grille 2×3 — tous boutons même taille ── */}
       <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+        <ImgBtn src="/lecomptoir3.png"      onClick={()=>setPage("communaute")}/>
+        <ImgBtn src="/defi2.png"            onClick={()=>setPage("defi")} badge={defisCount}/>
+        <ImgBtn src="/classement.png"       onClick={()=>setPage("drix")}/>
+        <ImgBtn src="/minijeux2.png"        onClick={()=>setPage("jeux-sans")}/>
         <ImgBtn src="/scoreur2.png"         onClick={()=>setPage("jeux-flechettes")}/>
         <ImgBtn src="/trouve ton spot.png"  onClick={()=>setPage("bars")}/>
       </div>

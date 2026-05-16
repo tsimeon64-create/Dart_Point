@@ -3058,37 +3058,96 @@ const dbDrix = {
   getHallOfFame: () => sbJ("drix_historique?order=saison.desc,classement.asc&select=*"),
 };
 
-export const appliquerDrixDuel = async (duel) => {
+// ── Bonus de performance (manches + grosses volées + gros finishes) ───────────
+// joueursData: [{nom, manchesGagnees, tours:[],...}, ...]  (index 0=challenger, 1=defie)
+// manchesDetail: [{winner, winner_finish,...}, ...]
+export const calculerBonusPerformance = (joueursData = [], manchesDetail = []) => {
+  const BONUS_MANCHE = 7;   // par manche gagnée
+  const BONUS_VOLEE  = 7;   // par volée ≥ 120
+  const BONUS_FINISH = 10;  // par finish ≥ 120
+  const PLAFOND      = 80;  // cap anti-abus par joueur par match
+
+  return joueursData.map(j => {
+    const manchesGagnees = j.manchesGagnees || 0;
+    const bonusManches   = manchesGagnees * BONUS_MANCHE;
+
+    // Grosses volées ≥ 120 (y compris les finishes)
+    const toutes = j.tours || [];
+    const grossesVolees = toutes.filter(v => v >= 120);
+    const bonusVolees   = grossesVolees.length * BONUS_VOLEE;
+
+    // Gros finishes ≥ 120 (manches gagnées par ce joueur avec finish ≥ 120)
+    const grossesFinishes = manchesDetail.filter(
+      m => m.winner === j.nom && (m.winner_finish || 0) >= 120
+    );
+    const bonusFinish = grossesFinishes.length * BONUS_FINISH;
+
+    const totalBrut = bonusManches + bonusVolees + bonusFinish;
+    const total     = Math.min(totalBrut, PLAFOND);
+
+    return {
+      bonusManches,
+      bonusVolees,
+      bonusFinish,
+      nbGrossesVolees: grossesVolees.length,
+      nbGrosFinish:    grossesFinishes.length,
+      total,
+    };
+  });
+};
+
+export const appliquerDrixDuel = async (duel, perfBonus = null) => {
   // Partie amicale → aucune variation DRIX
-  if (duel.type === "amical") return;
+  if (duel.type === "amical") return null;
   try {
     const [jC, jD] = await Promise.all([dbJ.getJoueur(duel.challenger_id), dbJ.getJoueur(duel.defie_id)]);
-    if (!jC || !jD) return;
+    if (!jC || !jD) return null;
     const drixC = jC.drix || 1000;
     const drixD = jD.drix || 1000;
     const challengerGagne = duel.gagnant_id === duel.challenger_id;
     const manches = Math.max(1, duel.manches || 1);
-    const { variationA, variationB } = calculerDrix(drixC, drixD, challengerGagne, { K: 32 * manches });
-    const newDrixC = Math.max(100, drixC + variationA);
-    const newDrixD = Math.max(100, drixD + variationB);
+    const K = 32 * manches;
+
+    // Probabilités ELO pures
+    const EA = 1 / (1 + Math.pow(10, (drixD - drixC) / 400));
+    const EB = 1 - EA;
+    const eloC = challengerGagne ? +Math.round(K * EB) : -Math.round(K * EA);
+    const eloD = challengerGagne ? -Math.round(K * EB) : +Math.round(K * EA);
+
+    // Bonus performance
+    const bonusC = perfBonus?.[0]?.total || 0;
+    const bonusD = perfBonus?.[1]?.total || 0;
+
+    const variationC = eloC + bonusC;
+    const variationD = eloD + bonusD;
+
+    const newDrixC = Math.max(100, drixC + variationC);
+    const newDrixD = Math.max(100, drixD + variationD);
     await Promise.all([
       dbDrix.updateDrix(jC.id, newDrixC),
       dbDrix.updateDrix(jD.id, newDrixD),
-      dbDrix.addMouvement({ joueur_id:jC.id, joueur_pseudo:jC.pseudo, adversaire_pseudo:jD.pseudo, variation:variationA, drix_avant:drixC, drix_apres:newDrixC, resultat:challengerGagne?"victoire":"defaite", duel_id:duel.id, date:Date.now() }),
-      dbDrix.addMouvement({ joueur_id:jD.id, joueur_pseudo:jD.pseudo, adversaire_pseudo:jC.pseudo, variation:variationB, drix_avant:drixD, drix_apres:newDrixD, resultat:challengerGagne?"defaite":"victoire", duel_id:duel.id, date:Date.now() }),
+      dbDrix.addMouvement({ joueur_id:jC.id, joueur_pseudo:jC.pseudo, adversaire_pseudo:jD.pseudo, variation:variationC, drix_avant:drixC, drix_apres:newDrixC, resultat:challengerGagne?"victoire":"defaite", duel_id:duel.id, date:Date.now() }),
+      dbDrix.addMouvement({ joueur_id:jD.id, joueur_pseudo:jD.pseudo, adversaire_pseudo:jC.pseudo, variation:variationD, drix_avant:drixD, drix_apres:newDrixD, resultat:challengerGagne?"defaite":"victoire", duel_id:duel.id, date:Date.now() }),
     ]);
-  } catch(e) { console.error("Erreur DRIX:", e); }
+
+    // Retourne le détail pour affichage
+    return {
+      challenger: { eloVariation:eloC, bonus:perfBonus?.[0]||{bonusManches:0,bonusVolees:0,bonusFinish:0,total:0}, totalVariation:variationC },
+      defie:      { eloVariation:eloD, bonus:perfBonus?.[1]||{bonusManches:0,bonusVolees:0,bonusFinish:0,total:0}, totalVariation:variationD },
+    };
+  } catch(e) { console.error("Erreur DRIX:", e); return null; }
 };
 
 // Finalise un duel : DRIX + stats en un seul appel (utilisé par AppJeux)
-export const finaliserDuel = async (duel) => {
-  await appliquerDrixDuel(duel);
+export const finaliserDuel = async (duel, perfBonus = null) => {
+  const breakdown = await appliquerDrixDuel(duel, perfBonus);
   const gagnantId = duel.gagnant_id;
   const [sC, sD] = await Promise.all([dbJ.getStats(duel.challenger_id), dbJ.getStats(duel.defie_id)]);
   await Promise.all([
     sC && dbJ.updateStats(sC.id, { parties:sC.parties+1, victoires:gagnantId===duel.challenger_id?sC.victoires+1:sC.victoires, defaites:gagnantId!==duel.challenger_id?sC.defaites+1:sC.defaites }),
     sD && dbJ.updateStats(sD.id, { parties:sD.parties+1, victoires:gagnantId===duel.defie_id?sD.victoires+1:sD.victoires, defaites:gagnantId!==duel.defie_id?sD.defaites+1:sD.defaites }),
   ]);
+  return breakdown;
 };
 
 // ── PAGE CLASSEMENT DRIX ──────────────────────────────────────────────────────

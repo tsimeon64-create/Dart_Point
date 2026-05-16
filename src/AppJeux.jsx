@@ -87,7 +87,7 @@ const AnimCount = ({ target, duration=1400, prefix="", suffix="" }) => {
 const SB_URL_J = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY_J = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 
-const FinScreen = ({ gagnant, duel, drixData, modeDuel, moyenne, demarrer, quitterPartie, joueurs: joueursData=[], manchesDetail=[] }) => {
+const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moyenne, demarrer, quitterPartie, joueurs: joueursData=[], manchesDetail=[] }) => {
   const [show, setShow] = useState(false);
   const [drixShow, setDrixShow] = useState(false);
   const [winnerPhoto, setWinnerPhoto] = useState(null);
@@ -202,20 +202,67 @@ const FinScreen = ({ gagnant, duel, drixData, modeDuel, moyenne, demarrer, quitt
           ) : (
             <>
               <p style={{ fontWeight:700,fontSize:15,color:"#22c55e",marginBottom:12,textAlign:"center" }}>✅ Résultat enregistré !</p>
-              {drixData && drixShow && (
+
+              {/* ── Breakdown détaillé si disponible ── */}
+              {drixBreakdown && drixShow ? (() => {
+                const bkC = drixBreakdown.challenger;
+                const bkD = drixBreakdown.defie;
+                const gagnantIsC = gagnant?.nom === duel?.challenger_pseudo;
+                const bkW = gagnantIsC ? bkC : bkD;
+                const bkL = gagnantIsC ? bkD : bkC;
+                const wNom = gagnant?.nom;
+                const lNom = perdantNom;
+                const DrixLine = ({ label, val, color="#94a3b8" }) => val !== 0 ? (
+                  <div style={{ display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0",borderBottom:"1px solid #ffffff0a" }}>
+                    <span style={{ color:"#64748b" }}>{label}</span>
+                    <span style={{ fontWeight:700,color }}>{val>0?"+":""}{val} DRIX</span>
+                  </div>
+                ) : null;
+                return (
+                  <div style={{ display:"flex",gap:10,marginBottom:12,flexWrap:"wrap" }}>
+                    {/* Gagnant */}
+                    <div style={{ flex:1,minWidth:140,background:"#0f1a0f",border:"1px solid #22c55e33",borderRadius:14,padding:"14px 12px" }}>
+                      <div style={{ fontSize:12,color:"#86efac",fontWeight:800,marginBottom:10,textAlign:"center" }}>🏆 {wNom}</div>
+                      <DrixLine label="ELO" val={bkW.eloVariation} color={bkW.eloVariation>=0?"#22c55e":"#ef4444"}/>
+                      {bkW.bonus.bonusManches>0 && <DrixLine label={`💎 ${bkW.bonus.bonusManches/7} manche(s)`} val={bkW.bonus.bonusManches} color="#f59e0b"/>}
+                      {bkW.bonus.nbGrossesVolees>0 && <DrixLine label={`🔥 ${bkW.bonus.nbGrossesVolees} grosse(s) volée(s)`} val={bkW.bonus.bonusVolees} color="#f97316"/>}
+                      {bkW.bonus.nbGrosFinish>0 && <DrixLine label={`🏆 ${bkW.bonus.nbGrosFinish} gros finish`} val={bkW.bonus.bonusFinish} color="#a78bfa"/>}
+                      <div style={{ marginTop:10,paddingTop:8,borderTop:"1px solid #22c55e44",textAlign:"center" }}>
+                        <span style={{ fontSize:11,color:"#86efac" }}>TOTAL </span>
+                        <span style={{ fontSize:22,fontWeight:900,color:"#22c55e" }}>
+                          {bkW.totalVariation>=0?"+":""}<AnimCount target={Math.abs(bkW.totalVariation)} duration={1200}/>
+                        </span>
+                        <span style={{ fontSize:14,fontWeight:900,color:"#22c55e" }}> DRIX</span>
+                      </div>
+                    </div>
+                    {/* Perdant */}
+                    <div style={{ flex:1,minWidth:140,background:"#1a0a0a",border:"1px solid #ef444433",borderRadius:14,padding:"14px 12px" }}>
+                      <div style={{ fontSize:12,color:"#fca5a5",fontWeight:800,marginBottom:10,textAlign:"center" }}>💔 {lNom}</div>
+                      <DrixLine label="ELO" val={bkL.eloVariation} color={bkL.eloVariation>=0?"#22c55e":"#ef4444"}/>
+                      {bkL.bonus.bonusManches>0 && <DrixLine label={`💎 ${bkL.bonus.bonusManches/7} manche(s)`} val={bkL.bonus.bonusManches} color="#f59e0b"/>}
+                      {bkL.bonus.nbGrossesVolees>0 && <DrixLine label={`🔥 ${bkL.bonus.nbGrossesVolees} grosse(s) volée(s)`} val={bkL.bonus.bonusVolees} color="#f97316"/>}
+                      {bkL.bonus.nbGrosFinish>0 && <DrixLine label={`🏆 ${bkL.bonus.nbGrosFinish} gros finish`} val={bkL.bonus.bonusFinish} color="#a78bfa"/>}
+                      <div style={{ marginTop:10,paddingTop:8,borderTop:"1px solid #ef444433",textAlign:"center" }}>
+                        <span style={{ fontSize:11,color:"#fca5a5" }}>TOTAL </span>
+                        <span style={{ fontSize:22,fontWeight:900,color:bkL.totalVariation>=0?"#22c55e":"#ef4444" }}>
+                          {bkL.totalVariation>=0?"+":""}<AnimCount target={Math.abs(bkL.totalVariation)} duration={1200}/>
+                        </span>
+                        <span style={{ fontSize:14,fontWeight:900,color:bkL.totalVariation>=0?"#22c55e":"#ef4444" }}> DRIX</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })() : drixData && drixShow && (
+                /* fallback simple si pas encore de breakdown */
                 <div style={{ display:"flex",gap:10,marginBottom:12 }}>
                   <div style={{ flex:1,background:"#14532d",borderRadius:12,padding:"12px 10px",textAlign:"center" }}>
                     <div style={{ fontSize:11,color:"#86efac",marginBottom:4 }}>🏆 {gagnant?.nom}</div>
-                    <div style={{ fontWeight:900,fontSize:28,color:"#22c55e" }}>
-                      +<AnimCount target={dxGagnant?.gain||0} duration={1200}/>
-                    </div>
+                    <div style={{ fontWeight:900,fontSize:28,color:"#22c55e" }}>+<AnimCount target={dxGagnant?.gain||0} duration={1200}/></div>
                     <div style={{ fontSize:10,color:"#86efac" }}>DRIX gagnés</div>
                   </div>
                   <div style={{ flex:1,background:"#7f1d1d",borderRadius:12,padding:"12px 10px",textAlign:"center" }}>
                     <div style={{ fontSize:11,color:"#fca5a5",marginBottom:4 }}>💔 {perdantNom}</div>
-                    <div style={{ fontWeight:900,fontSize:28,color:"#ef4444" }}>
-                      −<AnimCount target={dxPerdant?.perte||0} duration={1200}/>
-                    </div>
+                    <div style={{ fontWeight:900,fontSize:28,color:"#ef4444" }}>−<AnimCount target={dxPerdant?.perte||0} duration={1200}/></div>
                     <div style={{ fontSize:10,color:"#fca5a5" }}>DRIX perdus</div>
                   </div>
                 </div>
@@ -311,7 +358,7 @@ const FinScreen = ({ gagnant, duel, drixData, modeDuel, moyenne, demarrer, quitt
     </div>
   );
 };
-import { finaliserDuel } from "./AppJoueurs";
+import { finaliserDuel, calculerBonusPerformance } from "./AppJoueurs";
 
 // ── AppJeux.jsx ───────────────────────────────────────────────────────────────
 // Table de checkout exacte — source : darts501.com
@@ -414,6 +461,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // Valeurs cumulatives au début de la manche courante (tours/flechettes/points sont cumulatifs)
   const [mancheStart, setMancheStart] = useState({ vol:[0,0], pts:[0,0], nbtours:[0,0], flechettes:[0,0] });
   const [pendingVolee, setPendingVolee] = useState(null); // { val, type:"finish"|"zero" }
+  const [drixBreakdown, setDrixBreakdown] = useState(null); // breakdown détaillé post-match
+  const [liveBonusNotif, setLiveBonusNotif] = useState(null); // { label, color, points }
+  const bonusAccumRef = useRef([0, 0]); // bonus cumulés en live [j0, j1]
+  const [bonusAccum, setBonusAccum] = useState([0, 0]);
 
   // ── Live session tracking ──
   const liveIdRef = useRef(null);
@@ -632,7 +683,43 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           date: Date.now(),
         })
       });
-      await finaliserDuel({ ...duel, gagnant_id: gagnantId });
+
+      // ── Calcul bonus de performance ──
+      const perfBonus = duel.type !== "amical" && joueursData.length >= 2
+        ? calculerBonusPerformance(joueursData, manchesDetail)
+        : null;
+
+      const breakdown = await finaliserDuel({ ...duel, gagnant_id: gagnantId }, perfBonus);
+      if (breakdown) setDrixBreakdown(breakdown);
+
+      // ── Post Comptoir (duels classés uniquement) ──
+      if (duel.type !== "amical" && breakdown) {
+        const bkC = breakdown.challenger;
+        const bkD = breakdown.defie;
+        const perdantNom = gagnantIsChallenger ? duel.defie_pseudo : duel.challenger_pseudo;
+        const bkW = gagnantIsChallenger ? bkC : bkD;
+        const bkL = gagnantIsChallenger ? bkD : bkC;
+        const fmtLine = (b) => [
+          b.eloVariation >= 0 ? `+${b.eloVariation} DRIX ELO` : `${b.eloVariation} DRIX ELO`,
+          b.bonus.bonusManches > 0 ? `+${b.bonus.bonusManches} 💎 manches gagnées` : "",
+          b.bonus.bonusVolees > 0 ? `+${b.bonus.bonusVolees} 🔥 grosses volées` : "",
+          b.bonus.bonusFinish > 0 ? `+${b.bonus.bonusFinish} 🏆 gros finish` : "",
+        ].filter(Boolean).join("\n");
+        // Highlights
+        const j0 = joueursData[0]; const j1 = joueursData[1];
+        const all180 = [...(j0?.tours||[]),...(j1?.tours||[])].filter(v=>v===180).length;
+        const highlights = [
+          all180 > 0 ? `💥 ${all180}×180 dans ce match` : "",
+          manchesDetail.some(m=>(m.winner_finish||0)>=160) ? `🐟 Big Fish ≥ 160 !` : "",
+        ].filter(Boolean).join("  ");
+        const contenu = `🏆 ${gagnantNom} bat ${perdantNom} ${scoreC}-${scoreD}\n\n${gagnantNom}\n${fmtLine(bkW)}\n🔥 TOTAL : ${bkW.totalVariation>=0?"+":""}${bkW.totalVariation} DRIX\n\n${perdantNom}\n${fmtLine(bkL)}\n🔥 TOTAL : ${bkL.totalVariation>=0?"+":""}${bkL.totalVariation} DRIX${highlights ? "\n\n"+highlights : ""}`;
+        fetch(`${SB_URL}/rest/v1/wall_posts`, {
+          method:"POST",
+          headers:{ "apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`,"Content-Type":"application/json","Prefer":"return=minimal" },
+          body: JSON.stringify({ joueur_id:gagnantId, joueur_pseudo:gagnantNom, joueur_photo:null, contenu, date:Date.now() }),
+        }).catch(()=>{});
+      }
+
       setResultEnregistre(true);
       if (onDuelTermine) onDuelTermine({ gagnantId });
     } catch(e) { console.error("Erreur enregistrement duel:", e); }
@@ -763,6 +850,14 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     setJoueurs(updatedN);
     setActifIdx(1 - actifIdx); setInput("");
     pushLiveVolee(actifIdx, val, false, false, updatedN);
+    // 🔥 Live bonus notification — grosse volée ≥ 120
+    if (val >= 120 && modeDuel && duel?.type !== "amical") {
+      const pts = 7;
+      bonusAccumRef.current[actifIdx] += pts;
+      setBonusAccum([...bonusAccumRef.current]);
+      setLiveBonusNotif({ label:`🔥 ${val} pts ! Grosse volée`, points:pts, color:"#f97316" });
+      setTimeout(() => setLiveBonusNotif(null), 2500);
+    }
   };
 
   // Appelé après sélection du nb de fléchettes dans la popup
@@ -809,6 +904,20 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       setMancheEnCours(nextManche);
       setJoueurs(updated.map(j => ({ ...j, score: modeDuel ? parseInt(duel?.mode||"501") : startVal, scorePrecedent: null })));
       pushLiveVolee(actifIdx, val, false, true, updated);
+      // 🏆 Live bonus — gros finish ≥ 120 + grosse volée ≥ 120
+      if (modeDuel && duel?.type !== "amical") {
+        let notifLabel = ""; let notifPts = 0;
+        if (val >= 120) {
+          // finish ≥ 120 : +10 bonus finish + +7 bonus volée
+          bonusAccumRef.current[actifIdx] += 17;
+          setBonusAccum([...bonusAccumRef.current]);
+          notifLabel = `🏆 Finish ${val} ! Grosse volée + Gros finish`; notifPts = 17;
+        }
+        if (notifPts > 0) {
+          setLiveBonusNotif({ label:notifLabel, points:notifPts, color:"#a78bfa" });
+          setTimeout(() => setLiveBonusNotif(null), 2800);
+        }
+      }
       setActifIdx(nextStart); return;
     }
 
@@ -953,6 +1062,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       gagnant={gagnant}
       duel={duel}
       drixData={drixData}
+      drixBreakdown={drixBreakdown}
       modeDuel={modeDuel}
       moyenne={moyenne}
       demarrer={demarrer}
@@ -983,6 +1093,17 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     }}>
       <style>{`.scoreur-wrap button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; } .scoreur-wrap button:active { opacity: 0.7; transform: scale(0.95); }`}</style>
       {showConfirmQuitter && <ModalConfirmQuitter/>}
+
+      {/* ── LIVE BONUS NOTIFICATION ── */}
+      {liveBonusNotif && (
+        <div style={{ position:"fixed",top:60,left:"50%",transform:"translateX(-50%)",zIndex:10001,
+          background:"linear-gradient(135deg,#1a0a2e,#2d1458)",border:`1px solid ${liveBonusNotif.color}66`,
+          borderRadius:16,padding:"14px 22px",textAlign:"center",boxShadow:`0 4px 30px ${liveBonusNotif.color}44`,
+          pointerEvents:"none",minWidth:220 }}>
+          <div style={{ fontSize:13,color:"#e2e8f0",fontWeight:700,marginBottom:4 }}>{liveBonusNotif.label}</div>
+          <div style={{ fontSize:22,fontWeight:900,color:liveBonusNotif.color }}>+{liveBonusNotif.points} DRIX 💎</div>
+        </div>
+      )}
 
       {/* ── MESSAGE ANNULATION ── */}
       {annulMsg && (
@@ -1079,10 +1200,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
               </div>
               {modeDuel && drixData && (() => {
                 const d = realIdx === 0 ? drixData.challenger : drixData.defie;
+                const bAcc = bonusAccum[realIdx] || 0;
                 return (
-                  <div style={{ fontSize:11, marginTop:4, display:"flex", gap:6 }}>
+                  <div style={{ fontSize:11, marginTop:4, display:"flex", gap:6, flexWrap:"wrap" }}>
                     <span style={{ background:"#14532d", color:"#22c55e", borderRadius:6, padding:"1px 6px", fontWeight:800 }}>+{d.gain}</span>
                     <span style={{ background:"#7f1d1d", color:"#ef4444", borderRadius:6, padding:"1px 6px", fontWeight:800 }}>-{d.perte}</span>
+                    {bAcc > 0 && <span style={{ background:"#3b1d6e", color:"#a78bfa", borderRadius:6, padding:"1px 6px", fontWeight:800 }}>+{bAcc}🔥</span>}
                     <span style={{ color: isActif?"#ffffff99":"#94a3b866", fontSize:10, alignSelf:"center" }}>DRIX</span>
                   </div>
                 );
