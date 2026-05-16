@@ -1396,7 +1396,7 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
 
       {/* ── Grille 2×2 ── */}
       <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10 }}>
-        <ImgBtn src="/comptoir.png"    onClick={()=>setPage("communaute")}/>
+        <ImgBtn src="/lecomptoir2.png"  onClick={()=>setPage("communaute")}/>
         <ImgBtn src="/defi.png"        onClick={()=>setPage("defi")} badge={defisCount}/>
         <ImgBtn src="/classement.png"  onClick={()=>setPage("drix")}/>
         <ImgBtn src="/mode de jeu.png" onClick={()=>setPage("jeux-sans")}/>
