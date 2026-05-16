@@ -746,6 +746,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             nbFinish: bkL.bonus.nbGrosFinish,
             total: bkL.totalVariation,
           },
+          manches: manchesDetail || [],
         };
         const contenu = `__DUEL__|${JSON.stringify(duelPost)}`;
         fetch(`${SB_URL}/rest/v1/wall_posts`, {

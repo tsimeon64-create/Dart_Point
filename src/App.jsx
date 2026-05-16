@@ -2489,12 +2489,12 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
         </div>
         {d.highlights && <div style={{ fontSize:12, color:"#f97316", fontWeight:700, marginBottom:6 }}>{d.highlights}</div>}
 
-        {/* Accordéon détail */}
-        <button onClick={()=>setOpen(o=>!o)} style={{ background:"none", border:"none", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer", padding:0, touchAction:"manipulation" }}>
+        {/* Accordéon DRIX */}
+        <button onClick={()=>setOpen(o=>!o)} style={{ background:"none", border:"none", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer", padding:0, touchAction:"manipulation", marginRight:14 }}>
           {open ? "▾" : "▸"} Détail DRIX
         </button>
         {open && (
-          <div style={{ marginTop:8, display:"flex", gap:8 }}>
+          <div style={{ marginTop:8, display:"flex", gap:8, marginBottom:6 }}>
             {/* Gagnant */}
             <div style={{ flex:1, background:"#0f1a0f", border:"1px solid #22c55e22", borderRadius:10, padding:"8px 10px" }}>
               <div style={{ fontSize:11, color:"#86efac", fontWeight:800, marginBottom:6 }}>🏆 {w.nom}</div>
@@ -2513,6 +2513,8 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
             </div>
           </div>
         )}
+        {/* Manche par manche — toujours disponible si données présentes */}
+        <MancheDetail manches={d.manches||[]} />
       </div>
 
       {/* Likes / Comments */}
