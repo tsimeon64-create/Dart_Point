@@ -2470,14 +2470,17 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
         <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
         <div style={{ flex:1 }}>
           <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:700, fontSize:14, color:C.text, cursor:"pointer" }}>{p.joueur_pseudo}</div>
-          <div style={{ fontSize:11, color:C.muted }}>{tempsDepuis(p.date)}</div>
+          <div style={{ fontSize:12, color:C.muted }}>{tempsDepuis(p.date)}</div>
         </div>
         <Swords size={18} color={C.accent}/>
       </div>
 
       {/* Headline */}
       <div style={{ paddingLeft:52 }}>
-        <div style={{ fontWeight:800, fontSize:15, color:"#e2e8f0", marginBottom:4 }}>{d.headline}</div>
+        <div style={{ fontWeight:800, fontSize:15, color:"#e2e8f0", marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
+          <Trophy size={14} color="#22c55e"/>
+          {typeof d.headline === "string" ? d.headline.replace(/^🏆\s*/, "") : d.headline}
+        </div>
         {/* Résumé totaux */}
         <div style={{ display:"flex", gap:10, marginBottom:6 }}>
           <div style={{ background:"#0f1a0f", border:"1px solid #22c55e33", borderRadius:10, padding:"6px 12px", flex:1, textAlign:"center" }}>
@@ -2489,10 +2492,13 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
             <div style={{ fontSize:18, fontWeight:900, color:l.total >= 0 ? "#22c55e" : "#ef4444" }}>{l.total >= 0 ? "+" : ""}{l.total} <span style={{ fontSize:12 }}>DRIX</span></div>
           </div>
         </div>
-        {d.highlights && <div style={{ fontSize:12, color:"#f97316", fontWeight:700, marginBottom:6 }}>{d.highlights}</div>}
+        {d.highlights && <div style={{ fontSize:12, color:"#f97316", fontWeight:700, marginBottom:8 }}>{d.highlights}</div>}
 
-        {/* Accordéon DRIX */}
-        <button onClick={()=>setOpen(o=>!o)} style={{ background:"none", border:"none", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer", padding:0, touchAction:"manipulation", marginRight:14 }}>
+        {/* 1. Détail manche par manche (déroulant en premier) */}
+        <MancheDetail manches={d.manches||[]} />
+
+        {/* 2. Accordéon DRIX (après les manches) */}
+        <button onClick={()=>setOpen(o=>!o)} style={{ background:"none", border:"none", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer", padding:"6px 0 0", touchAction:"manipulation", display:"flex", alignItems:"center", gap:4 }}>
           {open ? "▾" : "▸"} Détail DRIX
         </button>
         {open && (
@@ -2515,8 +2521,6 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
             </div>
           </div>
         )}
-        {/* Manche par manche — toujours disponible si données présentes */}
-        <MancheDetail manches={d.manches||[]} />
       </div>
 
       {/* Likes / Comments */}
@@ -3302,12 +3306,30 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         mvtMap[m.duel_id][m.joueur_id] = m.variation;
       });
 
-      // Matchs terminés (dédoublonnés)
+      // Signatures des DuelPosts déjà dans le feed (fenêtre 10 min + duel_id si dispo)
+      const duelPostSignatures = new Set();
+      (posts||[]).forEach(p => {
+        if (!p.contenu?.startsWith("__DUEL__|")) return;
+        try {
+          const parsed = JSON.parse(p.contenu.slice(9));
+          if (parsed?.duel_id) duelPostSignatures.add(`id_${parsed.duel_id}`);
+        } catch {}
+        const w = Math.floor(p.date / 600000);
+        duelPostSignatures.add(`t_${p.joueur_id}_${w}`);
+      });
+
+      // Matchs terminés — on saute ceux couverts par un DuelPost
       const seenDuels = new Set();
       (duels||[]).forEach(d => {
         if (!d?.id || seenDuels.has(d.id)) return;
         seenDuels.add(d.id);
         const ts = typeof d.date === "number" ? d.date : new Date(d.date).getTime();
+        const w = Math.floor(ts / 600000);
+        if (
+          duelPostSignatures.has(`id_${d.id}`) ||
+          duelPostSignatures.has(`t_${d.challenger_id}_${w}`) ||
+          duelPostSignatures.has(`t_${d.defie_id}_${w}`)
+        ) return; // doublon → DuelPost s'en charge
         items.push({ type:"match", date:ts, data:d, drixMvts: mvtMap[d.id] || {} });
       });
 
