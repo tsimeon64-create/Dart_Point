@@ -818,15 +818,15 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             { icon:<Clock size={22}/>,     label:"Historique",  sub:"Mes duels",         action:()=>setPage("profil-historique"), color:CJ.accent },
           ].map(({ icon, label, sub, action, color: col, badge }) => (
             <button key={label} onClick={action}
-              style={{ background:"#ffffff07",border:`1px solid ${CJ.border}`,borderRadius:12,padding:"14px 12px",cursor:"pointer",textAlign:"left",touchAction:"manipulation",position:"relative",transition:"border-color .15s" }}
+              style={{ background:"#ffffff07",border:`1px solid ${CJ.border}`,borderRadius:12,padding:"18px 12px",cursor:"pointer",textAlign:"center",touchAction:"manipulation",position:"relative",transition:"all .15s",display:"flex",flexDirection:"column",alignItems:"center",gap:6 }}
               onMouseEnter={e=>{ e.currentTarget.style.borderColor=col; e.currentTarget.style.background=col+"10"; }}
               onMouseLeave={e=>{ e.currentTarget.style.borderColor=CJ.border; e.currentTarget.style.background="#ffffff07"; }}>
               {badge > 0 && (
                 <div style={{ position:"absolute",top:8,right:8,background:CJ.green,color:"#fff",borderRadius:"50%",width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900 }}>{badge>9?"9+":badge}</div>
               )}
-              <div style={{ color:col, marginBottom:8 }}>{icon}</div>
+              <div style={{ color:col }}>{icon}</div>
               <div style={{ fontWeight:700, fontSize:14, color:CJ.text }}>{label}</div>
-              <div style={{ fontSize:12, color:CJ.muted, marginTop:3 }}>{sub}</div>
+              <div style={{ fontSize:12, color:CJ.muted }}>{sub}</div>
             </button>
           ))}
         </div>
