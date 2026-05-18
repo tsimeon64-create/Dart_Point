@@ -453,6 +453,146 @@ const CHECKOUTS = {
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 
+// ── Composant : section JOUEURS de la config (dynamique 2-6 joueurs + recherche) ─
+const JoueursConfigSection = ({ config, setConfig, modeDuel }) => {
+  const [openSearch, setOpenSearch] = useState(null); // index du joueur dont la recherche est ouverte
+  const [searchQ, setSearchQ] = useState("");
+  const [results, setResults] = useState([]);
+  const [loadingSearch, setLoadingSearch] = useState(false);
+  const searchRef = useRef(null);
+
+  // Fermer dropdown si clic extérieur
+  useEffect(() => {
+    if (openSearch === null) return;
+    const handler = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setOpenSearch(null); setSearchQ(""); setResults([]);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler);
+    return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("touchstart", handler); };
+  }, [openSearch]);
+
+  // Recherche Supabase joueurs
+  useEffect(() => {
+    if (openSearch === null || searchQ.trim().length < 2) { setResults([]); return; }
+    setLoadingSearch(true);
+    const q = encodeURIComponent(searchQ.trim());
+    fetch(`${SB_URL}/rest/v1/joueurs?pseudo=ilike.*${q}*&select=id,pseudo,photo&limit=8`, {
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+    })
+      .then(r => r.json())
+      .then(data => { setResults(Array.isArray(data) ? data : []); setLoadingSearch(false); })
+      .catch(() => { setResults([]); setLoadingSearch(false); });
+  }, [searchQ, openSearch]);
+
+  const setNom = (idx, val) => setConfig(c => {
+    const noms = [...c.noms];
+    noms[idx] = val;
+    return { ...c, noms };
+  });
+
+  const addJoueur = () => {
+    if (config.noms.length >= 6) return;
+    setConfig(c => ({ ...c, noms: [...c.noms, `Joueur ${c.noms.length + 1}`] }));
+  };
+
+  const removeJoueur = (idx) => {
+    if (config.noms.length <= 2) return;
+    setConfig(c => { const noms = c.noms.filter((_, i) => i !== idx); return { ...c, noms }; });
+  };
+
+  const selectResult = (idx, pseudo) => {
+    setNom(idx, pseudo);
+    setOpenSearch(null); setSearchQ(""); setResults([]);
+  };
+
+  return (
+    <div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+        <label style={{ fontSize:13, fontWeight:600, color:"#94a3b8" }}>
+          JOUEURS <span style={{ color:"#f97316", fontWeight:700 }}>{config.noms.length}</span>
+        </label>
+        {!modeDuel && (
+          <div style={{ display:"flex", gap:6 }}>
+            <button onClick={() => removeJoueur(config.noms.length - 1)} disabled={config.noms.length <= 2}
+              style={{ background: config.noms.length <= 2 ? "#111" : "#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color: config.noms.length <= 2 ? "#555" : "#f1f5f9", fontWeight:800, fontSize:18, width:34, height:34, cursor: config.noms.length <= 2 ? "not-allowed" : "pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              −
+            </button>
+            <button onClick={addJoueur} disabled={config.noms.length >= 6}
+              style={{ background: config.noms.length >= 6 ? "#111" : "linear-gradient(135deg,#f97316,#ea580c)", border:"none", borderRadius:8, color:"#fff", fontWeight:800, fontSize:18, width:34, height:34, cursor: config.noms.length >= 6 ? "not-allowed" : "pointer", display:"flex", alignItems:"center", justifyContent:"center", opacity: config.noms.length >= 6 ? 0.4 : 1 }}>
+              +
+            </button>
+          </div>
+        )}
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:10 }} ref={searchRef}>
+        {config.noms.map((nom, idx) => (
+          <div key={idx} style={{ position:"relative" }}>
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              {/* Numéro joueur */}
+              <div style={{ width:28, height:28, borderRadius:"50%", background:"#f97316", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:"#fff", flexShrink:0 }}>
+                {idx + 1}
+              </div>
+              {/* Champ nom */}
+              <input
+                value={nom}
+                onChange={e => setNom(idx, e.target.value)}
+                placeholder={`Joueur ${idx + 1}`}
+                style={{ flex:1, background:"#111", border:"1px solid #2a2a2a", borderRadius:10, padding:"13px 14px", color:"#f1f5f9", fontSize:16, fontWeight:600 }}
+              />
+              {/* Bouton recherche */}
+              {!modeDuel && (
+                <button
+                  onClick={() => { setOpenSearch(openSearch === idx ? null : idx); setSearchQ(""); setResults([]); }}
+                  style={{ background: openSearch === idx ? "linear-gradient(135deg,#f97316,#ea580c)" : "#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, padding:"13px 12px", color: openSearch === idx ? "#fff" : "#94a3b8", cursor:"pointer", fontSize:16, flexShrink:0, fontWeight:700 }}>
+                  🔍
+                </button>
+              )}
+            </div>
+            {/* Dropdown recherche */}
+            {openSearch === idx && (
+              <div style={{ position:"absolute", top:"calc(100% + 6px)", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:12, zIndex:200, boxShadow:"0 8px 32px #000a", overflow:"hidden" }}>
+                <div style={{ padding:"10px 12px", borderBottom:"1px solid #2a2a2a" }}>
+                  <input
+                    autoFocus
+                    value={searchQ}
+                    onChange={e => setSearchQ(e.target.value)}
+                    placeholder="Rechercher un joueur…"
+                    style={{ width:"100%", background:"#111", border:"1px solid #333", borderRadius:8, padding:"10px 12px", color:"#f1f5f9", fontSize:15, fontWeight:600, boxSizing:"border-box" }}
+                  />
+                </div>
+                {loadingSearch && (
+                  <div style={{ padding:"12px 16px", color:"#94a3b8", fontSize:13, textAlign:"center" }}>Recherche…</div>
+                )}
+                {!loadingSearch && searchQ.length >= 2 && results.length === 0 && (
+                  <div style={{ padding:"12px 16px", color:"#555", fontSize:13, textAlign:"center" }}>Aucun joueur trouvé</div>
+                )}
+                {!loadingSearch && searchQ.length < 2 && (
+                  <div style={{ padding:"12px 16px", color:"#555", fontSize:12, textAlign:"center" }}>Tape au moins 2 lettres…</div>
+                )}
+                {results.map(j => (
+                  <button key={j.id} onClick={() => selectResult(idx, j.pseudo)}
+                    style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:"transparent", border:"none", borderBottom:"1px solid #2a2a2a22", cursor:"pointer", textAlign:"left" }}
+                    onMouseEnter={e => e.currentTarget.style.background="#2a2a2a"}
+                    onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                    {j.photo
+                      ? <img src={j.photo} alt={j.pseudo} style={{ width:32, height:32, borderRadius:"50%", objectFit:"cover", flexShrink:0 }} />
+                      : <div style={{ width:32, height:32, borderRadius:"50%", background:"#f9731644", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0 }}>🎯</div>
+                    }
+                    <span style={{ color:"#f1f5f9", fontWeight:700, fontSize:15 }}>{j.pseudo}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, setPage = null, onResultat = null, onRejouer = null }) => {
   const modeDuel = !!duel;
 
@@ -460,8 +600,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [config, setConfig] = useState({
     mode: duel?.mode || "501",
     manches: duel?.manches || 1,
-    nom1: duel?.challenger_pseudo || "Joueur 1",
-    nom2: duel?.defie_pseudo || "Joueur 2",
+    // Libre mode : tableau dynamique (2-6 joueurs). Duel mode utilise duel.challenger_pseudo / defie_pseudo.
+    noms: [duel?.challenger_pseudo || "Joueur 1", duel?.defie_pseudo || "Joueur 2"],
   });
   const [input, setInput] = useState("");
   const [joueurs, setJoueurs] = useState(null);
@@ -474,7 +614,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [historique, setHistorique] = useState([]);
   const [manchesHistory, setManchesHistory] = useState([]);
   // Valeurs cumulatives au début de la manche courante (tours/flechettes/points sont cumulatifs)
-  const [mancheStart, setMancheStart] = useState({ vol:[0,0], pts:[0,0], nbtours:[0,0], flechettes:[0,0] });
+  const [mancheStart, setMancheStart] = useState({ vol:[0,0], pts:[0,0], nbtours:[0,0], flechettes:[0,0] }); // redimensionné au démarrage
   const [pendingVolee, setPendingVolee] = useState(null); // { val, type:"finish"|"zero" }
   const [drixBreakdown, setDrixBreakdown] = useState(null); // breakdown détaillé post-match
   const [liveBonusNotif, setLiveBonusNotif] = useState(null); // { label, color, points }
@@ -547,20 +687,21 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   const startVal = parseInt(config.mode);
 
-  const initJoueurs = () => [
-    { nom:config.nom1||"Joueur 1", score:startVal, manchesGagnees:0, tours:[], flechettes:0, totalPoints:0, scorePrecedent:null },
-    { nom:config.nom2||"Joueur 2", score:startVal, manchesGagnees:0, tours:[], flechettes:0, totalPoints:0, scorePrecedent:null },
-  ];
+  const initJoueurs = () => config.noms.map((nom, i) => ({
+    nom: nom || `Joueur ${i + 1}`,
+    score: startVal, manchesGagnees: 0, tours: [], flechettes: 0, totalPoints: 0, scorePrecedent: null,
+  }));
 
   const demarrerAvecBulle = (startIdx) => {
     const sv = modeDuel ? parseInt(duel?.mode || "501") : startVal;
     const noms = modeDuel
       ? [duel?.challenger_pseudo || "Joueur 1", duel?.defie_pseudo || "Joueur 2"]
-      : [config.nom1 || "Joueur 1", config.nom2 || "Joueur 2"];
-    setJoueurs([
-      { nom:noms[0], score:sv, manchesGagnees:0, tours:[], flechettes:0, totalPoints:0, scorePrecedent:null },
-      { nom:noms[1], score:sv, manchesGagnees:0, tours:[], flechettes:0, totalPoints:0, scorePrecedent:null },
-    ]);
+      : config.noms;
+    const n = noms.length;
+    setJoueurs(noms.map((nom, i) => ({
+      nom: nom || `Joueur ${i + 1}`,
+      score: sv, manchesGagnees: 0, tours: [], flechettes: 0, totalPoints: 0, scorePrecedent: null,
+    })));
     setBulleStartIdx(startIdx);
     setMancheEnCours(0);
     setActifIdx(startIdx);
@@ -569,7 +710,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     setResultEnregistre(false);
     setHistorique([]);
     setManchesHistory([]);
-    setMancheStart({ vol:[0,0], pts:[0,0], nbtours:[0,0], flechettes:[0,0] });
+    setMancheStart({ vol:Array(n).fill(0), pts:Array(n).fill(0), nbtours:Array(n).fill(0), flechettes:Array(n).fill(0) });
     setEtape("jeu");
   };
 
@@ -865,7 +1006,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     if (nouveau < 0 || nouveau === 1) {
       pushHistorique();
       const updated = joueurs.map((j, i) => i === actifIdx ? { ...j, scorePrecedent: val, flechettes: j.flechettes + 3 } : j);
-      setJoueurs(updated); setActifIdx(1 - actifIdx); setInput("");
+      setJoueurs(updated); setActifIdx((actifIdx + 1) % joueurs.length); setInput("");
       pushLiveVolee(actifIdx, val, true, false, updated);
       return;
     }
@@ -884,7 +1025,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       : j
     );
     setJoueurs(updatedN);
-    setActifIdx(1 - actifIdx); setInput("");
+    setActifIdx((actifIdx + 1) % joueurs.length); setInput("");
     pushLiveVolee(actifIdx, val, false, false, updatedN);
     // 🔥 Live bonus notification — grosse volée ≥ 120
     if (val >= 120 && modeDuel && duel?.type !== "amical") {
@@ -913,11 +1054,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       );
       const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
       const startScore = modeDuel ? parseInt(duel?.mode || "501") : startVal;
-      const mancheDetail = buildMancheDetail(updated, actifIdx, mancheStart, startScore);
+      // buildMancheDetail uniquement en mode duel (2 joueurs)
+      const mancheDetail = modeDuel ? buildMancheDetail(updated, actifIdx, mancheStart, startScore) : null;
       if (newManches >= manchesTotal) {
-        const allManches = [...manchesHistory, mancheDetail];
+        const allManches = mancheDetail ? [...manchesHistory, mancheDetail] : manchesHistory;
         setJoueurs(updated);
-        setManchesHistory(allManches); // inclut la dernière manche pour les stats de fin
+        setManchesHistory(allManches);
         const scoreC = actifIdx === 0 ? newManches : updated[0].manchesGagnees;
         const scoreD = actifIdx === 1 ? newManches : updated[1].manchesGagnees;
         const moyC = parseFloat(moyenneCalc(updated[0]));
@@ -928,15 +1070,15 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         if (modeDuel || onResultat) enregistrerResultatDuel(joueur.nom, scoreC, scoreD, moyC, moyD, allManches, updated);
         return;
       }
-      setManchesHistory(h => [...h, mancheDetail]);
+      if (mancheDetail) setManchesHistory(h => [...h, mancheDetail]);
       setMancheStart({
-        vol: [Math.round(updated[0].flechettes/3), Math.round(updated[1].flechettes/3)],
-        pts: [updated[0].totalPoints, updated[1].totalPoints],
-        nbtours: [updated[0].tours.length, updated[1].tours.length],
-        flechettes: [updated[0].flechettes, updated[1].flechettes],
+        vol:      updated.map(j => Math.round(j.flechettes / 3)),
+        pts:      updated.map(j => j.totalPoints),
+        nbtours:  updated.map(j => j.tours.length),
+        flechettes: updated.map(j => j.flechettes),
       });
       const nextManche = mancheEnCours + 1;
-      const nextStart = (bulleStartIdx + nextManche) % 2;
+      const nextStart = (bulleStartIdx + nextManche) % updated.length;
       setMancheEnCours(nextManche);
       setJoueurs(updated.map(j => ({ ...j, score: modeDuel ? parseInt(duel?.mode||"501") : startVal, scorePrecedent: null })));
       pushLiveVolee(actifIdx, val, false, true, updated);
@@ -962,7 +1104,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       ? { ...j, tours: [...j.tours, 0], flechettes: j.flechettes + nbFlechettes, scorePrecedent: 0 }
       : j
     );
-    setJoueurs(updatedZ); setActifIdx(1 - actifIdx);
+    setJoueurs(updatedZ); setActifIdx((actifIdx + 1) % joueurs.length);
     pushLiveVolee(actifIdx, 0, false, false, updatedZ);
   };
 
@@ -1067,15 +1209,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             ))}
           </div>
         </div>
-        <div>
-          <label style={{ fontSize:13, fontWeight:600, color:"#94a3b8", display:"block", marginBottom:10 }}>JOUEURS</label>
-          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-            {[["nom1","Joueur 1"],["nom2","Joueur 2"]].map(([k,ph])=>(
-              <input key={k} value={config[k]} onChange={e=>setConfig(c=>({...c,[k]:e.target.value}))} placeholder={ph}
-                style={{ background:"#111", border:"1px solid #2a2a2a", borderRadius:10, padding:"14px 16px", color:"#f1f5f9", fontSize:16, fontWeight:600 }}/>
-            ))}
-          </div>
-        </div>
+        <JoueursConfigSection config={config} setConfig={setConfig} modeDuel={modeDuel} />
         <button onClick={demarrer}
           style={{ width:"100%", padding:"18px", borderRadius:14, border:"none", fontWeight:900, fontSize:18, cursor:"pointer",
             background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", marginTop:4 }}>
@@ -1111,8 +1245,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── ÉCRAN JEU — position fixed, plein écran, zero scroll ─────────────────
   if (!joueurs) return null;
-  // Le joueur qui a gagné la bulle est TOUJOURS affiché à gauche (index 0 dans l'affichage)
-  const displayOrder = [bulleStartIdx, 1 - bulleStartIdx];
+  // Le joueur qui a gagné la bulle est TOUJOURS affiché en premier
+  const displayOrder = Array.from({ length: joueurs.length }, (_, i) => (bulleStartIdx + i) % joueurs.length);
   const actif = joueurs[actifIdx];
   const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
 
@@ -1209,8 +1343,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         <div style={{ width:70 }}/>
       </div>
 
-      {/* Scores — joueur bulle toujours à gauche */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", flexShrink:0 }}>
+      {/* Scores — joueur bulle toujours en premier */}
+      <div style={{ display:"grid", gridTemplateColumns:`repeat(${joueurs.length}, 1fr)`, flexShrink:0, overflowX: joueurs.length > 3 ? "auto" : "visible" }}>
         {displayOrder.map((realIdx, displayI) => {
           const j = joueurs[realIdx];
           const isActif = realIdx === actifIdx;
@@ -1224,7 +1358,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                 <div style={{ width:8, height:8, borderRadius:"50%", background: isActif ? "#fff" : "transparent", border: isActif ? "none" : "2px solid #f9731644", flexShrink:0 }}/>
                 <span style={{ fontWeight:700, fontSize:12, color: isActif ? "#fff" : "#f97316aa", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{j.nom}</span>
               </div>
-              <div style={{ fontSize:56, fontWeight:900, color: isActif ? "#fff" : "#f1f5f9aa", lineHeight:1, marginBottom:4 }}>{j.score}</div>
+              <div style={{ fontSize: joueurs.length <= 2 ? 56 : joueurs.length <= 4 ? 38 : 28, fontWeight:900, color: isActif ? "#fff" : "#f1f5f9aa", lineHeight:1, marginBottom:4 }}>{j.score}</div>
               <div style={{ display:"flex", gap:3, marginBottom:6 }}>
                 {Array.from({length: manchesTotal}).map((_,mi)=>(
                   <div key={mi} style={{ width:14, height:14, borderRadius:3, background: mi < j.manchesGagnees ? (isActif?"#fff":"#f97316") : (isActif?"#ffffff33":"#2a2a2a") }}/>
