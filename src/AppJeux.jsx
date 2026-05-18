@@ -1293,24 +1293,24 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           {["1","2","3","4","5","6","7","8","9"].map(n=>(
             <button key={n}
               onPointerDown={e=>{ e.preventDefault(); appuyer(n); }}
-              style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f1f5f9", fontSize:22, fontWeight:700, cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
+              style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f1f5f9", fontSize:30, fontWeight:700, cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
               {n}
             </button>
           ))}
           <button
             onPointerDown={e=>{ e.preventDefault(); appuyer("del"); }}
-            style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f59e0b", fontSize:20, cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
+            style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f59e0b", fontSize:30, cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
             ⌫
           </button>
           <button
             onPointerDown={e=>{ e.preventDefault(); appuyer("0"); }}
-            style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f1f5f9", fontSize:22, fontWeight:700, cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
+            style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f1f5f9", fontSize:30, fontWeight:700, cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
             0
           </button>
           <button
             onPointerDown={e=>{ e.preventDefault(); !input || envoyer(); }}
             disabled={!input}
-            style={{ borderRadius:10, border:"none", background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "#1a1a2a", color: input ? "#fff" : "#94a3b8", fontSize:18, fontWeight:800, cursor: input ? "pointer" : "not-allowed", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
+            style={{ borderRadius:10, border:"none", background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "#1a1a2a", color: input ? "#fff" : "#94a3b8", fontSize:30, fontWeight:800, cursor: input ? "pointer" : "not-allowed", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
             ✓
           </button>
         </div>

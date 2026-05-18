@@ -808,7 +808,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
             style={{ flex:1, padding:"15px 4px", borderRadius:11, border:`2px solid ${mult===2?C.blue:C.border}`,
               background: mult===2 ? `${C.blue}22` : "#0d0d0d",
               color: mult===2 ? C.blue : C.muted,
-              fontWeight:800, fontSize:16, cursor:"pointer", touchAction:"manipulation", transition:"all .1s" }}>
+              fontWeight:800, fontSize:18, cursor:"pointer", touchAction:"manipulation", transition:"all .1s" }}>
             D ×2
           </button>
           {/* Triple */}
@@ -816,14 +816,14 @@ export const ScoreurCricket = ({ config, setPage }) => {
             style={{ flex:1, padding:"15px 4px", borderRadius:11, border:`2px solid ${mult===3?C.accent:C.border}`,
               background: mult===3 ? `${C.accent}22` : "#0d0d0d",
               color: mult===3 ? C.accent : C.muted,
-              fontWeight:800, fontSize:16, cursor:"pointer", touchAction:"manipulation", transition:"all .1s" }}>
+              fontWeight:800, fontSize:18, cursor:"pointer", touchAction:"manipulation", transition:"all .1s" }}>
             T ×3
           </button>
           {/* Miss */}
           <button onClick={miss} disabled={darts.length>=3||advancing}
             style={{ flex:1, padding:"15px 4px", borderRadius:11, border:`1px solid ${C.border}`,
               background:"#0d0d0d", color: darts.length>=3||advancing ? "#333" : C.muted,
-              fontWeight:700, fontSize:15, cursor: darts.length>=3||advancing?"not-allowed":"pointer", touchAction:"manipulation" }}>
+              fontWeight:700, fontSize:18, cursor: darts.length>=3||advancing?"not-allowed":"pointer", touchAction:"manipulation" }}>
             MISS
           </button>
           {/* Annuler */}
@@ -866,7 +866,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
                   border:`2px solid ${closed ? `${C.red}88` : (disabled?"#1a1a1a":`${C.red}44`)}`,
                   background: closed ? `${C.red}22` : (disabled?"#0a0a0a":"#0d0d0d"),
                   color: closed ? C.red : (disabled?"#333":"#fca5a5"),
-                  fontWeight:900, fontSize:12, cursor: disabled?"not-allowed":"pointer",
+                  fontWeight:900, fontSize:18, cursor: disabled?"not-allowed":"pointer",
                   touchAction:"manipulation",
                   boxShadow: closed && !disabled ? `0 0 8px ${C.red}44` : "none" }}>
                 BULL

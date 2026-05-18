@@ -116,7 +116,7 @@ function Pad({ joueur, objectif, scoreActuel, onValider, onDiviser, onFermer }) 
           {["1","2","3","4","5","6","7","8","9","⌫","0",""].map((t, i) => (
             t === "" ? <div key={i}/> :
             <button key={i} onClick={() => appuyer(t)}
-              style={{ background:"#111", border:`1px solid ${C.border}`, borderRadius:10, color:C.text, fontSize:20, fontWeight:600, padding:"16px", cursor:"pointer" }}>
+              style={{ background:"#111", border:`1px solid ${C.border}`, borderRadius:10, color:C.text, fontSize:28, fontWeight:700, padding:"16px", cursor:"pointer" }}>
               {t}
             </button>
           ))}
@@ -325,7 +325,7 @@ function Capital({ joueurs, onFin }) {
           <div ref={leftColRef} style={{ flex:1, overflowY:"auto", overflowX:"hidden" }} onScroll={onLeftScroll}>
             {OBJECTIFS.map((obj, oi) => (
               <div key={oi} style={{ height:ROW_H, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 10px", background:oi===objIdx?"#1a1a1a":"#111", flexShrink:0 }}>
-                <span style={{ fontSize:11, fontWeight:oi===objIdx?700:400, color:oi===objIdx?C.accent:oi<objIdx?"#444":C.text, lineHeight:1.3 }}>
+                <span style={{ fontSize:14, fontWeight:oi===objIdx?700:500, color:oi===objIdx?C.accent:oi<objIdx?"#444":C.text, lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", display:"block" }}>
                   {obj.nom}
                 </span>
               </div>
