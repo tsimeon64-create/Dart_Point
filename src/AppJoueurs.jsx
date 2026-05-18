@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, X } from "lucide-react";
+import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, X, TrendingUp, Crown, Swords } from "lucide-react";
 
 // ── AppJoueurs.jsx ────────────────────────────────────────────────────────────
 // Système joueurs DartPoint : inscription, profils, duels, présence, scoreur
@@ -1071,25 +1071,28 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
 
   // ── Composants internes ───────────────────────────────────────────────────
   const StatCard = ({ label, value, color=CJ.text, sub=null, bientot=false }) => (
-    <div style={{ background:"#ffffff09", border:`1px solid ${CJ.border}`, borderRadius:10, padding:"12px 10px", position:"relative" }}>
+    <div style={{ background:"#1a1a1a", border:`1px solid ${CJ.border}`, borderRadius:10, padding:"12px 10px", position:"relative" }}>
       {bientot && <span style={{ position:"absolute",top:6,right:6,background:"#1a1a1a",border:`1px solid ${CJ.border}`,borderRadius:4,fontSize:9,color:CJ.muted,padding:"1px 5px" }}>bientôt</span>}
       <div style={{ fontSize:22, fontWeight:900, color, marginBottom:2 }}>{bientot?"—":value}</div>
-      <div style={{ fontSize:11, color:CJ.muted }}>{label}</div>
-      {sub && !bientot && <div style={{ fontSize:10, color:CJ.muted, marginTop:1 }}>{sub}</div>}
+      <div style={{ fontSize:12, color:CJ.muted }}>{label}</div>
+      {sub && !bientot && <div style={{ fontSize:11, color:CJ.muted, marginTop:1 }}>{sub}</div>}
     </div>
   );
-  const SectionTitle = ({ children }) => (
-    <h3 style={{ fontWeight:800, fontSize:14, color:CJ.accent, marginBottom:10, marginTop:18, letterSpacing:0.5 }}>{children}</h3>
+  const SectionTitle = ({ icon: Icon, children }) => (
+    <h3 style={{ fontWeight:800, fontSize:14, color:CJ.text, marginBottom:10, marginTop:18, letterSpacing:0.5, display:"flex", alignItems:"center", gap:6 }}>
+      {Icon && <Icon size={14} color={CJ.accent}/>}
+      {children}
+    </h3>
   );
 
   const { titre:drixTitre, emoji:drixEmoji, color:drixColor } = getDrixTitreLocal(joueur.drix||1000);
 
   return (
     <div style={{ maxWidth:860, margin:"0 auto", padding:"16px 16px 40px" }}>
-      <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour</button>
+      <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}><ArrowLeft size={16}/> Retour</button>
 
       {/* Hero DRIX */}
-      <div style={{ background:`linear-gradient(135deg,#1a0800,#1a1a2e)`,border:`2px solid ${drixColor}44`,borderRadius:16,padding:20,marginBottom:4,display:"flex",alignItems:"center",gap:16 }}>
+      <div style={{ background:"#1a1a1a",border:`1px solid ${drixColor}44`,borderRadius:16,padding:20,marginBottom:4,display:"flex",alignItems:"center",gap:16 }}>
         <div style={{ fontSize:48 }}>{drixEmoji}</div>
         <div style={{ flex:1 }}>
           <div style={{ fontSize:13,color:CJ.muted,marginBottom:2 }}>DRIX actuel</div>
@@ -1105,7 +1108,7 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
       </div>
 
       {/* Performance */}
-      <SectionTitle>🎯 Performance</SectionTitle>
+      <SectionTitle icon={Target}>Performance</SectionTitle>
       <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
         <StatCard label="Victoires"  value={stats?.victoires??0}  color={CJ.green}/>
         <StatCard label="Défaites"   value={stats?.defaites??0}   color={CJ.red}/>
@@ -1116,16 +1119,16 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
       </div>
 
       {/* Moyennes */}
-      <SectionTitle>📊 Moyennes pts/volée</SectionTitle>
+      <SectionTitle icon={BarChart2}>Moyennes pts/volée</SectionTitle>
       <div style={{ display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8 }}>
-        <StatCard label="🌍 Générale"        value={moyenneGenerale?? "—"} color={CJ.blue} sub={`sur ${termines.length} match${termines.length>1?"s":""}`}/>
-        <StatCard label="📅 Aujourd'hui"     value={moyenneJour??     "—"} color={CJ.blue} sub={nbJour>0?`${nbJour} match${nbJour>1?"s":""}`:null}/>
-        <StatCard label="📆 Cette semaine"   value={moyenneSemaine??  "—"} color={CJ.blue} sub={nbSemaine>0?`${nbSemaine} match${nbSemaine>1?"s":""}`:null}/>
-        <StatCard label="🗓️ Ce mois"         value={moyenneMois??     "—"} color={CJ.blue} sub={nbMois>0?`${nbMois} match${nbMois>1?"s":""}`:null}/>
+        <StatCard label="Générale"        value={moyenneGenerale?? "—"} color={CJ.blue} sub={`sur ${termines.length} match${termines.length>1?"s":""}`}/>
+        <StatCard label="Aujourd'hui"     value={moyenneJour??     "—"} color={CJ.blue} sub={nbJour>0?`${nbJour} match${nbJour>1?"s":""}`:null}/>
+        <StatCard label="Cette semaine"   value={moyenneSemaine??  "—"} color={CJ.blue} sub={nbSemaine>0?`${nbSemaine} match${nbSemaine>1?"s":""}`:null}/>
+        <StatCard label="Ce mois"         value={moyenneMois??     "—"} color={CJ.blue} sub={nbMois>0?`${nbMois} match${nbMois>1?"s":""}`:null}/>
       </div>
 
       {/* Scoring */}
-      <SectionTitle>🎯 Scoring</SectionTitle>
+      <SectionTitle icon={Target}>Scoring</SectionTitle>
       {!hasScoring && <p style={{ color:CJ.muted,fontSize:12,marginBottom:8 }}>Les stats de scoring sont calculées à partir de tes prochains matchs.</p>}
       <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
         <StatCard label="180"  value={hasScoring ? nb180  : "—"} color="#f59e0b" bientot={!hasScoring}/>
@@ -1137,7 +1140,7 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
       </div>
 
       {/* Finishes */}
-      <SectionTitle>👑 Finishes</SectionTitle>
+      <SectionTitle icon={Crown}>Finishes</SectionTitle>
       <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
         <StatCard label="Plus gros finish" value={hasScoring && plusGrosFinish>0 ? plusGrosFinish : "—"} color={CJ.green} bientot={!hasScoring}/>
         <StatCard label="Finishes 100+"    value={hasScoring ? nbFinishes100 : "—"} color={CJ.yellow} bientot={!hasScoring}/>
@@ -1146,20 +1149,20 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
       </div>
 
       {/* Duels */}
-      <SectionTitle>⚔️ Duels</SectionTitle>
+      <SectionTitle icon={Swords}>Duels</SectionTitle>
       <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
         <StatCard label="Duels joués"      value={termines.length}                                                     color={CJ.accent}/>
         <StatCard label="Rival principal"  value={rival?rival[0]:"—"}   sub={rival?`${rival[1]} match${rival[1]>1?"s":""}`:null} color={CJ.yellow}/>
         <StatCard label="Max DRIX gagné"   value={maxGain?`+${maxGain}`:"—"}                                           color={CJ.green}/>
         <StatCard label="Max DRIX perdu"   value={maxPerte?`${maxPerte}`:"—"}                                          color={CJ.red}/>
-        <StatCard label="🔥 Meilleure série" value={meilleureSerieW>0?`${meilleureSerieW}W`:"—"}                       color={CJ.green} bientot={termines.length===0}/>
-        <StatCard label="😤 Nemesis"        value={nemesis?nemesis[0]:"—"} sub={nemesis?`${nemesis[1]} défaite${nemesis[1]>1?"s":""}`:null} color={CJ.red} bientot={defaites.length===0}/>
+        <StatCard label="Meilleure série"  value={meilleureSerieW>0?`${meilleureSerieW}W`:"—"}                         color={CJ.green} bientot={termines.length===0}/>
+        <StatCard label="Nemesis"          value={nemesis?nemesis[0]:"—"} sub={nemesis?`${nemesis[1]} défaite${nemesis[1]>1?"s":""}`:null} color={CJ.red} bientot={defaites.length===0}/>
       </div>
 
       {/* Graphique + Historique DRIX */}
       {drixMvts.length > 0 && (
         <>
-          <SectionTitle>📈 Évolution DRIX</SectionTitle>
+          <SectionTitle icon={TrendingUp}>Évolution DRIX</SectionTitle>
           {/* Graphique */}
           {chartPts.length >= 2 && (
             <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,padding:"14px 16px",marginBottom:10 }}>
@@ -1203,7 +1206,13 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
               <div key={i} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",borderBottom:i<Math.min(drixMvts.length,10)-1?`1px solid ${CJ.border}`:"none" }}>
                 <div>
                   <div style={{ fontWeight:600,fontSize:13 }}>vs {m.adversaire_pseudo||"?"}</div>
-                  <div style={{ fontSize:10,color:CJ.muted }}>{m.resultat==="victoire"?"✅ Victoire":"❌ Défaite"} · {new Date(m.date).toLocaleDateString("fr-FR")}</div>
+                  <div style={{ fontSize:10,color:CJ.muted,display:"flex",alignItems:"center",gap:3 }}>
+                    {m.resultat==="victoire"
+                      ? <><Check size={10} color={CJ.green} strokeWidth={3}/><span style={{color:CJ.green}}>Victoire</span></>
+                      : <><X size={10} color={CJ.red} strokeWidth={3}/><span style={{color:CJ.red}}>Défaite</span></>
+                    }
+                    <span>{" · "}{new Date(m.date).toLocaleDateString("fr-FR")}</span>
+                  </div>
                 </div>
                 <div style={{ display:"flex",alignItems:"center",gap:10 }}>
                   <span style={{ fontSize:11,color:CJ.muted }}>{m.drix_avant}→{m.drix_apres}</span>
