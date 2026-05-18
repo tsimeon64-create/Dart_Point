@@ -460,6 +460,9 @@ export const ScoreurCricket = ({ config, setPage }) => {
     return j.roundsDone > 0 ? (tm / j.roundsDone).toFixed(2).replace(".", ",") : "0,00";
   };
 
+  // ── Zones fermées par TOUS les joueurs ───────────────────────────────────
+  const allClosed = (z) => joueurs.every(j => j.marks[z] >= 3);
+
   // ── Mark display ──────────────────────────────────────────────────────────
   const markEl = (n, col) => {
     if (n === 0) return <span style={{ color:"#2a2a2a", fontSize:20 }}>·</span>;
@@ -690,13 +693,21 @@ export const ScoreurCricket = ({ config, setPage }) => {
           {/* Espace header joueur */}
           <div style={{ flexShrink:0, height:68 }} />
           {/* Zones */}
-          {ZONES.map(z => (
-            <div key={z} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", borderBottom:`1px solid ${C.border}18` }}>
-              <span style={{ fontWeight:900, fontSize:z==="Bull"?13:20, color: z==="Bull"?C.red:C.text }}>
-                {z === "Bull" ? "BULL" : z}
-              </span>
-            </div>
-          ))}
+          {ZONES.map(z => {
+            const done = allClosed(z);
+            return (
+              <div key={z} style={{ flex:1, position:"relative", display:"flex", alignItems:"center", justifyContent:"center",
+                borderBottom:`1px solid ${C.border}18`,
+                background: done ? "#1a1a1a" : "transparent" }}>
+                <span style={{ fontWeight:900, fontSize:z==="Bull"?13:20,
+                  color: done ? "#333" : (z==="Bull" ? C.red : C.text),
+                  textDecoration: done ? "line-through" : "none" }}>
+                  {z === "Bull" ? "BULL" : z}
+                </span>
+                {done && <div style={{ position:"absolute", left:0, right:0, height:2, background:"#ef4444", top:"50%", transform:"translateY(-50%)", pointerEvents:"none", boxShadow:"0 0 6px #ef444488" }}/>}
+              </div>
+            );
+          })}
           {/* Espace stats */}
           <div style={{ flexShrink:0, height:40 }} />
           {/* Espace dart boxes */}
@@ -738,11 +749,13 @@ export const ScoreurCricket = ({ config, setPage }) => {
                   {ZONES.map(z => {
                     const m = j.marks[z];
                     const closed = m >= 3;
+                    const done = allClosed(z);
                     return (
-                      <div key={z} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center",
-                        background: closed ? `${j.color}18` : "transparent",
+                      <div key={z} style={{ flex:1, position:"relative", display:"flex", alignItems:"center", justifyContent:"center",
+                        background: done ? "#1a1a1a" : closed ? `${j.color}18` : "transparent",
                         borderBottom:`1px solid ${C.border}18` }}>
-                        {markEl(m, j.color)}
+                        <div style={{ opacity: done ? 0.35 : 1 }}>{markEl(m, j.color)}</div>
+                        {done && <div style={{ position:"absolute", left:0, right:0, height:2, background:"#ef4444", top:"50%", transform:"translateY(-50%)", pointerEvents:"none", zIndex:1, boxShadow:"0 0 6px #ef444488" }}/>}
                       </div>
                     );
                   })}
@@ -786,55 +799,55 @@ export const ScoreurCricket = ({ config, setPage }) => {
       </div>
 
       {/* ── Barre de saisie ── */}
-      <div style={{ background:"#111", borderTop:`2px solid ${actif.color}55`, padding:"8px 8px 10px", flexShrink:0 }}>
+      <div style={{ background:"#111", borderTop:`2px solid ${actif.color}55`, padding:"12px 10px 14px", flexShrink:0 }}>
 
         {/* Rang 1 : modificateurs + annuler */}
-        <div style={{ display:"flex", gap:6, marginBottom:7 }}>
+        <div style={{ display:"flex", gap:7, marginBottom:9 }}>
           {/* Double */}
           <button onClick={() => setMult(mult === 2 ? 1 : 2)}
-            style={{ flex:1, padding:"10px 4px", borderRadius:9, border:`2px solid ${mult===2?C.blue:C.border}`,
+            style={{ flex:1, padding:"15px 4px", borderRadius:11, border:`2px solid ${mult===2?C.blue:C.border}`,
               background: mult===2 ? `${C.blue}22` : "#0d0d0d",
               color: mult===2 ? C.blue : C.muted,
-              fontWeight:800, fontSize:14, cursor:"pointer", touchAction:"manipulation", transition:"all .1s" }}>
+              fontWeight:800, fontSize:16, cursor:"pointer", touchAction:"manipulation", transition:"all .1s" }}>
             D ×2
           </button>
           {/* Triple */}
           <button onClick={() => setMult(mult === 3 ? 1 : 3)}
-            style={{ flex:1, padding:"10px 4px", borderRadius:9, border:`2px solid ${mult===3?C.accent:C.border}`,
+            style={{ flex:1, padding:"15px 4px", borderRadius:11, border:`2px solid ${mult===3?C.accent:C.border}`,
               background: mult===3 ? `${C.accent}22` : "#0d0d0d",
               color: mult===3 ? C.accent : C.muted,
-              fontWeight:800, fontSize:14, cursor:"pointer", touchAction:"manipulation", transition:"all .1s" }}>
+              fontWeight:800, fontSize:16, cursor:"pointer", touchAction:"manipulation", transition:"all .1s" }}>
             T ×3
           </button>
           {/* Miss */}
           <button onClick={miss} disabled={darts.length>=3||advancing}
-            style={{ flex:1, padding:"10px 4px", borderRadius:9, border:`1px solid ${C.border}`,
+            style={{ flex:1, padding:"15px 4px", borderRadius:11, border:`1px solid ${C.border}`,
               background:"#0d0d0d", color: darts.length>=3||advancing ? "#333" : C.muted,
-              fontWeight:700, fontSize:13, cursor: darts.length>=3||advancing?"not-allowed":"pointer", touchAction:"manipulation" }}>
+              fontWeight:700, fontSize:15, cursor: darts.length>=3||advancing?"not-allowed":"pointer", touchAction:"manipulation" }}>
             MISS
           </button>
           {/* Annuler */}
           <button onClick={undo} disabled={!historique.length || advancing}
-            style={{ flex:1, padding:"10px 4px", borderRadius:9, border:`1px solid ${C.border}`,
+            style={{ flex:1, padding:"15px 4px", borderRadius:11, border:`1px solid ${C.border}`,
               background:"#0d0d0d", color: historique.length && !advancing ? C.yellow : "#333",
-              fontWeight:700, fontSize:13, cursor: historique.length&&!advancing?"pointer":"not-allowed", touchAction:"manipulation" }}>
+              fontWeight:700, fontSize:18, cursor: historique.length&&!advancing?"pointer":"not-allowed", touchAction:"manipulation" }}>
             ↩
           </button>
         </div>
 
         {/* Rang 2 : zones */}
-        <div style={{ display:"flex", gap:5 }}>
+        <div style={{ display:"flex", gap:6 }}>
           {[15,16,17,18,19,20].map(z => {
             const m = actif.marks[z];
             const closed = m >= 3;
             const disabled = darts.length >= 3 || advancing;
             return (
               <button key={z} onClick={() => hit(z)} disabled={disabled}
-                style={{ flex:1, padding:"13px 2px", borderRadius:9,
+                style={{ flex:1, padding:"18px 2px", borderRadius:11,
                   border:`2px solid ${closed ? actif.color+"88" : (disabled?"#1a1a1a":C.border)}`,
                   background: closed ? `${actif.color}22` : (disabled?"#0a0a0a":"#0d0d0d"),
                   color: closed ? actif.color : (disabled?"#333":C.text),
-                  fontWeight:800, fontSize:16, cursor: disabled?"not-allowed":"pointer",
+                  fontWeight:800, fontSize:18, cursor: disabled?"not-allowed":"pointer",
                   touchAction:"manipulation",
                   boxShadow: closed && !disabled ? `0 0 8px ${actif.color}44` : "none",
                   transition:"all .1s" }}>
@@ -849,11 +862,11 @@ export const ScoreurCricket = ({ config, setPage }) => {
             const disabled = darts.length >= 3 || advancing;
             return (
               <button onClick={() => hit("Bull")} disabled={disabled}
-                style={{ flex:1, padding:"13px 2px", borderRadius:9,
+                style={{ flex:1, padding:"18px 2px", borderRadius:11,
                   border:`2px solid ${closed ? `${C.red}88` : (disabled?"#1a1a1a":`${C.red}44`)}`,
                   background: closed ? `${C.red}22` : (disabled?"#0a0a0a":"#0d0d0d"),
                   color: closed ? C.red : (disabled?"#333":"#fca5a5"),
-                  fontWeight:900, fontSize:10, cursor: disabled?"not-allowed":"pointer",
+                  fontWeight:900, fontSize:12, cursor: disabled?"not-allowed":"pointer",
                   touchAction:"manipulation",
                   boxShadow: closed && !disabled ? `0 0 8px ${C.red}44` : "none" }}>
                 BULL

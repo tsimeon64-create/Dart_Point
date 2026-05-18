@@ -6958,6 +6958,13 @@ const ONBOARDING_SECTIONS = [
     accent: "#f97316",
   },
   {
+    emoji: "🗺️",
+    title: "Trouve où jouer près de chez toi",
+    body: "DartPoint recense les bars à fléchettes partout en France avec une carte interactive. Retrouve les adresses, horaires, photos et avis de chaque établissement.",
+    sub: "Ton bar n'est pas encore référencé ? Propose-le en 2 minutes depuis la section \"Trouve ton spot\" — c'est gratuit et ça aide toute la communauté !",
+    accent: "#22c55e",
+  },
+  {
     emoji: "👥",
     title: "Un réseau social de la fléchette",
     body: "Crée ton profil, affilie-toi à un bar, défie tes amis en physique et enregistre vos scores ensemble.",
