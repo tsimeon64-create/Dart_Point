@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, X, TrendingUp, Crown, Swords } from "lucide-react";
+import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, X, TrendingUp, Crown, Swords, Search, User } from "lucide-react";
 
 // ── AppJoueurs.jsx ────────────────────────────────────────────────────────────
 // Système joueurs DartPoint : inscription, profils, duels, présence, scoreur
@@ -1230,7 +1230,7 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
 // ── PAGE AMIS (nouvelle page) ──────────────────────────────────────────────────
 export const PageProfilAmis = ({ joueur, setPage }) => (
   <div style={{ maxWidth:860, margin:"0 auto", padding:"24px 20px" }}>
-    <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:20,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
+    <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:20,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}><ArrowLeft size={16}/> Retour au profil</button>
     <AmiSection joueur={joueur} setPage={setPage}/>
   </div>
 );
@@ -1826,32 +1826,32 @@ export const AmiSection = ({ joueur, setPage }) => {
     <div>
       {demandes.length > 0 && (
         <div style={{ marginBottom:20 }}>
-          <h3 style={{ fontWeight:700,fontSize:15,marginBottom:12,color:CJ.yellow }}>👥 Demandes d'amis ({demandes.length})</h3>
+          <h3 style={{ fontWeight:700,fontSize:15,marginBottom:12,color:CJ.text,display:"flex",alignItems:"center",gap:6 }}><Users size={15} color={CJ.yellow}/> Demandes d'amis ({demandes.length})</h3>
           {demandes.map(d=>(
             <div key={d.id} style={{ background:CJ.card,border:`1px solid ${CJ.yellow}44`,borderRadius:10,padding:14,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8 }}>
-              <span style={{ fontWeight:600 }}>👤 {d.joueur_pseudo}</span>
+              <span style={{ fontWeight:600,display:"flex",alignItems:"center",gap:6 }}><User size={14} color={CJ.muted}/>{d.joueur_pseudo}</span>
               <div style={{ display:"flex",gap:6 }}>
-                <BtnJ variant="success" onClick={()=>accepter(d)} style={{ fontSize:12,padding:"6px 12px" }}>✅ Accepter</BtnJ>
-                <BtnJ variant="danger" onClick={()=>refuser(d)} style={{ fontSize:12,padding:"6px 12px" }}>❌ Refuser</BtnJ>
+                <BtnJ variant="success" onClick={()=>accepter(d)} style={{ fontSize:12,padding:"6px 12px",display:"flex",alignItems:"center",gap:4 }}><Check size={13}/>Accepter</BtnJ>
+                <BtnJ variant="danger" onClick={()=>refuser(d)} style={{ fontSize:12,padding:"6px 12px",display:"flex",alignItems:"center",gap:4 }}><X size={13}/>Refuser</BtnJ>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      <h3 style={{ fontWeight:700,fontSize:15,marginBottom:12,color:CJ.accent }}>👥 Mes amis ({amis.length})</h3>
+      <h3 style={{ fontWeight:700,fontSize:15,marginBottom:12,color:CJ.text,display:"flex",alignItems:"center",gap:6 }}><Users size={15} color={CJ.accent}/> Mes amis ({amis.length})</h3>
 
       {/* Barre de recherche globale */}
       <div style={{ display:"flex",alignItems:"center",gap:8,background:CJ.bg,border:`1px solid ${CJ.border}`,borderRadius:10,padding:"10px 14px",marginBottom:12 }}>
-        <span style={{ fontSize:15,flexShrink:0 }}>🔍</span>
+        <Search size={15} color={CJ.muted} style={{ flexShrink:0 }}/>
         <input
           value={searchAmis}
           onChange={e=>{ setSearchAmis(e.target.value); setSearchGlobal([]); setSearchLoading(false); }}
           placeholder="Rechercher un joueur…"
-          style={{ flex:1,background:"transparent",border:"none",color:CJ.text,fontSize:14,outline:"none",minWidth:0 }}
+          style={{ flex:1,background:"transparent",border:"none",color:CJ.text,fontSize:16,outline:"none",minWidth:0 }}
         />
         {searchAmis && (
-          <button onClick={()=>{ setSearchAmis(""); setSearchGlobal([]); }} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:16,padding:0,lineHeight:1 }}>✕</button>
+          <button onClick={()=>{ setSearchAmis(""); setSearchGlobal([]); }} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",padding:0,lineHeight:1,display:"flex" }}><X size={14}/></button>
         )}
       </div>
 
@@ -1860,7 +1860,7 @@ export const AmiSection = ({ joueur, setPage }) => {
         <p style={{ color:CJ.muted,fontSize:13 }}>Aucun ami pour l'instant. Recherche un joueur ci-dessus pour l'ajouter !</p>
       ) : amisFiltres.length > 0 ? (
         <div style={{ marginBottom:nonAmis.length>0?16:0 }}>
-          {q && <div style={{ fontSize:11,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:6 }}>AMIS</div>}
+          {q && <div style={{ fontSize:12,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:6 }}>AMIS</div>}
           {amisFiltres.map(a => {
             const amiId = a.joueur_id === joueur.id ? a.ami_id : a.joueur_id;
             const amiPseudo = a.joueur_id === joueur.id ? a.ami_pseudo : a.joueur_pseudo;
@@ -1876,10 +1876,10 @@ export const AmiSection = ({ joueur, setPage }) => {
                   </div>
                   <div>
                     <div style={{ fontWeight:600 }}>{amiPseudo}</div>
-                    <div style={{ fontSize:11,color,fontWeight:600 }}>{emoji} {profil?.drix||1000} DRIX</div>
+                    <div style={{ fontSize:12,color,fontWeight:600 }}>{emoji} {profil?.drix||1000} DRIX</div>
                   </div>
                 </div>
-                <span style={{ color:CJ.accent,fontSize:12 }}>Voir le profil →</span>
+                <ChevronRight size={16} color={CJ.accent}/>
               </div>
             );
           })}
@@ -1891,25 +1891,25 @@ export const AmiSection = ({ joueur, setPage }) => {
       {/* ── Résultats globaux (non-amis) ── */}
       {nonAmis.length > 0 && (
         <div>
-          <div style={{ fontSize:11,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:6 }}>AUTRES JOUEURS</div>
+          <div style={{ fontSize:12,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:6 }}>AUTRES JOUEURS</div>
           {nonAmis.map(p => {
             const { emoji, color } = getDrixTitreLocal(p.drix||1000);
             return (
               <div key={p.id} onClick={()=>setPage("profil-joueur-"+p.id)}
                 style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:10,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
-                onMouseEnter={e=>e.currentTarget.style.borderColor="#60a5fa"} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
+                onMouseEnter={e=>e.currentTarget.style.borderColor=CJ.blue} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
                 <div style={{ display:"flex",alignItems:"center",gap:12 }}>
                   <div style={{ width:40,height:40,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:`2px solid ${color}44`,background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>
                     {p.photo ? <img src={p.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{emoji}</span>}
                   </div>
                   <div>
                     <div style={{ fontWeight:600 }}>{p.pseudo}</div>
-                    <div style={{ fontSize:11,color,fontWeight:600 }}>{emoji} {p.drix||1000} DRIX</div>
+                    <div style={{ fontSize:12,color,fontWeight:600 }}>{emoji} {p.drix||1000} DRIX</div>
                   </div>
                 </div>
-                <div style={{ textAlign:"right" }}>
-                  <div style={{ fontSize:12,color:"#60a5fa",fontWeight:600 }}>Voir le profil →</div>
-                  <div style={{ fontSize:10,color:CJ.muted,marginTop:2 }}>+ demande d'ami</div>
+                <div style={{ textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2 }}>
+                  <ChevronRight size={16} color={CJ.blue}/>
+                  <div style={{ fontSize:11,color:CJ.muted }}>+ demande d'ami</div>
                 </div>
               </div>
             );
