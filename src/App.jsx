@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { C, Z } from "./theme";
+import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell } from "lucide-react";
 import {
   Connexion, MonProfil, PageJoueurs, FicheJoueur,
   PageProfilStats, PageProfilAmis, PageProfilBadges, PageProfilHistorique,
@@ -92,11 +94,7 @@ const VILLES_FR = {
   "paris":[48.8566,2.3522],"lyon":[45.7640,4.8357],"marseille":[43.2965,5.3698],"toulouse":[43.6047,1.4442],"nice":[43.7102,7.2620],"nantes":[47.2184,-1.5536],"bordeaux":[44.8378,-0.5792],"lille":[50.6292,3.0573],"strasbourg":[48.5734,7.7521],"rennes":[48.1173,-1.6778],"grenoble":[45.1885,5.7245],"montpellier":[43.6108,3.8767],"dijon":[47.3220,5.0415],"pau":[43.2951,-0.3708],"bayonne":[43.4929,-1.4748],"biarritz":[43.4832,-1.5586],"anglet":[43.4938,-1.5339],"hendaye":[43.3694,-1.7800],"saint-jean-de-luz":[43.3877,-1.6614],"cambo-les-bains":[43.3567,-1.3978],"nevers":[46.9897,3.1572],"mont-de-marsan":[43.8897,-0.5025],"dax":[43.7099,-1.0520],"reims":[49.2583,4.0317],"rouen":[49.4432,1.0993],"caen":[49.1829,-0.3707],"metz":[49.1193,6.1757],"nancy":[48.6921,6.1844],"perpignan":[42.6987,2.8956],"angers":[47.4784,-0.5632],"brest":[48.3904,-4.8861],"toulon":[43.1242,5.9280],"aix-en-provence":[43.5297,5.4474],"avignon":[43.9493,4.8055],"poitiers":[46.5802,0.3404],"la rochelle":[46.1591,-1.1520],"annecy":[45.8992,6.1294],"valence":[44.9334,4.8924],
 };
 
-const C = {
-  bg:"#0f0f0f", card:"#1a1a1a", border:"#2a2a2a",
-  accent:"#f97316", text:"#f1f5f9", muted:"#94a3b8",
-  green:"#22c55e", red:"#ef4444", yellow:"#f59e0b", purple:"#a78bfa", blue:"#60a5fa",
-};
+// C importé depuis src/theme.js
 
 // ── LEAFLET ───────────────────────────────────────────────────────────────────
 function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoClick, onTournoiClick, centerSlug=null, centerVille=null, height=400, barsActifs=[], userPos=null }) {
@@ -362,14 +360,18 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                 boxShadow: open ? "0 0 18px #f9731430" : "none" }}
               onMouseEnter={e=>{e.currentTarget.style.borderColor="#f9731660";e.currentTarget.style.color="#f97316";e.currentTarget.style.boxShadow="0 0 14px #f9731428";}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor=open?"#f9731660":"#1e1e2e";e.currentTarget.style.color=open?"#f97316":"#94a3b8";e.currentTarget.style.boxShadow=open?"0 0 18px #f9731430":"none";}}>
-              <span style={{ display:"inline-block", transition:"transform .3s cubic-bezier(.4,0,.2,1)", transform:open?"rotate(90deg)":"none", fontSize:17, lineHeight:1 }}>{open?"✕":"☰"}</span>
+              <span style={{ display:"inline-block", transition:"transform .3s cubic-bezier(.4,0,.2,1)", transform:open?"rotate(90deg)":"none", lineHeight:1, display:"flex" }}>
+                {open ? <X size={18}/> : <Menu size={18}/>}
+              </span>
             </button>
             {/* Admin */}
             {isAdmin && (
               <button className="dp-topbtn" onClick={()=>go("admin")}
-                style={{ background:"#120d00", color:C.yellow, border:"1px solid #78350f55", cursor:"pointer", padding:"6px 8px", borderRadius:9, fontSize:13, fontWeight:700, touchAction:"manipulation", transition:"all .2s" }}
+                style={{ background:"#120d00", color:C.yellow, border:"1px solid #78350f55", cursor:"pointer", padding:"6px 8px", borderRadius:9, fontWeight:700, touchAction:"manipulation", transition:"all .2s", display:"flex", alignItems:"center", justifyContent:"center" }}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor="#f59e0b88";e.currentTarget.style.boxShadow="0 0 12px #f59e0b33";}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor="#78350f55";e.currentTarget.style.boxShadow="none";}}>⚙️</button>
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="#78350f55";e.currentTarget.style.boxShadow="none";}}>
+                <Settings size={16}/>
+              </button>
             )}
           </div>
 
@@ -427,17 +429,17 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                     </div>
                     {/* Menu items */}
                     {[
-                      { icon:"👤", label:"Mon profil",    target:"mon-profil", badge: newBadgesCount, badgeColor:"#f59e0b", badgeTitle: newBadgesCount>0 ? "🏅 Nouveaux badges" : null },
-                      { icon:"📊", label:"Mes stats",     target:"profil-stats" },
-                      { icon:"👥", label:"Mes amis",      target:"profil-amis",  badge: demandesAmisCount, badgeColor:C.red },
-                      { icon:"⚔️", label:"Mes défis",     target:"defi",         badge: defisCount, badgeColor:C.red },
-                      { icon:"✉️", label:"Messages",      target:"messagerie",   badge: unreadMessages, badgeColor:"#7c3aed" },
+                      { icon:<User size={15}/>,   label:"Mon profil",    target:"mon-profil", badge: newBadgesCount, badgeColor:"#f59e0b", badgeTitle: newBadgesCount>0 ? "🏅 Nouveaux badges" : null },
+                      { icon:<Trophy size={15}/>, label:"Mes stats",     target:"profil-stats" },
+                      { icon:<Bell size={15}/>,   label:"Mes amis",      target:"profil-amis",  badge: demandesAmisCount, badgeColor:C.red },
+                      { icon:<Search size={15}/>, label:"Mes défis",     target:"defi",         badge: defisCount, badgeColor:C.red },
+                      { icon:<Mail size={15}/>,   label:"Messages",      target:"messagerie",   badge: unreadMessages, badgeColor:"#7c3aed" },
                     ].map(({ icon, label, target, badge, badgeColor=C.red, badgeTitle }) => (
                       <button key={label} onClick={()=>{ if(target==="mon-profil"&&newBadgesCount>0&&onBadgesSeen) {} go(target); }}
                         style={{ display:"flex", alignItems:"center", gap:10, width:"100%", padding:"10px 14px", background:"transparent", border:"none", cursor:"pointer", color:"#c8ccd4", fontSize:13, fontWeight:500, textAlign:"left", transition:"background .15s", touchAction:"manipulation" }}
                         onMouseEnter={e=>{e.currentTarget.style.background="#f9731610";}}
                         onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
-                        <span style={{ fontSize:16, width:20, textAlign:"center" }}>{icon}</span>
+                        <span style={{ width:20, display:"flex", alignItems:"center", justifyContent:"center", color:"#94a3b8" }}>{icon}</span>
                         <span style={{ flex:1 }}>{label}</span>
                         {badge>0 && (
                           <span style={{ background:badgeColor, color:"#fff", borderRadius:99, minWidth:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, padding:"0 3px", boxShadow:`0 0 6px ${badgeColor}88` }} title={badgeTitle||""}>
@@ -451,7 +453,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                         style={{ display:"flex", alignItems:"center", gap:10, width:"100%", padding:"10px 14px", background:"transparent", border:"none", cursor:"pointer", color:"#f87171", fontSize:13, fontWeight:500, textAlign:"left", touchAction:"manipulation", transition:"background .15s" }}
                         onMouseEnter={e=>{e.currentTarget.style.background="#ef444410";}}
                         onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
-                        <span style={{ fontSize:16, width:20, textAlign:"center" }}>🚪</span>
+                        <span style={{ width:20, display:"flex", alignItems:"center", justifyContent:"center" }}><LogOut size={15}/></span>
                         <span>Déconnexion</span>
                       </button>
                     </div>

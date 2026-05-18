@@ -116,7 +116,7 @@ function Pad({ joueur, objectif, scoreActuel, onValider, onDiviser, onFermer }) 
           {["1","2","3","4","5","6","7","8","9","⌫","0",""].map((t, i) => (
             t === "" ? <div key={i}/> :
             <button key={i} onClick={() => appuyer(t)}
-              style={{ background:"#111", border:`1px solid ${C.border}`, borderRadius:10, color:C.text, fontSize:28, fontWeight:700, padding:"16px", cursor:"pointer" }}>
+              style={{ background:"#111", border:`1px solid ${C.border}`, borderRadius:10, color:C.text, fontSize:30, fontWeight:700, padding:"16px", cursor:"pointer" }}>
               {t}
             </button>
           ))}

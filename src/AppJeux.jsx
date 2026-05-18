@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { SCORER } from "./theme";
+import { Search } from "lucide-react";
 
 // ── Confetti ──────────────────────────────────────────────────────────────────
 const Confetti = () => {
@@ -546,8 +548,8 @@ const JoueursConfigSection = ({ config, setConfig, modeDuel }) => {
               {!modeDuel && (
                 <button
                   onClick={() => { setOpenSearch(openSearch === idx ? null : idx); setSearchQ(""); setResults([]); }}
-                  style={{ background: openSearch === idx ? "linear-gradient(135deg,#f97316,#ea580c)" : "#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, padding:"13px 12px", color: openSearch === idx ? "#fff" : "#94a3b8", cursor:"pointer", fontSize:16, flexShrink:0, fontWeight:700 }}>
-                  🔍
+                  style={{ background: openSearch === idx ? "linear-gradient(135deg,#f97316,#ea580c)" : "#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, padding:"13px 12px", color: openSearch === idx ? "#fff" : "#94a3b8", cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <Search size={18}/>
                 </button>
               )}
             </div>
