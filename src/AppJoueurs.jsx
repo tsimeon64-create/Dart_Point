@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, X } from "lucide-react";
 
 // ── AppJoueurs.jsx ────────────────────────────────────────────────────────────
 // Système joueurs DartPoint : inscription, profils, duels, présence, scoreur
@@ -602,8 +602,10 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
               style={{ position:"absolute",bottom:0,right:0,zIndex:2,
                 background:"#f97316", borderRadius:"50%", width:22, height:22,
                 display:"flex", alignItems:"center", justifyContent:"center",
-                cursor:"pointer", fontSize:11, border:`2px solid #0d0d1a`,
-                boxShadow:"0 0 8px #f9731688" }}>📷</div>
+                cursor:"pointer", border:`2px solid #0d0d1a`,
+                boxShadow:"0 0 8px #f9731688" }}>
+              <Camera size={11} color="#fff"/>
+            </div>
             <input ref={photoRef} type="file" accept="image/*" style={{ display:"none" }} onChange={uploadPhoto}/>
           </div>
 
@@ -615,8 +617,8 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
                 color:"#fff", letterSpacing:.5 }}>{joueur.pseudo}</h1>
               {!editMode && (
                 <button onClick={()=>{ setEditMode(true); setEditPseudo(joueur.pseudo); setPseudoErreur(""); }}
-                  style={{ background:"none",border:`1px solid ${CJ.border}`,color:CJ.muted,cursor:"pointer",borderRadius:6,padding:"2px 8px",fontSize:11,touchAction:"manipulation" }}>
-                  ✏️
+                  style={{ background:"none",border:`1px solid ${CJ.border}`,color:CJ.muted,cursor:"pointer",borderRadius:6,padding:"4px 8px",touchAction:"manipulation",display:"flex",alignItems:"center" }}>
+                  <Pencil size={12}/>
                 </button>
               )}
             </div>
@@ -672,8 +674,8 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
                 style={{
                   width:"100%", background: pseudoChanges>=2?"#0a0a0a":"#111",
                   border:`1px solid ${pseudoErreur?"#ef4444":pseudoChanges>=2?"#2a2a2a":CJ.border}`,
-                  borderRadius:8, padding:"8px 10px", color: pseudoChanges>=2?CJ.muted:CJ.text,
-                  fontSize:13, boxSizing:"border-box", opacity: pseudoChanges>=2?0.5:1,
+                  borderRadius:8, padding:"10px 12px", color: pseudoChanges>=2?CJ.muted:CJ.text,
+                  fontSize:16, boxSizing:"border-box", opacity: pseudoChanges>=2?0.5:1,
                   cursor: pseudoChanges>=2?"not-allowed":"text",
                 }}
               />
@@ -687,12 +689,12 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
               <div>
                 <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Âge</label>
                 <input value={editAge} onChange={e=>setEditAge(e.target.value)} placeholder="Ex: 28" type="number"
-                  style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"8px 10px",color:CJ.text,fontSize:13 }}/>
+                  style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"10px 12px",color:CJ.text,fontSize:16 }}/>
               </div>
               <div>
                 <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Ville</label>
                 <input value={editVille} onChange={e=>setEditVille(e.target.value)} placeholder="Ex: Bayonne"
-                  style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"8px 10px",color:CJ.text,fontSize:13 }}/>
+                  style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"10px 12px",color:CJ.text,fontSize:16 }}/>
               </div>
             </div>
             <div style={{ marginBottom:10 }}>
@@ -707,7 +709,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
               </div>
             </div>
             <div style={{ display:"flex",gap:8 }}>
-              <BtnJ onClick={sauvegarderProfil} disabled={savingEdit} style={{ fontSize:12,padding:"7px 16px" }}>{savingEdit?"…":"💾 Sauvegarder"}</BtnJ>
+              <BtnJ onClick={sauvegarderProfil} disabled={savingEdit} style={{ fontSize:13,padding:"8px 16px",display:"flex",alignItems:"center",gap:6 }}>{savingEdit?"…":<><Save size={14}/>Sauvegarder</>}</BtnJ>
               <BtnJ onClick={()=>{ setEditMode(false); setEditPseudo(joueur.pseudo); setPseudoErreur(""); }} variant="dark" style={{ fontSize:12,padding:"7px 16px" }}>Annuler</BtnJ>
             </div>
           </div>
@@ -757,15 +759,15 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       {stats && (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:14 }}>
           {[
-            [stats.victoires, "Victoires", CJ.green,  "🏆"],
-            [stats.defaites,  "Défaites",  CJ.red,    "💀"],
-            [winRate+"%",     "Winrate",   CJ.yellow,  "🎯"],
-            [moyenneDuels??"—", "Moy. pts", CJ.blue,  "📊"],
+            [stats.victoires, "Victoires", CJ.green,  <Trophy size={14} color={CJ.green}/>],
+            [stats.defaites,  "Défaites",  CJ.red,    <Skull size={14} color={CJ.red}/>],
+            [winRate+"%",     "Winrate",   CJ.yellow, <Target size={14} color={CJ.yellow}/>],
+            [moyenneDuels??"—","Moy. pts", CJ.blue,   <BarChart2 size={14} color={CJ.blue}/>],
           ].map(([val, label, col, ic]) => (
             <div key={label} style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:12, padding:"12px 8px", textAlign:"center" }}>
-              <div style={{ fontSize:10, color:CJ.muted, marginBottom:4 }}>{ic}</div>
+              <div style={{ display:"flex", justifyContent:"center", marginBottom:5 }}>{ic}</div>
               <div style={{ fontWeight:900, fontSize:20, color:col, lineHeight:1 }}>{val}</div>
-              <div style={{ fontSize:10, color:CJ.muted, marginTop:3 }}>{label}</div>
+              <div style={{ fontSize:12, color:CJ.muted, marginTop:4, fontWeight:500 }}>{label}</div>
             </div>
           ))}
         </div>
@@ -810,21 +812,21 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
         <div style={{ fontSize:11, color:CJ.muted, fontWeight:700, letterSpacing:1, marginBottom:12 }}>MON UNIVERS</div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           {[
-            { emoji:"📊", label:"Stats",       sub:"Mes performances",  action:()=>setPage("profil-stats"),      color:CJ.blue },
-            { emoji:"👥", label:"Amis",        sub:"Mes connexions",    action:()=>setPage("profil-amis"),       color:CJ.green, badge:demandesAmisCount },
-            { emoji:"🏅", label:"Badges",      sub:`${badgeCount}/${ALL_BADGES.length} débloqués`, action:()=>{ const n=badgeCount; localStorage.setItem(BADGES_SEEN_KEY,String(n)); setBadgesSeen(n); setPage("profil-badges"); }, color:CJ.yellow, badge:newBadgesCount },
-            { emoji:"📜", label:"Historique",  sub:"Mes duels",         action:()=>setPage("profil-historique"), color:CJ.accent },
-          ].map(({ emoji, label, sub, action, color: col, badge }) => (
+            { icon:<BarChart2 size={22}/>, label:"Stats",       sub:"Mes performances",  action:()=>setPage("profil-stats"),      color:CJ.blue },
+            { icon:<Users size={22}/>,     label:"Amis",        sub:"Mes connexions",    action:()=>setPage("profil-amis"),       color:CJ.green, badge:demandesAmisCount },
+            { icon:<Medal size={22}/>,     label:"Badges",      sub:`${badgeCount}/${ALL_BADGES.length} débloqués`, action:()=>{ const n=badgeCount; localStorage.setItem(BADGES_SEEN_KEY,String(n)); setBadgesSeen(n); setPage("profil-badges"); }, color:CJ.yellow, badge:newBadgesCount },
+            { icon:<Clock size={22}/>,     label:"Historique",  sub:"Mes duels",         action:()=>setPage("profil-historique"), color:CJ.accent },
+          ].map(({ icon, label, sub, action, color: col, badge }) => (
             <button key={label} onClick={action}
               style={{ background:"#ffffff07",border:`1px solid ${CJ.border}`,borderRadius:12,padding:"14px 12px",cursor:"pointer",textAlign:"left",touchAction:"manipulation",position:"relative",transition:"border-color .15s" }}
-              onMouseEnter={e=>e.currentTarget.style.borderColor=col}
-              onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
+              onMouseEnter={e=>{ e.currentTarget.style.borderColor=col; e.currentTarget.style.background=col+"10"; }}
+              onMouseLeave={e=>{ e.currentTarget.style.borderColor=CJ.border; e.currentTarget.style.background="#ffffff07"; }}>
               {badge > 0 && (
                 <div style={{ position:"absolute",top:8,right:8,background:CJ.green,color:"#fff",borderRadius:"50%",width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900 }}>{badge>9?"9+":badge}</div>
               )}
-              <div style={{ fontSize:24, marginBottom:6 }}>{emoji}</div>
+              <div style={{ color:col, marginBottom:8 }}>{icon}</div>
               <div style={{ fontWeight:700, fontSize:14, color:CJ.text }}>{label}</div>
-              <div style={{ fontSize:11, color:CJ.muted, marginTop:2 }}>{sub}</div>
+              <div style={{ fontSize:12, color:CJ.muted, marginTop:3 }}>{sub}</div>
             </button>
           ))}
         </div>
@@ -886,8 +888,8 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
           </div>
           {affilBar && (
             <div style={{ border:`1px solid ${CJ.border}`,borderRadius:10,overflow:"hidden" }}>
-              <input value={searchBar} onChange={e=>setSearchBar(e.target.value)} placeholder="🔍 Rechercher un bar…"
-                style={{ width:"100%",background:"#111",border:"none",borderBottom:`1px solid ${CJ.border}`,padding:"9px 12px",color:CJ.text,fontSize:13,boxSizing:"border-box" }}/>
+              <input value={searchBar} onChange={e=>setSearchBar(e.target.value)} placeholder="Rechercher un bar…"
+                style={{ width:"100%",background:"#111",border:"none",borderBottom:`1px solid ${CJ.border}`,padding:"10px 14px",color:CJ.text,fontSize:16,boxSizing:"border-box" }}/>
               <div style={{ display:"flex",flexDirection:"column",gap:0,maxHeight:200,overflowY:"auto",padding:6 }}>
                 {joueur.bar_slug && (
                   <div onClick={()=>choisirBar(null)} style={{ background:"#1a0000",border:`1px solid #7f1d1d`,borderRadius:8,padding:"8px 12px",cursor:"pointer",marginBottom:4,fontSize:12,color:"#f87171",textAlign:"center",touchAction:"manipulation" }}>
@@ -926,8 +928,8 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
           </div>
           {affilAsso && (
             <div style={{ border:`1px solid ${CJ.border}`,borderRadius:10,overflow:"hidden" }}>
-              <input value={searchAsso} onChange={e=>setSearchAsso(e.target.value)} placeholder="🔍 Rechercher une association…"
-                style={{ width:"100%",background:"#111",border:"none",borderBottom:`1px solid ${CJ.border}`,padding:"9px 12px",color:CJ.text,fontSize:13,boxSizing:"border-box" }}/>
+              <input value={searchAsso} onChange={e=>setSearchAsso(e.target.value)} placeholder="Rechercher une association…"
+                style={{ width:"100%",background:"#111",border:"none",borderBottom:`1px solid ${CJ.border}`,padding:"10px 14px",color:CJ.text,fontSize:16,boxSizing:"border-box" }}/>
               <div style={{ display:"flex",flexDirection:"column",gap:0,maxHeight:200,overflowY:"auto",padding:6 }}>
                 {joueur.asso_slug && (
                   <div onClick={()=>choisirAsso(null)} style={{ background:"#1a0020",border:"1px solid #4c1d95",borderRadius:8,padding:"8px 12px",cursor:"pointer",marginBottom:4,fontSize:12,color:"#c4b5fd",textAlign:"center",touchAction:"manipulation" }}>
