@@ -1260,8 +1260,8 @@ export const PageProfilHistorique = ({ joueur, setPage }) => {
 
   return (
     <div style={{ maxWidth:860, margin:"0 auto", padding:"16px 16px 40px" }}>
-      <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
-      <h1 style={{ fontWeight:900, fontSize:22, marginBottom:4 }}>📜 Historique</h1>
+      <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}><ArrowLeft size={16}/> Retour au profil</button>
+      <h1 style={{ fontWeight:900, fontSize:22, marginBottom:4, display:"flex", alignItems:"center", gap:8 }}><Clock size={20} color={CJ.accent}/>Historique</h1>
       <p style={{ color:CJ.muted, fontSize:13, marginBottom:20 }}>{termines.length} duel{termines.length>1?"s":""} terminé{termines.length>1?"s":""}</p>
       <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:18 }}>
         {termines.length === 0
@@ -1282,12 +1282,15 @@ export const PageProfilHistorique = ({ joueur, setPage }) => {
                       <span style={{ fontWeight:700, fontSize:14 }}>vs{" "}
                         <span onClick={()=>setPage("profil-joueur-"+advId)} style={{ color:CJ.accent, cursor:"pointer", textDecoration:"underline" }}>{adv}</span>
                       </span>
-                      <div style={{ color:CJ.muted, fontSize:11, marginTop:2 }}>{d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""} · {new Date(d.date).toLocaleDateString("fr-FR")}</div>
+                      <div style={{ color:CJ.muted, fontSize:12, marginTop:2 }}>{d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""} · {new Date(d.date).toLocaleDateString("fr-FR")}</div>
                     </div>
                     <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
                       <span style={{ fontWeight:800, fontSize:15 }}>{monM??'?'}–{sonM??'?'}</span>
-                      {monMoy && <span style={{ fontSize:11, color:CJ.accent }}>Moy. {Math.round(monMoy)}</span>}
-                      <BadgeJ color={gagne?CJ.green:CJ.red}>{gagne?"✅ Victoire":"❌ Défaite"}</BadgeJ>
+                      {monMoy && <span style={{ fontSize:12, color:CJ.accent }}>Moy. {Math.round(monMoy)}</span>}
+                      <span style={{ background:(gagne?CJ.green:CJ.red)+"22",color:gagne?CJ.green:CJ.red,border:`1px solid ${(gagne?CJ.green:CJ.red)}44`,borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:4 }}>
+                        {gagne ? <Check size={11} strokeWidth={3}/> : <X size={11} strokeWidth={3}/>}
+                        {gagne ? "Victoire" : "Défaite"}
+                      </span>
                       {variation !== undefined && (
                         <span style={{ fontWeight:800, fontSize:12, color:variation>0?CJ.green:CJ.red, background:variation>0?"#14532d":"#7f1d1d", borderRadius:6, padding:"2px 8px" }}>
                           {variation>0?"+":""}{variation} DRIX
