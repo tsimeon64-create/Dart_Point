@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Navigation } from "lucide-react";
+import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Navigation, Crosshair, Star, Zap, Flame, Sparkles } from "lucide-react";
 
 // ── AppJoueurs.jsx ────────────────────────────────────────────────────────────
 // Système joueurs DartPoint : inscription, profils, duels, présence, scoreur
@@ -178,15 +178,15 @@ const BadgeJ = ({ children, color=CJ.accent }) => <span style={{ background:colo
 
 // Titres DRIX — 9 rangs
 const RANGS = [
-  { titre:"Débutant",    min:0,    max:900,      emoji:"🎯",   color:"#64748b" },
-  { titre:"Amateur",     min:900,  max:1100,     emoji:"🎯🎯", color:"#60a5fa" },
-  { titre:"Confirmé",    min:1100, max:1300,     emoji:"⭐",   color:"#22c55e" },
-  { titre:"Expert",      min:1300, max:1500,     emoji:"⭐⭐", color:"#f59e0b" },
-  { titre:"Élite",       min:1500, max:1700,     emoji:"💎",   color:"#a78bfa" },
-  { titre:"Légende",     min:1700, max:1900,     emoji:"🏆",   color:"#f97316" },
-  { titre:"Master Bull", min:1900, max:2100,     emoji:"👑",   color:"#ef4444" },
-  { titre:"Titan",       min:2100, max:2500,     emoji:"🔥",   color:"#dc2626" },
-  { titre:"Mythique",    min:2500, max:Infinity, emoji:"✨",   color:"#ffd700" },
+  { titre:"Débutant",    min:0,    max:900,      emoji:"🎯",   color:"#64748b", icon:Target     },
+  { titre:"Amateur",     min:900,  max:1100,     emoji:"🎯🎯", color:"#60a5fa", icon:Crosshair  },
+  { titre:"Confirmé",    min:1100, max:1300,     emoji:"⭐",   color:"#22c55e", icon:Star       },
+  { titre:"Expert",      min:1300, max:1500,     emoji:"⭐⭐", color:"#f59e0b", icon:Zap        },
+  { titre:"Élite",       min:1500, max:1700,     emoji:"💎",   color:"#a78bfa", icon:Gem        },
+  { titre:"Légende",     min:1700, max:1900,     emoji:"🏆",   color:"#f97316", icon:Trophy     },
+  { titre:"Master Bull", min:1900, max:2100,     emoji:"👑",   color:"#ef4444", icon:Crown      },
+  { titre:"Titan",       min:2100, max:2500,     emoji:"🔥",   color:"#dc2626", icon:Flame      },
+  { titre:"Mythique",    min:2500, max:Infinity, emoji:"✨",   color:"#ffd700", icon:Sparkles   },
 ];
 const getDrixTitreLocal = (drix) => {
   for (const r of RANGS) { if (drix < r.max) return r; }
@@ -3650,13 +3650,17 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
             {RANGS.map((r) => {
               const isCurrent = joueur && monRangInfo.titre === r.titre;
               const isNext    = joueur && progression.prochain?.titre === r.titre;
+              const RIcon     = r.icon;
+              const iconColor = isCurrent ? r.color : isNext ? r.color+"bb" : "#475569";
               return (
-                <div key={r.titre} style={{ textAlign:"center", flexShrink:0, minWidth:72, padding:"10px 6px", borderRadius:12, border:`2px solid ${isCurrent?r.color:isNext?r.color+"55":CJ.border}`, background:isCurrent?`${r.color}20`:isNext?`${r.color}09`:"transparent", transition:"all .2s" }}>
-                  <div style={{ fontSize:26, marginBottom:5, filter:isCurrent?"drop-shadow(0 0 6px "+r.color+"88)":"none" }}>{r.emoji}</div>
-                  <div style={{ fontSize:8, fontWeight:900, color:isCurrent?r.color:CJ.muted, textTransform:"uppercase", letterSpacing:0.5 }}>{r.titre}</div>
-                  <div style={{ fontSize:7, color:CJ.muted, marginTop:2 }}>{r.max === Infinity ? `${r.min}+` : `${r.min}–${r.max}`}</div>
-                  {isCurrent && <div style={{ fontSize:7, marginTop:5, color:r.color, background:`${r.color}22`, borderRadius:4, padding:"2px 4px", fontWeight:800 }}>● MOI</div>}
-                  {isNext && !isCurrent && <div style={{ fontSize:7, marginTop:5, color:r.color+"99", borderRadius:4, padding:"2px 4px", fontWeight:700 }}>suivant</div>}
+                <div key={r.titre} style={{ textAlign:"center", flexShrink:0, minWidth:76, padding:"12px 6px 10px", borderRadius:12, border:`2px solid ${isCurrent?r.color:isNext?r.color+"55":CJ.border}`, background:isCurrent?`${r.color}20`:isNext?`${r.color}09`:"transparent", transition:"all .2s" }}>
+                  <div style={{ display:"flex", justifyContent:"center", marginBottom:7, filter:isCurrent?`drop-shadow(0 0 7px ${r.color}99)`:"none" }}>
+                    <RIcon size={26} color={iconColor} strokeWidth={isCurrent?2.5:1.8}/>
+                  </div>
+                  <div style={{ fontSize:10, fontWeight:900, color:isCurrent?r.color:CJ.muted, textTransform:"uppercase", letterSpacing:0.4 }}>{r.titre}</div>
+                  <div style={{ fontSize:10, color:CJ.muted, marginTop:3 }}>{r.max === Infinity ? `${r.min}+` : `${r.min}–${r.max}`}</div>
+                  {isCurrent && <div style={{ fontSize:10, marginTop:6, color:r.color, background:`${r.color}22`, borderRadius:5, padding:"2px 5px", fontWeight:800 }}>● MOI</div>}
+                  {isNext && !isCurrent && <div style={{ fontSize:10, marginTop:6, color:r.color+"99", borderRadius:5, padding:"2px 5px", fontWeight:700 }}>suivant</div>}
                 </div>
               );
             })}
