@@ -3656,7 +3656,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
               const isCurrent = joueur && monRangInfo.titre === r.titre;
               const isNext    = joueur && progression.prochain?.titre === r.titre;
               const RIcon     = r.icon;
-              const iconColor = isCurrent ? r.color : isNext ? r.color+"bb" : "#475569";
+              const iconColor = isCurrent ? r.color : isNext ? r.color+"dd" : r.color+"66";
               return (
                 <div key={r.titre} style={{ textAlign:"center", flexShrink:0, minWidth:76, padding:"12px 6px 10px", borderRadius:12, border:`2px solid ${isCurrent?r.color:isNext?r.color+"55":CJ.border}`, background:isCurrent?`${r.color}20`:isNext?`${r.color}09`:"transparent", transition:"all .2s" }}>
                   <div style={{ display:"flex", justifyContent:"center", marginBottom:7, filter:isCurrent?`drop-shadow(0 0 7px ${r.color}99)`:"none" }}>
