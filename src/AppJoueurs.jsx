@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { ArrowLeft, Check } from "lucide-react";
 
 // ── AppJoueurs.jsx ────────────────────────────────────────────────────────────
 // Système joueurs DartPoint : inscription, profils, duels, présence, scoreur
@@ -1476,50 +1477,99 @@ export const PageProfilBadges = ({ joueur, setPage }) => {
   const BadgeCard = ({ b }) => {
     const current = b.val(vals);
     const unlocked = current >= b.seuil;
-    const pct = Math.min(100, Math.round((current/b.seuil)*100));
+    const pct = Math.min(100, Math.round((current / b.seuil) * 100));
     const isIncremental = b.seuil > 1;
     return (
       <div style={{
-        background: unlocked ? b.couleur+"18" : "#ffffff06",
-        border: `1px solid ${unlocked ? b.couleur+"66" : "#2a2a2a"}`,
-        borderRadius:14, padding:14, position:"relative", overflow:"hidden",
-        filter: unlocked ? "none" : "grayscale(0.8)",
-        opacity: unlocked ? 1 : 0.55,
-        transition:"all .2s"
+        background: unlocked ? b.couleur + "18" : "#1a1a1a",
+        border: `1px solid ${unlocked ? b.couleur + "55" : "#2a2a2a"}`,
+        borderRadius: 14,
+        padding: "14px 14px 12px",
+        position: "relative",
+        overflow: "hidden",
+        opacity: unlocked ? 1 : 0.52,
+        transition: "all .2s",
+        boxShadow: unlocked ? `0 2px 16px ${b.couleur}15` : "none",
       }}>
-        <div style={{ fontSize:28, marginBottom:6 }}>{b.emoji}</div>
-        <div style={{ fontWeight:700, fontSize:13, color: unlocked ? b.couleur : CJ.muted, marginBottom:3 }}>{b.nom}</div>
-        <div style={{ fontSize:10, color:CJ.muted, marginBottom: isIncremental&&!unlocked ? 8 : 0 }}>{b.desc}</div>
+        {/* Emoji du badge — contenu, pas icône UI */}
+        <div style={{ fontSize: 30, marginBottom: 8, lineHeight: 1, filter: unlocked ? "none" : "grayscale(1)" }}>{b.emoji}</div>
+
+        {/* Nom */}
+        <div style={{ fontWeight: 700, fontSize: 13, color: unlocked ? b.couleur : "#f1f5f9", marginBottom: 4, lineHeight: 1.3 }}>{b.nom}</div>
+
+        {/* Description — 12px minimum (design system) */}
+        <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.4, marginBottom: isIncremental && !unlocked ? 10 : 0 }}>{b.desc}</div>
+
+        {/* Barre de progression */}
         {isIncremental && !unlocked && (
           <>
-            <div style={{ background:"#ffffff12", borderRadius:4, height:4, overflow:"hidden" }}>
-              <div style={{ height:"100%", width:`${pct}%`, background:b.couleur, borderRadius:4 }}/>
+            <div style={{ background: "#ffffff10", borderRadius: 6, height: 5, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${b.couleur}aa, ${b.couleur})`, borderRadius: 6, transition: "width .5s ease" }}/>
             </div>
-            <div style={{ fontSize:10, color:CJ.muted, marginTop:4 }}>{current} / {b.seuil}</div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 5, fontWeight: 600 }}>{current} / {b.seuil}</div>
           </>
         )}
-        {unlocked && <div style={{ position:"absolute", top:8, right:8, fontSize:14 }}>✅</div>}
+
+        {/* Checkmark SVG — design system : pas d'emoji comme icône UI */}
+        {unlocked && (
+          <div style={{ position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: "50%", background: b.couleur, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 8px ${b.couleur}66` }}>
+            <Check size={13} color="#fff" strokeWidth={3}/>
+          </div>
+        )}
       </div>
     );
   };
 
-  return (
-    <div style={{ maxWidth:600, margin:"0 auto", padding:"16px 16px 40px" }}>
-      <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}>← Retour au profil</button>
-      <h1 style={{ fontWeight:900, fontSize:22, marginBottom:4 }}>🏅 Mes badges</h1>
-      <p style={{ color:CJ.muted, fontSize:13, marginBottom:24 }}>{totalUnlocked} / {ALL_BADGES.length} débloqués</p>
+  // Progression globale
+  const globalPct = Math.round((totalUnlocked / ALL_BADGES.length) * 100);
 
+  return (
+    <div style={{ maxWidth: 600, margin: "0 auto", padding: "16px 16px 40px" }}>
+
+      {/* Bouton retour — ArrowLeft SVG (design system) */}
+      <button onClick={() => window.history.back()}
+        style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 14, marginBottom: 20, display: "flex", alignItems: "center", gap: 6, touchAction: "manipulation", padding: 0 }}
+        onMouseEnter={e => e.currentTarget.style.color = "#f1f5f9"}
+        onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}>
+        <ArrowLeft size={16}/> Retour au profil
+      </button>
+
+      {/* En-tête */}
+      <h1 style={{ fontWeight: 900, fontSize: 24, marginBottom: 4 }}>🏅 Mes badges</h1>
+
+      {/* Progression globale */}
+      <div style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 12, padding: "14px 16px", marginBottom: 28 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 600 }}>Progression globale</span>
+          <span style={{ fontSize: 13, fontWeight: 800, color: "#f1f5f9" }}>{totalUnlocked} <span style={{ color: "#94a3b8", fontWeight: 500 }}>/ {ALL_BADGES.length}</span></span>
+        </div>
+        <div style={{ background: "#ffffff10", borderRadius: 8, height: 8, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${globalPct}%`, background: "linear-gradient(90deg, #f97316, #ea580c)", borderRadius: 8, transition: "width .6s ease", boxShadow: "0 0 10px #f9731640" }}/>
+        </div>
+        <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>{globalPct}% débloqués</div>
+      </div>
+
+      {/* Catégories */}
       {BADGE_CATS.map(cat => {
-        const catBadges = ALL_BADGES.filter(b=>b.cat===cat.id);
-        const catUnlocked = catBadges.filter(b=>b.val(vals)>=b.seuil).length;
+        const catBadges = ALL_BADGES.filter(b => b.cat === cat.id);
+        const catUnlocked = catBadges.filter(b => b.val(vals) >= b.seuil).length;
+        const allDone = catUnlocked === catBadges.length;
         return (
-          <div key={cat.id} style={{ marginBottom:24 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-              <h3 style={{ fontWeight:800, fontSize:14, color:CJ.accent, letterSpacing:.5, margin:0 }}>{cat.label}</h3>
-              <span style={{ fontSize:11, color:CJ.muted }}>{catUnlocked}/{catBadges.length}</span>
+          <div key={cat.id} style={{ marginBottom: 28 }}>
+            {/* Header catégorie */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <h3 style={{ fontWeight: 800, fontSize: 14, color: "#f1f5f9", letterSpacing: 0.4, margin: 0 }}>{cat.label}</h3>
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 20,
+                background: allDone ? "#22c55e22" : "#f9731618",
+                color: allDone ? "#22c55e" : "#f97316",
+                border: `1px solid ${allDone ? "#22c55e44" : "#f9731630"}`,
+              }}>
+                {catUnlocked}/{catBadges.length}
+              </span>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8 }}>
-              {catBadges.map(b=><BadgeCard key={b.id} b={b} vals={vals}/>)}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
+              {catBadges.map(b => <BadgeCard key={b.id} b={b} vals={vals}/>)}
             </div>
           </div>
         );
