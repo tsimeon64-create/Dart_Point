@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { C, Z } from "./theme";
-import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell } from "lucide-react";
+import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell, Users, RefreshCw, Swords, TrendingUp, TrendingDown, Medal, Check, AlertCircle, ThumbsUp, MessageCircle, MapPin, Flame, Zap } from "lucide-react";
 import {
   Connexion, MonProfil, PageJoueurs, FicheJoueur,
   PageProfilStats, PageProfilAmis, PageProfilBadges, PageProfilHistorique,
@@ -2358,7 +2358,7 @@ const LikeButton = ({ refId, joueur, initialCount=0, initialMyLike=false }) => {
   };
   return (
     <button onClick={toggle} style={{ background:"none", border:`1px solid ${liked?"#f97316":"#2a2a2a"}`, borderRadius:20, padding:"4px 14px", color:liked?"#f97316":"#94a3b8", fontSize:12, fontWeight:600, cursor:joueur?"pointer":"default", display:"flex", alignItems:"center", gap:5, touchAction:"manipulation", transition:"all .15s" }}>
-      👍 {count>0?count:""}
+      <ThumbsUp size={13}/> {count>0?count:""}
     </button>
   );
 };
@@ -2386,7 +2386,7 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
     <div style={{ marginTop:10, borderTop:`1px solid ${C.border}`, paddingTop:8 }}>
       <div style={{ display:"flex", gap:8, alignItems:"center" }}>
         <button onClick={()=>setOpen(o=>!o)} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:20, padding:"4px 14px", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer", touchAction:"manipulation" }}>
-          💬 {totalComments>0?`${totalComments} commentaire${totalComments>1?"s":""}` : "Commenter"}
+          <MessageCircle size={13}/> {totalComments>0?`${totalComments} commentaire${totalComments>1?"s":""}` : "Commenter"}
         </button>
       </div>
       {open && (
@@ -2397,7 +2397,7 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
               <div style={{ background:"#0f0f0f", borderRadius:10, padding:"6px 10px", flex:1 }}>
                 <span style={{ fontWeight:700, fontSize:12, color:C.text }}>{c.joueur_pseudo} </span>
                 <span style={{ fontSize:13, color:C.text }}>{c.contenu}</span>
-                <div style={{ fontSize:10, color:C.muted, marginTop:2 }}>{tempsDepuis(c.date)}</div>
+                <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{tempsDepuis(c.date)}</div>
               </div>
             </div>
           ))}
@@ -2431,8 +2431,8 @@ const MancheDetail = ({ manches, joueur0, joueur1 }) => {
         <div style={{ marginTop:8, display:"flex", flexDirection:"column", gap:6 }}>
           {manches.map((m, i) => (
             <div key={i} style={{ background:"#0f0f0f", borderRadius:10, padding:"10px 12px" }}>
-              <div style={{ fontWeight:700, fontSize:12, color:C.accent, marginBottom:6 }}>Manche {i+1} — {m.winner} 🏆</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, fontSize:11 }}>
+              <div style={{ fontWeight:700, fontSize:12, color:C.accent, marginBottom:6, display:"flex", alignItems:"center", gap:4 }}>Manche {i+1} — {m.winner} <Trophy size={11} color={C.accent}/></div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, fontSize:12 }}>
                 <div>
                   <div style={{ fontWeight:700, color:"#10b981", marginBottom:2 }}>{m.winner}</div>
                   <div style={{ color:C.muted }}>{m.winner_volees} volée{m.winner_volees>1?"s":""}</div>
@@ -2472,7 +2472,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
           <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:700, fontSize:14, color:C.text, cursor:"pointer" }}>{p.joueur_pseudo}</div>
           <div style={{ fontSize:11, color:C.muted }}>{tempsDepuis(p.date)}</div>
         </div>
-        <span style={{ fontSize:18 }}>⚔️</span>
+        <Swords size={18} color={C.accent}/>
       </div>
 
       {/* Headline */}
@@ -2481,11 +2481,11 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
         {/* Résumé totaux */}
         <div style={{ display:"flex", gap:10, marginBottom:6 }}>
           <div style={{ background:"#0f1a0f", border:"1px solid #22c55e33", borderRadius:10, padding:"6px 12px", flex:1, textAlign:"center" }}>
-            <div style={{ fontSize:11, color:"#86efac", fontWeight:700, marginBottom:2 }}>🏆 {w.nom}</div>
+            <div style={{ fontSize:12, color:"#86efac", fontWeight:700, marginBottom:2, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}><Trophy size={11} color="#86efac"/>{w.nom}</div>
             <div style={{ fontSize:18, fontWeight:900, color:"#22c55e" }}>{w.total >= 0 ? "+" : ""}{w.total} <span style={{ fontSize:12 }}>DRIX</span></div>
           </div>
           <div style={{ background:"#1a0a0a", border:"1px solid #ef444433", borderRadius:10, padding:"6px 12px", flex:1, textAlign:"center" }}>
-            <div style={{ fontSize:11, color:"#fca5a5", fontWeight:700, marginBottom:2 }}>💔 {l.nom}</div>
+            <div style={{ fontSize:12, color:"#fca5a5", fontWeight:700, marginBottom:2, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}><X size={11} color="#fca5a5"/>{l.nom}</div>
             <div style={{ fontSize:18, fontWeight:900, color:l.total >= 0 ? "#22c55e" : "#ef4444" }}>{l.total >= 0 ? "+" : ""}{l.total} <span style={{ fontSize:12 }}>DRIX</span></div>
           </div>
         </div>
@@ -2499,7 +2499,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
           <div style={{ marginTop:8, display:"flex", gap:8, marginBottom:6 }}>
             {/* Gagnant */}
             <div style={{ flex:1, background:"#0f1a0f", border:"1px solid #22c55e22", borderRadius:10, padding:"8px 10px" }}>
-              <div style={{ fontSize:11, color:"#86efac", fontWeight:800, marginBottom:6 }}>🏆 {w.nom}</div>
+              <div style={{ fontSize:12, color:"#86efac", fontWeight:800, marginBottom:6, display:"flex", alignItems:"center", gap:4 }}><Trophy size={11} color="#86efac"/>{w.nom}</div>
               <BLine icon="📈" label="ELO" val={w.elo} color={w.elo >= 0 ? "#22c55e" : "#ef4444"}/>
               {w.bonusManches > 0 && <BLine icon="💎" label={`${w.nbManches} manche(s)`} val={w.bonusManches} color="#f59e0b"/>}
               {w.bonusVolees > 0 && <BLine icon="🔥" label={`${w.nbVolees} grosse(s) volée(s)`} val={w.bonusVolees} color="#f97316"/>}
@@ -2507,7 +2507,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
             </div>
             {/* Perdant */}
             <div style={{ flex:1, background:"#1a0a0a", border:"1px solid #ef444422", borderRadius:10, padding:"8px 10px" }}>
-              <div style={{ fontSize:11, color:"#fca5a5", fontWeight:800, marginBottom:6 }}>💔 {l.nom}</div>
+              <div style={{ fontSize:12, color:"#fca5a5", fontWeight:800, marginBottom:6, display:"flex", alignItems:"center", gap:4 }}><X size={11} color="#fca5a5"/>{l.nom}</div>
               <BLine icon="📈" label="ELO" val={l.elo} color={l.elo >= 0 ? "#22c55e" : "#ef4444"}/>
               {l.bonusManches > 0 && <BLine icon="💎" label={`${l.nbManches} manche(s)`} val={l.bonusManches} color="#f59e0b"/>}
               {l.bonusVolees > 0 && <BLine icon="🔥" label={`${l.nbVolees} grosse(s) volée(s)`} val={l.bonusVolees} color="#f97316"/>}
@@ -3439,9 +3439,9 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
                 <span onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ color:C.text,cursor:"pointer" }}>{p.joueur_pseudo}</span>
                 <span style={{ color:C.muted,fontWeight:400 }}> a débloqué un badge !</span>
               </div>
-              <div style={{ fontSize:11,color:C.muted }}>{tempsDepuis(p.date)}</div>
+              <div style={{ fontSize:12,color:C.muted }}>{tempsDepuis(p.date)}</div>
             </div>
-            <span style={{ fontSize:22 }}>🏅</span>
+            <Medal size={22} color="#f59e0b"/>
           </div>
           {/* Badge card */}
           <div style={{ display:"flex",alignItems:"center",gap:14,background:badge.couleur+"18",border:`1px solid ${badge.couleur}55`,borderRadius:12,padding:"12px 16px",marginBottom:10 }}>
@@ -3450,7 +3450,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
               <div style={{ fontWeight:800,fontSize:16,color:badge.couleur }}>{badge.nom}</div>
               <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>{badge.desc}</div>
             </div>
-            <div style={{ marginLeft:"auto",fontSize:18 }}>✅</div>
+            <div style={{ marginLeft:"auto" }}><Check size={18} color="#22c55e" strokeWidth={3}/></div>
           </div>
           {/* Likes */}
           <div style={{ display:"flex",gap:8,marginTop:4 }}>
@@ -3468,7 +3468,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
           <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
           <div style={{ flex:1 }}>
             <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{p.joueur_pseudo}</div>
-            <div style={{ fontSize:11,color:C.muted }}>{tempsDepuis(p.date)}</div>
+            <div style={{ fontSize:12,color:C.muted }}>{tempsDepuis(p.date)}</div>
           </div>
         </div>
         <div style={{ fontSize:14,lineHeight:1.65,color:C.text,whiteSpace:"pre-wrap",paddingLeft:52 }}>{p.contenu}</div>
@@ -3492,8 +3492,8 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     const draw = cScore === dScore;
     return (
       <div key={`match-${d.id}`} style={{ ...cardBase, borderColor:"#f9731622" }}>
-        <div style={{ fontSize:11,color:C.accent,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6 }}>
-          ⚔️ Match terminé
+        <div style={{ fontSize:12,color:C.accent,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6 }}>
+          <Swords size={12} color={C.accent}/> Match terminé
           <span style={{ color:C.muted,fontWeight:400 }}>· {tempsDepuis(item.date)}</span>
         </div>
         {[
@@ -3505,10 +3505,10 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
           <div key={i} style={{ display:"flex",alignItems:"center",gap:10,marginBottom:i===0?8:0 }}>
             <FeedAvatar photo={photosMap[p.id]||null} pseudo={p.pseudo} size={36} onClick={()=>setPage("profil-joueur-"+p.id)}/>
             <div style={{ flex:1 }}>
-              <div onClick={()=>setPage("profil-joueur-"+p.id)} style={{ fontWeight:700,fontSize:14,color:p.win?"#10b981":draw?"#eab308":C.muted,cursor:"pointer" }}>
-                {p.pseudo} {p.win?"🏆":""}
+              <div onClick={()=>setPage("profil-joueur-"+p.id)} style={{ fontWeight:700,fontSize:14,color:p.win?"#10b981":draw?"#eab308":C.muted,cursor:"pointer",display:"flex",alignItems:"center",gap:5 }}>
+                {p.pseudo} {p.win && <Trophy size={13} color="#10b981"/>}
               </div>
-              {p.moy!==null && <div style={{ fontSize:11,color:C.muted }}>moy. {p.moy} pts/volée</div>}
+              {p.moy!==null && <div style={{ fontSize:12,color:C.muted }}>moy. {p.moy} pts/volée</div>}
             </div>
             <div style={{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2 }}>
               <div style={{ fontWeight:800,fontSize:22,color:p.win?"#10b981":draw?"#eab308":"#ef4444",minWidth:28,textAlign:"right" }}>{p.score}</div>
@@ -3533,11 +3533,11 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
               : [d.defie_pseudo, d.challenger_pseudo, vD, vC];
           return (
             <div style={{ marginTop:10, background:"#0f0f0f", borderRadius:10, padding:"8px 12px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
-              <span style={{ fontSize:11, color:"#64748b", fontWeight:600 }}>💎 DRIX</span>
+              <span style={{ fontSize:12, color:"#64748b", fontWeight:600, display:"flex", alignItems:"center", gap:4 }}>DRIX</span>
               <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                 {vGain !== undefined && (
-                  <span style={{ background:"#14532d", color:"#22c55e", borderRadius:20, padding:"3px 10px", fontSize:12, fontWeight:800 }}>
-                    🏆 {gagnantPseudo} <b>+{vGain}</b>
+                  <span style={{ background:"#14532d", color:"#22c55e", borderRadius:20, padding:"3px 10px", fontSize:12, fontWeight:800, display:"inline-flex", alignItems:"center", gap:4 }}>
+                    <Trophy size={11} color="#22c55e"/>{gagnantPseudo} <b>+{vGain}</b>
                   </span>
                 )}
                 {vPerte !== undefined && (
@@ -3567,15 +3567,15 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
           <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+m.joueur_id)}/>
           <div style={{ flex:1 }}>
             <div onClick={()=>setPage("profil-joueur-"+m.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{m.joueur_pseudo}</div>
-            <div style={{ fontSize:13,color: up?"#10b981":"#ef4444",fontWeight:600,marginTop:3 }}>
-              {up ? "⬆️ Nouveau palier DRIX !" : "⬇️ Palier perdu"}
+            <div style={{ fontSize:13,color: up?"#10b981":"#ef4444",fontWeight:600,marginTop:3,display:"flex",alignItems:"center",gap:5 }}>
+              {up ? <TrendingUp size={14}/> : <TrendingDown size={14}/>} {up ? "Nouveau palier DRIX !" : "Palier perdu"}
             </div>
             <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>{emoji} {titre} — {m.drix_apres} DRIX</div>
           </div>
           <div style={{ fontSize:34 }}>{emoji}</div>
         </div>
         <div style={{ display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",marginTop:8 }}>
-          <span style={{ fontSize:11,color:C.muted }}>{tempsDepuis(item.date)}</span>
+          <span style={{ fontSize:12,color:C.muted }}>{tempsDepuis(item.date)}</span>
           <LikeButton refId={m.id} joueur={joueur} initialCount={likesMap[m.id]?.count||0} initialMyLike={likesMap[m.id]?.myLike||false}/>
         </div>
         <CommentSection refId={m.id} joueur={joueur} initialComments={commentsMap[m.id]||[]}/>
@@ -3592,17 +3592,17 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
           <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+m.joueur_id)}/>
           <div style={{ flex:1 }}>
             <div onClick={()=>setPage("profil-joueur-"+m.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{m.joueur_pseudo}</div>
-            <div style={{ fontSize:13,color: gain?"#f97316":"#ef4444",fontWeight:600,marginTop:3 }}>
-              🎯 {gain ? `+${m.variation} DRIX gagnés` : `${m.variation} DRIX perdus`} en Comptage de finish
+            <div style={{ fontSize:13,color: gain?"#f97316":"#ef4444",fontWeight:600,marginTop:3,display:"flex",alignItems:"center",gap:5 }}>
+              <Zap size={13}/> {gain ? `+${m.variation} DRIX gagnés` : `${m.variation} DRIX perdus`} en Comptage de finish
             </div>
             <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>
               {m.drix_apres} DRIX au total
             </div>
           </div>
-          <div style={{ fontSize:30 }}>{gain ? "🔥" : "💥"}</div>
+          <div>{gain ? <Flame size={28} color="#f97316"/> : <Zap size={28} color="#ef4444"/>}</div>
         </div>
         <div style={{ display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",marginTop:8 }}>
-          <span style={{ fontSize:11,color:C.muted }}>{tempsDepuis(item.date)}</span>
+          <span style={{ fontSize:12,color:C.muted }}>{tempsDepuis(item.date)}</span>
           <LikeButton refId={m.id} joueur={joueur} initialCount={likesMap[m.id]?.count||0} initialMyLike={likesMap[m.id]?.myLike||false}/>
         </div>
         <CommentSection refId={m.id} joueur={joueur} initialComments={commentsMap[m.id]||[]}/>
@@ -3619,13 +3619,13 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
           <FeedAvatar photo={photosMap[p.joueur_id]||null} pseudo={p.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
           <div style={{ flex:1 }}>
             <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{p.joueur_pseudo}</div>
-            <div style={{ fontSize:13,color:"#60a5fa",fontWeight:600,marginTop:3 }}>
-              🍺 Est au bar{bar ? ` — ${bar.nom}` : p.bar_slug ? ` (${p.bar_slug})` : ""}
+            <div style={{ fontSize:13,color:"#60a5fa",fontWeight:600,marginTop:3,display:"flex",alignItems:"center",gap:5 }}>
+              <MapPin size={13}/> Est au bar{bar ? ` — ${bar.nom}` : p.bar_slug ? ` (${p.bar_slug})` : ""}
             </div>
           </div>
         </div>
         <div style={{ display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",marginTop:8 }}>
-          <span style={{ fontSize:11,color:C.muted }}>{tempsDepuis(item.date)}</span>
+          <span style={{ fontSize:12,color:C.muted }}>{tempsDepuis(item.date)}</span>
           <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
         </div>
         <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
@@ -3644,18 +3644,18 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
 
   return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
-      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Accueil</button>
+      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,display:"flex",alignItems:"center",gap:6 }}><ArrowLeft size={16}/> Accueil</button>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4 }}>
-        <h1 style={{ fontWeight:800,fontSize:22,margin:0 }}>👥 Communauté</h1>
-        <button onClick={()=>{ setLoading(true); setRefreshTick(t=>t+1); }} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:18,padding:4 }} title="Rafraîchir">🔄</button>
+        <h1 style={{ fontWeight:800,fontSize:22,margin:0,display:"flex",alignItems:"center",gap:8 }}><Users size={20} color={C.accent}/>Communauté</h1>
+        <button onClick={()=>{ setLoading(true); setRefreshTick(t=>t+1); }} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",padding:4,display:"flex",touchAction:"manipulation" }} title="Rafraîchir"><RefreshCw size={16}/></button>
       </div>
       <p style={{ color:C.muted,fontSize:13,marginBottom:12 }}>L'actualité de tes amis</p>
 
       {/* ── Onglets ── */}
       <style>{`@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.35)}}`}</style>
       <div style={{ display:"flex",background:"#111",borderRadius:12,padding:3,gap:3,marginBottom:20 }}>
-        <button onClick={()=>setMainTab("feed")} style={{ flex:1,padding:"9px",borderRadius:9,border:"none",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .15s",background:mainTab==="feed"?"#1e1e1e":"transparent",color:mainTab==="feed"?C.text:C.muted }}>
-          👥 Communauté
+        <button onClick={()=>setMainTab("feed")} style={{ flex:1,padding:"9px",borderRadius:9,border:"none",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .15s",background:mainTab==="feed"?"#1e1e1e":"transparent",color:mainTab==="feed"?C.text:C.muted,display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
+          <Users size={14}/>Communauté
         </button>
         <button onClick={()=>setMainTab("live")} style={{ flex:1,padding:"9px",borderRadius:9,border:"none",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .15s",background:mainTab==="live"?"#1e1e1e":"transparent",color:mainTab==="live"?"#ef4444":C.muted,display:"flex",alignItems:"center",justifyContent:"center",gap:7 }}>
           <span style={{ display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#ef4444",flexShrink:0,animation:mainTab==="live"?"livePulse 1.2s infinite":undefined }}/>
@@ -3685,7 +3685,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
                 <span style={{ fontSize:11,color:C.muted }}>{texte.length}/500</span>
                 <button onClick={publier} disabled={!texte.trim()||posting}
                   style={{ background:texte.trim()?C.accent:"#2a2a2a",color:texte.trim()?"#fff":C.muted,border:"none",borderRadius:8,padding:"8px 20px",fontWeight:700,fontSize:14,cursor:texte.trim()?"pointer":"default",transition:"all .15s" }}>
-                  {posting ? "⏳" : "Publier"}
+                  {posting ? "…" : "Publier"}
                 </button>
               </div>
             </div>
@@ -3694,16 +3694,16 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
       )}
 
       {erreur && (
-        <div style={{ background:"#ef444422",border:"1px solid #ef444455",borderRadius:10,padding:"10px 14px",color:"#ef4444",fontSize:13,marginBottom:16 }}>
-          ⚠️ {erreur}
+        <div style={{ background:"#ef444422",border:"1px solid #ef444455",borderRadius:10,padding:"10px 14px",color:"#ef4444",fontSize:13,marginBottom:16,display:"flex",alignItems:"center",gap:8 }}>
+          <AlertCircle size={14}/> {erreur}
         </div>
       )}
 
       {loading ? (
-        <div style={{ textAlign:"center",color:C.muted,padding:48,fontSize:14 }}>⏳ Chargement du fil…</div>
+        <div style={{ textAlign:"center",color:C.muted,padding:48,fontSize:14 }}>Chargement du fil…</div>
       ) : feed.length === 0 ? (
         <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:40,textAlign:"center" }}>
-          <div style={{ fontSize:52,marginBottom:14 }}>👥</div>
+          <div style={{ display:"flex",justifyContent:"center",marginBottom:14 }}><Users size={52} color={C.muted}/></div>
           <h2 style={{ fontWeight:700,fontSize:18,marginBottom:8 }}>Fil vide pour l'instant</h2>
           <p style={{ color:C.muted,fontSize:14,lineHeight:1.6,maxWidth:300,margin:"0 auto" }}>
             Ajoute des amis et jouez des matchs pour voir l'activité ici.
