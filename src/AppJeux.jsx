@@ -1250,6 +1250,22 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const actif = joueurs[actifIdx];
   const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
 
+  // Ref pour scroller automatiquement vers le joueur actif
+  const scoresGridRef = useRef(null);
+  const activeCardRef = useRef(null);
+  useEffect(() => {
+    if (!scoresGridRef.current || !activeCardRef.current) return;
+    const grid = scoresGridRef.current;
+    const card = activeCardRef.current;
+    const cardLeft = card.offsetLeft;
+    const cardRight = cardLeft + card.offsetWidth;
+    const visibleLeft = grid.scrollLeft;
+    const visibleRight = visibleLeft + grid.clientWidth;
+    if (cardLeft < visibleLeft || cardRight > visibleRight) {
+      grid.scrollTo({ left: cardLeft - grid.clientWidth / 2 + card.offsetWidth / 2, behavior: "smooth" });
+    }
+  }, [actifIdx]);
+
   return (
     <div className="scoreur-wrap" style={{
       position: "fixed",
@@ -1344,12 +1360,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       </div>
 
       {/* Scores — joueur bulle toujours en premier */}
-      <div style={{ display:"grid", gridTemplateColumns:`repeat(${joueurs.length}, 1fr)`, flexShrink:0, overflowX: joueurs.length > 3 ? "auto" : "visible" }}>
+      <div ref={scoresGridRef} style={{ display:"grid", gridTemplateColumns:`repeat(${joueurs.length}, minmax(${joueurs.length <= 3 ? "0" : "90px"}, 1fr))`, flexShrink:0, overflowX: joueurs.length > 3 ? "auto" : "visible" }}>
         {displayOrder.map((realIdx, displayI) => {
           const j = joueurs[realIdx];
           const isActif = realIdx === actifIdx;
           return (
-            <div key={displayI} style={{
+            <div key={displayI} ref={isActif ? activeCardRef : null} style={{
               padding:"12px 12px",
               background: isActif ? "linear-gradient(135deg,#f97316,#ea580c)" : "#c2410c22",
               borderBottom: `3px solid ${isActif ? "#f97316" : "transparent"}`,
