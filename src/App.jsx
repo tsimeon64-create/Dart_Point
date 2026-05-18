@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { C, Z } from "./theme";
-import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell, Users, RefreshCw, Swords, TrendingUp, TrendingDown, Medal, Check, AlertCircle, ThumbsUp, MessageCircle, MapPin, Flame, Zap, Target, Clock, ChevronRight } from "lucide-react";
+import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell, Users, RefreshCw, Swords, TrendingUp, TrendingDown, Medal, Check, AlertCircle, ThumbsUp, MessageCircle, MapPin, Flame, Zap, Target, Clock, ChevronRight, Map, List, Phone, Share2, Eye, Info, Calendar, Home as HomeIcon, Lock, ExternalLink, Crown, Gem, Pencil, Navigation, Camera, Link2, Building2 } from "lucide-react";
 import {
   Connexion, MonProfil, PageJoueurs, FicheJoueur,
   PageProfilStats, PageProfilAmis, PageProfilBadges, PageProfilHistorique,
@@ -4009,10 +4009,10 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
         {/* ── ONGLETS PRINCIPAUX ─────────────────────────────────────────────── */}
         <div style={{ display:"flex", gap:8, marginBottom:20 }}>
           <button onClick={()=>{ setTypeVue("bars"); setChipFilter("tous"); }} style={tabBtn(typeVue==="bars","#f97316")}>
-            <span style={{ fontSize:22 }}>🍺</span><span>Bars</span>
+            <Building2 size={20}/><span>Bars</span>
           </button>
           <button onClick={()=>{ setTypeVue("assos"); setChipFilter("tous"); }} style={tabBtn(typeVue==="assos","#7c3aed")}>
-            <span style={{ fontSize:22 }}>👥</span><span>Associations</span>
+            <Users size={20}/><span>Associations</span>
           </button>
         </div>
 
@@ -4024,7 +4024,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
           {/* Header orange avec stats live */}
           <div style={{ background:"linear-gradient(135deg,#1a0f00,#2a1500)", border:"1px solid #f9731630", borderRadius:20, padding:"20px 20px 16px", marginBottom:16, position:"relative", overflow:"hidden" }}>
             <div style={{ position:"absolute", top:-30, right:-30, width:120, height:120, borderRadius:"50%", background:"radial-gradient(circle,#f9731620,transparent)", pointerEvents:"none" }}/>
-            <h1 style={{ fontWeight:900, fontSize:22, color:"#fff", marginBottom:12, textShadow:"0 0 20px #f9731688" }}>🍺 Bars à fléchettes</h1>
+            <h1 style={{ fontWeight:900, fontSize:22, color:"#fff", marginBottom:12, textShadow:"0 0 20px #f9731688", display:"flex", alignItems:"center", gap:10 }}><Building2 size={22} color="#f97316"/> Bars à fléchettes</h1>
             <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
               <div style={{ display:"flex", alignItems:"center", gap:7 }}>
                 <div style={{ width:8, height:8, borderRadius:"50%", background:"#f97316", animation:"pulse-dot 2s infinite" }}/>
@@ -4051,12 +4051,12 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
           {/* Chips filtres horizontaux scrollables */}
           <div className="chip-scroll" style={{ display:"flex", gap:8, overflowX:"auto", marginBottom:14, paddingBottom:4 }}>
             {[
-              ["tous","🍺","Tous"],
-              ["actifs","🟢","Actifs ce soir"],
-              ["traditionnel","🎯","Traditionnel"],
-              ["electronique","⚡","Électronique"],
-              ["tournois","🏆","Avec tournois"],
-            ].map(([v,e,l]) => (
+              { v:"tous", Icon:Building2, l:"Tous" },
+              { v:"actifs", Icon:null, l:"Actifs ce soir" },
+              { v:"traditionnel", Icon:Target, l:"Traditionnel" },
+              { v:"electronique", Icon:Zap, l:"Électronique" },
+              { v:"tournois", Icon:Trophy, l:"Avec tournois" },
+            ].map(({ v, Icon:FIcon, l }) => (
               <button key={v} onClick={()=>setChipFilter(v)} style={{
                 whiteSpace:"nowrap", flexShrink:0,
                 padding:"8px 14px", borderRadius:20,
@@ -4067,7 +4067,11 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
                 cursor:"pointer", transition:"all .15s",
                 display:"flex", alignItems:"center", gap:5,
               }}>
-                <span>{e}</span><span>{l}</span>
+                {v==="actifs"
+                  ? <div style={{ width:8,height:8,borderRadius:"50%",background:chipFilter==="actifs"?"#fff":"#22c55e",animation:"pulse-dot 2s infinite",flexShrink:0 }}/>
+                  : FIcon && <FIcon size={14} color={chipFilter===v?"#fff":"#94a3b8"}/>
+                }
+                <span>{l}</span>
                 {v==="actifs" && barsActifs.length>0 && chipFilter!=="actifs" && (
                   <span style={{ background:"#22c55e", color:"#fff", borderRadius:10, padding:"0 5px", fontSize:10, fontWeight:700, marginLeft:2 }}>{barsActifs.length}</span>
                 )}
@@ -4078,23 +4082,28 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
           {/* Search + Geo */}
           <div style={{ display:"flex", gap:8, marginBottom:12 }}>
             <div style={{ position:"relative", flex:1 }}>
-              <span style={{ position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",fontSize:14,pointerEvents:"none",color:"#64748b" }}>🔍</span>
+              <Search size={15} style={{ position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",pointerEvents:"none" }} color="#64748b"/>
               <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher un bar ou une ville…"
-                style={{ width:"100%",background:"#1a1a1a",border:`1px solid ${search?"#f97316":"#2a2a2a"}`,borderRadius:10,padding:"10px 36px 10px 36px",color:"#f1f5f9",fontSize:14,boxSizing:"border-box",outline:"none" }}/>
-              {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:15 }}>✕</button>}
+                style={{ width:"100%",background:"#1a1a1a",border:`1px solid ${search?"#f97316":"#2a2a2a"}`,borderRadius:10,padding:"10px 36px 10px 36px",color:"#f1f5f9",fontSize:16,boxSizing:"border-box",outline:"none" }}/>
+              {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748b",cursor:"pointer",display:"flex",alignItems:"center" }}><X size={15}/></button>}
             </div>
             <button onClick={geolocate} disabled={geoLoading}
               style={{ background:userPos?"#22c55e22":"#1a1a1a",color:userPos?"#22c55e":"#94a3b8",border:`1px solid ${userPos?"#22c55e":"#2a2a2a"}`,borderRadius:10,padding:"0 14px",cursor:"pointer",fontSize:12,fontWeight:600,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5,flexShrink:0 }}>
-              <span>{geoLoading?"⏳":"📍"}</span>
-              <span>{geoLoading?"…":userPos?"✕ Désactiver":"Autour de moi"}</span>
+              {geoLoading ? <RefreshCw size={14} style={{ animation:"spin 1s linear infinite" }}/> : <Navigation size={14}/>}
+              <span>{geoLoading?"…":userPos?"Désactiver":"Autour de moi"}</span>
             </button>
           </div>
-          {geoErr&&<p style={{ color:"#f87171",fontSize:12,marginBottom:10 }}>⚠️ {geoErr}</p>}
+          {geoErr&&<p style={{ color:"#f87171",fontSize:12,marginBottom:10,display:"flex",alignItems:"center",gap:5 }}><AlertCircle size={13}/> {geoErr}</p>}
 
           {/* Carte/Liste */}
           <div style={{ display:"flex",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:10,overflow:"hidden",marginBottom:14 }}>
-            {[["carte","🗺️ Carte"],["liste","📋 Liste"]].map(([v,l])=>(
-              <button key={v} onClick={()=>setView(v)} style={{ flex:1,padding:"9px 0",background:view===v?"#f97316":"transparent",color:view===v?"#fff":"#94a3b8",border:"none",cursor:"pointer",fontWeight:view===v?700:400,fontSize:13,transition:"all .15s" }}>{l}</button>
+            {[
+              { v:"carte", Icon:Map, l:"Carte" },
+              { v:"liste", Icon:List, l:"Liste" },
+            ].map(({ v, Icon:FIcon, l })=>(
+              <button key={v} onClick={()=>setView(v)} style={{ flex:1,padding:"9px 0",background:view===v?"#f97316":"transparent",color:view===v?"#fff":"#94a3b8",border:"none",cursor:"pointer",fontWeight:view===v?700:400,fontSize:13,transition:"all .15s",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
+                <FIcon size={14}/> {l}
+              </button>
             ))}
           </div>
 
@@ -4108,7 +4117,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
           {/* Liste */}
           {(view==="liste")&&(
             filteredBars.length===0
-              ? <div style={{ textAlign:"center",padding:"40px 20px",color:"#64748b" }}><div style={{ fontSize:44,marginBottom:10 }}>🔍</div><p>Aucun bar trouvé.</p></div>
+              ? <div style={{ textAlign:"center",padding:"40px 20px",color:"#64748b" }}><div style={{ marginBottom:10,display:"flex",justifyContent:"center" }}><Search size={44} color="#64748b"/></div><p>Aucun bar trouvé.</p></div>
               : <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
                   {filteredBars.map(b=>(
                     <div key={b.id} onClick={()=>{setBarSlug(b.slug);setPage("bar");}}
@@ -4117,19 +4126,21 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
                       onMouseLeave={e=>{e.currentTarget.style.borderColor=barsActifs.includes(b.slug)?"#22c55e44":"#2a2a2a";e.currentTarget.style.boxShadow="none";}}>
                       {barsActifs.includes(b.slug)&&<div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,#22c55e,transparent)" }}/>}
                       <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-                        <div style={{ width:46,height:46,borderRadius:12,background:"#f9731620",border:"1px solid #f9731640",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0 }}>
-                          {b.type==="traditionnel"?"🎯":b.type==="electronique"?"⚡":"🍺"}
+                        <div style={{ width:46,height:46,borderRadius:12,background:"#f9731620",border:"1px solid #f9731640",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+                          {b.type==="traditionnel" ? <Target size={22} color="#f97316"/> : b.type==="electronique" ? <Zap size={22} color="#f97316"/> : <Building2 size={22} color="#f97316"/>}
                         </div>
                         <div style={{ flex:1,minWidth:0 }}>
                           <div style={{ display:"flex",alignItems:"center",gap:7,marginBottom:3,flexWrap:"wrap" }}>
                             <span style={{ fontWeight:700,fontSize:15,color:"#f1f5f9" }}>{b.nom}</span>
-                            {barsActifs.includes(b.slug)&&<span style={{ background:"#22c55e20",color:"#22c55e",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:700 }}>🟢 Ce soir</span>}
-                            {b.tournois&&<span style={{ background:"#fbbf2420",color:"#fbbf24",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:700 }}>🏆 Tournois</span>}
+                            {barsActifs.includes(b.slug)&&<span style={{ background:"#22c55e20",color:"#22c55e",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3 }}><div style={{ width:6,height:6,borderRadius:"50%",background:"#22c55e",animation:"pulse-dot 2s infinite" }}/> Ce soir</span>}
+                            {b.tournois&&<span style={{ background:"#fbbf2420",color:"#fbbf24",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3 }}><Trophy size={10}/> Tournois</span>}
                           </div>
-                          <div style={{ color:"#64748b",fontSize:12,marginBottom:5 }}>📍 {b.ville}{b.adresse?` · ${b.adresse}`:""}</div>
+                          <div style={{ color:"#64748b",fontSize:12,marginBottom:5,display:"flex",alignItems:"center",gap:4 }}><MapPin size={11}/> {b.ville}{b.adresse?` · ${b.adresse}`:""}</div>
                           <div style={{ display:"flex",gap:5,flexWrap:"wrap" }}>
-                            <span style={{ background:"#a78bfa18",color:"#a78bfa",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>🎯 {b.cibles} cible{b.cibles>1?"s":""}</span>
-                            <span style={{ background:"#f9731618",color:"#f97316",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>{b.type==="traditionnel"?"🎯 Traditionnel":b.type==="electronique"?"⚡ Électronique":"🍺 Bar"}</span>
+                            <span style={{ background:"#a78bfa18",color:"#a78bfa",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,display:"inline-flex",alignItems:"center",gap:3 }}><Target size={10}/> {b.cibles} cible{b.cibles>1?"s":""}</span>
+                            <span style={{ background:"#f9731618",color:"#f97316",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,display:"inline-flex",alignItems:"center",gap:3 }}>
+                              {b.type==="traditionnel" ? <><Target size={10}/> Traditionnel</> : b.type==="electronique" ? <><Zap size={10}/> Électronique</> : <><Building2 size={10}/> Bar</>}
+                            </span>
                           </div>
                         </div>
                         <div style={{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,flexShrink:0 }}>
@@ -4146,7 +4157,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
           <div style={{ position:"fixed",bottom:24,right:16,zIndex:500,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end" }}>
             {barsActifs.length>0&&(
               <button onClick={()=>{ setChipFilter("actifs"); setView("liste"); }} style={{ background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",border:"none",borderRadius:50,padding:"11px 18px",cursor:"pointer",fontSize:13,fontWeight:700,boxShadow:"0 4px 20px #22c55e55",display:"flex",alignItems:"center",gap:7 }}>
-                🎯 Trouver une partie
+                <Target size={15}/> Trouver une partie
               </button>
             )}
             <button onClick={()=>setPage("proposer")} style={{ background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff",border:"none",borderRadius:50,padding:"11px 18px",cursor:"pointer",fontSize:13,fontWeight:700,boxShadow:"0 4px 20px #f9731655",display:"flex",alignItems:"center",gap:7 }}>
@@ -4163,7 +4174,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
           {/* Header violet */}
           <div style={{ background:"linear-gradient(135deg,#0f0a1e,#1a1030)", border:"1px solid #7c3aed30", borderRadius:20, padding:"20px 20px 16px", marginBottom:16, position:"relative", overflow:"hidden" }}>
             <div style={{ position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,#7c3aed20,transparent)",pointerEvents:"none" }}/>
-            <h1 style={{ fontWeight:900,fontSize:22,color:"#fff",marginBottom:8,textShadow:"0 0 20px #a78bfa88" }}>👥 Associations</h1>
+            <h1 style={{ fontWeight:900,fontSize:22,color:"#fff",marginBottom:8,textShadow:"0 0 20px #a78bfa88",display:"flex",alignItems:"center",gap:10 }}><Users size={22} color="#a78bfa"/> Associations</h1>
             <div style={{ display:"flex",gap:16,flexWrap:"wrap" }}>
               <div style={{ display:"flex",alignItems:"center",gap:7 }}>
                 <span style={{ fontWeight:700,fontSize:14,color:"#a78bfa" }}>{associations.length}</span>
@@ -4178,16 +4189,21 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
 
           {/* Search */}
           <div style={{ position:"relative",marginBottom:14 }}>
-            <span style={{ position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",fontSize:14,pointerEvents:"none",color:"#64748b" }}>🔍</span>
+            <Search size={15} style={{ position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",pointerEvents:"none" }} color="#64748b"/>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher une association ou une ville…"
-              style={{ width:"100%",background:"#13101e",border:`1px solid ${search?"#7c3aed":"#2a2a3e"}`,borderRadius:10,padding:"10px 36px",color:"#f1f5f9",fontSize:14,boxSizing:"border-box",outline:"none" }}/>
-            {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:15 }}>✕</button>}
+              style={{ width:"100%",background:"#13101e",border:`1px solid ${search?"#7c3aed":"#2a2a3e"}`,borderRadius:10,padding:"10px 36px",color:"#f1f5f9",fontSize:16,boxSizing:"border-box",outline:"none" }}/>
+            {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748b",cursor:"pointer",display:"flex",alignItems:"center" }}><X size={15}/></button>}
           </div>
 
           {/* Carte/Liste */}
           <div style={{ display:"flex",background:"#13101e",border:"1px solid #2a2a3e",borderRadius:10,overflow:"hidden",marginBottom:14 }}>
-            {[["carte","🗺️ Carte"],["liste","📋 Liste"]].map(([v,l])=>(
-              <button key={v} onClick={()=>setView(v)} style={{ flex:1,padding:"9px 0",background:view===v?"#7c3aed":"transparent",color:view===v?"#fff":"#94a3b8",border:"none",cursor:"pointer",fontWeight:view===v?700:400,fontSize:13,transition:"all .15s" }}>{l}</button>
+            {[
+              { v:"carte", Icon:Map, l:"Carte" },
+              { v:"liste", Icon:List, l:"Liste" },
+            ].map(({ v, Icon:FIcon, l })=>(
+              <button key={v} onClick={()=>setView(v)} style={{ flex:1,padding:"9px 0",background:view===v?"#7c3aed":"transparent",color:view===v?"#fff":"#94a3b8",border:"none",cursor:"pointer",fontWeight:view===v?700:400,fontSize:13,transition:"all .15s",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
+                <FIcon size={14}/> {l}
+              </button>
             ))}
           </div>
 
@@ -4201,7 +4217,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
           {/* Liste associations */}
           {view==="liste"&&(
             filteredAssos.length===0
-              ? <div style={{ textAlign:"center",padding:"40px 20px",color:"#64748b" }}><div style={{ fontSize:44,marginBottom:10 }}>🔍</div><p>Aucune association trouvée.</p></div>
+              ? <div style={{ textAlign:"center",padding:"40px 20px",color:"#64748b" }}><div style={{ marginBottom:10,display:"flex",justifyContent:"center" }}><Search size={44} color="#64748b"/></div><p>Aucune association trouvée.</p></div>
               : <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
                   {filteredAssos.map(a=>(
                     <div key={a.slug} onClick={()=>{setAssoSlug(a.slug);setPage("asso");}}
@@ -4209,15 +4225,17 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
                       onMouseEnter={e=>{e.currentTarget.style.borderColor="#7c3aed";e.currentTarget.style.boxShadow="0 0 20px #7c3aed20";}}
                       onMouseLeave={e=>{e.currentTarget.style.borderColor="#2a2a3e";e.currentTarget.style.boxShadow="none";}}>
                       <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-                        <div style={{ width:48,height:48,borderRadius:12,background:"linear-gradient(135deg,#7c3aed22,#a78bfa22)",border:"1px solid #7c3aed44",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0 }}>🫂</div>
+                        <div style={{ width:48,height:48,borderRadius:12,background:"linear-gradient(135deg,#7c3aed22,#a78bfa22)",border:"1px solid #7c3aed44",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+                          <Users size={24} color="#a78bfa"/>
+                        </div>
                         <div style={{ flex:1,minWidth:0 }}>
                           <div style={{ fontWeight:700,fontSize:15,color:"#f1f5f9",marginBottom:3 }}>{a.nom}</div>
-                          <div style={{ fontSize:12,color:"#64748b" }}>📍 {a.ville}{a.zone?` · ${a.zone}`:""}</div>
+                          <div style={{ fontSize:12,color:"#64748b",display:"flex",alignItems:"center",gap:4 }}><MapPin size={11}/> {a.ville}{a.zone?` · ${a.zone}`:""}</div>
                           {a.description&&<div style={{ fontSize:11,color:"#94a3b8",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{a.description}</div>}
                         </div>
                         <div style={{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,flexShrink:0 }}>
                           <span style={{ background:"#7c3aed18",color:"#a78bfa",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>Club</span>
-                          <span style={{ color:"#a78bfa",fontSize:18 }}>›</span>
+                          <ChevronRight size={18} color="#a78bfa"/>
                         </div>
                       </div>
                     </div>
@@ -4228,14 +4246,14 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
           {/* Bloc président */}
           <div style={{ background:"linear-gradient(135deg,#1a1030,#0f0a1e)",border:"1px solid #7c3aed44",borderRadius:16,padding:"18px 20px",marginTop:20 }}>
             <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:8 }}>
-              <span style={{ fontSize:28 }}>👑</span>
+              <Crown size={28} color="#a78bfa"/>
               <div>
                 <div style={{ fontWeight:800,fontSize:15,color:"#f1f5f9" }}>Vous êtes président de club ?</div>
                 <div style={{ fontSize:12,color:"#94a3b8" }}>Demandez l'accès admin pour gérer votre association</div>
               </div>
             </div>
             <button onClick={()=>setPage("proposer-asso")} style={{ background:"linear-gradient(135deg,#7c3aed,#6d28d9)",color:"#fff",border:"none",borderRadius:10,padding:"10px 18px",cursor:"pointer",fontSize:13,fontWeight:700,width:"100%",marginTop:4 }}>
-              🔥 Demander accès administrateur
+              <Flame size={15}/> Demander accès administrateur
             </button>
           </div>
 
@@ -4255,7 +4273,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
           {/* Header rouge/or */}
           <div style={{ background:"linear-gradient(135deg,#1a0a0a,#2a0f0f)",border:"1px solid #dc262630",borderRadius:20,padding:"20px 20px 16px",marginBottom:16,position:"relative",overflow:"hidden" }}>
             <div style={{ position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,#dc262620,transparent)",pointerEvents:"none" }}/>
-            <h1 style={{ fontWeight:900,fontSize:22,color:"#fff",marginBottom:8,textShadow:"0 0 20px #ef444488" }}>🏆 Bars avec tournois</h1>
+            <h1 style={{ fontWeight:900,fontSize:22,color:"#fff",marginBottom:8,textShadow:"0 0 20px #ef444488",display:"flex",alignItems:"center",gap:10 }}><Trophy size={22} color="#fbbf24"/> Bars avec tournois</h1>
             <div style={{ display:"flex",gap:16,flexWrap:"wrap" }}>
               <div style={{ display:"flex",alignItems:"center",gap:7 }}>
                 <div style={{ width:8,height:8,borderRadius:"50%",background:"#fbbf24",animation:"pulse-dot 2s infinite" }}/>
@@ -4267,16 +4285,21 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
 
           {/* Search */}
           <div style={{ position:"relative",marginBottom:14 }}>
-            <span style={{ position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",fontSize:14,pointerEvents:"none",color:"#64748b" }}>🔍</span>
+            <Search size={15} style={{ position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",pointerEvents:"none" }} color="#64748b"/>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher un bar ou une ville…"
-              style={{ width:"100%",background:"#1a0f0f",border:`1px solid ${search?"#dc2626":"#3a1a1a"}`,borderRadius:10,padding:"10px 36px",color:"#f1f5f9",fontSize:14,boxSizing:"border-box",outline:"none" }}/>
-            {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:15 }}>✕</button>}
+              style={{ width:"100%",background:"#1a0f0f",border:`1px solid ${search?"#dc2626":"#3a1a1a"}`,borderRadius:10,padding:"10px 36px",color:"#f1f5f9",fontSize:16,boxSizing:"border-box",outline:"none" }}/>
+            {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748b",cursor:"pointer",display:"flex",alignItems:"center" }}><X size={15}/></button>}
           </div>
 
           {/* Carte/Liste */}
           <div style={{ display:"flex",background:"#1a0f0f",border:"1px solid #3a1a1a",borderRadius:10,overflow:"hidden",marginBottom:14 }}>
-            {[["carte","🗺️ Carte"],["liste","📋 Liste"]].map(([v,l])=>(
-              <button key={v} onClick={()=>setView(v)} style={{ flex:1,padding:"9px 0",background:view===v?"#dc2626":"transparent",color:view===v?"#fff":"#94a3b8",border:"none",cursor:"pointer",fontWeight:view===v?700:400,fontSize:13,transition:"all .15s" }}>{l}</button>
+            {[
+              { v:"carte", Icon:Map, l:"Carte" },
+              { v:"liste", Icon:List, l:"Liste" },
+            ].map(({ v, Icon:FIcon, l })=>(
+              <button key={v} onClick={()=>setView(v)} style={{ flex:1,padding:"9px 0",background:view===v?"#dc2626":"transparent",color:view===v?"#fff":"#94a3b8",border:"none",cursor:"pointer",fontWeight:view===v?700:400,fontSize:13,transition:"all .15s",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
+                <FIcon size={14}/> {l}
+              </button>
             ))}
           </div>
 
@@ -4290,7 +4313,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
           {/* Liste tournois */}
           {view==="liste"&&(
             filteredBars.length===0
-              ? <div style={{ textAlign:"center",padding:"40px 20px",color:"#64748b" }}><div style={{ fontSize:44,marginBottom:10 }}>🏆</div><p>Aucun bar avec tournois trouvé.</p></div>
+              ? <div style={{ textAlign:"center",padding:"40px 20px",color:"#64748b" }}><div style={{ marginBottom:10,display:"flex",justifyContent:"center" }}><Trophy size={44} color="#64748b"/></div><p>Aucun bar avec tournois trouvé.</p></div>
               : <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
                   {filteredBars.map(b=>(
                     <div key={b.id} onClick={()=>{setBarSlug(b.slug);setPage("bar");}}
@@ -4298,14 +4321,14 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
                       onMouseEnter={e=>{e.currentTarget.style.borderColor="#fbbf24";e.currentTarget.style.boxShadow="0 0 20px #fbbf2420";}}
                       onMouseLeave={e=>{e.currentTarget.style.borderColor="#3a1a1a";e.currentTarget.style.boxShadow="none";}}>
                       <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-                        <div style={{ width:48,height:48,borderRadius:12,background:"linear-gradient(135deg,#fbbf2420,#dc262620)",border:"1px solid #fbbf2444",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0 }}>🏆</div>
+                        <div style={{ width:48,height:48,borderRadius:12,background:"linear-gradient(135deg,#fbbf2420,#dc262620)",border:"1px solid #fbbf2444",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}><Trophy size={24} color="#fbbf24"/></div>
                         <div style={{ flex:1,minWidth:0 }}>
                           <div style={{ fontWeight:700,fontSize:15,color:"#f1f5f9",marginBottom:3 }}>{b.nom}</div>
-                          <div style={{ fontSize:12,color:"#64748b",marginBottom:5 }}>📍 {b.ville}</div>
+                          <div style={{ fontSize:12,color:"#64748b",marginBottom:5,display:"flex",alignItems:"center",gap:4 }}><MapPin size={11}/> {b.ville}</div>
                           <div style={{ display:"flex",gap:5,flexWrap:"wrap" }}>
-                            <span style={{ background:"#fbbf2420",color:"#fbbf24",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:700 }}>🏆 Tournois</span>
-                            {barsActifs.includes(b.slug)&&<span style={{ background:"#22c55e20",color:"#22c55e",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:700 }}>🟢 Actif ce soir</span>}
-                            <span style={{ background:"#f9731618",color:"#f97316",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>🎯 {b.cibles} cible{b.cibles>1?"s":""}</span>
+                            <span style={{ background:"#fbbf2420",color:"#fbbf24",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3 }}><Trophy size={10}/> Tournois</span>
+                            {barsActifs.includes(b.slug)&&<span style={{ background:"#22c55e20",color:"#22c55e",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3 }}><div style={{ width:6,height:6,borderRadius:"50%",background:"#22c55e",animation:"pulse-dot 2s infinite" }}/> Actif ce soir</span>}
+                            <span style={{ background:"#f9731618",color:"#f97316",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,display:"inline-flex",alignItems:"center",gap:3 }}><Target size={10}/> {b.cibles} cible{b.cibles>1?"s":""}</span>
                           </div>
                         </div>
                         <span style={{ background:"linear-gradient(135deg,#dc2626,#991b1b)",color:"#fff",padding:"7px 13px",borderRadius:8,fontSize:12,fontWeight:700,flexShrink:0 }}>Voir →</span>
@@ -4407,8 +4430,8 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
             </div>
         }
         <div style={{ position:"absolute",inset:0,background:"linear-gradient(to bottom,rgba(0,0,0,.5) 0%,transparent 45%,rgba(15,15,15,.97) 100%)" }}/>
-        <button onClick={()=>window.history.back()} style={{ position:"absolute",top:16,left:16,background:"rgba(0,0,0,.55)",border:"none",color:"#fff",cursor:"pointer",borderRadius:10,padding:"7px 14px",fontSize:13,backdropFilter:"blur(10px)",fontWeight:500 }}>← Retour</button>
-        {(isAdmin||joueur)&&<button onClick={()=>joueur?setShowEdit(true):null} style={{ position:"absolute",top:16,right:16,background:"rgba(0,0,0,.55)",border:`1px solid ${isAdmin?C.yellow+"66":"#ffffff44"}`,color:isAdmin?C.yellow:"#fff",cursor:"pointer",borderRadius:10,padding:"7px 13px",fontSize:12,backdropFilter:"blur(10px)" }}>✏️ Modifier</button>}
+        <button onClick={()=>window.history.back()} style={{ position:"absolute",top:16,left:16,background:"rgba(0,0,0,.55)",border:"none",color:"#fff",cursor:"pointer",borderRadius:10,padding:"7px 14px",fontSize:13,backdropFilter:"blur(10px)",fontWeight:500,display:"flex",alignItems:"center",gap:6 }}><ArrowLeft size={15}/> Retour</button>
+        {(isAdmin||joueur)&&<button onClick={()=>joueur?setShowEdit(true):null} style={{ position:"absolute",top:16,right:16,background:"rgba(0,0,0,.55)",border:`1px solid ${isAdmin?C.yellow+"66":"#ffffff44"}`,color:isAdmin?C.yellow:"#fff",cursor:"pointer",borderRadius:10,padding:"7px 13px",fontSize:12,backdropFilter:"blur(10px)",display:"flex",alignItems:"center",gap:5 }}><Pencil size={13}/> Modifier</button>}
       </div>
 
       <div style={{ padding:"0 16px" }}>
@@ -4419,34 +4442,34 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
             <div style={{ flex:1,minWidth:0 }}>
               <h1 style={{ fontWeight:800,fontSize:22,marginBottom:8,lineHeight:1.2 }}>{bar.nom}</h1>
               <div style={{ display:"flex",gap:6,flexWrap:"wrap",alignItems:"center" }}>
-                {bar.verifie&&<Badge color={C.green}>✅ Vérifié</Badge>}
+                {bar.verifie&&<Badge color={C.green} style={{ display:"inline-flex",alignItems:"center",gap:3 }}><Check size={11}/> Vérifié</Badge>}
                 <Badge color={ti.color}>{ti.l}</Badge>
-                {userDist!=null&&<Badge color="#60a5fa">📍 {userDist<1?(userDist*1000).toFixed(0)+" m":userDist.toFixed(1)+" km"}</Badge>}
+                {userDist!=null&&<Badge color="#60a5fa" style={{ display:"inline-flex",alignItems:"center",gap:3 }}><MapPin size={11}/> {userDist<1?(userDist*1000).toFixed(0)+" m":userDist.toFixed(1)+" km"}</Badge>}
               </div>
             </div>
-            <span style={{ fontSize:11,color:C.muted,flexShrink:0,marginTop:4 }}>👁 {bar.vues||0} vues</span>
+            <span style={{ fontSize:11,color:C.muted,flexShrink:0,marginTop:4,display:"flex",alignItems:"center",gap:4 }}><Eye size={12}/> {bar.vues||0} vues</span>
           </div>
-          <p style={{ color:C.muted,fontSize:12,marginTop:10 }}>📍 {bar.adresse}{bar.adresse?", ":""}{bar.cp} {bar.ville}</p>
+          <p style={{ color:C.muted,fontSize:12,marginTop:10,display:"flex",alignItems:"center",gap:5 }}><MapPin size={13}/> {bar.adresse}{bar.adresse?", ":""}{bar.cp} {bar.ville}</p>
         </div>
 
         {/* ── ACTIONS RAPIDES ── */}
         <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:20 }}>
           {[
-            {icon:"📍",label:"Itinéraire",fn:()=>window.open(mapsUrl,"_blank")},
-            {icon:"📞",label:"Appeler",fn:()=>{if(bar.tel)window.open(`tel:${bar.tel}`);},off:!bar.tel},
-            {icon:"📤",label:"Partager",fn:handleShare},
-            {icon:"🗺️",label:"Maps",fn:()=>window.open(mapsUrl,"_blank")},
+            {Icon:MapPin,label:"Itinéraire",fn:()=>window.open(mapsUrl,"_blank")},
+            {Icon:Phone,label:"Appeler",fn:()=>{if(bar.tel)window.open(`tel:${bar.tel}`);},off:!bar.tel},
+            {Icon:Share2,label:"Partager",fn:handleShare},
+            {Icon:Map,label:"Maps",fn:()=>window.open(mapsUrl,"_blank")},
           ].map((b,i)=>(
             <button key={i} onClick={b.fn} disabled={b.off}
               style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 6px",cursor:b.off?"default":"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:5,opacity:b.off?.35:1,transition:"border-color .15s" }}
               onMouseEnter={e=>{ if(!b.off) e.currentTarget.style.borderColor=C.accent; }}
               onMouseLeave={e=>{ e.currentTarget.style.borderColor=C.border; }}>
-              <span style={{ fontSize:22 }}>{b.icon}</span>
+              <b.Icon size={22} color={b.off ? C.muted : C.accent}/>
               <span style={{ fontSize:11,color:C.muted,fontWeight:500 }}>{b.label}</span>
             </button>
           ))}
         </div>
-        {copied&&<p style={{ textAlign:"center",color:C.green,fontSize:12,marginTop:-12,marginBottom:12 }}>✅ Lien copié !</p>}
+        {copied&&<p style={{ textAlign:"center",color:C.green,fontSize:12,marginTop:-12,marginBottom:12,display:"flex",alignItems:"center",justifyContent:"center",gap:5 }}><Check size={13}/> Lien copié !</p>}
 
         {/* ── PRÉSENCE CE SOIR ── */}
         <div ref={presenceRef}>
@@ -4467,18 +4490,18 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
 
         {/* ── INFOS DU SPOT (fusionné) ── */}
         <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18,marginBottom:16 }}>
-          <h3 style={{ fontWeight:700,fontSize:16,marginBottom:16,color:C.accent }}>📋 Infos du spot</h3>
+          <h3 style={{ fontWeight:700,fontSize:16,marginBottom:16,color:C.accent,display:"flex",alignItems:"center",gap:7 }}><Info size={16} color={C.accent}/> Infos du spot</h3>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
             {[
-              ["📍","Adresse",(bar.adresse||"—")+(bar.cp?" · "+bar.cp:"")+" "+bar.ville],
-              ["⏰","Horaires",bar.horaires||"Non renseignés"],
-              ["📞","Téléphone",bar.tel||"Non renseigné"],
-              ["🎯","Cibles",bar.cibles+" cible"+(bar.cibles>1?"s":"")],
-              ["🏆","Tournois",bar.tournois?"✅ Tournois réguliers":"Non"],
-              ["🍺","Type de jeu",ti.l],
-            ].map(([icon,label,value])=>(
+              [MapPin,"Adresse",(bar.adresse||"—")+(bar.cp?" · "+bar.cp:"")+" "+bar.ville],
+              [Clock,"Horaires",bar.horaires||"Non renseignés"],
+              [Phone,"Téléphone",bar.tel||"Non renseigné"],
+              [Target,"Cibles",bar.cibles+" cible"+(bar.cibles>1?"s":"")],
+              [Trophy,"Tournois",bar.tournois ? <span style={{ display:"flex",alignItems:"center",gap:4 }}><Check size={12} color={C.green}/> Tournois réguliers</span> : "Non"],
+              [Building2,"Type de jeu",ti.l],
+            ].map(([IconComp,label,value])=>(
               <div key={label} style={{ display:"flex",gap:10,alignItems:"flex-start" }}>
-                <span style={{ fontSize:15,marginTop:1,flexShrink:0 }}>{icon}</span>
+                <IconComp size={15} style={{ marginTop:1,flexShrink:0 }} color={C.accent}/>
                 <div>
                   <div style={{ fontSize:10,color:C.muted,marginBottom:2,letterSpacing:.5,fontWeight:700 }}>{label.toUpperCase()}</div>
                   <div style={{ fontSize:13,color:C.text }}>{value}</div>
@@ -4490,14 +4513,14 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
 
         {/* ── DESCRIPTION ── */}
         {bar.description&&<div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18,marginBottom:16 }}>
-          <h3 style={{ fontWeight:700,fontSize:14,marginBottom:10,color:C.accent }}>💬 Description</h3>
+          <h3 style={{ fontWeight:700,fontSize:14,marginBottom:10,color:C.accent,display:"flex",alignItems:"center",gap:7 }}><MessageCircle size={14} color={C.accent}/> Description</h3>
           <p style={{ color:C.muted,lineHeight:1.7,fontSize:13 }}>{bar.description}</p>
         </div>}
 
         {/* ── ASSOCIATION PARTENAIRE ── */}
         {asso&&<div onClick={()=>{setAssoSlug(asso.slug);setPage("asso");}}
           style={{ background:"#120a1a",border:`1px solid #f472b644`,borderRadius:14,padding:16,marginBottom:16,cursor:"pointer",display:"flex",alignItems:"center",gap:14 }}>
-          <span style={{ fontSize:30,flexShrink:0 }}>👥</span>
+          <Users size={28} color="#f472b6" style={{ flexShrink:0 }}/>
           <div>
             <div style={{ fontSize:10,color:"#f472b6",fontWeight:700,marginBottom:4,letterSpacing:.5 }}>ASSOCIATION PARTENAIRE</div>
             <div style={{ fontWeight:700,fontSize:14,marginBottom:2 }}>{asso.nom}</div>
@@ -4507,13 +4530,13 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
 
         {/* ── CARTE (secondaire, réduite) ── */}
         {bar.lat&&<div style={{ marginBottom:16 }}>
-          <h3 style={{ fontWeight:600,fontSize:13,marginBottom:10,color:C.muted }}>🗺️ Localisation</h3>
+          <h3 style={{ fontWeight:600,fontSize:13,marginBottom:10,color:C.muted,display:"flex",alignItems:"center",gap:6 }}><Map size={13}/> Localisation</h3>
           <LeafletMap bars={allBars} onBarClick={()=>{}} centerSlug={bar.slug} height={180}/>
         </div>}
 
         {/* ── SIGNALER ── */}
         <div style={{ textAlign:"center",paddingTop:4,paddingBottom:16 }}>
-          <button onClick={()=>setShowSignal(true)} style={{ background:"none",border:`1px solid ${C.border}`,borderRadius:10,color:C.muted,cursor:"pointer",fontSize:12,padding:"8px 20px" }}>⚠️ Signaler une erreur</button>
+          <button onClick={()=>setShowSignal(true)} style={{ background:"none",border:`1px solid ${C.border}`,borderRadius:10,color:C.muted,cursor:"pointer",fontSize:12,padding:"8px 20px",display:"flex",alignItems:"center",gap:6,margin:"0 auto" }}><AlertCircle size={13}/> Signaler une erreur</button>
         </div>
       </div>
 
@@ -4521,11 +4544,11 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
       <div style={{ position:"fixed",bottom:0,left:0,right:0,zIndex:200,padding:"10px 16px 22px",background:"linear-gradient(transparent,#0f0f0f 35%)",pointerEvents:"none" }}>
         <div style={{ maxWidth:860,margin:"0 auto",display:"flex",gap:10,pointerEvents:"auto" }}>
           <a href={mapsUrl} target="_blank" rel="noreferrer" style={{ flex:1,textDecoration:"none" }}>
-            <button style={{ width:"100%",background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:14,padding:"13px 0",fontSize:14,fontWeight:600,cursor:"pointer" }}>📍 Itinéraire</button>
+            <button style={{ width:"100%",background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:14,padding:"13px 0",fontSize:14,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}><MapPin size={15}/> Itinéraire</button>
           </a>
           <button onClick={()=>{ if(!joueur){setPage("connexion");return;} presenceRef.current?.scrollIntoView({behavior:"smooth",block:"center"}); }}
-            style={{ flex:2,background:C.accent,color:"#fff",border:"none",borderRadius:14,padding:"13px 0",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 4px 20px rgba(249,115,22,.4)" }}>
-            🎯 Je joue ici ce soir
+            style={{ flex:2,background:C.accent,color:"#fff",border:"none",borderRadius:14,padding:"13px 0",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 4px 20px rgba(249,115,22,.4)",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
+            <Target size={15}/> Je joue ici ce soir
           </button>
         </div>
       </div>
@@ -4595,11 +4618,11 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
 
   const badges = useMemo(() => {
     const b = [];
-    if (stats.n >= 5) b.push({ e:"🔥", l:"Club actif" });
-    if (stats.wr != null && stats.wr >= 55) b.push({ e:"🏆", l:"Club compétitif" });
-    if (stats.drixMoyen != null && stats.drixMoyen >= 1100) b.push({ e:"💎", l:"Elite" });
-    if (events.length > 0) b.push({ e:"🎉", l:"Événements" });
-    b.push({ e:"🍻", l:"Ambiance" });
+    if (stats.n >= 5) b.push({ Icon:Flame, l:"Club actif" });
+    if (stats.wr != null && stats.wr >= 55) b.push({ Icon:Trophy, l:"Club compétitif" });
+    if (stats.drixMoyen != null && stats.drixMoyen >= 1100) b.push({ Icon:Gem, l:"Elite" });
+    if (events.length > 0) b.push({ Icon:Calendar, l:"Événements" });
+    b.push({ Icon:Users, l:"Ambiance" });
     return b;
   }, [stats, events]);
 
@@ -4607,17 +4630,17 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
   const isUrl = v => v && (v.startsWith("http://") || v.startsWith("https://"));
   const isTel = v => v && /^[0-9 +().-]{6,}$/.test(v);
 
-  const renderContact = (icon, label, val) => {
+  const renderContact = (IconComp, label, val) => {
     if (!val) return null;
     return (
       <div style={{ display:"flex", gap:10, padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
-        <span style={{ fontSize:18, width:24, textAlign:"center", flexShrink:0 }}>{icon}</span>
+        <IconComp size={18} color={C.muted} style={{ width:24, flexShrink:0, marginTop:2 }}/>
         <div>
           <div style={{ fontSize:11, color:C.muted, marginBottom:2 }}>{label}</div>
           {isUrl(val) ? (
             <a href={val} target="_blank" rel="noreferrer"
-              style={{ fontSize:13, color:"#60a5fa", textDecoration:"none", wordBreak:"break-all" }}>
-              {val.includes("facebook") ? "📘 Voir sur Facebook" : val.includes("instagram") ? "📸 Instagram" : val}
+              style={{ fontSize:13, color:"#60a5fa", textDecoration:"none", wordBreak:"break-all", display:"flex",alignItems:"center",gap:5 }}>
+              <ExternalLink size={12}/> {val.includes("facebook") ? "Voir sur Facebook" : val.includes("instagram") ? "Instagram" : val}
             </a>
           ) : isTel(val) ? (
             <a href={`tel:${val.replace(/\s/g,"")}`} style={{ fontSize:13, color:"#4ade80", textDecoration:"none" }}>{val}</a>
@@ -4630,10 +4653,10 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
   };
 
   const TABS = [
-    { id:"club", l:"🏠 Club" },
-    { id:"membres", l:`👥 Membres${stats.n > 0 ? ` (${stats.n})` : ""}` },
-    { id:"events", l:`📅 Événements${events.length > 0 ? ` (${events.length})` : ""}` },
-    { id:"photos", l:"📸 Photos" },
+    { id:"club", Icon:HomeIcon, l:"Club" },
+    { id:"membres", Icon:Users, l:`Membres${stats.n > 0 ? ` (${stats.n})` : ""}` },
+    { id:"events", Icon:Calendar, l:`Événements${events.length > 0 ? ` (${events.length})` : ""}` },
+    { id:"photos", Icon:Camera, l:"Photos" },
   ];
 
   // ── HEADER — JSX inline (pas de composant imbriqué pour éviter le démontage) ──
@@ -4650,8 +4673,8 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
         <div style={{ display:"flex", alignItems:"flex-start", gap:18, marginBottom:20 }}>
           <div style={{ width:72, height:72, borderRadius:18, background:`linear-gradient(135deg,${C.accent}33,#7c3aed33)`,
             border:`2px solid ${C.accent}66`, display:"flex", alignItems:"center", justifyContent:"center",
-            fontSize:32, flexShrink:0, boxShadow:`0 0 20px ${C.accent}33` }}>
-            🎯
+            flexShrink:0, boxShadow:`0 0 20px ${C.accent}33` }}>
+            <Target size={32} color={C.accent}/>
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
@@ -4660,31 +4683,34 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
                 <button onClick={()=>setEditingAsso(true)}
                   style={{ background:"#ffffff14", border:"1px solid #ffffff22", borderRadius:8,
                     padding:"5px 12px", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer",
-                    flexShrink:0, touchAction:"manipulation" }}>
-                  ✏️ Modifier
+                    flexShrink:0, touchAction:"manipulation", display:"flex", alignItems:"center", gap:5 }}>
+                  <Pencil size={13}/> Modifier
                 </button>
               ) : (
                 <button onClick={()=>setPage("connexion")}
                   style={{ background:"#f9731614", border:"1px solid #f9731644", borderRadius:8,
                     padding:"5px 12px", color:C.accent, fontSize:11, fontWeight:600, cursor:"pointer",
-                    flexShrink:0, touchAction:"manipulation" }}>
-                  🔒 Connexion requise
+                    flexShrink:0, touchAction:"manipulation", display:"flex", alignItems:"center", gap:5 }}>
+                  <Lock size={13}/> Connexion requise
                 </button>
               )}
             </div>
             <div style={{ display:"flex", flexWrap:"wrap", gap:6, alignItems:"center", marginBottom:8 }}>
-              <span style={{ color:C.muted, fontSize:13 }}>📍 {asso.ville}</span>
+              <span style={{ color:C.muted, fontSize:13, display:"flex",alignItems:"center",gap:4 }}><MapPin size={13}/> {asso.ville}</span>
               {asso.zone && <span style={{ color:C.muted, fontSize:13 }}>· {asso.zone}</span>}
               <Badge color={ti.color}>{ti.l}</Badge>
             </div>
             {/* Badges */}
             <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-              {badges.map(b => (
-                <span key={b.l} style={{ background:"#ffffff0d", border:"1px solid #ffffff22", borderRadius:20,
-                  padding:"3px 10px", fontSize:11, fontWeight:600, color:"#e2e8f0" }}>
-                  {b.e} {b.l}
-                </span>
-              ))}
+              {badges.map(b => {
+                const BIcon = b.Icon;
+                return (
+                  <span key={b.l} style={{ background:"#ffffff0d", border:"1px solid #ffffff22", borderRadius:20,
+                    padding:"3px 10px", fontSize:11, fontWeight:600, color:"#e2e8f0", display:"inline-flex", alignItems:"center", gap:5 }}>
+                    <BIcon size={13}/> {b.l}
+                  </span>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -4692,15 +4718,15 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
         {/* Stats rapides */}
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(90px,1fr))", gap:10 }}>
           {[
-            { e:"👥", v: stats.n > 0 ? stats.n : "—", l:"Membres" },
-            { e:"💎", v: stats.drixMoyen ? stats.drixMoyen : "—", l:"DRIX moy." },
-            { e:"⚔️", v: stats.totalM > 0 ? stats.totalM : "—", l:"Matchs" },
-            { e:"🏆", v: stats.wr != null ? `${stats.wr}%` : "—", l:"Winrate" },
-            { e:"📅", v: events.length > 0 ? events.length : "—", l:"Tournois" },
+            { Icon:Users, v: stats.n > 0 ? stats.n : "—", l:"Membres" },
+            { Icon:Gem, v: stats.drixMoyen ? stats.drixMoyen : "—", l:"DRIX moy." },
+            { Icon:Swords, v: stats.totalM > 0 ? stats.totalM : "—", l:"Matchs" },
+            { Icon:Trophy, v: stats.wr != null ? `${stats.wr}%` : "—", l:"Winrate" },
+            { Icon:Calendar, v: events.length > 0 ? events.length : "—", l:"Tournois" },
           ].map(s => (
             <div key={s.l} style={{ background:"#ffffff08", borderRadius:12, padding:"12px 8px", textAlign:"center",
               border:"1px solid #ffffff11" }}>
-              <div style={{ fontSize:18, marginBottom:4 }}>{s.e}</div>
+              {(() => { const SI = s.Icon; return <SI size={20} color={s.v === "—" ? C.muted : C.accent} style={{ marginBottom:4 }}/>; })()}
               <div style={{ fontWeight:800, fontSize:18, color: s.v === "—" ? C.muted : C.accent, lineHeight:1 }}>{s.v}</div>
               <div style={{ fontSize:10, color:C.muted, marginTop:3, fontWeight:600, letterSpacing:.5, textTransform:"uppercase" }}>{s.l}</div>
             </div>
@@ -4717,28 +4743,28 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
       {/* Description */}
       {asso.description && (
         <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20,marginBottom:16 }}>
-          <div style={{ fontWeight:700,fontSize:13,color:C.accent,marginBottom:10,letterSpacing:.5 }}>ℹ️ À PROPOS</div>
+          <div style={{ fontWeight:700,fontSize:13,color:C.accent,marginBottom:10,letterSpacing:.5,display:"flex",alignItems:"center",gap:6 }}><Info size={14} color={C.accent}/> À PROPOS</div>
           <p style={{ color:"#cbd5e1",lineHeight:1.8,fontSize:13 }}>{asso.description}</p>
         </div>
       )}
 
       {/* Infos pratiques */}
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20,marginBottom:16 }}>
-        <div style={{ fontWeight:700,fontSize:13,color:C.accent,marginBottom:14,letterSpacing:.5 }}>📋 INFORMATIONS PRATIQUES</div>
-        {renderContact("👑", "Président", asso.president)}
-        {renderContact("👤", "Personne à contacter", asso.contact_nom)}
-        {renderContact("📞", "Téléphone", asso.tel)}
-        {renderContact("🗓", "Jour et heure d'entraînement", asso.jours)}
-        {renderContact("📍", "Lieu d'entraînement", asso.lieu)}
-        {renderContact("🔗", "Contact / Réseaux", asso.contact)}
+        <div style={{ fontWeight:700,fontSize:13,color:C.accent,marginBottom:14,letterSpacing:.5,display:"flex",alignItems:"center",gap:6 }}><Info size={14} color={C.accent}/> INFORMATIONS PRATIQUES</div>
+        {renderContact(Crown, "Président", asso.president)}
+        {renderContact(User, "Personne à contacter", asso.contact_nom)}
+        {renderContact(Phone, "Téléphone", asso.tel)}
+        {renderContact(Calendar, "Jour et heure d'entraînement", asso.jours)}
+        {renderContact(MapPin, "Lieu d'entraînement", asso.lieu)}
+        {renderContact(Link2, "Contact / Réseaux", asso.contact)}
         {!asso.president && !asso.contact_nom && !asso.jours && !asso.lieu && !asso.tel && !asso.contact && (
           <p style={{ color:C.muted,fontSize:13 }}>Aucune information pratique renseignée.</p>
         )}
         {asso.lat && (
           <a href={`https://www.google.com/maps/dir/?api=1&destination=${asso.lat},${asso.lng}`} target="_blank" rel="noreferrer"
-            style={{ display:"block",marginTop:14,background:`${C.accent}22`,border:`1px solid ${C.accent}44`,borderRadius:10,
+            style={{ display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:14,background:`${C.accent}22`,border:`1px solid ${C.accent}44`,borderRadius:10,
               padding:"10px 0",textAlign:"center",color:C.accent,textDecoration:"none",fontWeight:700,fontSize:13 }}>
-            🧭 Itinéraire Google Maps
+            <Navigation size={15}/> Itinéraire Google Maps
           </a>
         )}
       </div>
@@ -4746,15 +4772,15 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
       {/* Bars affiliés */}
       {asso.bars?.length > 0 && (
         <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20,marginBottom:16 }}>
-          <div style={{ fontWeight:700,fontSize:13,color:C.accent,marginBottom:14,letterSpacing:.5 }}>🍺 BARS AFFILIÉS</div>
+          <div style={{ fontWeight:700,fontSize:13,color:C.accent,marginBottom:14,letterSpacing:.5,display:"flex",alignItems:"center",gap:6 }}><Building2 size={14} color={C.accent}/> BARS AFFILIÉS</div>
           {asso.bars.map(nom => {
             const b = bars.find(x => x.nom === nom);
             return (
               <div key={nom} onClick={b ? ()=>{setBarSlug(b.slug);setPage("bar");} : undefined}
                 style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",
                   borderBottom:`1px solid ${C.border}`,cursor:b?"pointer":"default" }}>
-                <span style={{ fontWeight:600 }}>🍺 {nom}</span>
-                {b && <span style={{ color:C.muted,fontSize:12 }}>📍 {b.ville} →</span>}
+                <span style={{ fontWeight:600,display:"flex",alignItems:"center",gap:5 }}><Building2 size={13} color={C.accent}/> {nom}</span>
+                {b && <span style={{ color:C.muted,fontSize:12,display:"flex",alignItems:"center",gap:4 }}><MapPin size={11}/> {b.ville} <ChevronRight size={12}/></span>}
               </div>
             );
           })}
@@ -4765,7 +4791,7 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
       {asso.lat && (
         <div style={{ borderRadius:16,overflow:"hidden",marginBottom:16,border:`1px solid ${C.border}` }}>
           <div style={{ padding:"14px 20px",background:C.card,borderBottom:`1px solid ${C.border}` }}>
-            <div style={{ fontWeight:700,fontSize:13,color:C.accent,letterSpacing:.5 }}>🗺️ LOCALISATION</div>
+            <div style={{ fontWeight:700,fontSize:13,color:C.accent,letterSpacing:.5,display:"flex",alignItems:"center",gap:6 }}><Map size={14} color={C.accent}/> LOCALISATION</div>
           </div>
           <LeafletMap associations={[asso]} centerSlug={asso.slug} height={260}/>
         </div>
@@ -4778,14 +4804,14 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
     <div>
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden",marginBottom:16 }}>
         <div style={{ padding:"14px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-          <div style={{ fontWeight:700,fontSize:15 }}>🏆 Classement interne</div>
+          <div style={{ fontWeight:700,fontSize:15,display:"flex",alignItems:"center",gap:6 }}><Trophy size={15} color={C.accent}/> Classement interne</div>
           <span style={{ fontSize:12,color:C.muted }}>{membres.length} membre{membres.length>1?"s":""}</span>
         </div>
         {loadMembres ? (
           <div style={{ padding:40,textAlign:"center" }}><Spinner/></div>
         ) : membres.length === 0 ? (
           <div style={{ padding:"32px 20px",textAlign:"center" }}>
-            <div style={{ fontSize:40,marginBottom:12 }}>👥</div>
+            <div style={{ marginBottom:12,display:"flex",justifyContent:"center" }}><Users size={40} color={C.muted}/></div>
             <p style={{ color:C.muted,fontSize:14,marginBottom:8 }}>Aucun membre lié à ce club pour l'instant.</p>
             <p style={{ color:C.muted,fontSize:12 }}>Les membres peuvent rejoindre ce club depuis leur profil.</p>
           </div>
@@ -4809,13 +4835,13 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
                 overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center" }}>
                 {m.photo
                   ? <img src={m.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
-                  : <span style={{ fontSize:18 }}>🎯</span>
+                  : <Target size={18} color={C.accent}/>
                 }
               </div>
               {/* Infos */}
               <div style={{ flex:1,minWidth:0 }}>
                 <div style={{ fontWeight:700,fontSize:14 }}>{m.pseudo}</div>
-                {m.ville && <div style={{ fontSize:11,color:C.muted }}>📍 {m.ville}</div>}
+                {m.ville && <div style={{ fontSize:11,color:C.muted,display:"flex",alignItems:"center",gap:3 }}><MapPin size={10}/> {m.ville}</div>}
               </div>
               {/* DRIX */}
               <div style={{ textAlign:"right",flexShrink:0 }}>
@@ -4840,7 +4866,7 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
       <div>
         {events.length === 0 ? (
           <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"40px 20px",textAlign:"center" }}>
-            <div style={{ fontSize:40,marginBottom:12 }}>📅</div>
+            <div style={{ marginBottom:12,display:"flex",justifyContent:"center" }}><Calendar size={40} color={C.muted}/></div>
             <p style={{ color:C.muted,fontSize:14,marginBottom:6 }}>Aucun événement référencé pour ce club.</p>
             <p style={{ color:C.muted,fontSize:12 }}>Les tournois et événements organisés par ce club apparaîtront ici.</p>
           </div>
@@ -4862,7 +4888,7 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
                           </div>
                           <div style={{ flex:1 }}>
                             <div style={{ fontWeight:700,fontSize:14,marginBottom:4 }}>{ev.nom}</div>
-                            <div style={{ color:C.muted,fontSize:12 }}>📍 {ev.ville}{ev.bar?` · 🍺 ${ev.bar}`:""}</div>
+                            <div style={{ color:C.muted,fontSize:12,display:"flex",alignItems:"center",gap:4 }}><MapPin size={11}/> {ev.ville}{ev.bar ? <><span>·</span><Building2 size={11}/> {ev.bar}</> : ""}</div>
                             {ev.description&&<div style={{ color:C.muted,fontSize:12,marginTop:4 }}>{ev.description.slice(0,80)}…</div>}
                           </div>
                           <Badge color={typeInfo(ev.type).color}>{typeInfo(ev.type).l}</Badge>
@@ -4917,7 +4943,7 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
       {/* Retour */}
       <button onClick={() => window.history.back()}
         style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:20,fontSize:13,display:"flex",alignItems:"center",gap:6 }}>
-        ← Retour
+        <ArrowLeft size={15}/> Retour
       </button>
 
       {/* HEADER PREMIUM */}
@@ -4925,14 +4951,18 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
 
       {/* ONGLETS */}
       <div style={{ display:"flex",gap:0,marginBottom:20,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden" }}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            style={{ flex:1,padding:"11px 4px",background:tab===t.id?C.accent:"transparent",
-              color:tab===t.id?"#fff":C.muted,border:"none",cursor:"pointer",fontWeight:tab===t.id?700:400,
-              fontSize:12,transition:"all .15s",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>
-            {t.l}
-          </button>
-        ))}
+        {TABS.map(t => {
+          const TabIcon = t.Icon;
+          return (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              style={{ flex:1,padding:"11px 4px",background:tab===t.id?C.accent:"transparent",
+                color:tab===t.id?"#fff":C.muted,border:"none",cursor:"pointer",fontWeight:tab===t.id?700:400,
+                fontSize:12,transition:"all .15s",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
+                display:"flex",alignItems:"center",justifyContent:"center",gap:5 }}>
+              <TabIcon size={14}/> {t.l}
+            </button>
+          );
+        })}
       </div>
 
       {/* CONTENU ONGLETS */}
