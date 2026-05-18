@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, X, TrendingUp, Crown, Swords, Search, User } from "lucide-react";
+import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Navigation } from "lucide-react";
 
 // ── AppJoueurs.jsx ────────────────────────────────────────────────────────────
 // Système joueurs DartPoint : inscription, profils, duels, présence, scoreur
@@ -3310,15 +3310,15 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
     const ecart = Math.abs((j.drix || 1000) - monDrix);
     return (
       <div style={{ flex:1, background:"#0f0f0f", border:`1px solid ${CJ.border}`, borderRadius:10, padding:"10px 10px" }}>
-        <div style={{ fontSize:9, color:CJ.muted, fontWeight:800, marginBottom:6, letterSpacing:1 }}>{label}</div>
+        <div style={{ fontSize:10, color:CJ.muted, fontWeight:800, marginBottom:6, letterSpacing:1 }}>{label}</div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <div style={{ width:30, height:30, borderRadius:"50%", background:`${color}22`, border:`1.5px solid ${color}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, overflow:"hidden", flexShrink:0 }}>
             {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : emoji}
           </div>
           <div style={{ minWidth:0 }}>
             <div style={{ fontWeight:700, fontSize:12, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{j.pseudo}</div>
-            <div style={{ fontSize:10, color:CJ.muted }}>#{(monRangGlobal||0)+rangOffset} · {j.drix||1000} DRIX</div>
-            <div style={{ fontSize:10, fontWeight:700, color: ecartPositif ? CJ.red : CJ.green }}>Écart : {ecart} DRIX</div>
+            <div style={{ fontSize:11, color:CJ.muted }}>#{(monRangGlobal||0)+rangOffset} · {j.drix||1000} DRIX</div>
+            <div style={{ fontSize:11, fontWeight:700, color: ecartPositif ? CJ.red : CJ.green }}>Écart : {ecart} DRIX</div>
           </div>
         </div>
       </div>
@@ -3339,7 +3339,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
     const area = `M${x(0)},${H} ` + pts.map((p, i) => `L${x(i)},${y(vals[i])}`).join(" ") + ` L${x(pts.length-1)},${H} Z`;
     return (
       <div>
-        <div style={{ fontSize:13, fontWeight:700, color:CJ.text, marginBottom:10 }}>📈 Évolution de mes DRIX</div>
+        <div style={{ fontSize:13, fontWeight:700, color:CJ.text, marginBottom:10, display:"flex", alignItems:"center", gap:6 }}><TrendingUp size={15} color={CJ.green}/> Évolution de mes DRIX</div>
         <div style={{ background:"#0f0f0f", border:`1px solid ${CJ.border}`, borderRadius:12, padding:14, marginBottom:14, overflowX:"auto" }}>
           <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:H }} preserveAspectRatio="none">
             <defs>
@@ -3379,19 +3379,19 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
       {/* ── HEADER ── */}
       <div style={{ background:"linear-gradient(160deg,#0f0f0f 0%,#1a1000 60%,#0f0f0f 100%)", padding:"20px 16px 16px", borderBottom:`1px solid #2a2a2a22` }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
-          <span style={{ fontSize:30 }}>💎</span>
+          <Gem size={28} color="#a78bfa"/>
           <div>
             <div style={{ fontWeight:900, fontSize:20, color:CJ.text }}>Classement <span style={{ color:"#a78bfa" }}>DRIX</span></div>
-            <div style={{ color:CJ.muted, fontSize:11 }}>Saison {saisonActuelle} · Système ELO · Remise à zéro le 1er janvier</div>
+            <div style={{ color:CJ.muted, fontSize:12 }}>Saison {saisonActuelle} · Système ELO · Remise à zéro le 1er janvier</div>
           </div>
         </div>
         {/* View toggle */}
         <div style={{ display:"flex", gap:8 }}>
           <button onClick={() => setView("classement")} style={{ flex:1, padding:"10px 0", borderRadius:10, border:`2px solid ${view==="classement"?CJ.yellow:CJ.border}`, background:view==="classement"?`${CJ.yellow}18`:"transparent", color:view==="classement"?CJ.yellow:CJ.muted, fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-            🏆 HALL OF FAME
+            <Trophy size={14}/> HALL OF FAME
           </button>
           <button onClick={() => setView("evolution")} style={{ flex:1, padding:"10px 0", borderRadius:10, border:`2px solid ${view==="evolution"?CJ.blue:CJ.border}`, background:view==="evolution"?`${CJ.blue}18`:"transparent", color:view==="evolution"?CJ.blue:CJ.muted, fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-            📈 ÉVOLUTION
+            <TrendingUp size={14}/> ÉVOLUTION
           </button>
         </div>
       </div>
@@ -3450,7 +3450,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
 
             {/* Voir voisinage */}
             <button onClick={() => setShowVoisinage(v => !v)} style={{ width:"100%", marginTop:12, padding:"10px 0", background:"transparent", border:`1px solid ${CJ.yellow}44`, borderRadius:10, color:CJ.yellow, fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-              👥 VOIR MON VOISINAGE <span style={{ fontSize:14, transition:"transform .2s", display:"inline-block", transform:showVoisinage?"rotate(90deg)":"none" }}>›</span>
+              <Users size={14}/> VOIR MON VOISINAGE <ChevronRight size={14} style={{ transition:"transform .2s", transform:showVoisinage?"rotate(90deg)":"none" }}/>
             </button>
 
             {showVoisinage && (
@@ -3481,10 +3481,10 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
         {joueur && aPortee.length > 0 && (
           <div style={{ background:CJ.card, border:`1px solid #a78bfa44`, borderRadius:16, padding:16, marginBottom:12 }}>
             <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-              <span style={{ fontSize:18 }}>🎯</span>
+              <Target size={18} color="#a78bfa"/>
               <span style={{ fontWeight:800, fontSize:14, color:"#a78bfa" }}>À PORTÉE</span>
             </div>
-            <div style={{ fontSize:11, color:CJ.muted, marginBottom:12 }}>Gagne tes matchs pour monter dans le classement !</div>
+            <div style={{ fontSize:12, color:CJ.muted, marginBottom:12 }}>Gagne tes matchs pour monter dans le classement !</div>
             {aPortee.map(j => {
               const rang = classement.findIndex(x => x.id === j.id) + 1;
               const ecart = (j.drix || 1000) - monDrix;
@@ -3497,7 +3497,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontWeight:700, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{j.pseudo}</div>
-                    <div style={{ fontSize:11, color:CJ.muted }}>{j.drix||1000} DRIX · <span style={{ color:CJ.red }}>Écart : {ecart} DRIX</span></div>
+                    <div style={{ fontSize:12, color:CJ.muted }}>{j.drix||1000} DRIX · <span style={{ color:CJ.red }}>Écart : {ecart} DRIX</span></div>
                   </div>
                   <button onClick={() => { setJoueurId && setJoueurId(j.id); setPage("profil-joueur-"+j.id); }} style={{ background:`${CJ.accent}22`, border:`1px solid ${CJ.accent}55`, borderRadius:8, padding:"7px 13px", color:CJ.accent, fontWeight:700, fontSize:12, cursor:"pointer", flexShrink:0 }}>DÉFIER</button>
                 </div>
@@ -3509,25 +3509,25 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
         {/* ── FILTRES ── */}
         <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:14, marginBottom:14 }}>
           <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
-            <span style={{ fontSize:16 }}>⚙️</span>
+            <Settings size={15} color={CJ.text}/>
             <span style={{ fontWeight:800, fontSize:13, color:CJ.text, letterSpacing:1 }}>FILTRES</span>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
             {[
-              ["national",  "🌍", "NATIONAL",       CJ.yellow],
-              ["amis",      "👥", "MES AMIS",        CJ.blue],
-              ["bar",       "🍺", "MON BAR",         CJ.accent],
-              ["asso",      "🏢", "MON ASSO",        "#a78bfa"],
-              ["proximite", "📍", "AUTOUR DE MOI",   CJ.green],
-            ].map(([key, icon, label, color]) => (
+              { key:"national",  Icon:Globe,      label:"NATIONAL",      color:CJ.yellow },
+              { key:"amis",      Icon:Users,      label:"MES AMIS",      color:CJ.blue },
+              { key:"bar",       Icon:MapPin,     label:"MON BAR",       color:CJ.accent },
+              { key:"asso",      Icon:Building2,  label:"MON ASSO",      color:"#a78bfa" },
+              { key:"proximite", Icon:Navigation, label:"AUTOUR DE MOI", color:CJ.green },
+            ].map(({ key, Icon:FIcon, label, color }) => (
               <button key={key} onClick={() => setFiltre(key)} style={{ background:filtre===key?`${color}22`:"transparent", border:`1.5px solid ${filtre===key?color:CJ.border}`, borderRadius:10, padding:"9px 6px", color:filtre===key?color:CJ.muted, fontWeight:700, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
-                <span style={{ fontSize:15 }}>{icon}</span>{label}
+                <FIcon size={14} color={filtre===key?color:CJ.muted}/>{label}
               </button>
             ))}
           </div>
-          {filtre === "proximite" && <p style={{ color:CJ.muted, fontSize:11, marginTop:8, textAlign:"center" }}>📍 Affiche les joueurs partageant ton bar</p>}
-          {filtre === "bar"  && !joueur?.bar_slug  && <p style={{ color:CJ.red, fontSize:11, marginTop:8, textAlign:"center" }}>Associe-toi à un bar depuis ton profil.</p>}
-          {filtre === "asso" && !joueur?.asso_slug && <p style={{ color:CJ.red, fontSize:11, marginTop:8, textAlign:"center" }}>Rejoins une association depuis ton profil.</p>}
+          {filtre === "proximite" && <p style={{ color:CJ.muted, fontSize:12, marginTop:8, textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}><MapPin size={12} color={CJ.muted}/> Affiche les joueurs partageant ton bar</p>}
+          {filtre === "bar"  && !joueur?.bar_slug  && <p style={{ color:CJ.red, fontSize:12, marginTop:8, textAlign:"center" }}>Associe-toi à un bar depuis ton profil.</p>}
+          {filtre === "asso" && !joueur?.asso_slug && <p style={{ color:CJ.red, fontSize:12, marginTop:8, textAlign:"center" }}>Rejoins une association depuis ton profil.</p>}
         </div>
 
         {/* ── CONTENU PRINCIPAL ── */}
@@ -3539,8 +3539,12 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
           <div>
             {/* List header */}
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, padding:"0 2px" }}>
-              <div style={{ fontWeight:800, fontSize:14, color:CJ.text }}>
-                {filtre==="national"?"🌍 Classement National":filtre==="amis"?"👥 Mes Amis":filtre==="bar"?"🍺 Mon Bar":filtre==="asso"?"🏢 Mon Association":"📍 Autour de moi"}
+              <div style={{ fontWeight:800, fontSize:14, color:CJ.text, display:"flex", alignItems:"center", gap:6 }}>
+                {filtre==="national" ? <><Globe size={14} color={CJ.yellow}/> Classement National</>
+                 : filtre==="amis"  ? <><Users size={14} color={CJ.blue}/> Mes Amis</>
+                 : filtre==="bar"   ? <><MapPin size={14} color={CJ.accent}/> Mon Bar</>
+                 : filtre==="asso"  ? <><Building2 size={14} color="#a78bfa"/> Mon Association</>
+                 :                    <><Navigation size={14} color={CJ.green}/> Autour de moi</>}
               </div>
               <div style={{ fontSize:10, color:CJ.muted }}>{classementFiltre.length} joueurs</div>
             </div>
@@ -3585,20 +3589,23 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
                           <div style={{ fontWeight:700, fontSize:14, color:isMe?CJ.yellow:CJ.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                             {j.pseudo}{isMe?" (moi)":""}
                           </div>
-                          <div style={{ fontSize:11, color, fontWeight:600 }}>{emoji} {titre}</div>
+                          <div style={{ fontSize:12, color, fontWeight:600 }}>{emoji} {titre}</div>
                           <MiniBar drix={j.drix||1000} color={color}/>
                         </div>
 
                         {/* DRIX + variation */}
                         <div style={{ textAlign:"right", flexShrink:0 }}>
                           <div style={{ fontWeight:900, fontSize:20, color, lineHeight:1 }}>{j.drix||1000}</div>
-                          <div style={{ fontSize:9, color:CJ.muted, marginBottom:2 }}>DRIX</div>
+                          <div style={{ fontSize:10, color:CJ.muted, marginBottom:2 }}>DRIX</div>
                           {variation !== 0
-                            ? <div style={{ fontSize:10, fontWeight:700, color:variation>0?CJ.green:CJ.red }}>
-                                {variation>0?"↑ +":"↓ "}{variation}
-                                <div style={{ fontSize:9, color:CJ.muted, fontWeight:400 }}>cette semaine</div>
+                            ? <div style={{ fontSize:11, fontWeight:700, color:variation>0?CJ.green:CJ.red, display:"flex", flexDirection:"column", alignItems:"flex-end" }}>
+                                <span style={{ display:"flex", alignItems:"center", gap:2 }}>
+                                  {variation>0 ? <TrendingUp size={11}/> : <TrendingDown size={11}/>}
+                                  {variation>0?"+":""}{variation}
+                                </span>
+                                <span style={{ fontSize:10, color:CJ.muted, fontWeight:400 }}>cette semaine</span>
                               </div>
-                            : <div style={{ fontSize:9, color:CJ.muted }}>stable</div>
+                            : <div style={{ fontSize:10, color:CJ.muted }}>stable</div>
                           }
                         </div>
                       </div>
@@ -3610,7 +3617,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
             {/* Hall of Fame section (bottom of classement) */}
             {hallOfFame.length > 0 && filtre === "national" && (
               <div style={{ background:CJ.card, border:`1px solid ${CJ.yellow}33`, borderRadius:14, padding:16, marginTop:16 }}>
-                <div style={{ fontWeight:800, fontSize:14, color:CJ.yellow, marginBottom:14 }}>🏆 Hall of Fame — Saisons passées</div>
+                <div style={{ fontWeight:800, fontSize:14, color:CJ.yellow, marginBottom:14, display:"flex", alignItems:"center", gap:7 }}><Trophy size={15} color={CJ.yellow}/> Hall of Fame — Saisons passées</div>
                 {(() => {
                   const saisons = [...new Set(hallOfFame.map(h=>h.saison))].sort((a,b)=>b-a);
                   return saisons.map(s => (
@@ -3636,7 +3643,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
         {/* ── SYSTÈME DE RANGS ── */}
         <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:16, padding:16, marginTop:8 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
-            <span style={{ fontSize:16 }}>🛡️</span>
+            <Shield size={16} color={CJ.text}/>
             <span style={{ fontWeight:800, fontSize:13, color:CJ.text, letterSpacing:1 }}>SYSTÈME DE RANGS</span>
           </div>
           <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:6 }}>
@@ -3654,7 +3661,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
               );
             })}
           </div>
-          <div style={{ textAlign:"center", marginTop:12, fontSize:11, color:CJ.muted }}>Classement mis à jour il y a 2 minutes ⏱</div>
+          <div style={{ textAlign:"center", marginTop:12, fontSize:12, color:CJ.muted }}>Classement mis à jour il y a 2 minutes</div>
         </div>
 
       </div>
