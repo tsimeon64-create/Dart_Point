@@ -314,88 +314,71 @@ function Capital({ joueurs, onFin }) {
         </div>
       </div>
 
-      {/* TABLEAU */}
-      <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
+      {/* TABLEAU — scroll unique, sticky CSS, zéro sync JS */}
+      <div style={{ flex:1, overflow:"auto", WebkitOverflowScrolling:"touch" }}>
+        <div style={{ minWidth: 130 + totalMinWidth, display:"flex", flexDirection:"column" }}>
 
-        {/* Colonne gauche FIXE */}
-        <div style={{ width:130, flexShrink:0, borderRight:`1px solid ${C.border}`, background:"#111", display:"flex", flexDirection:"column" }}>
-          <div style={{ height:44, borderBottom:`1px solid ${C.border}`, flexShrink:0, display:"flex", alignItems:"center", padding:"0 10px" }}>
-            <span style={{ fontSize:10, color:C.muted, fontWeight:600 }}>OBJECTIF</span>
+          {/* ── Ligne header (noms) — sticky top ── */}
+          <div style={{ display:"flex", position:"sticky", top:0, zIndex:20 }}>
+            <div style={{ width:130, flexShrink:0, height:44, borderRight:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}`, background:"#111", display:"flex", alignItems:"center", padding:"0 10px", position:"sticky", left:0, zIndex:21 }}>
+              <span style={{ fontSize:10, color:C.muted, fontWeight:600 }}>OBJECTIF</span>
+            </div>
+            {joueurs.map((nom, ji) => (
+              <div key={ji} style={{ width:colWidth, flexShrink:0, height:44, borderRight:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", background:ji===joueurIdx?"#1a0800":"#111", padding:"0 6px", overflow:"hidden" }}>
+                <span style={{ fontSize:12, fontWeight:700, color:ji===joueurIdx?C.accent:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", display:"block", width:"100%", textAlign:"center" }}>{nom}</span>
+              </div>
+            ))}
           </div>
-          <div ref={leftColRef} style={{ flex:1, overflowY:"auto", overflowX:"hidden" }} onScroll={onLeftScroll}>
-            {OBJECTIFS.map((obj, oi) => (
-              <div key={oi} style={{ height:ROW_H, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 10px", background:oi===objIdx?"#1a1a1a":"#111", flexShrink:0 }}>
+
+          {/* ── Lignes objectifs ── */}
+          {OBJECTIFS.map((obj, oi) => (
+            <div key={oi} style={{ display:"flex", height:ROW_H, flexShrink:0 }}>
+              {/* Cellule gauche — sticky left */}
+              <div style={{ width:130, flexShrink:0, borderRight:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 10px", background:oi===objIdx?"#1a1a1a":"#111", position:"sticky", left:0, zIndex:10 }}>
                 <span style={{ fontSize:14, fontWeight:oi===objIdx?700:500, color:oi===objIdx?C.accent:oi<objIdx?"#444":C.text, lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", display:"block" }}>
                   {obj.nom}
                 </span>
               </div>
+              {/* Cellules joueurs */}
+              {joueurs.map((nom, ji) => {
+                const score = scores[ji * NB_OBJ + oi];
+                const actif = caseActive(oi, ji);
+                const cliquable = caseCliquable(oi, ji);
+                const joue = score !== null;
+                const rate = score === -1;
+                return (
+                  <div key={ji} onClick={() => ouvrirPad(oi, ji)} style={{
+                    width:colWidth, flexShrink:0,
+                    borderRight:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}`,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    cursor:cliquable?"pointer":"default",
+                    background:actif?"#1a0f00":joue?"#111":"#0f0f0f",
+                    outline:actif?`2px solid ${C.accent}`:"none",
+                    outlineOffset:"-2px",
+                  }}>
+                    {actif && !joue && <span style={{ fontSize:18, animation:"pulse 1s infinite" }}>👆</span>}
+                    {joue && !rate && <span style={{ fontWeight:700, fontSize:14, color:C.green }}>+{score}</span>}
+                    {rate && <span style={{ fontWeight:700, fontSize:12, color:C.red }}>÷2</span>}
+                    {!joue && !actif && <span style={{ color:"#333" }}>—</span>}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+
+          {/* ── Ligne footer (totaux) — sticky bottom ── */}
+          <div style={{ display:"flex", position:"sticky", bottom:0, zIndex:20 }}>
+            <div style={{ width:130, flexShrink:0, height:52, borderRight:`1px solid ${C.border}`, borderTop:`2px solid ${C.yellow}44`, background:"#0f0f0f", display:"flex", alignItems:"center", padding:"0 10px", position:"sticky", left:0, zIndex:21 }}>
+              <span style={{ fontSize:12, fontWeight:700, color:C.yellow }}>TOTAL</span>
+            </div>
+            {joueurs.map((nom, ji) => (
+              <div key={ji} style={{ width:colWidth, flexShrink:0, height:52, borderRight:`1px solid ${C.border}`, borderTop:`2px solid ${C.yellow}44`, background:"#0f0f0f", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+                <span style={{ fontSize:9, color:C.muted, marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", display:"block", width:colWidth-10, textAlign:"center" }}>{nom}</span>
+                <span style={{ fontWeight:800, fontSize:18, color:C.yellow }}>{totaux[ji]}</span>
+              </div>
             ))}
           </div>
-          <div style={{ height:52, borderTop:`2px solid ${C.yellow}44`, flexShrink:0, display:"flex", alignItems:"center", padding:"0 10px", background:"#0f0f0f" }}>
-            <span style={{ fontSize:12, fontWeight:700, color:C.yellow }}>TOTAL</span>
-          </div>
-        </div>
 
-        {/* Zone joueurs */}
-        <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-
-          {/* Noms */}
-          <div ref={headerRef} style={{ flexShrink:0, borderBottom:`1px solid ${C.border}`, background:"#111", overflowX:"hidden" }}>
-            <div style={{ display:"flex", minWidth:totalMinWidth }}>
-              {joueurs.map((nom, ji) => (
-                <div key={ji} style={{ width:colWidth, flexShrink:0, height:44, borderRight:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", background:ji===joueurIdx?"#1a0800":"#111", padding:"0 6px", overflow:"hidden" }}>
-                  <span style={{ fontSize:12, fontWeight:700, color:ji===joueurIdx?C.accent:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", display:"block", width:"100%", textAlign:"center" }}>{nom}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Cases */}
-          <div ref={rightColRef} style={{ flex:1, overflowX:"auto", overflowY:"auto" }} onScroll={onRightScroll}>
-            <div style={{ display:"flex", minWidth:totalMinWidth }}>
-              {joueurs.map((nom, ji) => (
-                <div key={ji} style={{ width:colWidth, flexShrink:0, borderRight:`1px solid ${C.border}` }}>
-                  {OBJECTIFS.map((obj, oi) => {
-                    const score = scores[ji * NB_OBJ + oi];
-                    const actif = caseActive(oi, ji);
-                    const cliquable = caseCliquable(oi, ji);
-                    const joue = score !== null;
-                    const rate = score === -1;
-                    return (
-                      <div key={`${oi}-${score}`} onClick={() => ouvrirPad(oi, ji)} style={{
-                        height:ROW_H,
-                        borderBottom:`1px solid ${C.border}`,
-                        display:"flex",
-                        alignItems:"center",
-                        justifyContent:"center",
-                        cursor:cliquable?"pointer":"default",
-                        background:actif?"#1a0f00":joue?"#111":"#0f0f0f",
-                        outline:actif?`2px solid ${C.accent}`:"none",
-                        outlineOffset:"-2px",
-                      }}>
-                        {actif && !joue && <span style={{ fontSize:18, animation:"pulse 1s infinite" }}>👆</span>}
-                        {joue && !rate && <span style={{ fontWeight:700, fontSize:14, color:C.green }}>+{score}</span>}
-                        {rate && <span style={{ fontWeight:700, fontSize:12, color:C.red }}>÷2</span>}
-                        {!joue && !actif && <span style={{ color:"#333" }}>—</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Scores */}
-          <div ref={footerRef} style={{ flexShrink:0, borderTop:`2px solid ${C.yellow}44`, background:"#0f0f0f", overflowX:"hidden" }}>
-            <div style={{ display:"flex", minWidth:totalMinWidth }}>
-              {joueurs.map((nom, ji) => (
-                <div key={ji} style={{ width:colWidth, flexShrink:0, borderRight:`1px solid ${C.border}`, height:52, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
-                  <span style={{ fontSize:9, color:C.muted, marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", display:"block", width:colWidth-10, textAlign:"center" }}>{nom}</span>
-                  <span style={{ fontWeight:800, fontSize:18, color:C.yellow }}>{totaux[ji]}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 
