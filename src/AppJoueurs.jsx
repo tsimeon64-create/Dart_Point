@@ -192,6 +192,11 @@ const getDrixTitreLocal = (drix) => {
   for (const r of RANGS) { if (drix < r.max) return r; }
   return RANGS[RANGS.length - 1];
 };
+// Helper : icône Lucide du rang — remplace {emoji} dans toute l'UI
+const RankIcon = ({ drix, size=16, color:colorOverride }) => {
+  const { icon:I, color } = getDrixTitreLocal(drix ?? 1000);
+  return <I size={size} color={colorOverride ?? color}/>;
+};
 const getProgression = (drix) => {
   const cur = getDrixTitreLocal(drix);
   const idx = RANGS.findIndex(r => r.titre === cur.titre);
@@ -596,7 +601,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
               background:color+"22", display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>
               {joueur.photo
                 ? <img src={joueur.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
-                : <span>{emoji}</span>}
+                : <RankIcon drix={joueur.drix||1000} size={32}/>}
             </div>
             <div onClick={()=>photoRef.current?.click()}
               style={{ position:"absolute",bottom:0,right:0,zIndex:2,
@@ -629,7 +634,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
               border:`1px solid ${color}66`,
               boxShadow:`0 0 12px ${color}33`,
               borderRadius:20, padding:"5px 14px", marginBottom:8 }}>
-              <span style={{ fontSize:16 }}>{emoji}</span>
+              <RankIcon drix={joueur.drix||1000} size={18}/>
               <span style={{ fontWeight:900, fontSize:18, color,
                 textShadow:`0 0 10px ${color}` }}>{joueur.drix||1000}</span>
               <span style={{ fontSize:11, color, fontWeight:700, opacity:.85 }}>DRIX · {titre}</span>
@@ -720,17 +725,17 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       <div style={{ background:CJ.card, border:`1px solid ${color}33`, borderRadius:14, padding:16, marginBottom:14 }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ fontSize:18 }}>{emoji}</span>
+            <RankIcon drix={joueur.drix||1000} size={20}/>
             <span style={{ fontWeight:800, fontSize:14, color }}>{titre}</span>
           </div>
           {prog.prochain ? (
             <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-              <span style={{ fontSize:11, color:CJ.muted }}>→</span>
-              <span style={{ fontSize:14 }}>{prog.prochain.emoji}</span>
+              <ChevronRight size={13} color={CJ.muted}/>
+              <RankIcon drix={prog.prochain.min} size={16}/>
               <span style={{ fontWeight:700, fontSize:12, color:prog.prochain.color }}>{prog.prochain.titre}</span>
             </div>
           ) : (
-            <span style={{ fontSize:11, color:CJ.yellow, fontWeight:700 }}>✨ Rang maximum</span>
+            <span style={{ fontSize:11, color:CJ.yellow, fontWeight:700 }}>Rang maximum</span>
           )}
         </div>
 
@@ -1616,14 +1621,14 @@ export const PageJoueurs = ({ joueur, setPage }) => {
         <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12 }}>
           {filtered.map(j=>{
             const drix = j.drix||1000;
-            const {titre,emoji,color} = getDrixTitreLocal(drix);
+            const {titre,color} = getDrixTitreLocal(drix);
             return (
               <div key={j.id} onClick={()=>setPage("profil-joueur-"+j.id)}
                 style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,padding:16,cursor:"pointer",transition:"border-color .15s" }}
                 onMouseEnter={e=>e.currentTarget.style.borderColor=color} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
                 <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:8 }}>
                   <div style={{ width:44,height:44,background:color+"22",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,border:`2px solid ${color}44`,flexShrink:0,overflow:"hidden" }}>
-                    {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{emoji}</span>}
+                    {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <RankIcon drix={drix} size={20}/>}
                   </div>
                   <div>
                     <div style={{ fontWeight:700,fontSize:14 }}>{j.pseudo}</div>
@@ -1872,18 +1877,18 @@ export const AmiSection = ({ joueur, setPage }) => {
             const amiId = a.joueur_id === joueur.id ? a.ami_id : a.joueur_id;
             const amiPseudo = a.joueur_id === joueur.id ? a.ami_pseudo : a.joueur_pseudo;
             const profil = photosAmis[amiId];
-            const { emoji, color } = getDrixTitreLocal(profil?.drix||1000);
+            const { color } = getDrixTitreLocal(profil?.drix||1000);
             return (
               <div key={a.id} onClick={()=>setPage("profil-joueur-"+amiId)}
                 style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:10,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onMouseEnter={e=>e.currentTarget.style.borderColor=CJ.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
                 <div style={{ display:"flex",alignItems:"center",gap:12 }}>
-                  <div style={{ width:40,height:40,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:`2px solid ${color}`,background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>
-                    {profil?.photo ? <img src={profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{emoji}</span>}
+                  <div style={{ width:40,height:40,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:`2px solid ${color}`,background:color+"22",display:"flex",alignItems:"center",justifyContent:"center" }}>
+                    {profil?.photo ? <img src={profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <RankIcon drix={profil?.drix||1000} size={18}/>}
                   </div>
                   <div>
                     <div style={{ fontWeight:600 }}>{amiPseudo}</div>
-                    <div style={{ fontSize:12,color,fontWeight:600 }}>{emoji} {profil?.drix||1000} DRIX</div>
+                    <div style={{ fontSize:12,color,fontWeight:600,display:"flex",alignItems:"center",gap:4 }}><RankIcon drix={profil?.drix||1000} size={13}/> {profil?.drix||1000} DRIX</div>
                   </div>
                 </div>
                 <ChevronRight size={16} color={CJ.accent}/>
@@ -1900,18 +1905,18 @@ export const AmiSection = ({ joueur, setPage }) => {
         <div>
           <div style={{ fontSize:12,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:6 }}>AUTRES JOUEURS</div>
           {nonAmis.map(p => {
-            const { emoji, color } = getDrixTitreLocal(p.drix||1000);
+            const { color } = getDrixTitreLocal(p.drix||1000);
             return (
               <div key={p.id} onClick={()=>setPage("profil-joueur-"+p.id)}
                 style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:10,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
                 onMouseEnter={e=>e.currentTarget.style.borderColor=CJ.blue} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
                 <div style={{ display:"flex",alignItems:"center",gap:12 }}>
-                  <div style={{ width:40,height:40,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:`2px solid ${color}44`,background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>
-                    {p.photo ? <img src={p.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{emoji}</span>}
+                  <div style={{ width:40,height:40,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:`2px solid ${color}44`,background:color+"22",display:"flex",alignItems:"center",justifyContent:"center" }}>
+                    {p.photo ? <img src={p.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <RankIcon drix={p.drix||1000} size={18}/>}
                   </div>
                   <div>
                     <div style={{ fontWeight:600 }}>{p.pseudo}</div>
-                    <div style={{ fontSize:12,color,fontWeight:600 }}>{emoji} {p.drix||1000} DRIX</div>
+                    <div style={{ fontSize:12,color,fontWeight:600,display:"flex",alignItems:"center",gap:4 }}><RankIcon drix={p.drix||1000} size={13}/> {p.drix||1000} DRIX</div>
                   </div>
                 </div>
                 <div style={{ textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2 }}>
@@ -2272,8 +2277,8 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
         <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
           {/* Photo */}
           <div style={{position:"relative",flexShrink:0}}>
-            <div style={{width:72,height:72,borderRadius:"50%",border:`3px solid ${color}`,overflow:"hidden",background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>
-              {j.photo?<img src={j.photo} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span>{emoji}</span>}
+            <div style={{width:72,height:72,borderRadius:"50%",border:`3px solid ${color}`,overflow:"hidden",background:color+"22",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {j.photo?<img src={j.photo} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<RankIcon drix={drix} size={28}/>}
             </div>
             <div style={{position:"absolute",bottom:2,right:2,width:12,height:12,borderRadius:"50%",background:"#22c55e",border:"2px solid #1a1a1a"}}/>
           </div>
@@ -2298,7 +2303,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
             {asso&&<div style={{marginBottom:6}}><BadgeJ color="#a78bfa">🫂 {asso.nom}</BadgeJ></div>}
             {/* Rang */}
             <div style={{display:"inline-flex",alignItems:"center",gap:6,background:color+"18",border:`1px solid ${color}44`,borderRadius:20,padding:"3px 10px"}}>
-              <span style={{fontSize:13}}>{emoji}</span>
+              <RankIcon drix={drix} size={14}/>
               <span style={{fontWeight:700,fontSize:12,color}}>{titre}</span>
             </div>
           </div>
@@ -2377,8 +2382,8 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                   <div style={{display:"flex",gap:10,alignItems:"stretch"}}>
                     {/* Joueur */}
                     <div style={{flex:1.4,display:"flex",alignItems:"center",gap:10}}>
-                      <div style={{width:52,height:52,borderRadius:"50%",border:`2px solid ${color}`,overflow:"hidden",background:color+"22",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>
-                        {j.photo?<img src={j.photo} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span>{emoji}</span>}
+                      <div style={{width:52,height:52,borderRadius:"50%",border:`2px solid ${color}`,overflow:"hidden",background:color+"22",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        {j.photo?<img src={j.photo} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<RankIcon drix={drix} size={22}/>}
                       </div>
                       <div>
                         <div style={{fontWeight:800,fontSize:15,color:CJ.text}}>{j.pseudo}</div>
@@ -3306,14 +3311,14 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
   // Small neighbor card
   const NeighborCard = ({ j, label, rangOffset, ecartPositif }) => {
     if (!j) return <div style={{ flex:1 }}/>;
-    const { emoji, color } = getDrixTitreLocal(j.drix || 1000);
+    const { color } = getDrixTitreLocal(j.drix || 1000);
     const ecart = Math.abs((j.drix || 1000) - monDrix);
     return (
       <div style={{ flex:1, background:"#0f0f0f", border:`1px solid ${CJ.border}`, borderRadius:10, padding:"10px 10px" }}>
         <div style={{ fontSize:10, color:CJ.muted, fontWeight:800, marginBottom:6, letterSpacing:1 }}>{label}</div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <div style={{ width:30, height:30, borderRadius:"50%", background:`${color}22`, border:`1.5px solid ${color}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, overflow:"hidden", flexShrink:0 }}>
-            {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : emoji}
+          <div style={{ width:30, height:30, borderRadius:"50%", background:`${color}22`, border:`1.5px solid ${color}44`, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", flexShrink:0 }}>
+            {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <RankIcon drix={j.drix||1000} size={14}/>}
           </div>
           <div style={{ minWidth:0 }}>
             <div style={{ fontWeight:700, fontSize:12, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{j.pseudo}</div>
@@ -3413,9 +3418,9 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
               <div style={{ flex:1, display:"flex", justifyContent:"center" }}>
                 <div style={{ position:"relative" }}>
                   <div style={{ width:72, height:72, borderRadius:"50%", border:`3px solid ${CJ.yellow}`, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", background:`${monRangInfo.color}22`, fontSize:30 }}>
-                    {joueur.photo ? <img src={joueur.photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : monRangInfo.emoji}
+                    {joueur.photo ? <img src={joueur.photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <RankIcon drix={monDrix} size={30}/>}
                   </div>
-                  <div style={{ position:"absolute", bottom:-5, left:"50%", transform:"translateX(-50%)", background:CJ.yellow, borderRadius:8, padding:"2px 8px", fontSize:8, fontWeight:900, color:"#000", whiteSpace:"nowrap" }}>{monRangInfo.emoji} {monRangInfo.titre.toUpperCase()}</div>
+                  <div style={{ position:"absolute", bottom:-5, left:"50%", transform:"translateX(-50%)", background:CJ.yellow, borderRadius:8, padding:"2px 8px", fontSize:8, fontWeight:900, color:"#000", whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:4 }}><RankIcon drix={monDrix} size={10} color="#000"/> {monRangInfo.titre.toUpperCase()}</div>
                 </div>
               </div>
               <div style={{ textAlign:"center", minWidth:60 }}>
@@ -3462,8 +3467,8 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
                   return (
                     <div key={j.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", borderRadius:8, marginBottom:4, background:isMe?`${CJ.yellow}15`:"transparent", border:`1px solid ${isMe?CJ.yellow+"44":"transparent"}` }}>
                       <span style={{ width:28, textAlign:"center", fontWeight:800, fontSize:13, color:isMe?CJ.yellow:CJ.muted }}>#{rang}</span>
-                      <div style={{ width:32, height:32, borderRadius:"50%", background:`${color}22`, border:`2px solid ${isMe?CJ.yellow:color+"44"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, overflow:"hidden" }}>
-                        {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : emoji}
+                      <div style={{ width:32, height:32, borderRadius:"50%", background:`${color}22`, border:`2px solid ${isMe?CJ.yellow:color+"44"}`, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+                        {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <RankIcon drix={j.drix||1000} size={14}/>}
                       </div>
                       <div style={{ flex:1 }}>
                         <span style={{ fontWeight:700, fontSize:13, color:isMe?CJ.yellow:CJ.text }}>{j.pseudo}{isMe?" (moi)":""}</span>
@@ -3492,8 +3497,8 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
               return (
                 <div key={j.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom:`1px solid ${CJ.border}` }}>
                   <span style={{ width:28, fontWeight:700, fontSize:13, color:CJ.muted, textAlign:"center" }}>#{rang}</span>
-                  <div style={{ width:38, height:38, borderRadius:"50%", background:`${color}22`, border:`2px solid ${color}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, overflow:"hidden" }}>
-                    {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : emoji}
+                  <div style={{ width:38, height:38, borderRadius:"50%", background:`${color}22`, border:`2px solid ${color}44`, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+                    {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <RankIcon drix={j.drix||1000} size={18}/>}
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontWeight:700, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{j.pseudo}</div>
@@ -3555,7 +3560,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
                 </div>
               : classementFiltre.map((j, i) => {
                   const rang = i + 1;
-                  const { titre, emoji, color } = getDrixTitreLocal(j.drix || 1000);
+                  const { titre, color } = getDrixTitreLocal(j.drix || 1000);
                   const isMe = joueur && j.id === joueur.id;
                   const variation = variationMap[j.id] || 0;
                   const medalColors = ["#ffd700","#c0c0c0","#cd7f32"];
@@ -3578,10 +3583,10 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
 
                         {/* Avatar + rank badge */}
                         <div style={{ position:"relative", flexShrink:0 }}>
-                          <div style={{ width:46, height:46, borderRadius:"50%", background:`${color}22`, border:`2px solid ${isMe?CJ.yellow:color+"55"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, overflow:"hidden" }}>
-                            {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : emoji}
+                          <div style={{ width:46, height:46, borderRadius:"50%", background:`${color}22`, border:`2px solid ${isMe?CJ.yellow:color+"55"}`, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+                            {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <RankIcon drix={j.drix||1000} size={20}/>}
                           </div>
-                          <div style={{ position:"absolute", bottom:-3, right:-4, background:color, borderRadius:"50%", width:17, height:17, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, border:"2px solid #1a1a1a" }}>{emoji}</div>
+                          <div style={{ position:"absolute", bottom:-3, right:-4, background:color, borderRadius:"50%", width:17, height:17, display:"flex", alignItems:"center", justifyContent:"center", border:"2px solid #1a1a1a" }}><RankIcon drix={j.drix||1000} size={10} color="#fff"/></div>
                         </div>
 
                         {/* Name + rank + progress */}
@@ -3589,7 +3594,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
                           <div style={{ fontWeight:700, fontSize:14, color:isMe?CJ.yellow:CJ.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                             {j.pseudo}{isMe?" (moi)":""}
                           </div>
-                          <div style={{ fontSize:12, color, fontWeight:600 }}>{emoji} {titre}</div>
+                          <div style={{ fontSize:12, color, fontWeight:600, display:"flex", alignItems:"center", gap:4 }}><RankIcon drix={j.drix||1000} size={11}/> {titre}</div>
                           <MiniBar drix={j.drix||1000} color={color}/>
                         </div>
 
@@ -3675,11 +3680,11 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
 
 // ── BADGE DRIX ────────────────────────────────────────────────────────────────
 export const DrixBadge = ({ drix=1000, size="normal" }) => {
-  const { titre, emoji, color } = getDrixTitreLocal(drix);
+  const { titre, color } = getDrixTitreLocal(drix);
   const big = size === "big";
   return (
     <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:color+"22", border:`1px solid ${color}44`, borderRadius:20, padding:big?"8px 16px":"4px 12px" }}>
-      <span style={{ fontSize:big?18:13 }}>{emoji}</span>
+      <RankIcon drix={drix} size={big?18:14}/>
       <span style={{ fontWeight:700, color, fontSize:big?15:12 }}>{drix}</span>
       <span style={{ color:color+"99", fontSize:big?12:10 }}>DRIX · {titre}</span>
     </div>
