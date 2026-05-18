@@ -627,6 +627,22 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const liveMaxFinishRef = useRef([0, 0]);
   const liveBustsRef = useRef([0, 0]);
 
+  // ── Scroll auto vers le joueur actif (déclaré ici pour respecter les Rules of Hooks) ──
+  const scoresGridRef = useRef(null);
+  const activeCardRef = useRef(null);
+  useEffect(() => {
+    if (!scoresGridRef.current || !activeCardRef.current) return;
+    const grid = scoresGridRef.current;
+    const card = activeCardRef.current;
+    const cardLeft = card.offsetLeft;
+    const cardRight = cardLeft + card.offsetWidth;
+    const visibleLeft = grid.scrollLeft;
+    const visibleRight = visibleLeft + grid.clientWidth;
+    if (cardLeft < visibleLeft || cardRight > visibleRight) {
+      grid.scrollTo({ left: cardLeft - grid.clientWidth / 2 + card.offsetWidth / 2, behavior: "smooth" });
+    }
+  }, [actifIdx]);
+
   // ── Wake Lock : empêche la mise en veille pendant le jeu ──
   useEffect(() => {
     if (etape !== "jeu") return;
@@ -1249,22 +1265,6 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const displayOrder = Array.from({ length: joueurs.length }, (_, i) => (bulleStartIdx + i) % joueurs.length);
   const actif = joueurs[actifIdx];
   const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
-
-  // Ref pour scroller automatiquement vers le joueur actif
-  const scoresGridRef = useRef(null);
-  const activeCardRef = useRef(null);
-  useEffect(() => {
-    if (!scoresGridRef.current || !activeCardRef.current) return;
-    const grid = scoresGridRef.current;
-    const card = activeCardRef.current;
-    const cardLeft = card.offsetLeft;
-    const cardRight = cardLeft + card.offsetWidth;
-    const visibleLeft = grid.scrollLeft;
-    const visibleRight = visibleLeft + grid.clientWidth;
-    if (cardLeft < visibleLeft || cardRight > visibleRight) {
-      grid.scrollTo({ left: cardLeft - grid.clientWidth / 2 + card.offsetWidth / 2, behavior: "smooth" });
-    }
-  }, [actifIdx]);
 
   return (
     <div className="scoreur-wrap" style={{
