@@ -1504,6 +1504,10 @@ export const PageProfilBadges = ({ joueur, setPage }) => {
         opacity: unlocked ? 1 : 0.52,
         transition: "all .2s",
         boxShadow: unlocked ? `0 2px 16px ${b.couleur}15` : "none",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        textAlign: "center",
       }}>
         {/* Emoji du badge — contenu, pas icône UI */}
         <div style={{ fontSize: 30, marginBottom: 8, lineHeight: 1, filter: unlocked ? "none" : "grayscale(1)" }}>{b.emoji}</div>
@@ -1517,7 +1521,7 @@ export const PageProfilBadges = ({ joueur, setPage }) => {
         {/* Barre de progression */}
         {isIncremental && !unlocked && (
           <>
-            <div style={{ background: "#ffffff10", borderRadius: 6, height: 5, overflow: "hidden" }}>
+            <div style={{ background: "#ffffff10", borderRadius: 6, height: 5, overflow: "hidden", width: "100%" }}>
               <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${b.couleur}aa, ${b.couleur})`, borderRadius: 6, transition: "width .5s ease" }}/>
             </div>
             <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 5, fontWeight: 600 }}>{current} / {b.seuil}</div>
