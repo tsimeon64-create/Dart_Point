@@ -1667,6 +1667,9 @@ const PageDefi = ({ joueur, setPage }) => {
   // ── Défi de la semaine — calcule la cible optimale ──────────────────────────
   useEffect(() => {
     if (!joueur?.id) return;
+    // Débloqué uniquement à partir de 10 amis
+    if (amis.length < 10) return;
+
     const weekKey   = `dp_defi_semaine_${getISOWeekKey()}`;
     const shownKey  = weekKey + "_shown";
     const alreadyShown = localStorage.getItem(shownKey) === "1";
@@ -1729,7 +1732,7 @@ const PageDefi = ({ joueur, setPage }) => {
         if (!alreadyShown) setShowDefiSemaine(true);
       })
       .catch(() => {});
-  }, [joueur?.id]); // eslint-disable-line
+  }, [joueur?.id, amis.length]); // eslint-disable-line
 
   const fermerDefiSemaine = () => {
     setShowDefiSemaine(false);
@@ -1857,6 +1860,19 @@ const PageDefi = ({ joueur, setPage }) => {
       <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,display:"flex",alignItems:"center",gap:6 }}><ArrowLeft size={16}/> Accueil</button>
       <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4,display:"flex",alignItems:"center",gap:8 }}><Swords size={20} color={C.accent}/>Défis</h1>
       <p style={{ color:C.muted,fontSize:13,marginBottom:14 }}>Défie tes amis et gagne des DRIX</p>
+
+      {/* ── Défi hebdo verrouillé ── */}
+      {amis.length < 10 && (
+        <div style={{ background:"#f9731608",border:"1px solid #f9731633",borderRadius:12,padding:"12px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:12 }}>
+          <Trophy size={18} color="#f97316" style={{ flexShrink:0 }}/>
+          <div>
+            <div style={{ fontWeight:700,fontSize:13,color:"#fed7aa" }}>Défi de la Semaine — verrouillé</div>
+            <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>
+              Ajoute <strong style={{ color:"#f97316" }}>{10 - amis.length} ami{10 - amis.length > 1 ? "s" : ""}</strong> supplémentaire{10 - amis.length > 1 ? "s" : ""} pour débloquer le défi hebdomadaire et ses récompenses DRIX.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Toggle 1v1 / Doublette ── */}
       <div style={{ display:"flex",gap:10,marginBottom:20 }}>
