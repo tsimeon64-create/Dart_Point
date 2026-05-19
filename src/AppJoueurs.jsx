@@ -3205,45 +3205,85 @@ export const appliquerDrixDuel = async (duel, perfBonus = null) => {
     const manches = Math.max(1, duel.manches || 1);
     const K = 32 * manches;
 
-    // Défi de la semaine ? (vérifié pour challenger et défié)
-    const defiSemaine = isDefiSemaineMatch(duel.challenger_id, duel.defie_id)
-                     || isDefiSemaineMatch(duel.defie_id, duel.challenger_id);
-    const cEstPlusFort = drixC >= drixD;
+    // ── Défi de la semaine ? ────────────────────────────────────────────────────
+    const cEstCibleDefiD = isDefiSemaineMatch(duel.challenger_id, duel.defie_id); // challenger a le défié comme cible
+    const dEstCibleDefiC = isDefiSemaineMatch(duel.defie_id, duel.challenger_id); // défié a le challenger comme cible
+    const defiSemaine    = cEstCibleDefiD || dEstCibleDefiC;
+    const cEstPlusFort   = drixC >= drixD;
 
-    // Probabilités ELO pures
+    // ── Probabilités ELO ────────────────────────────────────────────────────────
     const EA = 1 / (1 + Math.pow(10, (drixD - drixC) / 400));
     const EB = 1 - EA;
 
-    // Protection favori ÷2 uniquement sur défi de la semaine
-    const perteC = Math.round(K * EA);
-    const perteD = Math.round(K * EB);
-    const eloC = challengerGagne
-      ? +Math.round(K * EB)
-      : -(defiSemaine && cEstPlusFort  ? Math.round(perteC / 2) : perteC);
-    const eloD = challengerGagne
-      ? -(defiSemaine && !cEstPlusFort ? Math.round(perteD / 2) : perteD)
-      : +Math.round(K * EA);
+    const gainBaseC = Math.round(K * EB); // gain ELO normal de C s'il gagne
+    const gainBaseD = Math.round(K * EA); // gain ELO normal de D s'il gagne
+    const perteC    = Math.round(K * EA); // perte ELO normale de C s'il perd
+    const perteD    = Math.round(K * EB); // perte ELO normale de D s'il perd
 
-    // Bonus performance
+    // ── Règles Défi de la Semaine ────────────────────────────────────────────────
+    // Gagnant (ayant la cible comme adversaire) : gain × 2
+    // Perdant favori (le plus fort) : perte ÷ 2
+    // +25 DRIX participation pour le joueur qui a l'autre comme cible hebdo
+    const BONUS_PARTICIPATION = 25;
+
+    let eloC, eloD;
+    if (challengerGagne) {
+      eloC = cEstCibleDefiD ? gainBaseC * 2 : gainBaseC; // victoire contre sa cible → ×2
+      eloD = defiSemaine && !cEstPlusFort ? -Math.round(perteD / 2) : -perteD; // perdant favori → ÷2
+    } else {
+      eloC = defiSemaine && cEstPlusFort ? -Math.round(perteC / 2) : -perteC;  // perdant favori → ÷2
+      eloD = dEstCibleDefiC ? gainBaseD * 2 : gainBaseD; // victoire contre sa cible → ×2
+    }
+
+    // Bonus participation (+25 au joueur qui avait l'adversaire comme cible hebdo)
+    const participationC = cEstCibleDefiD ? BONUS_PARTICIPATION : 0;
+    const participationD = dEstCibleDefiC ? BONUS_PARTICIPATION : 0;
+
+    // Bonus performance (volées, finishes…)
     const bonusC = perfBonus?.[0]?.total || 0;
     const bonusD = perfBonus?.[1]?.total || 0;
 
-    const variationC = eloC + bonusC;
-    const variationD = eloD + bonusD;
+    const variationC = eloC + bonusC + participationC;
+    const variationD = eloD + bonusD + participationD;
 
     const newDrixC = Math.max(100, drixC + variationC);
     const newDrixD = Math.max(100, drixD + variationD);
+
+    const resultatC = challengerGagne ? "victoire" : "defaite";
+    const resultatD = challengerGagne ? "defaite"  : "victoire";
+    const tagDefi   = defiSemaine ? " 🎯 Défi de la Semaine" : "";
+
     await Promise.all([
       dbDrix.updateDrix(jC.id, newDrixC),
       dbDrix.updateDrix(jD.id, newDrixD),
-      dbDrix.addMouvement({ joueur_id:jC.id, joueur_pseudo:jC.pseudo, adversaire_pseudo:jD.pseudo, variation:variationC, drix_avant:drixC, drix_apres:newDrixC, resultat:challengerGagne?"victoire":"defaite", duel_id:duel.id, date:Date.now() }),
-      dbDrix.addMouvement({ joueur_id:jD.id, joueur_pseudo:jD.pseudo, adversaire_pseudo:jC.pseudo, variation:variationD, drix_avant:drixD, drix_apres:newDrixD, resultat:challengerGagne?"defaite":"victoire", duel_id:duel.id, date:Date.now() }),
+      dbDrix.addMouvement({ joueur_id:jC.id, joueur_pseudo:jC.pseudo, adversaire_pseudo:jD.pseudo+tagDefi, variation:variationC, drix_avant:drixC, drix_apres:newDrixC, resultat:resultatC, duel_id:duel.id, date:Date.now() }),
+      dbDrix.addMouvement({ joueur_id:jD.id, joueur_pseudo:jD.pseudo, adversaire_pseudo:jC.pseudo+tagDefi, variation:variationD, drix_avant:drixD, drix_apres:newDrixD, resultat:resultatD, duel_id:duel.id, date:Date.now() }),
     ]);
+
+    // ── Post Comptoir si Défi de la Semaine ─────────────────────────────────────
+    if (defiSemaine) {
+      const gagnantPseudo = challengerGagne ? jC.pseudo : jD.pseudo;
+      const perdantPseudo = challengerGagne ? jD.pseudo : jC.pseudo;
+      const gainGagnant   = challengerGagne ? variationC : variationD;
+      const gagnantId     = challengerGagne ? jC.id : jD.id;
+      const gagnantPhoto  = challengerGagne ? jC.photo : jD.photo;
+      sbJ("wall_posts", {
+        method: "POST",
+        body: JSON.stringify({
+          joueur_id:     gagnantId,
+          joueur_pseudo: gagnantPseudo,
+          joueur_photo:  gagnantPhoto || null,
+          contenu:       `🎯 Défi de la Semaine accompli !\n⚔️ ${gagnantPseudo} bat ${perdantPseudo} et remporte son défi hebdo !\n💎 +${gainGagnant} DRIX (gain × 2)`,
+          date:          Date.now(),
+        }),
+      }).catch(() => {});
+    }
 
     // Retourne le détail pour affichage
     return {
-      challenger: { eloVariation:eloC, bonus:perfBonus?.[0]||{bonusManches:0,bonusVolees:0,bonusFinish:0,total:0}, totalVariation:variationC },
-      defie:      { eloVariation:eloD, bonus:perfBonus?.[1]||{bonusManches:0,bonusVolees:0,bonusFinish:0,total:0}, totalVariation:variationD },
+      defiSemaine,
+      challenger: { eloVariation:eloC, bonus:perfBonus?.[0]||{bonusManches:0,bonusVolees:0,bonusFinish:0,total:0}, participation:participationC, totalVariation:variationC },
+      defie:      { eloVariation:eloD, bonus:perfBonus?.[1]||{bonusManches:0,bonusVolees:0,bonusFinish:0,total:0}, participation:participationD, totalVariation:variationD },
     };
   } catch(e) { console.error("Erreur DRIX:", e); return null; }
 };
