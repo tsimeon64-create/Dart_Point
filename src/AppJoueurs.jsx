@@ -3104,26 +3104,25 @@ export const calculerDrix = (drixA, drixB, aGagne, options = {}) => {
   const EA = 1 / (1 + Math.pow(10, (drixB - drixA) / 400)); // P(A gagne)
   const EB = 1 - EA;                                         // P(B gagne)
 
-  // Règle protection favori : si le plus fort perd, il ne perd que la moitié
-  // "plus fort" = celui qui avait la plus haute proba de gagner
-  const aEstPlusFort = drixA >= drixB; // A favori si drixA ≥ drixB
-  const aPerd = !aGagne;
-  const bPerd =  aGagne;
+  // Règle protection favori (uniquement sur le Défi de la Semaine) :
+  // si le plus fort perd contre sa cible hebdo, il ne perd que la moitié
+  const isDefiSemaine = options.isDefiSemaine ?? false;
+  const aEstPlusFort  = drixA >= drixB;
 
-  const perteA = Math.round(K * EA); // perte normale de A s'il perd
-  const perteB = Math.round(K * EB); // perte normale de B s'il perd
+  const perteA = Math.round(K * EA);
+  const perteB = Math.round(K * EB);
 
   const variationA = aGagne
-    ? +Math.round(K * EB) + bonusA                                // A gagne : +K×EB
-    : -(aEstPlusFort ? Math.round(perteA / 2) : perteA) + bonusA; // A perd : ÷2 si favori
+    ? +Math.round(K * EB) + bonusA
+    : -(isDefiSemaine && aEstPlusFort ? Math.round(perteA / 2) : perteA) + bonusA;
   const variationB = aGagne
-    ? -(!aEstPlusFort ? Math.round(perteB / 2) : perteB) + bonusB // B perd : ÷2 si favori
-    : +Math.round(K * EA) + bonusB;                               // B gagne : +K×EA
+    ? -(isDefiSemaine && !aEstPlusFort ? Math.round(perteB / 2) : perteB) + bonusB
+    : +Math.round(K * EA) + bonusB;
 
   console.log("🎯 DRIX:", {
-    drixA, drixB, aGagne, K,
+    drixA, drixB, aGagne, K, isDefiSemaine,
     EA: EA.toFixed(3), EB: EB.toFixed(3),
-    aEstPlusFort, variationA, variationB,
+    variationA, variationB,
   });
   return { variationA, variationB };
 };
@@ -3176,6 +3175,24 @@ export const calculerBonusPerformance = (joueursData = [], manchesDetail = []) =
   });
 };
 
+// Vérifie si l'adversaire est la cible du défi hebdo (localStorage)
+const isDefiSemaineMatch = (myId, adversaireId) => {
+  try {
+    const weekKey = (() => {
+      const now = new Date();
+      const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+      d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+      const y = d.getUTCFullYear();
+      const w = Math.ceil((((d - Date.UTC(y,0,1)) / 86400000) + 1) / 7);
+      return `dp_defi_semaine_${y}-W${String(w).padStart(2,"0")}`;
+    })();
+    const stored = localStorage.getItem(weekKey);
+    if (!stored) return false;
+    const data = JSON.parse(stored);
+    return data?.target?.id === adversaireId;
+  } catch { return false; }
+};
+
 export const appliquerDrixDuel = async (duel, perfBonus = null) => {
   // Partie amicale → aucune variation DRIX
   if (duel.type === "amical") return null;
@@ -3188,11 +3205,24 @@ export const appliquerDrixDuel = async (duel, perfBonus = null) => {
     const manches = Math.max(1, duel.manches || 1);
     const K = 32 * manches;
 
+    // Défi de la semaine ? (vérifié pour challenger et défié)
+    const defiSemaine = isDefiSemaineMatch(duel.challenger_id, duel.defie_id)
+                     || isDefiSemaineMatch(duel.defie_id, duel.challenger_id);
+    const cEstPlusFort = drixC >= drixD;
+
     // Probabilités ELO pures
     const EA = 1 / (1 + Math.pow(10, (drixD - drixC) / 400));
     const EB = 1 - EA;
-    const eloC = challengerGagne ? +Math.round(K * EB) : -Math.round(K * EA);
-    const eloD = challengerGagne ? -Math.round(K * EB) : +Math.round(K * EA);
+
+    // Protection favori ÷2 uniquement sur défi de la semaine
+    const perteC = Math.round(K * EA);
+    const perteD = Math.round(K * EB);
+    const eloC = challengerGagne
+      ? +Math.round(K * EB)
+      : -(defiSemaine && cEstPlusFort  ? Math.round(perteC / 2) : perteC);
+    const eloD = challengerGagne
+      ? -(defiSemaine && !cEstPlusFort ? Math.round(perteD / 2) : perteD)
+      : +Math.round(K * EA);
 
     // Bonus performance
     const bonusC = perfBonus?.[0]?.total || 0;
