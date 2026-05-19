@@ -1639,6 +1639,7 @@ const PageDefi = ({ joueur, setPage }) => {
   // ── défi de la semaine ──
   const [defiSemaine, setDefiSemaine] = useState(null);
   const [showDefiSemaine, setShowDefiSemaine] = useState(false);
+  const [hideAssoLock, setHideAssoLock] = useState(() => localStorage.getItem("dp_defi_hebdo_asso_skip") === "1");
 
   const charger = () => {
     if (!joueur) { setLoading(false); return; }
@@ -1866,18 +1867,32 @@ const PageDefi = ({ joueur, setPage }) => {
       <p style={{ color:C.muted,fontSize:13,marginBottom:14 }}>Défie tes amis et gagne des DRIX</p>
 
       {/* ── Défi hebdo verrouillé ── */}
-      {(amis.length < 10 || !joueur.asso_slug) && (
-        <div style={{ background:"#f9731608",border:"1px solid #f9731633",borderRadius:12,padding:"12px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:12 }}>
-          <Trophy size={18} color="#f97316" style={{ flexShrink:0 }}/>
-          <div>
-            <div style={{ fontWeight:700,fontSize:13,color:"#fed7aa" }}>Défi de la Semaine — verrouillé</div>
-            <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>
-              {!joueur.asso_slug
-                ? <>Rejoins une <strong style={{ color:"#f97316" }}>association</strong> depuis ton profil pour débloquer le défi hebdomadaire.</>
-                : <>Ajoute <strong style={{ color:"#f97316" }}>{10 - amis.length} ami{10 - amis.length > 1 ? "s" : ""}</strong> supplémentaire{10 - amis.length > 1 ? "s" : ""} pour débloquer le défi hebdomadaire.</>
-              }
+      {(amis.length < 10 || !joueur.asso_slug) && !hideAssoLock && (
+        <div style={{ background:"#f9731608",border:"1px solid #f9731633",borderRadius:14,padding:"14px 16px",marginBottom:16 }}>
+          <div style={{ display:"flex",alignItems:"flex-start",gap:12,marginBottom:!joueur.asso_slug?14:0 }}>
+            <Trophy size={18} color="#f97316" style={{ flexShrink:0,marginTop:2 }}/>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:700,fontSize:13,color:"#fed7aa" }}>Défi de la Semaine — verrouillé</div>
+              <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>
+                {!joueur.asso_slug
+                  ? <>Choisis une <strong style={{ color:"#f97316" }}>association</strong> pour débloquer le défi hebdomadaire et ses récompenses DRIX.</>
+                  : <>Ajoute <strong style={{ color:"#f97316" }}>{10 - amis.length} ami{10 - amis.length > 1 ? "s" : ""}</strong> supplémentaire{10 - amis.length > 1 ? "s" : ""} pour débloquer le défi hebdomadaire.</>
+                }
+              </div>
             </div>
           </div>
+          {!joueur.asso_slug && (
+            <div style={{ display:"flex",gap:8,marginLeft:30 }}>
+              <button onClick={()=>setPage("profil")}
+                style={{ flex:2,background:"linear-gradient(135deg,#f97316,#ea580c)",border:"none",color:"#fff",borderRadius:10,padding:"9px 0",fontSize:12,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,touchAction:"manipulation" }}>
+                <Users size={13}/> Choisir une association
+              </button>
+              <button onClick={()=>{ localStorage.setItem("dp_defi_hebdo_asso_skip","1"); setHideAssoLock(true); }}
+                style={{ flex:1,background:"#1a1a1a",border:`1px solid ${C.border}`,color:C.muted,borderRadius:10,padding:"9px 0",fontSize:11,fontWeight:600,cursor:"pointer",touchAction:"manipulation" }}>
+                Ne plus demander
+              </button>
+            </div>
+          )}
         </div>
       )}
 
