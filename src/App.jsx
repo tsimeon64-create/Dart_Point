@@ -18,6 +18,7 @@ import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper } from "./App
 import { EntrainementFinish } from "./AppEntrainementFinish";
 import { ChronoFinish, checkYesterdayReward } from "./AppChronoFinish";
 import { RushMode } from "./AppRushMode";
+import { HorlogeDouble } from "./AppHorlogeDouble";
 import { MessagesPage, dbM } from "./AppMessages";
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -4060,6 +4061,9 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           <ModeBtn icon={Timer} label="Chrono Finish"
             sub="5 finishes à enchaîner le plus vite possible. Chronomètre lancé — à toi de jouer !"
             onClick={()=>setPage("chrono-finish")} col="#a78bfa"/>
+          <ModeBtn icon={Clock} label="Horloge Double"
+            sub="Enchaîne D1 à D20, Bull et Double Bull. Chrono par cible, stats et double favori."
+            onClick={()=>setPage("horloge-double")} col="#a855f7"/>
           <SoonBtn icon={HelpCircle} label="Quiz fléchettes" sub="Teste tes connaissances sur les règles, les pros et l'histoire du fléché." />
           <SoonBtn icon={Brain} label="Défis mentaux" sub="Calcul rapide, mémoire des zones, routes optimales..." />
           <SoonBtn icon={Users} label="Jeux communautaires" sub="Défis partagés, classements hebdo, événements spéciaux." />
@@ -8166,6 +8170,7 @@ export default function App() {
         {page==="jeux-capital"          && <JeuCapital setPage={nav}/>}
         {page==="entrainement-finish"   && <EntrainementFinish setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="chrono-finish"         && <ChronoFinish setPage={nav} joueur={joueur}/>}
+        {page==="horloge-double"        && <HorlogeDouble setPage={nav}/>}
         {page==="rush-mode"             && <RushMode setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="tournois-potes"   && <TournoiPotesPage joueur={joueur} setPage={nav}/>}
         {page.startsWith("tournoi-potes-") && <TournoiPotesDetail tournoiId={page.replace("tournoi-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
