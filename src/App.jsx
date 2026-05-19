@@ -1704,8 +1704,11 @@ const PageDefi = ({ joueur, setPage }) => {
           candidates = joueurs.filter(j => j.id !== joueur.id && (j.drix || 1000) > myDrix);
         }
         if (candidates.length === 0) return;
-        // Meilleur gain = adversaire avec le + de DRIX dans la plage (déjà trié desc)
-        const target = candidates[0];
+        // Rotation hebdomadaire : utilise le numéro de semaine ISO + l'ID du joueur
+        // comme seed pour varier la cible chaque semaine parmi les candidats
+        const weekNum = parseInt(getISOWeekKey().replace(/\D/g,""), 10) || 1;
+        const seed    = (weekNum * 31 + joueur.id.charCodeAt(0)) % candidates.length;
+        const target  = candidates[seed];
         const hisDrix = target.drix || 1000;
         const EA = 1 / (1 + Math.pow(10, (hisDrix - myDrix) / 400));
         const gainEloBase  = Math.round(32 * (1 - EA));
