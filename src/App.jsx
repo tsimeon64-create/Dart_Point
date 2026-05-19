@@ -7675,6 +7675,7 @@ export default function App() {
   const [showChronoPopup,setShowChronoPopup]=useState(false);
   const [chronoLeader,setChronoLeader]=useState(null);
   const [chronoDrixNotif,setChronoDrixNotif]=useState(null);
+  const [showDefiHebdoUnlock,setShowDefiHebdoUnlock]=useState(false);
 
   // ── Récompense Chrono Finish : minuit automatique ─────────────────────────
   // 1) Au démarrage : n'importe quel utilisateur ouvrant l'app déclenche le check
@@ -7748,6 +7749,20 @@ export default function App() {
   };
 
   useEffect(()=>{ try{ const j=localStorage.getItem("dp_joueur"); if(j) setJoueur(JSON.parse(j)); }catch{} },[]);
+
+  // ── Notification déblocage Défi de la Semaine (1 fois, dès 10 amis) ──────────
+  useEffect(() => {
+    if (!joueur?.id) return;
+    const flagKey = "dp_defi_hebdo_unlocked";
+    if (localStorage.getItem(flagKey) === "1") return; // déjà notifié
+    sb(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&statut=eq.accepte&select=id&limit=10`)
+      .then(a => {
+        if (Array.isArray(a) && a.length >= 10) {
+          localStorage.setItem(flagKey, "1");
+          setTimeout(() => setShowDefiHebdoUnlock(true), 1500);
+        }
+      }).catch(() => {});
+  }, [joueur?.id]); // eslint-disable-line
 
   // ── Popup défi quotidien Chrono Finish ────────────────────────────────────────
   useEffect(()=>{
@@ -7985,6 +8000,41 @@ export default function App() {
   return (
     <div style={{ minHeight:"100vh",display:"flex",flexDirection:"column",background:C.bg,color:C.text }}>
       {showOnboarding && <Onboarding onDone={()=>setShowOnboarding(false)}/>}
+
+      {/* ── Popup déblocage Défi de la Semaine ── */}
+      {showDefiHebdoUnlock && (
+        <div onClick={()=>setShowDefiHebdoUnlock(false)}
+          style={{ position:"fixed",inset:0,zIndex:3000,background:"rgba(0,0,0,0.88)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{ background:"#0d0d0d",borderRadius:24,padding:28,maxWidth:360,width:"100%",border:"1px solid #f9731644",boxShadow:"0 0 60px rgba(249,115,22,0.25)",textAlign:"center" }}>
+            {/* Icône */}
+            <div style={{ width:72,height:72,borderRadius:"50%",background:"linear-gradient(135deg,#f97316,#a855f7)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",boxShadow:"0 0 30px rgba(249,115,22,0.5)" }}>
+              <Trophy size={32} color="#fff"/>
+            </div>
+            {/* Titre */}
+            <div style={{ fontWeight:900,fontSize:22,marginBottom:8,background:"linear-gradient(90deg,#f97316,#a855f7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent" }}>
+              Défi de la Semaine débloqué !
+            </div>
+            {/* Texte */}
+            <p style={{ color:"#cbd5e1",fontSize:14,lineHeight:1.7,marginBottom:24 }}>
+              Tu as atteint <strong style={{ color:"#f97316" }}>10 amis</strong> sur DartPoint 🎉<br/>
+              Chaque lundi, un adversaire te sera proposé pour maximiser tes gains DRIX. Bats-le pour remporter un <strong style={{ color:"#f97316" }}>gain × 2</strong> et <strong style={{ color:"#a855f7" }}>+25 DRIX</strong> de participation.
+            </p>
+            {/* Boutons */}
+            <div style={{ display:"flex",gap:10 }}>
+              <button onClick={()=>{ setShowDefiHebdoUnlock(false); nav("defi"); }}
+                style={{ flex:2,background:"linear-gradient(135deg,#f97316,#ea580c)",border:"none",color:"#fff",borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:800,cursor:"pointer",boxShadow:"0 4px 20px rgba(249,115,22,0.4)",display:"flex",alignItems:"center",justifyContent:"center",gap:7 }}>
+                <Swords size={15}/> Voir mes défis
+              </button>
+              <button onClick={()=>setShowDefiHebdoUnlock(false)}
+                style={{ flex:1,background:"#1a1a1a",border:`1px solid ${C.border}`,color:C.muted,borderRadius:14,padding:"14px 0",fontSize:13,fontWeight:600,cursor:"pointer" }}>
+                Plus tard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Popup défi quotidien Chrono Finish ── */}
       {showChronoPopup && (()=>{
         const fmtMs = (ms)=>{
