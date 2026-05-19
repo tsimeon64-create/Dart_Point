@@ -4025,8 +4025,8 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
 
   return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
-      <button onClick={()=>setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:0 }}>
-        <ArrowLeft size={16}/> Retour
+      <button onClick={()=>initCat ? setPage("home") : setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:0 }}>
+        <ArrowLeft size={16}/> {initCat ? "Accueil" : "Retour"}
       </button>
       {back}
       <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
