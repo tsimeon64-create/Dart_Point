@@ -3229,7 +3229,7 @@ export const appliquerDrixDuel = async (duel, perfBonus = null) => {
     let eloC, eloD;
     if (challengerGagne) {
       eloC = cEstCibleDefiD ? gainBaseC * 2 : gainBaseC; // victoire contre sa cible → ×2
-      eloD = defiSemaine && !cEstPlusFort ? -Math.round(perteD / 2) : -perteD; // perdant favori → ÷2
+      eloD = cEstCibleDefiD ? -Math.round(perteD / 2) : -perteD; // défié perd ÷2 sur défi hebdo
     } else {
       eloC = defiSemaine && cEstPlusFort ? -Math.round(perteC / 2) : -perteC;  // perdant favori → ÷2
       eloD = dEstCibleDefiC ? gainBaseD * 2 : gainBaseD; // victoire contre sa cible → ×2
