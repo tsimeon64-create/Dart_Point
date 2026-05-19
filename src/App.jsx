@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { C, Z } from "./theme";
-import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell, Users, RefreshCw, Swords, TrendingUp, TrendingDown, Medal, Check, AlertCircle, ThumbsUp, MessageCircle, MapPin, Flame, Zap, Target, Clock, ChevronRight, Map, List, Phone, Share2, Eye, Info, Calendar, Home as HomeIcon, Lock, ExternalLink, Crown, Gem, Pencil, Navigation, Camera, Link2, Building2 } from "lucide-react";
+import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell, Users, RefreshCw, Swords, TrendingUp, TrendingDown, Medal, Check, AlertCircle, ThumbsUp, MessageCircle, MapPin, Flame, Zap, Target, Clock, ChevronRight, ChevronDown, Map, List, Phone, Share2, Eye, Info, Calendar, Home as HomeIcon, Lock, ExternalLink, Crown, Gem, Pencil, Navigation, Camera, Link2, Building2, Skull, Gamepad2, HelpCircle, Brain, Timer } from "lucide-react";
 import {
   Connexion, MonProfil, PageJoueurs, FicheJoueur,
   PageProfilStats, PageProfilAmis, PageProfilBadges, PageProfilHistorique,
@@ -16,7 +16,7 @@ import { ConfigCricket } from "./AppCricket";
 import { JeuCapital } from "./AppJeuDecalePoint";
 import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper } from "./AppTournoiPotes";
 import { EntrainementFinish } from "./AppEntrainementFinish";
-import { ChronoFinish } from "./AppChronoFinish";
+import { ChronoFinish, checkYesterdayReward } from "./AppChronoFinish";
 import { RushMode } from "./AppRushMode";
 import { MessagesPage, dbM } from "./AppMessages";
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
@@ -58,6 +58,8 @@ const db = {
   updateAvis: (id, d) => sb(`avis?id=eq.${id}`, { method:"PATCH", body:JSON.stringify(d), prefer:"return=minimal" }),
   deleteAvis: (id) => sb(`avis?id=eq.${id}`, { method:"DELETE", prefer:"return=minimal" }),
   getReactions: (slug) => sb(`reactions?bar_slug=eq.${encodeURIComponent(slug)}&select=*`).then(r => r?.[0]),
+  getCibleReports: (slug) => sb(`bar_cible_reports?bar_slug=eq.${encodeURIComponent(slug)}&select=joueur_id`),
+  addCibleReport: (d) => sb("bar_cible_reports", { method:"POST", body:JSON.stringify(d), prefer:"return=minimal" }),
   getSignalements: () => sb("signalements?order=date.desc&select=*"),
   addSignalement: (d) => sb("signalements", { method:"POST", body:JSON.stringify(d) }),
   updateSignalement: (id, d) => sb(`signalements?id=eq.${id}`, { method:"PATCH", body:JSON.stringify(d), prefer:"return=minimal" }),
@@ -1607,6 +1609,16 @@ const DoubletteFlow = ({ joueur, amis, amisData, setPage }) => {
 };
 
 // ── PAGE DÉFI ─────────────────────────────────────────────────────────────────
+// ── Clé ISO semaine (lundi = début) ──────────────────────────────────────────
+const getISOWeekKey = () => {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const y = d.getUTCFullYear();
+  const w = Math.ceil((((d - Date.UTC(y,0,1)) / 86400000) + 1) / 7);
+  return `${y}-W${String(w).padStart(2,"0")}`;
+};
+
 const PageDefi = ({ joueur, setPage }) => {
   const [amis, setAmis] = useState([]);
   const [amisData, setAmisData] = useState({});
@@ -1623,6 +1635,9 @@ const PageDefi = ({ joueur, setPage }) => {
   const [modalLoading, setModalLoading] = useState(false);
   const [defiForm, setDefiForm] = useState({ mode:"501", manches:1, type:"classe" });
   const [sending, setSending] = useState(false);
+  // ── défi de la semaine ──
+  const [defiSemaine, setDefiSemaine] = useState(null);
+  const [showDefiSemaine, setShowDefiSemaine] = useState(false);
 
   const charger = () => {
     if (!joueur) { setLoading(false); return; }
@@ -1648,6 +1663,76 @@ const PageDefi = ({ joueur, setPage }) => {
     }).catch(() => setLoading(false));
   };
   useEffect(charger, [joueur?.id]);
+
+  // ── Défi de la semaine — calcule la cible optimale ──────────────────────────
+  useEffect(() => {
+    if (!joueur?.id) return;
+    const weekKey   = `dp_defi_semaine_${getISOWeekKey()}`;
+    const shownKey  = weekKey + "_shown";
+    const alreadyShown = localStorage.getItem(shownKey) === "1";
+
+    const stored = localStorage.getItem(weekKey);
+    if (stored) {
+      try {
+        const data = JSON.parse(stored);
+        setDefiSemaine(data);
+        if (!alreadyShown) setShowDefiSemaine(true);
+      } catch {}
+      return;
+    }
+
+    // Cherche la cible : joueur avec le plus de DRIX au-dessus de moi (+30 à +350)
+    sb(`joueurs?order=drix.desc&select=id,pseudo,drix,photo&limit=200`)
+      .then(joueurs => {
+        if (!Array.isArray(joueurs) || joueurs.length === 0) return;
+        const myDrix = joueur.drix || 1000;
+        let candidates = joueurs.filter(j =>
+          j.id !== joueur.id &&
+          (j.drix || 1000) > myDrix + 20 &&
+          (j.drix || 1000) <= myDrix + 400
+        );
+        if (candidates.length === 0) {
+          // Personne dans la plage idéale → prend le 1er au-dessus
+          candidates = joueurs.filter(j => j.id !== joueur.id && (j.drix || 1000) > myDrix);
+        }
+        if (candidates.length === 0) return;
+        // Meilleur gain = adversaire avec le + de DRIX dans la plage (déjà trié desc)
+        const target = candidates[0];
+        const hisDrix = target.drix || 1000;
+        const EA = 1 / (1 + Math.pow(10, (hisDrix - myDrix) / 400));
+        const gainEloBase  = Math.round(32 * (1 - EA));
+        const gainDouble   = gainEloBase * 2;          // victoire contre la cible = ×2
+        const bonusParticipation = 25;
+        // Dangerosité
+        const ecart = hisDrix - myDrix;
+        const dangerositeScore = Math.min(100, Math.max(20, Math.round(50 + ecart / 6)));
+        const dangerColor = dangerositeScore >= 80 ? "#ef4444"
+                          : dangerositeScore >= 60 ? "#f97316"
+                          : dangerositeScore >= 40 ? "#f59e0b"
+                          :                          "#22c55e";
+        const dangerLabel = dangerositeScore >= 80 ? "Très dangereux"
+                          : dangerositeScore >= 60 ? "Dangereux"
+                          : dangerositeScore >= 40 ? "Accessible"
+                          :                          "Prenable";
+        // Objectif
+        const probaVictoire = Math.round(EA * 100);
+        const data = {
+          target, weekKey, myDrix, hisDrix,
+          gainEloBase, gainDouble, bonusParticipation,
+          dangerositeScore, dangerColor, dangerLabel,
+          probaVictoire, ecart,
+        };
+        localStorage.setItem(weekKey, JSON.stringify(data));
+        setDefiSemaine(data);
+        if (!alreadyShown) setShowDefiSemaine(true);
+      })
+      .catch(() => {});
+  }, [joueur?.id]); // eslint-disable-line
+
+  const fermerDefiSemaine = () => {
+    setShowDefiSemaine(false);
+    if (defiSemaine?.weekKey) localStorage.setItem(defiSemaine.weekKey + "_shown", "1");
+  };
 
   // ── Recherche globale debounced ──
   useEffect(() => {
@@ -1943,6 +2028,119 @@ const PageDefi = ({ joueur, setPage }) => {
         );
       })()}
       </>}
+
+      {/* ── POP-UP DÉFI DE LA SEMAINE ── */}
+      {showDefiSemaine && defiSemaine && (() => {
+        const ds = defiSemaine;
+        const t  = ds.target;
+        const { color: tColor, titre: tTitre } = getDrixTitre(t.drix || 1000);
+        const weekLabel = (() => {
+          const now = new Date();
+          const lundi = new Date(now);
+          lundi.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+          const dim = new Date(lundi); dim.setDate(lundi.getDate() + 6);
+          return `${lundi.getDate()}/${lundi.getMonth()+1} → ${dim.getDate()}/${dim.getMonth()+1}`;
+        })();
+        return (
+          <div onClick={e=>{ if(e.target===e.currentTarget) fermerDefiSemaine(); }}
+            style={{ position:"fixed",inset:0,zIndex:1900,background:"rgba(0,0,0,0.92)",backdropFilter:"blur(8px)",display:"flex",alignItems:"flex-end",justifyContent:"center" }}>
+            <div style={{ width:"100%",maxWidth:520,background:"#0d0d0d",borderRadius:"24px 24px 0 0",padding:"28px 20px 40px",boxShadow:"0 -8px 60px rgba(249,115,22,0.25)", border:"1px solid #f9731622",borderBottom:"none" }}>
+
+              {/* Badge semaine */}
+              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                  <div style={{ background:"linear-gradient(135deg,#f97316,#a855f7)",borderRadius:10,padding:"6px 12px",display:"flex",alignItems:"center",gap:6 }}>
+                    <Trophy size={14} color="#fff"/>
+                    <span style={{ fontWeight:900,fontSize:13,color:"#fff",letterSpacing:.5 }}>DÉFI DE LA SEMAINE</span>
+                  </div>
+                  <span style={{ fontSize:11,color:C.muted }}>{weekLabel}</span>
+                </div>
+                <button onClick={fermerDefiSemaine} style={{ background:"#1a1a1a",border:"none",borderRadius:8,width:32,height:32,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:C.muted }}>
+                  <X size={15}/>
+                </button>
+              </div>
+
+              {/* Titre */}
+              <p style={{ color:C.muted,fontSize:13,marginBottom:18,lineHeight:1.5 }}>
+                Cette semaine, tu peux grimper dans le classement en battant ce joueur. Le match doit être joué <strong style={{ color:C.text }}>avant dimanche minuit</strong>.
+              </p>
+
+              {/* Carte joueur */}
+              <div style={{ background:"linear-gradient(135deg,#111 0%,#1a0a2e 100%)",border:`2px solid ${tColor}55`,borderRadius:18,padding:20,marginBottom:16,position:"relative",overflow:"hidden" }}>
+                {/* Halo déco */}
+                <div style={{ position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:"50%",background:`radial-gradient(circle,${tColor}22 0%,transparent 70%)`,pointerEvents:"none" }}/>
+
+                <div style={{ display:"flex",alignItems:"center",gap:16,marginBottom:16 }}>
+                  {/* Avatar */}
+                  <div style={{ width:72,height:72,borderRadius:"50%",background:`${tColor}33`,border:`3px solid ${tColor}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",boxShadow:`0 0 20px ${tColor}44` }}>
+                    {t.photo
+                      ? <img src={t.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
+                      : <span style={{ fontSize:28 }}>{getDrixTitre(t.drix||1000).emoji}</span>}
+                  </div>
+                  {/* Infos */}
+                  <div style={{ flex:1,minWidth:0 }}>
+                    <div style={{ fontWeight:900,fontSize:22,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{t.pseudo}</div>
+                    <div style={{ color:tColor,fontWeight:700,fontSize:13,marginTop:3 }}>{getDrixTitre(t.drix||1000).emoji} {tTitre}</div>
+                    <div style={{ fontSize:13,color:C.muted,marginTop:2 }}>{t.drix||1000} DRIX · <span style={{ color:"#f97316",fontWeight:700 }}>+{ds.ecart} au-dessus de toi</span></div>
+                  </div>
+                  {/* Jauge dangerosité */}
+                  <div style={{ textAlign:"center",flexShrink:0 }}>
+                    <svg width="64" height="64" viewBox="0 0 64 64">
+                      <circle cx="32" cy="32" r="26" fill="none" stroke="#222" strokeWidth="5"/>
+                      <circle cx="32" cy="32" r="26" fill="none" stroke={ds.dangerColor} strokeWidth="5"
+                        strokeDasharray={`${ds.dangerositeScore * 1.634} 163.4`}
+                        strokeLinecap="round" transform="rotate(-90 32 32)"/>
+                      <text x="32" y="37" textAnchor="middle" fill="#fff" fontSize="14" fontWeight="900">{ds.dangerositeScore}</text>
+                    </svg>
+                    <div style={{ fontSize:9,color:C.muted,marginTop:2,fontWeight:700,letterSpacing:.5 }}>DANGER</div>
+                    <div style={{ fontSize:10,color:ds.dangerColor,fontWeight:700 }}>{ds.dangerLabel}</div>
+                  </div>
+                </div>
+
+                {/* Stats grid */}
+                <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10 }}>
+                  {[
+                    { label:"Proba victoire", value:`${100 - ds.probaVictoire}%`, color:C.green, desc:"tes chances" },
+                    { label:"Si tu gagnes",   value:`+${ds.gainDouble} DRIX`,     color:"#f97316", desc:"gain × 2" },
+                    { label:"Si tu joues",    value:`+${ds.bonusParticipation} DRIX`, color:"#a855f7", desc:"participation" },
+                  ].map(s => (
+                    <div key={s.label} style={{ background:"#0a0a0a",borderRadius:12,padding:"10px 8px",textAlign:"center",border:`1px solid ${s.color}33` }}>
+                      <div style={{ fontWeight:900,fontSize:16,color:s.color,lineHeight:1 }}>{s.value}</div>
+                      <div style={{ fontSize:9,color:C.muted,marginTop:4,fontWeight:700,letterSpacing:.3 }}>{s.label.toUpperCase()}</div>
+                      <div style={{ fontSize:9,color:s.color+"99",marginTop:2 }}>{s.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Objectif texte */}
+              <div style={{ background:"#f9731610",border:"1px solid #f9731633",borderRadius:12,padding:"12px 16px",marginBottom:20,display:"flex",alignItems:"flex-start",gap:10 }}>
+                <Target size={16} color="#f97316" style={{ marginTop:2,flexShrink:0 }}/>
+                <div style={{ fontSize:13,color:"#fed7aa",lineHeight:1.6 }}>
+                  <strong>Objectif :</strong> Bats <strong>{t.pseudo}</strong> avant dimanche pour remporter <strong style={{ color:"#f97316" }}>+{ds.gainDouble} DRIX (gain × 2)</strong>. Même si tu perds, le simple fait de jouer t'offre <strong style={{ color:"#a855f7" }}>+{ds.bonusParticipation} DRIX</strong> de participation.
+                </div>
+              </div>
+
+              {/* Boutons */}
+              <div style={{ display:"flex",gap:10 }}>
+                <button onClick={()=>{ fermerDefiSemaine(); setPage("profil-joueur-"+t.id); }}
+                  style={{ flex:1,background:"#1a1a1a",border:`1px solid ${C.border}`,color:C.text,borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7 }}>
+                  <Eye size={15}/> Voir le profil
+                </button>
+                <button onClick={()=>{ fermerDefiSemaine(); setSearchDefi(t.pseudo); }}
+                  style={{ flex:2,background:"linear-gradient(135deg,#f97316,#ea580c)",border:"none",color:"#fff",borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:800,cursor:"pointer",boxShadow:"0 4px 20px rgba(249,115,22,0.4)",display:"flex",alignItems:"center",justifyContent:"center",gap:7 }}>
+                  <Swords size={15}/> Défier {t.pseudo}
+                </button>
+              </div>
+
+              {/* Rappel */}
+              <p style={{ textAlign:"center",color:C.muted,fontSize:11,marginTop:14 }}>
+                Ce défi se réinitialise chaque lundi. Les bonus ne s'appliquent qu'aux parties classées.
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── MODAL DÉFI PREMIUM ── */}
       {modalAmi && (
@@ -3746,25 +3944,25 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
   const [categorie, setCategorie] = useState(initCat);
 
   // Carte jeu active
-  const ModeBtn = ({ icon, label, sub, onClick, col, badge }) => (
+  const ModeBtn = ({ icon: IconComp, label, sub, onClick, col, badge }) => (
     <div onClick={onClick}
       style={{ background:"linear-gradient(135deg,#1a1a1a,#141414)",border:`2px solid ${col}33`,borderRadius:16,padding:"18px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,transition:"all .15s",userSelect:"none",position:"relative",overflow:"hidden" }}
       onMouseEnter={e=>{e.currentTarget.style.borderColor=col;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 8px 24px ${col}22`;}}
       onMouseLeave={e=>{e.currentTarget.style.borderColor=col+"33";e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
-      <div style={{ fontSize:36,flexShrink:0 }}>{icon}</div>
+      <div style={{ flexShrink:0 }}><IconComp size={36} color={col}/></div>
       <div style={{ flex:1 }}>
         <div style={{ fontWeight:800,fontSize:16,color:"#f1f5f9",marginBottom:2 }}>{label}</div>
         <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.4 }}>{sub}</div>
       </div>
       {badge && <span style={{ background:`${col}22`,border:`1px solid ${col}55`,color:col,fontSize:11,fontWeight:700,borderRadius:6,padding:"3px 7px",flexShrink:0 }}>{badge}</span>}
-      {!badge && <div style={{ fontSize:13,color:col,fontWeight:700,flexShrink:0 }}>→</div>}
+      {!badge && <ChevronRight size={18} color={col}/>}
     </div>
   );
 
   // Carte jeu à venir (grisée)
-  const SoonBtn = ({ icon, label, sub }) => (
+  const SoonBtn = ({ icon: IconComp, label, sub }) => (
     <div style={{ background:"#111",border:`1px solid #2a2a2a`,borderRadius:16,padding:"16px",display:"flex",alignItems:"center",gap:14,opacity:.5,userSelect:"none" }}>
-      <div style={{ fontSize:34,flexShrink:0,filter:"grayscale(1)" }}>{icon}</div>
+      <div style={{ flexShrink:0,filter:"grayscale(1)" }}><IconComp size={34} color={C.muted}/></div>
       <div style={{ flex:1 }}>
         <div style={{ fontWeight:700,fontSize:15,color:"#94a3b8" }}>{label}</div>
         <div style={{ fontSize:12,color:"#64748b",lineHeight:1.4 }}>{sub}</div>
@@ -3773,74 +3971,80 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
     </div>
   );
 
-  const CatBtn = ({ icon, label, sub, id, col }) => (
+  const CatBtn = ({ icon: IconComp, label, sub, id, col }) => (
     <div onClick={()=>setCategorie(id)}
       style={{ background:`linear-gradient(135deg,${col}18,${col}08)`,border:`2px solid ${col}55`,borderRadius:20,padding:"28px 22px",cursor:"pointer",transition:"all .15s",userSelect:"none",textAlign:"center" }}
       onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-4px)";e.currentTarget.style.boxShadow=`0 14px 32px ${col}33`;}}
       onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
-      <div style={{ fontSize:52,marginBottom:10 }}>{icon}</div>
+      <div style={{ marginBottom:10,display:"flex",justifyContent:"center" }}><IconComp size={52} color={col}/></div>
       <div style={{ fontWeight:900,fontSize:20,color:col,marginBottom:6 }}>{label}</div>
       <div style={{ fontSize:13,color:C.muted,lineHeight:1.6,whiteSpace:"pre-line" }}>{sub}</div>
-      <div style={{ marginTop:14,background:col,borderRadius:10,padding:"10px",fontWeight:800,fontSize:14,color:"#fff" }}>Accéder →</div>
+      <div style={{ marginTop:14,background:col,borderRadius:10,padding:"10px",fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>Accéder <ChevronRight size={14}/></div>
     </div>
   );
 
   if (!categorie) return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
-      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13 }}>← Accueil</button>
-      <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4 }}>🎮 Mode de jeu</h1>
+      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:0 }}>
+        <ArrowLeft size={16}/> Accueil
+      </button>
+      <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4,display:"flex",alignItems:"center",gap:8 }}>
+        <Gamepad2 size={22} color={C.accent}/> Mode de jeu
+      </h1>
       <p style={{ color:C.muted,fontSize:13,marginBottom:24 }}>Choisis ta catégorie</p>
       <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
-        <CatBtn id="fleche" icon="🎯" label="Jeux avec fléchettes"
+        <CatBtn id="fleche" icon={Target} label="Jeux avec fléchettes"
           sub={"501 · 301 · Cricket · Around the Clock\nKiller · Shanghai · Tournoi entre potes"} col="#f59e0b"/>
-        <CatBtn id="sans"   icon="🧠" label="Jeux sans fléchettes"
+        <CatBtn id="sans" icon={Brain} label="Jeux sans fléchettes"
           sub={"Rush Mode · Calcul finish\nQuiz · Défis mentaux · Jeux communautaires"} col="#ef4444"/>
       </div>
     </div>
   );
 
   const back = categorie === "fleche"
-    ? <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:2 }}>🎯 Jeux avec fléchettes</h1><p style={{ color:C.muted,fontSize:13,marginBottom:18 }}>Prends ta cible, on joue !</p></>
-    : <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:2 }}>🎮 Mini jeux & défis</h1><p style={{ color:C.muted,fontSize:13,marginBottom:18 }}>Entraîne ton mental, n'importe où !</p></>;
+    ? <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:2,display:"flex",alignItems:"center",gap:8 }}><Target size={22} color={C.yellow}/> Jeux avec fléchettes</h1><p style={{ color:C.muted,fontSize:13,marginBottom:18 }}>Prends ta cible, on joue !</p></>
+    : <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:2,display:"flex",alignItems:"center",gap:8 }}><Gamepad2 size={22} color={C.red}/> Mini jeux & défis</h1><p style={{ color:C.muted,fontSize:13,marginBottom:18 }}>Entraîne ton mental, n'importe où !</p></>;
 
   return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
-      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,padding:0 }}>← Retour</button>
+      <button onClick={()=>setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:0 }}>
+        <ArrowLeft size={16}/> Retour
+      </button>
       {back}
       <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
         {categorie==="fleche" && <>
-          <ModeBtn icon="🎯" label="501"
+          <ModeBtn icon={Target} label="501"
             sub="Pars de 501 et descends à 0. Termine sur un double."
             onClick={()=>setPage("scoreur")} col="#f97316"/>
-          <ModeBtn icon="🎯" label="301"
+          <ModeBtn icon={Target} label="301"
             sub="Pars de 301 et descends à 0. Termine sur un double."
             onClick={()=>setPage("scoreur")} col="#f59e0b"/>
-          <ModeBtn icon="🦗" label="Cricket"
+          <ModeBtn icon={Swords} label="Cricket"
             sub="Ferme les zones 15 à 20 et Bull avant tes adversaires. Mode points ou Cut Throat."
             onClick={()=>setPage("cricket-config")} col="#22c55e"/>
-          <ModeBtn icon="🏙️" label="Capital"
+          <ModeBtn icon={Building2} label="Capital"
             sub="Jeu de précision : descends ton score en visant des zones précises."
             onClick={()=>setPage("jeux-capital")} col="#a78bfa"/>
-          <ModeBtn icon="🍺" label="Tournoi entre potes"
+          <ModeBtn icon={Users} label="Tournoi entre potes"
             sub="Organise un tournoi avec tes amis. Format libre, ambiance garantie."
             onClick={()=>setPage("tournois-potes")} col="#60a5fa"/>
-          <SoonBtn icon="🕐" label="Around the Clock" sub="Vise chaque zone dans l'ordre, de 1 à 20." />
-          <SoonBtn icon="🐉" label="Shanghai" sub="Marque le max de points sur une zone spécifique chaque tour." />
-          <SoonBtn icon="☠️" label="Killer" sub="Deviens killer et élimine tes adversaires." />
+          <SoonBtn icon={Clock} label="Around the Clock" sub="Vise chaque zone dans l'ordre, de 1 à 20." />
+          <SoonBtn icon={Flame} label="Shanghai" sub="Marque le max de points sur une zone spécifique chaque tour." />
+          <SoonBtn icon={Skull} label="Killer" sub="Deviens killer et élimine tes adversaires." />
         </>}
         {categorie==="sans" && <>
-          <ModeBtn icon="⚡" label="Rush Mode"
+          <ModeBtn icon={Zap} label="Rush Mode"
             sub="Calcul mental sous pression : score, finishes, bust, routes. 3 niveaux, combos et badges !"
             onClick={()=>setPage("rush-mode")} col="#ef4444"/>
-          <ModeBtn icon="🎯" label="Calcul finish"
+          <ModeBtn icon={Target} label="Calcul finish"
             sub="Entraîne-toi à construire tes finishes en 1, 2 ou 3 fléchettes."
             onClick={()=>setPage("entrainement-finish")} col="#f97316"/>
-          <ModeBtn icon="⏱" label="Chrono Finish"
+          <ModeBtn icon={Timer} label="Chrono Finish"
             sub="5 finishes à enchaîner le plus vite possible. Chronomètre lancé — à toi de jouer !"
             onClick={()=>setPage("chrono-finish")} col="#a78bfa"/>
-          <SoonBtn icon="🧩" label="Quiz fléchettes" sub="Teste tes connaissances sur les règles, les pros et l'histoire du fléché." />
-          <SoonBtn icon="🧠" label="Défis mentaux" sub="Calcul rapide, mémoire des zones, routes optimales..." />
-          <SoonBtn icon="👥" label="Jeux communautaires" sub="Défis partagés, classements hebdo, événements spéciaux." />
+          <SoonBtn icon={HelpCircle} label="Quiz fléchettes" sub="Teste tes connaissances sur les règles, les pros et l'histoire du fléché." />
+          <SoonBtn icon={Brain} label="Défis mentaux" sub="Calcul rapide, mémoire des zones, routes optimales..." />
+          <SoonBtn icon={Users} label="Jeux communautaires" sub="Défis partagés, classements hebdo, événements spéciaux." />
         </>}
       </div>
     </div>
@@ -4386,6 +4590,8 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
   const [userDist,setUserDist]=useState(null);
   const [cover,setCover]=useState(null);
   const [copied,setCopied]=useState(false);
+  const [cibleReports,setCibleReports]=useState([]);
+  const [cibleSending,setCibleSending]=useState(false);
   const presenceRef=useRef(null);
 
   useEffect(()=>{
@@ -4395,6 +4601,7 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
       setLoading(false);
     }).catch(()=>setLoading(false));
     db.getPhotos(slug).then(p=>{ if(p?.[0]) setCover(p[0].data); }).catch(()=>{});
+    db.getCibleReports(slug).then(r=>setCibleReports(r||[])).catch(()=>{});
   },[slug]);
 
   useEffect(()=>{
@@ -4406,6 +4613,26 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
 
   if(loading) return <Spinner/>;
   if(!bar) return <div style={{ maxWidth:860,margin:"0 auto",padding:"36px 20px",textAlign:"center" }}><Btn onClick={()=>window.history.back()}>← Retour</Btn></div>;
+
+  const CIBLE_SEUIL = 10;
+  const alreadyVotedCible = joueur && cibleReports.some(r => r.joueur_id === joueur.id);
+
+  const handlePasDeCible = async () => {
+    if (!joueur) { setPage("inscription"); return; }
+    if (alreadyVotedCible || cibleSending) return;
+    setCibleSending(true);
+    try {
+      await db.addCibleReport({ bar_slug: bar.slug, joueur_id: joueur.id });
+      const newReports = [...cibleReports, { joueur_id: joueur.id }];
+      setCibleReports(newReports);
+      if (newReports.length >= CIBLE_SEUIL) {
+        await db.deleteBar(bar.slug);
+        setBars(p => p.filter(x => x.slug !== bar.slug));
+        setPage("bars");
+      }
+    } catch(e) { /* conflit UNIQUE = déjà voté */ }
+    setCibleSending(false);
+  };
 
   const asso=associations.find(a=>a.nom===bar.association);
   const ti=typeInfo(bar.type);
@@ -4490,7 +4717,13 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
 
         {/* ── INFOS DU SPOT (fusionné) ── */}
         <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18,marginBottom:16 }}>
-          <h3 style={{ fontWeight:700,fontSize:16,marginBottom:16,color:C.accent,display:"flex",alignItems:"center",gap:7 }}><Info size={16} color={C.accent}/> Infos du spot</h3>
+          <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16 }}>
+            <h3 style={{ fontWeight:700,fontSize:16,color:C.accent,display:"flex",alignItems:"center",gap:7,margin:0 }}><Info size={16} color={C.accent}/> Infos du spot</h3>
+            {joueur
+              ? <button onClick={()=>setShowEdit(true)} style={{ background:C.accentTint,border:`1px solid ${C.accentBorder}`,color:C.accent,cursor:"pointer",borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:5 }}><Pencil size={12}/> Modifier</button>
+              : <button onClick={()=>setPage("inscription")} style={{ background:"#1a1a1a",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:5 }}><Pencil size={12}/> Modifier</button>
+            }
+          </div>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
             {[
               [MapPin,"Adresse",(bar.adresse||"—")+(bar.cp?" · "+bar.cp:"")+" "+bar.ville],
@@ -4509,6 +4742,25 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
               </div>
             ))}
           </div>
+        </div>
+
+        {/* ── PAS DE CIBLE ── */}
+        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 18px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
+          <div>
+            <div style={{ fontWeight:700,fontSize:13,color:C.text,marginBottom:2 }}>Aucune cible ici ?</div>
+            <div style={{ fontSize:12,color:C.muted }}>
+              {cibleReports.length === 0 ? "Signale si ce bar n'a plus de fléchettes."
+                : alreadyVotedCible ? `Tu as signalé ce bar — ${cibleReports.length}/${CIBLE_SEUIL} signalements`
+                : `${cibleReports.length}/${CIBLE_SEUIL} joueurs ont signalé l'absence de cible`}
+            </div>
+          </div>
+          <button
+            onClick={handlePasDeCible}
+            disabled={alreadyVotedCible || cibleSending}
+            style={{ flexShrink:0, background: alreadyVotedCible ? "#1a1a1a" : `linear-gradient(135deg,${C.red},#dc2626)`, border: alreadyVotedCible ? `1px solid ${C.border}` : "none", color: alreadyVotedCible ? C.muted : "#fff", borderRadius:10, padding:"9px 16px", fontSize:13, fontWeight:700, cursor: alreadyVotedCible ? "not-allowed" : "pointer", display:"flex", alignItems:"center", gap:6, opacity: cibleSending ? .6 : 1 }}>
+            <AlertCircle size={14}/>
+            {alreadyVotedCible ? "Signalé" : "Pas de cible"}
+          </button>
         </div>
 
         {/* ── DESCRIPTION ── */}
@@ -4600,6 +4852,8 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
   const [loadMembres, setLoadMembres] = useState(true);
   const [events, setEvents] = useState([]);
   const [editingAsso, setEditingAsso] = useState(false);
+  const [assoClassesIds, setAssoClassesIds] = useState(new Set());
+  const [showAssoNonClasses, setShowAssoNonClasses] = useState(false);
   useEffect(() => {
     sb(`joueurs?asso_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo,ville&limit=50`)
       .then(d => setMembres(Array.isArray(d) ? d : []))
@@ -4608,6 +4862,9 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
     sb(`tournois?association=eq.${encodeURIComponent(asso.nom)}&order=date.desc&select=*&limit=10`)
       .then(d => setEvents(Array.isArray(d) ? d : []))
       .catch(() => []);
+    sb(`drix_mouvements?resultat=in.(victoire,defaite)&select=joueur_id`)
+      .then(d => setAssoClassesIds(new Set((Array.isArray(d)?d:[]).map(m=>m.joueur_id))))
+      .catch(() => {});
   }, [slug]);
 
   const stats = useMemo(() => {
@@ -4815,44 +5072,73 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
             <p style={{ color:C.muted,fontSize:14,marginBottom:8 }}>Aucun membre lié à ce club pour l'instant.</p>
             <p style={{ color:C.muted,fontSize:12 }}>Les membres peuvent rejoindre ce club depuis leur profil.</p>
           </div>
-        ) : membres.map((m, i) => {
-          const isTop = i === 0;
+        ) : (() => {
+          const membresClasses    = membres.filter(m => assoClassesIds.size === 0 || assoClassesIds.has(m.id));
+          const membresNonClasses = membres.filter(m => assoClassesIds.size > 0 && !assoClassesIds.has(m.id));
           return (
-            <div key={m.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 20px",
-              borderBottom:`1px solid ${C.border}`, background: isTop ? `${C.accent}08` : "transparent" }}>
-              {/* Rang */}
-              <div style={{ width:28,textAlign:"center",flexShrink:0 }}>
-                {i < 3 ? (
-                  <span style={{ fontSize:18 }}>{["🥇","🥈","🥉"][i]}</span>
-                ) : (
-                  <span style={{ fontWeight:700,color:C.muted,fontSize:14 }}>#{i+1}</span>
-                )}
-              </div>
-              {/* Avatar */}
-              <div style={{ width:40,height:40,borderRadius:"50%",flexShrink:0,
-                background:`linear-gradient(135deg,${C.accent}44,#7c3aed44)`,
-                border:`2px solid ${isTop?C.accent:C.border}`,
-                overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center" }}>
-                {m.photo
-                  ? <img src={m.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
-                  : <Target size={18} color={C.accent}/>
-                }
-              </div>
-              {/* Infos */}
-              <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ fontWeight:700,fontSize:14 }}>{m.pseudo}</div>
-                {m.ville && <div style={{ fontSize:11,color:C.muted,display:"flex",alignItems:"center",gap:3 }}><MapPin size={10}/> {m.ville}</div>}
-              </div>
-              {/* DRIX */}
-              <div style={{ textAlign:"right",flexShrink:0 }}>
-                <div style={{ fontWeight:800,fontSize:16,color: isTop?C.accent:"#e2e8f0" }}>
-                  {m.drix ?? 1000}
+            <>
+              {membresClasses.map((m, i) => {
+                const isTop = i === 0;
+                return (
+                  <div key={m.id} onClick={()=>setPage("profil-joueur-"+m.id)}
+                    style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 20px",
+                      borderBottom:`1px solid ${C.border}`, background: isTop ? `${C.accent}08` : "transparent", cursor:"pointer" }}>
+                    <div style={{ width:28,textAlign:"center",flexShrink:0 }}>
+                      {i < 3 ? (
+                        <span style={{ fontSize:18 }}>{["🥇","🥈","🥉"][i]}</span>
+                      ) : (
+                        <span style={{ fontWeight:700,color:C.muted,fontSize:14 }}>#{i+1}</span>
+                      )}
+                    </div>
+                    <div style={{ width:40,height:40,borderRadius:"50%",flexShrink:0,
+                      background:`linear-gradient(135deg,${C.accent}44,#7c3aed44)`,
+                      border:`2px solid ${isTop?C.accent:C.border}`,
+                      overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center" }}>
+                      {m.photo ? <img src={m.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <Target size={18} color={C.accent}/>}
+                    </div>
+                    <div style={{ flex:1,minWidth:0 }}>
+                      <div style={{ fontWeight:700,fontSize:14 }}>{m.pseudo}</div>
+                      {m.ville && <div style={{ fontSize:11,color:C.muted,display:"flex",alignItems:"center",gap:3 }}><MapPin size={10}/> {m.ville}</div>}
+                    </div>
+                    <div style={{ textAlign:"right",flexShrink:0 }}>
+                      <div style={{ fontWeight:800,fontSize:16,color: isTop?C.accent:"#e2e8f0" }}>{m.drix ?? 1000}</div>
+                      <div style={{ fontSize:10,color:C.muted,fontWeight:600 }}>DRIX</div>
+                    </div>
+                  </div>
+                );
+              })}
+              {membresNonClasses.length > 0 && (
+                <div style={{ padding:"0 16px 16px" }}>
+                  <button onClick={() => setShowAssoNonClasses(v=>!v)}
+                    style={{ width:"100%", background:"#ffffff08", border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 14px", color:C.muted, fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:12, touchAction:"manipulation" }}>
+                    <span style={{ display:"flex",alignItems:"center",gap:6 }}>
+                      <Users size={13} color={C.muted}/>
+                      Joueurs non classés
+                      <span style={{ background:"#ffffff14",borderRadius:20,padding:"1px 7px",fontSize:11 }}>{membresNonClasses.length}</span>
+                    </span>
+                    <ChevronDown size={14} style={{ transform:showAssoNonClasses?"rotate(180deg)":"none", transition:"transform 0.2s" }}/>
+                  </button>
+                  {showAssoNonClasses && membresNonClasses.map(m => (
+                    <div key={m.id} onClick={()=>setPage("profil-joueur-"+m.id)}
+                      style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:`1px solid ${C.border}`, cursor:"pointer", opacity:0.65 }}>
+                      <div style={{ width:34,height:34,borderRadius:"50%",flexShrink:0,background:`${C.accent}22`,border:`1.5px solid ${C.border}`,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center" }}>
+                        {m.photo ? <img src={m.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <Target size={14} color={C.muted}/>}
+                      </div>
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <div style={{ fontWeight:600,fontSize:13 }}>{m.pseudo}</div>
+                        <div style={{ fontSize:11,color:C.muted }}>Aucun match joué</div>
+                      </div>
+                      <div style={{ textAlign:"right",flexShrink:0 }}>
+                        <div style={{ fontWeight:700,fontSize:14,color:C.muted }}>{m.drix??1000}</div>
+                        <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div style={{ fontSize:10,color:C.muted,fontWeight:600 }}>DRIX</div>
-              </div>
-            </div>
+              )}
+            </>
           );
-        })}
+        })()}
       </div>
     </div>
   );
@@ -6595,9 +6881,11 @@ const ScoreurLibre = ({ setPage }) => {
         <div style={{ maxWidth:480, margin:"0 auto" }}>
           {/* Header */}
           <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:28 }}>
-            <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:CL.sub,fontSize:22,cursor:"pointer",padding:0 }}>‹</button>
+            <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:CL.sub,cursor:"pointer",padding:0,display:"flex",alignItems:"center" }}>
+              <ArrowLeft size={22} color={CL.sub}/>
+            </button>
             <div>
-              <div style={{ fontWeight:900, fontSize:22, color:CL.text }}>⚡ Scoreur rapide</div>
+              <div style={{ fontWeight:900, fontSize:22, color:CL.text, display:"flex",alignItems:"center",gap:8 }}><Zap size={22} color={CL.accent}/> Scoreur rapide</div>
               <div style={{ fontSize:12, color:CL.sub }}>Sans compte • Aucune donnée enregistrée</div>
             </div>
           </div>
@@ -6648,9 +6936,9 @@ const ScoreurLibre = ({ setPage }) => {
 
           <button
             onClick={()=>setPhase("jeu")}
-            style={{ width:"100%", padding:"16px", borderRadius:14, border:"none", background:`linear-gradient(135deg,${CL.accent},#ea580c)`, color:"#fff", fontWeight:900, fontSize:18, cursor:"pointer", boxShadow:"0 6px 24px #f9731644" }}
+            style={{ width:"100%", padding:"16px", borderRadius:14, border:"none", background:`linear-gradient(135deg,${CL.accent},#ea580c)`, color:"#fff", fontWeight:900, fontSize:18, cursor:"pointer", boxShadow:"0 6px 24px #f9731644", display:"flex",alignItems:"center",justifyContent:"center",gap:8 }}
           >
-            🎯 Lancer la partie
+            <Target size={18}/> Lancer la partie
           </button>
         </div>
       </div>
@@ -6709,7 +6997,7 @@ const ScoreurLibre = ({ setPage }) => {
         <div style={{ maxWidth:480, margin:"0 auto" }}>
           {/* Winner banner */}
           <div style={{ background:"linear-gradient(135deg,#14532d,#166534)", borderRadius:20, padding:"28px 20px", textAlign:"center", marginBottom:16 }}>
-            <div style={{ fontSize:56, marginBottom:8 }}>🏆</div>
+            <div style={{ marginBottom:8, display:"flex",justifyContent:"center" }}><Trophy size={56} color={CL.green}/></div>
             <div style={{ fontSize:13, color:"#86efac", fontWeight:700, marginBottom:4 }}>VAINQUEUR</div>
             <div style={{ fontSize:28, fontWeight:900, color:CL.green }}>{gagnantNom}</div>
             <div style={{ fontSize:15, color:"#86efac", marginTop:6 }}>
@@ -6721,12 +7009,12 @@ const ScoreurLibre = ({ setPage }) => {
           <div style={{ background:CL.card, borderRadius:16, padding:20, marginBottom:16, border:`1px solid ${CL.border}` }}>
             {/* Headers */}
             <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", gap:8, marginBottom:12 }}>
-              <div style={{ textAlign:"right", fontWeight:800, fontSize:14, color: gagnantIdx===0?CL.green:CL.text }}>
-                {j0.nom} {gagnantIdx===0?"🏆":""}
+              <div style={{ textAlign:"right", fontWeight:800, fontSize:14, color: gagnantIdx===0?CL.green:CL.text, display:"flex",alignItems:"center",justifyContent:"flex-end",gap:4 }}>
+                {j0.nom} {gagnantIdx===0?<Trophy size={14} color={CL.green}/>:""}
               </div>
               <div style={{ minWidth:90 }}/>
-              <div style={{ textAlign:"left", fontWeight:800, fontSize:14, color: gagnantIdx===1?CL.green:CL.text }}>
-                {gagnantIdx===1?"🏆":""} {j1.nom}
+              <div style={{ textAlign:"left", fontWeight:800, fontSize:14, color: gagnantIdx===1?CL.green:CL.text, display:"flex",alignItems:"center",gap:4 }}>
+                {gagnantIdx===1?<Trophy size={14} color={CL.green}/>:""} {j1.nom}
               </div>
             </div>
 
@@ -6787,7 +7075,7 @@ const ScoreurLibre = ({ setPage }) => {
               {manchesDetail.map((m, i) => (
                 <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom: i<manchesDetail.length-1?`1px solid ${CL.border}`:"none" }}>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontWeight:700, fontSize:13, color:CL.green }}>🏆 {m.winner}</div>
+                    <div style={{ fontWeight:700, fontSize:13, color:CL.green, display:"flex",alignItems:"center",gap:5 }}><Trophy size={12} color={CL.green}/> {m.winner}</div>
                     <div style={{ fontSize:11, color:CL.sub }}>{m.winner_volees} volées · moy {m.winner_moy}</div>
                   </div>
                   <div style={{ fontSize:11, color:CL.sub, padding:"0 12px" }}>Manche {i+1}</div>
@@ -6807,10 +7095,11 @@ const ScoreurLibre = ({ setPage }) => {
             fontWeight:900, fontSize:17, cursor:"pointer", marginBottom:10,
             boxShadow:"0 0 24px #f9731655, 0 4px 20px #ea580c44",
             animation:"rejouer-glow 2.2s ease-in-out infinite",
-          }}>🔁 Rejouer le match</button>
+          display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+          }}><RefreshCw size={16}/> Rejouer le match</button>
           <style>{`@keyframes rejouer-glow{0%,100%{box-shadow:0 0 18px #f9731655,0 4px 20px #ea580c44}50%{box-shadow:0 0 38px #f97316aa,0 6px 36px #ea580c88}}`}</style>
           <div style={{ display:"flex", gap:10 }}>
-            <button onClick={()=>setPage("home")} style={{ flex:1, padding:"13px", borderRadius:12, border:`1px solid ${CL.border}`, background:CL.card, color:CL.sub, fontWeight:800, fontSize:15, cursor:"pointer" }}>🏠 Accueil</button>
+            <button onClick={()=>setPage("home")} style={{ flex:1, padding:"13px", borderRadius:12, border:`1px solid ${CL.border}`, background:CL.card, color:CL.sub, fontWeight:800, fontSize:15, cursor:"pointer", display:"flex",alignItems:"center",justifyContent:"center",gap:8 }}><HomeIcon size={15}/> Accueil</button>
           </div>
         </div>
       </div>
@@ -7367,6 +7656,37 @@ export default function App() {
   const [isInstalled,setIsInstalled]=useState(false);
   const [showChronoPopup,setShowChronoPopup]=useState(false);
   const [chronoLeader,setChronoLeader]=useState(null);
+  const [chronoDrixNotif,setChronoDrixNotif]=useState(null);
+
+  // ── Récompense Chrono Finish : minuit automatique ─────────────────────────
+  // 1) Au démarrage : n'importe quel utilisateur ouvrant l'app déclenche le check
+  //    (le flag `rewarded` en DB + le verrou localStorage évitent la double-attribution)
+  // 2) Timer minuit : si l'app reste ouverte, re-déclenche à 00h01 chaque jour
+  useEffect(()=>{
+    const msUntilMidnight = () => {
+      const now   = new Date();
+      const minuit = new Date(now);
+      minuit.setDate(minuit.getDate() + 1);
+      minuit.setHours(0, 1, 0, 0); // 00:01:00
+      return Math.max(5000, minuit.getTime() - now.getTime());
+    };
+
+    // Check immédiat (idempotent — tourne une fois par jour max grâce au verrou DB)
+    checkYesterdayReward(null, () => {});
+
+    // Timer récursif qui tire à 00h01 chaque nuit
+    let timer;
+    const planifier = () => {
+      timer = setTimeout(() => {
+        checkYesterdayReward(null, () => {});
+        planifier(); // reprogram le lendemain
+      }, msUntilMidnight());
+    };
+    planifier();
+
+    return () => clearTimeout(timer);
+  },[]); // eslint-disable-line
+
   // Vérification de version — mise à jour automatique sans bandeau
   useEffect(()=>{
     const VERSION_KEY = "dp_version";
@@ -7768,6 +8088,7 @@ export default function App() {
         {page==="profil-badges"    && joueur && <PageProfilBadges joueur={joueur} setPage={nav}/>}
         {page==="profil-historique" && joueur && <PageProfilHistorique joueur={joueur} setPage={nav}/>}
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav} associations={associations}/>}
+        {page==="inscription"      && <Connexion onLogin={handleLogin} setPage={nav} associations={associations} initMode="register"/>}
         {page==="scoreur"          && <Scoreur setPage={nav}/>}
         {page==="scoreur-libre"    && <ScoreurLibre setPage={nav}/>}
         {page==="jeux"             && <PageModeJeu joueur={joueur} setPage={nav}/>}

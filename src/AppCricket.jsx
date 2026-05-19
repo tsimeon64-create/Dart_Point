@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { ArrowLeft, Target, Swords, Home } from "lucide-react";
 
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
@@ -119,9 +120,11 @@ export const ConfigCricket = ({ joueur, setPage }) => {
       {/* Header */}
       <div style={{ padding:"16px 16px 0", display:"flex", alignItems:"center", gap:12, borderBottom:`1px solid ${C.border}`, paddingBottom:12, marginBottom:4 }}>
         <button onClick={() => { if (defiData) localStorage.removeItem("dp_cricket_duel"); setPage(defiData ? "defi" : "jeux-flechettes"); }}
-          style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:14, padding:0 }}>← Retour</button>
+          style={{ display:"flex", alignItems:"center", gap:6, background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, padding:0 }}>
+          <ArrowLeft size={16}/> Retour
+        </button>
         <div>
-          <h1 style={{ fontWeight:900, fontSize:20, margin:0 }}>🎯 Cricket</h1>
+          <h1 style={{ fontWeight:900, fontSize:20, margin:0, display:"flex", alignItems:"center", gap:8 }}><Target size={20} color={C.accent}/> Cricket</h1>
           <div style={{ fontSize:12, color:C.muted }}>{defiData ? "Défi DRIX — Configuration" : "Configuration de la partie"}</div>
         </div>
       </div>
@@ -131,7 +134,7 @@ export const ConfigCricket = ({ joueur, setPage }) => {
         {/* Notice défi DRIX */}
         {defiData && (
           <div style={{ background:"#1a1a2e", border:"1px solid #7c3aed44", borderRadius:14, padding:14, display:"flex", gap:12, alignItems:"flex-start" }}>
-            <div style={{ fontSize:22, flexShrink:0 }}>⚔️</div>
+            <div style={{ flexShrink:0, display:"flex", alignItems:"center" }}><Swords size={22} color="#a78bfa"/></div>
             <div>
               <div style={{ fontWeight:800, fontSize:14, color:"#a78bfa", marginBottom:4 }}>Match DRIX Cricket</div>
               <div style={{ fontSize:12, color:C.muted, lineHeight:1.6 }}>
@@ -244,7 +247,7 @@ export const ConfigCricket = ({ joueur, setPage }) => {
             fontWeight:900, fontSize:18, cursor: canStart ? "pointer" : "not-allowed",
             boxShadow: canStart ? `0 8px 24px ${C.accent}44` : "none",
           }}>
-          DÉBUT 🎯
+          DÉBUT <Target size={18} style={{ verticalAlign:"middle", marginLeft:4 }}/>
         </button>
       </div>
     </div>
@@ -609,7 +612,9 @@ export const ScoreurCricket = ({ config, setPage }) => {
           )}
           <button onClick={() => setPage(config.defi ? "home" : "jeux-flechettes")}
             style={{ flex:1, padding:"16px", borderRadius:12, border:`1px solid ${C.border}`, fontWeight:800, fontSize:15, cursor:"pointer", background:C.card, color:C.muted }}>
-            {config.defi ? "🏠 Accueil" : "← Quitter"}
+            {config.defi
+            ? <span style={{ display:"flex", alignItems:"center", gap:6 }}><Home size={16}/> Accueil</span>
+            : <span style={{ display:"flex", alignItems:"center", gap:6 }}><ArrowLeft size={16}/> Quitter</span>}
           </button>
         </div>
       </div>

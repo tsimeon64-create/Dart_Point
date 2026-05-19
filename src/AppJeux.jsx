@@ -512,22 +512,10 @@ const JoueursConfigSection = ({ config, setConfig, modeDuel }) => {
 
   return (
     <div>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+      <div style={{ marginBottom:10 }}>
         <label style={{ fontSize:13, fontWeight:600, color:"#94a3b8" }}>
           JOUEURS <span style={{ color:"#f97316", fontWeight:700 }}>{config.noms.length}</span>
         </label>
-        {!modeDuel && (
-          <div style={{ display:"flex", gap:6 }}>
-            <button onClick={() => removeJoueur(config.noms.length - 1)} disabled={config.noms.length <= 2}
-              style={{ background: config.noms.length <= 2 ? "#111" : "#1a1a1a", border:"1px solid #2a2a2a", borderRadius:8, color: config.noms.length <= 2 ? "#555" : "#f1f5f9", fontWeight:800, fontSize:18, width:34, height:34, cursor: config.noms.length <= 2 ? "not-allowed" : "pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              −
-            </button>
-            <button onClick={addJoueur} disabled={config.noms.length >= 6}
-              style={{ background: config.noms.length >= 6 ? "#111" : "linear-gradient(135deg,#f97316,#ea580c)", border:"none", borderRadius:8, color:"#fff", fontWeight:800, fontSize:18, width:34, height:34, cursor: config.noms.length >= 6 ? "not-allowed" : "pointer", display:"flex", alignItems:"center", justifyContent:"center", opacity: config.noms.length >= 6 ? 0.4 : 1 }}>
-              +
-            </button>
-          </div>
-        )}
       </div>
       <div style={{ display:"flex", flexDirection:"column", gap:10 }} ref={searchRef}>
         {config.noms.map((nom, idx) => (
@@ -550,6 +538,13 @@ const JoueursConfigSection = ({ config, setConfig, modeDuel }) => {
                   onClick={() => { setOpenSearch(openSearch === idx ? null : idx); setSearchQ(""); setResults([]); }}
                   style={{ background: openSearch === idx ? "linear-gradient(135deg,#f97316,#ea580c)" : "#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, padding:"13px 12px", color: openSearch === idx ? "#fff" : "#94a3b8", cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
                   <Search size={18}/>
+                </button>
+              )}
+              {/* Supprimer joueur 3+ */}
+              {!modeDuel && idx >= 2 && (
+                <button onClick={() => removeJoueur(idx)}
+                  style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, padding:"13px 10px", color:"#ef4444", cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <X size={16}/>
                 </button>
               )}
             </div>
@@ -590,6 +585,13 @@ const JoueursConfigSection = ({ config, setConfig, modeDuel }) => {
             )}
           </div>
         ))}
+        {/* Bouton ajouter un joueur */}
+        {!modeDuel && config.noms.length < 6 && (
+          <button onClick={addJoueur}
+            style={{ width:"100%", padding:"13px", borderRadius:10, border:"1px dashed #f9731655", background:"#f9731608", color:"#f97316", fontWeight:700, fontSize:14, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+            + Ajouter un joueur
+          </button>
+        )}
       </div>
     </div>
   );

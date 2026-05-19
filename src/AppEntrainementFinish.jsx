@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { ArrowLeft, Target, Zap, Flame, Gem, X, Timer } from "lucide-react";
 
 const C = {
   bg:"#0f0f0f", card:"#1a1a1a", card2:"#141414", border:"#2a2a2a",
@@ -100,8 +101,8 @@ const SelectionMode = ({ onSelect, setPage, joueur }) => {
   }}>
     {/* Header */}
     <div style={{ background:C.card, borderBottom:`1px solid ${C.border}`, padding:"10px 14px", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-      <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}>← Retour</button>
-      <div style={{ flex:1, fontWeight:800, fontSize:16, color:C.text }}>🎯 Comptage de finish</div>
+      <button onClick={()=>window.history.back()} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}><ArrowLeft size={16}/> Retour</button>
+      <div style={{ flex:1, fontWeight:800, fontSize:16, color:C.text, display:"flex", alignItems:"center", gap:8 }}><Target size={20} color={C.accent}/> Comptage de finish</div>
     </div>
 
     <div style={{ flex:1, overflowY:"auto", padding:"20px 14px", display:"flex", flexDirection:"column", gap:14 }}>
@@ -146,31 +147,31 @@ const SelectionMode = ({ onSelect, setPage, joueur }) => {
           <div style={{ fontWeight:800, fontSize:12, color:C.accent, marginBottom:8, letterSpacing:1 }}>📋 RÈGLES</div>
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
             <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
-              <span style={{ fontSize:18, flexShrink:0 }}>🔥</span>
+              <span style={{ flexShrink:0, display:"flex", alignItems:"center", paddingTop:2 }}><Flame size={18} color={C.accent}/></span>
               <span style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>
                 Enchaîne <b style={{ color:C.yellow }}>10 finishes corrects</b> d'affilée sans aide
               </span>
             </div>
             <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
-              <span style={{ fontSize:18, flexShrink:0 }}>💎</span>
+              <span style={{ flexShrink:0, display:"flex", alignItems:"center", paddingTop:2 }}><Gem size={18} color={C.blue}/></span>
               <span style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>
                 Série de 10 réussie = <b style={{ color:C.green }}>+5 DRIX</b> ajoutés à ton classement
               </span>
             </div>
             <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
-              <span style={{ fontSize:18, flexShrink:0 }}>💥</span>
+              <span style={{ flexShrink:0, display:"flex", alignItems:"center", paddingTop:2 }}><Zap size={18} color={C.yellow}/></span>
               <span style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>
                 Une faute en cours de série = <b style={{ color:C.red }}>−5 DRIX</b> et la série repart à zéro
               </span>
             </div>
             <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
-              <span style={{ fontSize:18, flexShrink:0 }}>🚫</span>
+              <span style={{ flexShrink:0, display:"flex", alignItems:"center", paddingTop:2 }}><X size={18} color={C.red}/></span>
               <span style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>
                 Aucune aide — le total est caché, à toi de calculer !
               </span>
             </div>
             <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
-              <span style={{ fontSize:18, flexShrink:0 }}>⏱</span>
+              <span style={{ flexShrink:0, display:"flex", alignItems:"center", paddingTop:2 }}><Timer size={18} color={C.yellow}/></span>
               <span style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>
                 <b style={{ color:C.yellow }}>1 min 20</b> pour répondre — le temps s'écoule, dépêche-toi !
               </span>
@@ -387,9 +388,9 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
 
       {/* ── Header ── */}
       <div style={{ background:C.card, borderBottom:`1px solid ${C.border}`, padding:"8px 12px", display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
-        <button onClick={()=>setPage("entrainement-finish")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0,whiteSpace:"nowrap" }}>← Modes</button>
+        <button onClick={()=>setPage("entrainement-finish")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0,whiteSpace:"nowrap" }}><ArrowLeft size={16}/> Modes</button>
         <div style={{ flex:1, fontWeight:800, fontSize:14, color: isDrix ? C.accent : C.green }}>
-          {isDrix ? "⚡ Chasse aux DRIX" : "😌 Mode Paisible"}
+          {isDrix ? <span style={{ display:"flex",alignItems:"center",gap:6 }}><Zap size={14}/> Chasse aux DRIX</span> : "😌 Mode Paisible"}
         </div>
         {/* Indicateur de niveau */}
         {(() => {
@@ -650,8 +651,8 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
               {/* Boutons */}
               <div style={{ display:"flex",gap:8,width:"100%",marginTop:4 }}>
                 <button onClick={()=>setPage("entrainement-finish")}
-                  style={{ flex:1,background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px",fontWeight:700,fontSize:13,cursor:"pointer" }}>
-                  ← Quitter
+                  style={{ flex:1,background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px",fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
+                  <ArrowLeft size={16}/> Quitter
                 </button>
                 <button onClick={rejouer}
                   style={{ flex:1,background:`linear-gradient(135deg,${C.accent},#ea580c)`,color:"#fff",border:"none",borderRadius:10,padding:"12px",fontWeight:800,fontSize:14,cursor:"pointer" }}>
@@ -680,8 +681,8 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
               🔄 Rejouer
             </button>
             <button onClick={()=>setPage("entrainement-finish")}
-              style={{ width:"100%",background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px",fontWeight:600,fontSize:13,cursor:"pointer" }}>
-              ← Quitter
+              style={{ width:"100%",background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px",fontWeight:600,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
+              <ArrowLeft size={16}/> Quitter
             </button>
           </div>
         )}

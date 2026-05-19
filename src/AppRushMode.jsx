@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { ArrowLeft, Zap, Flame, Trophy } from "lucide-react";
 
 // ── Thème ─────────────────────────────────────────────────────────────────────
 const C = {
@@ -180,13 +181,13 @@ const ComboBar = ({ combo }) => {
       <span style={{fontSize:11,color:C.muted}}>Enchaîne 3 bonnes réponses pour le combo !</span>
     </div>
   );
-  const cfg = combo>=10 ? {emoji:"💥",color:C.purple,glow:"#a78bfa"}
-            : combo>=5  ? {emoji:"⚡",color:C.yellow,glow:"#f59e0b"}
-                        : {emoji:"🔥",color:C.red,   glow:"#ef4444"};
+  const cfg = combo>=10 ? {icon:<Zap size={18}/>,  color:C.purple,glow:"#a78bfa"}
+            : combo>=5  ? {icon:<Zap size={18}/>,  color:C.yellow,glow:"#f59e0b"}
+                        : {icon:<Flame size={18}/>, color:C.red,   glow:"#ef4444"};
   return (
     <div style={{textAlign:"center",height:24,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <span style={{fontWeight:900,fontSize:18,color:cfg.color,textShadow:`0 0 16px ${cfg.glow}`,letterSpacing:1}}>
-        {cfg.emoji} COMBO ×{combo}
+      <span style={{fontWeight:900,fontSize:18,color:cfg.color,textShadow:`0 0 16px ${cfg.glow}`,letterSpacing:1,display:"flex",alignItems:"center",gap:4}}>
+        {cfg.icon} COMBO ×{combo}
       </span>
     </div>
   );
@@ -296,8 +297,8 @@ const AnswerButtons = ({ q, onAnswer, disabled }) => {
 const SelectNiveau = ({ onSelect, onBack }) => (
   <div style={{position:"fixed",inset:0,background:C.bg,display:"flex",flexDirection:"column",zIndex:200}}>
     <div style={{background:C.card,borderBottom:`1px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-      <button onClick={onBack} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0}}>← Retour</button>
-      <div style={{flex:1,fontWeight:800,fontSize:16,color:C.text}}>⚡ Rush Mode — Niveau</div>
+      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0}}><ArrowLeft size={16}/> Retour</button>
+      <div style={{flex:1,fontWeight:800,fontSize:16,color:C.text,display:"flex",alignItems:"center",gap:8}}><Zap size={16} color={C.accent}/> Rush Mode — Niveau</div>
     </div>
     <div style={{flex:1,overflowY:"auto",padding:"24px 16px",display:"flex",flexDirection:"column",gap:14}}>
       {Object.values(NIVEAUX).map(n=>(
@@ -398,7 +399,7 @@ const GameRush = ({ niveauId, setPage, joueur, onEnd }) => {
 
       {/* Header */}
       <div style={{background:C.card,borderBottom:`1px solid ${C.border}`,padding:"7px 12px",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-        <div style={{flex:1,fontWeight:900,fontSize:14,color:niv.color}}>⚡ RUSH — {niv.label.toUpperCase()}</div>
+        <div style={{flex:1,fontWeight:900,fontSize:14,color:niv.color,display:"flex",alignItems:"center",gap:6}}><Zap size={14}/> RUSH — {niv.label.toUpperCase()}</div>
         <div style={{display:"flex",gap:10,fontSize:13,fontWeight:800}}>
           <span style={{color:C.green}}>✅ {session.correct}</span>
           <span style={{color:C.red}}>❌ {session.wrong}</span>
@@ -468,7 +469,7 @@ const SummaryRush = ({ session, prevStats, newStats, onReplay, onMenu, setPage }
   return (
     <div style={{position:"fixed",inset:0,background:C.bg,display:"flex",flexDirection:"column",zIndex:200,overflow:"hidden"}}>
       <div style={{background:C.card,borderBottom:`1px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-        <div style={{flex:1,fontWeight:800,fontSize:16,color:C.text}}>⚡ Résultats de session</div>
+        <div style={{flex:1,fontWeight:800,fontSize:16,color:C.text,display:"flex",alignItems:"center",gap:8}}><Zap size={16} color={C.accent}/> Résultats de session</div>
       </div>
 
       <div style={{flex:1,overflowY:"auto",padding:"16px 14px",display:"flex",flexDirection:"column",gap:12}}>
@@ -553,12 +554,12 @@ const SummaryRush = ({ session, prevStats, newStats, onReplay, onMenu, setPage }
           ⚡ Rejouer
         </button>
         <button onClick={onMenu}
-          style={{background:C.card,color:C.muted,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px",fontWeight:600,fontSize:13,cursor:"pointer"}}>
-          ← Menu Rush Mode
+          style={{background:C.card,color:C.muted,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px",fontWeight:600,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+          <ArrowLeft size={16}/> Menu Rush Mode
         </button>
         <button onClick={()=>setPage("jeux")}
-          style={{background:"transparent",color:C.muted,border:"none",padding:"8px",fontWeight:600,fontSize:12,cursor:"pointer"}}>
-          ← Mode Jeu
+          style={{background:"transparent",color:C.muted,border:"none",padding:"8px",fontWeight:600,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+          <ArrowLeft size={16}/> Mode Jeu
         </button>
       </div>
     </div>
@@ -574,8 +575,8 @@ const MenuRush = ({ onStart, setPage }) => {
   return (
     <div style={{position:"fixed",inset:0,background:C.bg,display:"flex",flexDirection:"column",zIndex:200}}>
       <div style={{background:C.card,borderBottom:`1px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-        <button onClick={()=>window.history.back()} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0}}>← Retour</button>
-        <div style={{flex:1,fontWeight:800,fontSize:16,color:C.accent}}>⚡ Rush Mode</div>
+        <button onClick={()=>window.history.back()} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0}}><ArrowLeft size={16}/> Retour</button>
+        <div style={{flex:1,fontWeight:800,fontSize:16,color:C.accent,display:"flex",alignItems:"center",gap:8}}><Zap size={16} color={C.accent}/> Rush Mode</div>
       </div>
 
       <div style={{flex:1,overflowY:"auto",padding:"20px 14px",display:"flex",flexDirection:"column",gap:14}}>

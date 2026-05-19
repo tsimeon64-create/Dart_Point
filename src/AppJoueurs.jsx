@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Navigation, Crosshair, Star, Zap, Flame, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Navigation, Crosshair, Star, Zap, Flame, Sparkles } from "lucide-react";
 
 // ── AppJoueurs.jsx ────────────────────────────────────────────────────────────
 // Système joueurs DartPoint : inscription, profils, duels, présence, scoreur
@@ -210,8 +210,8 @@ const getProgression = (drix) => {
 const RESET_ADMIN_CODE = "jesuisunebrele";
 
 // ── CONNEXION / INSCRIPTION ───────────────────────────────────────────────────
-export const Connexion = ({ onLogin, setPage, associations=[] }) => {
-  const [mode, setMode] = useState("login"); // "login" | "register" | "reset"
+export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" }) => {
+  const [mode, setMode] = useState(initMode); // "login" | "register" | "reset"
   const [pseudo, setPseudo] = useState("");
   const [pwd, setPwd] = useState("");
   const [pwd2, setPwd2] = useState("");
@@ -3104,19 +3104,26 @@ export const calculerDrix = (drixA, drixB, aGagne, options = {}) => {
   const EA = 1 / (1 + Math.pow(10, (drixB - drixA) / 400)); // P(A gagne)
   const EB = 1 - EA;                                         // P(B gagne)
 
-  // Gagnant reçoit K × P(adversaire gagnait) — perdant perd K × P(lui-même gagnait)
-  // Formule zéro-somme : gains + pertes = 0 à chaque match
+  // Règle protection favori : si le plus fort perd, il ne perd que la moitié
+  // "plus fort" = celui qui avait la plus haute proba de gagner
+  const aEstPlusFort = drixA >= drixB; // A favori si drixA ≥ drixB
+  const aPerd = !aGagne;
+  const bPerd =  aGagne;
+
+  const perteA = Math.round(K * EA); // perte normale de A s'il perd
+  const perteB = Math.round(K * EB); // perte normale de B s'il perd
+
   const variationA = aGagne
-    ? +Math.round(K * EB) + bonusA   // A gagne : +K×EB (gagne selon proba adversaire)
-    : -Math.round(K * EA) + bonusA;  // A perd  : −K×EA (perd selon sa propre proba)
+    ? +Math.round(K * EB) + bonusA                                // A gagne : +K×EB
+    : -(aEstPlusFort ? Math.round(perteA / 2) : perteA) + bonusA; // A perd : ÷2 si favori
   const variationB = aGagne
-    ? -Math.round(K * EB) + bonusB   // B perd  : −K×EB (perd selon sa propre proba)
-    : +Math.round(K * EA) + bonusB;  // B gagne : +K×EA (gagne selon proba adversaire)
+    ? -(!aEstPlusFort ? Math.round(perteB / 2) : perteB) + bonusB // B perd : ÷2 si favori
+    : +Math.round(K * EA) + bonusB;                               // B gagne : +K×EA
 
   console.log("🎯 DRIX:", {
     drixA, drixB, aGagne, K,
     EA: EA.toFixed(3), EB: EB.toFixed(3),
-    variationA, variationB,
+    aEstPlusFort, variationA, variationB,
   });
   return { variationA, variationB };
 };
@@ -3234,6 +3241,8 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
   const [filtre, setFiltre]           = useState("national"); // national|amis|bar|asso|proximite
   const [view, setView]               = useState("classement"); // classement|evolution
   const [showVoisinage, setShowVoisinage] = useState(false);
+  const [joueursClassesIds, setJoueursClassesIds] = useState(new Set());
+  const [showNonClasses, setShowNonClasses] = useState(false);
   const saisonActuelle = new Date().getFullYear();
 
   useEffect(() => {
@@ -3242,12 +3251,14 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
       dbDrix.getClassement(),
       sbJ(`drix_mouvements?date=gt.${weekAgo}&select=joueur_id,variation`).catch(() => []),
       dbDrix.getHallOfFame().catch(() => []),
-    ]).then(([c, mvts, hof]) => {
+      sbJ(`drix_mouvements?resultat=in.(victoire,defaite)&select=joueur_id`).catch(() => []),
+    ]).then(([c, mvts, hof, joues]) => {
       setClassement(c || []);
       const vMap = {};
       (mvts || []).forEach(m => { vMap[m.joueur_id] = (vMap[m.joueur_id] || 0) + (m.variation || 0); });
       setVariationMap(vMap);
       setHallOfFame(hof || []);
+      setJoueursClassesIds(new Set((joues || []).map(m => m.joueur_id)));
       setLoading(false);
     }).catch(() => setLoading(false));
     if (joueur?.id) {
@@ -3551,73 +3562,118 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
                  : filtre==="asso"  ? <><Building2 size={14} color="#a78bfa"/> Mon Association</>
                  :                    <><Navigation size={14} color={CJ.green}/> Autour de moi</>}
               </div>
-              <div style={{ fontSize:10, color:CJ.muted }}>{classementFiltre.length} joueurs</div>
+              <div style={{ fontSize:10, color:CJ.muted }}>{classementFiltre.filter(j=>joueursClassesIds.size===0||joueursClassesIds.has(j.id)).length} classés</div>
             </div>
 
-            {loading ? <SpinnerJ/> : classementFiltre.length === 0
-              ? <div style={{ textAlign:"center", padding:"40px 20px", color:CJ.muted, fontSize:13 }}>
-                  {filtre === "amis" ? "Aucun ami dans le classement." : "Aucun joueur trouvé."}
-                </div>
-              : classementFiltre.map((j, i) => {
-                  const rang = i + 1;
-                  const { titre, color } = getDrixTitreLocal(j.drix || 1000);
-                  const isMe = joueur && j.id === joueur.id;
-                  const variation = variationMap[j.id] || 0;
-                  const medalColors = ["#ffd700","#c0c0c0","#cd7f32"];
+            {loading ? <SpinnerJ/> : (() => {
+              const classes    = classementFiltre.filter(j => joueursClassesIds.size === 0 || joueursClassesIds.has(j.id));
+              const nonClasses = classementFiltre.filter(j => joueursClassesIds.size > 0 && !joueursClassesIds.has(j.id));
 
-                  return (
-                    <div key={j.id} onClick={() => setPage("profil-joueur-"+j.id)}
-                      style={{ background:isMe?`linear-gradient(135deg,${CJ.yellow}15,${CJ.card})`:(rang<=3?`${color}0a`:CJ.card), border:`1.5px solid ${isMe?CJ.yellow+"77":rang===1?color:rang<=3?color+"44":CJ.border}`, borderRadius:14, padding:"12px 14px", marginBottom:8, cursor:"pointer", boxShadow:isMe?`0 0 22px ${CJ.yellow}22`:rang===1?`0 0 14px ${color}22`:"none" }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:11 }}>
-
-                        {/* Rank */}
-                        <div style={{ minWidth:30, textAlign:"center" }}>
-                          {rang <= 3 ? (
-                            <div style={{ width:30, height:30, borderRadius:"50%", background:medalColors[rang-1], display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, boxShadow:`0 2px 8px ${medalColors[rang-1]}66` }}>
-                              {rang===1?"🥇":rang===2?"🥈":"🥉"}
+              const renderJoueur = (j, rang, isMe) => {
+                const { titre, color } = getDrixTitreLocal(j.drix || 1000);
+                const variation = variationMap[j.id] || 0;
+                const medalColors = ["#ffd700","#c0c0c0","#cd7f32"];
+                return (
+                  <div key={j.id} onClick={() => setPage("profil-joueur-"+j.id)}
+                    style={{ background:isMe?`linear-gradient(135deg,${CJ.yellow}15,${CJ.card})`:(rang<=3?`${color}0a`:CJ.card), border:`1.5px solid ${isMe?CJ.yellow+"77":rang===1?color:rang<=3?color+"44":CJ.border}`, borderRadius:14, padding:"12px 14px", marginBottom:8, cursor:"pointer", boxShadow:isMe?`0 0 22px ${CJ.yellow}22`:rang===1?`0 0 14px ${color}22`:"none" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:11 }}>
+                      {/* Rank */}
+                      <div style={{ minWidth:30, textAlign:"center" }}>
+                        {rang <= 3 ? (
+                          <div style={{ width:30, height:30, borderRadius:"50%", background:medalColors[rang-1], display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, boxShadow:`0 2px 8px ${medalColors[rang-1]}66` }}>
+                            {rang===1?"🥇":rang===2?"🥈":"🥉"}
+                          </div>
+                        ) : (
+                          <span style={{ fontWeight:900, fontSize:14, color:isMe?CJ.yellow:CJ.muted }}>#{rang}</span>
+                        )}
+                      </div>
+                      {/* Avatar + rank badge */}
+                      <div style={{ position:"relative", flexShrink:0 }}>
+                        <div style={{ width:46, height:46, borderRadius:"50%", background:`${color}22`, border:`2px solid ${isMe?CJ.yellow:color+"55"}`, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+                          {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <RankIcon drix={j.drix||1000} size={20}/>}
+                        </div>
+                        <div style={{ position:"absolute", bottom:-3, right:-4, background:color, borderRadius:"50%", width:17, height:17, display:"flex", alignItems:"center", justifyContent:"center", border:"2px solid #1a1a1a" }}><RankIcon drix={j.drix||1000} size={10} color="#fff"/></div>
+                      </div>
+                      {/* Name + rank + progress */}
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontWeight:700, fontSize:14, color:isMe?CJ.yellow:CJ.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {j.pseudo}{isMe?" (moi)":""}
+                        </div>
+                        <div style={{ fontSize:12, color, fontWeight:600, display:"flex", alignItems:"center", gap:4 }}><RankIcon drix={j.drix||1000} size={11}/> {titre}</div>
+                        <MiniBar drix={j.drix||1000} color={color}/>
+                      </div>
+                      {/* DRIX + variation */}
+                      <div style={{ textAlign:"right", flexShrink:0 }}>
+                        <div style={{ fontWeight:900, fontSize:20, color, lineHeight:1 }}>{j.drix||1000}</div>
+                        <div style={{ fontSize:10, color:CJ.muted, marginBottom:2 }}>DRIX</div>
+                        {variation !== 0
+                          ? <div style={{ fontSize:11, fontWeight:700, color:variation>0?CJ.green:CJ.red, display:"flex", flexDirection:"column", alignItems:"flex-end" }}>
+                              <span style={{ display:"flex", alignItems:"center", gap:2 }}>
+                                {variation>0 ? <TrendingUp size={11}/> : <TrendingDown size={11}/>}
+                                {variation>0?"+":""}{variation}
+                              </span>
+                              <span style={{ fontSize:10, color:CJ.muted, fontWeight:400 }}>cette semaine</span>
                             </div>
-                          ) : (
-                            <span style={{ fontWeight:900, fontSize:14, color:isMe?CJ.yellow:CJ.muted }}>#{rang}</span>
-                          )}
-                        </div>
-
-                        {/* Avatar + rank badge */}
-                        <div style={{ position:"relative", flexShrink:0 }}>
-                          <div style={{ width:46, height:46, borderRadius:"50%", background:`${color}22`, border:`2px solid ${isMe?CJ.yellow:color+"55"}`, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
-                            {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <RankIcon drix={j.drix||1000} size={20}/>}
-                          </div>
-                          <div style={{ position:"absolute", bottom:-3, right:-4, background:color, borderRadius:"50%", width:17, height:17, display:"flex", alignItems:"center", justifyContent:"center", border:"2px solid #1a1a1a" }}><RankIcon drix={j.drix||1000} size={10} color="#fff"/></div>
-                        </div>
-
-                        {/* Name + rank + progress */}
-                        <div style={{ flex:1, minWidth:0 }}>
-                          <div style={{ fontWeight:700, fontSize:14, color:isMe?CJ.yellow:CJ.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                            {j.pseudo}{isMe?" (moi)":""}
-                          </div>
-                          <div style={{ fontSize:12, color, fontWeight:600, display:"flex", alignItems:"center", gap:4 }}><RankIcon drix={j.drix||1000} size={11}/> {titre}</div>
-                          <MiniBar drix={j.drix||1000} color={color}/>
-                        </div>
-
-                        {/* DRIX + variation */}
-                        <div style={{ textAlign:"right", flexShrink:0 }}>
-                          <div style={{ fontWeight:900, fontSize:20, color, lineHeight:1 }}>{j.drix||1000}</div>
-                          <div style={{ fontSize:10, color:CJ.muted, marginBottom:2 }}>DRIX</div>
-                          {variation !== 0
-                            ? <div style={{ fontSize:11, fontWeight:700, color:variation>0?CJ.green:CJ.red, display:"flex", flexDirection:"column", alignItems:"flex-end" }}>
-                                <span style={{ display:"flex", alignItems:"center", gap:2 }}>
-                                  {variation>0 ? <TrendingUp size={11}/> : <TrendingDown size={11}/>}
-                                  {variation>0?"+":""}{variation}
-                                </span>
-                                <span style={{ fontSize:10, color:CJ.muted, fontWeight:400 }}>cette semaine</span>
-                              </div>
-                            : <div style={{ fontSize:10, color:CJ.muted }}>stable</div>
-                          }
-                        </div>
+                          : <div style={{ fontSize:10, color:CJ.muted }}>stable</div>
+                        }
                       </div>
                     </div>
-                  );
-                })
-            }
+                  </div>
+                );
+              };
+
+              if (classes.length === 0 && nonClasses.length === 0) {
+                return (
+                  <div style={{ textAlign:"center", padding:"40px 20px", color:CJ.muted, fontSize:13 }}>
+                    {filtre === "amis" ? "Aucun ami dans le classement." : "Aucun joueur trouvé."}
+                  </div>
+                );
+              }
+
+              return (
+                <>
+                  {classes.map((j, i) => renderJoueur(j, i + 1, joueur && j.id === joueur.id))}
+
+                  {nonClasses.length > 0 && (
+                    <div style={{ marginTop:16 }}>
+                      <button onClick={() => setShowNonClasses(v => !v)}
+                        style={{ width:"100%", background:"#ffffff08", border:`1px solid ${CJ.border}`, borderRadius:12, padding:"12px 16px", color:CJ.muted, fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:showNonClasses?8:0, touchAction:"manipulation" }}>
+                        <span style={{ display:"flex", alignItems:"center", gap:7 }}>
+                          <Users size={14} color={CJ.muted}/>
+                          Joueurs non classés
+                          <span style={{ background:"#ffffff14", borderRadius:20, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{nonClasses.length}</span>
+                        </span>
+                        <ChevronDown size={15} style={{ transform: showNonClasses?"rotate(180deg)":"none", transition:"transform 0.2s" }}/>
+                      </button>
+                      {showNonClasses && nonClasses.map((j) => {
+                        const { color } = getDrixTitreLocal(j.drix || 1000);
+                        const isMe = joueur && j.id === joueur.id;
+                        return (
+                          <div key={j.id} onClick={() => setPage("profil-joueur-"+j.id)}
+                            style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:12, padding:"10px 14px", marginBottom:6, cursor:"pointer", opacity:0.7 }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                              <div style={{ width:36, height:36, borderRadius:"50%", background:`${color}22`, border:`1.5px solid ${color}33`, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", flexShrink:0 }}>
+                                {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <RankIcon drix={j.drix||1000} size={16}/>}
+                              </div>
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <div style={{ fontWeight:600, fontSize:13, color:isMe?CJ.yellow:CJ.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                                  {j.pseudo}{isMe?" (moi)":""}
+                                </div>
+                                <div style={{ fontSize:11, color:CJ.muted }}>Aucun match joué</div>
+                              </div>
+                              <div style={{ textAlign:"right", flexShrink:0 }}>
+                                <div style={{ fontWeight:700, fontSize:15, color:CJ.muted }}>{j.drix||1000}</div>
+                                <div style={{ fontSize:10, color:CJ.muted }}>DRIX</div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             {/* Hall of Fame section (bottom of classement) */}
             {hallOfFame.length > 0 && filtre === "national" && (
