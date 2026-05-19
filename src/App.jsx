@@ -1703,16 +1703,18 @@ const PageDefi = ({ joueur, setPage }) => {
         const gainEloBase  = Math.round(32 * (1 - EA));
         const gainDouble   = gainEloBase * 2;          // victoire contre la cible = ×2
         const bonusParticipation = 25;
-        // Dangerosité
+        // Dangerosité = probabilité que l'adversaire gagne (formule ELO)
+        // EB = 1 - EA = P(target gagne) → naturellement entre 50% et ~90%
+        const EB = 1 - EA;
         const ecart = hisDrix - myDrix;
-        const dangerositeScore = Math.min(100, Math.max(20, Math.round(50 + ecart / 6)));
-        const dangerColor = dangerositeScore >= 80 ? "#ef4444"
-                          : dangerositeScore >= 60 ? "#f97316"
-                          : dangerositeScore >= 40 ? "#f59e0b"
+        const dangerositeScore = Math.round(EB * 100); // ex: +100 DRIX → ~64, +300 DRIX → ~84
+        const dangerColor = dangerositeScore >= 75 ? "#ef4444"
+                          : dangerositeScore >= 62 ? "#f97316"
+                          : dangerositeScore >= 55 ? "#f59e0b"
                           :                          "#22c55e";
-        const dangerLabel = dangerositeScore >= 80 ? "Très dangereux"
-                          : dangerositeScore >= 60 ? "Dangereux"
-                          : dangerositeScore >= 40 ? "Accessible"
+        const dangerLabel = dangerositeScore >= 75 ? "Très dangereux"
+                          : dangerositeScore >= 62 ? "Dangereux"
+                          : dangerositeScore >= 55 ? "Accessible"
                           :                          "Prenable";
         // Objectif
         const probaVictoire = Math.round(EA * 100);
