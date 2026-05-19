@@ -1971,6 +1971,66 @@ const PageDefi = ({ joueur, setPage }) => {
         </div>
       )}
 
+      {/* ── Défi de la semaine — bloc dédié ── */}
+      {defiSemaine && amis.length >= 10 && (() => {
+        const ds = defiSemaine;
+        const t  = ds.target;
+        const { emoji:tEmoji, color:tColor } = getDrixTitre(t.drix || 1000);
+        const ouvrirDefiSemaine = () => {
+          if (!amisData[t.id]) setAmisData(prev => ({ ...prev, [t.id]: t }));
+          const amiRecord = amis.find(a =>
+            (a.joueur_id === joueur.id && a.ami_id     === t.id) ||
+            (a.ami_id    === joueur.id && a.joueur_id  === t.id)
+          );
+          if (amiRecord) {
+            ouvrirModal(amiRecord);
+          } else {
+            setModalAmi({ amiId: t.id, amiPseudo: t.pseudo, profil: { ...t } });
+            setModalData(null);
+            setModalLoading(true);
+            setDefiForm({ mode:"501", manches:1, type:"classe" });
+            Promise.all([
+              sb(`duels?or=(challenger_id.eq.${t.id},defie_id.eq.${t.id})&order=date.desc&select=*`).catch(()=>[]),
+              sb(`joueurs?order=drix.desc&select=id,drix`).catch(()=>[]),
+            ]).then(([duelsAdv, allJ]) => {
+              setModalData({ duelsAdv: duelsAdv||[], allJoueurs: allJ||[] });
+              setModalLoading(false);
+            }).catch(() => setModalLoading(false));
+          }
+        };
+        return (
+          <div style={{ marginBottom:20 }}>
+            <h2 style={{ fontWeight:700,fontSize:16,marginBottom:10,display:"flex",alignItems:"center",gap:6 }}>
+              <Trophy size={15} color="#f59e0b"/>Défi de la semaine
+            </h2>
+            <div
+              onClick={ouvrirDefiSemaine}
+              style={{ background:C.card,border:`2px solid #f59e0b55`,borderRadius:12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"border-color .12s",position:"relative",overflow:"hidden" }}
+              onMouseEnter={e=>e.currentTarget.style.borderColor="#f59e0b"}
+              onMouseLeave={e=>e.currentTarget.style.borderColor="#f59e0b55"}
+            >
+              {/* Badge */}
+              <div style={{ position:"absolute",top:0,right:0,background:"#f59e0b",color:"#000",fontSize:9,fontWeight:800,padding:"2px 8px",borderBottomLeftRadius:8,letterSpacing:.5 }}>DÉFI HEBDO</div>
+              {/* Avatar */}
+              <div style={{ width:44,height:44,borderRadius:"50%",background:tColor+"22",border:`2px solid ${tColor}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,overflow:"hidden" }}>
+                {t.photo ? <img src={t.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{tEmoji}</span>}
+              </div>
+              {/* Infos */}
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ fontWeight:700,fontSize:15 }}>{t.pseudo}</div>
+                <div style={{ fontSize:12,color:tColor,fontWeight:600,marginTop:2 }}>{tEmoji} {t.drix||1000} DRIX</div>
+                <div style={{ display:"flex",gap:5,marginTop:6,flexWrap:"wrap" }}>
+                  <span style={{ background:"#22c55e22",color:"#22c55e",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20 }}>+{ds.gainDouble} DRIX victoire</span>
+                  <span style={{ background:"#3b82f622",color:"#3b82f6",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20 }}>+{ds.bonusParticipation} participation</span>
+                  <span style={{ background:"#f59e0b22",color:"#f59e0b",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20 }}>÷2 si défaite</span>
+                </div>
+              </div>
+              <Swords size={18} color="#f59e0b"/>
+            </div>
+          </div>
+        );
+      })()}
+
       <h2 style={{ fontWeight:700,fontSize:16,marginBottom:12,display:"flex",alignItems:"center",gap:6 }}><Users size={15} color={C.accent}/>Défier un ami</h2>
       {(() => {
         const amisIds = new Set(amis.map(a => a.joueur_id===joueur.id ? a.ami_id : a.joueur_id));
@@ -1980,10 +2040,16 @@ const PageDefi = ({ joueur, setPage }) => {
           return pa.localeCompare(pb, "fr", { sensitivity:"base" });
         });
         const q = searchDefi.trim().toLowerCase();
-        const amisFiltres = q ? amisTries.filter(a => {
+        // Exclure la cible du défi hebdo de la liste amis (elle a son propre bloc)
+        const weekTargetId = defiSemaine?.target?.id;
+        const amisSansCible = amisTries.filter(a => {
+          const aId = a.joueur_id===joueur.id ? a.ami_id : a.joueur_id;
+          return !weekTargetId || aId !== weekTargetId;
+        });
+        const amisFiltres = q ? amisSansCible.filter(a => {
           const pseudo = (a.joueur_id===joueur.id ? a.ami_pseudo : a.joueur_pseudo)||"";
           return pseudo.toLowerCase().includes(q);
-        }) : amisTries;
+        }) : amisSansCible;
 
         return (
           <>
@@ -2244,37 +2310,57 @@ const PageDefi = ({ joueur, setPage }) => {
             })()}
 
             {/* BLOC COMPARAISON DRIX */}
-            <div style={{ margin:"12px 16px 0",background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:16 }}>
-              <div style={{ fontSize:11,color:C.muted,marginBottom:12,fontWeight:700,letterSpacing:1 }}>COMPARAISON DRIX</div>
-              <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                <div style={{ flex:1,textAlign:"center",background:"#111",borderRadius:12,padding:"12px 8px" }}>
-                  <div style={{ fontSize:10,color:C.muted,marginBottom:4 }}>TOI</div>
-                  <div style={{ fontWeight:900,fontSize:24,color:"#f97316" }}>{ms.myDrix}</div>
-                  <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
+            {(() => {
+              const isDefiHebdo = defiSemaine?.target?.id === modalAmi.amiId;
+              const gainAffiche = isDefiHebdo ? (ms.gainElo||0) * 2 : (ms.gainElo||"?");
+              const perteAffiche = isDefiHebdo ? Math.ceil((ms.perteElo||0) / 2) : (ms.perteElo||"?");
+              return (
+                <div style={{ margin:"12px 16px 0",background:C.card,border:`1px solid ${isDefiHebdo?"#f59e0b":C.border}`,borderRadius:16,padding:16 }}>
+                  {isDefiHebdo && (
+                    <div style={{ display:"flex",alignItems:"center",gap:6,background:"#f59e0b18",border:"1px solid #f59e0b44",borderRadius:8,padding:"6px 10px",marginBottom:10 }}>
+                      <Trophy size={12} color="#f59e0b"/>
+                      <span style={{ fontSize:11,fontWeight:700,color:"#f59e0b" }}>DÉFI DE LA SEMAINE — gains ×2, défaite ÷2</span>
+                    </div>
+                  )}
+                  <div style={{ fontSize:11,color:C.muted,marginBottom:12,fontWeight:700,letterSpacing:1 }}>COMPARAISON DRIX</div>
+                  <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                    <div style={{ flex:1,textAlign:"center",background:"#111",borderRadius:12,padding:"12px 8px" }}>
+                      <div style={{ fontSize:10,color:C.muted,marginBottom:4 }}>TOI</div>
+                      <div style={{ fontWeight:900,fontSize:24,color:"#f97316" }}>{ms.myDrix}</div>
+                      <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
+                    </div>
+                    <div style={{ textAlign:"center",padding:"0 4px" }}>
+                      <Swords size={20} color={isDefiHebdo?"#f59e0b":C.accent}/>
+                      <div style={{ fontSize:10,color:C.muted }}>VS</div>
+                    </div>
+                    <div style={{ flex:1,textAlign:"center",background:"#111",borderRadius:12,padding:"12px 8px" }}>
+                      <div style={{ fontSize:10,color:C.muted,marginBottom:4 }}>{modalAmi.amiPseudo.toUpperCase().slice(0,10)}</div>
+                      <div style={{ fontWeight:900,fontSize:24,color:getDrixTitre(ms.hisDrix||1000).color }}>{ms.hisDrix}</div>
+                      <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex",gap:8,marginTop:10 }}>
+                    <div style={{ flex:1,background:"#14532d",borderRadius:10,padding:"10px 8px",textAlign:"center",position:"relative" }}>
+                      {isDefiHebdo && <div style={{ position:"absolute",top:-6,right:6,background:"#22c55e",color:"#000",fontSize:8,fontWeight:800,padding:"1px 5px",borderRadius:20 }}>×2</div>}
+                      <div style={{ fontSize:10,color:"#4ade80",marginBottom:2 }}>SI VICTOIRE</div>
+                      <div style={{ fontWeight:900,fontSize:18,color:"#22c55e" }}>+{gainAffiche}</div>
+                      <div style={{ fontSize:9,color:"#4ade80" }}>DRIX</div>
+                    </div>
+                    <div style={{ flex:1,background:"#7f1d1d",borderRadius:10,padding:"10px 8px",textAlign:"center",position:"relative" }}>
+                      {isDefiHebdo && <div style={{ position:"absolute",top:-6,right:6,background:"#ef4444",color:"#fff",fontSize:8,fontWeight:800,padding:"1px 5px",borderRadius:20 }}>÷2</div>}
+                      <div style={{ fontSize:10,color:"#fca5a5",marginBottom:2 }}>SI DÉFAITE</div>
+                      <div style={{ fontWeight:900,fontSize:18,color:"#ef4444" }}>-{perteAffiche}</div>
+                      <div style={{ fontSize:9,color:"#fca5a5" }}>DRIX</div>
+                    </div>
+                  </div>
+                  {isDefiHebdo && (
+                    <div style={{ marginTop:8,textAlign:"center",fontSize:10,color:"#f59e0b" }}>
+                      +{defiSemaine.bonusParticipation} DRIX participation garantis
+                    </div>
+                  )}
                 </div>
-                <div style={{ textAlign:"center",padding:"0 4px" }}>
-                  <Swords size={20} color={C.accent}/>
-                  <div style={{ fontSize:10,color:C.muted }}>VS</div>
-                </div>
-                <div style={{ flex:1,textAlign:"center",background:"#111",borderRadius:12,padding:"12px 8px" }}>
-                  <div style={{ fontSize:10,color:C.muted,marginBottom:4 }}>{modalAmi.amiPseudo.toUpperCase().slice(0,10)}</div>
-                  <div style={{ fontWeight:900,fontSize:24,color:getDrixTitre(ms.hisDrix||1000).color }}>{ms.hisDrix}</div>
-                  <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
-                </div>
-              </div>
-              <div style={{ display:"flex",gap:8,marginTop:10 }}>
-                <div style={{ flex:1,background:"#14532d",borderRadius:10,padding:"10px 8px",textAlign:"center" }}>
-                  <div style={{ fontSize:10,color:"#4ade80",marginBottom:2 }}>SI VICTOIRE</div>
-                  <div style={{ fontWeight:900,fontSize:18,color:"#22c55e" }}>+{ms.gainElo||"?"}</div>
-                  <div style={{ fontSize:9,color:"#4ade80" }}>DRIX</div>
-                </div>
-                <div style={{ flex:1,background:"#7f1d1d",borderRadius:10,padding:"10px 8px",textAlign:"center" }}>
-                  <div style={{ fontSize:10,color:"#fca5a5",marginBottom:2 }}>SI DÉFAITE</div>
-                  <div style={{ fontWeight:900,fontSize:18,color:"#ef4444" }}>-{ms.perteElo||"?"}</div>
-                  <div style={{ fontSize:9,color:"#fca5a5" }}>DRIX</div>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* BLOC ANALYSE */}
             <div style={{ margin:"12px 16px 0",background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:16 }}>

@@ -3261,19 +3261,29 @@ export const appliquerDrixDuel = async (duel, perfBonus = null) => {
     ]);
 
     // ── Post Comptoir si Défi de la Semaine ─────────────────────────────────────
-    if (defiSemaine) {
-      const gagnantPseudo = challengerGagne ? jC.pseudo : jD.pseudo;
-      const perdantPseudo = challengerGagne ? jD.pseudo : jC.pseudo;
-      const gainGagnant   = challengerGagne ? variationC : variationD;
-      const gagnantId     = challengerGagne ? jC.id : jD.id;
-      const gagnantPhoto  = challengerGagne ? jC.photo : jD.photo;
+    // Seulement quand le CHALLENGER remporte son défi (l'exploit) → gain ×2
+    // Si c'est le défié qui gagne, pas de post (il joue normalement, sans bonus)
+    if (defiSemaine && challengerGagne && cEstCibleDefiD) {
       sbJ("wall_posts", {
         method: "POST",
         body: JSON.stringify({
-          joueur_id:     gagnantId,
-          joueur_pseudo: gagnantPseudo,
-          joueur_photo:  gagnantPhoto || null,
-          contenu:       `🎯 Défi de la Semaine accompli !\n⚔️ ${gagnantPseudo} bat ${perdantPseudo} et remporte son défi hebdo !\n💎 +${gainGagnant} DRIX (gain × 2)`,
+          joueur_id:     jC.id,
+          joueur_pseudo: jC.pseudo,
+          joueur_photo:  jC.photo || null,
+          contenu:       `🎯 Défi de la Semaine accompli !\n⚔️ ${jC.pseudo} bat ${jD.pseudo} et remporte son défi hebdo !\n💎 +${variationC} DRIX (gain × 2)`,
+          date:          Date.now(),
+        }),
+      }).catch(() => {});
+    }
+    // Si c'est le défié qui avait le challenger comme cible ET qu'il gagne → post aussi
+    if (defiSemaine && !challengerGagne && dEstCibleDefiC) {
+      sbJ("wall_posts", {
+        method: "POST",
+        body: JSON.stringify({
+          joueur_id:     jD.id,
+          joueur_pseudo: jD.pseudo,
+          joueur_photo:  jD.photo || null,
+          contenu:       `🎯 Défi de la Semaine accompli !\n⚔️ ${jD.pseudo} bat ${jC.pseudo} et remporte son défi hebdo !\n💎 +${variationD} DRIX (gain × 2)`,
           date:          Date.now(),
         }),
       }).catch(() => {});
