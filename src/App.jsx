@@ -1685,8 +1685,11 @@ const PageDefi = ({ joueur, setPage }) => {
       return;
     }
 
-    // Cherche la cible : joueur avec le plus de DRIX au-dessus de moi (+30 à +350)
-    sb(`joueurs?order=drix.desc&select=id,pseudo,drix,photo&limit=200`)
+    // Cherche la cible dans l'association du joueur en priorité
+    // Si pas d'asso ou pas de candidat trouvé → pas de défi cette semaine
+    if (!joueur.asso_slug) return;
+
+    sb(`joueurs?asso_slug=eq.${encodeURIComponent(joueur.asso_slug)}&order=drix.desc&select=id,pseudo,drix,photo&limit=100`)
       .then(joueurs => {
         if (!Array.isArray(joueurs) || joueurs.length === 0) return;
         const myDrix = joueur.drix || 1000;
@@ -1696,7 +1699,7 @@ const PageDefi = ({ joueur, setPage }) => {
           (j.drix || 1000) <= myDrix + 400
         );
         if (candidates.length === 0) {
-          // Personne dans la plage idéale → prend le 1er au-dessus
+          // Personne dans la plage idéale → prend le 1er au-dessus dans l'asso
           candidates = joueurs.filter(j => j.id !== joueur.id && (j.drix || 1000) > myDrix);
         }
         if (candidates.length === 0) return;
@@ -1863,13 +1866,16 @@ const PageDefi = ({ joueur, setPage }) => {
       <p style={{ color:C.muted,fontSize:13,marginBottom:14 }}>Défie tes amis et gagne des DRIX</p>
 
       {/* ── Défi hebdo verrouillé ── */}
-      {amis.length < 10 && (
+      {(amis.length < 10 || !joueur.asso_slug) && (
         <div style={{ background:"#f9731608",border:"1px solid #f9731633",borderRadius:12,padding:"12px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:12 }}>
           <Trophy size={18} color="#f97316" style={{ flexShrink:0 }}/>
           <div>
             <div style={{ fontWeight:700,fontSize:13,color:"#fed7aa" }}>Défi de la Semaine — verrouillé</div>
             <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>
-              Ajoute <strong style={{ color:"#f97316" }}>{10 - amis.length} ami{10 - amis.length > 1 ? "s" : ""}</strong> supplémentaire{10 - amis.length > 1 ? "s" : ""} pour débloquer le défi hebdomadaire et ses récompenses DRIX.
+              {!joueur.asso_slug
+                ? <>Rejoins une <strong style={{ color:"#f97316" }}>association</strong> depuis ton profil pour débloquer le défi hebdomadaire.</>
+                : <>Ajoute <strong style={{ color:"#f97316" }}>{10 - amis.length} ami{10 - amis.length > 1 ? "s" : ""}</strong> supplémentaire{10 - amis.length > 1 ? "s" : ""} pour débloquer le défi hebdomadaire.</>
+              }
             </div>
           </div>
         </div>
@@ -2154,7 +2160,7 @@ const PageDefi = ({ joueur, setPage }) => {
 
               {/* Rappel */}
               <p style={{ textAlign:"center",color:C.muted,fontSize:11,marginTop:14 }}>
-                Ce défi se réinitialise chaque lundi. Les bonus ne s'appliquent qu'aux parties classées.
+                Cible choisie parmi les membres de ton association. Se réinitialise chaque lundi.
               </p>
             </div>
           </div>
