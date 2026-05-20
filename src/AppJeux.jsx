@@ -343,12 +343,32 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
         </div>
       )}
 
-      {/* Cas partie amicale */}
+      {/* Cas partie amicale — célébration premium, sans DRIX */}
       {modeDuel && duel?.type === "amical" && (
-        <div style={{ background:"linear-gradient(135deg,#1a0f2e,#0f0a1a)", border:"1px solid #7c3aed44", borderRadius:14, padding:"14px 16px", textAlign:"center", marginBottom:14, animation:"finCardIn .5s .7s both" }}>
-          <span style={{ fontSize:22 }}>🤝</span>
-          <div style={{ color:"#c4b5fd", fontWeight:800, fontSize:14, margin:"6px 0 2px" }}>Partie amicale</div>
-          <div style={{ color:"#94a3b8", fontSize:12 }}>Les DRIX ne sont pas affectés</div>
+        <div style={{
+          position:"relative", overflow:"hidden",
+          background:"linear-gradient(135deg,#1a0f2e,#0f0a1a)",
+          border:"1px solid #a855f755", borderRadius:16,
+          padding:"16px 14px 14px", marginBottom:14,
+          boxShadow:"0 0 28px #a855f722, inset 0 1px 0 #ffffff14",
+          animation:"finCardIn .5s .7s both",
+        }}>
+          {/* Orbes */}
+          <div style={{ position:"absolute",top:-30,left:"20%",width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,#a855f733,transparent 70%)",pointerEvents:"none" }}/>
+          <div style={{ position:"absolute",bottom:-30,right:"15%",width:100,height:100,borderRadius:"50%",background:"radial-gradient(circle,#f9731622,transparent 70%)",pointerEvents:"none" }}/>
+          {/* Shine */}
+          <div style={{ position:"absolute",top:0,left:0,bottom:0,width:80,background:"linear-gradient(90deg,transparent,#ffffff15,transparent)",animation:"finShine 4.5s ease-in-out infinite",pointerEvents:"none" }}/>
+
+          <div style={{ position:"relative", display:"flex", alignItems:"center", gap:14 }}>
+            {/* Icône */}
+            <div style={{ width:54,height:54,borderRadius:14,background:"linear-gradient(135deg,#7c3aed,#a855f7)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 0 22px #a855f755",fontSize:28 }}>🤝</div>
+            {/* Texte */}
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:10,fontWeight:800,color:"#a78bfa",letterSpacing:2,textTransform:"uppercase",marginBottom:3 }}>Partie amicale</div>
+              <div style={{ fontSize:16,fontWeight:900,color:"#fff",lineHeight:1.15 }}>Match enregistré · sans DRIX</div>
+              <div style={{ fontSize:11,color:"#94a3b8",marginTop:3 }}>Le résultat compte dans tes stats, mais le classement n'est pas impacté</div>
+            </div>
+          </div>
         </div>
       )}
 
