@@ -6498,7 +6498,8 @@ const Contact = () => {
       });
       setSent(true);
     } catch(e) {
-      setErr("Erreur lors de l'envoi. Réessaie plus tard.");
+      console.error("Contact send error:", e);
+      setErr("Erreur : " + (e?.message || "envoi impossible") + ". Réessaie plus tard.");
     } finally { setSending(false); }
   };
 
