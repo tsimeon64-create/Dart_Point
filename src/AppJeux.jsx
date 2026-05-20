@@ -790,9 +790,21 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   const demarrer = () => demarrerAvecBulle(0);
 
-  const quitterPartie = () => {
+  const quitterPartie = async () => {
     setShowConfirmQuitter(false);
-    if (modeDuel && setPage) { closeLiveSession(); setPage("mon-profil"); return; }
+    if (modeDuel && duel?.id && setPage) {
+      closeLiveSession();
+      // Marquer le duel comme abandonné pour les deux joueurs
+      try {
+        await fetch(`${SB_URL}/rest/v1/duels?id=eq.${duel.id}`, {
+          method: "PATCH",
+          headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
+          body: JSON.stringify({ statut: "abandonne" }),
+        });
+      } catch {}
+      setPage("mon-profil");
+      return;
+    }
     setJoueurs(null); setGagnant(null); setInput("");
     setResultEnregistre(false); setHistorique([]);
     setEtape("config");

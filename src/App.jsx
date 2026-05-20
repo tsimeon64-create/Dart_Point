@@ -1417,6 +1417,18 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
 const MatchActifCard = ({ d, joueur, setPage, onAbandon }) => {
   const [confirmAbandon, setConfirmAbandon] = useState(false);
   const adversaire = d.challenger_id===joueur.id ? d.defie_pseudo : d.challenger_pseudo;
+
+  // Poll toutes les 15s — si l'adversaire a abandonné depuis le Scoreur, le match disparaît automatiquement
+  useEffect(() => {
+    const poll = setInterval(async () => {
+      try {
+        const res = await sb(`duels?id=eq.${d.id}&select=statut`);
+        if (res?.[0]?.statut === "abandonne") onAbandon();
+      } catch {}
+    }, 15000);
+    return () => clearInterval(poll);
+  }, [d.id]); // eslint-disable-line
+
   const abandonner = async () => {
     await sb(`duels?id=eq.${d.id}`, { method:"PATCH", body:JSON.stringify({ statut:"abandonne" }), prefer:"return=minimal" });
     onAbandon();
