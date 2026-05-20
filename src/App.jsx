@@ -8463,6 +8463,11 @@ export default function App() {
   const [isInstalled,setIsInstalled]=useState(false);
   const [showChronoPopup,setShowChronoPopup]=useState(false);
   const [chronoLeader,setChronoLeader]=useState(null);
+  const [showEmailRequired,setShowEmailRequired]=useState(false);
+  const [emailReqValue,setEmailReqValue]=useState("");
+  const [emailReqCgu,setEmailReqCgu]=useState(false);
+  const [emailReqLoading,setEmailReqLoading]=useState(false);
+  const [emailReqErr,setEmailReqErr]=useState("");
   const [chronoDrixNotif,setChronoDrixNotif]=useState(null);
   const [showDefiHebdoUnlock,setShowDefiHebdoUnlock]=useState(false);
 
@@ -8538,6 +8543,18 @@ export default function App() {
   };
 
   useEffect(()=>{ try{ const j=localStorage.getItem("dp_joueur"); if(j) setJoueur(JSON.parse(j)); }catch{} },[]);
+
+  // Popup email obligatoire pour les comptes sans email
+  useEffect(()=>{
+    if (joueur?.id && !joueur?.email) {
+      setShowEmailRequired(true);
+      setEmailReqValue("");
+      setEmailReqCgu(false);
+      setEmailReqErr("");
+    } else {
+      setShowEmailRequired(false);
+    }
+  },[joueur?.id, joueur?.email]);
 
   // ── Notification déblocage Défi de la Semaine (1 fois, dès 10 amis) ──────────
   useEffect(() => {
@@ -8789,6 +8806,86 @@ export default function App() {
   return (
     <div style={{ minHeight:"100vh",display:"flex",flexDirection:"column",background:C.bg,color:C.text }}>
       {showOnboarding && <Onboarding onDone={()=>setShowOnboarding(false)}/>}
+
+      {/* ── Popup email obligatoire (anciens comptes sans email) ── */}
+      {showEmailRequired && (
+        <div style={{ position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.96)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
+          <div style={{ background:"linear-gradient(160deg,#0e0e14,#0b0b10)",border:"1px solid #a855f733",borderRadius:24,padding:"28px 24px",maxWidth:380,width:"100%",boxShadow:"0 0 60px rgba(168,85,247,0.2)" }}>
+            {/* Icône */}
+            <div style={{ width:64,height:64,borderRadius:18,background:"linear-gradient(135deg,#7c3aed,#a855f7)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",boxShadow:"0 0 24px rgba(168,85,247,0.4)" }}>
+              <Mail size={28} color="#fff"/>
+            </div>
+            {/* Titre */}
+            <h2 style={{ fontWeight:900,fontSize:20,textAlign:"center",marginBottom:8,color:"#f1f5f9" }}>
+              Une dernière étape 🎯
+            </h2>
+            <p style={{ fontSize:13,color:"#64748b",textAlign:"center",lineHeight:1.6,marginBottom:24 }}>
+              DartPoint évolue ! Pour protéger ton compte et recevoir tes défis, ajoute ton adresse e-mail.
+            </p>
+            {/* Champ email */}
+            <div style={{ marginBottom:14 }}>
+              <label style={{ fontSize:12,fontWeight:700,color:"#94a3b8",display:"block",marginBottom:6 }}>Adresse e-mail *</label>
+              <input
+                type="email"
+                value={emailReqValue}
+                onChange={e=>{ setEmailReqValue(e.target.value); setEmailReqErr(""); }}
+                placeholder="ton@email.com"
+                style={{ width:"100%",background:"#070710",border:`1px solid ${emailReqErr?"#ef4444":emailReqValue.includes("@")?"#a855f755":"#1e1e2e"}`,borderRadius:10,padding:"11px 14px",color:"#f1f5f9",fontSize:14,outline:"none",boxSizing:"border-box",transition:"border-color .15s",fontFamily:"inherit" }}
+              />
+            </div>
+            {/* CGU pour anciens comptes */}
+            <label style={{ display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",marginBottom:18,padding:"10px 12px",background:"#0a0a14",borderRadius:10,border:"1px solid #1e1e2e" }}>
+              <input type="checkbox" checked={emailReqCgu} onChange={e=>setEmailReqCgu(e.target.checked)}
+                style={{ marginTop:2,width:16,height:16,accentColor:"#a855f7",flexShrink:0,cursor:"pointer" }}/>
+              <span style={{ fontSize:12,color:"#64748b",lineHeight:1.5 }}>
+                J'accepte les{" "}
+                <span onClick={()=>nav("mentions")} style={{ color:"#a855f7",textDecoration:"underline",cursor:"pointer" }}>
+                  Conditions d'utilisation
+                </span>
+                {" "}et la{" "}
+                <span onClick={()=>nav("mentions")} style={{ color:"#a855f7",textDecoration:"underline",cursor:"pointer" }}>
+                  Politique de confidentialité
+                </span>
+              </span>
+            </label>
+            {/* Erreur */}
+            {emailReqErr && (
+              <p style={{ color:"#ef4444",fontSize:12,marginBottom:12,display:"flex",alignItems:"center",gap:6 }}>
+                <AlertCircle size={13}/> {emailReqErr}
+              </p>
+            )}
+            {/* Bouton valider */}
+            <button
+              disabled={!emailReqValue.includes("@") || !emailReqCgu || emailReqLoading}
+              onClick={async ()=>{
+                const email = emailReqValue.trim().toLowerCase();
+                if (!email.includes("@") || !email.includes(".")) { setEmailReqErr("Adresse e-mail invalide"); return; }
+                if (!emailReqCgu) { setEmailReqErr("Tu dois accepter les conditions d'utilisation"); return; }
+                setEmailReqLoading(true); setEmailReqErr("");
+                try {
+                  await sb(`joueurs?id=eq.${joueur.id}`, {
+                    method:"PATCH",
+                    body:JSON.stringify({ email, cgu_accepte:true, cgu_date:Date.now() }),
+                    headers:{ "Prefer":"return=minimal" },
+                  });
+                  const updated = { ...joueur, email, cgu_accepte:true };
+                  setJoueur(updated);
+                  localStorage.setItem("dp_joueur", JSON.stringify(updated));
+                  setShowEmailRequired(false);
+                } catch {
+                  setEmailReqErr("Erreur lors de la sauvegarde, réessaie.");
+                }
+                setEmailReqLoading(false);
+              }}
+              style={{ width:"100%",background:(!emailReqValue.includes("@")||!emailReqCgu)?"#1e1e2e":"linear-gradient(135deg,#7c3aed,#a855f7)",color:(!emailReqValue.includes("@")||!emailReqCgu)?"#475569":"#fff",border:"none",borderRadius:12,padding:"13px",fontWeight:800,fontSize:15,cursor:(!emailReqValue.includes("@")||!emailReqCgu||emailReqLoading)?"default":"pointer",transition:"all .2s",opacity:emailReqLoading?.6:1 }}>
+              {emailReqLoading ? "Enregistrement…" : "Valider mon adresse →"}
+            </button>
+            <p style={{ fontSize:11,color:"#1e293b",textAlign:"center",marginTop:12 }}>
+              Ton email ne sera jamais partagé ni vendu.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Popup déblocage Défi de la Semaine ── */}
       {showDefiHebdoUnlock && (
