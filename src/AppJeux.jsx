@@ -896,6 +896,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         ].filter(Boolean).join("  ");
         // Post structuré : headline courte + breakdown dans un objet JSON
         const duelPost = {
+          duel_id:    duel.id,
+          isRivalite: breakdown?.isRivalite || false,
           headline: `🏆 ${gagnantNom} bat ${perdantNom} ${scoreC}-${scoreD}`,
           highlights: highlights || null,
           winner: {

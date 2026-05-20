@@ -3252,23 +3252,6 @@ export const appliquerDrixDuel = async (duel, perfBonus = null) => {
       dbDrix.addMouvement({ joueur_id:jD.id, joueur_pseudo:jD.pseudo, adversaire_pseudo:jC.pseudo+tagRival, variation:variationD, drix_avant:drixD, drix_apres:newDrixD, resultat:resultatD, duel_id:duel.id, date:Date.now() }),
     ]);
 
-    // ── Post Comptoir si Rivalité Hebdo ──────────────────────────────────────────
-    if (isRivalite) {
-      const gagnant  = challengerGagne ? jC : jD;
-      const perdant  = challengerGagne ? jD : jC;
-      const gainGagnant = challengerGagne ? variationC : variationD;
-      sbJ("wall_posts", {
-        method: "POST",
-        body: JSON.stringify({
-          joueur_id:     gagnant.id,
-          joueur_pseudo: gagnant.pseudo,
-          joueur_photo:  gagnant.photo || null,
-          contenu:       `⚔️ Rivalité Hebdo remportée !\n${gagnant.pseudo} bat son rival ${perdant.pseudo} !\n💎 +${gainGagnant} DRIX`,
-          date:          Date.now(),
-        }),
-      }).catch(() => {});
-    }
-
     // Retourne le détail pour affichage
     return {
       isRivalite,

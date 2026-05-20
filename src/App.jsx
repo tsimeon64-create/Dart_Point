@@ -2996,6 +2996,7 @@ const MancheDetail = ({ manches, joueur0, joueur1 }) => {
 const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepuis, setPage }) => {
   const [open, setOpen] = useState(false);
   const w = d.winner; const l = d.loser;
+  const isRivalite = !!d.isRivalite;
   const BLine = ({ icon, label, val, color }) => (
     <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, padding:"3px 0", borderBottom:`1px solid #ffffff08` }}>
       <span style={{ color:"#64748b" }}>{icon} {label}</span>
@@ -3003,7 +3004,17 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
     </div>
   );
   return (
-    <div key={`post-${p.id}`} style={{ ...cardBase, borderColor:"#22c55e22" }}>
+    <div key={`post-${p.id}`} style={{ ...cardBase, borderColor: isRivalite ? "#a855f744" : "#22c55e22", background: isRivalite ? "linear-gradient(135deg,#0d0010,#080008)" : cardBase.background }}>
+
+      {/* Badge Rivalité Hebdo */}
+      {isRivalite && (
+        <div style={{ display:"flex", alignItems:"center", gap:6, background:"linear-gradient(90deg,#a855f722,#7c3aed11)", border:"1px solid #a855f744", borderRadius:8, padding:"5px 10px", marginBottom:10 }}>
+          <Swords size={11} color="#a855f7"/>
+          <span style={{ fontSize:10, fontWeight:800, color:"#d8b4fe", letterSpacing:.8 }}>RIVALITÉ HEBDO</span>
+          <span style={{ fontSize:10, color:"#7c3aed", marginLeft:"auto" }}>⚔️ Match de la semaine</span>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:10 }}>
         <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
@@ -3011,26 +3022,33 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
           <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:700, fontSize:14, color:C.text, cursor:"pointer" }}>{p.joueur_pseudo}</div>
           <div style={{ fontSize:12, color:C.muted }}>{tempsDepuis(p.date)}</div>
         </div>
-        <Swords size={18} color={C.accent}/>
+        <Swords size={18} color={isRivalite ? "#a855f7" : C.accent}/>
       </div>
 
       {/* Headline */}
       <div style={{ paddingLeft:52 }}>
         <div style={{ fontWeight:800, fontSize:15, color:"#e2e8f0", marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
-          <Trophy size={14} color="#22c55e"/>
+          <Trophy size={14} color={isRivalite ? "#a855f7" : "#22c55e"}/>
           {typeof d.headline === "string" ? d.headline.replace(/^🏆\s*/, "") : d.headline}
         </div>
         {/* Résumé totaux */}
         <div style={{ display:"flex", gap:10, marginBottom:6 }}>
-          <div style={{ background:"#0f1a0f", border:"1px solid #22c55e33", borderRadius:10, padding:"6px 12px", flex:1, textAlign:"center" }}>
-            <div style={{ fontSize:12, color:"#86efac", fontWeight:700, marginBottom:2, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}><Trophy size={11} color="#86efac"/>{w.nom}</div>
-            <div style={{ fontSize:18, fontWeight:900, color:"#22c55e" }}>{w.total >= 0 ? "+" : ""}{w.total} <span style={{ fontSize:12 }}>DRIX</span></div>
+          <div style={{ background: isRivalite ? "#0d0018" : "#0f1a0f", border:`1px solid ${isRivalite ? "#a855f744" : "#22c55e33"}`, borderRadius:10, padding:"6px 12px", flex:1, textAlign:"center" }}>
+            <div style={{ fontSize:12, color: isRivalite ? "#d8b4fe" : "#86efac", fontWeight:700, marginBottom:2, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+              {isRivalite ? <Swords size={11} color="#a855f7"/> : <Trophy size={11} color="#86efac"/>}{w.nom}
+            </div>
+            <div style={{ fontSize:18, fontWeight:900, color: isRivalite ? "#a855f7" : "#22c55e" }}>{w.total >= 0 ? "+" : ""}{w.total} <span style={{ fontSize:12 }}>DRIX</span></div>
           </div>
           <div style={{ background:"#1a0a0a", border:"1px solid #ef444433", borderRadius:10, padding:"6px 12px", flex:1, textAlign:"center" }}>
             <div style={{ fontSize:12, color:"#fca5a5", fontWeight:700, marginBottom:2, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}><X size={11} color="#fca5a5"/>{l.nom}</div>
-            <div style={{ fontSize:18, fontWeight:900, color:l.total >= 0 ? "#22c55e" : "#ef4444" }}>{l.total >= 0 ? "+" : ""}{l.total} <span style={{ fontSize:12 }}>DRIX</span></div>
+            <div style={{ fontSize:18, fontWeight:900, color: isRivalite ? "#64748b" : (l.total >= 0 ? "#22c55e" : "#ef4444") }}>
+              {isRivalite ? "0" : `${l.total >= 0 ? "+" : ""}${l.total}`} <span style={{ fontSize:12 }}>DRIX</span>
+            </div>
           </div>
         </div>
+        {isRivalite && (
+          <div style={{ fontSize:10, color:"#64748b", marginBottom:8 }}>❌ Aucune perte pour le perdant</div>
+        )}
         {d.highlights && <div style={{ fontSize:12, color:"#f97316", fontWeight:700, marginBottom:8 }}>{d.highlights}</div>}
 
         {/* 1. Détail manche par manche (déroulant en premier) */}
