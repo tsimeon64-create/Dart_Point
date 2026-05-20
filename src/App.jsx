@@ -1665,6 +1665,8 @@ const PageDefi = ({ joueur, setPage }) => {
   // ── rivalité hebdo ──
   const [rivaliteHebdo, setRivaliteHebdo] = useState(null);
   const [showRivaliteHebdo, setShowRivaliteHebdo] = useState(false);
+  const [rivaliteHistory, setRivaliteHistory] = useState(null);   // duels entre moi et le rival
+  const [rivaliteTimerStr, setRivaliteTimerStr] = useState("");   // countdown dynamique
   const [hideAssoLock, setHideAssoLock] = useState(() => localStorage.getItem("dp_defi_hebdo_asso_skip") === "1");
 
   const charger = () => {
@@ -1768,6 +1770,39 @@ const PageDefi = ({ joueur, setPage }) => {
     setShowRivaliteHebdo(false);
     if (rivaliteHebdo?.weekKey) localStorage.setItem(rivaliteHebdo.weekKey + "_shown", "1");
   };
+
+  // ── Timer countdown jusqu'à dimanche minuit ────────────────────────────────
+  useEffect(() => {
+    if (!showRivaliteHebdo) return;
+    const calcTimer = () => {
+      const now = new Date();
+      const dim = new Date(now);
+      const daysUntilSun = (7 - now.getDay()) % 7 || 7;
+      dim.setDate(now.getDate() + daysUntilSun);
+      dim.setHours(23, 59, 59, 0);
+      const diff = dim - now;
+      if (diff <= 0) { setRivaliteTimerStr("Terminé"); return; }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      if (d > 0) setRivaliteTimerStr(`${d}j ${h}h restants`);
+      else if (h > 0) setRivaliteTimerStr(`${h}h ${m}min restants`);
+      else setRivaliteTimerStr(`${m}min restants`);
+    };
+    calcTimer();
+    const t = setInterval(calcTimer, 60000);
+    return () => clearInterval(t);
+  }, [showRivaliteHebdo]);
+
+  // ── Historique des duels entre moi et mon rival ────────────────────────────
+  useEffect(() => {
+    if (!showRivaliteHebdo || !rivaliteHebdo?.rival?.id || !joueur?.id) return;
+    const rid = rivaliteHebdo.rival.id;
+    setRivaliteHistory(null);
+    sb(`duels?or=(and(challenger_id.eq.${joueur.id},defie_id.eq.${rid}),and(challenger_id.eq.${rid},defie_id.eq.${joueur.id}))&statut=eq.termine&order=date.desc&select=*&limit=20`)
+      .then(data => setRivaliteHistory(data || []))
+      .catch(() => setRivaliteHistory([]));
+  }, [showRivaliteHebdo, rivaliteHebdo?.rival?.id, joueur?.id]); // eslint-disable-line
 
   // ── Recherche globale debounced ──
   useEffect(() => {
@@ -2164,10 +2199,29 @@ const PageDefi = ({ joueur, setPage }) => {
       })()}
       </>}
 
-      {/* ── POP-UP RIVALITÉ HEBDO ── */}
+      {/* ── POP-UP RIVALITÉ HEBDO PREMIUM ── */}
       {showRivaliteHebdo && rivaliteHebdo && (() => {
         const rival = rivaliteHebdo.rival;
         const { color:rColor, emoji:rEmoji, titre:rTitre } = getDrixTitre(rival.drix || 1000);
+        const { color:myColor, emoji:myEmoji, titre:myTitre } = getDrixTitre(joueur.drix || 1000);
+        const myDrix = joueur.drix || 1000;
+        const rvDrix = rival.drix || 1000;
+
+        // Probabilité de victoire (ELO)
+        const probMoi   = Math.round(100 / (1 + Math.pow(10, (rvDrix - myDrix) / 400)));
+        const probRival = 100 - probMoi;
+
+        // Analyse du duel
+        const getAnalyse = () => {
+          if (probMoi >= 70) return { label:"Tu es favori", emoji:"🔥", color:"#22c55e", sub:"Confirme ta domination" };
+          if (probMoi >= 55) return { label:"Légèrement favori", emoji:"💪", color:"#86efac", sub:"Reste concentré" };
+          if (probMoi >= 45) return { label:"Duel équilibré", emoji:"⚖️", color:"#f59e0b", sub:"Tout peut arriver" };
+          if (probMoi >= 30) return { label:"Adversaire favori", emoji:"⚠️", color:"#f97316", sub:"Crée la surprise" };
+          return { label:"Rival dangereux", emoji:"💀", color:"#ef4444", sub:"Montre ce que tu vaux" };
+        };
+        const analyse = getAnalyse();
+
+        // Semaine label
         const weekLabel = (() => {
           const now = new Date();
           const lundi = new Date(now);
@@ -2175,6 +2229,14 @@ const PageDefi = ({ joueur, setPage }) => {
           const dim = new Date(lundi); dim.setDate(lundi.getDate() + 6);
           return `${lundi.getDate()}/${lundi.getMonth()+1} → ${dim.getDate()}/${dim.getMonth()+1}`;
         })();
+
+        // Historique
+        const hist   = rivaliteHistory || [];
+        const myWins = hist.filter(d => d.gagnant_id === joueur.id).length;
+        const rvWins = hist.filter(d => d.gagnant_id === rival.id).length;
+        const lastMatch = hist[0];
+
+        // Ouvrir modal défi
         const ouvrirRivalPopup = () => {
           fermerRivaliteHebdo();
           if (!amisData[rival.id]) setAmisData(prev => ({ ...prev, [rival.id]: rival }));
@@ -2194,80 +2256,226 @@ const PageDefi = ({ joueur, setPage }) => {
             setModalLoading(false);
           }).catch(() => setModalLoading(false));
         };
+
+        // Couleur timer selon urgence
+        const timerColor = rivaliteTimerStr.includes("min") && !rivaliteTimerStr.includes("h") ? "#ef4444"
+                         : rivaliteTimerStr.includes("h") && !rivaliteTimerStr.includes("j")  ? "#f97316"
+                         : "#94a3b8";
+
         return (
           <div onClick={e=>{ if(e.target===e.currentTarget) fermerRivaliteHebdo(); }}
-            style={{ position:"fixed",inset:0,zIndex:1900,background:"rgba(0,0,0,0.92)",backdropFilter:"blur(8px)",display:"flex",alignItems:"flex-end",justifyContent:"center" }}>
-            <div style={{ width:"100%",maxWidth:520,background:"#0d0d0d",borderRadius:"24px 24px 0 0",padding:"28px 20px 40px",boxShadow:"0 -8px 60px rgba(168,85,247,0.25)",border:"1px solid #a855f722",borderBottom:"none" }}>
+            style={{ position:"fixed",inset:0,zIndex:1900,background:"rgba(0,0,0,0.95)",backdropFilter:"blur(16px)",display:"flex",alignItems:"flex-end",justifyContent:"center" }}>
 
-              {/* En-tête */}
-              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20 }}>
-                <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                  <div style={{ background:"linear-gradient(135deg,#a855f7,#7c3aed)",borderRadius:10,padding:"6px 12px",display:"flex",alignItems:"center",gap:6 }}>
-                    <Swords size={14} color="#fff"/>
-                    <span style={{ fontWeight:900,fontSize:13,color:"#fff",letterSpacing:.5 }}>RIVALITÉ HEBDO</span>
+            <style>{`
+              @keyframes rivalGlow { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+              @keyframes rivalPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.88;transform:scale(1.015)} }
+              @keyframes rivalShine { 0%{transform:translateX(-120%) skewX(-12deg)} 100%{transform:translateX(320%) skewX(-12deg)} }
+              @keyframes rivalIn { from{transform:translateY(48px);opacity:0} to{transform:translateY(0);opacity:1} }
+              @keyframes rivalTimerBlink { 0%,100%{opacity:1} 50%{opacity:.55} }
+            `}</style>
+
+            {/* Sheet */}
+            <div style={{
+              width:"100%",maxWidth:520,
+              background:"linear-gradient(180deg,#0d0010 0%,#080008 100%)",
+              borderRadius:"28px 28px 0 0",
+              overflow:"hidden",
+              boxShadow:"0 -12px 100px rgba(168,85,247,0.35),0 -4px 40px rgba(249,115,22,0.12)",
+              border:"1px solid rgba(168,85,247,0.22)",
+              borderBottom:"none",
+              animation:"rivalIn .4s cubic-bezier(.34,1.56,.64,1)"
+            }}>
+
+              {/* Barre top animée */}
+              <div style={{ height:3,background:"linear-gradient(90deg,#7c3aed,#a855f7,#f97316,#a855f7,#7c3aed)",backgroundSize:"300% 100%",animation:"rivalGlow 3s ease infinite" }}/>
+
+              {/* Corps scrollable */}
+              <div style={{ overflowY:"auto",maxHeight:"88vh",padding:"22px 20px 40px" }}>
+
+                {/* ── 1. HEADER ── */}
+                <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20 }}>
+                  <div>
+                    <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:7 }}>
+                      <div style={{
+                        background:"linear-gradient(135deg,#a855f7,#7c3aed)",
+                        borderRadius:10,padding:"7px 14px",
+                        display:"flex",alignItems:"center",gap:7,
+                        boxShadow:"0 0 24px rgba(168,85,247,0.5)",
+                        animation:"rivalPulse 3s ease infinite"
+                      }}>
+                        <Swords size={14} color="#fff"/>
+                        <span style={{ fontWeight:900,fontSize:13,color:"#fff",letterSpacing:.8 }}>RIVALITÉ HEBDO</span>
+                      </div>
+                      <span style={{ fontSize:11,color:"#64748b",background:"#ffffff0d",padding:"3px 8px",borderRadius:6 }}>{weekLabel}</span>
+                    </div>
+                    <div style={{ display:"flex",alignItems:"center",gap:6,animation: rivaliteTimerStr && !rivaliteTimerStr.includes("j") ? "rivalTimerBlink 2.5s ease infinite":"none" }}>
+                      <span style={{ fontSize:12 }}>⏳</span>
+                      <span style={{ fontSize:12,fontWeight:700,color:timerColor }}>{rivaliteTimerStr || "Calcul…"}</span>
+                    </div>
                   </div>
-                  <span style={{ fontSize:11,color:C.muted }}>{weekLabel}</span>
+                  <button onClick={fermerRivaliteHebdo} style={{ background:"#ffffff0d",border:"none",borderRadius:10,width:36,height:36,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#94a3b8",flexShrink:0,marginTop:2 }}>
+                    <X size={16}/>
+                  </button>
                 </div>
-                <button onClick={fermerRivaliteHebdo} style={{ background:"#1a1a1a",border:"none",borderRadius:8,width:32,height:32,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:C.muted }}>
-                  <X size={15}/>
-                </button>
-              </div>
 
-              <p style={{ color:C.muted,fontSize:13,marginBottom:18,lineHeight:1.5 }}>
-                Cette semaine, tu es en rivalité avec ce joueur de ton association. Le match doit être joué <strong style={{ color:C.text }}>avant dimanche minuit</strong>.
-              </p>
+                {/* ── 2. FACE À FACE ── */}
+                <div style={{ background:"linear-gradient(135deg,#0d0010,#0a0018,#100010)",border:"1px solid rgba(168,85,247,0.18)",borderRadius:22,padding:"20px 16px",marginBottom:12,position:"relative",overflow:"hidden" }}>
+                  {/* Orbes fond */}
+                  <div style={{ position:"absolute",top:-50,left:-20,width:160,height:160,borderRadius:"50%",background:`radial-gradient(circle,${myColor}18 0%,transparent 70%)`,pointerEvents:"none" }}/>
+                  <div style={{ position:"absolute",top:-50,right:-20,width:160,height:160,borderRadius:"50%",background:`radial-gradient(circle,${rColor}18 0%,transparent 70%)`,pointerEvents:"none" }}/>
 
-              {/* Carte rival */}
-              <div style={{ background:"linear-gradient(135deg,#111 0%,#1a0a2e 100%)",border:`2px solid ${rColor}55`,borderRadius:18,padding:20,marginBottom:16,position:"relative",overflow:"hidden" }}>
-                <div style={{ position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:"50%",background:`radial-gradient(circle,${rColor}22 0%,transparent 70%)`,pointerEvents:"none" }}/>
-                <div style={{ display:"flex",alignItems:"center",gap:16,marginBottom:16 }}>
-                  <div style={{ width:72,height:72,borderRadius:"50%",background:`${rColor}33`,border:`3px solid ${rColor}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",boxShadow:`0 0 20px ${rColor}44` }}>
-                    {rival.photo ? <img src={rival.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span style={{ fontSize:28 }}>{rEmoji}</span>}
+                  <div style={{ fontSize:9,color:"#475569",fontWeight:700,letterSpacing:2,textAlign:"center",marginBottom:16 }}>FACE À FACE</div>
+
+                  <div style={{ display:"flex",alignItems:"center" }}>
+                    {/* MOI */}
+                    <div style={{ flex:1,textAlign:"center" }}>
+                      <div style={{ position:"relative",display:"inline-block",marginBottom:10 }}>
+                        <div style={{ width:74,height:74,borderRadius:"50%",background:`${myColor}20`,border:`3px solid ${myColor}`,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",boxShadow:`0 0 28px ${myColor}44`,margin:"0 auto" }}>
+                          {joueur.photo ? <img src={joueur.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span style={{ fontSize:30 }}>{myEmoji}</span>}
+                        </div>
+                        <div style={{ position:"absolute",bottom:-5,left:"50%",transform:"translateX(-50%)",background:myColor,borderRadius:8,padding:"2px 7px",fontSize:8,fontWeight:900,color:"#000",whiteSpace:"nowrap",letterSpacing:.5 }}>MOI</div>
+                      </div>
+                      <div style={{ fontWeight:900,fontSize:14,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:90,margin:"0 auto 3px" }}>{joueur.pseudo}</div>
+                      <div style={{ color:myColor,fontSize:10,fontWeight:700,marginBottom:4 }}>{myEmoji} {myTitre}</div>
+                      <div style={{ fontSize:20,fontWeight:900,color:"#f97316",lineHeight:1 }}>{myDrix}</div>
+                      <div style={{ fontSize:9,color:"#475569" }}>DRIX</div>
+                    </div>
+
+                    {/* VS */}
+                    <div style={{ textAlign:"center",padding:"0 6px",flexShrink:0 }}>
+                      <div style={{ width:46,height:46,borderRadius:"50%",background:"linear-gradient(135deg,#a855f7,#f97316)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 24px rgba(168,85,247,0.45)",margin:"0 auto 8px",animation:"rivalPulse 2.5s ease infinite" }}>
+                        <Swords size={18} color="#fff"/>
+                      </div>
+                      <div style={{ fontSize:10,fontWeight:900,color:"#a855f7",letterSpacing:3 }}>VS</div>
+                    </div>
+
+                    {/* RIVAL */}
+                    <div style={{ flex:1,textAlign:"center" }}>
+                      <div style={{ position:"relative",display:"inline-block",marginBottom:10 }}>
+                        <div style={{ width:74,height:74,borderRadius:"50%",background:`${rColor}20`,border:`3px solid ${rColor}`,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",boxShadow:`0 0 28px ${rColor}44`,margin:"0 auto" }}>
+                          {rival.photo ? <img src={rival.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span style={{ fontSize:30 }}>{rEmoji}</span>}
+                        </div>
+                        <div style={{ position:"absolute",bottom:-5,left:"50%",transform:"translateX(-50%)",background:rColor,borderRadius:8,padding:"2px 7px",fontSize:8,fontWeight:900,color:"#000",whiteSpace:"nowrap",letterSpacing:.5 }}>RIVAL</div>
+                      </div>
+                      <div style={{ fontWeight:900,fontSize:14,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:90,margin:"0 auto 3px" }}>{rival.pseudo}</div>
+                      <div style={{ color:rColor,fontSize:10,fontWeight:700,marginBottom:4 }}>{rEmoji} {rTitre}</div>
+                      <div style={{ fontSize:20,fontWeight:900,color:"#f97316",lineHeight:1 }}>{rvDrix}</div>
+                      <div style={{ fontSize:9,color:"#475569" }}>DRIX</div>
+                    </div>
                   </div>
-                  <div style={{ flex:1,minWidth:0 }}>
-                    <div style={{ fontWeight:900,fontSize:22,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{rival.pseudo}</div>
-                    <div style={{ color:rColor,fontWeight:700,fontSize:13,marginTop:3 }}>{rEmoji} {rTitre}</div>
-                    <div style={{ fontSize:13,color:C.muted,marginTop:2 }}>{rival.drix||1000} DRIX</div>
+
+                  {/* Barre de probabilités */}
+                  <div style={{ marginTop:20 }}>
+                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                      <span style={{ fontSize:12,fontWeight:800,color:myColor }}>{probMoi}%</span>
+                      <div style={{ textAlign:"center" }}>
+                        <span style={{ fontSize:9,color:analyse.color,fontWeight:700,background:`${analyse.color}18`,padding:"3px 8px",borderRadius:20,border:`1px solid ${analyse.color}44` }}>
+                          {analyse.emoji} {analyse.label}
+                        </span>
+                      </div>
+                      <span style={{ fontSize:12,fontWeight:800,color:rColor }}>{probRival}%</span>
+                    </div>
+                    <div style={{ height:7,background:"#ffffff0d",borderRadius:99,overflow:"hidden",position:"relative" }}>
+                      <div style={{ position:"absolute",left:0,top:0,height:"100%",width:`${probMoi}%`,background:`linear-gradient(90deg,${myColor},${myColor}bb)`,borderRadius:99 }}/>
+                    </div>
+                    <div style={{ textAlign:"center",marginTop:7,fontSize:10,color:"#64748b" }}>{analyse.sub}</div>
                   </div>
                 </div>
-                {/* Récompenses */}
-                <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+
+                {/* ── 3. RÉCOMPENSE PREMIUM ── */}
+                <div style={{ position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#0a0010,#120a00)",border:"1px solid rgba(168,85,247,0.25)",borderRadius:22,padding:"20px 16px",marginBottom:12,boxShadow:"0 0 50px rgba(168,85,247,0.08) inset" }}>
+                  <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.04) 50%,transparent 60%)",animation:"rivalShine 5s ease infinite",pointerEvents:"none" }}/>
+                  <div style={{ fontSize:9,color:"#64748b",fontWeight:700,letterSpacing:2,textAlign:"center",marginBottom:14 }}>ENJEUX DU MATCH</div>
+                  <div style={{ display:"flex",gap:0,alignItems:"stretch" }}>
+                    {/* Victoire */}
+                    <div style={{ flex:1,textAlign:"center",padding:"4px 8px" }}>
+                      <div style={{ fontSize:11,color:"#4ade80",fontWeight:700,marginBottom:10 }}>🏆 SI VICTOIRE</div>
+                      <div style={{ fontSize:38,fontWeight:900,background:"linear-gradient(135deg,#22c55e,#86efac)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:4 }}>+50</div>
+                      <div style={{ fontSize:13,fontWeight:800,color:"#22c55e",marginBottom:6 }}>DRIX GARANTI</div>
+                      <div style={{ fontSize:9,color:"#4ade80",background:"#22c55e14",padding:"4px 8px",borderRadius:8,border:"1px solid #22c55e22" }}>+ bonus performance</div>
+                    </div>
+                    {/* Séparateur */}
+                    <div style={{ width:1,background:"linear-gradient(180deg,transparent,rgba(255,255,255,0.08),transparent)",flexShrink:0,margin:"0 4px" }}/>
+                    {/* Défaite */}
+                    <div style={{ flex:1,textAlign:"center",padding:"4px 8px" }}>
+                      <div style={{ fontSize:11,color:"#475569",fontWeight:700,marginBottom:10 }}>❌ SI DÉFAITE</div>
+                      <div style={{ fontSize:38,fontWeight:900,color:"#334155",lineHeight:1,marginBottom:4 }}>0</div>
+                      <div style={{ fontSize:13,fontWeight:800,color:"#475569",marginBottom:6 }}>AUCUNE PERTE</div>
+                      <div style={{ fontSize:9,color:"#64748b",background:"#ffffff06",padding:"4px 8px",borderRadius:8,border:"1px solid #ffffff10" }}>aucune pénalité</div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop:14,textAlign:"center",padding:"8px 12px",background:"rgba(168,85,247,0.08)",borderRadius:12,border:"1px solid rgba(168,85,247,0.18)" }}>
+                    <span style={{ fontSize:11,color:"#d8b4fe",fontWeight:600 }}>⚡ Aucun risque — tente ta chance !</span>
+                  </div>
+                </div>
+
+                {/* ── 4. HISTORIQUE ── */}
+                {rivaliteHistory !== null && (
+                  <div style={{ background:"#ffffff04",border:"1px solid #ffffff0f",borderRadius:18,padding:"14px 16px",marginBottom:12 }}>
+                    <div style={{ fontSize:9,color:"#475569",fontWeight:700,letterSpacing:2,marginBottom:12 }}>📜 HISTORIQUE DES AFFRONTEMENTS</div>
+                    {hist.length > 0 ? (<>
+                      <div style={{ display:"flex",alignItems:"center",marginBottom:12 }}>
+                        <div style={{ flex:1,textAlign:"center" }}>
+                          <div style={{ fontSize:26,fontWeight:900,color:"#22c55e",lineHeight:1 }}>{myWins}</div>
+                          <div style={{ fontSize:9,color:"#64748b",marginTop:4,fontWeight:600 }}>{joueur.pseudo.slice(0,10).toUpperCase()}</div>
+                        </div>
+                        <div style={{ padding:"0 12px" }}>
+                          <div style={{ fontSize:16,color:"#334155",fontWeight:900 }}>—</div>
+                        </div>
+                        <div style={{ flex:1,textAlign:"center" }}>
+                          <div style={{ fontSize:26,fontWeight:900,color:rColor,lineHeight:1 }}>{rvWins}</div>
+                          <div style={{ fontSize:9,color:"#64748b",marginTop:4,fontWeight:600 }}>{rival.pseudo.slice(0,10).toUpperCase()}</div>
+                        </div>
+                      </div>
+                      {lastMatch && (
+                        <div style={{ textAlign:"center",fontSize:11,color:"#94a3b8",background:"#ffffff07",borderRadius:8,padding:"6px 12px",border:"1px solid #ffffff0a" }}>
+                          Dernier match : <strong style={{ color: lastMatch.gagnant_id === joueur.id ? "#22c55e" : rColor }}>
+                            {lastMatch.gagnant_id === joueur.id ? joueur.pseudo : rival.pseudo} gagne
+                          </strong>
+                        </div>
+                      )}
+                    </>) : (
+                      <div style={{ textAlign:"center",padding:"10px 0" }}>
+                        <div style={{ fontSize:22,marginBottom:6 }}>🎯</div>
+                        <div style={{ fontSize:12,color:"#64748b",fontWeight:600 }}>Premier affrontement</div>
+                        <div style={{ fontSize:11,color:"#334155",marginTop:2 }}>Écris l'histoire !</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── 5. RÈGLES ── */}
+                <div style={{ background:"rgba(168,85,247,0.05)",border:"1px solid rgba(168,85,247,0.14)",borderRadius:18,padding:"14px 16px",marginBottom:20 }}>
+                  <div style={{ fontSize:9,color:"#64748b",fontWeight:700,letterSpacing:2,marginBottom:10 }}>📋 RÈGLES HEBDO</div>
                   {[
-                    { label:"Si tu gagnes", value:"+50 DRIX", color:"#22c55e", desc:"garanti" },
-                    { label:"Si tu perds",  value:"0 DRIX",   color:"#64748b", desc:"aucune pénalité" },
-                  ].map(s => (
-                    <div key={s.label} style={{ background:"#0a0a0a",borderRadius:12,padding:"10px 8px",textAlign:"center",border:`1px solid ${s.color}33` }}>
-                      <div style={{ fontWeight:900,fontSize:18,color:s.color,lineHeight:1 }}>{s.value}</div>
-                      <div style={{ fontSize:9,color:C.muted,marginTop:4,fontWeight:700,letterSpacing:.3 }}>{s.label.toUpperCase()}</div>
-                      <div style={{ fontSize:9,color:s.color+"99",marginTop:2 }}>{s.desc}</div>
+                    { icon:"⚔️", text:"Les rivalités sont générées chaque lundi parmi les membres de ton association." },
+                    { icon:"🏆", text:"Remporte le duel avant dimanche minuit pour gagner tes +50 DRIX." },
+                    { icon:"❌", text:"Aucune perte de DRIX en cas de défaite — tente ta chance !" },
+                  ].map((r,i) => (
+                    <div key={i} style={{ display:"flex",gap:10,alignItems:"flex-start",marginBottom:i<2?8:0 }}>
+                      <span style={{ fontSize:13,flexShrink:0,marginTop:1 }}>{r.icon}</span>
+                      <span style={{ fontSize:12,color:"#cbd5e1",lineHeight:1.55 }}>{r.text}</span>
                     </div>
                   ))}
                 </div>
-              </div>
 
-              {/* Rappel */}
-              <div style={{ background:"#a855f710",border:"1px solid #a855f733",borderRadius:12,padding:"12px 16px",marginBottom:20,display:"flex",alignItems:"flex-start",gap:10 }}>
-                <Swords size={16} color="#a855f7" style={{ marginTop:2,flexShrink:0 }}/>
-                <div style={{ fontSize:13,color:"#e9d5ff",lineHeight:1.6 }}>
-                  Les paires sont tirées au sort chaque lundi parmi les membres de ton association. Remporte le match pour gagner <strong style={{ color:"#22c55e" }}>+50 DRIX</strong>. En cas de défaite, tu ne perds rien.
+                {/* ── 6. BOUTONS ── */}
+                <div style={{ display:"flex",gap:10 }}>
+                  <button onClick={()=>{ fermerRivaliteHebdo(); setPage("profil-joueur-"+rival.id); }}
+                    style={{ flex:1,background:"#ffffff0a",border:"1px solid #ffffff12",color:"#e2e8f0",borderRadius:14,padding:"14px 0",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7,minHeight:52 }}>
+                    <Eye size={14}/> Voir profil
+                  </button>
+                  <button onClick={ouvrirRivalPopup}
+                    style={{ flex:2,position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#a855f7,#7c3aed)",border:"1px solid rgba(168,85,247,0.45)",color:"#fff",borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:900,cursor:"pointer",boxShadow:"0 6px 32px rgba(168,85,247,0.45)",display:"flex",alignItems:"center",justifyContent:"center",gap:8,minHeight:52,letterSpacing:.4,animation:"rivalPulse 3s ease infinite" }}>
+                    <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.14) 50%,transparent 60%)",animation:"rivalShine 4s ease infinite",pointerEvents:"none" }}/>
+                    <Swords size={16}/> Défier mon rival
+                  </button>
                 </div>
-              </div>
 
-              {/* Boutons */}
-              <div style={{ display:"flex",gap:10 }}>
-                <button onClick={()=>{ fermerRivaliteHebdo(); setPage("profil-joueur-"+rival.id); }}
-                  style={{ flex:1,background:"#1a1a1a",border:`1px solid ${C.border}`,color:C.text,borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7 }}>
-                  <Eye size={15}/> Voir le profil
-                </button>
-                <button onClick={ouvrirRivalPopup}
-                  style={{ flex:2,background:"linear-gradient(135deg,#a855f7,#7c3aed)",border:"none",color:"#fff",borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:800,cursor:"pointer",boxShadow:"0 4px 20px rgba(168,85,247,0.4)",display:"flex",alignItems:"center",justifyContent:"center",gap:7 }}>
-                  <Swords size={15}/> Défier mon rival
-                </button>
+                <p style={{ textAlign:"center",color:"#334155",fontSize:11,marginTop:14,lineHeight:1.5 }}>
+                  Paires tirées au sort le lundi · Se réinitialise chaque semaine
+                </p>
               </div>
-
-              <p style={{ textAlign:"center",color:C.muted,fontSize:11,marginTop:14 }}>
-                Paires tirées au sort le lundi. Se réinitialise chaque semaine.
-              </p>
             </div>
           </div>
         );
