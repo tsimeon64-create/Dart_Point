@@ -8931,7 +8931,7 @@ export default function App() {
                   await sb(`joueurs?id=eq.${joueur.id}`, {
                     method:"PATCH",
                     body:JSON.stringify({ email, cgu_accepte:true, cgu_date:Date.now() }),
-                    headers:{ "Prefer":"return=minimal" },
+                    prefer:"return=minimal",
                   });
                   const updated = { ...joueur, email, cgu_accepte:true };
                   setJoueur(updated);
