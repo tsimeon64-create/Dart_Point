@@ -185,11 +185,15 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
     return { emoji:"🏆", text:`Belle victoire de ${winner.nom}. Que la revanche commence.` };
   })();
 
-  // ── Bonus chips ────────────────────────────────────────────────────────────
+  // ── Bonus chips (gagnant + perdant) ────────────────────────────────────────
   const winnerBonuses = drixBreakdown ? (gagnantIsChallenger ? drixBreakdown.challenger.bonus : drixBreakdown.defie.bonus) : null;
+  const loserBonuses  = drixBreakdown ? (gagnantIsChallenger ? drixBreakdown.defie.bonus      : drixBreakdown.challenger.bonus) : null;
   const winnerTotal   = drixBreakdown ? Math.abs((gagnantIsChallenger ? drixBreakdown.challenger.totalVariation : drixBreakdown.defie.totalVariation)) : (dxGagnant?.gain || 0);
   const loserTotal    = drixBreakdown ? Math.abs((gagnantIsChallenger ? drixBreakdown.defie.totalVariation     : drixBreakdown.challenger.totalVariation)) : (dxPerdant?.perte || 0);
   const loserSign     = drixBreakdown ? ((gagnantIsChallenger ? drixBreakdown.defie.totalVariation : drixBreakdown.challenger.totalVariation) >= 0) : false;
+  const hasAnyBonus = (b) => b && ((b.bonusManches||0)>0 || (b.nbGrossesVolees||0)>0 || (b.nbGrosFinish||0)>0);
+  const winnerHasBonus = hasAnyBonus(winnerBonuses);
+  const loserHasBonus  = hasAnyBonus(loserBonuses);
 
   const partagerComptoir = async () => {
     setShowShareToast(true);
@@ -373,42 +377,70 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
       )}
 
       {/* ════════════════════════════════════════════════════════════════ */}
-      {/* 5. BONUS DE PERFORMANCE — Chips visuelles                         */}
+      {/* 5. BONUS DE PERFORMANCE — Chips pour les 2 joueurs                */}
       {/* ════════════════════════════════════════════════════════════════ */}
-      {modeDuel && winnerBonuses && (winnerBonuses.bonusManches>0 || winnerBonuses.nbGrossesVolees>0 || winnerBonuses.nbGrosFinish>0) && (
-        <div style={{ marginBottom:14, animation:"finCardIn .5s .85s both" }}>
-          <div style={{ fontSize:10, fontWeight:800, color:"#64748b", letterSpacing:2, marginBottom:8, textTransform:"uppercase", textAlign:"center" }}>⭐ Bonus de performance</div>
+      {modeDuel && (winnerHasBonus || loserHasBonus) && (() => {
+        const BonusChips = ({ b, delay=0 }) => (
           <div style={{ display:"flex", flexWrap:"wrap", gap:6, justifyContent:"center" }}>
-            {winnerBonuses.bonusManches > 0 && (
-              <div style={{ background:"#1a1200", border:"1px solid #f59e0b55", borderRadius:10, padding:"7px 10px", display:"flex", alignItems:"center", gap:6, animation:"finChipIn .4s .9s both" }}>
+            {b.bonusManches > 0 && (
+              <div style={{ background:"#1a1200", border:"1px solid #f59e0b55", borderRadius:10, padding:"6px 10px", display:"flex", alignItems:"center", gap:6, animation:`finChipIn .4s ${delay}s both` }}>
                 <span style={{ fontSize:15 }}>💎</span>
                 <div>
-                  <div style={{ fontSize:11, fontWeight:700, color:"#fbbf24", lineHeight:1 }}>+{winnerBonuses.bonusManches} DRIX</div>
-                  <div style={{ fontSize:9, color:"#92400e", marginTop:2 }}>{winnerBonuses.bonusManches/7} manche(s)</div>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#fbbf24", lineHeight:1 }}>+{b.bonusManches} DRIX</div>
+                  <div style={{ fontSize:9, color:"#92400e", marginTop:2 }}>{b.bonusManches/7} manche(s)</div>
                 </div>
               </div>
             )}
-            {winnerBonuses.nbGrossesVolees > 0 && (
-              <div style={{ background:"#1a0a00", border:"1px solid #f9731655", borderRadius:10, padding:"7px 10px", display:"flex", alignItems:"center", gap:6, animation:"finChipIn .4s 1s both" }}>
+            {b.nbGrossesVolees > 0 && (
+              <div style={{ background:"#1a0a00", border:"1px solid #f9731655", borderRadius:10, padding:"6px 10px", display:"flex", alignItems:"center", gap:6, animation:`finChipIn .4s ${delay+0.1}s both` }}>
                 <span style={{ fontSize:15 }}>🔥</span>
                 <div>
-                  <div style={{ fontSize:11, fontWeight:700, color:"#f97316", lineHeight:1 }}>+{winnerBonuses.bonusVolees} DRIX</div>
-                  <div style={{ fontSize:9, color:"#9a3412", marginTop:2 }}>{winnerBonuses.nbGrossesVolees} grosse(s) volée(s)</div>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#f97316", lineHeight:1 }}>+{b.bonusVolees} DRIX</div>
+                  <div style={{ fontSize:9, color:"#9a3412", marginTop:2 }}>{b.nbGrossesVolees} grosse(s) volée(s)</div>
                 </div>
               </div>
             )}
-            {winnerBonuses.nbGrosFinish > 0 && (
-              <div style={{ background:"#0a0014", border:"1px solid #a855f755", borderRadius:10, padding:"7px 10px", display:"flex", alignItems:"center", gap:6, animation:"finChipIn .4s 1.1s both" }}>
+            {b.nbGrosFinish > 0 && (
+              <div style={{ background:"#0a0014", border:"1px solid #a855f755", borderRadius:10, padding:"6px 10px", display:"flex", alignItems:"center", gap:6, animation:`finChipIn .4s ${delay+0.2}s both` }}>
                 <span style={{ fontSize:15 }}>🏆</span>
                 <div>
-                  <div style={{ fontSize:11, fontWeight:700, color:"#a78bfa", lineHeight:1 }}>+{winnerBonuses.bonusFinish} DRIX</div>
-                  <div style={{ fontSize:9, color:"#6b21a8", marginTop:2 }}>{winnerBonuses.nbGrosFinish} gros finish</div>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#a78bfa", lineHeight:1 }}>+{b.bonusFinish} DRIX</div>
+                  <div style={{ fontSize:9, color:"#6b21a8", marginTop:2 }}>{b.nbGrosFinish} gros finish</div>
                 </div>
               </div>
             )}
           </div>
-        </div>
-      )}
+        );
+        const winnerNom = gagnant?.nom;
+        return (
+          <div style={{ marginBottom:14, animation:"finCardIn .5s .85s both" }}>
+            <div style={{ fontSize:10, fontWeight:800, color:"#64748b", letterSpacing:2, marginBottom:8, textTransform:"uppercase", textAlign:"center" }}>⭐ Bonus de performance</div>
+            {/* Deux colonnes si les 2 joueurs ont des bonus, sinon 1 colonne */}
+            {(winnerHasBonus && loserHasBonus) ? (
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                <div style={{ background:"#0f1a0f", border:"1px solid #22c55e33", borderRadius:12, padding:"10px 8px" }}>
+                  <div style={{ fontSize:10, fontWeight:800, color:"#86efac", textAlign:"center", marginBottom:6 }}>🏆 {winnerNom}</div>
+                  <BonusChips b={winnerBonuses} delay={0.9}/>
+                </div>
+                <div style={{ background:"#1a0a0a", border:"1px solid #ef444433", borderRadius:12, padding:"10px 8px" }}>
+                  <div style={{ fontSize:10, fontWeight:800, color:"#fca5a5", textAlign:"center", marginBottom:6 }}>💔 {perdantNom}</div>
+                  <BonusChips b={loserBonuses} delay={1.0}/>
+                </div>
+              </div>
+            ) : winnerHasBonus ? (
+              <div style={{ background:"#0f1a0f", border:"1px solid #22c55e33", borderRadius:12, padding:"10px 8px" }}>
+                <div style={{ fontSize:10, fontWeight:800, color:"#86efac", textAlign:"center", marginBottom:6 }}>🏆 {winnerNom}</div>
+                <BonusChips b={winnerBonuses} delay={0.9}/>
+              </div>
+            ) : (
+              <div style={{ background:"#1a0a0a", border:"1px solid #ef444433", borderRadius:12, padding:"10px 8px" }}>
+                <div style={{ fontSize:10, fontWeight:800, color:"#fca5a5", textAlign:"center", marginBottom:6 }}>💔 {perdantNom}</div>
+                <BonusChips b={loserBonuses} delay={0.9}/>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ════════════════════════════════════════════════════════════════ */}
       {/* 6. HIGHLIGHTS DU MATCH                                            */}

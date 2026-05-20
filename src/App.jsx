@@ -8719,7 +8719,8 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
 
   return (
     <>
-      <Scoreur duel={duel} drixData={drixData} onDuelTermine={handleDuelTermine} onRejouer={handleRejouer} setPage={setPage}/>
+      {/* key={duel.id} force le remount complet du Scoreur quand on rejoue un nouveau duel */}
+      <Scoreur key={duel.id} duel={duel} drixData={drixData} onDuelTermine={handleDuelTermine} onRejouer={handleRejouer} setPage={setPage}/>
       {newBadges.length > 0 && (
         <BadgesRecapModal badges={newBadges} onClose={()=>setNewBadges([])} setPage={setPage}/>
       )}
