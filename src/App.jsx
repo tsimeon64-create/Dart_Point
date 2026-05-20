@@ -8468,6 +8468,7 @@ export default function App() {
   const [emailReqCgu,setEmailReqCgu]=useState(false);
   const [emailReqLoading,setEmailReqLoading]=useState(false);
   const [emailReqErr,setEmailReqErr]=useState("");
+  const [showLegal,setShowLegal]=useState(null); // null | "cgu" | "privacy"
   const [chronoDrixNotif,setChronoDrixNotif]=useState(null);
   const [showDefiHebdoUnlock,setShowDefiHebdoUnlock]=useState(false);
 
@@ -8839,15 +8840,79 @@ export default function App() {
                 style={{ marginTop:2,width:16,height:16,accentColor:"#a855f7",flexShrink:0,cursor:"pointer" }}/>
               <span style={{ fontSize:12,color:"#64748b",lineHeight:1.5 }}>
                 J'accepte les{" "}
-                <span onClick={()=>nav("mentions")} style={{ color:"#a855f7",textDecoration:"underline",cursor:"pointer" }}>
+                <span onClick={e=>{e.preventDefault();e.stopPropagation();setShowLegal("cgu");}} style={{ color:"#a855f7",textDecoration:"underline",cursor:"pointer" }}>
                   Conditions d'utilisation
                 </span>
                 {" "}et la{" "}
-                <span onClick={()=>nav("mentions")} style={{ color:"#a855f7",textDecoration:"underline",cursor:"pointer" }}>
+                <span onClick={e=>{e.preventDefault();e.stopPropagation();setShowLegal("privacy");}} style={{ color:"#a855f7",textDecoration:"underline",cursor:"pointer" }}>
                   Politique de confidentialité
                 </span>
               </span>
             </label>
+
+            {/* Sous-modal CGU / Politique de confidentialité */}
+            {showLegal && (
+              <div style={{ position:"fixed",inset:0,zIndex:10000,background:"rgba(0,0,0,0.97)",overflowY:"auto",padding:"20px 16px 40px" }}>
+                <div style={{ maxWidth:480,margin:"0 auto" }}>
+                  {/* Header */}
+                  <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,position:"sticky",top:0,background:"rgba(0,0,0,0.97)",paddingTop:4,paddingBottom:12,borderBottom:"1px solid #1e1e2e",zIndex:1 }}>
+                    <h2 style={{ fontWeight:900,fontSize:17,color:"#f1f5f9",margin:0 }}>
+                      {showLegal==="cgu" ? "Conditions Générales d'Utilisation" : "Politique de Confidentialité"}
+                    </h2>
+                    <button onClick={()=>setShowLegal(null)} style={{ background:"#1e1e2e",border:"none",borderRadius:8,padding:"6px 10px",color:"#94a3b8",cursor:"pointer",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:4 }}>
+                      <X size={14}/> Fermer
+                    </button>
+                  </div>
+
+                  {showLegal==="cgu" && (
+                    <div style={{ fontSize:13,color:"#94a3b8",lineHeight:1.8 }}>
+                      {[
+                        ["1. Objet", "Les présentes Conditions Générales d'Utilisation (CGU) régissent l'accès et l'utilisation de l'application DartPoint, éditée par Thomas Siméon. En créant un compte, l'utilisateur accepte sans réserve les présentes CGU."],
+                        ["2. Accès au service", "DartPoint est accessible gratuitement à toute personne physique âgée d'au moins 13 ans disposant d'un accès à Internet. L'éditeur se réserve le droit de modifier, suspendre ou interrompre le service à tout moment sans préavis."],
+                        ["3. Création de compte", "L'utilisateur s'engage à fournir des informations exactes lors de son inscription (pseudo, email, mot de passe). Il est seul responsable de la confidentialité de ses identifiants. Tout compte créé avec de fausses informations pourra être supprimé."],
+                        ["4. Utilisation acceptable", "L'utilisateur s'engage à ne pas :\n• Usurper l'identité d'un autre utilisateur\n• Publier des contenus injurieux, diffamatoires ou illicites\n• Tenter d'accéder aux données d'autres utilisateurs\n• Utiliser l'application à des fins commerciales sans autorisation"],
+                        ["5. Contenu utilisateur", "Les données de scores, résultats de matchs et publications restent la propriété de l'utilisateur. En les publiant sur DartPoint, il accorde à l'éditeur une licence d'affichage non exclusive et gratuite."],
+                        ["6. Propriété intellectuelle", "Le nom DartPoint, son logo, son design et ses fonctionnalités sont protégés par le droit de la propriété intellectuelle. Toute reproduction sans autorisation est interdite."],
+                        ["7. Responsabilité", "L'éditeur ne saurait être tenu responsable des dommages directs ou indirects résultant de l'utilisation ou de l'impossibilité d'utilisation du service. Les données de jeu sont indicatives et peuvent comporter des erreurs."],
+                        ["8. Suspension et résiliation", "L'éditeur se réserve le droit de suspendre ou supprimer tout compte en cas de violation des présentes CGU, sans préavis ni indemnité. L'utilisateur peut demander la suppression de son compte à tout moment."],
+                        ["9. Droit applicable", "Les présentes CGU sont soumises au droit français. En cas de litige, les tribunaux français seront seuls compétents.\n\nDernière mise à jour : mai 2026"],
+                      ].map(([titre, texte]) => (
+                        <div key={titre} style={{ marginBottom:18 }}>
+                          <div style={{ fontWeight:800,color:"#e2e8f0",fontSize:14,marginBottom:6 }}>{titre}</div>
+                          <div style={{ whiteSpace:"pre-line" }}>{texte}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {showLegal==="privacy" && (
+                    <div style={{ fontSize:13,color:"#94a3b8",lineHeight:1.8 }}>
+                      {[
+                        ["Responsable du traitement", "Thomas Siméon\nContact : t.simeon64@gmail.com\nApplication : DartPoint"],
+                        ["1. Données collectées", "Dans le cadre de votre inscription et utilisation de DartPoint, nous collectons :\n• Pseudo (obligatoire)\n• Nom et prénom (obligatoire)\n• Adresse e-mail (obligatoire)\n• Ville de résidence (optionnel)\n• Scores et résultats de matchs\n• Association ou club de fléchettes (optionnel)\n• Date d'inscription"],
+                        ["2. Finalités du traitement", "Vos données sont utilisées pour :\n• Gérer votre compte et authentification\n• Afficher votre profil et vos statistiques\n• Permettre les défis entre joueurs\n• Envoyer des notifications liées à l'application (si activées)\n• Récupération de mot de passe\n• Améliorer le service"],
+                        ["3. Base légale", "Le traitement est fondé sur l'exécution du contrat (CGU acceptées) et votre consentement explicite recueilli lors de l'inscription."],
+                        ["4. Durée de conservation", "Vos données sont conservées pendant toute la durée d'activité de votre compte. En cas de suppression du compte, vos données personnelles sont effacées dans un délai de 30 jours."],
+                        ["5. Partage des données", "Vos données ne sont jamais vendues ni cédées à des tiers. Elles sont hébergées sur les serveurs de Supabase (Supabase Inc., États-Unis) dans le cadre d'un accord de traitement conforme au RGPD."],
+                        ["6. Vos droits (RGPD)", "Conformément au Règlement Général sur la Protection des Données (RGPD), vous disposez des droits suivants :\n• Droit d'accès à vos données\n• Droit de rectification\n• Droit à l'effacement (droit à l'oubli)\n• Droit à la portabilité\n• Droit d'opposition\n\nPour exercer ces droits, contactez : t.simeon64@gmail.com\nRéponse sous 30 jours."],
+                        ["7. Cookies et stockage local", "DartPoint utilise le stockage local (localStorage) de votre navigateur pour maintenir votre session. Aucun cookie publicitaire ou de tracking tiers n'est utilisé."],
+                        ["8. Sécurité", "Les mots de passe sont stockés sous forme de hash cryptographique (SHA-256). Aucun mot de passe n'est stocké en clair. L'accès aux données est protégé par des politiques de sécurité (Row Level Security)."],
+                        ["9. Contact et réclamation", "Pour toute question relative à vos données : t.simeon64@gmail.com\n\nVous pouvez également adresser une réclamation à la CNIL : www.cnil.fr\n\nDernière mise à jour : mai 2026"],
+                      ].map(([titre, texte]) => (
+                        <div key={titre} style={{ marginBottom:18 }}>
+                          <div style={{ fontWeight:800,color:"#e2e8f0",fontSize:14,marginBottom:6 }}>{titre}</div>
+                          <div style={{ whiteSpace:"pre-line" }}>{texte}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <button onClick={()=>setShowLegal(null)} style={{ width:"100%",background:"linear-gradient(135deg,#7c3aed,#a855f7)",color:"#fff",border:"none",borderRadius:12,padding:"13px",fontWeight:800,fontSize:15,cursor:"pointer",marginTop:8 }}>
+                    ← Retour au formulaire
+                  </button>
+                </div>
+              </div>
+            )}
             {/* Erreur */}
             {emailReqErr && (
               <p style={{ color:"#ef4444",fontSize:12,marginBottom:12,display:"flex",alignItems:"center",gap:6 }}>
