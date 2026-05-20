@@ -622,6 +622,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [pendingVolee, setPendingVolee] = useState(null); // { val, type:"finish"|"zero" }
   const [drixBreakdown, setDrixBreakdown] = useState(null); // breakdown détaillé post-match
   const [liveBonusNotif, setLiveBonusNotif] = useState(null); // { label, color, points }
+  const [liveBadgeNotif, setLiveBadgeNotif] = useState(null); // { emoji, nom, desc, couleur }
   const bonusAccumRef = useRef([0, 0]); // bonus cumulés en live [j0, j1]
   const [bonusAccum, setBonusAccum] = useState([0, 0]);
 
@@ -1086,6 +1087,11 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         const moyD = parseFloat(moyenneCalc(updated[1]));
         setGagnant({ ...joueur, manchesGagnees:newManches, tours:[...joueur.tours,val], totalPoints:joueur.totalPoints+val, flechettes:joueur.flechettes+nbFlechettes });
         pushLiveVolee(actifIdx, val, false, true, updated);
+        // 🎯 Badge Bull's Eye — finish 50 en 1 fléchette
+        if (val === 50 && nbFlechettes === 1) {
+          setLiveBadgeNotif({ emoji:"🎯", nom:"Bullseye Killer", desc:"Finish Bull en 1 fléchette !", couleur:"#22c55e" });
+          setTimeout(() => setLiveBadgeNotif(null), 4000);
+        }
         setEtape("fin");
         if (modeDuel || onResultat) enregistrerResultatDuel(joueur.nom, scoreC, scoreD, moyC, moyD, allManches, updated);
         return;
@@ -1293,6 +1299,25 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           pointerEvents:"none",minWidth:220 }}>
           <div style={{ fontSize:13,color:"#e2e8f0",fontWeight:700,marginBottom:4 }}>{liveBonusNotif.label}</div>
           <div style={{ fontSize:22,fontWeight:900,color:liveBonusNotif.color }}>+{liveBonusNotif.points} DRIX 💎</div>
+        </div>
+      )}
+
+      {/* ── BADGE DÉBLOQUÉ EN LIVE ── */}
+      {liveBadgeNotif && (
+        <div style={{ position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:10002,
+          display:"flex",alignItems:"center",justifyContent:"center",
+          background:"rgba(0,0,0,0.7)",pointerEvents:"none" }}>
+          <div style={{ background:"linear-gradient(135deg,#0f2a1a,#1a4d2e)",
+            border:`2px solid ${liveBadgeNotif.couleur}`,borderRadius:24,
+            padding:"32px 40px",textAlign:"center",
+            boxShadow:`0 0 60px ${liveBadgeNotif.couleur}66, 0 8px 40px rgba(0,0,0,0.6)`,
+            animation:"badgePop .35s cubic-bezier(.34,1.56,.64,1)" }}>
+            <div style={{ fontSize:60,marginBottom:10 }}>{liveBadgeNotif.emoji}</div>
+            <div style={{ fontSize:10,color:"#86efac",fontWeight:800,letterSpacing:3,marginBottom:6 }}>BADGE DÉBLOQUÉ !</div>
+            <div style={{ fontSize:22,fontWeight:900,color:liveBadgeNotif.couleur,marginBottom:6 }}>{liveBadgeNotif.nom}</div>
+            <div style={{ fontSize:14,color:"#a7f3d0" }}>{liveBadgeNotif.desc}</div>
+          </div>
+          <style>{`@keyframes badgePop{0%{transform:scale(.4);opacity:0}100%{transform:scale(1);opacity:1}}`}</style>
         </div>
       )}
 
