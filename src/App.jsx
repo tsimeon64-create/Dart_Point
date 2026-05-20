@@ -3130,94 +3130,141 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
   const [open, setOpen] = useState(false);
   const w = d.winner; const l = d.loser;
   const isRivalite = !!d.isRivalite;
+  // Use nbManches from winner/loser objects (reliable source).
+  // Headline regex is a fallback only — it may have challenger/defié order, not winner/loser order.
+  const scoreW = w?.nbManches ?? (() => { const m = d.headline?.match(/(\d+)-(\d+)/); return m ? parseInt(m[1]) : null; })();
+  const scoreL = l?.nbManches ?? (() => { const m = d.headline?.match(/(\d+)-(\d+)/); return m ? parseInt(m[2]) : null; })();
   const BLine = ({ icon, label, val, color }) => (
-    <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, padding:"3px 0", borderBottom:`1px solid #ffffff08` }}>
+    <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, padding:"4px 0", borderBottom:`1px solid #ffffff08` }}>
       <span style={{ color:"#64748b" }}>{icon} {label}</span>
       <span style={{ fontWeight:700, color }}>{val > 0 ? "+" : ""}{val} DRIX</span>
     </div>
   );
   return (
-    <div key={`post-${p.id}`} style={{ ...cardBase, borderColor: isRivalite ? "#a855f744" : "#22c55e22", background: isRivalite ? "linear-gradient(135deg,#0d0010,#080008)" : cardBase.background }}>
+    <div key={`post-${p.id}`} style={{
+      position:"relative", overflow:"hidden",
+      border: isRivalite ? "1px solid #a855f755" : "1px solid #f9731628",
+      background: isRivalite ? "linear-gradient(160deg,#0d0010,#080008)" : "linear-gradient(160deg,#0d0800,#080500)",
+      borderRadius:16, marginBottom:12,
+      boxShadow: isRivalite ? "0 4px 24px rgba(168,85,247,0.12)" : "0 4px 24px rgba(249,115,22,0.08)",
+      animation:"feedIn .3s ease-out both",
+    }}>
+      {/* Animated top stripe */}
+      <div style={{ height:2, background: isRivalite
+        ? "linear-gradient(90deg,#7c3aed,#a855f7,#f97316,#a855f7,#7c3aed)"
+        : "linear-gradient(90deg,#ea580c,#f97316,#fbbf24,#f97316,#ea580c)",
+        backgroundSize:"300% 100%", animation:"feedGlow 3s ease infinite"
+      }}/>
 
-      {/* Badge Rivalité Hebdo */}
-      {isRivalite && (
-        <div style={{ display:"flex", alignItems:"center", gap:6, background:"linear-gradient(90deg,#a855f722,#7c3aed11)", border:"1px solid #a855f744", borderRadius:8, padding:"5px 10px", marginBottom:10 }}>
-          <Swords size={11} color="#a855f7"/>
-          <span style={{ fontSize:10, fontWeight:800, color:"#d8b4fe", letterSpacing:.8 }}>RIVALITÉ HEBDO</span>
-          <span style={{ fontSize:10, color:"#7c3aed", marginLeft:"auto" }}>⚔️ Match de la semaine</span>
-        </div>
-      )}
-
-      {/* Header */}
-      <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:10 }}>
-        <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
-        <div style={{ flex:1 }}>
-          <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:700, fontSize:14, color:C.text, cursor:"pointer" }}>{p.joueur_pseudo}</div>
-          <div style={{ fontSize:12, color:C.muted }}>{tempsDepuis(p.date)}</div>
-        </div>
-        <Swords size={18} color={isRivalite ? "#a855f7" : C.accent}/>
-      </div>
-
-      {/* Headline */}
-      <div style={{ paddingLeft:52 }}>
-        <div style={{ fontWeight:800, fontSize:15, color:"#e2e8f0", marginBottom:8, display:"flex", alignItems:"center", gap:6 }}>
-          <Trophy size={14} color={isRivalite ? "#a855f7" : "#22c55e"}/>
-          {typeof d.headline === "string" ? d.headline.replace(/^🏆\s*/, "") : d.headline}
-        </div>
-        {/* Résumé totaux */}
-        <div style={{ display:"flex", gap:10, marginBottom:6 }}>
-          <div style={{ background: isRivalite ? "#0d0018" : "#0f1a0f", border:`1px solid ${isRivalite ? "#a855f744" : "#22c55e33"}`, borderRadius:10, padding:"6px 12px", flex:1, textAlign:"center" }}>
-            <div style={{ fontSize:12, color: isRivalite ? "#d8b4fe" : "#86efac", fontWeight:700, marginBottom:2, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
-              {isRivalite ? <Swords size={11} color="#a855f7"/> : <Trophy size={11} color="#86efac"/>}{w.nom}
-            </div>
-            <div style={{ fontSize:18, fontWeight:900, color: isRivalite ? "#a855f7" : "#22c55e" }}>{w.total >= 0 ? "+" : ""}{w.total} <span style={{ fontSize:12 }}>DRIX</span></div>
-          </div>
-          <div style={{ background:"#1a0a0a", border:"1px solid #ef444433", borderRadius:10, padding:"6px 12px", flex:1, textAlign:"center" }}>
-            <div style={{ fontSize:12, color:"#fca5a5", fontWeight:700, marginBottom:2, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}><X size={11} color="#fca5a5"/>{l.nom}</div>
-            <div style={{ fontSize:18, fontWeight:900, color: isRivalite ? "#64748b" : (l.total >= 0 ? "#22c55e" : "#ef4444") }}>
-              {isRivalite ? "0" : `${l.total >= 0 ? "+" : ""}${l.total}`} <span style={{ fontSize:12 }}>DRIX</span>
-            </div>
-          </div>
-        </div>
+      <div style={{ padding:"14px 16px" }}>
+        {/* Rivalité badge */}
         {isRivalite && (
-          <div style={{ fontSize:10, color:"#64748b", marginBottom:8 }}>❌ Aucune perte pour le perdant</div>
+          <div style={{ display:"flex",alignItems:"center",gap:6,background:"#a855f715",border:"1px solid #a855f744",borderRadius:8,padding:"4px 10px",marginBottom:10 }}>
+            <Swords size={10} color="#a855f7"/>
+            <span style={{ fontSize:10,fontWeight:800,color:"#d8b4fe",letterSpacing:.8 }}>RIVALITÉ HEBDO · Match de la semaine</span>
+          </div>
         )}
-        {d.highlights && <div style={{ fontSize:12, color:"#f97316", fontWeight:700, marginBottom:8 }}>{d.highlights}</div>}
 
-        {/* 1. Détail manche par manche (déroulant en premier) */}
+        {/* Author header */}
+        <div style={{ display:"flex",gap:10,alignItems:"center",marginBottom:14 }}>
+          <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={34} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
+          <div style={{ flex:1 }}>
+            <span onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:700,fontSize:13,color:C.text,cursor:"pointer" }}>{p.joueur_pseudo}</span>
+            <span style={{ color:C.muted,fontSize:12 }}> a joué un duel</span>
+          </div>
+          <div style={{ display:"flex",alignItems:"center",gap:4,background:isRivalite?"#a855f718":"#f9731618",borderRadius:6,padding:"2px 8px" }}>
+            <Swords size={10} color={isRivalite?"#a855f7":"#f97316"}/>
+            <span style={{ fontSize:10,color:isRivalite?"#a855f7":"#f97316",fontWeight:700 }}>{tempsDepuis(p.date)}</span>
+          </div>
+        </div>
+
+        {/* ESPORT SCORE BLOCK */}
+        <div style={{
+          background: isRivalite ? "#08000f" : "#0a0500",
+          borderRadius:14, border:`1px solid ${isRivalite?"#a855f733":"#f9731622"}`,
+          padding:"16px 12px", marginBottom:10,
+          position:"relative", overflow:"hidden",
+        }}>
+          <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 35%,rgba(255,255,255,0.03) 50%,transparent 65%)",animation:"feedShine 6s ease infinite 2s",pointerEvents:"none" }}/>
+          <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+            {/* WINNER */}
+            <div style={{ flex:1,textAlign:"center" }}>
+              <div style={{ fontWeight:900,fontSize:13,color:"#22c55e",marginBottom:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textShadow:"0 0 12px rgba(34,197,94,0.4)" }}>{w.nom}</div>
+              <div style={{ fontSize:34,fontWeight:900,color:"#22c55e",lineHeight:1,textShadow:"0 0 20px rgba(34,197,94,0.35)" }}>{scoreW ?? "?"}</div>
+              <div style={{ display:"flex",justifyContent:"center",marginTop:6 }}>
+                <div style={{ background:"#22c55e22",border:"1px solid #22c55e44",borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:800,color:"#22c55e",display:"flex",alignItems:"center",gap:3 }}>
+                  <Trophy size={9} color="#22c55e"/> WIN
+                </div>
+              </div>
+            </div>
+            {/* VS */}
+            <div style={{ flexShrink:0,textAlign:"center",padding:"0 4px" }}>
+              <div style={{ width:40,height:40,borderRadius:"50%",background:`linear-gradient(135deg,${isRivalite?"#a855f7":"#f97316"},${isRivalite?"#7c3aed":"#ea580c"})`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 4px",boxShadow:`0 0 16px ${isRivalite?"rgba(168,85,247,0.4)":"rgba(249,115,22,0.4)"}` }}>
+                <Swords size={16} color="#fff"/>
+              </div>
+              <div style={{ fontSize:9,fontWeight:900,color:isRivalite?"#a855f7":"#f97316",letterSpacing:2 }}>VS</div>
+            </div>
+            {/* LOSER */}
+            <div style={{ flex:1,textAlign:"center" }}>
+              <div style={{ fontWeight:900,fontSize:13,color:"#ef4444",marginBottom:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{l.nom}</div>
+              <div style={{ fontSize:34,fontWeight:900,color:"#ef4444",lineHeight:1,opacity:.8 }}>{scoreL ?? "?"}</div>
+              <div style={{ display:"flex",justifyContent:"center",marginTop:6 }}>
+                <div style={{ background:"#ef444420",border:"1px solid #ef444444",borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:800,color:"#ef4444",display:"flex",alignItems:"center",gap:3 }}>
+                  <X size={9} color="#ef4444"/> DEF
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* DRIX summary */}
+        <div style={{ display:"flex",gap:8,marginBottom:10 }}>
+          <div style={{ flex:1,background:"#22c55e12",border:"1px solid #22c55e33",borderRadius:10,padding:"8px",textAlign:"center" }}>
+            <div style={{ fontSize:10,color:"#4ade80",fontWeight:700,marginBottom:3 }}>{w.nom.split(" ")[0].slice(0,9)}</div>
+            <div style={{ fontSize:24,fontWeight:900,color:"#22c55e",lineHeight:1 }}>{w.total>=0?"+":""}{w.total}</div>
+            <div style={{ fontSize:9,color:"#4ade80",marginTop:2 }}>DRIX</div>
+          </div>
+          <div style={{ flex:1,background:isRivalite?"#ffffff05":"#ef444412",border:`1px solid ${isRivalite?"#ffffff12":"#ef444433"}`,borderRadius:10,padding:"8px",textAlign:"center" }}>
+            <div style={{ fontSize:10,color:isRivalite?"#64748b":"#fca5a5",fontWeight:700,marginBottom:3 }}>{l.nom.split(" ")[0].slice(0,9)}</div>
+            <div style={{ fontSize:24,fontWeight:900,color:isRivalite?"#334155":"#ef4444",lineHeight:1 }}>{isRivalite?"0":`${l.total>=0?"+":""}${l.total}`}</div>
+            <div style={{ fontSize:9,color:isRivalite?"#475569":"#fca5a5",marginTop:2 }}>{isRivalite?"aucune perte":"DRIX"}</div>
+          </div>
+        </div>
+
+        {d.highlights && (
+          <div style={{ display:"flex",alignItems:"center",gap:6,background:"#f9731610",border:"1px solid #f9731628",borderRadius:8,padding:"6px 10px",marginBottom:8,fontSize:12,color:"#f97316",fontWeight:700 }}>
+            <Flame size={12} color="#f97316"/> {d.highlights}
+          </div>
+        )}
+
         <MancheDetail manches={d.manches||[]} />
-
-        {/* 2. Accordéon DRIX (après les manches) */}
-        <button onClick={()=>setOpen(o=>!o)} style={{ background:"none", border:"none", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer", padding:"6px 0 0", touchAction:"manipulation", display:"flex", alignItems:"center", gap:4 }}>
-          {open ? "▾" : "▸"} Détail DRIX
+        <button onClick={()=>setOpen(o=>!o)} style={{ background:"none",border:"none",color:C.muted,fontSize:12,fontWeight:600,cursor:"pointer",padding:"6px 0 0",touchAction:"manipulation",display:"flex",alignItems:"center",gap:4 }}>
+          {open?"▾":"▸"} Détail DRIX
         </button>
         {open && (
-          <div style={{ marginTop:8, display:"flex", gap:8, marginBottom:6 }}>
-            {/* Gagnant */}
-            <div style={{ flex:1, background:"#0f1a0f", border:"1px solid #22c55e22", borderRadius:10, padding:"8px 10px" }}>
-              <div style={{ fontSize:12, color:"#86efac", fontWeight:800, marginBottom:6, display:"flex", alignItems:"center", gap:4 }}><Trophy size={11} color="#86efac"/>{w.nom}</div>
-              <BLine icon="📈" label="ELO" val={w.elo} color={w.elo >= 0 ? "#22c55e" : "#ef4444"}/>
-              {w.bonusManches > 0 && <BLine icon="💎" label={`${w.nbManches} manche(s)`} val={w.bonusManches} color="#f59e0b"/>}
-              {w.bonusVolees > 0 && <BLine icon="🔥" label={`${w.nbVolees} grosse(s) volée(s)`} val={w.bonusVolees} color="#f97316"/>}
-              {w.bonusFinish > 0 && <BLine icon="🏆" label={`${w.nbFinish} gros finish`} val={w.bonusFinish} color="#a78bfa"/>}
+          <div style={{ marginTop:8,display:"flex",gap:8,marginBottom:6 }}>
+            <div style={{ flex:1,background:"#0f1a0f",border:"1px solid #22c55e22",borderRadius:10,padding:"8px 10px" }}>
+              <div style={{ fontSize:12,color:"#86efac",fontWeight:800,marginBottom:6,display:"flex",alignItems:"center",gap:4 }}><Trophy size={11} color="#86efac"/>{w.nom}</div>
+              <BLine icon="📈" label="ELO" val={w.elo} color={w.elo>=0?"#22c55e":"#ef4444"}/>
+              {w.bonusManches>0 && <BLine icon="💎" label={`${w.nbManches} manche(s)`} val={w.bonusManches} color="#f59e0b"/>}
+              {w.bonusVolees>0 && <BLine icon="🔥" label={`${w.nbVolees} grosse(s) volée(s)`} val={w.bonusVolees} color="#f97316"/>}
+              {w.bonusFinish>0 && <BLine icon="🏆" label={`${w.nbFinish} gros finish`} val={w.bonusFinish} color="#a78bfa"/>}
             </div>
-            {/* Perdant */}
-            <div style={{ flex:1, background:"#1a0a0a", border:"1px solid #ef444422", borderRadius:10, padding:"8px 10px" }}>
-              <div style={{ fontSize:12, color:"#fca5a5", fontWeight:800, marginBottom:6, display:"flex", alignItems:"center", gap:4 }}><X size={11} color="#fca5a5"/>{l.nom}</div>
-              <BLine icon="📈" label="ELO" val={l.elo} color={l.elo >= 0 ? "#22c55e" : "#ef4444"}/>
-              {l.bonusManches > 0 && <BLine icon="💎" label={`${l.nbManches} manche(s)`} val={l.bonusManches} color="#f59e0b"/>}
-              {l.bonusVolees > 0 && <BLine icon="🔥" label={`${l.nbVolees} grosse(s) volée(s)`} val={l.bonusVolees} color="#f97316"/>}
-              {l.bonusFinish > 0 && <BLine icon="🏆" label={`${l.nbFinish} gros finish`} val={l.bonusFinish} color="#a78bfa"/>}
+            <div style={{ flex:1,background:"#1a0a0a",border:"1px solid #ef444422",borderRadius:10,padding:"8px 10px" }}>
+              <div style={{ fontSize:12,color:"#fca5a5",fontWeight:800,marginBottom:6,display:"flex",alignItems:"center",gap:4 }}><X size={11} color="#fca5a5"/>{l.nom}</div>
+              <BLine icon="📈" label="ELO" val={l.elo} color={l.elo>=0?"#22c55e":"#ef4444"}/>
+              {l.bonusManches>0 && <BLine icon="💎" label={`${l.nbManches} manche(s)`} val={l.bonusManches} color="#f59e0b"/>}
+              {l.bonusVolees>0 && <BLine icon="🔥" label={`${l.nbVolees} grosse(s) volée(s)`} val={l.bonusVolees} color="#f97316"/>}
+              {l.bonusFinish>0 && <BLine icon="🏆" label={`${l.nbFinish} gros finish`} val={l.bonusFinish} color="#a78bfa"/>}
             </div>
           </div>
         )}
-      </div>
 
-      {/* Likes / Comments */}
-      <div style={{ display:"flex", gap:8, marginTop:10, paddingLeft:52 }}>
-        <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
+        <div style={{ display:"flex",gap:8,marginTop:10,paddingTop:10,borderTop:`1px solid #ffffff08` }}>
+          <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
+        </div>
+        <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
       </div>
-      <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
     </div>
   );
 };
@@ -4118,7 +4165,14 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
   };
 
   // ─── Renderers ────────────────────────────────────────────────────────────
-  const cardBase = { background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"14px 16px", marginBottom:10 };
+  const cardBase = {
+    position:"relative", overflow:"hidden",
+    background:"linear-gradient(160deg,#0e0e14,#0b0b10)",
+    border:`1px solid #ffffff0e`,
+    borderRadius:16, padding:"14px 16px", marginBottom:12,
+    boxShadow:"0 2px 16px rgba(0,0,0,0.35)",
+    animation:"feedIn .3s ease-out both",
+  };
 
   const renderPost = (item) => {
     const p = item.data;
@@ -4138,53 +4192,87 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     if (p.contenu?.startsWith("__BADGE__|")) {
       let badge = null;
       try { badge = JSON.parse(p.contenu.slice(10)); } catch {}
-      if (badge) return (
-        <div key={`post-${p.id}`} style={{ ...cardBase,
-          background:`linear-gradient(135deg,${badge.couleur}12,#1a1a1a)`,
-          border:`1px solid ${badge.couleur}44`,
-          boxShadow:`0 0 20px ${badge.couleur}18` }}>
-          {/* Header */}
-          <div style={{ display:"flex",gap:10,alignItems:"center",marginBottom:12 }}>
-            <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={40} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
-            <div style={{ flex:1 }}>
-              <div style={{ fontWeight:700,fontSize:14 }}>
-                <span onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ color:C.text,cursor:"pointer" }}>{p.joueur_pseudo}</span>
-                <span style={{ color:C.muted,fontWeight:400 }}> a débloqué un badge !</span>
+      if (badge) {
+        // Rarity system
+        const rarete = badge.rarete || "commun";
+        const rareteConfig = {
+          legendaire: { label:"LÉGENDAIRE", color:"#f59e0b", bg:"#451a03", border:"#f59e0b66", glow:"rgba(245,158,11,0.35)", shimmer:true },
+          epique:     { label:"ÉPIQUE",     color:"#a855f7", bg:"#2e1065", border:"#a855f766", glow:"rgba(168,85,247,0.3)", shimmer:true },
+          rare:       { label:"RARE",       color:"#3b82f6", bg:"#1e3a5f", border:"#3b82f655", glow:"rgba(59,130,246,0.2)", shimmer:false },
+          commun:     { label:"COMMUN",     color:"#64748b", bg:"#1e293b", border:"#64748b44", glow:"rgba(100,116,139,0.1)", shimmer:false },
+        };
+        const rc = rareteConfig[rarete] || rareteConfig.commun;
+        const isEpicPlus = rarete === "epique" || rarete === "legendaire";
+        return (
+          <div key={`post-${p.id}`} style={{
+            ...cardBase,
+            background:`linear-gradient(160deg,${rc.bg},#0b0b10)`,
+            border:`1px solid ${rc.border}`,
+            boxShadow:`0 0 30px ${rc.glow}, 0 2px 16px rgba(0,0,0,0.4)`,
+          }}>
+            {/* Animated top stripe */}
+            <div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${badge.couleur||rc.color},${rc.color},${badge.couleur||rc.color})`,backgroundSize:"300% 100%",animation:"feedGlow 3s ease infinite" }}/>
+            <div style={{ padding:"2px 0 0" }}>
+              {/* Rarity banner */}
+              <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:10 }}>
+                {rarete==="legendaire" && <Crown size={12} color="#f59e0b"/>}
+                {rarete==="epique" && <Gem size={12} color="#a855f7"/>}
+                {rarete==="rare" && <Medal size={12} color="#3b82f6"/>}
+                <span style={{ fontSize:10,fontWeight:900,color:rc.color,letterSpacing:1.5 }}>{rc.label}</span>
               </div>
-              <div style={{ fontSize:12,color:C.muted }}>{tempsDepuis(p.date)}</div>
+              {/* Author header */}
+              <div style={{ display:"flex",gap:10,alignItems:"center",marginBottom:14 }}>
+                <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={40} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:700,fontSize:14 }}>
+                    <span onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ color:C.text,cursor:"pointer" }}>{p.joueur_pseudo}</span>
+                    <span style={{ color:C.muted,fontWeight:400 }}> a débloqué un badge !</span>
+                  </div>
+                  <div style={{ fontSize:12,color:C.muted }}>{tempsDepuis(p.date)}</div>
+                </div>
+              </div>
+              {/* Badge showcase */}
+              <div style={{ position:"relative",overflow:"hidden",background:badge.couleur ? `${badge.couleur}18` : `${rc.color}12`,border:`1px solid ${rc.border}`,borderRadius:14,padding:isEpicPlus?"20px 16px":"14px 16px",marginBottom:10,textAlign:isEpicPlus?"center":"left" }}>
+                {isEpicPlus && (
+                  <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 35%,rgba(255,255,255,0.05) 50%,transparent 65%)",animation:"feedShine 4s ease infinite",pointerEvents:"none" }}/>
+                )}
+                {isEpicPlus ? (
+                  <>
+                    <div style={{ fontSize:56,filter:`drop-shadow(0 0 16px ${badge.couleur||rc.color})`,marginBottom:10,animation:"drixPop .5s ease-out both" }}>{badge.emoji}</div>
+                    <div style={{ fontWeight:900,fontSize:18,color:badge.couleur||rc.color,marginBottom:4 }}>{badge.nom}</div>
+                    <div style={{ fontSize:12,color:C.muted,lineHeight:1.5 }}>{badge.desc}</div>
+                  </>
+                ) : (
+                  <div style={{ display:"flex",alignItems:"center",gap:14 }}>
+                    <span style={{ fontSize:36,filter:`drop-shadow(0 0 8px ${badge.couleur||rc.color})` }}>{badge.emoji}</span>
+                    <div>
+                      <div style={{ fontWeight:800,fontSize:16,color:badge.couleur||rc.color }}>{badge.nom}</div>
+                      <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>{badge.desc}</div>
+                    </div>
+                    <div style={{ marginLeft:"auto" }}><Check size={18} color="#22c55e" strokeWidth={3}/></div>
+                  </div>
+                )}
+              </div>
+              <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
+              <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
             </div>
-            <Medal size={22} color="#f59e0b"/>
           </div>
-          {/* Badge card */}
-          <div style={{ display:"flex",alignItems:"center",gap:14,background:badge.couleur+"18",border:`1px solid ${badge.couleur}55`,borderRadius:12,padding:"12px 16px",marginBottom:10 }}>
-            <span style={{ fontSize:36,filter:`drop-shadow(0 0 8px ${badge.couleur})` }}>{badge.emoji}</span>
-            <div>
-              <div style={{ fontWeight:800,fontSize:16,color:badge.couleur }}>{badge.nom}</div>
-              <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>{badge.desc}</div>
-            </div>
-            <div style={{ marginLeft:"auto" }}><Check size={18} color="#22c55e" strokeWidth={3}/></div>
-          </div>
-          {/* Likes */}
-          <div style={{ display:"flex",gap:8,marginTop:4 }}>
-            <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
-          </div>
-          <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
-        </div>
-      );
+        );
+      }
     }
 
     // ── Post texte normal ────────────────────────────────────────────────────
     return (
       <div key={`post-${p.id}`} style={cardBase}>
         <div style={{ display:"flex",gap:10,alignItems:"flex-start",marginBottom:10 }}>
-          <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
+          <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={44} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
           <div style={{ flex:1 }}>
             <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{p.joueur_pseudo}</div>
             <div style={{ fontSize:12,color:C.muted }}>{tempsDepuis(p.date)}</div>
           </div>
         </div>
-        <div style={{ fontSize:14,lineHeight:1.65,color:C.text,whiteSpace:"pre-wrap",paddingLeft:52 }}>{p.contenu}</div>
-        <div style={{ display:"flex",gap:8,marginTop:10,paddingLeft:52 }}>
+        <div style={{ fontSize:14,lineHeight:1.7,color:"#e2e8f0",whiteSpace:"pre-wrap",paddingLeft:54,marginBottom:10 }}>{p.contenu}</div>
+        <div style={{ paddingLeft:54 }}>
           <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
         </div>
         <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
@@ -4201,70 +4289,88 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     const moyD = d.score_defie ? Math.round(d.score_defie) : null;
     const cWin = cScore > dScore;
     const dWin = dScore > cScore;
-    const draw = cScore === dScore;
+    const vC = drixMap[d.challenger_id];
+    const vD = drixMap[d.defie_id];
     return (
-      <div key={`match-${d.id}`} style={{ ...cardBase, borderColor:"#f9731622" }}>
-        <div style={{ fontSize:12,color:C.accent,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6 }}>
-          <Swords size={12} color={C.accent}/> Match terminé
-          <span style={{ color:C.muted,fontWeight:400 }}>· {tempsDepuis(item.date)}</span>
-        </div>
-        {[
-          { id:d.challenger_id, pseudo:d.challenger_pseudo, score:cScore, moy:moyC, win:cWin },
-          { id:d.defie_id, pseudo:d.defie_pseudo, score:dScore, moy:moyD, win:dWin },
-        ].map((p,i) => {
-          const variation = drixMap[p.id];
-          return (
-          <div key={i} style={{ display:"flex",alignItems:"center",gap:10,marginBottom:i===0?8:0 }}>
-            <FeedAvatar photo={photosMap[p.id]||null} pseudo={p.pseudo} size={36} onClick={()=>setPage("profil-joueur-"+p.id)}/>
-            <div style={{ flex:1 }}>
-              <div onClick={()=>setPage("profil-joueur-"+p.id)} style={{ fontWeight:700,fontSize:14,color:p.win?"#10b981":draw?"#eab308":C.muted,cursor:"pointer",display:"flex",alignItems:"center",gap:5 }}>
-                {p.pseudo} {p.win && <Trophy size={13} color="#10b981"/>}
-              </div>
-              {p.moy!==null && <div style={{ fontSize:12,color:C.muted }}>moy. {p.moy} pts/volée</div>}
+      <div key={`match-${d.id}`} style={{
+        ...cardBase,
+        background:"linear-gradient(160deg,#0d0800,#090600)",
+        border:"1px solid #f9731622",
+        boxShadow:"0 4px 20px rgba(249,115,22,0.08)",
+      }}>
+        {/* Animated top stripe orange */}
+        <div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,#ea580c,#f97316,#fbbf24,#f97316,#ea580c)",backgroundSize:"300% 100%",animation:"feedGlow 4s ease infinite" }}/>
+        <div style={{ padding:"4px 0 0" }}>
+          {/* Header */}
+          <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:12 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:5,background:"#f9731618",border:"1px solid #f9731628",borderRadius:8,padding:"3px 10px" }}>
+              <Swords size={11} color="#f97316"/>
+              <span style={{ fontSize:11,fontWeight:800,color:"#f97316",letterSpacing:.5 }}>DUEL TERMINÉ</span>
             </div>
-            <div style={{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2 }}>
-              <div style={{ fontWeight:800,fontSize:22,color:p.win?"#10b981":draw?"#eab308":"#ef4444",minWidth:28,textAlign:"right" }}>{p.score}</div>
-              {variation !== undefined && (
-                <div style={{ fontWeight:800,fontSize:12,color:variation>0?"#22c55e":"#ef4444",background:variation>0?"#14532d":"#7f1d1d",borderRadius:6,padding:"1px 7px",whiteSpace:"nowrap" }}>
-                  {variation>0?"+":""}{variation} DRIX
+            <span style={{ fontSize:11,color:C.muted,marginLeft:"auto" }}>{tempsDepuis(item.date)}</span>
+          </div>
+          {/* Esport score block */}
+          <div style={{ background:"#0a0500",border:"1px solid #f9731620",borderRadius:14,padding:"16px 10px",marginBottom:10,position:"relative",overflow:"hidden" }}>
+            <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 35%,rgba(255,255,255,0.025) 50%,transparent 65%)",animation:"feedShine 7s ease infinite 1s",pointerEvents:"none" }}/>
+            <div style={{ display:"flex",alignItems:"center",gap:4 }}>
+              {/* Challenger */}
+              <div style={{ flex:1,textAlign:"center" }}>
+                <div style={{ marginBottom:6 }}>
+                  <FeedAvatar photo={photosMap[d.challenger_id]||null} pseudo={d.challenger_pseudo} size={40} onClick={()=>setPage("profil-joueur-"+d.challenger_id)}/>
                 </div>
-              )}
+                <div style={{ fontWeight:800,fontSize:12,color:cWin?"#22c55e":"#ef4444",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:4 }}>{d.challenger_pseudo}</div>
+                <div style={{ fontSize:38,fontWeight:900,lineHeight:1,color:cWin?"#22c55e":"#ef4444",textShadow:cWin?"0 0 20px rgba(34,197,94,.35)":"0 0 20px rgba(239,68,68,.25)" }}>{cScore}</div>
+                {moyC !== null && <div style={{ fontSize:10,color:C.muted,marginTop:4 }}>{moyC} moy.</div>}
+                <div style={{ display:"flex",justifyContent:"center",marginTop:6 }}>
+                  <div style={{ background:cWin?"#22c55e22":"#ef444420",border:`1px solid ${cWin?"#22c55e44":"#ef444440"}`,borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:800,color:cWin?"#22c55e":"#ef4444",display:"flex",alignItems:"center",gap:3 }}>
+                    {cWin ? <><Trophy size={9} color="#22c55e"/> WIN</> : <><X size={9} color="#ef4444"/> DEF</>}
+                  </div>
+                </div>
+              </div>
+              {/* VS */}
+              <div style={{ flexShrink:0,textAlign:"center",padding:"0 6px" }}>
+                <div style={{ width:38,height:38,borderRadius:"50%",background:"linear-gradient(135deg,#f97316,#ea580c)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 4px",boxShadow:"0 0 14px rgba(249,115,22,0.45)" }}>
+                  <Swords size={16} color="#fff"/>
+                </div>
+                <div style={{ fontSize:9,fontWeight:900,color:"#f97316",letterSpacing:2 }}>VS</div>
+              </div>
+              {/* Defié */}
+              <div style={{ flex:1,textAlign:"center" }}>
+                <div style={{ marginBottom:6 }}>
+                  <FeedAvatar photo={photosMap[d.defie_id]||null} pseudo={d.defie_pseudo} size={40} onClick={()=>setPage("profil-joueur-"+d.defie_id)}/>
+                </div>
+                <div style={{ fontWeight:800,fontSize:12,color:dWin?"#22c55e":"#ef4444",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:4 }}>{d.defie_pseudo}</div>
+                <div style={{ fontSize:38,fontWeight:900,lineHeight:1,color:dWin?"#22c55e":"#ef4444",textShadow:dWin?"0 0 20px rgba(34,197,94,.35)":"0 0 20px rgba(239,68,68,.25)" }}>{dScore}</div>
+                {moyD !== null && <div style={{ fontSize:10,color:C.muted,marginTop:4 }}>{moyD} moy.</div>}
+                <div style={{ display:"flex",justifyContent:"center",marginTop:6 }}>
+                  <div style={{ background:dWin?"#22c55e22":"#ef444420",border:`1px solid ${dWin?"#22c55e44":"#ef444440"}`,borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:800,color:dWin?"#22c55e":"#ef4444",display:"flex",alignItems:"center",gap:3 }}>
+                    {dWin ? <><Trophy size={9} color="#22c55e"/> WIN</> : <><X size={9} color="#ef4444"/> DEF</>}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          );
-        })}
-        <MancheDetail manches={d.manches_detail}/>
-        {/* ── Récap DRIX ── */}
-        {(drixMap[d.challenger_id] !== undefined || drixMap[d.defie_id] !== undefined) && (() => {
-          const vC = drixMap[d.challenger_id];
-          const vD = drixMap[d.defie_id];
-          const gagnantId = d.gagnant_id;
-          const [gagnantPseudo, perdantPseudo, vGain, vPerte] =
-            gagnantId === d.challenger_id
-              ? [d.challenger_pseudo, d.defie_pseudo, vC, vD]
-              : [d.defie_pseudo, d.challenger_pseudo, vD, vC];
-          return (
-            <div style={{ marginTop:10, background:"#0f0f0f", borderRadius:10, padding:"8px 12px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
-              <span style={{ fontSize:12, color:"#64748b", fontWeight:600, display:"flex", alignItems:"center", gap:4 }}>DRIX</span>
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                {vGain !== undefined && (
-                  <span style={{ background:"#14532d", color:"#22c55e", borderRadius:20, padding:"3px 10px", fontSize:12, fontWeight:800, display:"inline-flex", alignItems:"center", gap:4 }}>
-                    <Trophy size={11} color="#22c55e"/>{gagnantPseudo} <b>+{vGain}</b>
-                  </span>
-                )}
-                {vPerte !== undefined && (
-                  <span style={{ background:"#7f1d1d", color:"#ef4444", borderRadius:20, padding:"3px 10px", fontSize:12, fontWeight:800 }}>
-                    {perdantPseudo} <b>{vPerte}</b>
-                  </span>
-                )}
-              </div>
+          {/* DRIX boxes */}
+          {(vC !== undefined || vD !== undefined) && (
+            <div style={{ display:"flex",gap:8,marginBottom:10 }}>
+              {[
+                { pseudo:d.challenger_pseudo, val:vC, win:cWin },
+                { pseudo:d.defie_pseudo,      val:vD, win:dWin },
+              ].map((r,i) => r.val !== undefined ? (
+                <div key={i} style={{ flex:1,background:r.win?"#22c55e12":"#ef444412",border:`1px solid ${r.win?"#22c55e33":"#ef444433"}`,borderRadius:10,padding:"8px",textAlign:"center" }}>
+                  <div style={{ fontSize:10,color:r.win?"#4ade80":"#fca5a5",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{r.pseudo.split(" ")[0]}</div>
+                  <div style={{ fontSize:22,fontWeight:900,color:r.win?"#22c55e":"#ef4444",lineHeight:1.2,animation:"drixPop .4s ease-out both" }}>{r.val>0?"+":""}{r.val}</div>
+                  <div style={{ fontSize:9,color:r.win?"#4ade80":"#fca5a5",fontWeight:700 }}>DRIX</div>
+                </div>
+              ) : null)}
             </div>
-          );
-        })()}
-        <div style={{ display:"flex",gap:8,marginTop:10 }}>
-          <LikeButton refId={d.id} joueur={joueur} initialCount={likesMap[d.id]?.count||0} initialMyLike={likesMap[d.id]?.myLike||false}/>
+          )}
+          <MancheDetail manches={d.manches_detail}/>
+          <div style={{ display:"flex",gap:8,marginTop:8 }}>
+            <LikeButton refId={d.id} joueur={joueur} initialCount={likesMap[d.id]?.count||0} initialMyLike={likesMap[d.id]?.myLike||false}/>
+          </div>
+          <CommentSection refId={d.id} joueur={joueur} initialComments={commentsMap[d.id]||[]}/>
         </div>
-        <CommentSection refId={d.id} joueur={joueur} initialComments={commentsMap[d.id]||[]}/>
       </div>
     );
   };
@@ -4274,22 +4380,37 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     const up = m.direction === "up";
     const { emoji, titre } = getDrixTitre(m.drix_apres || 1000);
     return (
-      <div key={`drix-${m.id||item.date}`} style={{ ...cardBase, borderColor: up?"#10b98133":"#ef444433", background: up?"#10b98108":"#ef444408" }}>
-        <div style={{ display:"flex",gap:10,alignItems:"center" }}>
-          <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+m.joueur_id)}/>
-          <div style={{ flex:1 }}>
+      <div key={`drix-${m.id||item.date}`} style={{
+        ...cardBase,
+        background: up ? "linear-gradient(160deg,#052010,#0a0a0f)" : "linear-gradient(160deg,#120406,#0a0a0f)",
+        border:`1px solid ${up?"#22c55e33":"#ef444433"}`,
+        boxShadow:`0 4px 20px ${up?"rgba(34,197,94,0.08)":"rgba(239,68,68,0.08)"}`,
+      }}>
+        <div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:up?"linear-gradient(90deg,#16a34a,#22c55e,#4ade80,#22c55e,#16a34a)":"linear-gradient(90deg,#dc2626,#ef4444,#f87171,#ef4444,#dc2626)",backgroundSize:"300% 100%",animation:"feedGlow 4s ease infinite" }}/>
+        <div style={{ display:"flex",gap:14,alignItems:"center",padding:"4px 0 0" }}>
+          <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={44} onClick={()=>setPage("profil-joueur-"+m.joueur_id)}/>
+          <div style={{ flex:1,minWidth:0 }}>
             <div onClick={()=>setPage("profil-joueur-"+m.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{m.joueur_pseudo}</div>
-            <div style={{ fontSize:13,color: up?"#10b981":"#ef4444",fontWeight:600,marginTop:3,display:"flex",alignItems:"center",gap:5 }}>
-              {up ? <TrendingUp size={14}/> : <TrendingDown size={14}/>} {up ? "Nouveau palier DRIX !" : "Palier perdu"}
+            <div style={{ fontSize:13,color: up?"#22c55e":"#ef4444",fontWeight:700,marginTop:3,display:"flex",alignItems:"center",gap:5 }}>
+              {up ? <TrendingUp size={13} color="#22c55e"/> : <TrendingDown size={13} color="#ef4444"/>}
+              {up ? "Nouveau palier débloqué !" : "Palier perdu"}
             </div>
-            <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>{emoji} {titre} — {m.drix_apres} DRIX</div>
+            <div style={{ fontSize:11,color:C.muted,marginTop:2 }}>{tempsDepuis(item.date)}</div>
           </div>
-          <div style={{ fontSize:34 }}>{emoji}</div>
+          {/* Rank badge on right */}
+          <div style={{ textAlign:"center",flexShrink:0 }}>
+            <div style={{ fontSize:40,lineHeight:1,animation:"drixPop .5s ease-out both" }}>{emoji}</div>
+            <div style={{ fontSize:9,fontWeight:800,color:up?"#22c55e":"#ef4444",marginTop:2 }}>{m.drix_apres} DRIX</div>
+          </div>
         </div>
-        <div style={{ display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",marginTop:8 }}>
-          <span style={{ fontSize:12,color:C.muted }}>{tempsDepuis(item.date)}</span>
-          <LikeButton refId={m.id} joueur={joueur} initialCount={likesMap[m.id]?.count||0} initialMyLike={likesMap[m.id]?.myLike||false}/>
+        {/* Rank name pill */}
+        <div style={{ margin:"10px 0 8px",display:"flex",alignItems:"center",gap:8 }}>
+          <div style={{ display:"inline-flex",alignItems:"center",gap:6,background:up?"#22c55e18":"#ef444418",border:`1px solid ${up?"#22c55e44":"#ef444444"}`,borderRadius:20,padding:"4px 12px" }}>
+            <span style={{ fontSize:12,fontWeight:800,color:up?"#4ade80":"#fca5a5" }}>{titre}</span>
+            <span style={{ fontSize:11,color:C.muted }}>— {m.drix_avant||"?"} → {m.drix_apres} DRIX</span>
+          </div>
         </div>
+        <LikeButton refId={m.id} joueur={joueur} initialCount={likesMap[m.id]?.count||0} initialMyLike={likesMap[m.id]?.myLike||false}/>
         <CommentSection refId={m.id} joueur={joueur} initialComments={commentsMap[m.id]||[]}/>
       </div>
     );
@@ -4299,22 +4420,29 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     const m = item.data;
     const gain = m.variation > 0;
     return (
-      <div key={`tdrix-${m.id||item.date}`} style={{ ...cardBase, borderColor: gain?"#f97316aa":"#ef444433", background: gain?"#f9731608":"#ef444408" }}>
-        <div style={{ display:"flex",gap:10,alignItems:"center" }}>
-          <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+m.joueur_id)}/>
-          <div style={{ flex:1 }}>
+      <div key={`tdrix-${m.id||item.date}`} style={{
+        ...cardBase,
+        background: gain ? "linear-gradient(160deg,#0d0500,#0a0a0f)" : "linear-gradient(160deg,#0d0101,#0a0a0f)",
+        border:`1px solid ${gain?"#f9731630":"#ef444428"}`,
+      }}>
+        <div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:gain?"linear-gradient(90deg,#c2410c,#f97316,#fb923c,#f97316,#c2410c)":"linear-gradient(90deg,#dc2626,#ef4444,#f87171,#ef4444,#dc2626)",backgroundSize:"300% 100%",animation:"feedGlow 4s ease infinite" }}/>
+        <div style={{ display:"flex",gap:12,alignItems:"center",padding:"4px 0 0" }}>
+          <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={44} onClick={()=>setPage("profil-joueur-"+m.joueur_id)}/>
+          <div style={{ flex:1,minWidth:0 }}>
             <div onClick={()=>setPage("profil-joueur-"+m.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{m.joueur_pseudo}</div>
-            <div style={{ fontSize:13,color: gain?"#f97316":"#ef4444",fontWeight:600,marginTop:3,display:"flex",alignItems:"center",gap:5 }}>
-              <Zap size={13}/> {gain ? `+${m.variation} DRIX gagnés` : `${m.variation} DRIX perdus`} en Comptage de finish
+            <div style={{ fontSize:13,color: gain?"#f97316":"#ef4444",fontWeight:700,marginTop:3,display:"flex",alignItems:"center",gap:5 }}>
+              <Target size={13} color={gain?"#f97316":"#ef4444"}/>
+              Comptage de finish
             </div>
-            <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>
-              {m.drix_apres} DRIX au total
-            </div>
+            <div style={{ fontSize:11,color:C.muted,marginTop:2 }}>{tempsDepuis(item.date)} · {m.drix_apres} DRIX au total</div>
           </div>
-          <div>{gain ? <Flame size={28} color="#f97316"/> : <Zap size={28} color="#ef4444"/>}</div>
+          {/* DRIX badge prominent */}
+          <div style={{ flexShrink:0,textAlign:"center",background:gain?"#f9731618":"#ef444418",border:`1px solid ${gain?"#f9731640":"#ef444440"}`,borderRadius:12,padding:"8px 12px",animation:"drixPop .4s ease-out both" }}>
+            <div style={{ fontSize:10,color:gain?"#fb923c":"#fca5a5",fontWeight:700,marginBottom:2 }}>DRIX</div>
+            <div style={{ fontSize:24,fontWeight:900,color:gain?"#f97316":"#ef4444",lineHeight:1 }}>{gain?"+":""}{m.variation}</div>
+          </div>
         </div>
-        <div style={{ display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",marginTop:8 }}>
-          <span style={{ fontSize:12,color:C.muted }}>{tempsDepuis(item.date)}</span>
+        <div style={{ marginTop:10 }}>
           <LikeButton refId={m.id} joueur={joueur} initialCount={likesMap[m.id]?.count||0} initialMyLike={likesMap[m.id]?.myLike||false}/>
         </div>
         <CommentSection refId={m.id} joueur={joueur} initialComments={commentsMap[m.id]||[]}/>
@@ -4326,18 +4454,30 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     const p = item.data;
     const bar = bars?.find(b=>b.slug===p.bar_slug);
     return (
-      <div key={`pres-${p.id||item.date}`} style={{ ...cardBase, borderColor:"#3b82f633" }}>
-        <div style={{ display:"flex",gap:10,alignItems:"center" }}>
-          <FeedAvatar photo={photosMap[p.joueur_id]||null} pseudo={p.joueur_pseudo} size={42} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
-          <div style={{ flex:1 }}>
+      <div key={`pres-${p.id||item.date}`} style={{
+        ...cardBase,
+        background:"linear-gradient(160deg,#030d1a,#0a0a0f)",
+        border:"1px solid #3b82f628",
+        boxShadow:"0 4px 20px rgba(59,130,246,0.07)",
+      }}>
+        <div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,#1d4ed8,#3b82f6,#60a5fa,#3b82f6,#1d4ed8)",backgroundSize:"300% 100%",animation:"feedGlow 4s ease infinite" }}/>
+        <div style={{ display:"flex",gap:12,alignItems:"center",padding:"4px 0 0" }}>
+          <FeedAvatar photo={photosMap[p.joueur_id]||null} pseudo={p.joueur_pseudo} size={44} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
+          <div style={{ flex:1,minWidth:0 }}>
             <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{p.joueur_pseudo}</div>
-            <div style={{ fontSize:13,color:"#60a5fa",fontWeight:600,marginTop:3,display:"flex",alignItems:"center",gap:5 }}>
-              <MapPin size={13}/> Est au bar{bar ? ` — ${bar.nom}` : p.bar_slug ? ` (${p.bar_slug})` : ""}
+            <div style={{ fontSize:13,color:"#60a5fa",fontWeight:700,marginTop:3,display:"flex",alignItems:"center",gap:5 }}>
+              <MapPin size={13} color="#60a5fa"/>
+              {bar ? bar.nom : p.bar_slug || "Bar de fléchettes"}
             </div>
+            <div style={{ fontSize:11,color:C.muted,marginTop:2 }}>{tempsDepuis(item.date)}</div>
+          </div>
+          {/* Live pill */}
+          <div style={{ display:"flex",alignItems:"center",gap:5,background:"#3b82f618",border:"1px solid #3b82f640",borderRadius:20,padding:"4px 10px",flexShrink:0 }}>
+            <span style={{ width:6,height:6,borderRadius:"50%",background:"#60a5fa",display:"inline-block",animation:"livePulse 1.4s infinite" }}/>
+            <span style={{ fontSize:11,fontWeight:800,color:"#60a5fa" }}>PRÉSENT</span>
           </div>
         </div>
-        <div style={{ display:"flex",gap:8,alignItems:"center",justifyContent:"space-between",marginTop:8 }}>
-          <span style={{ fontSize:12,color:C.muted }}>{tempsDepuis(item.date)}</span>
+        <div style={{ marginTop:10 }}>
           <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
         </div>
         <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
@@ -4355,21 +4495,43 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
   };
 
   return (
-    <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
-      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,display:"flex",alignItems:"center",gap:6 }}><ArrowLeft size={16}/> Accueil</button>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4 }}>
-        <h1 style={{ fontWeight:800,fontSize:22,margin:0,display:"flex",alignItems:"center",gap:8 }}><Users size={20} color={C.accent}/>Communauté</h1>
-        <button onClick={()=>{ setLoading(true); setRefreshTick(t=>t+1); }} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",padding:4,display:"flex",touchAction:"manipulation" }} title="Rafraîchir"><RefreshCw size={16}/></button>
+    <div style={{ maxWidth:700,margin:"0 auto",padding:"20px 16px" }}>
+      <style>{`
+        @keyframes feedGlow { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+        @keyframes feedIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes feedShine { 0%{transform:translateX(-120%) skewX(-12deg)} 100%{transform:translateX(320%) skewX(-12deg)} }
+        @keyframes drixPop { 0%{transform:scale(.7);opacity:0} 60%{transform:scale(1.12)} 100%{transform:scale(1);opacity:1} }
+        @keyframes livePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.35)} }
+      `}</style>
+
+      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}><ArrowLeft size={16}/> Accueil</button>
+
+      {/* ── Hero header ── */}
+      <div style={{ position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#0a0014,#050010,#000814)",border:"1px solid rgba(168,85,247,0.15)",borderRadius:20,padding:"20px 20px 18px",marginBottom:20 }}>
+        <div style={{ position:"absolute",top:-30,right:-20,width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,rgba(168,85,247,.12),transparent 70%)",pointerEvents:"none" }}/>
+        <div style={{ position:"absolute",bottom:-20,left:40,width:80,height:80,borderRadius:"50%",background:"radial-gradient(circle,rgba(249,115,22,.08),transparent 70%)",pointerEvents:"none" }}/>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",position:"relative" }}>
+          <div style={{ display:"flex",alignItems:"center",gap:14 }}>
+            <div style={{ width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#7c3aed,#a855f7)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 20px rgba(168,85,247,0.4)",flexShrink:0 }}>
+              <Users size={26} color="#fff"/>
+            </div>
+            <div>
+              <h1 style={{ fontWeight:900,fontSize:22,margin:0,color:"#f1f5f9",letterSpacing:-.3 }}>Le Comptoir</h1>
+              <p style={{ color:"#64748b",fontSize:12,margin:0,marginTop:3 }}>L'actualité de tes amis</p>
+            </div>
+          </div>
+          <button onClick={()=>{ setLoading(true); setRefreshTick(t=>t+1); }} style={{ background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",color:C.muted,cursor:"pointer",borderRadius:10,padding:"8px",display:"flex",touchAction:"manipulation",transition:"all .15s" }} title="Rafraîchir">
+            <RefreshCw size={16}/>
+          </button>
+        </div>
       </div>
-      <p style={{ color:C.muted,fontSize:13,marginBottom:12 }}>L'actualité de tes amis</p>
 
       {/* ── Onglets ── */}
-      <style>{`@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.35)}}`}</style>
-      <div style={{ display:"flex",background:"#111",borderRadius:12,padding:3,gap:3,marginBottom:20 }}>
-        <button onClick={()=>setMainTab("feed")} style={{ flex:1,padding:"9px",borderRadius:9,border:"none",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .15s",background:mainTab==="feed"?"#1e1e1e":"transparent",color:mainTab==="feed"?C.text:C.muted,display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
-          <Users size={14}/>Communauté
+      <div style={{ display:"flex",background:"#0d0d12",border:"1px solid #ffffff08",borderRadius:14,padding:4,gap:4,marginBottom:20 }}>
+        <button onClick={()=>setMainTab("feed")} style={{ flex:1,padding:"10px",borderRadius:10,border:"none",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .2s",background:mainTab==="feed"?"linear-gradient(135deg,#1e1b2e,#1a1a2e)":"transparent",color:mainTab==="feed"?"#f1f5f9":C.muted,boxShadow:mainTab==="feed"?"0 2px 8px rgba(0,0,0,0.3)":"none",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
+          <Users size={14} color={mainTab==="feed"?"#a855f7":C.muted}/>Communauté
         </button>
-        <button onClick={()=>setMainTab("live")} style={{ flex:1,padding:"9px",borderRadius:9,border:"none",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .15s",background:mainTab==="live"?"#1e1e1e":"transparent",color:mainTab==="live"?"#ef4444":C.muted,display:"flex",alignItems:"center",justifyContent:"center",gap:7 }}>
+        <button onClick={()=>setMainTab("live")} style={{ flex:1,padding:"10px",borderRadius:10,border:"none",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .2s",background:mainTab==="live"?"linear-gradient(135deg,#1a0b0b,#1a0808)":"transparent",color:mainTab==="live"?"#ef4444":C.muted,boxShadow:mainTab==="live"?"0 2px 8px rgba(0,0,0,0.3)":"none",display:"flex",alignItems:"center",justifyContent:"center",gap:7 }}>
           <span style={{ display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#ef4444",flexShrink:0,animation:mainTab==="live"?"livePulse 1.2s infinite":undefined }}/>
           Live
         </button>
@@ -4379,46 +4541,74 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         <PageLive joueur={joueur} setPage={setPage}/>
       ) : (<>
 
-      {/* Compositeur de post */}
+      {/* ── Compositeur de post ── */}
       {joueur && (
-        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:16,marginBottom:20 }}>
-          <div style={{ display:"flex",gap:10,alignItems:"flex-start" }}>
-            <FeedAvatar photo={joueur.photo} pseudo={joueur.pseudo} size={42}/>
-            <div style={{ flex:1 }}>
-              <textarea
-                value={texte}
-                onChange={e=>setTexte(e.target.value)}
-                onKeyDown={e=>{ if(e.key==="Enter"&&e.ctrlKey) publier(); }}
-                placeholder="Quoi de neuf ? Partage quelque chose avec tes amis… (Ctrl+Entrée pour publier)"
-                style={{ width:"100%",background:"#0f0f0f",border:`1px solid ${texte.trim()?C.accent:C.border}`,borderRadius:10,padding:"10px 12px",color:C.text,fontSize:14,resize:"vertical",minHeight:76,fontFamily:"inherit",outline:"none",boxSizing:"border-box",transition:"border-color .15s" }}
-                maxLength={500}
-              />
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8 }}>
-                <span style={{ fontSize:11,color:C.muted }}>{texte.length}/500</span>
-                <button onClick={publier} disabled={!texte.trim()||posting}
-                  style={{ background:texte.trim()?C.accent:"#2a2a2a",color:texte.trim()?"#fff":C.muted,border:"none",borderRadius:8,padding:"8px 20px",fontWeight:700,fontSize:14,cursor:texte.trim()?"pointer":"default",transition:"all .15s" }}>
-                  {posting ? "…" : "Publier"}
-                </button>
-              </div>
-            </div>
+        <div style={{ background:"linear-gradient(160deg,#0e0e14,#0b0b10)",border:"1px solid #ffffff0e",borderRadius:16,padding:16,marginBottom:20,boxShadow:"0 2px 16px rgba(0,0,0,0.3)" }}>
+          <div style={{ display:"flex",gap:10,alignItems:"flex-start",marginBottom:12 }}>
+            <FeedAvatar photo={joueur.photo} pseudo={joueur.pseudo} size={44}/>
+            <textarea
+              value={texte}
+              onChange={e=>setTexte(e.target.value)}
+              onKeyDown={e=>{ if(e.key==="Enter"&&e.ctrlKey) publier(); }}
+              placeholder="Quoi de neuf au comptoir ? (Ctrl+Entrée pour publier)"
+              style={{ flex:1,background:"#070710",border:`1px solid ${texte.trim()?"#a855f755":"#ffffff10"}`,borderRadius:12,padding:"10px 12px",color:"#e2e8f0",fontSize:14,resize:"none",height:70,fontFamily:"inherit",outline:"none",boxSizing:"border-box",transition:"border-color .15s" }}
+              maxLength={500}
+            />
+          </div>
+          {/* Quick actions */}
+          <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+            <button style={{ display:"flex",alignItems:"center",gap:5,background:"transparent",border:"1px solid #ffffff0a",borderRadius:8,padding:"5px 10px",fontSize:12,color:C.muted,cursor:"pointer",touchAction:"manipulation" }} title="Photo">
+              <Camera size={13} color="#64748b"/> Photo
+            </button>
+            <button style={{ display:"flex",alignItems:"center",gap:5,background:"transparent",border:"1px solid #ffffff0a",borderRadius:8,padding:"5px 10px",fontSize:12,color:C.muted,cursor:"pointer",touchAction:"manipulation" }} title="Exploit">
+              <Trophy size={13} color="#f59e0b"/> Exploit
+            </button>
+            <button style={{ display:"flex",alignItems:"center",gap:5,background:"transparent",border:"1px solid #ffffff0a",borderRadius:8,padding:"5px 10px",fontSize:12,color:C.muted,cursor:"pointer",touchAction:"manipulation" }} title="180 !">
+              <Flame size={13} color="#f97316"/> 180 !
+            </button>
+            <div style={{ flex:1 }}/>
+            <span style={{ fontSize:11,color:"#334155" }}>{texte.length}/500</span>
+            <button onClick={publier} disabled={!texte.trim()||posting}
+              style={{ background:texte.trim()?"linear-gradient(135deg,#7c3aed,#a855f7)":"#1e1e1e",color:texte.trim()?"#fff":C.muted,border:"none",borderRadius:10,padding:"8px 18px",fontWeight:700,fontSize:14,cursor:texte.trim()&&!posting?"pointer":"default",transition:"all .15s",opacity:posting?.6:1 }}>
+              {posting ? "…" : "Publier"}
+            </button>
           </div>
         </div>
       )}
 
       {erreur && (
-        <div style={{ background:"#ef444422",border:"1px solid #ef444455",borderRadius:10,padding:"10px 14px",color:"#ef4444",fontSize:13,marginBottom:16,display:"flex",alignItems:"center",gap:8 }}>
+        <div style={{ background:"#ef444418",border:"1px solid #ef444440",borderRadius:12,padding:"10px 14px",color:"#ef4444",fontSize:13,marginBottom:16,display:"flex",alignItems:"center",gap:8 }}>
           <AlertCircle size={14}/> {erreur}
         </div>
       )}
 
+      {/* ── Feed ── */}
       {loading ? (
-        <div style={{ textAlign:"center",color:C.muted,padding:48,fontSize:14 }}>Chargement du fil…</div>
+        /* Skeleton loading */
+        <div>
+          {[1,2,3].map(i=>(
+            <div key={i} style={{ background:"#0e0e14",border:"1px solid #ffffff08",borderRadius:16,padding:16,marginBottom:12 }}>
+              <div style={{ display:"flex",gap:10,alignItems:"center",marginBottom:12 }}>
+                <div style={{ width:44,height:44,borderRadius:"50%",background:"#1a1a24" }}/>
+                <div style={{ flex:1 }}>
+                  <div style={{ width:"40%",height:12,background:"#1a1a24",borderRadius:6,marginBottom:6 }}/>
+                  <div style={{ width:"25%",height:10,background:"#14141e",borderRadius:6 }}/>
+                </div>
+              </div>
+              <div style={{ height:80,background:"#0d0d18",borderRadius:12,marginBottom:10 }}/>
+              <div style={{ display:"flex",gap:6 }}>
+                <div style={{ width:60,height:28,background:"#14141e",borderRadius:8 }}/>
+                <div style={{ width:60,height:28,background:"#14141e",borderRadius:8 }}/>
+              </div>
+            </div>
+          ))}
+        </div>
       ) : feed.length === 0 ? (
-        <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:40,textAlign:"center" }}>
-          <div style={{ display:"flex",justifyContent:"center",marginBottom:14 }}><Users size={52} color={C.muted}/></div>
-          <h2 style={{ fontWeight:700,fontSize:18,marginBottom:8 }}>Fil vide pour l'instant</h2>
-          <p style={{ color:C.muted,fontSize:14,lineHeight:1.6,maxWidth:300,margin:"0 auto" }}>
-            Ajoute des amis et jouez des matchs pour voir l'activité ici.
+        <div style={{ background:"linear-gradient(160deg,#0e0e14,#0b0b10)",border:"1px solid #ffffff08",borderRadius:16,padding:48,textAlign:"center" }}>
+          <div style={{ fontSize:56,marginBottom:14 }}>🎯</div>
+          <h2 style={{ fontWeight:800,fontSize:18,marginBottom:8,color:"#e2e8f0" }}>Le comptoir est calme…</h2>
+          <p style={{ color:C.muted,fontSize:14,lineHeight:1.65,maxWidth:280,margin:"0 auto" }}>
+            Ajoute des amis et lancez des duels pour faire vibrer le fil d'actu !
           </p>
         </div>
       ) : (
