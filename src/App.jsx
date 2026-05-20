@@ -1921,10 +1921,40 @@ const PageDefi = ({ joueur, setPage }) => {
   const ms = modalAmi ? buildModalStats() : {};
 
   return (
-    <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
-      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,display:"flex",alignItems:"center",gap:6 }}><ArrowLeft size={16}/> Accueil</button>
-      <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4,display:"flex",alignItems:"center",gap:8 }}><Swords size={20} color={C.accent}/>Défis</h1>
-      <p style={{ color:C.muted,fontSize:13,marginBottom:14 }}>Défie tes amis et gagne des DRIX</p>
+    <div style={{ maxWidth:700,margin:"0 auto",padding:"20px 16px" }}>
+
+      <style>{`
+        @keyframes defisGlow { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+        @keyframes defisIn { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes defisShine { 0%{transform:translateX(-120%) skewX(-12deg)} 100%{transform:translateX(320%) skewX(-12deg)} }
+        @keyframes defisPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.85;transform:scale(1.01)} }
+        @keyframes defisTimerBlink { 0%,100%{opacity:1} 50%{opacity:.45} }
+      `}</style>
+
+      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:14,fontSize:13,display:"flex",alignItems:"center",gap:6 }}><ArrowLeft size={16}/> Accueil</button>
+
+      {/* ── Hero header ── */}
+      <div style={{ position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#0d0010 0%,#0a0a0f 60%,#001012 100%)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:20,padding:"22px 20px",marginBottom:20 }}>
+        <div style={{ position:"absolute",top:-40,right:-20,width:160,height:160,borderRadius:"50%",background:"radial-gradient(circle,rgba(168,85,247,0.15) 0%,transparent 70%)",pointerEvents:"none" }}/>
+        <div style={{ position:"absolute",bottom:-30,left:-10,width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,rgba(249,115,22,0.1) 0%,transparent 70%)",pointerEvents:"none" }}/>
+        <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.025) 50%,transparent 60%)",animation:"defisShine 9s ease infinite",pointerEvents:"none" }}/>
+        <div style={{ position:"relative",display:"flex",alignItems:"center",gap:14 }}>
+          <div style={{ width:52,height:52,borderRadius:16,background:"linear-gradient(135deg,#a855f7,#7c3aed)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 30px rgba(168,85,247,0.45)",flexShrink:0 }}>
+            <Swords size={24} color="#fff"/>
+          </div>
+          <div style={{ flex:1 }}>
+            <h1 style={{ fontWeight:900,fontSize:24,margin:0,letterSpacing:-.3 }}>Défis</h1>
+            <p style={{ color:C.muted,fontSize:12,margin:"4px 0 0",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
+              {rivaliteHebdo && <span style={{ background:"#a855f722",color:"#d8b4fe",padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:700 }}>⚔️ Rivalité active</span>}
+              <span>{amis.length} ami{amis.length!==1?"s":""}</span>
+            </p>
+          </div>
+          <div style={{ textAlign:"right",flexShrink:0 }}>
+            <div style={{ fontSize:22,fontWeight:900,color:"#f97316",lineHeight:1 }}>{joueur.drix||1000}</div>
+            <div style={{ fontSize:9,color:C.muted,fontWeight:700,letterSpacing:1 }}>DRIX</div>
+          </div>
+        </div>
+      </div>
 
       {/* ── Défi hebdo verrouillé ── */}
       {(amis.length < 10 || !joueur.asso_slug) && !hideAssoLock && (
@@ -1932,11 +1962,11 @@ const PageDefi = ({ joueur, setPage }) => {
           <div style={{ display:"flex",alignItems:"flex-start",gap:12,marginBottom:!joueur.asso_slug?14:0 }}>
             <Trophy size={18} color="#f97316" style={{ flexShrink:0,marginTop:2 }}/>
             <div style={{ flex:1 }}>
-              <div style={{ fontWeight:700,fontSize:13,color:"#fed7aa" }}>Défi de la Semaine — verrouillé</div>
+              <div style={{ fontWeight:700,fontSize:13,color:"#fed7aa" }}>Rivalité de la Semaine — verrouillée</div>
               <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>
                 {!joueur.asso_slug
-                  ? <>Choisis une <strong style={{ color:"#f97316" }}>association</strong> pour débloquer le défi hebdomadaire et ses récompenses DRIX.</>
-                  : <>Ajoute <strong style={{ color:"#f97316" }}>{10 - amis.length} ami{10 - amis.length > 1 ? "s" : ""}</strong> supplémentaire{10 - amis.length > 1 ? "s" : ""} pour débloquer le défi hebdomadaire.</>
+                  ? <>Choisis une <strong style={{ color:"#f97316" }}>association</strong> pour débloquer la rivalité hebdomadaire et ses récompenses DRIX.</>
+                  : <>Ajoute <strong style={{ color:"#f97316" }}>{10 - amis.length} ami{10 - amis.length > 1 ? "s" : ""}</strong> supplémentaire{10 - amis.length > 1 ? "s" : ""} pour débloquer la rivalité hebdomadaire.</>
                 }
               </div>
             </div>
@@ -2028,83 +2058,154 @@ const PageDefi = ({ joueur, setPage }) => {
         </div>
       )}
 
-      {/* ── Rivalité hebdo — bloc(s) dédié(s) ── */}
+      {/* ── Rivalité hebdo — grande carte immersive ── */}
       {rivaliteHebdo && (() => {
-        const renderRivalCard = (rival, isSecond = false) => {
+        const renderBigRivalCard = (rival, isSecond = false) => {
           const { emoji:rEmoji, color:rColor } = getDrixTitre(rival.drix || 1000);
-          const ouvrirRival = () => {
-            if (!amisData[rival.id]) setAmisData(prev => ({ ...prev, [rival.id]: rival }));
-            const amiRecord = amis.find(a =>
-              (a.joueur_id === joueur.id && a.ami_id    === rival.id) ||
-              (a.ami_id    === joueur.id && a.joueur_id === rival.id)
-            );
-            if (amiRecord) {
-              ouvrirModal(amiRecord);
-            } else {
-              setModalAmi({ amiId: rival.id, amiPseudo: rival.pseudo, profil: { ...rival } });
-              setModalData(null); setModalLoading(true);
-              setDefiForm({ mode:"501", manches:1, type:"classe" });
-              Promise.all([
-                sb(`duels?or=(challenger_id.eq.${rival.id},defie_id.eq.${rival.id})&order=date.desc&select=*`).catch(()=>[]),
-                sb(`joueurs?order=drix.desc&select=id,drix`).catch(()=>[]),
-              ]).then(([duelsAdv, allJ]) => {
-                setModalData({ duelsAdv: duelsAdv||[], allJoueurs: allJ||[] });
-                setModalLoading(false);
-              }).catch(() => setModalLoading(false));
-            }
-          };
+          const { emoji:myEmoji, color:myColor } = getDrixTitre(joueur.drix || 1000);
+          const probMoi = Math.round(100 / (1 + Math.pow(10, ((rival.drix||1000) - (joueur.drix||1000)) / 400)));
+          const timerIsUrgent = rivaliteTimerStr.includes("min") && !rivaliteTimerStr.includes("h");
+          const timerIsSoon   = rivaliteTimerStr.includes("h")   && !rivaliteTimerStr.includes("j");
+          const timerColor    = timerIsUrgent ? "#ef4444" : timerIsSoon ? "#f97316" : "#64748b";
           return (
             <div key={rival.id}
-              onClick={ouvrirRival}
-              style={{ background:C.card,border:`2px solid #a855f755`,borderRadius:12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"border-color .12s",position:"relative",overflow:"hidden",marginBottom:8 }}
-              onMouseEnter={e=>e.currentTarget.style.borderColor="#a855f7"}
-              onMouseLeave={e=>e.currentTarget.style.borderColor="#a855f755"}
+              onClick={()=>setShowRivaliteHebdo(true)}
+              style={{
+                position:"relative",overflow:"hidden",cursor:"pointer",
+                background:"linear-gradient(135deg,#0d0010,#0a0018,#100010)",
+                border:"2px solid rgba(168,85,247,0.35)",
+                borderRadius:22,padding:"22px 18px",marginBottom:12,
+                boxShadow:"0 8px 40px rgba(168,85,247,0.1)",
+                transition:"border-color .15s,box-shadow .15s",
+                animation:"defisIn .35s ease both",
+              }}
+              onMouseEnter={e=>{ e.currentTarget.style.borderColor="rgba(168,85,247,0.7)"; e.currentTarget.style.boxShadow="0 8px 50px rgba(168,85,247,0.2)"; }}
+              onMouseLeave={e=>{ e.currentTarget.style.borderColor="rgba(168,85,247,0.35)"; e.currentTarget.style.boxShadow="0 8px 40px rgba(168,85,247,0.1)"; }}
             >
-              <div style={{ position:"absolute",top:0,right:0,background:"#a855f7",color:"#fff",fontSize:9,fontWeight:800,padding:"2px 8px",borderBottomLeftRadius:8,letterSpacing:.5 }}>
-                {isSecond ? "RIVALITÉ ×2" : "RIVALITÉ"}
-              </div>
-              <div style={{ width:44,height:44,borderRadius:"50%",background:rColor+"22",border:`2px solid ${rColor}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,overflow:"hidden" }}>
-                {rival.photo ? <img src={rival.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{rEmoji}</span>}
-              </div>
-              <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ fontWeight:700,fontSize:15 }}>{rival.pseudo}</div>
-                <div style={{ fontSize:12,color:rColor,fontWeight:600,marginTop:2 }}>{rEmoji} {rival.drix||1000} DRIX</div>
-                <div style={{ display:"flex",gap:5,marginTop:6,flexWrap:"wrap" }}>
-                  <span style={{ background:"#22c55e22",color:"#22c55e",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20 }}>+50 DRIX si victoire</span>
-                  <span style={{ background:"#1a1a2e",color:"#94a3b8",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20 }}>0 si défaite</span>
+              <div style={{ position:"absolute",top:-50,left:-30,width:180,height:180,borderRadius:"50%",background:`radial-gradient(circle,${myColor}12 0%,transparent 70%)`,pointerEvents:"none" }}/>
+              <div style={{ position:"absolute",top:-50,right:-30,width:180,height:180,borderRadius:"50%",background:`radial-gradient(circle,${rColor}12 0%,transparent 70%)`,pointerEvents:"none" }}/>
+              <div style={{ position:"absolute",top:0,left:0,right:0,height:3,background:"linear-gradient(90deg,#7c3aed,#a855f7,#f97316,#a855f7,#7c3aed)",backgroundSize:"300% 100%",animation:"defisGlow 3s ease infinite" }}/>
+              <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 38%,rgba(255,255,255,0.04) 50%,transparent 62%)",animation:"defisShine 7s ease infinite 1.5s",pointerEvents:"none" }}/>
+
+              {/* Badge + Timer */}
+              <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:18,flexWrap:"wrap" }}>
+                <div style={{ background:"linear-gradient(135deg,#a855f7,#7c3aed)",borderRadius:8,padding:"4px 12px",display:"flex",alignItems:"center",gap:6,boxShadow:"0 0 18px rgba(168,85,247,0.4)",flexShrink:0 }}>
+                  <Swords size={11} color="#fff"/>
+                  <span style={{ fontWeight:900,fontSize:11,color:"#fff",letterSpacing:.8 }}>{isSecond ? "RIVALITÉ ×2" : "RIVALITÉ HEBDO"}</span>
                 </div>
                 {rivaliteTimerStr && (
                   <div style={{
-                    display:"flex",alignItems:"center",gap:4,marginTop:6,
-                    color: rivaliteTimerStr.includes("min") && !rivaliteTimerStr.includes("h") ? "#ef4444"
-                         : rivaliteTimerStr.includes("h") && !rivaliteTimerStr.includes("j") ? "#f97316"
-                         : "#64748b",
-                    fontSize:10,fontWeight:700,
+                    display:"flex",alignItems:"center",gap:5,
+                    background: timerIsUrgent?"#ef444414": timerIsSoon?"#f9731614":"#ffffff0a",
+                    border:`1px solid ${timerIsUrgent?"#ef444440":timerIsSoon?"#f9731640":"#ffffff14"}`,
+                    borderRadius:20,padding:"3px 10px",
+                    animation: timerIsUrgent ? "defisTimerBlink 2s ease infinite" : "none",
                   }}>
-                    <span>⏳</span>
-                    <span>{rivaliteTimerStr} restants</span>
+                    <span style={{ fontSize:11 }}>⏳</span>
+                    <span style={{ fontSize:11,fontWeight:700,color:timerColor }}>{rivaliteTimerStr} restants</span>
                   </div>
                 )}
               </div>
-              <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:4 }}>
-                <Swords size={18} color="#a855f7"/>
-                <span style={{ fontSize:10,color:"#a855f7",fontWeight:700 }}>Défier</span>
+
+              {/* Face à face */}
+              <div style={{ display:"flex",alignItems:"center",marginBottom:20 }}>
+                <div style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8 }}>
+                  <div style={{ position:"relative" }}>
+                    <div style={{ width:60,height:60,borderRadius:"50%",background:`${myColor}20`,border:`3px solid ${myColor}`,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",boxShadow:`0 0 22px ${myColor}40` }}>
+                      {joueur.photo ? <img src={joueur.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span style={{ fontSize:24 }}>{myEmoji}</span>}
+                    </div>
+                    <div style={{ position:"absolute",bottom:-5,left:"50%",transform:"translateX(-50%)",background:myColor,borderRadius:6,padding:"1px 6px",fontSize:8,fontWeight:900,color:"#000",whiteSpace:"nowrap" }}>MOI</div>
+                  </div>
+                  <div style={{ textAlign:"center" }}>
+                    <div style={{ fontWeight:800,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:82 }}>{joueur.pseudo}</div>
+                    <div style={{ fontSize:17,fontWeight:900,color:"#f97316",lineHeight:1.1 }}>{joueur.drix||1000}</div>
+                    <div style={{ fontSize:9,color:C.muted }}>DRIX</div>
+                  </div>
+                </div>
+                <div style={{ textAlign:"center",padding:"0 10px",flexShrink:0 }}>
+                  <div style={{ width:46,height:46,borderRadius:"50%",background:"linear-gradient(135deg,#a855f7,#f97316)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 6px",boxShadow:"0 0 22px rgba(168,85,247,0.4)",animation:"defisPulse 2.5s ease infinite" }}>
+                    <Swords size={18} color="#fff"/>
+                  </div>
+                  <div style={{ fontSize:11,fontWeight:900,color:"#a855f7",letterSpacing:3 }}>VS</div>
+                </div>
+                <div style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8 }}>
+                  <div style={{ position:"relative" }}>
+                    <div style={{ width:60,height:60,borderRadius:"50%",background:`${rColor}20`,border:`3px solid ${rColor}`,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",boxShadow:`0 0 22px ${rColor}40` }}>
+                      {rival.photo ? <img src={rival.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span style={{ fontSize:24 }}>{rEmoji}</span>}
+                    </div>
+                    <div style={{ position:"absolute",bottom:-5,left:"50%",transform:"translateX(-50%)",background:rColor,borderRadius:6,padding:"1px 6px",fontSize:8,fontWeight:900,color:"#000",whiteSpace:"nowrap" }}>RIVAL</div>
+                  </div>
+                  <div style={{ textAlign:"center" }}>
+                    <div style={{ fontWeight:800,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:82 }}>{rival.pseudo}</div>
+                    <div style={{ fontSize:17,fontWeight:900,color:rColor,lineHeight:1.1 }}>{rival.drix||1000}</div>
+                    <div style={{ fontSize:9,color:C.muted }}>DRIX</div>
+                  </div>
+                </div>
               </div>
+
+              {/* Récompenses */}
+              <div style={{ display:"flex",gap:8,marginBottom:16 }}>
+                <div style={{ flex:1,background:"#22c55e14",border:"1px solid #22c55e30",borderRadius:12,padding:"11px 8px",textAlign:"center" }}>
+                  <div style={{ fontSize:10,color:"#4ade80",fontWeight:700,marginBottom:4 }}>🏆 VICTOIRE</div>
+                  <div style={{ fontSize:26,fontWeight:900,color:"#22c55e",lineHeight:1 }}>+50</div>
+                  <div style={{ fontSize:9,color:"#4ade80",marginTop:2 }}>DRIX</div>
+                </div>
+                <div style={{ flex:1,background:"#ffffff06",border:"1px solid #ffffff0d",borderRadius:12,padding:"11px 8px",textAlign:"center" }}>
+                  <div style={{ fontSize:10,color:"#475569",fontWeight:700,marginBottom:4 }}>❌ DÉFAITE</div>
+                  <div style={{ fontSize:26,fontWeight:900,color:"#334155",lineHeight:1 }}>0</div>
+                  <div style={{ fontSize:9,color:"#475569",marginTop:2 }}>perte</div>
+                </div>
+                <div style={{ flex:1.4,background:"rgba(168,85,247,0.07)",border:"1px solid rgba(168,85,247,0.18)",borderRadius:12,padding:"11px 8px",textAlign:"center" }}>
+                  <div style={{ fontSize:10,color:"#d8b4fe",fontWeight:700,marginBottom:4 }}>⚡ CHANCES</div>
+                  <div style={{ fontSize:26,fontWeight:900,color:"#a855f7",lineHeight:1 }}>{probMoi}%</div>
+                  <div style={{ fontSize:9,color:"#d8b4fe",marginTop:2 }}>victoire</div>
+                </div>
+              </div>
+
+              {/* CTA */}
+              <button
+                onClick={e=>{ e.stopPropagation(); setShowRivaliteHebdo(true); }}
+                style={{
+                  width:"100%",padding:"14px 0",border:"none",borderRadius:14,
+                  background:"linear-gradient(135deg,#a855f7,#7c3aed)",
+                  color:"#fff",fontWeight:900,fontSize:15,cursor:"pointer",
+                  boxShadow:"0 6px 28px rgba(168,85,247,0.38)",
+                  display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+                  letterSpacing:.3,position:"relative",overflow:"hidden",
+                  animation:"defisPulse 3s ease infinite",
+                }}>
+                <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.1) 50%,transparent 60%)",animation:"defisShine 5s ease infinite 2s",pointerEvents:"none" }}/>
+                <Swords size={15}/> Voir la rivalité
+              </button>
             </div>
           );
         };
         return (
-          <div style={{ marginBottom:20 }}>
-            <h2 style={{ fontWeight:700,fontSize:16,marginBottom:10,display:"flex",alignItems:"center",gap:6 }}>
-              <Swords size={15} color="#a855f7"/>Rivalité hebdo
-            </h2>
-            {renderRivalCard(rivaliteHebdo.rival)}
-            {rivaliteHebdo.rival2 && renderRivalCard(rivaliteHebdo.rival2, true)}
+          <div style={{ marginBottom:28 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:14 }}>
+              <div style={{ flex:1,height:1,background:"linear-gradient(90deg,transparent,rgba(168,85,247,0.25))" }}/>
+              <div style={{ display:"flex",alignItems:"center",gap:7,padding:"4px 13px",background:"rgba(168,85,247,0.08)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:20 }}>
+                <Swords size={11} color="#a855f7"/>
+                <span style={{ fontSize:11,fontWeight:800,color:"#a855f7",letterSpacing:.8 }}>RIVALITÉ HEBDO</span>
+              </div>
+              <div style={{ flex:1,height:1,background:"linear-gradient(90deg,rgba(168,85,247,0.25),transparent)" }}/>
+            </div>
+            {renderBigRivalCard(rivaliteHebdo.rival)}
+            {rivaliteHebdo.rival2 && renderBigRivalCard(rivaliteHebdo.rival2, true)}
           </div>
         );
       })()}
 
-      <h2 style={{ fontWeight:700,fontSize:16,marginBottom:12,display:"flex",alignItems:"center",gap:6 }}><Users size={15} color={C.accent}/>Défier un ami</h2>
+      {/* ── Section divider Défier un ami ── */}
+      <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:14 }}>
+        <div style={{ flex:1,height:1,background:`linear-gradient(90deg,transparent,${C.border})` }}/>
+        <div style={{ display:"flex",alignItems:"center",gap:7,padding:"4px 13px",background:C.card,border:`1px solid ${C.border}`,borderRadius:20 }}>
+          <Users size={11} color={C.accent}/>
+          <span style={{ fontSize:11,fontWeight:800,color:C.accent,letterSpacing:.8 }}>DÉFIER UN AMI</span>
+        </div>
+        <div style={{ flex:1,height:1,background:`linear-gradient(90deg,${C.border},transparent)` }}/>
+      </div>
+
       {(() => {
         const amisIds = new Set(amis.map(a => a.joueur_id===joueur.id ? a.ami_id : a.joueur_id));
         const amisTries = [...amis].sort((a, b) => {
@@ -2126,9 +2227,12 @@ const PageDefi = ({ joueur, setPage }) => {
 
         return (
           <>
-            {/* Barre de recherche globale */}
-            <div style={{ display:"flex",alignItems:"center",gap:8,background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",marginBottom:12 }}>
-              <Search size={15} color={C.muted} style={{ flexShrink:0 }}/>
+            {/* Barre de recherche premium */}
+            <div style={{ display:"flex",alignItems:"center",gap:10,background:"linear-gradient(135deg,#111118,#13131f)",border:`1px solid ${C.border}`,borderRadius:14,padding:"12px 16px",marginBottom:14,boxShadow:"0 2px 20px rgba(0,0,0,0.25)",transition:"border-color .15s" }}
+              onMouseEnter={e=>e.currentTarget.style.borderColor="#f9731655"}
+              onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}
+            >
+              <Search size={16} color={C.muted} style={{ flexShrink:0 }}/>
               <input
                 value={searchDefi}
                 onChange={e=>{ setSearchDefi(e.target.value); setSearchGlobal([]); setSearchLoading(false); }}
@@ -2142,31 +2246,47 @@ const PageDefi = ({ joueur, setPage }) => {
 
             {/* ── Résultats amis ── */}
             {(amis.length === 0 && !q) ? (
-              <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:24,textAlign:"center",marginBottom:16 }}>
-                <p style={{ color:C.muted,fontSize:14,marginBottom:12 }}>Tu n'as pas encore d'amis sur DartPoint.</p>
-                <p style={{ color:C.muted,fontSize:12,marginBottom:16 }}>Recherche un joueur ci-dessus pour l'ajouter en ami !</p>
+              <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"32px 24px",textAlign:"center",marginBottom:16 }}>
+                <div style={{ fontSize:32,marginBottom:10 }}>🎯</div>
+                <p style={{ color:C.muted,fontSize:14,marginBottom:8,fontWeight:600 }}>Aucun ami sur DartPoint</p>
+                <p style={{ color:C.muted,fontSize:12 }}>Recherche un joueur ci-dessus pour l'ajouter !</p>
               </div>
             ) : amisFiltres.length > 0 ? (
-              <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
-                {q && <div style={{ fontSize:12,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:4 }}>AMIS</div>}
+              <div style={{ display:"flex",flexDirection:"column",gap:10,marginBottom:16 }}>
+                {q && <div style={{ fontSize:11,color:C.muted,fontWeight:700,letterSpacing:.6,marginBottom:2 }}>AMIS CORRESPONDANTS</div>}
                 {amisFiltres.map(a => {
                   const amiId = a.joueur_id===joueur.id?a.ami_id:a.joueur_id;
                   const amiPseudo = a.joueur_id===joueur.id?a.ami_pseudo:a.joueur_pseudo;
                   const profil = amisData[amiId];
-                  const { emoji:amiEmoji, color:amiColor } = getDrixTitre(profil?.drix||1000);
-                  const hisDrix = profil?.drix || 1000;
+                  const { emoji:amiEmoji, color:amiColor, titre:amiTitre } = getDrixTitre(profil?.drix||1000);
+                  const hisDrix = profil?.drix||1000;
                   return (
                     <div key={amiId} onClick={()=>ouvrirModal(a)}
-                      style={{ background:C.card,border:`2px solid ${C.border}`,borderRadius:12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"all .12s" }}
-                      onMouseEnter={e=>e.currentTarget.style.borderColor=C.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
-                      <div style={{ width:44,height:44,borderRadius:"50%",background:amiColor+"22",border:`2px solid ${amiColor}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,overflow:"hidden" }}>
+                      style={{
+                        background:`linear-gradient(135deg,${C.card},#111118)`,
+                        border:`2px solid ${C.border}`,
+                        borderRadius:16,padding:"14px 16px",cursor:"pointer",
+                        display:"flex",alignItems:"center",gap:14,
+                        transition:"all .15s",position:"relative",overflow:"hidden",
+                      }}
+                      onMouseEnter={e=>{ e.currentTarget.style.borderColor=C.accent; e.currentTarget.style.transform="translateY(-1px)"; e.currentTarget.style.boxShadow="0 4px 20px rgba(249,115,22,0.12)"; }}
+                      onMouseLeave={e=>{ e.currentTarget.style.borderColor=C.border; e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}
+                    >
+                      <div style={{ position:"absolute",left:0,top:8,bottom:8,width:3,background:`linear-gradient(180deg,${amiColor},${amiColor}44)`,borderRadius:2 }}/>
+                      <div style={{ width:52,height:52,borderRadius:"50%",background:`${amiColor}22`,border:`2px solid ${amiColor}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,overflow:"hidden" }}>
                         {profil?.photo ? <img src={profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{amiEmoji}</span>}
                       </div>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontWeight:700,fontSize:15 }}>{amiPseudo}</div>
-                        <div style={{ fontSize:12,color:amiColor,fontWeight:600,marginTop:2 }}>{amiEmoji} {hisDrix} DRIX</div>
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <div style={{ fontWeight:800,fontSize:15,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{amiPseudo}</div>
+                        <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                          <span style={{ fontSize:11,color:amiColor,fontWeight:700 }}>{amiEmoji} {amiTitre}</span>
+                          <span style={{ fontSize:10,color:C.muted }}>·</span>
+                          <span style={{ fontSize:11,color:"#f97316",fontWeight:800 }}>{hisDrix} DRIX</span>
+                        </div>
                       </div>
-                      <Swords size={18} color={C.accent}/>
+                      <div style={{ width:38,height:38,borderRadius:11,background:"#f9731614",border:"1px solid #f9731628",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+                        <Swords size={16} color={C.accent}/>
+                      </div>
                     </div>
                   );
                 })}
@@ -2180,20 +2300,20 @@ const PageDefi = ({ joueur, setPage }) => {
               const nonAmis = searchGlobal.filter(p => p.id !== joueur.id && !amisIds.has(p.id));
               if (nonAmis.length === 0) return null;
               return (
-                <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
-                  <div style={{ fontSize:12,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:4 }}>AUTRES JOUEURS</div>
+                <div style={{ display:"flex",flexDirection:"column",gap:10,marginBottom:16 }}>
+                  <div style={{ fontSize:11,color:C.muted,fontWeight:700,letterSpacing:.6,marginBottom:2 }}>AUTRES JOUEURS</div>
                   {nonAmis.map(p => {
                     const { emoji:pEmoji, color:pColor } = getDrixTitre(p.drix||1000);
                     return (
                       <div key={p.id} onClick={()=>setPage("profil-joueur-"+p.id)}
-                        style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"all .12s" }}
+                        style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,transition:"all .12s" }}
                         onMouseEnter={e=>e.currentTarget.style.borderColor=C.blue} onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
-                        <div style={{ width:44,height:44,borderRadius:"50%",background:pColor+"22",border:`2px solid ${pColor}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,overflow:"hidden" }}>
+                        <div style={{ width:52,height:52,borderRadius:"50%",background:`${pColor}22`,border:`2px solid ${pColor}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,overflow:"hidden" }}>
                           {p.photo ? <img src={p.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span>{pEmoji}</span>}
                         </div>
                         <div style={{ flex:1 }}>
-                          <div style={{ fontWeight:700,fontSize:15 }}>{p.pseudo}</div>
-                          <div style={{ fontSize:12,color:pColor,fontWeight:600,marginTop:2 }}>{pEmoji} {p.drix||1000} DRIX</div>
+                          <div style={{ fontWeight:800,fontSize:15,marginBottom:3 }}>{p.pseudo}</div>
+                          <div style={{ fontSize:11,color:pColor,fontWeight:700 }}>{pEmoji} {p.drix||1000} DRIX</div>
                         </div>
                         <div style={{ textAlign:"right",flexShrink:0,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2 }}>
                           <ChevronRight size={16} color={C.blue}/>
