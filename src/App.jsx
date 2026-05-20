@@ -1771,9 +1771,9 @@ const PageDefi = ({ joueur, setPage }) => {
     if (rivaliteHebdo?.weekKey) localStorage.setItem(rivaliteHebdo.weekKey + "_shown", "1");
   };
 
-  // ── Timer countdown jusqu'à dimanche minuit ────────────────────────────────
+  // ── Timer countdown jusqu'à dimanche minuit (tourne dès que rivaliteHebdo est chargé) ──
   useEffect(() => {
-    if (!showRivaliteHebdo) return;
+    if (!rivaliteHebdo) return;
     const calcTimer = () => {
       const now = new Date();
       const dim = new Date(now);
@@ -1785,14 +1785,14 @@ const PageDefi = ({ joueur, setPage }) => {
       const d = Math.floor(diff / 86400000);
       const h = Math.floor((diff % 86400000) / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
-      if (d > 0) setRivaliteTimerStr(`${d}j ${h}h restants`);
-      else if (h > 0) setRivaliteTimerStr(`${h}h ${m}min restants`);
-      else setRivaliteTimerStr(`${m}min restants`);
+      if (d > 0) setRivaliteTimerStr(`${d}j ${h}h`);
+      else if (h > 0) setRivaliteTimerStr(`${h}h ${m}min`);
+      else setRivaliteTimerStr(`${m}min`);
     };
     calcTimer();
     const t = setInterval(calcTimer, 60000);
     return () => clearInterval(t);
-  }, [showRivaliteHebdo]);
+  }, [rivaliteHebdo]);
 
   // ── Historique des duels entre moi et mon rival ────────────────────────────
   useEffect(() => {
@@ -2073,6 +2073,18 @@ const PageDefi = ({ joueur, setPage }) => {
                   <span style={{ background:"#22c55e22",color:"#22c55e",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20 }}>+50 DRIX si victoire</span>
                   <span style={{ background:"#1a1a2e",color:"#94a3b8",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20 }}>0 si défaite</span>
                 </div>
+                {rivaliteTimerStr && (
+                  <div style={{
+                    display:"flex",alignItems:"center",gap:4,marginTop:6,
+                    color: rivaliteTimerStr.includes("min") && !rivaliteTimerStr.includes("h") ? "#ef4444"
+                         : rivaliteTimerStr.includes("h") && !rivaliteTimerStr.includes("j") ? "#f97316"
+                         : "#64748b",
+                    fontSize:10,fontWeight:700,
+                  }}>
+                    <span>⏳</span>
+                    <span>{rivaliteTimerStr} restants</span>
+                  </div>
+                )}
               </div>
               <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:4 }}>
                 <Swords size={18} color="#a855f7"/>
@@ -2258,9 +2270,10 @@ const PageDefi = ({ joueur, setPage }) => {
         };
 
         // Couleur timer selon urgence
-        const timerColor = rivaliteTimerStr.includes("min") && !rivaliteTimerStr.includes("h") ? "#ef4444"
-                         : rivaliteTimerStr.includes("h") && !rivaliteTimerStr.includes("j")  ? "#f97316"
-                         : "#94a3b8";
+        const timerIsUrgent = rivaliteTimerStr.includes("min") && !rivaliteTimerStr.includes("h");
+        const timerIsSoon   = rivaliteTimerStr.includes("h") && !rivaliteTimerStr.includes("j");
+        const timerColor = timerIsUrgent ? "#ef4444" : timerIsSoon ? "#f97316" : "#94a3b8";
+        const timerLabel = rivaliteTimerStr ? `${rivaliteTimerStr} restants` : "Calcul…";
 
         return (
           <div onClick={e=>{ if(e.target===e.currentTarget) fermerRivaliteHebdo(); }}
@@ -2308,9 +2321,9 @@ const PageDefi = ({ joueur, setPage }) => {
                       </div>
                       <span style={{ fontSize:11,color:"#64748b",background:"#ffffff0d",padding:"3px 8px",borderRadius:6 }}>{weekLabel}</span>
                     </div>
-                    <div style={{ display:"flex",alignItems:"center",gap:6,animation: rivaliteTimerStr && !rivaliteTimerStr.includes("j") ? "rivalTimerBlink 2.5s ease infinite":"none" }}>
+                    <div style={{ display:"flex",alignItems:"center",gap:6,animation: (timerIsUrgent||timerIsSoon) ? "rivalTimerBlink 2.5s ease infinite":"none" }}>
                       <span style={{ fontSize:12 }}>⏳</span>
-                      <span style={{ fontSize:12,fontWeight:700,color:timerColor }}>{rivaliteTimerStr || "Calcul…"}</span>
+                      <span style={{ fontSize:12,fontWeight:700,color:timerColor }}>{timerLabel}</span>
                     </div>
                   </div>
                   <button onClick={fermerRivaliteHebdo} style={{ background:"#ffffff0d",border:"none",borderRadius:10,width:36,height:36,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#94a3b8",flexShrink:0,marginTop:2 }}>
