@@ -757,6 +757,22 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
                   style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"10px 12px",color:CJ.text,fontSize:16 }}/>
               </div>
             </div>
+            {/* Email — lecture seule */}
+            <div style={{ marginBottom:10 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                <label style={{ fontSize:11,color:CJ.muted }}>Adresse e-mail</label>
+                {!joueur.email && <span style={{ fontSize:10,color:"#f97316" }}>Non renseignée</span>}
+              </div>
+              <div style={{ position:"relative" }}>
+                <input
+                  readOnly
+                  value={joueur.email || "—"}
+                  style={{ width:"100%",background:"#0d0d0d",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"10px 40px 10px 12px",color:joueur.email?"#94a3b8":"#475569",fontSize:14,cursor:"default",boxSizing:"border-box" }}
+                />
+                <span style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:10,color:"#334155",userSelect:"none",background:"#1e293b",borderRadius:4,padding:"2px 6px" }}>lecture seule</span>
+              </div>
+              <p style={{ fontSize:10,color:"#334155",marginTop:4 }}>L'email ne peut pas être modifié ici pour protéger ton compte.</p>
+            </div>
             <div style={{ marginBottom:10 }}>
               <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Style de jeu</label>
               <div style={{ display:"flex",gap:6 }}>
