@@ -1418,24 +1418,49 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
         <ImgBtn src="/trouve ton spot.png"  onClick={()=>setPage("bars")}/>
       </div>
 
-      {/* ── Feedback : signaler un bug ou proposer une amélioration ── */}
+      {/* ── Feedback CTA esport — signaler bug / améliorations ── */}
+      <style>{`
+        @keyframes fbShine    { 0%{transform:translateX(-120%) skewX(-18deg)} 60%,100%{transform:translateX(320%) skewX(-18deg)} }
+        @keyframes fbBulb     { 0%,100%{transform:rotate(-6deg) scale(1);filter:drop-shadow(0 0 4px #fbbf2466)} 50%{transform:rotate(6deg) scale(1.08);filter:drop-shadow(0 0 12px #fbbf24cc)} }
+        @keyframes fbBorder   { 0%,100%{box-shadow:0 0 0 1px #f9731640,0 0 18px #f9731622,0 6px 24px #00000080,inset 0 1px 0 #ffffff14} 50%{box-shadow:0 0 0 1px #f97316aa,0 0 28px #f9731644,0 6px 24px #00000080,inset 0 1px 0 #ffffff14} }
+      `}</style>
       <button onClick={()=>setPage("contact")}
         style={{
-          marginTop:14, width:"100%",
-          background:"linear-gradient(135deg, #1e293b, #0f172a)",
-          border:`1px solid ${C.accent}55`,
-          borderRadius:14, padding:"14px 18px",
-          color:C.text, cursor:"pointer",
-          display:"flex", alignItems:"center", justifyContent:"center", gap:10,
-          fontWeight:700, fontSize:14,
-          boxShadow:`0 0 18px ${C.accent}15, inset 0 1px 0 #ffffff08`,
-          touchAction:"manipulation", transition:"all .15s",
+          marginTop:18, width:"100%", position:"relative", overflow:"hidden",
+          background:"linear-gradient(135deg,#1a0a14 0%,#0f0a1a 50%,#0a0610 100%)",
+          border:"none", borderRadius:16, padding:"16px 18px",
+          color:C.text, cursor:"pointer", textAlign:"left",
+          display:"flex", alignItems:"center", gap:14,
+          fontWeight:800, fontSize:14, letterSpacing:.3,
+          touchAction:"manipulation", transition:"transform .15s",
+          animation:"fbBorder 3s ease-in-out infinite",
         }}
-        onMouseEnter={e=>{ e.currentTarget.style.borderColor=C.accent; e.currentTarget.style.boxShadow=`0 0 28px ${C.accent}40`; }}
-        onMouseLeave={e=>{ e.currentTarget.style.borderColor=`${C.accent}55`; e.currentTarget.style.boxShadow=`0 0 18px ${C.accent}15, inset 0 1px 0 #ffffff08`; }}>
-        <span style={{ fontSize:18 }}>💡</span>
-        <span>Signaler un bug ou proposer une amélioration</span>
-        <span style={{ marginLeft:"auto", fontSize:16, color:C.accent }}>→</span>
+        onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-2px)"; }}
+        onMouseLeave={e=>{ e.currentTarget.style.transform="translateY(0)"; }}>
+        {/* Halo coin haut gauche */}
+        <div style={{ position:"absolute",top:-30,left:-30,width:90,height:90,borderRadius:"50%",background:"radial-gradient(circle,#f9731633 0%,transparent 70%)",pointerEvents:"none" }}/>
+        {/* Halo coin bas droit */}
+        <div style={{ position:"absolute",bottom:-25,right:-25,width:80,height:80,borderRadius:"50%",background:"radial-gradient(circle,#a855f733 0%,transparent 70%)",pointerEvents:"none" }}/>
+        {/* Shine balayage */}
+        <div style={{ position:"absolute",top:0,left:0,bottom:0,width:80,background:"linear-gradient(90deg,transparent,#ffffff18,transparent)",animation:"fbShine 4.5s ease-in-out infinite",pointerEvents:"none" }}/>
+        {/* Icône ampoule animée */}
+        <div style={{ position:"relative",width:42,height:42,borderRadius:12,background:"linear-gradient(135deg,#f9731622,#a855f722)",border:"1px solid #f9731644",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,zIndex:1 }}>
+          <span style={{ fontSize:22,animation:"fbBulb 2.4s ease-in-out infinite",display:"inline-block" }}>💡</span>
+        </div>
+        {/* Texte */}
+        <div style={{ position:"relative",zIndex:1,flex:1,minWidth:0 }}>
+          <div style={{ fontSize:10,fontWeight:800,letterSpacing:1.5,color:C.accent,marginBottom:2,textTransform:"uppercase",display:"flex",alignItems:"center",gap:6 }}>
+            <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:C.accent,animation:"nav-pulse 1.5s infinite" }}/>
+            Ton avis compte
+          </div>
+          <div style={{ fontSize:14,fontWeight:800,color:"#fff",lineHeight:1.25 }}>
+            Signale un bug · Propose une amélioration
+          </div>
+        </div>
+        {/* Flèche */}
+        <div style={{ position:"relative",zIndex:1,width:32,height:32,borderRadius:10,background:`linear-gradient(135deg,${C.accent},#ea580c)`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:`0 4px 14px ${C.accent}55` }}>
+          <span style={{ fontSize:16,fontWeight:900,color:"#fff" }}>→</span>
+        </div>
       </button>
     </div>
   );
