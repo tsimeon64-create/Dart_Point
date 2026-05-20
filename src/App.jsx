@@ -8820,7 +8820,7 @@ export default function App() {
               Une dernière étape 🎯
             </h2>
             <p style={{ fontSize:13,color:"#64748b",textAlign:"center",lineHeight:1.6,marginBottom:24 }}>
-              DartPoint évolue ! Pour protéger ton compte et recevoir tes défis, ajoute ton adresse e-mail.
+              DartPoint évolue ! Pour protéger ton compte et récupérer ton mot de passe si tu l'oublies, ajoute ton adresse e-mail.
             </p>
             {/* Champ email */}
             <div style={{ marginBottom:14 }}>
