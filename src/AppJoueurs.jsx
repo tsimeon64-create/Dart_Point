@@ -227,12 +227,15 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
   const [assoQuery, setAssoQuery] = useState("");
   const [selectedAsso, setSelectedAsso] = useState(null);
   const [assoOpen, setAssoOpen] = useState(false);
+  const [niveau, setNiveau] = useState("");
+  const [acceptCgu, setAcceptCgu] = useState(false);
+  const [acceptAge, setAcceptAge] = useState(false);
 
   const assoSuggestions = assoQuery.length >= 1
     ? associations.filter(a => a.nom.toLowerCase().includes(assoQuery.toLowerCase()) || (a.ville||"").toLowerCase().includes(assoQuery.toLowerCase())).slice(0, 6)
     : [];
 
-  const resetFields = () => { setErr(""); setSuccess(""); setPseudo(""); setPwd(""); setPwd2(""); setAdminCode(""); setNom(""); setPrenom(""); setEmail(""); setVille(""); setAssoQuery(""); setSelectedAsso(null); };
+  const resetFields = () => { setErr(""); setSuccess(""); setPseudo(""); setPwd(""); setPwd2(""); setAdminCode(""); setNom(""); setPrenom(""); setEmail(""); setVille(""); setAssoQuery(""); setSelectedAsso(null); setNiveau(""); setAcceptCgu(false); setAcceptAge(false); };
 
   const login = async () => {
     if (!pseudo.trim() || !pwd) return;
@@ -252,6 +255,8 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
     if (!pseudo.trim() || !pwd || pwd !== pwd2) { setErr(pwd !== pwd2 ? "Les mots de passe ne correspondent pas" : "Pseudo et mots de passe obligatoires"); return; }
     const pseudoErr = validerPseudo(pseudo);
     if (pseudoErr) { setErr(pseudoErr); return; }
+    if (!acceptAge) { setErr("Tu dois confirmer avoir au moins 13 ans"); return; }
+    if (!acceptCgu) { setErr("Tu dois accepter les Conditions d'utilisation et la Politique de confidentialité"); return; }
     setLoading(true); setErr("");
     try {
       const exist = await dbJ.getJoueurByPseudoIlike(pseudo.trim());
@@ -266,6 +271,9 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
         email: email.trim().toLowerCase(),
         ville: ville.trim() || null,
         asso_slug: selectedAsso?.slug || null,
+        niveau: niveau || null,
+        cgu_accepte: true,
+        cgu_date: Date.now(),
       };
       const r = await dbJ.addJoueur(payload);
       if (r?.[0]) {
@@ -378,14 +386,61 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
                 )}
               </div>
 
+              {/* Niveau */}
+              <div>
+                <div style={{ fontSize:12,color:CJ.muted,fontWeight:600,marginBottom:6 }}>Niveau de jeu</div>
+                <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:6 }}>
+                  {[["debutant","🎯 Débutant"],["intermediaire","⚡ Intermédiaire"],["confirme","🏆 Confirmé"],["expert","👑 Expert"]].map(([val,label])=>(
+                    <button key={val} type="button" onClick={()=>setNiveau(v=>v===val?"":val)}
+                      style={{ background:niveau===val?`${CJ.accent}22`:"#111",border:`1px solid ${niveau===val?CJ.accent:"#2a2a2a"}`,borderRadius:8,padding:"8px 6px",fontSize:12,fontWeight:700,color:niveau===val?CJ.accent:CJ.muted,cursor:"pointer",transition:"all .15s",textAlign:"center" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Compte */}
               <div style={{ fontSize:11,fontWeight:700,color:CJ.muted,letterSpacing:.5,marginTop:4,marginBottom:2 }}>COMPTE</div>
               <FieldJ label="Pseudo *" value={pseudo} onChange={setPseudo} placeholder="VotrePseudo"/>
               <FieldJ label="Mot de passe *" value={pwd} onChange={setPwd} placeholder="••••••••" type="password"/>
               <FieldJ label="Confirmer le mot de passe *" value={pwd2} onChange={setPwd2} placeholder="••••••••" type="password"/>
 
+              {/* Conformité Play Store / RGPD */}
+              <div style={{ display:"flex",flexDirection:"column",gap:10,marginTop:4,padding:"12px",background:"#0a0a0f",border:"1px solid #1a1a2a",borderRadius:10 }}>
+                {/* Age */}
+                <label style={{ display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer" }}>
+                  <input type="checkbox" checked={acceptAge} onChange={e=>setAcceptAge(e.target.checked)}
+                    style={{ marginTop:2,width:16,height:16,accentColor:CJ.accent,flexShrink:0,cursor:"pointer" }}/>
+                  <span style={{ fontSize:12,color:CJ.muted,lineHeight:1.5 }}>
+                    J'ai au moins <strong style={{ color:CJ.text }}>13 ans</strong>
+                  </span>
+                </label>
+                {/* CGU + Politique */}
+                <label style={{ display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer" }}>
+                  <input type="checkbox" checked={acceptCgu} onChange={e=>setAcceptCgu(e.target.checked)}
+                    style={{ marginTop:2,width:16,height:16,accentColor:CJ.accent,flexShrink:0,cursor:"pointer" }}/>
+                  <span style={{ fontSize:12,color:CJ.muted,lineHeight:1.5 }}>
+                    J'accepte les{" "}
+                    <a href="#" onClick={e=>{e.preventDefault(); if(window.setPageGlobal) window.setPageGlobal("mentions");}}
+                      style={{ color:CJ.accent,textDecoration:"underline" }}>
+                      Conditions d'utilisation
+                    </a>
+                    {" "}et la{" "}
+                    <a href="#" onClick={e=>{e.preventDefault(); if(window.setPageGlobal) window.setPageGlobal("mentions");}}
+                      style={{ color:CJ.accent,textDecoration:"underline" }}>
+                      Politique de confidentialité
+                    </a>
+                    {" "}de DartPoint *
+                  </span>
+                </label>
+                {/* RGPD */}
+                <p style={{ fontSize:11,color:"#334155",lineHeight:1.5,margin:0 }}>
+                  Conformément au RGPD, tes données ne sont utilisées que pour le fonctionnement de DartPoint. Tu peux demander leur suppression à t.simeon64@gmail.com.
+                </p>
+              </div>
+
               {err && <p style={{ color:CJ.red, fontSize:13 }}>⚠️ {err}</p>}
-              <BtnJ onClick={register} disabled={loading} style={{ marginTop:6 }}>
+              <BtnJ onClick={register} disabled={loading||!acceptAge||!acceptCgu} style={{ marginTop:6,opacity:(!acceptAge||!acceptCgu)?.5:1 }}>
                 {loading ? "Création en cours…" : "Créer mon compte →"}
               </BtnJ>
               <p style={{ fontSize:11,color:CJ.muted,textAlign:"center",marginTop:2 }}>* Champs obligatoires</p>

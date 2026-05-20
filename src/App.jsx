@@ -8436,6 +8436,8 @@ const HELP_CONTENT = {
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("dp_onboarding_done"));
   const [page,setPage]=useState("home");
+  // Expose setPage globally so child modules (AppJoueurs CGU links) can navigate
+  window.setPageGlobal = (p) => nav(p);
   const [barSlug,setBarSlug]=useState(null);
   const [assoSlug,setAssoSlug]=useState(null);
   const [tournoiSlug,setTournoiSlug]=useState(null);
