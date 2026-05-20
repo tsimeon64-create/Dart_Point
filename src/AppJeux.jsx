@@ -866,6 +866,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [gagnant, setGagnant] = useState(null);
   const [resultEnregistre, setResultEnregistre] = useState(false);
   const [showConfirmQuitter, setShowConfirmQuitter] = useState(false);
+  const [showHistorique, setShowHistorique] = useState(false);
   const [historique, setHistorique] = useState([]);
   const [manchesHistory, setManchesHistory] = useState([]);
   // Valeurs cumulatives au début de la manche courante (tours/flechettes/points sont cumulatifs)
@@ -1684,139 +1685,319 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         );
       })()}
 
-      {/* Header */}
-      <div style={{ background:"#111", padding:"10px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #2a2a2a", flexShrink:0 }}>
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* HEADER COMPACT — 1 ligne                                          */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <style>{`
+        @keyframes scActiveGlow { 0%,100%{box-shadow:0 0 0 1px #f9731666,0 0 18px #f9731633,inset 0 1px 0 #ffffff14} 50%{box-shadow:0 0 0 1px #f97316cc,0 0 36px #f9731666,inset 0 1px 0 #ffffff14} }
+        @keyframes scScoreFlash { 0%{transform:scale(1)} 30%{transform:scale(1.08);text-shadow:0 0 24px #f9731699} 100%{transform:scale(1)} }
+        @keyframes scShine     { 0%{transform:translateX(-120%) skewX(-18deg)} 60%,100%{transform:translateX(320%) skewX(-18deg)} }
+        @keyframes scPulse     { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(1.25)} }
+      `}</style>
+      <div style={{ background:"#0a0a0a", padding:"6px 12px", display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #1a1a1a", flexShrink:0 }}>
         <button onClick={()=>setShowConfirmQuitter(true)}
-          style={{ background:"#7f1d1d", border:"none", color:"#ef4444", cursor:"pointer", fontSize:13, fontWeight:700, padding:"6px 12px", borderRadius:8 }}>
-          ⚠️ Quitter
+          style={{ background:"#1a0000", border:"1px solid #7f1d1d", color:"#ef4444", cursor:"pointer", fontSize:11, fontWeight:800, padding:"5px 10px", borderRadius:8, letterSpacing:.3 }}>
+          ⚠ QUITTER
         </button>
-        <div style={{ textAlign:"center" }}>
-          <div style={{ fontWeight:900, fontSize:13, color:"#f1f5f9", letterSpacing:1 }}>
-            {modeDuel ? "⚔️ DUEL" : "PREMIER À"} {manchesTotal} MANCHE{manchesTotal>1?"S":""}
-          </div>
-          <div style={{ fontSize:11, color:"#94a3b8" }}>{modeDuel?duel?.mode:config.mode} · Double out</div>
+        <div style={{ textAlign:"center", display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ fontWeight:900, fontSize:12, color:"#fbbf24", letterSpacing:1.5 }}>
+            {modeDuel?duel?.mode:config.mode}
+          </span>
+          <span style={{ color:"#475569", fontSize:10 }}>·</span>
+          <span style={{ fontWeight:700, fontSize:11, color:"#94a3b8" }}>
+            BO{manchesTotal}
+          </span>
+          <span style={{ color:"#475569", fontSize:10 }}>·</span>
+          <span style={{ fontWeight:600, fontSize:10, color:"#64748b" }}>Double out</span>
         </div>
-        <div style={{ width:70 }}/>
+        <button
+          onPointerDown={e=>{ e.preventDefault(); setShowHistorique(true); }}
+          style={{ background:"#0f0a1a", border:"1px solid #4c1d9544", color:"#a78bfa", cursor:"pointer", fontSize:11, fontWeight:800, padding:"5px 10px", borderRadius:8, letterSpacing:.3 }}>
+          📊 VOLÉES
+        </button>
       </div>
 
-      {/* Scores — joueur bulle toujours en premier */}
-      <div ref={scoresGridRef} style={{ display:"grid", gridTemplateColumns:`repeat(${joueurs.length}, minmax(${joueurs.length <= 3 ? "0" : "90px"}, 1fr))`, flexShrink:0, overflowX: joueurs.length > 3 ? "auto" : "visible" }}>
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* PLAYER CARDS PREMIUM — glow joueur actif + score massif         */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div ref={scoresGridRef} style={{
+        display:"grid",
+        gridTemplateColumns: joueurs.length === 2
+          ? "1fr auto 1fr"
+          : `repeat(${joueurs.length}, minmax(${joueurs.length <= 3 ? "0" : "90px"}, 1fr))`,
+        flexShrink:0, padding:"10px 10px", gap:8, alignItems:"stretch",
+        background:"linear-gradient(180deg,#0a0a0a,#0f0f12)",
+        borderBottom:"1px solid #1a1a1a",
+        overflowX: joueurs.length > 3 ? "auto" : "visible",
+      }}>
         {displayOrder.map((realIdx, displayI) => {
           const j = joueurs[realIdx];
           const isActif = realIdx === actifIdx;
-          return (
+          const card = (
             <div key={displayI} ref={isActif ? activeCardRef : null} style={{
-              padding:"12px 12px",
-              background: isActif ? "linear-gradient(135deg,#f97316,#ea580c)" : "#c2410c22",
-              borderBottom: `3px solid ${isActif ? "#f97316" : "transparent"}`,
+              position:"relative", overflow:"hidden",
+              borderRadius:14, padding:"10px 8px",
+              background: isActif
+                ? "linear-gradient(135deg,#1a0a00,#100600)"
+                : "linear-gradient(135deg,#0a0a14,#070710)",
+              animation: isActif ? "scActiveGlow 2.4s ease-in-out infinite" : "none",
+              border: isActif ? "1px solid transparent" : "1px solid #1a1a1a",
+              transition:"all .3s",
+              opacity: isActif ? 1 : .55,
+              transform: isActif ? "scale(1)" : "scale(0.96)",
             }}>
-              <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:4 }}>
-                <div style={{ width:8, height:8, borderRadius:"50%", background: isActif ? "#fff" : "transparent", border: isActif ? "none" : "2px solid #f9731644", flexShrink:0 }}/>
-                <span style={{ fontWeight:700, fontSize:12, color: isActif ? "#fff" : "#f97316aa", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{j.nom}</span>
+              {/* Shine sur joueur actif */}
+              {isActif && (
+                <div style={{ position:"absolute",top:0,left:0,bottom:0,width:60,background:"linear-gradient(90deg,transparent,#f9731622,transparent)",animation:"scShine 4s ease-in-out infinite",pointerEvents:"none" }}/>
+              )}
+
+              {/* Header carte : nom + indicateur */}
+              <div style={{ position:"relative", display:"flex", alignItems:"center", gap:5, marginBottom:4 }}>
+                {isActif && <span style={{ width:6, height:6, borderRadius:"50%", background:"#f97316", boxShadow:"0 0 8px #f97316", animation:"scPulse 1.4s ease-in-out infinite", flexShrink:0 }}/>}
+                <span style={{ fontWeight:800, fontSize:11, color: isActif ? "#fbbf24" : "#64748b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", letterSpacing:.5, textTransform:"uppercase" }}>
+                  {j.nom}
+                </span>
               </div>
-              <div style={{ fontSize: joueurs.length <= 2 ? 56 : joueurs.length <= 4 ? 38 : 28, fontWeight:900, color: isActif ? "#fff" : "#f1f5f9aa", lineHeight:1, marginBottom:4 }}>{j.score}</div>
-              <div style={{ display:"flex", gap:3, marginBottom:6 }}>
+
+              {/* Score MASSIF */}
+              <div key={`score-${j.score}`} style={{
+                fontSize: joueurs.length <= 2 ? 64 : joueurs.length <= 4 ? 42 : 30,
+                fontWeight:900, lineHeight:.95,
+                color: isActif ? "#fff" : "#475569",
+                textAlign:"center", margin:"2px 0",
+                fontVariantNumeric:"tabular-nums",
+                textShadow: isActif ? "0 0 32px #f97316aa, 0 0 8px #fbbf2466" : "none",
+                animation: isActif ? "scScoreFlash .5s ease-out" : "none",
+              }}>
+                {j.score}
+              </div>
+
+              {/* Manches : dots compactes */}
+              <div style={{ display:"flex", gap:4, justifyContent:"center", marginBottom:6 }}>
                 {Array.from({length: manchesTotal}).map((_,mi)=>(
-                  <div key={mi} style={{ width:14, height:14, borderRadius:3, background: mi < j.manchesGagnees ? (isActif?"#fff":"#f97316") : (isActif?"#ffffff33":"#2a2a2a") }}/>
+                  <div key={mi} style={{
+                    width:8, height:8, borderRadius:"50%",
+                    background: mi < j.manchesGagnees
+                      ? (isActif?"#fbbf24":"#f97316aa")
+                      : (isActif?"#ffffff15":"#1a1a1a"),
+                    boxShadow: mi < j.manchesGagnees && isActif ? "0 0 8px #fbbf24" : "none",
+                  }}/>
                 ))}
               </div>
-              <div style={{ fontSize:11, color: isActif ? "#fff9" : "#94a3b855", display:"flex", gap:8, flexWrap:"wrap" }}>
-                <span>Moy. <strong style={{ color: isActif?"#fff":"#94a3b8" }}>{moyenneManche(j, realIdx)}</strong></span>
-                <span>Préc. <strong style={{ color: isActif?"#fff":"#94a3b8" }}>{j.scorePrecedent ?? "—"}</strong></span>
-                <span>🎯 <strong style={{ color: isActif?"#fff":"#94a3b8" }}>{j.flechettes}</strong></span>
-              </div>
+
+              {/* DRIX live compact */}
               {modeDuel && drixData && (() => {
                 const d = realIdx === 0 ? drixData.challenger : drixData.defie;
                 const bAcc = bonusAccum[realIdx] || 0;
                 return (
-                  <div style={{ fontSize:11, marginTop:4, display:"flex", gap:6, flexWrap:"wrap" }}>
-                    <span style={{ background:"#14532d", color:"#22c55e", borderRadius:6, padding:"1px 6px", fontWeight:800 }}>+{d.gain}</span>
-                    <span style={{ background:"#7f1d1d", color:"#ef4444", borderRadius:6, padding:"1px 6px", fontWeight:800 }}>-{d.perte}</span>
-                    {bAcc > 0 && <span style={{ background:"#3b1d6e", color:"#a78bfa", borderRadius:6, padding:"1px 6px", fontWeight:800 }}>+{bAcc}🔥</span>}
-                    <span style={{ color: isActif?"#ffffff99":"#94a3b866", fontSize:10, alignSelf:"center" }}>DRIX</span>
+                  <div style={{ display:"flex", gap:3, justifyContent:"center", flexWrap:"wrap" }}>
+                    <span style={{ background:"#14532d", color:"#4ade80", borderRadius:5, padding:"1px 5px", fontWeight:800, fontSize:10, opacity: isActif?1:.7 }}>+{d.gain}</span>
+                    <span style={{ background:"#7f1d1d", color:"#f87171", borderRadius:5, padding:"1px 5px", fontWeight:800, fontSize:10, opacity: isActif?1:.7 }}>−{d.perte}</span>
+                    {bAcc > 0 && <span style={{ background:"#3b1d6e", color:"#c4b5fd", borderRadius:5, padding:"1px 5px", fontWeight:800, fontSize:10 }}>🔥+{bAcc}</span>}
                   </div>
                 );
               })()}
             </div>
           );
+          // Insère le séparateur VS au milieu pour 2 joueurs uniquement
+          if (joueurs.length === 2 && displayI === 0) {
+            return [card, (
+              <div key="vs" style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"0 4px" }}>
+                <div style={{ width:28, height:28, borderRadius:"50%", background:"linear-gradient(135deg,#f97316,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 0 12px #f9731644" }}>
+                  <Swords size={14} color="#fff"/>
+                </div>
+              </div>
+            )];
+          }
+          return card;
         })}
       </div>
 
-      {/* Message + checkout */}
-      <div style={{ padding:"6px 16px", background:"#0f0f0f", flexShrink:0, textAlign:"center" }}>
-        <p style={{ fontWeight:900, fontSize:13, color:"#f97316", marginBottom: checkout ? 1 : 0 }}>
-          C'EST AU TOUR DE {actif.nom.toUpperCase()} !
-        </p>
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* STATS LIVE COMPACTES + FINISH HELPER (1 ligne)                   */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div style={{ padding:"6px 12px", background:"#0a0a0a", borderBottom:"1px solid #1a1a1a", flexShrink:0, display:"flex", alignItems:"center", gap:8, fontSize:11 }}>
+        <span style={{ color:"#64748b", fontWeight:700 }}>🎯 Moy <strong style={{ color:"#94a3b8" }}>{moyenneManche(actif, actifIdx)}</strong></span>
+        <span style={{ color:"#475569" }}>·</span>
+        <span style={{ color:"#64748b", fontWeight:700 }}>Préc <strong style={{ color:"#94a3b8" }}>{actif.scorePrecedent ?? "—"}</strong></span>
+        <span style={{ color:"#475569" }}>·</span>
+        <span style={{ color:"#64748b", fontWeight:700 }}>🎯 <strong style={{ color:"#94a3b8" }}>{actif.flechettes}</strong></span>
         {checkout && (
-          <p style={{ color:"#f59e0b", fontSize:12, fontWeight:600 }}>💡 {actif.score} → {checkout}</p>
+          <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:5, background:"linear-gradient(90deg,#1a1200,#2a1a00)", border:"1px solid #fbbf2466", borderRadius:8, padding:"3px 9px" }}>
+            <span style={{ fontSize:11, color:"#fbbf24", fontWeight:900 }}>🎯 {checkout}</span>
+          </div>
         )}
       </div>
 
-      {/* Saisie */}
-      <div style={{ padding:"6px 16px", background:"#0f0f0f", flexShrink:0 }}>
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* RACCOURCIS RAPIDES — scores fréquents                            */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div style={{ display:"flex", gap:5, padding:"6px 10px", background:"#0a0a0a", overflowX:"auto", flexShrink:0, borderBottom:"1px solid #1a1a1a" }}>
+        {[26, 45, 60, 81, 100, 121, 140, 180].map(qs => (
+          <button key={qs}
+            onPointerDown={e=>{ e.preventDefault(); envoyer(qs); }}
+            style={{
+              minWidth:50, flexShrink:0, padding:"6px 10px",
+              borderRadius:10, border:"1px solid #2a2a2a",
+              background:"linear-gradient(135deg,#1a1a1a,#0f0f0f)",
+              color:"#fbbf24", fontWeight:800, fontSize:13, cursor:"pointer",
+              touchAction:"manipulation", WebkitTapHighlightColor:"transparent",
+              boxShadow:"inset 0 1px 0 #ffffff10, 0 2px 4px #00000044",
+            }}>
+            {qs}
+          </button>
+        ))}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* INPUT + VALIDATE BUTTON                                          */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div style={{ padding:"8px 12px", background:"#0a0a0a", flexShrink:0, borderBottom:"1px solid #1a1a1a" }}>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <div style={{ flex:1, background:"#1a1a1a", borderRadius:50, padding:"11px 16px", display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ fontSize:16, color:"#94a3b8" }}>⌨️</span>
-            <span style={{ fontSize:20, fontWeight:700, color: input ? "#f1f5f9" : "#94a3b8", flex:1 }}>
-              {input || "Score…"}
+          <div style={{
+            flex:1, background:"linear-gradient(135deg,#0f0f0f,#1a1a1a)",
+            border:`1px solid ${input?"#f97316aa":"#2a2a2a"}`,
+            borderRadius:12, padding:"10px 16px",
+            display:"flex", alignItems:"center", gap:8,
+            boxShadow: input ? "inset 0 0 20px #f9731622, 0 0 0 1px #f9731644" : "inset 0 1px 3px #00000088",
+            transition:"all .2s",
+          }}>
+            <span style={{ fontSize:14, color: input ? "#f97316" : "#475569" }}>⌨️</span>
+            <span style={{ fontSize:22, fontWeight:900, color: input ? "#fff" : "#475569", flex:1, fontVariantNumeric:"tabular-nums", letterSpacing:1 }}>
+              {input || "Tape un score…"}
             </span>
           </div>
           <button
             onPointerDown={e=>{ e.preventDefault(); input ? envoyer() : envoyer(0); }}
             style={{
-              background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "linear-gradient(135deg,#9a3412,#ea580c)",
-              border:"none", borderRadius:50, padding:"11px 18px",
-              fontWeight:800, fontSize: input ? 16 : 12, color:"#fff", cursor:"pointer",
-              touchAction:"manipulation", letterSpacing: input ? 0 : .5, whiteSpace:"nowrap",
+              minWidth: input ? 96 : 92,
+              background: input
+                ? "linear-gradient(135deg,#22c55e,#16a34a)"
+                : "linear-gradient(135deg,#9a3412,#ea580c)",
+              border:"none", borderRadius:12, padding:"11px 16px",
+              fontWeight:900, fontSize: input ? 14 : 11.5,
+              color:"#fff", cursor:"pointer",
+              touchAction:"manipulation", letterSpacing:.5, whiteSpace:"nowrap",
+              boxShadow: input
+                ? "0 0 20px #22c55e88, 0 4px 12px #00000066, inset 0 1px 0 #ffffff33"
+                : "0 0 16px #f9731566, 0 4px 12px #00000066, inset 0 1px 0 #ffffff33",
             }}>
             {input ? "✓ VALIDER" : "NO SCORE"}
           </button>
         </div>
-        {historique.length > 0 && (
-          <button
-            onPointerDown={e=>{ e.preventDefault(); annulerDernierCoup(); }}
-            style={{ width:"100%", marginTop:5, padding:"8px", borderRadius:8, border:"1px solid #f59e0b44", background:"#78350f22", color:"#f59e0b", fontWeight:700, fontSize:12, cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
-            ↩️ Annuler le dernier coup
-          </button>
-        )}
       </div>
 
-      {/* Clavier — prend le reste */}
-      <div style={{ padding:"5px 16px 10px", background:"#0f0f0f", flex:1, display:"flex", flexDirection:"column" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:5, flex:1 }}>
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* CLAVIER PREMIUM                                                  */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div style={{ padding:"8px 10px 10px", background:"#0a0a0a", flex:1, display:"flex", flexDirection:"column", gap:6 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:6, flex:1 }}>
           {["1","2","3","4","5","6","7","8","9"].map(n=>(
             <button key={n}
               onPointerDown={e=>{ e.preventDefault(); appuyer(n); }}
-              style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f1f5f9", fontSize:30, fontWeight:700, cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
+              style={{
+                borderRadius:14, border:"1px solid #2a2a2a",
+                background:"linear-gradient(135deg,#1f1f25,#0f0f15)",
+                color:"#f1f5f9", fontSize:30, fontWeight:800, cursor:"pointer",
+                WebkitTapHighlightColor:"transparent", touchAction:"manipulation",
+                boxShadow:"inset 0 1px 0 #ffffff14, inset 0 -2px 0 #00000044, 0 2px 6px #00000066",
+                fontVariantNumeric:"tabular-nums",
+              }}>
               {n}
             </button>
           ))}
+          {/* DEL */}
           <button
-            onPointerDown={e=>{ e.preventDefault(); appuyer("del"); }}
-            style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f59e0b", fontSize:30, cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
-            ⌫
+            onPointerDown={e=>{ e.preventDefault(); historique.length>0 && !input ? annulerDernierCoup() : appuyer("del"); }}
+            style={{
+              borderRadius:14, border:"1px solid #7f1d1d44",
+              background:"linear-gradient(135deg,#2a0a0a,#1a0608)",
+              color:"#ef4444", fontSize:24, fontWeight:800, cursor:"pointer",
+              WebkitTapHighlightColor:"transparent", touchAction:"manipulation",
+              boxShadow:"inset 0 1px 0 #ffffff10, inset 0 -2px 0 #00000044, 0 0 14px #ef444422",
+              display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:0,
+            }}>
+            <span style={{ lineHeight:1 }}>⬅</span>
+            <span style={{ fontSize:9, fontWeight:900, letterSpacing:1, marginTop:2 }}>RETOUR</span>
           </button>
+          {/* 0 */}
           <button
             onPointerDown={e=>{ e.preventDefault(); appuyer("0"); }}
-            style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"#1a1a1a", color:"#f1f5f9", fontSize:30, fontWeight:700, cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
+            style={{
+              borderRadius:14, border:"1px solid #2a2a2a",
+              background:"linear-gradient(135deg,#1f1f25,#0f0f15)",
+              color:"#f1f5f9", fontSize:30, fontWeight:800, cursor:"pointer",
+              WebkitTapHighlightColor:"transparent", touchAction:"manipulation",
+              boxShadow:"inset 0 1px 0 #ffffff14, inset 0 -2px 0 #00000044, 0 2px 6px #00000066",
+            }}>
             0
           </button>
+          {/* VALIDATE (gros bouton glow) */}
           <button
             onPointerDown={e=>{ e.preventDefault(); input ? envoyer() : envoyer(0); }}
             style={{
-              borderRadius:10, border:"none",
-              background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "linear-gradient(135deg,#9a3412,#ea580c)",
+              borderRadius:14, border:"none",
+              background: input
+                ? "linear-gradient(135deg,#22c55e,#16a34a)"
+                : "linear-gradient(135deg,#9a3412,#ea580c)",
               color:"#fff",
-              fontSize: input ? 30 : 13,
-              fontWeight: 800,
+              fontSize: input ? 32 : 13,
+              fontWeight: 900,
               lineHeight: 1,
               cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation",
               letterSpacing: input ? 0 : .5, padding:"0 4px",
+              boxShadow: input
+                ? "0 0 24px #22c55eaa, inset 0 1px 0 #ffffff33, inset 0 -2px 0 #00000044"
+                : "0 0 20px #f9731566, inset 0 1px 0 #ffffff33, inset 0 -2px 0 #00000044",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              flexDirection: input ? "row" : "column",
+              gap:2,
             }}>
-            {input ? "✓" : "NO SCORE"}
+            {input ? "✓" : <><span style={{fontSize:18}}>0</span><span style={{fontSize:9,fontWeight:900,letterSpacing:1}}>NO SCORE</span></>}
           </button>
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* DRAWER VOLÉES                                                    */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {showHistorique && (
+        <div onClick={()=>setShowHistorique(false)} style={{ position:"fixed", inset:0, background:"#000c", zIndex:9997, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:520, background:"linear-gradient(180deg,#0f0f15,#0a0a0a)", borderRadius:"20px 20px 0 0", padding:"0 0 24px", maxHeight:"75vh", overflowY:"auto", boxShadow:"0 -12px 50px #000c", border:"1px solid #2a2a3e", borderBottom:"none" }}>
+            <div style={{ position:"sticky", top:0, background:"#0a0a0a", padding:"12px 18px 10px", borderBottom:"1px solid #1a1a1a", zIndex:1 }}>
+              <div style={{ width:40, height:4, borderRadius:2, background:"#2a2a3e", margin:"0 auto 10px" }}/>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div style={{ fontWeight:900, fontSize:15, color:"#fbbf24" }}>📊 Historique des volées</div>
+                <button onPointerDown={e=>{ e.preventDefault(); setShowHistorique(false); }} style={{ background:"none", border:"none", color:"#64748b", fontSize:20, cursor:"pointer" }}>✕</button>
+              </div>
+            </div>
+            <div style={{ padding:"14px 18px" }}>
+              {joueurs.map((j, ji) => (
+                <div key={ji} style={{ marginBottom:16 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                    <span style={{ fontWeight:800, fontSize:13, color: ji===actifIdx ? "#fbbf24" : "#94a3b8" }}>{j.nom}</span>
+                    <span style={{ fontSize:11, color:"#475569" }}>{j.tours.length} volée(s) · {j.flechettes} fléchettes</span>
+                  </div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+                    {j.tours.length === 0 ? (
+                      <span style={{ fontSize:12, color:"#475569", fontStyle:"italic" }}>Aucune volée jouée</span>
+                    ) : j.tours.map((v, vi) => (
+                      <span key={vi} style={{
+                        padding:"3px 8px", borderRadius:6, fontSize:12, fontWeight:700,
+                        background: v >= 100 ? "#1a0a00" : v >= 60 ? "#1a1200" : "#0f0f15",
+                        color: v >= 140 ? "#a855f7" : v >= 100 ? "#f97316" : v >= 60 ? "#fbbf24" : v === 0 ? "#64748b" : "#94a3b8",
+                        border: `1px solid ${v >= 100 ? "#f9731644" : "#2a2a3e"}`,
+                      }}>
+                        {v}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
