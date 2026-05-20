@@ -1280,15 +1280,17 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   const pushHistorique = () => setHistorique(h => [...h.slice(-14), snapshot()]);
 
-  const envoyer = () => {
+  const envoyer = (overrideVal) => {
     if (!joueurs) return;
-    const val = parseInt(input);
-    if (!input || isNaN(val) || val < 0 || val > 180) { setInput(""); return; }
+    const val = overrideVal !== undefined ? overrideVal : parseInt(input);
+    // overrideVal autorise val=0 (bouton NO SCORE) sans avoir tapé "0"
+    if (overrideVal === undefined && (!input || isNaN(val) || val < 0 || val > 180)) { setInput(""); return; }
+    if (overrideVal !== undefined && (isNaN(val) || val < 0 || val > 180)) return;
 
     const joueur = joueurs[actifIdx];
     const nouveau = joueur.score - val;
 
-    // Bust
+    // Bust → on garde 3 fléchettes (cas accidentel, on ne demande pas)
     if (nouveau < 0 || nouveau === 1) {
       pushHistorique();
       const updated = joueurs.map((j, i) => i === actifIdx ? { ...j, scorePrecedent: val, flechettes: j.flechettes + 3 } : j);
@@ -1297,14 +1299,26 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       return;
     }
 
-    // Finish (score → 0) ou zéro pointé → popup fléchettes
-    if (nouveau === 0 || val === 0) {
+    // Finish (score → 0) → popup fléchettes
+    if (nouveau === 0) {
       pushHistorique();
-      setPendingVolee({ val, type: nouveau === 0 ? "finish" : "zero" });
+      setPendingVolee({ val, type: "finish" });
+      setInput(""); return;
+    }
+    // Zéro pointé → popup fléchettes
+    if (val === 0) {
+      pushHistorique();
+      setPendingVolee({ val: 0, type: "zero" });
+      setInput(""); return;
+    }
+    // Volée < 170 → popup nb fléchettes (max théorique 3 fléchettes pour 170+ = T20-T20-Bull)
+    if (val < 170) {
+      pushHistorique();
+      setPendingVolee({ val, type: "normale" });
       setInput(""); return;
     }
 
-    // Volée normale — pas de limite de fléchettes, la partie se poursuit jusqu'au finish
+    // Volée ≥ 170 → forcément 3 fléchettes (T20-T20-Bull minimum)
     pushHistorique();
     const updatedN = joueurs.map((j, i) => i === actifIdx
       ? { ...j, score: nouveau, tours: [...j.tours, val], flechettes: j.flechettes + 3, totalPoints: j.totalPoints + val, scorePrecedent: val }
@@ -1391,12 +1405,34 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     }
 
     // type === "zero" : volée à 0 point avec nb de fléchettes réel
-    const updatedZ = joueurs.map((j, i) => i === actifIdx
-      ? { ...j, tours: [...j.tours, 0], flechettes: j.flechettes + nbFlechettes, scorePrecedent: 0 }
-      : j
-    );
-    setJoueurs(updatedZ); setActifIdx((actifIdx + 1) % joueurs.length);
-    pushLiveVolee(actifIdx, 0, false, false, updatedZ);
+    if (type === "zero") {
+      const updatedZ = joueurs.map((j, i) => i === actifIdx
+        ? { ...j, tours: [...j.tours, 0], flechettes: j.flechettes + nbFlechettes, scorePrecedent: 0 }
+        : j
+      );
+      setJoueurs(updatedZ); setActifIdx((actifIdx + 1) % joueurs.length);
+      pushLiveVolee(actifIdx, 0, false, false, updatedZ);
+      return;
+    }
+
+    // type === "normale" : volée < 170 avec nb de fléchettes réel
+    if (type === "normale") {
+      const nouveauScore = joueur.score - val;
+      const updated = joueurs.map((j, i) => i === actifIdx
+        ? { ...j, score: nouveauScore, tours: [...j.tours, val], flechettes: j.flechettes + nbFlechettes, totalPoints: j.totalPoints + val, scorePrecedent: val }
+        : j
+      );
+      setJoueurs(updated); setActifIdx((actifIdx + 1) % joueurs.length);
+      pushLiveVolee(actifIdx, val, false, false, updated);
+      // 🔥 Live bonus notification — grosse volée ≥ 120
+      if (val >= 120 && modeDuel && duel?.type !== "amical") {
+        const pts = 7;
+        bonusAccumRef.current[actifIdx] += pts;
+        setBonusAccum([...bonusAccumRef.current]);
+        setLiveBonusNotif({ label:`🔥 ${val} pts ! Grosse volée`, points:pts, color:"#f97316" });
+        setTimeout(() => setLiveBonusNotif(null), 2500);
+      }
+    }
   };
 
   // Moyenne globale (pour écran fin)
@@ -1594,28 +1630,37 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       )}
 
       {/* ── POPUP FLÉCHETTES ── */}
-      {pendingVolee && (
+      {pendingVolee && (() => {
+        const popupColor = pendingVolee.type==="finish" ? "#22c55e"
+                        : pendingVolee.type==="normale" ? "#f97316"
+                        : "#f59e0b";
+        const popupGradient = pendingVolee.type==="finish" ? "linear-gradient(135deg,#14532d,#16a34a)"
+                            : pendingVolee.type==="normale" ? "linear-gradient(135deg,#7c2d12,#ea580c)"
+                            : "linear-gradient(135deg,#78350f,#d97706)";
+        const popupEmoji = pendingVolee.type==="finish" ? "🏆"
+                        : pendingVolee.type==="normale" ? "🎯"
+                        : "🎯";
+        const popupTitle = pendingVolee.type==="finish" ? "🏆 FINISH !"
+                        : pendingVolee.type==="normale" ? `Volée à ${pendingVolee.val} pts`
+                        : "Volée à 0 point";
+        const popupQuestion = pendingVolee.type==="finish"
+            ? "Combien de fléchettes as-tu utilisées pour finir ?"
+            : pendingVolee.type==="normale"
+            ? "Combien de fléchettes pour réaliser cette volée ?"
+            : "Combien de fléchettes as-tu réellement lancées ?";
+        return (
         <div style={{ position:"fixed",inset:0,background:"#000000dd",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24 }}>
-          <div style={{ background:"#1a1a1a",border:`2px solid ${pendingVolee.type==="finish"?"#22c55e":"#f59e0b"}`,borderRadius:20,padding:28,maxWidth:340,width:"100%",textAlign:"center" }}>
-            <div style={{ fontSize:48,marginBottom:10 }}>{pendingVolee.type==="finish"?"🏆":"🎯"}</div>
-            <h3 style={{ fontWeight:900,fontSize:19,color:"#f1f5f9",marginBottom:8 }}>
-              {pendingVolee.type==="finish" ? "🏆 FINISH !" : "Volée à 0 point"}
-            </h3>
-            <p style={{ color:"#94a3b8",fontSize:14,marginBottom:20,lineHeight:1.6 }}>
-              {pendingVolee.type==="finish"
-                ? "Combien de fléchettes as-tu utilisées pour finir ?"
-                : "Combien de fléchettes as-tu réellement lancées ?"
-              }
-            </p>
+          <div style={{ background:"#1a1a1a",border:`2px solid ${popupColor}`,borderRadius:20,padding:28,maxWidth:340,width:"100%",textAlign:"center" }}>
+            <div style={{ fontSize:48,marginBottom:10 }}>{popupEmoji}</div>
+            <h3 style={{ fontWeight:900,fontSize:19,color:"#f1f5f9",marginBottom:8 }}>{popupTitle}</h3>
+            <p style={{ color:"#94a3b8",fontSize:14,marginBottom:20,lineHeight:1.6 }}>{popupQuestion}</p>
             <div style={{ display:"flex",gap:10,justifyContent:"center",marginBottom:14 }}>
               {[1,2,3].map(n => (
                 <button key={n}
                   onPointerDown={e=>{ e.preventDefault(); confirmerVolee(n); }}
                   style={{
                     flex:1, padding:"18px 0", borderRadius:14, border:"none", fontWeight:900, fontSize:24, cursor:"pointer",
-                    background: pendingVolee.type==="finish"
-                      ? "linear-gradient(135deg,#14532d,#16a34a)"
-                      : "linear-gradient(135deg,#78350f,#d97706)",
+                    background: popupGradient,
                     color:"#fff", touchAction:"manipulation",
                     WebkitTapHighlightColor:"transparent",
                   }}
@@ -1636,7 +1681,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Header */}
       <div style={{ background:"#111", padding:"10px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #2a2a2a", flexShrink:0 }}>
@@ -1716,10 +1762,14 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             </span>
           </div>
           <button
-            onPointerDown={e=>{ e.preventDefault(); !input || envoyer(); }}
-            disabled={!input}
-            style={{ background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "#1a1a1a", border:"none", borderRadius:50, padding:"11px 18px", fontWeight:800, fontSize:16, color: input ? "#fff" : "#94a3b8", cursor: input ? "pointer" : "not-allowed", touchAction:"manipulation" }}>
-            ✓
+            onPointerDown={e=>{ e.preventDefault(); input ? envoyer() : envoyer(0); }}
+            style={{
+              background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "linear-gradient(135deg,#9a3412,#ea580c)",
+              border:"none", borderRadius:50, padding:"11px 18px",
+              fontWeight:800, fontSize: input ? 16 : 12, color:"#fff", cursor:"pointer",
+              touchAction:"manipulation", letterSpacing: input ? 0 : .5, whiteSpace:"nowrap",
+            }}>
+            {input ? "✓ VALIDER" : "NO SCORE"}
           </button>
         </div>
         {historique.length > 0 && (
@@ -1752,10 +1802,18 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             0
           </button>
           <button
-            onPointerDown={e=>{ e.preventDefault(); !input || envoyer(); }}
-            disabled={!input}
-            style={{ borderRadius:10, border:"none", background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "#1a1a2a", color: input ? "#fff" : "#94a3b8", fontSize:30, fontWeight:800, cursor: input ? "pointer" : "not-allowed", WebkitTapHighlightColor:"transparent", touchAction:"manipulation" }}>
-            ✓
+            onPointerDown={e=>{ e.preventDefault(); input ? envoyer() : envoyer(0); }}
+            style={{
+              borderRadius:10, border:"none",
+              background: input ? "linear-gradient(135deg,#22c55e,#16a34a)" : "linear-gradient(135deg,#9a3412,#ea580c)",
+              color:"#fff",
+              fontSize: input ? 30 : 13,
+              fontWeight: 800,
+              lineHeight: 1,
+              cursor:"pointer", WebkitTapHighlightColor:"transparent", touchAction:"manipulation",
+              letterSpacing: input ? 0 : .5, padding:"0 4px",
+            }}>
+            {input ? "✓" : "NO SCORE"}
           </button>
         </div>
       </div>
