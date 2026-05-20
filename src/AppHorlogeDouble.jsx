@@ -30,8 +30,10 @@ export const HorlogeDouble = ({ setPage }) => {
   const [chronoStart, setChronoStart] = useState(null);
   const [elapsed, setElapsed]     = useState(0);
   const [savedTime, setSavedTime] = useState(null);         // temps figé au moment du "Je l'ai !!!"
-  const [results, setResults]     = useState([]);           // { target, hit, darts, timeMs }
+  const [results, setResults]     = useState([]);           // { target, darts, missCount, timeMs }
   const [lastResult, setLastResult] = useState(null);
+  const [currentDarts, setCurrentDarts] = useState(0);     // fléchettes déjà lancées sur la cible en cours
+  const [missFlash, setMissFlash]   = useState(false);      // flash rouge après un miss
   const timerRef = useRef(null);
 
   const target = TARGETS[targetIdx];
@@ -63,58 +65,56 @@ export const HorlogeDouble = ({ setPage }) => {
   };
 
   const handleConfirmDarts = (darts) => {
-    const res = { target, hit: true, darts, timeMs: savedTime };
+    const totalDarts = currentDarts + darts;
+    const missCount  = Math.floor(currentDarts / 3);
+    const res = { target, darts: totalDarts, missCount, timeMs: savedTime };
     const newResults = [...results, res];
     setResults(newResults);
     setLastResult(res);
+    setCurrentDarts(0);
     if (targetIdx === TARGETS.length - 1) { setPhase("results"); return; }
     setTargetIdx(i => i + 1);
     setPhase("between");
   };
 
   const handleMiss = () => {
-    const t = Date.now() - chronoStart;
-    clearInterval(timerRef.current);
-    const res = { target, hit: false, darts: 3, timeMs: t };
-    const newResults = [...results, res];
-    setResults(newResults);
-    setLastResult(res);
-    if (targetIdx === TARGETS.length - 1) { setPhase("results"); return; }
-    setTargetIdx(i => i + 1);
-    setPhase("between");
+    // On reste sur la même cible — on ajoute 3 fléchettes au compteur
+    setCurrentDarts(d => d + 3);
+    setMissFlash(true);
+    setTimeout(() => setMissFlash(false), 500);
   };
 
   const reset = () => {
     clearInterval(timerRef.current);
     setPhase("intro"); setTargetIdx(0); setResults([]);
-    setLastResult(null); setElapsed(0); setChronoStart(null); setSavedTime(null);
+    setLastResult(null); setElapsed(0); setChronoStart(null);
+    setSavedTime(null); setCurrentDarts(0); setMissFlash(false);
   };
 
   // ── Calculs résultats ───────────────────────────────────────────────────────
   const calcStats = () => {
-    const hits    = results.filter(r => r.hit);
-    const misses  = results.filter(r => !r.hit);
-    const pctHit  = Math.round((hits.length / results.length) * 100);
-    const totalDarts = results.reduce((s, r) => s + r.darts, 0);
-    const totalTime  = results.reduce((s, r) => s + r.timeMs, 0);
+    const totalDarts   = results.reduce((s, r) => s + r.darts, 0);
+    const totalTime    = results.reduce((s, r) => s + r.timeMs, 0);
+    const totalMisses  = results.reduce((s, r) => s + (r.missCount || 0), 0);
+    // Précision = volées réussies / total volées  (chaque hit = 1 bonne volée, chaque miss = 1 volée ratée)
+    const totalVolees  = results.length + totalMisses;
+    const pctHit       = totalVolees > 0 ? Math.round((results.length / totalVolees) * 100) : 100;
 
-    // Favori : parmi les hits, meilleur score = darts × 5 + timeMs/1000
-    const favori = hits.length > 0
-      ? hits.reduce((best, r) =>
+    // Favori : double réussi avec le meilleur score (peu de fléchettes + rapide)
+    const favori = results.length > 0
+      ? results.reduce((best, r) =>
           (r.darts * 5 + r.timeMs / 1000) < (best.darts * 5 + best.timeMs / 1000) ? r : best
         )
       : null;
 
-    // Point faible : parmi les hits les plus lents OU les misses
-    const pointFaible = misses.length > 0
-      ? misses[Math.floor(misses.length / 2)]
-      : hits.length > 0
-        ? hits.reduce((worst, r) =>
-            (r.darts * 5 + r.timeMs / 1000) > (worst.darts * 5 + worst.timeMs / 1000) ? r : worst
-          )
-        : null;
+    // Point faible : double le plus coûteux (beaucoup de misses ou lent)
+    const pointFaible = results.length > 0
+      ? results.reduce((worst, r) =>
+          (r.darts * 5 + r.timeMs / 1000) > (worst.darts * 5 + worst.timeMs / 1000) ? r : worst
+        )
+      : null;
 
-    return { hits, misses, pctHit, totalDarts, totalTime, favori, pointFaible };
+    return { totalMisses, pctHit, totalDarts, totalTime, favori, pointFaible };
   };
 
   // ── Rendu ────────────────────────────────────────────────────────────────────
@@ -146,7 +146,7 @@ export const HorlogeDouble = ({ setPage }) => {
         {[
           ["Je l'ai !!!", "Tu vises le double — quand tu le touches, appuie immédiatement."],
           ["1 / 2 / 3",  "Indique sur quelle fléchette tu l'as réussi."],
-          ["Miss",       "Tu as lancé 3 fléchettes et raté. Le chrono continue, tu passes à la suite."],
+          ["Miss",       "Tu as lancé 3 fléchettes et raté. On reste sur le même double — 3 fléchettes comptabilisées, le chrono continue."],
           ["Cibles",     "D1 → D2 → … → D20 → Bull → Double Bull."],
         ].map(([k, v]) => (
           <div key={k} style={{ display:"flex", gap:12, marginBottom:12 }}>
@@ -175,6 +175,11 @@ export const HorlogeDouble = ({ setPage }) => {
   // ── RUNNING ──────────────────────────────────────────────────────────────────
   if (phase === "running") return wrap(
     <>
+      {/* Flash rouge sur miss */}
+      {missFlash && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(239,68,68,0.18)", pointerEvents:"none", zIndex:9999, borderRadius:"inherit" }}/>
+      )}
+
       {/* Progression */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
         <span style={{ fontSize:13, color:C.muted }}>{targetIdx + 1} / {TARGETS.length}</span>
@@ -187,7 +192,7 @@ export const HorlogeDouble = ({ setPage }) => {
       </div>
 
       {/* Cible actuelle */}
-      <div style={{ background:`linear-gradient(135deg,${target.color}22,${target.color}08)`, border:`2px solid ${target.color}66`, borderRadius:24, padding:"36px 24px", textAlign:"center", marginBottom:24, boxShadow:`0 0 40px ${target.color}22` }}>
+      <div style={{ background:`linear-gradient(135deg,${target.color}22,${target.color}08)`, border:`2px solid ${missFlash?"#ef4444":target.color}66`, borderRadius:24, padding:"36px 24px", textAlign:"center", marginBottom:16, boxShadow:`0 0 40px ${target.color}22`, transition:"border-color .15s" }}>
         <div style={{ fontSize:12, color:C.muted, fontWeight:700, letterSpacing:1, marginBottom:10 }}>CIBLE</div>
         <div style={{ fontWeight:900, fontSize:52, color:target.color, lineHeight:1, marginBottom:6 }}>{target.short}</div>
         <div style={{ fontSize:16, color:"#cbd5e1" }}>{target.label}</div>
@@ -196,6 +201,16 @@ export const HorlogeDouble = ({ setPage }) => {
           <Timer size={24} color={target.color}/> {fmtMs(elapsed)}
         </div>
       </div>
+
+      {/* Compteur fléchettes déjà lancées */}
+      {currentDarts > 0 && (
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, background:"#7f1d1d44", border:"1px solid #ef444455", borderRadius:12, padding:"8px 14px", marginBottom:14 }}>
+          <X size={13} color="#ef4444"/>
+          <span style={{ fontSize:13, color:"#fca5a5", fontWeight:700 }}>
+            {currentDarts} fléchette{currentDarts > 1 ? "s" : ""} déjà lancée{currentDarts > 1 ? "s" : ""} · {Math.floor(currentDarts / 3)} miss
+          </span>
+        </div>
+      )}
 
       {/* Bouton JE L'AI */}
       <button onClick={handleHit}
@@ -206,7 +221,7 @@ export const HorlogeDouble = ({ setPage }) => {
       {/* Bouton MISS */}
       <button onClick={handleMiss}
         style={{ width:"100%", background:"#1a1a1a", border:"2px solid #ef444444", color:"#ef4444", borderRadius:14, padding:"16px", fontSize:16, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, touchAction:"manipulation" }}>
-        <X size={18}/> Miss (3 fléchettes ratées)
+        <X size={18}/> Miss — 3 fléchettes, on recommence
       </button>
     </>
   );
@@ -245,11 +260,12 @@ export const HorlogeDouble = ({ setPage }) => {
       <>
         {/* Récap dernière cible */}
         {lastResult && (
-          <div style={{ background: lastResult.hit ? "#14532d44" : "#7f1d1d44", border:`1px solid ${lastResult.hit?"#22c55e44":"#ef444444"}`, borderRadius:14, padding:16, marginBottom:20, display:"flex", alignItems:"center", gap:14 }}>
-            <div style={{ fontSize:28 }}>{lastResult.hit ? "✓" : "✗"}</div>
+          <div style={{ background:"#14532d44", border:"1px solid #22c55e44", borderRadius:14, padding:16, marginBottom:20, display:"flex", alignItems:"center", gap:14 }}>
+            <div style={{ fontSize:28 }}>✓</div>
             <div style={{ flex:1 }}>
-              <div style={{ fontWeight:800, fontSize:15, color: lastResult.hit?"#22c55e":"#ef4444" }}>
-                {lastResult.target.label} — {lastResult.hit ? `réussi en ${lastResult.darts} fléchette${lastResult.darts>1?"s":""}` : "raté"}
+              <div style={{ fontWeight:800, fontSize:15, color:"#22c55e" }}>
+                {lastResult.target.label} — réussi en {lastResult.darts} fléchette{lastResult.darts>1?"s":""}
+                {lastResult.missCount > 0 && <span style={{ color:"#f97316", fontSize:13 }}> · {lastResult.missCount} miss</span>}
               </div>
               <div style={{ fontSize:13, color:C.muted, marginTop:2 }}>
                 <Timer size={11} style={{ display:"inline", marginRight:4 }}/>{fmtMs(lastResult.timeMs)}
@@ -275,20 +291,20 @@ export const HorlogeDouble = ({ setPage }) => {
 
   // ── RESULTS ──────────────────────────────────────────────────────────────────
   if (phase === "results") {
-    const { hits, misses, pctHit, totalDarts, totalTime, favori, pointFaible } = calcStats();
+    const { totalMisses, pctHit, totalDarts, totalTime, favori, pointFaible } = calcStats();
     return wrap(
       <>
         <h1 style={{ fontWeight:900, fontSize:22, marginBottom:4, display:"flex", alignItems:"center", gap:8 }}>
           <Trophy size={22} color="#f59e0b"/> Résultats
         </h1>
-        <p style={{ color:C.muted, fontSize:13, marginBottom:20 }}>Session Horloge Double terminée</p>
+        <p style={{ color:C.muted, fontSize:13, marginBottom:20 }}>Session Horloge Double terminée · {TARGETS.length} doubles réussis</p>
 
         {/* Stats globales */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:20 }}>
           {[
-            { label:"Réussis",     value:`${hits.length}/${TARGETS.length}`, color:"#22c55e" },
-            { label:"Précision",   value:`${pctHit}%`,                       color:"#f59e0b" },
-            { label:"Fléchettes",  value:totalDarts,                          color:"#a855f7" },
+            { label:"Misses",      value:totalMisses,  color:"#ef4444" },
+            { label:"Précision",   value:`${pctHit}%`, color:"#f59e0b" },
+            { label:"Fléchettes",  value:totalDarts,   color:"#a855f7" },
           ].map(s => (
             <div key={s.label} style={{ background:"#0d0d0d", border:`1px solid ${s.color}33`, borderRadius:14, padding:"14px 8px", textAlign:"center" }}>
               <div style={{ fontWeight:900, fontSize:22, color:s.color }}>{s.value}</div>
@@ -321,7 +337,7 @@ export const HorlogeDouble = ({ setPage }) => {
               <div style={{ fontSize:10, color:"#ef4444", fontWeight:700, letterSpacing:.5, marginBottom:6 }}>À TRAVAILLER</div>
               <div style={{ fontWeight:900, fontSize:26, color:"#ef4444" }}>{pointFaible.target.short}</div>
               <div style={{ fontSize:11, color:C.muted, marginTop:4 }}>
-                {pointFaible.hit ? `${fmtMs(pointFaible.timeMs)} · ${pointFaible.darts} fl.` : "Raté"}
+                {fmtMs(pointFaible.timeMs)} · {pointFaible.darts} fl.{pointFaible.missCount > 0 ? ` · ${pointFaible.missCount} miss` : ""}
               </div>
             </div>
           )}
@@ -339,21 +355,20 @@ export const HorlogeDouble = ({ setPage }) => {
                 {r.target.short}
               </span>
               {/* Résultat */}
-              <div style={{ flex:1 }}>
-                {r.hit
-                  ? <span style={{ fontSize:13, color:"#22c55e", fontWeight:700 }}>{r.darts} fléchette{r.darts>1?"s":""}</span>
-                  : <span style={{ fontSize:13, color:"#ef4444", fontWeight:700 }}>Raté</span>
-                }
+              <div style={{ flex:1, minWidth:0 }}>
+                <span style={{ fontSize:13, color:"#22c55e", fontWeight:700 }}>{r.darts} fl.</span>
+                {r.missCount > 0 && (
+                  <span style={{ fontSize:11, color:"#ef4444", fontWeight:600, marginLeft:5 }}>
+                    ({r.missCount} miss)
+                  </span>
+                )}
               </div>
               {/* Temps */}
               <div style={{ fontSize:13, color:C.muted, fontVariantNumeric:"tabular-nums", flexShrink:0 }}>
                 {fmtMs(r.timeMs)}
               </div>
               {/* Icône */}
-              {r.hit
-                ? <CheckCircle size={14} color="#22c55e"/>
-                : <X size={14} color="#ef4444"/>
-              }
+              <CheckCircle size={14} color={r.missCount > 0 ? "#f59e0b" : "#22c55e"}/>
             </div>
           ))}
         </div>
