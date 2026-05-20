@@ -2998,13 +2998,23 @@ const tempsDepuis = (ts) => {
   return new Date(ts).toLocaleDateString("fr-FR", { day:"numeric", month:"short" });
 };
 
-const FeedAvatar = ({ photo, pseudo, size=40, onClick }) => {
+const FeedAvatar = ({ photo, pseudo, size=40, onClick, status }) => {
   const cols = ["#f97316","#3b82f6","#10b981","#a855f7","#ec4899","#eab308"];
   const col = cols[pseudo ? pseudo.charCodeAt(0) % cols.length : 0];
+  const statusRing = { live:"#ef4444", hot:"#f97316", up:"#22c55e", online:"#3b82f6" };
+  const ringColor = status ? statusRing[status] : null;
   return (
-    <div onClick={onClick} style={{ width:size,height:size,borderRadius:"50%",background:col,overflow:"hidden",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:Math.round(size*0.4),color:"#fff",position:"relative",cursor:onClick?"pointer":"default" }}>
-      {photo && <img src={photo} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} onError={e=>{e.currentTarget.style.display="none";}}/>}
-      {!photo && <span style={{ position:"relative",zIndex:1 }}>{(pseudo?.[0]||"?").toUpperCase()}</span>}
+    <div style={{ position:"relative", width:size, height:size, flexShrink:0 }}>
+      {ringColor && (
+        <div style={{ position:"absolute", inset:-2, borderRadius:"50%", border:`2px solid ${ringColor}`, boxShadow:`0 0 8px ${ringColor}88`, animation:status==="live"?"livePulse 1.4s infinite":undefined, zIndex:0, pointerEvents:"none" }}/>
+      )}
+      <div onClick={onClick} style={{ width:size,height:size,borderRadius:"50%",background:col,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:Math.round(size*0.4),color:"#fff",position:"relative",cursor:onClick?"pointer":"default",zIndex:1 }}>
+        {photo && <img src={photo} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} onError={e=>{e.currentTarget.style.display="none";}}/>}
+        {!photo && <span style={{ position:"relative",zIndex:1 }}>{(pseudo?.[0]||"?").toUpperCase()}</span>}
+      </div>
+      {ringColor && (
+        <div style={{ position:"absolute", bottom:-1, right:-1, width:Math.max(8,size*0.22), height:Math.max(8,size*0.22), borderRadius:"50%", background:ringColor, border:`2px solid #0a0a0f`, zIndex:2 }}/>
+      )}
     </div>
   );
 };
@@ -3979,6 +3989,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
   const [posting, setPosting] = useState(false);
   const [erreur, setErreur] = useState(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [liveCount, setLiveCount] = useState(0);
 
   const chargerFeed = useCallback(async () => {
     if (!joueur?.id) return;
@@ -4139,6 +4150,17 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
   }, [joueur?.id, refreshTick]);
 
   useEffect(() => { chargerFeed(); }, [chargerFeed]);
+
+  // Live match count badge (refreshes every 30s)
+  useEffect(() => {
+    if (!joueur?.id) return;
+    const fetchLive = () =>
+      sb(`live_sessions?statut=eq.en_cours&select=id`).catch(()=>[])
+        .then(r => setLiveCount((r||[]).length));
+    fetchLive();
+    const iv = setInterval(fetchLive, 30000);
+    return () => clearInterval(iv);
+  }, [joueur?.id]);
 
   const publier = async () => {
     if (!texte.trim() || posting) return;
@@ -4388,7 +4410,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
       }}>
         <div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:up?"linear-gradient(90deg,#16a34a,#22c55e,#4ade80,#22c55e,#16a34a)":"linear-gradient(90deg,#dc2626,#ef4444,#f87171,#ef4444,#dc2626)",backgroundSize:"300% 100%",animation:"feedGlow 4s ease infinite" }}/>
         <div style={{ display:"flex",gap:14,alignItems:"center",padding:"4px 0 0" }}>
-          <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={44} onClick={()=>setPage("profil-joueur-"+m.joueur_id)}/>
+          <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={44} onClick={()=>setPage("profil-joueur-"+m.joueur_id)} status={up?"up":undefined}/>
           <div style={{ flex:1,minWidth:0 }}>
             <div onClick={()=>setPage("profil-joueur-"+m.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{m.joueur_pseudo}</div>
             <div style={{ fontSize:13,color: up?"#22c55e":"#ef4444",fontWeight:700,marginTop:3,display:"flex",alignItems:"center",gap:5 }}>
@@ -4427,7 +4449,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
       }}>
         <div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:gain?"linear-gradient(90deg,#c2410c,#f97316,#fb923c,#f97316,#c2410c)":"linear-gradient(90deg,#dc2626,#ef4444,#f87171,#ef4444,#dc2626)",backgroundSize:"300% 100%",animation:"feedGlow 4s ease infinite" }}/>
         <div style={{ display:"flex",gap:12,alignItems:"center",padding:"4px 0 0" }}>
-          <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={44} onClick={()=>setPage("profil-joueur-"+m.joueur_id)}/>
+          <FeedAvatar photo={photosMap[m.joueur_id]||null} pseudo={m.joueur_pseudo} size={44} onClick={()=>setPage("profil-joueur-"+m.joueur_id)} status={gain?"hot":undefined}/>
           <div style={{ flex:1,minWidth:0 }}>
             <div onClick={()=>setPage("profil-joueur-"+m.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{m.joueur_pseudo}</div>
             <div style={{ fontSize:13,color: gain?"#f97316":"#ef4444",fontWeight:700,marginTop:3,display:"flex",alignItems:"center",gap:5 }}>
@@ -4462,7 +4484,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
       }}>
         <div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,#1d4ed8,#3b82f6,#60a5fa,#3b82f6,#1d4ed8)",backgroundSize:"300% 100%",animation:"feedGlow 4s ease infinite" }}/>
         <div style={{ display:"flex",gap:12,alignItems:"center",padding:"4px 0 0" }}>
-          <FeedAvatar photo={photosMap[p.joueur_id]||null} pseudo={p.joueur_pseudo} size={44} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
+          <FeedAvatar photo={photosMap[p.joueur_id]||null} pseudo={p.joueur_pseudo} size={44} onClick={()=>setPage("profil-joueur-"+p.joueur_id)} status="online"/>
           <div style={{ flex:1,minWidth:0 }}>
             <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{p.joueur_pseudo}</div>
             <div style={{ fontSize:13,color:"#60a5fa",fontWeight:700,marginTop:3,display:"flex",alignItems:"center",gap:5 }}>
@@ -4492,6 +4514,118 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     if (item.type==="training_drix") return renderTrainingDrix(item);
     if (item.type==="presence") return renderPresence(item);
     return null;
+  };
+
+  // ── Date separator ────────────────────────────────────────────────────────
+  const DateSeparator = ({ label, icon: Icon, color="#334155" }) => (
+    <div style={{ display:"flex",alignItems:"center",gap:10,margin:"8px 0 14px" }}>
+      <div style={{ flex:1,height:1,background:"linear-gradient(90deg,transparent,#ffffff14,transparent)" }}/>
+      <div style={{ display:"flex",alignItems:"center",gap:5 }}>
+        {Icon && <Icon size={11} color={color}/>}
+        <span style={{ fontSize:10,fontWeight:900,color,letterSpacing:1.8 }}>{label}</span>
+      </div>
+      <div style={{ flex:1,height:1,background:"linear-gradient(90deg,transparent,#ffffff14,transparent)" }}/>
+    </div>
+  );
+
+  // ── Trending spotlight (derived from feed) ─────────────────────────────────
+  const renderTrending = () => {
+    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+    const todayTs = todayStart.getTime();
+    const todayItems = feed.filter(i => i.date >= todayTs);
+
+    // Top DRIX gainer today
+    const drixByPlayer = {};
+    todayItems.forEach(i => {
+      if (i.type === "training_drix" || i.type === "drix_milestone") {
+        const m = i.data;
+        const key = m.joueur_pseudo;
+        drixByPlayer[key] = (drixByPlayer[key]||0) + (m.variation||0);
+      }
+    });
+    const topPlayer = Object.entries(drixByPlayer).sort((a,b)=>b[1]-a[1])[0];
+
+    // Best training finish today
+    const bestFinish = todayItems
+      .filter(i => i.type==="training_drix" && i.data.variation > 0)
+      .sort((a,b) => b.data.variation - a.data.variation)[0];
+
+    // Hot rivalité from entire feed
+    let hotRivalCard = null;
+    for (const i of feed) {
+      if (i.type !== "post") continue;
+      if (!i.data.contenu?.startsWith("__DUEL__|")) continue;
+      try {
+        const d = JSON.parse(i.data.contenu.slice(9));
+        if (d.isRivalite) { hotRivalCard = d; break; }
+      } catch {}
+    }
+
+    const cards = [];
+    if (topPlayer && topPlayer[1] > 0)
+      cards.push({ Icon:Crown, color:"#f59e0b", label:"JOUEUR DU JOUR", name:topPlayer[0], val:`+${topPlayer[1]} DRIX` });
+    if (bestFinish)
+      cards.push({ Icon:Target, color:"#f97316", label:"MEILLEUR FINISH", name:bestFinish.data.joueur_pseudo, val:`+${bestFinish.data.variation} DRIX` });
+    if (hotRivalCard)
+      cards.push({ Icon:Swords, color:"#a855f7", label:"RIVALITÉ ACTIVE", name:`${hotRivalCard.winner?.nom?.split(" ")[0]||"?"} vs ${hotRivalCard.loser?.nom?.split(" ")[0]||"?"}`, val:"Rivalité hebdo ⚔" });
+
+    if (cards.length === 0) return null;
+    return (
+      <div style={{ marginBottom:20 }}>
+        <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:10 }}>
+          <Flame size={13} color="#f97316"/>
+          <span style={{ fontSize:11,fontWeight:900,color:"#f97316",letterSpacing:1.5 }}>TENDANCES DU JOUR</span>
+        </div>
+        <div style={{ display:"flex",gap:8,overflowX:"auto",paddingBottom:4,scrollbarWidth:"none",msOverflowStyle:"none" }}>
+          {cards.map(({ Icon, color, label, name, val }, i) => (
+            <div key={i} style={{ flexShrink:0,background:`linear-gradient(135deg,${color}14,#0e0e14)`,border:`1px solid ${color}2a`,borderRadius:14,padding:"12px 14px",minWidth:145,maxWidth:165,cursor:"default" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:5,marginBottom:8 }}>
+                <Icon size={11} color={color}/>
+                <span style={{ fontSize:9,fontWeight:900,color,letterSpacing:1 }}>{label}</span>
+              </div>
+              <div style={{ fontSize:13,fontWeight:800,color:"#e2e8f0",marginBottom:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{name}</div>
+              <div style={{ fontSize:11,fontWeight:700,color }}>{val}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // ── Feed with date separators ──────────────────────────────────────────────
+  const renderFeedWithSeparators = () => {
+    if (!feed.length) return null;
+    const now = Date.now();
+    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+    const yesterdayStart = new Date(todayStart); yesterdayStart.setDate(yesterdayStart.getDate()-1);
+    const weekStart = new Date(todayStart); weekStart.setDate(weekStart.getDate()-7);
+    const todayTs = todayStart.getTime();
+    const yestTs = yesterdayStart.getTime();
+    const weekTs = weekStart.getTime();
+
+    const getLabel = (ts) => {
+      if (ts >= todayTs) return "AUJOURD'HUI";
+      if (ts >= yestTs) return "HIER";
+      if (ts >= weekTs) return "CETTE SEMAINE";
+      return "PLUS TÔT";
+    };
+    const labelIcon = { "AUJOURD'HUI":Flame, "HIER":Clock, "CETTE SEMAINE":Clock, "PLUS TÔT":Clock };
+    const labelColor = { "AUJOURD'HUI":"#f97316", "HIER":"#64748b", "CETTE SEMAINE":"#475569", "PLUS TÔT":"#334155" };
+
+    let lastLabel = null;
+    const result = [];
+    feed.forEach((item, idx) => {
+      const label = getLabel(item.date);
+      if (label !== lastLabel) {
+        lastLabel = label;
+        result.push(
+          <DateSeparator key={`sep-${label}-${idx}`} label={label} icon={labelIcon[label]} color={labelColor[label]}/>
+        );
+      }
+      const el = renderItem(item, idx);
+      if (el) result.push(el);
+    });
+    return result;
   };
 
   return (
@@ -4532,8 +4666,11 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
           <Users size={14} color={mainTab==="feed"?"#a855f7":C.muted}/>Communauté
         </button>
         <button onClick={()=>setMainTab("live")} style={{ flex:1,padding:"10px",borderRadius:10,border:"none",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .2s",background:mainTab==="live"?"linear-gradient(135deg,#1a0b0b,#1a0808)":"transparent",color:mainTab==="live"?"#ef4444":C.muted,boxShadow:mainTab==="live"?"0 2px 8px rgba(0,0,0,0.3)":"none",display:"flex",alignItems:"center",justifyContent:"center",gap:7 }}>
-          <span style={{ display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#ef4444",flexShrink:0,animation:mainTab==="live"?"livePulse 1.2s infinite":undefined }}/>
+          <span style={{ display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#ef4444",flexShrink:0,animation:"livePulse 1.2s infinite" }}/>
           Live
+          {liveCount > 0 && (
+            <span style={{ background:"#ef4444",color:"#fff",borderRadius:20,fontSize:10,fontWeight:900,padding:"1px 7px",marginLeft:2,lineHeight:1.6 }}>{liveCount}</span>
+          )}
         </button>
       </div>
 
@@ -4612,7 +4749,10 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
           </p>
         </div>
       ) : (
-        <div>{feed.map((item,idx) => renderItem(item,idx))}</div>
+        <div>
+          {renderTrending()}
+          {renderFeedWithSeparators()}
+        </div>
       )}
       </>)}
     </div>
