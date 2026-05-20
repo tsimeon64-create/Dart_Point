@@ -184,7 +184,7 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
     map.flyTo([userPos.lat,userPos.lng],13,{duration:0.8});
   }, [ready, userPos]);
 
-  useEffect(() => { if (mapRef.current) setTimeout(()=>mapRef.current.invalidateSize(),100); });
+  useEffect(() => { if (mapRef.current) setTimeout(()=>mapRef.current.invalidateSize(),100); }, [ready]);
 
   return (
     <div style={{ position:"relative", height, borderRadius:12, overflow:"hidden", border:`1px solid ${C.border}` }}>
@@ -438,7 +438,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                       { icon:<Search size={15}/>, label:"Mes défis",     target:"defi",         badge: defisCount, badgeColor:C.red },
                       { icon:<Mail size={15}/>,   label:"Messages",      target:"messagerie",   badge: unreadMessages, badgeColor:"#7c3aed" },
                     ].map(({ icon, label, target, badge, badgeColor=C.red, badgeTitle }) => (
-                      <button key={label} onClick={()=>{ if(target==="mon-profil"&&newBadgesCount>0&&onBadgesSeen) {} go(target); }}
+                      <button key={label} onClick={()=>{ if(target==="mon-profil"&&newBadgesCount>0&&onBadgesSeen) onBadgesSeen(); go(target); }}
                         style={{ display:"flex", alignItems:"center", gap:10, width:"100%", padding:"10px 14px", background:"transparent", border:"none", cursor:"pointer", color:"#c8ccd4", fontSize:13, fontWeight:500, textAlign:"left", transition:"background .15s", touchAction:"manipulation" }}
                         onMouseEnter={e=>{e.currentTarget.style.background="#f9731610";}}
                         onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
@@ -747,7 +747,7 @@ const BarCard = ({ bar, onClick, barsActifs=[], dist }) => {
           {bar.ville}{bar.adresse?` · ${bar.adresse}`:""}
         </div>
         <div style={{ display:"flex",gap:5,flexWrap:"wrap" }}>
-          <span style={{ background:"#a78bfa18",color:"#a78bfa",border:"1px solid #a78bfa33",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>🎯 {bar.cibles} cible{bar.cibles>1?"s":""}</span>
+          {bar.cibles != null && <span style={{ background:"#a78bfa18",color:"#a78bfa",border:"1px solid #a78bfa33",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>🎯 {bar.cibles} cible{bar.cibles>1?"s":""}</span>}
           {bar.tournois&&<span style={{ background:C.green+"18",color:C.green,border:`1px solid ${C.green}33`,fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>🏆 Tournois</span>}
           {bar.association&&<span style={{ background:"#7c3aed18",color:"#a78bfa",border:"1px solid #7c3aed33",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>👥 Asso</span>}
           <span style={{ background:ti.color+"18",color:ti.color,border:`1px solid ${ti.color}33`,fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>{ti.l}</span>
@@ -958,7 +958,7 @@ const SignalForm = ({ barSlug, barNom, onClose }) => {
 // ── SHARE ─────────────────────────────────────────────────────────────────────
 const ShareBar = ({ bar }) => {
   const [copied,setCopied]=useState(false);
-  const url=`https://dartpoint.netlify.app/bars/${bar.slug}`;
+  const url=`${window.location.origin}/bars/${bar.slug}`;
   return (
     <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:20 }}>
       <a href={`https://wa.me/?text=${encodeURIComponent("🎯 "+bar.nom+" — "+bar.ville+" sur DartPoint "+url)}`} target="_blank" rel="noreferrer"><Btn variant="dark" style={{ fontSize:12,padding:"7px 14px" }}>📱 WhatsApp</Btn></a>
@@ -5441,7 +5441,7 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
   const alreadyVotedCible = joueur && cibleReports.some(r => r.joueur_id === joueur.id);
 
   const handlePasDeCible = async () => {
-    if (!joueur) { setPage("inscription"); return; }
+    if (!joueur) { setPage("connexion"); return; }
     if (alreadyVotedCible || cibleSending) return;
     setCibleSending(true);
     try {
@@ -5460,7 +5460,7 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
   const asso=associations.find(a=>a.nom===bar.association);
   const ti=typeInfo(bar.type);
   const mapsUrl=`https://www.google.com/maps/search/${encodeURIComponent((bar.adresse||bar.nom)+" "+bar.ville)}`;
-  const shareUrl=`https://dartpoint.netlify.app/bars/${bar.slug}`;
+  const shareUrl=`${window.location.origin}/bars/${bar.slug}`;
   const handleShare=()=>{
     if(navigator.share){ navigator.share({title:bar.nom,text:`${bar.nom} sur DartPoint`,url:shareUrl}).catch(()=>{}); }
     else { try{navigator.clipboard.writeText(shareUrl);}catch{} setCopied(true); setTimeout(()=>setCopied(false),2000); }
@@ -5544,7 +5544,7 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
             <h3 style={{ fontWeight:700,fontSize:16,color:C.accent,display:"flex",alignItems:"center",gap:7,margin:0 }}><Info size={16} color={C.accent}/> Infos du spot</h3>
             {joueur
               ? <button onClick={()=>setShowEdit(true)} style={{ background:C.accentTint,border:`1px solid ${C.accentBorder}`,color:C.accent,cursor:"pointer",borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:5 }}><Pencil size={12}/> Modifier</button>
-              : <button onClick={()=>setPage("inscription")} style={{ background:"#1a1a1a",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:5 }}><Pencil size={12}/> Modifier</button>
+              : <button onClick={()=>setPage("connexion")} style={{ background:"#1a1a1a",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:5 }}><Pencil size={12}/> Modifier</button>
             }
           </div>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
@@ -5552,7 +5552,7 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
               [MapPin,"Adresse",(bar.adresse||"—")+(bar.cp?" · "+bar.cp:"")+" "+bar.ville],
               [Clock,"Horaires",bar.horaires||"Non renseignés"],
               [Phone,"Téléphone",bar.tel||"Non renseigné"],
-              [Target,"Cibles",bar.cibles+" cible"+(bar.cibles>1?"s":"")],
+              [Target,"Cibles",bar.cibles != null ? bar.cibles+" cible"+(bar.cibles>1?"s":"") : "Non renseigné"],
               [Trophy,"Tournois",bar.tournois ? <span style={{ display:"flex",alignItems:"center",gap:4 }}><Check size={12} color={C.green}/> Tournois réguliers</span> : "Non"],
               [Building2,"Type de jeu",ti.l],
             ].map(([IconComp,label,value])=>(
@@ -6963,7 +6963,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
       const uniqueConns = new Set((pres||[]).map(x=>x.joueur_id)).size;
       setStats({
         matchsDuJour: (duels||[]).length,
-        joueursActifs: 0,
+        joueursActifs: uniqueConns,
         nouveauxJoueurs: jList.filter(x=>x.date_inscription&&new Date(x.date_inscription).getTime()>weekAgo).length,
         totalJoueurs: jList.length,
         connexionsJour: uniqueConns,

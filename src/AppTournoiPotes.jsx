@@ -665,9 +665,9 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         date:new Date().toISOString(),
       });
       if(!nt)throw new Error("Création échouée");
-      for(let i=0;i<noms.length;i++){
-        await dbTP.addJoueur({tournoi_id:nt.id,nom:noms[i],joueur_id:null,groupe:1,ordre:i,points:0,victoires:0,defaites:0,manches_pour:0,manches_contre:0});
-      }
+      await Promise.all(
+        noms.map((nom,i)=>dbTP.addJoueur({tournoi_id:nt.id,nom,joueur_id:null,groupe:1,ordre:i,points:0,victoires:0,defaites:0,manches_pour:0,manches_contre:0}))
+      );
       setPage("tournoi-potes-"+nt.id);
     }catch(e){alert("Erreur : "+e.message);}
     setSaving(false);

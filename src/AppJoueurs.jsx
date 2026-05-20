@@ -1497,9 +1497,13 @@ export const computeBadgeValues = (joueur, stats, duels, drixMvts, amis, nbTourn
     let curr=1, best=1;
     for(let i=1;i<duelDays.length;i++){
       const diff=(duelDays[i]-duelDays[i-1])/(1000*3600*24);
-      if(diff<=1.5) { curr++; best=Math.max(best,curr); } else curr=1;
+      if(diff<=1) { curr++; best=Math.max(best,curr); } else curr=1;
     }
-    streakJours=best;
+    // Streak actuel = seulement si le dernier duel remonte à aujourd'hui ou hier
+    const lastDay=duelDays[duelDays.length-1];
+    const today=new Date(); today.setHours(0,0,0,0);
+    const daysSinceLast=(today-lastDay)/(1000*3600*24);
+    streakJours=daysSinceLast<=1?curr:0;
   }
 
   // Amis acceptés
@@ -1741,7 +1745,7 @@ const DefiForm = ({ joueur, cible, setPage }) => {
   const perteDéfaite = Math.round(K * EA); // défaite  : perd  K × P(joueur gagnait)
 
   useEffect(() => {
-    sbJ(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&or=(joueur_id.eq.${cible.id},ami_id.eq.${cible.id})&select=*`)
+    sbJ(`amis?or=(and(joueur_id.eq.${joueur.id},ami_id.eq.${cible.id}),and(joueur_id.eq.${cible.id},ami_id.eq.${joueur.id}))&select=*`)
       .then(r => {
         const rel = (r||[]).find(a =>
           (a.joueur_id===joueur.id && a.ami_id===cible.id) ||
@@ -1827,6 +1831,17 @@ const DefiForm = ({ joueur, cible, setPage }) => {
       <BtnJ onClick={envoyer} disabled={loading} style={{ width:"100%",fontSize:14 }}>
         {loading?"Chargement…":`⚔️ Jouer contre ${cible.pseudo} maintenant !`}
       </BtnJ>
+
+      {/* Ajout ami */}
+      <div style={{ marginTop:10, textAlign:"center" }}>
+        {amiStatut===null && (
+          <button onClick={ajouterAmi} style={{ background:"transparent",border:`1px solid ${CJ.border}`,color:CJ.muted,borderRadius:8,padding:"8px 18px",fontSize:12,fontWeight:600,cursor:"pointer",touchAction:"manipulation" }}>
+            👥 Ajouter {cible.pseudo} en ami
+          </button>
+        )}
+        {amiStatut==="en_attente" && <span style={{ fontSize:12,color:CJ.yellow }}>⏳ Demande d'ami envoyée</span>}
+        {amiStatut==="accepte"    && <span style={{ fontSize:12,color:CJ.green }}>✅ Déjà ami(e)</span>}
+      </div>
     </div>
   );
 };
@@ -2106,7 +2121,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
 
   useEffect(() => {
     if (!moi || !joueurId || moi.id === joueurId) return;
-    sbJ(`amis?or=(joueur_id.eq.${moi.id},ami_id.eq.${moi.id})&or=(joueur_id.eq.${joueurId},ami_id.eq.${joueurId})&select=*`)
+    sbJ(`amis?or=(and(joueur_id.eq.${moi.id},ami_id.eq.${joueurId}),and(joueur_id.eq.${joueurId},ami_id.eq.${moi.id}))&select=*`)
       .then(r => {
         const rel = (r||[]).find(a =>
           (a.joueur_id===moi.id && a.ami_id===joueurId) ||
