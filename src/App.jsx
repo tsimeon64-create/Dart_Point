@@ -1699,6 +1699,125 @@ const seededShuffle = (arr, seed) => {
   return a;
 };
 
+// ── FACE À FACE CARD avec animation shake + compteur DRIX ─────────────────────
+const FaceAFaceCard = ({ joueur, rival, myColor, rColor, myEmoji, rEmoji, myTitre, rTitre, myDrix, rvDrix, probMoi, probRival, analyse }) => {
+  const [animMy, setAnimMy] = useState(0);
+  const [animRv, setAnimRv] = useState(0);
+  const [shaking, setShaking] = useState(true);
+
+  useEffect(() => {
+    const duration = 3000;
+    const start = performance.now();
+    let frameId;
+    const tick = (now) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // easeOutCubic — démarre vite, ralentit à la fin (effet dramatique)
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setAnimMy(Math.round(myDrix * eased));
+      setAnimRv(Math.round(rvDrix * eased));
+      if (progress < 1) {
+        frameId = requestAnimationFrame(tick);
+      } else {
+        setShaking(false);
+      }
+    };
+    frameId = requestAnimationFrame(tick);
+    const t = setTimeout(()=>setShaking(false), 3000);
+    return () => { cancelAnimationFrame(frameId); clearTimeout(t); };
+  }, [myDrix, rvDrix]);
+
+  return (
+    <div style={{
+      background:"linear-gradient(135deg,#0d0010,#0a0018,#100010)",
+      border:"1px solid rgba(168,85,247,0.18)",
+      borderRadius:22, padding:"20px 16px", marginBottom:12,
+      position:"relative", overflow:"hidden",
+      animation: shaking ? "faceShake 0.45s cubic-bezier(.36,.07,.19,.97) 0s 6.5" : "none",
+      transformOrigin:"center center",
+    }}>
+      <style>{`
+        @keyframes faceShake {
+          0%,100% { transform: translate(0,0) rotate(0deg); }
+          10% { transform: translate(-3px,-2px) rotate(-0.4deg); }
+          20% { transform: translate(3px,2px) rotate(0.4deg); }
+          30% { transform: translate(-3px,2px) rotate(-0.3deg); }
+          40% { transform: translate(3px,-2px) rotate(0.3deg); }
+          50% { transform: translate(-2px,3px) rotate(-0.4deg); }
+          60% { transform: translate(2px,-3px) rotate(0.4deg); }
+          70% { transform: translate(-3px,-1px) rotate(-0.3deg); }
+          80% { transform: translate(3px,1px) rotate(0.3deg); }
+          90% { transform: translate(-1px,-1px) rotate(0deg); }
+        }
+        @keyframes drixCountPulse {
+          0%,100% { text-shadow: 0 0 8px #f9731644; transform: scale(1); }
+          50%     { text-shadow: 0 0 18px #f97316cc, 0 0 32px #f9731666; transform: scale(1.06); }
+        }
+      `}</style>
+      {/* Orbes fond */}
+      <div style={{ position:"absolute",top:-50,left:-20,width:160,height:160,borderRadius:"50%",background:`radial-gradient(circle,${myColor}18 0%,transparent 70%)`,pointerEvents:"none" }}/>
+      <div style={{ position:"absolute",top:-50,right:-20,width:160,height:160,borderRadius:"50%",background:`radial-gradient(circle,${rColor}18 0%,transparent 70%)`,pointerEvents:"none" }}/>
+
+      <div style={{ fontSize:9,color:"#475569",fontWeight:700,letterSpacing:2,textAlign:"center",marginBottom:16 }}>FACE À FACE</div>
+
+      <div style={{ display:"flex",alignItems:"center" }}>
+        {/* MOI */}
+        <div style={{ flex:1,textAlign:"center" }}>
+          <div style={{ position:"relative",display:"inline-block",marginBottom:10 }}>
+            <div style={{ width:74,height:74,borderRadius:"50%",background:`${myColor}20`,border:`3px solid ${myColor}`,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",boxShadow:`0 0 28px ${myColor}44`,margin:"0 auto" }}>
+              {joueur.photo ? <img src={joueur.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span style={{ fontSize:30 }}>{myEmoji}</span>}
+            </div>
+            <div style={{ position:"absolute",bottom:-5,left:"50%",transform:"translateX(-50%)",background:myColor,borderRadius:8,padding:"2px 7px",fontSize:8,fontWeight:900,color:"#000",whiteSpace:"nowrap",letterSpacing:.5 }}>MOI</div>
+          </div>
+          <div style={{ fontWeight:900,fontSize:14,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:90,margin:"0 auto 3px" }}>{joueur.pseudo}</div>
+          <div style={{ color:myColor,fontSize:10,fontWeight:700,marginBottom:4 }}>{myEmoji} {myTitre}</div>
+          <div style={{ fontSize:20,fontWeight:900,color:"#f97316",lineHeight:1, animation: shaking ? "drixCountPulse 0.4s ease-in-out infinite" : "none", display:"inline-block" }}>{animMy}</div>
+          <div style={{ fontSize:9,color:"#475569" }}>DRIX</div>
+        </div>
+
+        {/* VS */}
+        <div style={{ textAlign:"center",padding:"0 6px",flexShrink:0 }}>
+          <div style={{ width:46,height:46,borderRadius:"50%",background:"linear-gradient(135deg,#a855f7,#f97316)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 24px rgba(168,85,247,0.45)",margin:"0 auto 8px",animation:"rivalPulse 2.5s ease infinite" }}>
+            <Swords size={18} color="#fff"/>
+          </div>
+          <div style={{ fontSize:10,fontWeight:900,color:"#a855f7",letterSpacing:3 }}>VS</div>
+        </div>
+
+        {/* RIVAL */}
+        <div style={{ flex:1,textAlign:"center" }}>
+          <div style={{ position:"relative",display:"inline-block",marginBottom:10 }}>
+            <div style={{ width:74,height:74,borderRadius:"50%",background:`${rColor}20`,border:`3px solid ${rColor}`,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",boxShadow:`0 0 28px ${rColor}44`,margin:"0 auto" }}>
+              {rival.photo ? <img src={rival.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span style={{ fontSize:30 }}>{rEmoji}</span>}
+            </div>
+            <div style={{ position:"absolute",bottom:-5,left:"50%",transform:"translateX(-50%)",background:rColor,borderRadius:8,padding:"2px 7px",fontSize:8,fontWeight:900,color:"#000",whiteSpace:"nowrap",letterSpacing:.5 }}>RIVAL</div>
+          </div>
+          <div style={{ fontWeight:900,fontSize:14,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:90,margin:"0 auto 3px" }}>{rival.pseudo}</div>
+          <div style={{ color:rColor,fontSize:10,fontWeight:700,marginBottom:4 }}>{rEmoji} {rTitre}</div>
+          <div style={{ fontSize:20,fontWeight:900,color:"#f97316",lineHeight:1, animation: shaking ? "drixCountPulse 0.4s ease-in-out infinite" : "none", display:"inline-block" }}>{animRv}</div>
+          <div style={{ fontSize:9,color:"#475569" }}>DRIX</div>
+        </div>
+      </div>
+
+      {/* Barre de probabilités */}
+      <div style={{ marginTop:20 }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+          <span style={{ fontSize:12,fontWeight:800,color:myColor }}>{probMoi}%</span>
+          <div style={{ textAlign:"center" }}>
+            <span style={{ fontSize:9,color:analyse.color,fontWeight:700,background:`${analyse.color}18`,padding:"3px 8px",borderRadius:20,border:`1px solid ${analyse.color}44` }}>
+              {analyse.emoji} {analyse.label}
+            </span>
+          </div>
+          <span style={{ fontSize:12,fontWeight:800,color:rColor }}>{probRival}%</span>
+        </div>
+        <div style={{ height:7,background:"#ffffff0d",borderRadius:99,overflow:"hidden",position:"relative" }}>
+          <div style={{ position:"absolute",left:0,top:0,height:"100%",width:`${probMoi}%`,background:`linear-gradient(90deg,${myColor},${myColor}bb)`,borderRadius:99 }}/>
+        </div>
+        <div style={{ textAlign:"center",marginTop:7,fontSize:10,color:"#64748b" }}>{analyse.sub}</div>
+      </div>
+    </div>
+  );
+};
+
 const PageDefi = ({ joueur, setPage }) => {
   const [amis, setAmis] = useState([]);
   const [amisData, setAmisData] = useState({});
@@ -2504,69 +2623,17 @@ const PageDefi = ({ joueur, setPage }) => {
                   </button>
                 </div>
 
-                {/* ── 2. FACE À FACE ── */}
-                <div style={{ background:"linear-gradient(135deg,#0d0010,#0a0018,#100010)",border:"1px solid rgba(168,85,247,0.18)",borderRadius:22,padding:"20px 16px",marginBottom:12,position:"relative",overflow:"hidden" }}>
-                  {/* Orbes fond */}
-                  <div style={{ position:"absolute",top:-50,left:-20,width:160,height:160,borderRadius:"50%",background:`radial-gradient(circle,${myColor}18 0%,transparent 70%)`,pointerEvents:"none" }}/>
-                  <div style={{ position:"absolute",top:-50,right:-20,width:160,height:160,borderRadius:"50%",background:`radial-gradient(circle,${rColor}18 0%,transparent 70%)`,pointerEvents:"none" }}/>
-
-                  <div style={{ fontSize:9,color:"#475569",fontWeight:700,letterSpacing:2,textAlign:"center",marginBottom:16 }}>FACE À FACE</div>
-
-                  <div style={{ display:"flex",alignItems:"center" }}>
-                    {/* MOI */}
-                    <div style={{ flex:1,textAlign:"center" }}>
-                      <div style={{ position:"relative",display:"inline-block",marginBottom:10 }}>
-                        <div style={{ width:74,height:74,borderRadius:"50%",background:`${myColor}20`,border:`3px solid ${myColor}`,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",boxShadow:`0 0 28px ${myColor}44`,margin:"0 auto" }}>
-                          {joueur.photo ? <img src={joueur.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span style={{ fontSize:30 }}>{myEmoji}</span>}
-                        </div>
-                        <div style={{ position:"absolute",bottom:-5,left:"50%",transform:"translateX(-50%)",background:myColor,borderRadius:8,padding:"2px 7px",fontSize:8,fontWeight:900,color:"#000",whiteSpace:"nowrap",letterSpacing:.5 }}>MOI</div>
-                      </div>
-                      <div style={{ fontWeight:900,fontSize:14,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:90,margin:"0 auto 3px" }}>{joueur.pseudo}</div>
-                      <div style={{ color:myColor,fontSize:10,fontWeight:700,marginBottom:4 }}>{myEmoji} {myTitre}</div>
-                      <div style={{ fontSize:20,fontWeight:900,color:"#f97316",lineHeight:1 }}>{myDrix}</div>
-                      <div style={{ fontSize:9,color:"#475569" }}>DRIX</div>
-                    </div>
-
-                    {/* VS */}
-                    <div style={{ textAlign:"center",padding:"0 6px",flexShrink:0 }}>
-                      <div style={{ width:46,height:46,borderRadius:"50%",background:"linear-gradient(135deg,#a855f7,#f97316)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 24px rgba(168,85,247,0.45)",margin:"0 auto 8px",animation:"rivalPulse 2.5s ease infinite" }}>
-                        <Swords size={18} color="#fff"/>
-                      </div>
-                      <div style={{ fontSize:10,fontWeight:900,color:"#a855f7",letterSpacing:3 }}>VS</div>
-                    </div>
-
-                    {/* RIVAL */}
-                    <div style={{ flex:1,textAlign:"center" }}>
-                      <div style={{ position:"relative",display:"inline-block",marginBottom:10 }}>
-                        <div style={{ width:74,height:74,borderRadius:"50%",background:`${rColor}20`,border:`3px solid ${rColor}`,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",boxShadow:`0 0 28px ${rColor}44`,margin:"0 auto" }}>
-                          {rival.photo ? <img src={rival.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <span style={{ fontSize:30 }}>{rEmoji}</span>}
-                        </div>
-                        <div style={{ position:"absolute",bottom:-5,left:"50%",transform:"translateX(-50%)",background:rColor,borderRadius:8,padding:"2px 7px",fontSize:8,fontWeight:900,color:"#000",whiteSpace:"nowrap",letterSpacing:.5 }}>RIVAL</div>
-                      </div>
-                      <div style={{ fontWeight:900,fontSize:14,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:90,margin:"0 auto 3px" }}>{rival.pseudo}</div>
-                      <div style={{ color:rColor,fontSize:10,fontWeight:700,marginBottom:4 }}>{rEmoji} {rTitre}</div>
-                      <div style={{ fontSize:20,fontWeight:900,color:"#f97316",lineHeight:1 }}>{rvDrix}</div>
-                      <div style={{ fontSize:9,color:"#475569" }}>DRIX</div>
-                    </div>
-                  </div>
-
-                  {/* Barre de probabilités */}
-                  <div style={{ marginTop:20 }}>
-                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-                      <span style={{ fontSize:12,fontWeight:800,color:myColor }}>{probMoi}%</span>
-                      <div style={{ textAlign:"center" }}>
-                        <span style={{ fontSize:9,color:analyse.color,fontWeight:700,background:`${analyse.color}18`,padding:"3px 8px",borderRadius:20,border:`1px solid ${analyse.color}44` }}>
-                          {analyse.emoji} {analyse.label}
-                        </span>
-                      </div>
-                      <span style={{ fontSize:12,fontWeight:800,color:rColor }}>{probRival}%</span>
-                    </div>
-                    <div style={{ height:7,background:"#ffffff0d",borderRadius:99,overflow:"hidden",position:"relative" }}>
-                      <div style={{ position:"absolute",left:0,top:0,height:"100%",width:`${probMoi}%`,background:`linear-gradient(90deg,${myColor},${myColor}bb)`,borderRadius:99 }}/>
-                    </div>
-                    <div style={{ textAlign:"center",marginTop:7,fontSize:10,color:"#64748b" }}>{analyse.sub}</div>
-                  </div>
-                </div>
+                {/* ── 2. FACE À FACE — composant animé (shake + count-up DRIX) ── */}
+                <FaceAFaceCard
+                  joueur={joueur}
+                  rival={rival}
+                  myColor={myColor} rColor={rColor}
+                  myEmoji={myEmoji} rEmoji={rEmoji}
+                  myTitre={myTitre} rTitre={rTitre}
+                  myDrix={myDrix} rvDrix={rvDrix}
+                  probMoi={probMoi} probRival={probRival}
+                  analyse={analyse}
+                />
 
                 {/* ── 3. RÉCOMPENSE PREMIUM ── */}
                 <div style={{ position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#0a0010,#120a00)",border:"1px solid rgba(168,85,247,0.25)",borderRadius:22,padding:"20px 16px",marginBottom:12,boxShadow:"0 0 50px rgba(168,85,247,0.08) inset" }}>
