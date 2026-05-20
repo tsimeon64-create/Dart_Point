@@ -1417,6 +1417,26 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
         <ImgBtn src="/scoreur2.png"         onClick={()=>setPage("jeux-flechettes")}/>
         <ImgBtn src="/trouve ton spot.png"  onClick={()=>setPage("bars")}/>
       </div>
+
+      {/* ── Feedback : signaler un bug ou proposer une amélioration ── */}
+      <button onClick={()=>setPage("contact")}
+        style={{
+          marginTop:14, width:"100%",
+          background:"linear-gradient(135deg, #1e293b, #0f172a)",
+          border:`1px solid ${C.accent}55`,
+          borderRadius:14, padding:"14px 18px",
+          color:C.text, cursor:"pointer",
+          display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+          fontWeight:700, fontSize:14,
+          boxShadow:`0 0 18px ${C.accent}15, inset 0 1px 0 #ffffff08`,
+          touchAction:"manipulation", transition:"all .15s",
+        }}
+        onMouseEnter={e=>{ e.currentTarget.style.borderColor=C.accent; e.currentTarget.style.boxShadow=`0 0 28px ${C.accent}40`; }}
+        onMouseLeave={e=>{ e.currentTarget.style.borderColor=`${C.accent}55`; e.currentTarget.style.boxShadow=`0 0 18px ${C.accent}15, inset 0 1px 0 #ffffff08`; }}>
+        <span style={{ fontSize:18 }}>💡</span>
+        <span>Signaler un bug ou proposer une amélioration</span>
+        <span style={{ marginLeft:"auto", fontSize:16, color:C.accent }}>→</span>
+      </button>
     </div>
   );
 };
