@@ -195,10 +195,34 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
   const winnerHasBonus = hasAnyBonus(winnerBonuses);
   const loserHasBonus  = hasAnyBonus(loserBonuses);
 
-  const partagerComptoir = async () => {
-    setShowShareToast(true);
-    setTimeout(()=>setShowShareToast(false), 2200);
-    // hook futur : envoyer un wall_post
+  // Partage WhatsApp — ouvre WhatsApp avec un résumé du match
+  const partagerWhatsApp = () => {
+    const winnerNom = gagnant?.nom || "—";
+    const loserNom = perdantNom || "—";
+    const scoreW = gagnantIdx === 0 ? j0.manchesGagnees : j1.manchesGagnees;
+    const scoreL = gagnantIdx === 0 ? j1.manchesGagnees : j0.manchesGagnees;
+    const moyW = moyenne(gagnant);
+    const drixLine = modeDuel && duel?.type !== "amical" && winnerTotal > 0
+      ? `\n💎 *+${winnerTotal} DRIX* pour ${winnerNom}`
+      : "";
+    const finishLine = bestFinish ? `\n🎯 Meilleur finish : ${bestFinish}` : "";
+    const voleeLine  = bestVolee  ? `\n🔥 Plus grosse volée : ${bestVolee}` : "";
+    const appUrl = (typeof window !== "undefined" && window.location?.origin) || "https://dartpoint.netlify.app";
+
+    const text =
+      `🎯 *DartPoint — Résultat du match*\n\n` +
+      `🏆 *${winnerNom}* l'emporte ${scoreW}–${scoreL} face à ${loserNom}\n` +
+      `📊 Moyenne : ${moyW}` +
+      finishLine + voleeLine + drixLine +
+      `\n\n🍻 Rejoins-moi sur DartPoint pour suivre nos duels :\n${appUrl}`;
+
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    try {
+      window.open(waUrl, "_blank", "noopener,noreferrer");
+    } catch {
+      setShowShareToast(true);
+      setTimeout(()=>setShowShareToast(false), 2200);
+    }
   };
 
   return (
@@ -532,9 +556,9 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
           <span style={{ fontSize:16 }}>📊</span>
           <span>Stats</span>
         </button>
-        <button onClick={partagerComptoir} style={{ padding:"11px 6px", borderRadius:12, border:"1px solid #a855f744", fontWeight:700, fontSize:12, cursor:"pointer", background:"#0f0a1a", color:"#a78bfa", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
-          <span style={{ fontSize:16 }}>📤</span>
-          <span>Partager</span>
+        <button onClick={partagerWhatsApp} style={{ padding:"11px 6px", borderRadius:12, border:"1px solid #22c55e55", fontWeight:700, fontSize:12, cursor:"pointer", background:"linear-gradient(135deg,#0a1a0a,#0f1f15)", color:"#22c55e", display:"flex", flexDirection:"column", alignItems:"center", gap:3, boxShadow:"0 0 12px #22c55e22" }}>
+          <span style={{ fontSize:16 }}>💬</span>
+          <span>WhatsApp</span>
         </button>
         <button onClick={quitterPartie} style={{ padding:"11px 6px", borderRadius:12, border:"1px solid #2a2a2a", fontWeight:700, fontSize:12, cursor:"pointer", background:"#1a1a1a", color:"#94a3b8", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
           <span style={{ fontSize:16 }}>🏠</span>
@@ -544,8 +568,8 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
 
       {/* Toast partage */}
       {showShareToast && (
-        <div style={{ position:"fixed", bottom:80, left:"50%", transform:"translateX(-50%)", background:"linear-gradient(135deg,#7c3aed,#6d28d9)", color:"#fff", padding:"12px 20px", borderRadius:24, fontSize:13, fontWeight:700, boxShadow:"0 8px 24px #7c3aed88", zIndex:9999 }}>
-          📤 Partage à venir bientôt !
+        <div style={{ position:"fixed", bottom:80, left:"50%", transform:"translateX(-50%)", background:"linear-gradient(135deg,#16a34a,#22c55e)", color:"#fff", padding:"12px 20px", borderRadius:24, fontSize:13, fontWeight:700, boxShadow:"0 8px 24px #22c55e88", zIndex:9999 }}>
+          ⚠️ Impossible d'ouvrir WhatsApp
         </div>
       )}
 
