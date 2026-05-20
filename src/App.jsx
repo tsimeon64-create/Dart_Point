@@ -6661,7 +6661,7 @@ const AdminJoueurs = ({ addLog }) => {
   };
 
   const supprimerCompte = async (j) => {
-    if (!window.confirm(`⚠️ Supprimer définitivement ${j.pseudo} ?\n\nCela supprimera aussi :\n• Ses liens d'amitié\n• Son historique DRIX\n• Ses présences\n\nCette action est irréversible.`)) return;
+    if (!window.confirm(`⚠️ Supprimer définitivement ${j.pseudo} ?\n\nCela supprimera aussi :\n• Ses liens d'amitié\n• Son historique DRIX\n• Ses présences\n\nCette action est irréversible.\n\n⚠️ Préférable : utiliser "Anonymiser (RGPD)" pour conserver l'intégrité des stats des autres joueurs.`)) return;
     setSaving(s=>({...s,[j.id]:true}));
     try {
       // 1. Nettoyer les tables liées
@@ -6674,6 +6674,44 @@ const AdminJoueurs = ({ addLog }) => {
       setMsg(m=>({...m,[j.id]:"✅ Compte et données associées supprimés."}));
     } catch(e) {
       alert(`❌ Erreur lors de la suppression de ${j.pseudo} :\n${e.message}`);
+      setSaving(s=>({...s,[j.id]:false}));
+    }
+  };
+
+  // ── ANONYMISATION RGPD ──────────────────────────────────────────────────────
+  // Conforme article 17 RGPD. Garde l'historique des matchs intact pour ne pas
+  // fausser les stats des autres joueurs.
+  const anonymiserCompte = async (j) => {
+    if (!window.confirm(`🕵️ Anonymiser le compte de ${j.pseudo} (RGPD) ?\n\n• Le pseudo devient "Joueur supprimé #${j.id}"\n• Email, nom, prénom, photo, ville → effacés\n• Amis, messages, présences → supprimés\n• Historique des matchs et DRIX → CONSERVÉS (intégrité des stats des autres joueurs)\n\nLe joueur ne pourra plus se connecter.`)) return;
+    setSaving(s=>({...s,[j.id]:true}));
+    try {
+      // 1. Anonymise le profil
+      await sb(`joueurs?id=eq.${j.id}`, { method:"PATCH", body:JSON.stringify({
+        pseudo: `Joueur supprimé #${j.id}`,
+        email: null,
+        nom: null,
+        prenom: null,
+        photo: null,
+        ville: null,
+        password_hash: null,
+        bar_slug: null,
+        anonymise: true,
+        anonymise_date: Date.now(),
+      }), prefer:"return=minimal" });
+      // 2. Supprime les données perso liées (amis, messages, présences)
+      await Promise.allSettled([
+        sb(`amis?joueur_id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}),
+        sb(`amis?ami_id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}),
+        sb(`presences?joueur_id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}),
+        sb(`presence_joueurs?joueur_id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}),
+        sb(`messages?or=(expediteur_id.eq.${j.id},destinataire_id.eq.${j.id})`,{method:"DELETE",prefer:"return=minimal"}),
+      ]);
+      // 3. Retire de l'UI
+      setTous(x=>x.filter(p=>p.id!==j.id));
+      addLog?.("Compte anonymisé (RGPD)", j.pseudo, "warning");
+      setMsg(m=>({...m,[j.id]:"✅ Compte anonymisé. Stats des autres joueurs préservées."}));
+    } catch(e) {
+      alert(`❌ Erreur lors de l'anonymisation de ${j.pseudo} :\n${e.message}`);
       setSaving(s=>({...s,[j.id]:false}));
     }
   };
@@ -6891,6 +6929,11 @@ const AdminJoueurs = ({ addLog }) => {
                 <div style={{background:"#1a0000",border:`1px solid ${C.red}22`,borderRadius:12,padding:16}}>
                   <div style={{fontSize:12,color:C.red,fontWeight:700,letterSpacing:.5,marginBottom:12}}>⚠️ ACTIONS ADMINISTRATIVES</div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    <button onClick={()=>anonymiserCompte(j)} disabled={saving[j.id]}
+                      style={{background:"#1a1a00",color:"#a3a3a3",border:`1px solid #a3a3a355`,borderRadius:8,padding:"9px 16px",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",gap:6}}
+                      title="Anonymise le compte selon RGPD Art. 17 — préserve l'intégrité des stats des autres joueurs">
+                      🕵️ Anonymiser (RGPD)
+                    </button>
                     <button onClick={()=>supprimerCompte(j)} disabled={saving[j.id]}
                       style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}55`,borderRadius:8,padding:"9px 16px",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",gap:6}}>
                       🗑 Supprimer le compte
@@ -6900,7 +6943,7 @@ const AdminJoueurs = ({ addLog }) => {
                       🚫 Bannir (DRIX 0 + suppression)
                     </button>
                   </div>
-                  <div style={{marginTop:10,fontSize:11,color:C.muted}}>⚠️ Ces actions sont irréversibles et seront enregistrées dans les logs.</div>
+                  <div style={{marginTop:10,fontSize:11,color:C.muted}}>⚠️ Ces actions sont irréversibles et seront enregistrées dans les logs.<br/>💡 <strong>Anonymisation</strong> = recommandé pour suppression à la demande du joueur (RGPD). <strong>Suppression</strong> = efface définitivement, casse les stats. <strong>Ban</strong> = pour comportement abusif.</div>
                 </div>
 
               </div>
@@ -6912,7 +6955,459 @@ const AdminJoueurs = ({ addLog }) => {
   );
 };
 
-const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTournois, setPage, setBarSlug, setAssoSlug, setTournoiSlug }) => {
+// ══════════════════════════════════════════════════════════════════════════════
+// AdminDuels — Vue admin des duels avec annulation et correction de score
+// ══════════════════════════════════════════════════════════════════════════════
+const AdminDuels = ({ addLog }) => {
+  const [duels, setDuels] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filtre, setFiltre] = useState("conteste");
+  const [recherche, setRecherche] = useState("");
+  const [working, setWorking] = useState({});
+  const [editScore, setEditScore] = useState(null); // { id, sc, sd }
+
+  const fetchDuels = useCallback(async () => {
+    setLoading(true);
+    const q = filtre === "tous"
+      ? "duels?order=date.desc&limit=200&select=*"
+      : `duels?statut=eq.${filtre}&order=date.desc&limit=200&select=*`;
+    const r = await sb(q).catch(()=>[]);
+    setDuels(r||[]);
+    setLoading(false);
+  }, [filtre]);
+
+  useEffect(()=>{ fetchDuels(); }, [fetchDuels]);
+
+  // Annuler un duel terminé → rollback DRIX via drix_mouvements
+  const annulerDuel = async (d) => {
+    const note = window.prompt(`⚠️ Annuler ce duel et rollback DRIX ?\n\n${d.challenger_pseudo} vs ${d.defie_pseudo}\nStatut : ${d.statut}\n\nMotif de l'annulation (sera enregistré) :`);
+    if (!note) return;
+    setWorking(w=>({...w,[d.id]:true}));
+    try {
+      // Récupère les mouvements DRIX liés (par joueur + date proche du duel)
+      const dueltime = new Date(d.date).getTime();
+      const tmin = dueltime - 60*1000;
+      const tmax = dueltime + 30*60*1000;
+      const ids = [d.challenger_id, d.defie_id].filter(Boolean);
+      if (ids.length === 0) { alert("IDs joueurs manquants"); return; }
+      const mvts = await sb(`drix_mouvements?joueur_id=in.(${ids.join(",")})&date=gte.${tmin}&date=lte.${tmax}&select=*`).catch(()=>[]);
+
+      // Rollback : pour chaque mouvement trouvé, inverse la variation
+      for (const m of (mvts||[])) {
+        const j = await sb(`joueurs?id=eq.${m.joueur_id}&select=drix,pseudo,anonymise`).catch(()=>[]).then(r=>r?.[0]);
+        if (!j || j.anonymise) continue;
+        const newDrix = Math.max(0, (j.drix||1000) - (m.variation||0));
+        await sb(`joueurs?id=eq.${m.joueur_id}`, { method:"PATCH", body:JSON.stringify({ drix:newDrix }), prefer:"return=minimal" });
+        await sb("drix_mouvements", { method:"POST", body:JSON.stringify({
+          joueur_id: m.joueur_id, joueur_pseudo: m.joueur_pseudo,
+          adversaire_pseudo: "Admin (rollback)",
+          variation: -(m.variation||0), drix_avant: j.drix||1000, drix_apres: newDrix,
+          resultat: "annule_admin", date: Date.now()
+        })}).catch(()=>{});
+      }
+
+      // PATCH duel
+      await sb(`duels?id=eq.${d.id}`, { method:"PATCH", body:JSON.stringify({
+        statut:"annule_admin", admin_action:"annule_admin", admin_note: note
+      }), prefer:"return=minimal" });
+
+      addLog?.(`Duel annulé (rollback DRIX)`, `${d.challenger_pseudo} vs ${d.defie_pseudo}`, "danger");
+      await fetchDuels();
+    } catch(e) {
+      alert("Erreur annulation : " + e.message);
+    }
+    setWorking(w=>({...w,[d.id]:false}));
+  };
+
+  // Corriger le score → modifie nbManches sans recalcul DRIX automatique
+  const corrigerScore = async (d) => {
+    if (!editScore || editScore.id !== d.id) return;
+    const note = window.prompt("Motif de la correction (sera enregistré) :");
+    if (!note) return;
+    setWorking(w=>({...w,[d.id]:true}));
+    try {
+      const scC = parseInt(editScore.sc); const scD = parseInt(editScore.sd);
+      if (isNaN(scC)||isNaN(scD)) { alert("Scores invalides"); return; }
+      const gagnant_id = scC>scD ? d.challenger_id : d.defie_id;
+      await sb(`duels?id=eq.${d.id}`, { method:"PATCH", body:JSON.stringify({
+        manches_challenger: scC, manches_defie: scD, gagnant_id,
+        admin_action:"score_corrige", admin_note: note
+      }), prefer:"return=minimal" });
+      addLog?.(`Score corrigé`, `${d.challenger_pseudo} vs ${d.defie_pseudo} → ${scC}-${scD}`, "warning");
+      setEditScore(null);
+      await fetchDuels();
+    } catch(e) {
+      alert("Erreur correction : " + e.message);
+    }
+    setWorking(w=>({...w,[d.id]:false}));
+  };
+
+  const filtres = [
+    ["conteste", "⚠️ Contestés", C.red],
+    ["en_cours", "🎯 En cours", C.accent],
+    ["termine",  "✅ Terminés",  C.green],
+    ["annule",   "❌ Annulés",   C.muted],
+    ["annule_admin", "🛡 Annulés admin", "#a855f7"],
+    ["tous",     "📋 Tous",      C.blue],
+  ];
+
+  const duelsFiltres = recherche
+    ? duels.filter(d => (d.challenger_pseudo||"").toLowerCase().includes(recherche.toLowerCase()) || (d.defie_pseudo||"").toLowerCase().includes(recherche.toLowerCase()))
+    : duels;
+
+  const stColor = (s) => s==="conteste"?C.red : s==="en_cours"?C.accent : s==="termine"?C.green : s==="annule_admin"?"#a855f7" : C.muted;
+
+  return (
+    <div>
+      {/* Filtres */}
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+        {filtres.map(([k,l,col])=>(
+          <button key={k} onClick={()=>setFiltre(k)} style={{
+            background: filtre===k ? `${col}33` : "#1a1a1a",
+            border: `1px solid ${filtre===k?col:C.border}`,
+            color: filtre===k ? col : C.muted,
+            borderRadius: 10, padding: "8px 14px", cursor:"pointer",
+            fontWeight: filtre===k?700:500, fontSize:12,
+          }}>{l}</button>
+        ))}
+      </div>
+
+      <div style={{display:"flex",gap:10,marginBottom:14,alignItems:"center"}}>
+        <input value={recherche} onChange={e=>setRecherche(e.target.value)} placeholder="🔍 Filtrer par pseudo…"
+          style={{flex:1,background:"#111",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",color:C.text,fontSize:14}}/>
+        <div style={{color:C.muted,fontSize:12,whiteSpace:"nowrap"}}>{duelsFiltres.length} duel{duelsFiltres.length!==1?"s":""}</div>
+      </div>
+
+      {loading && <Spinner/>}
+
+      {!loading && duelsFiltres.length===0 && (
+        <div style={{textAlign:"center",padding:50,color:C.muted}}>Aucun duel pour ce filtre.</div>
+      )}
+
+      {duelsFiltres.map(d => {
+        const scC = d.manches_challenger ?? 0;
+        const scD = d.manches_defie ?? 0;
+        const date = d.date ? new Date(d.date).toLocaleString("fr-FR",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}) : "—";
+        const editing = editScore?.id === d.id;
+        return (
+          <div key={d.id} style={{background:C.card,border:`1px solid ${stColor(d.statut)}33`,borderRadius:12,padding:14,marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:8}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:14,fontWeight:700}}>
+                  <span style={{color:d.gagnant_id===d.challenger_id?C.green:C.text}}>{d.challenger_pseudo||"?"}</span>
+                  <span style={{color:C.muted,margin:"0 8px"}}>vs</span>
+                  <span style={{color:d.gagnant_id===d.defie_id?C.green:C.text}}>{d.defie_pseudo||"?"}</span>
+                </div>
+                <div style={{fontSize:11,color:C.muted,marginTop:2}}>
+                  {d.mode||"?"} · Premier à {d.manches||"?"} · {date}
+                  {d.bar_slug && <span style={{marginLeft:6}}>· 🍺 {d.bar_slug}</span>}
+                </div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                {editing ? (
+                  <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                    <input type="number" min="0" value={editScore.sc} onChange={e=>setEditScore({...editScore,sc:e.target.value})}
+                      style={{width:40,background:"#111",border:`1px solid ${C.accent}`,borderRadius:6,padding:"4px 6px",color:C.text,fontSize:14,textAlign:"center"}}/>
+                    <span style={{color:C.muted}}>-</span>
+                    <input type="number" min="0" value={editScore.sd} onChange={e=>setEditScore({...editScore,sd:e.target.value})}
+                      style={{width:40,background:"#111",border:`1px solid ${C.accent}`,borderRadius:6,padding:"4px 6px",color:C.text,fontSize:14,textAlign:"center"}}/>
+                  </div>
+                ) : (
+                  <div style={{fontSize:18,fontWeight:900,color:stColor(d.statut)}}>{scC}–{scD}</div>
+                )}
+                <div style={{fontSize:10,color:stColor(d.statut),textTransform:"uppercase",letterSpacing:1,fontWeight:700,marginTop:2}}>{d.statut}</div>
+              </div>
+            </div>
+
+            {/* Trace admin */}
+            {d.admin_action && (
+              <div style={{background:"#1a0014",border:`1px solid #a855f733`,borderRadius:8,padding:"6px 10px",fontSize:11,color:"#a855f7",marginBottom:8}}>
+                🛡 <strong>{d.admin_action}</strong>
+                {d.admin_note && <div style={{color:C.muted,marginTop:2,fontStyle:"italic"}}>"{d.admin_note}"</div>}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {!editing && d.statut !== "annule_admin" && (
+                <button onClick={()=>setEditScore({id:d.id,sc:String(scC),sd:String(scD)})} disabled={working[d.id]}
+                  style={{background:"#1a1200",color:C.yellow,border:`1px solid ${C.yellow}44`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}>
+                  ✏️ Corriger score
+                </button>
+              )}
+              {editing && (
+                <>
+                  <button onClick={()=>corrigerScore(d)} disabled={working[d.id]}
+                    style={{background:C.green,color:"#fff",border:"none",borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:700}}>
+                    💾 Enregistrer
+                  </button>
+                  <button onClick={()=>setEditScore(null)}
+                    style={{background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12}}>
+                    Annuler
+                  </button>
+                </>
+              )}
+              {!editing && d.statut !== "annule_admin" && (
+                <button onClick={()=>annulerDuel(d)} disabled={working[d.id]}
+                  style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}>
+                  🛡 Annuler & rollback DRIX
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AdminTournois — Gestion complète des tournois publics depuis l'admin
+// ══════════════════════════════════════════════════════════════════════════════
+const AdminTournois = ({ tournois, setTournois, setEditTournoi, setTournoiSlug, setPage, addLog }) => {
+  const [working, setWorking] = useState({});
+  const [openId, setOpenId] = useState(null);
+  const [inscrits, setInscrits] = useState({});
+  const [showResultats, setShowResultats] = useState(null);
+  const [filtreStatut, setFiltreStatut] = useState("tous");
+
+  const loadInscrits = async (slug) => {
+    const r = await db.getInscrits(slug).catch(()=>[]);
+    setInscrits(x=>({...x,[slug]:r||[]}));
+  };
+
+  const toggleOpen = (t) => {
+    if (openId === t.id) { setOpenId(null); return; }
+    setOpenId(t.id);
+    if (!inscrits[t.slug]) loadInscrits(t.slug);
+  };
+
+  const retirerJoueur = async (t, joueur_id, pseudo) => {
+    if (!window.confirm(`Retirer ${pseudo} du tournoi ?`)) return;
+    await db.deleteInscription(t.slug, joueur_id).catch(()=>{});
+    await loadInscrits(t.slug);
+    addLog?.("Joueur retiré du tournoi", `${pseudo} - ${t.nom}`, "warning");
+  };
+
+  const cloturerTournoi = async (t) => {
+    if (!window.confirm(`Clôturer "${t.nom}" ?\n\nLes inscriptions seront bloquées.`)) return;
+    setWorking(w=>({...w,[t.id]:true}));
+    await db.updateTournoi(t.slug, { statut:"termine" }).catch(()=>{});
+    setTournois(arr=>arr.map(x=>x.slug===t.slug?{...x,statut:"termine"}:x));
+    addLog?.("Tournoi clôturé", t.nom, "info");
+    setWorking(w=>({...w,[t.id]:false}));
+  };
+
+  const annulerTournoi = async (t) => {
+    const motif = window.prompt(`Annuler "${t.nom}" ?\n\nMotif (sera affiché aux inscrits) :`);
+    if (!motif) return;
+    setWorking(w=>({...w,[t.id]:true}));
+    await db.updateTournoi(t.slug, { statut:"annule", description: `${t.description||""}\n\n⚠️ ANNULÉ : ${motif}` }).catch(()=>{});
+    setTournois(arr=>arr.map(x=>x.slug===t.slug?{...x,statut:"annule"}:x));
+    addLog?.("Tournoi annulé", `${t.nom} — ${motif}`, "danger");
+    setWorking(w=>({...w,[t.id]:false}));
+  };
+
+  const supprimerTournoi = async (t) => {
+    if (!window.confirm(`🗑 Supprimer définitivement "${t.nom}" ?\n\nToutes les inscriptions seront supprimées. Irréversible.`)) return;
+    setWorking(w=>({...w,[t.id]:true}));
+    try {
+      // Supprime les inscriptions liées
+      await sb(`tournoi_inscriptions?tournoi_slug=eq.${encodeURIComponent(t.slug)}`, { method:"DELETE", prefer:"return=minimal" }).catch(()=>{});
+      await db.deleteTournoi(t.slug);
+      setTournois(arr=>arr.filter(x=>x.slug!==t.slug));
+      addLog?.("Tournoi supprimé", t.nom, "danger");
+    } catch(e) {
+      alert("Erreur : " + e.message);
+    }
+    setWorking(w=>({...w,[t.id]:false}));
+  };
+
+  const publierResultats = async (t, podium) => {
+    setWorking(w=>({...w,[t.id]:true}));
+    try {
+      const champ = inscrits[t.slug]?.find(i=>i.joueur_id===podium.first);
+      const second = inscrits[t.slug]?.find(i=>i.joueur_id===podium.second);
+      const third = inscrits[t.slug]?.find(i=>i.joueur_id===podium.third);
+      const podiumTxt = `🥇 ${champ?.pseudo||"?"} · 🥈 ${second?.pseudo||"?"} · 🥉 ${third?.pseudo||"?"}`;
+      await db.updateTournoi(t.slug, {
+        statut: "termine",
+        resultats: podiumTxt,
+        gagnant_id: podium.first,
+        gagnant_pseudo: champ?.pseudo || null,
+      }).catch(()=>{});
+      // Publication sur le Comptoir (table propositions)
+      await db.addProposition({
+        nom: t.nom, ville: t.ville, slug: t.slug,
+        type_prop: "resultats_tournoi",
+        statut: "info",
+        date: Date.now(),
+        commentaire: `🏆 Résultats publiés : ${podiumTxt}`,
+      }).catch(()=>{});
+      setTournois(arr=>arr.map(x=>x.slug===t.slug?{...x,statut:"termine",resultats:podiumTxt}:x));
+      addLog?.("Résultats tournoi publiés", `${t.nom} — ${podiumTxt}`, "success");
+      setShowResultats(null);
+    } catch(e) {
+      alert("Erreur publication : " + e.message);
+    }
+    setWorking(w=>({...w,[t.id]:false}));
+  };
+
+  const stColor = (s) => s==="termine"?C.green : s==="annule"?C.red : s==="publie"?C.accent : C.muted;
+  const stLabel = (s) => s==="termine"?"✅ Terminé" : s==="annule"?"❌ Annulé" : s==="publie"?"📅 À venir" : (s||"—");
+
+  const filtresTournois = [
+    ["tous","📋 Tous"],
+    ["publie","📅 À venir"],
+    ["termine","✅ Terminés"],
+    ["annule","❌ Annulés"],
+  ];
+
+  const tournoisFiltres = filtreStatut === "tous"
+    ? tournois
+    : tournois.filter(t => (t.statut||"publie") === filtreStatut);
+
+  return (
+    <div>
+      {/* Filtres */}
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+        {filtresTournois.map(([k,l])=>(
+          <button key={k} onClick={()=>setFiltreStatut(k)} style={{
+            background: filtreStatut===k ? `${C.accent}33` : "#1a1a1a",
+            border: `1px solid ${filtreStatut===k?C.accent:C.border}`,
+            color: filtreStatut===k ? C.accent : C.muted,
+            borderRadius: 10, padding: "8px 14px", cursor:"pointer",
+            fontWeight: filtreStatut===k?700:500, fontSize:12,
+          }}>{l}</button>
+        ))}
+        <div style={{marginLeft:"auto",color:C.muted,fontSize:12,alignSelf:"center"}}>{tournoisFiltres.length} tournoi{tournoisFiltres.length!==1?"s":""}</div>
+      </div>
+
+      {tournoisFiltres.length === 0 && (
+        <div style={{textAlign:"center",padding:50,color:C.muted}}>Aucun tournoi pour ce filtre.</div>
+      )}
+
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {tournoisFiltres.map(t => {
+          const isOpen = openId === t.id;
+          const lst = inscrits[t.slug] || [];
+          return (
+            <div key={t.id} style={{background:C.card,border:`1px solid ${isOpen?C.accent:C.border}`,borderRadius:12,overflow:"hidden"}}>
+              <div style={{padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,cursor:"pointer"}} onClick={()=>toggleOpen(t)}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:700,fontSize:14,marginBottom:3}}>{t.nom}</div>
+                  <div style={{color:C.muted,fontSize:12}}>📍 {t.ville} · 📅 {t.date||"—"} {t.bar && <span>· 🍺 {t.bar}</span>}</div>
+                  {t.resultats && <div style={{color:C.yellow,fontSize:12,marginTop:4,fontWeight:600}}>{t.resultats}</div>}
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:11,color:stColor(t.statut),fontWeight:700,padding:"3px 8px",background:`${stColor(t.statut)}22`,borderRadius:6}}>{stLabel(t.statut)}</span>
+                  <span style={{color:C.muted,fontSize:14,transform:isOpen?"rotate(180deg)":"",transition:"transform .2s"}}>▼</span>
+                </div>
+              </div>
+
+              {isOpen && (
+                <div style={{borderTop:`1px solid ${C.border}`,padding:"14px 16px"}}>
+                  {/* Inscrits */}
+                  <div style={{marginBottom:14}}>
+                    <div style={{fontSize:12,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:8}}>👥 INSCRITS ({lst.length})</div>
+                    {lst.length === 0 ? (
+                      <div style={{color:C.muted,fontSize:12,fontStyle:"italic"}}>Aucun inscrit.</div>
+                    ) : (
+                      <div style={{maxHeight:200,overflowY:"auto",background:"#0a0a0a",borderRadius:8,padding:"4px 8px"}}>
+                        {lst.map(i=>(
+                          <div key={i.id||i.joueur_id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 4px",borderBottom:`1px solid ${C.border}`,fontSize:13}}>
+                            <div>
+                              <span style={{fontWeight:600}}>{i.pseudo||"?"}</span>
+                              {i.date && <span style={{color:C.muted,fontSize:11,marginLeft:8}}>{new Date(i.date).toLocaleDateString("fr-FR")}</span>}
+                            </div>
+                            <button onClick={()=>retirerJoueur(t, i.joueur_id, i.pseudo)} style={{background:"transparent",border:"none",color:C.red,cursor:"pointer",fontSize:11,padding:"2px 6px"}}>✕ Retirer</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <button onClick={()=>setEditTournoi(t)} style={{background:"#1a1200",color:C.yellow,border:`1px solid ${C.yellow}44`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12}}>✏️ Éditer</button>
+                    {t.statut !== "termine" && t.statut !== "annule" && (
+                      <button onClick={()=>cloturerTournoi(t)} disabled={working[t.id]} style={{background:`${C.green}22`,color:C.green,border:`1px solid ${C.green}55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}>✅ Clôturer</button>
+                    )}
+                    {t.statut !== "annule" && (
+                      <button onClick={()=>setShowResultats({...t})} style={{background:`${C.yellow}22`,color:C.yellow,border:`1px solid ${C.yellow}55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}>🏆 Publier résultats</button>
+                    )}
+                    {t.statut !== "annule" && t.statut !== "termine" && (
+                      <button onClick={()=>annulerTournoi(t)} disabled={working[t.id]} style={{background:"#1a0014",color:"#f43f5e",border:`1px solid #f43f5e55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}>⚠️ Annuler</button>
+                    )}
+                    <button onClick={()=>supprimerTournoi(t)} disabled={working[t.id]} style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}>🗑 Supprimer</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Modal publication résultats */}
+      {showResultats && (
+        <ModalResultats
+          tournoi={showResultats}
+          inscrits={inscrits[showResultats.slug]||[]}
+          onClose={()=>setShowResultats(null)}
+          onPublish={(podium)=>publierResultats(showResultats, podium)}
+          working={!!working[showResultats.id]}
+        />
+      )}
+    </div>
+  );
+};
+
+// Modal pour saisir et publier le podium
+const ModalResultats = ({ tournoi, inscrits, onClose, onPublish, working }) => {
+  const [first, setFirst] = useState("");
+  const [second, setSecond] = useState("");
+  const [third, setThird] = useState("");
+
+  const peutPublier = first && (first !== second) && (first !== third) && (!second || second !== third);
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:14}}
+      onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:22,maxWidth:480,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
+        <h3 style={{margin:0,fontSize:18,fontWeight:800,marginBottom:6}}>🏆 Publier les résultats</h3>
+        <div style={{color:C.muted,fontSize:13,marginBottom:18}}>{tournoi.nom} · {tournoi.ville}</div>
+
+        {inscrits.length === 0 ? (
+          <div style={{color:C.muted,fontSize:13,textAlign:"center",padding:30}}>Aucun inscrit dans ce tournoi.</div>
+        ) : (
+          <>
+            {[["🥇","1ʳᵉ place",first,setFirst],["🥈","2ᵉ place",second,setSecond],["🥉","3ᵉ place",third,setThird]].map(([emoji,label,val,setter])=>(
+              <div key={label} style={{marginBottom:14}}>
+                <label style={{fontSize:12,color:C.muted,display:"block",marginBottom:6}}>{emoji} {label}</label>
+                <select value={val} onChange={e=>setter(e.target.value)} style={{width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:14}}>
+                  <option value="">— Sélectionner —</option>
+                  {inscrits.map(i=><option key={i.id||i.joueur_id} value={i.joueur_id}>{i.pseudo}</option>)}
+                </select>
+              </div>
+            ))}
+            <div style={{fontSize:11,color:C.muted,marginBottom:14,padding:"8px 10px",background:"#0a0a0a",borderRadius:8}}>
+              💡 Les résultats seront publiés sur le Comptoir et le tournoi sera marqué comme terminé.
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={onClose} style={{flex:1,background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,borderRadius:10,padding:"11px",cursor:"pointer",fontSize:14}}>Annuler</button>
+              <button onClick={()=>onPublish({first,second,third})} disabled={!peutPublier||working}
+                style={{flex:2,background:peutPublier?`linear-gradient(135deg,${C.accent},#ea580c)`:"#1a1a1a",color:peutPublier?"#fff":C.muted,border:"none",borderRadius:10,padding:"11px",cursor:peutPublier?"pointer":"default",fontSize:14,fontWeight:800}}>
+                {working ? "Publication…" : "🏆 Publier"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois, setTournois, setPage, setBarSlug, setAssoSlug, setTournoiSlug }) => {
   const [tab, setTab]               = useState("dashboard");
   const [propositions, setPropositions] = useState([]);
   const [signalements, setSignalements] = useState([]);
@@ -6929,8 +7424,30 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
   const [kpiDetail, setKpiDetail]   = useState(null); // "nouveaux" | "connexions" | null
   const [connexionsDetail, setConnexionsDetail] = useState([]);
 
-  const addLog = (action, cible, type="info") =>
-    setAdminLogs(l => [{ id:Date.now(), action, cible, type, date:new Date().toLocaleString("fr-FR") }, ...l.slice(0,49)]);
+  // Charge les logs persistés au montage
+  useEffect(()=>{
+    sb(`admin_logs?order=date.desc&limit=200&select=*`)
+      .then(r=>setAdminLogs((r||[]).map(l=>({
+        ...l,
+        date: new Date(Number(l.date)).toLocaleString("fr-FR")
+      }))))
+      .catch(()=>{});
+  },[]);
+
+  const addLog = (action, cible, type="info") => {
+    const localEntry = { id:Date.now(), action, cible, type, date:new Date().toLocaleString("fr-FR"), admin_pseudo: joueur?.pseudo||"admin" };
+    setAdminLogs(l => [localEntry, ...l.slice(0,199)]);
+    // Persistance fire-and-forget
+    sb("admin_logs", { method:"POST", body:JSON.stringify({
+      action, cible, type, admin_pseudo: joueur?.pseudo||"admin", date: Date.now()
+    }), prefer:"return=minimal" }).catch(()=>{});
+  };
+
+  const viderLogs = async () => {
+    if (!window.confirm("⚠️ Supprimer définitivement tous les logs admin ?")) return;
+    await sb(`admin_logs?id=gte.0`, { method:"DELETE", prefer:"return=minimal" }).catch(()=>{});
+    setAdminLogs([]);
+  };
 
   // Charge le détail connexions quand on ouvre le modal
   useEffect(()=>{
@@ -7087,22 +7604,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
     </div>
   );
 
-  const renderTournois = () => (
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
-      {tournois.map(t=>(
-        <div key={t.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14}}>
-          <div onClick={()=>{setTournoiSlug(t.slug);setPage("tournoi-detail");}} style={{cursor:"pointer",marginBottom:10}}>
-            <div style={{fontWeight:700,fontSize:14}}>{t.nom}</div>
-            <div style={{color:C.muted,fontSize:12}}>📍 {t.ville} · 📅 {t.date}</div>
-          </div>
-          <div style={{display:"flex",gap:5}}>
-            <button onClick={()=>setEditTournoi(t)} style={{background:"#1a1200",border:`1px solid ${C.yellow}44`,borderRadius:6,color:C.yellow,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>✏️ Éditer</button>
-            <button onClick={async()=>{if(!window.confirm("Supprimer ?"))return;await db.deleteTournoi(t.slug);setTournois(x=>x.filter(y=>y.slug!==t.slug));addLog("Tournoi supprimé",t.nom,"danger");}} style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>🗑</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  const renderTournois = () => <AdminTournois tournois={tournois} setTournois={setTournois} setEditTournoi={setEditTournoi} setTournoiSlug={setTournoiSlug} setPage={setPage} addLog={addLog}/>;
 
   const renderSignalements = () => (
     sigPending.length===0
@@ -7290,7 +7792,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div style={{fontSize:13,color:C.muted}}>Historique des actions de la session en cours</div>
-        {adminLogs.length>0&&<button onClick={()=>setAdminLogs([])} style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}44`,borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:12}}>🗑 Vider</button>}
+        {adminLogs.length>0&&<button onClick={viderLogs} style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}44`,borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:12}}>🗑 Vider</button>}
       </div>
       {adminLogs.length===0
         ? <div style={{textAlign:"center",padding:60,color:C.muted}}>Aucune action enregistrée.</div>
@@ -7511,6 +8013,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
     ["alltournois",`🏅 Tournois (${tournois.length})`],
     ["signalements",`⚠️ Signalements${sigPending.length>0?` (${sigPending.length})`:""}`,sigPending.length>0?"urgent":null],
     ["joueurs","👤 Joueurs"],
+    ["duels","⚔️ Duels"],
     ["logs",`📜 Logs${adminLogs.length>0?` (${adminLogs.length})`:""}`,null],
   ];
 
@@ -7639,6 +8142,7 @@ const Admin = ({ bars, setBars, associations, setAssociations, tournois, setTour
           : tab==="alltournois" ? renderTournois()
           : tab==="signalements"? renderSignalements()
           : tab==="joueurs"     ? <AdminJoueurs addLog={addLog}/>
+          : tab==="duels"       ? <AdminDuels addLog={addLog}/>
           : tab==="logs"        ? renderLogs()
           : null}
       </div>
@@ -9134,7 +9638,7 @@ export default function App() {
       
         {page==="mentions"         && <MentionsLegales/>}
         {page==="adminlogin"       && <AdminLogin onLogin={()=>{setIsAdmin(true);nav("admin");}}/>}
-        {page==="admin"            && (isAdmin?<Admin bars={bars} setBars={setBars} associations={associations} setAssociations={setAssociations} tournois={tournois} setTournois={setTournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug}/>:<AdminLogin onLogin={()=>{setIsAdmin(true);nav("admin");}}/>)}
+        {page==="admin"            && (isAdmin?<Admin joueur={joueur} bars={bars} setBars={setBars} associations={associations} setAssociations={setAssociations} tournois={tournois} setTournois={setTournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug}/>:<AdminLogin onLogin={()=>{setIsAdmin(true);nav("admin");}}/>)}
       </main>
       <Footer setPage={nav} onOpenHelp={HELP_CONTENT[page] ? ()=>setHelpOpen(true) : null}/>
     </div>
