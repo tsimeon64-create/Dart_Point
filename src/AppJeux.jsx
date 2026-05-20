@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { SCORER } from "./theme";
-import { Search } from "lucide-react";
+import { Search, Swords, Check } from "lucide-react";
 
 // ── Confetti ──────────────────────────────────────────────────────────────────
 const Confetti = () => {
@@ -93,18 +93,26 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
   const [show, setShow] = useState(false);
   const [drixShow, setDrixShow] = useState(false);
   const [winnerPhoto, setWinnerPhoto] = useState(null);
+  const [loserPhoto, setLoserPhoto]   = useState(null);
   const [showStats, setShowStats] = useState(false);
+  const [showShareToast, setShowShareToast] = useState(false);
 
   useEffect(() => {
     setShow(true);
     const t = setTimeout(() => setDrixShow(true), 800);
-    // Fetch la photo du gagnant si en mode duel
-    if (modeDuel && duel && gagnant?.nom) {
-      const winnerId = gagnant.nom === duel.challenger_pseudo ? duel.challenger_id : duel.defie_id;
-      if (winnerId) {
-        fetch(`${SB_URL_J}/rest/v1/joueurs?id=eq.${winnerId}&select=photo`, {
+    // Fetch les photos des deux joueurs si en mode duel
+    if (modeDuel && duel) {
+      const wId = gagnant?.nom === duel.challenger_pseudo ? duel.challenger_id : duel.defie_id;
+      const lId = gagnant?.nom === duel.challenger_pseudo ? duel.defie_id      : duel.challenger_id;
+      if (wId) {
+        fetch(`${SB_URL_J}/rest/v1/joueurs?id=eq.${wId}&select=photo`, {
           headers: { apikey: SB_KEY_J, Authorization: `Bearer ${SB_KEY_J}` }
         }).then(r => r.json()).then(d => { if (d?.[0]?.photo) setWinnerPhoto(d[0].photo); }).catch(() => {});
+      }
+      if (lId) {
+        fetch(`${SB_URL_J}/rest/v1/joueurs?id=eq.${lId}&select=photo`, {
+          headers: { apikey: SB_KEY_J, Authorization: `Bearer ${SB_KEY_J}` }
+        }).then(r => r.json()).then(d => { if (d?.[0]?.photo) setLoserPhoto(d[0].photo); }).catch(() => {});
       }
     }
     return () => clearTimeout(t);
@@ -150,153 +158,344 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
     </div>
   );
 
-  return (
-    <div style={{ maxWidth:480,margin:"0 auto",padding:"12px 16px",textAlign:"center",fontFamily:"Inter,sans-serif",position:"relative",zIndex:1 }}>
-      <Confetti/>
+  // ── Highlights du match ────────────────────────────────────────────────────
+  const bestVolee = Math.max(s0.bestVolee||0, s1.bestVolee||0);
+  const bestMoy   = Math.max(s0.moy||0, s1.moy||0);
+  const bestFinish = manchesDetail.reduce((m,x)=>{
+    const f = x.winner_finish ? parseInt(x.winner_finish) : 0;
+    return Math.max(m, f||0);
+  }, 0);
+  const score = `${gagnantIdx===0?j0.manchesGagnees:j1.manchesGagnees} – ${gagnantIdx===0?j1.manchesGagnees:j0.manchesGagnees}`;
 
-      {/* Carte victoire */}
+  // ── Analyse IA dynamique ───────────────────────────────────────────────────
+  const analyseIA = (() => {
+    const winner = gagnantIdx===0 ? j0 : j1;
+    const loser  = gagnantIdx===0 ? j1 : j0;
+    const winMoy = gagnantIdx===0 ? s0.moy : s1.moy;
+    const loseMoy = gagnantIdx===0 ? s1.moy : s0.moy;
+    const winM = winner.manchesGagnees||0;
+    const loseM = loser.manchesGagnees||0;
+    const ecart = winM - loseM;
+    if (ecart >= 3 && winMoy > 70) return { emoji:"🔥", text:`${winner.nom} a dominé de bout en bout avec une moyenne exceptionnelle.` };
+    if (ecart >= 3) return { emoji:"⚡", text:`${winner.nom} n'a laissé aucune chance à ${loser.nom}.` };
+    if (ecart === 1 && winM >= 3) return { emoji:"⚔️", text:`Match très serré, tout s'est joué dans la dernière manche.` };
+    if (bestFinish >= 100) return { emoji:"🎯", text:`Finish de classe à ${bestFinish}. Du grand art.` };
+    if (winMoy > loseMoy * 1.2) return { emoji:"💎", text:`${winner.nom} a aligné les volées de qualité.` };
+    if (loseM > 0 && winM - loseM <= 1) return { emoji:"💀", text:`${loser.nom} a craqué dans les moments clés.` };
+    return { emoji:"🏆", text:`Belle victoire de ${winner.nom}. Que la revanche commence.` };
+  })();
+
+  // ── Bonus chips ────────────────────────────────────────────────────────────
+  const winnerBonuses = drixBreakdown ? (gagnantIsChallenger ? drixBreakdown.challenger.bonus : drixBreakdown.defie.bonus) : null;
+  const winnerTotal   = drixBreakdown ? Math.abs((gagnantIsChallenger ? drixBreakdown.challenger.totalVariation : drixBreakdown.defie.totalVariation)) : (dxGagnant?.gain || 0);
+  const loserTotal    = drixBreakdown ? Math.abs((gagnantIsChallenger ? drixBreakdown.defie.totalVariation     : drixBreakdown.challenger.totalVariation)) : (dxPerdant?.perte || 0);
+  const loserSign     = drixBreakdown ? ((gagnantIsChallenger ? drixBreakdown.defie.totalVariation : drixBreakdown.challenger.totalVariation) >= 0) : false;
+
+  const partagerComptoir = async () => {
+    setShowShareToast(true);
+    setTimeout(()=>setShowShareToast(false), 2200);
+    // hook futur : envoyer un wall_post
+  };
+
+  return (
+    <div style={{ maxWidth:520,margin:"0 auto",padding:"12px 14px 80px",fontFamily:"Inter,sans-serif",position:"relative",zIndex:1 }}>
+      <Confetti/>
+      <style>{`
+        @keyframes finHeroIn   { 0%{opacity:0;transform:translateY(-12px) scale(.9)} 60%{transform:translateY(2px) scale(1.04)} 100%{opacity:1;transform:translateY(0) scale(1)} }
+        @keyframes finTitleGlow{ 0%,100%{text-shadow:0 0 24px #fbbf2466,0 0 48px #f9731644} 50%{text-shadow:0 0 36px #fbbf24cc,0 0 72px #f97316aa} }
+        @keyframes finScoreIn  { 0%{opacity:0;transform:scale(.4)} 70%{transform:scale(1.15)} 100%{opacity:1;transform:scale(1)} }
+        @keyframes finAvatarIn { 0%{opacity:0;transform:translateY(20px) scale(.8)} 100%{opacity:1;transform:translateY(0) scale(1)} }
+        @keyframes finCardIn   { 0%{opacity:0;transform:translateY(14px)} 100%{opacity:1;transform:translateY(0)} }
+        @keyframes finRejouerGlow { 0%,100%{box-shadow:0 0 18px #f9731555,0 4px 20px #ea580c44} 50%{box-shadow:0 0 48px #f97316dd,0 6px 36px #ea580caa} }
+        @keyframes finCheckPop { 0%{transform:scale(0) rotate(-90deg)} 60%{transform:scale(1.3) rotate(10deg)} 100%{transform:scale(1) rotate(0)} }
+        @keyframes finBgPulse  { 0%,100%{opacity:.4} 50%{opacity:.7} }
+        @keyframes finChipIn   { 0%{opacity:0;transform:translateX(-12px)} 100%{opacity:1;transform:translateX(0)} }
+        @keyframes finSwords   { 0%,100%{transform:rotate(-8deg) scale(1)} 50%{transform:rotate(8deg) scale(1.1)} }
+        @keyframes finShine    { 0%{transform:translateX(-120%) skewX(-18deg)} 60%,100%{transform:translateX(320%) skewX(-18deg)} }
+        @keyframes finProgBar  { from{width:0} }
+      `}</style>
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* 1. HERO VICTOIRE — Titre énorme avec glow                          */}
+      {/* ════════════════════════════════════════════════════════════════ */}
       <div style={{
-        background:"linear-gradient(135deg,#14532d,#166534)",
-        borderRadius:16, padding:"16px 20px", marginBottom:12,
-        transform: show ? "scale(1)" : "scale(0.85)",
-        opacity: show ? 1 : 0,
-        transition: "transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.4s ease",
-        display:"flex", alignItems:"center", gap:14, textAlign:"left",
+        position:"relative", overflow:"hidden", borderRadius:24, padding:"24px 16px 18px",
+        marginBottom:14, textAlign:"center",
+        background:"radial-gradient(ellipse at center top, #14532d 0%, #052010 60%, #0a0a0a 100%)",
+        border:"1px solid #22c55e44",
+        boxShadow:"0 0 60px #22c55e22, inset 0 1px 0 #ffffff14",
+        animation:"finHeroIn .7s cubic-bezier(.34,1.56,.64,1) both",
       }}>
-        <style>{`@keyframes trophy-bounce{0%{transform:scale(0) rotate(-20deg);opacity:0}70%{transform:scale(1.2) rotate(5deg)}100%{transform:scale(1) rotate(0);opacity:1}}`}</style>
-        {/* Photo / trophée */}
-        <div style={{ flexShrink:0, animation:"trophy-bounce 0.6s 0.2s both" }}>
-          {winnerPhoto ? (
-            <div style={{ width:64,height:64,borderRadius:"50%",overflow:"hidden",border:"3px solid #22c55e",boxShadow:"0 0 16px #22c55e88" }}>
-              <img src={winnerPhoto} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
-            </div>
-          ) : (
-            <span style={{ fontSize:48 }}>🏆</span>
-          )}
+        {/* Orbes lumineuses fond */}
+        <div style={{ position:"absolute",top:-40,left:"30%",width:160,height:160,borderRadius:"50%",background:"radial-gradient(circle,#fbbf2433,transparent 70%)",animation:"finBgPulse 3s ease-in-out infinite",pointerEvents:"none" }}/>
+        <div style={{ position:"absolute",bottom:-40,right:"20%",width:140,height:140,borderRadius:"50%",background:"radial-gradient(circle,#22c55e33,transparent 70%)",animation:"finBgPulse 3.5s ease-in-out infinite",pointerEvents:"none" }}/>
+        {/* Shine balayage */}
+        <div style={{ position:"absolute",top:0,left:0,bottom:0,width:120,background:"linear-gradient(90deg,transparent,#ffffff1a,transparent)",animation:"finShine 5s ease-in-out infinite",pointerEvents:"none" }}/>
+
+        {/* Trophée */}
+        <div style={{ fontSize:54, marginBottom:6, animation:"finAvatarIn .6s .15s both", filter:"drop-shadow(0 0 16px #fbbf24cc)" }}>🏆</div>
+
+        {/* Titre VICTOIRE */}
+        <div style={{
+          fontWeight:900, fontSize:42, lineHeight:1, letterSpacing:4,
+          background:"linear-gradient(180deg,#fde047,#f97316)",
+          WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+          animation:"finTitleGlow 2.6s ease-in-out infinite",
+        }}>VICTOIRE</div>
+
+        {/* Nom gagnant */}
+        <div style={{ fontWeight:800, fontSize:20, color:"#fff", marginTop:8, letterSpacing:.5 }}>{gagnant?.nom}</div>
+
+        {/* Score central — gros */}
+        <div style={{ marginTop:14, display:"flex", alignItems:"center", justifyContent:"center", gap:18, animation:"finScoreIn .8s .35s cubic-bezier(.34,1.56,.64,1) both" }}>
+          <div style={{ fontSize:54, fontWeight:900, color:"#fff", lineHeight:1, fontVariantNumeric:"tabular-nums", textShadow:"0 0 24px #22c55e66" }}>
+            {gagnantIdx===0 ? j0.manchesGagnees : j1.manchesGagnees}
+          </div>
+          <div style={{ animation:"finSwords 1.4s ease-in-out infinite", filter:"drop-shadow(0 0 8px #fbbf24cc)" }}>
+            <Swords size={28} color="#fbbf24"/>
+          </div>
+          <div style={{ fontSize:54, fontWeight:900, color:"#475569", lineHeight:1, fontVariantNumeric:"tabular-nums" }}>
+            {gagnantIdx===0 ? j1.manchesGagnees : j0.manchesGagnees}
+          </div>
         </div>
-        {/* Texte */}
-        <div style={{ flex:1 }}>
-          <div style={{ fontWeight:900,fontSize:22,color:"#22c55e",lineHeight:1.1 }}>VICTOIRE !</div>
-          <div style={{ fontSize:18,fontWeight:800,color:"#fff",marginBottom:8 }}>{gagnant?.nom}</div>
-          <div style={{ display:"flex",gap:16 }}>
-            <div><div style={{ fontSize:17,fontWeight:900,color:"#22c55e" }}>{moyenne(gagnant)}</div><div style={{ fontSize:11,color:"#86efac" }}>Moyenne</div></div>
-            <div><div style={{ fontSize:17,fontWeight:900,color:"#22c55e" }}>{gagnant?.flechettes}</div><div style={{ fontSize:11,color:"#86efac" }}>Fléchettes</div></div>
-            <div><div style={{ fontSize:17,fontWeight:900,color:"#22c55e" }}>{gagnant?.tours.length}</div><div style={{ fontSize:11,color:"#86efac" }}>Tours</div></div>
+        <div style={{ fontSize:10, fontWeight:700, color:"#86efac", letterSpacing:2, marginTop:6, textTransform:"uppercase" }}>Score final · {duel?.manches||3} manches gagnantes</div>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* 2. AVATARS PREMIUM — Gagnant vs Perdant                            */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", gap:8, alignItems:"center", marginBottom:14, animation:"finCardIn .5s .4s both" }}>
+        {/* Gagnant */}
+        <div style={{ textAlign:"center", animation:"finAvatarIn .5s .5s both" }}>
+          <div style={{ position:"relative", display:"inline-block", marginBottom:6 }}>
+            <div style={{ width:78, height:78, borderRadius:"50%", border:"3px solid #22c55e", overflow:"hidden", boxShadow:"0 0 30px #22c55e88, inset 0 0 16px #22c55e33", background:"#0f1a0f", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              {winnerPhoto
+                ? <img src={winnerPhoto} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                : <span style={{ fontSize:32 }}>🏆</span>}
+            </div>
+            <div style={{ position:"absolute", bottom:-6, left:"50%", transform:"translateX(-50%)", background:"linear-gradient(135deg,#22c55e,#16a34a)", borderRadius:8, padding:"3px 10px", fontSize:9, fontWeight:900, color:"#0a0a0a", whiteSpace:"nowrap", letterSpacing:.6, boxShadow:"0 4px 12px #22c55e66" }}>🏆 GAGNANT</div>
+          </div>
+          <div style={{ marginTop:10, fontWeight:900, fontSize:14, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{gagnant?.nom}</div>
+        </div>
+
+        {/* VS */}
+        <div style={{ textAlign:"center", padding:"0 4px" }}>
+          <div style={{ width:38, height:38, borderRadius:"50%", background:"linear-gradient(135deg,#fbbf24,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto", boxShadow:"0 0 20px #fbbf2488", animation:"finSwords 1.6s ease-in-out infinite" }}>
+            <Swords size={16} color="#0a0a0a"/>
+          </div>
+          <div style={{ fontSize:9, fontWeight:900, color:"#fbbf24", letterSpacing:2, marginTop:5 }}>VS</div>
+        </div>
+
+        {/* Perdant */}
+        <div style={{ textAlign:"center", animation:"finAvatarIn .5s .65s both" }}>
+          <div style={{ position:"relative", display:"inline-block", marginBottom:6 }}>
+            <div style={{ width:78, height:78, borderRadius:"50%", border:"3px solid #ef4444", overflow:"hidden", boxShadow:"0 0 24px #ef444466", background:"#1a0a0a", display:"flex", alignItems:"center", justifyContent:"center", opacity:.85, filter:"grayscale(.3)" }}>
+              {loserPhoto
+                ? <img src={loserPhoto} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                : <span style={{ fontSize:32 }}>💔</span>}
+            </div>
+            <div style={{ position:"absolute", bottom:-6, left:"50%", transform:"translateX(-50%)", background:"linear-gradient(135deg,#ef4444,#b91c1c)", borderRadius:8, padding:"3px 10px", fontSize:9, fontWeight:900, color:"#fff", whiteSpace:"nowrap", letterSpacing:.6, boxShadow:"0 4px 12px #ef444466" }}>💔 PERDANT</div>
+          </div>
+          <div style={{ marginTop:10, fontWeight:800, fontSize:14, color:"#94a3b8", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{perdantNom||"—"}</div>
+        </div>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* 3. MINI STATS CARTES PREMIUM                                       */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:14, animation:"finCardIn .5s .55s both" }}>
+        {[
+          { icon:"🎯", label:"Moyenne", val:moyenne(gagnant), col:"#22c55e" },
+          { icon:"⚡", label:"Fléchettes", val:gagnant?.flechettes||0, col:"#f97316" },
+          { icon:"🔥", label:"Tours", val:gagnant?.tours?.length||0, col:"#a855f7" },
+        ].map(s => (
+          <div key={s.label} style={{ background:"linear-gradient(135deg,#0f0f1a,#0a0a14)", border:`1px solid ${s.col}33`, borderRadius:14, padding:"12px 8px", textAlign:"center", boxShadow:`0 0 18px ${s.col}11, inset 0 1px 0 #ffffff08` }}>
+            <div style={{ fontSize:18, marginBottom:3, filter:`drop-shadow(0 0 6px ${s.col}66)` }}>{s.icon}</div>
+            <div style={{ fontSize:20, fontWeight:900, color:s.col, lineHeight:1, fontVariantNumeric:"tabular-nums" }}>{s.val}</div>
+            <div style={{ fontSize:9, color:"#64748b", fontWeight:700, letterSpacing:1, marginTop:3, textTransform:"uppercase" }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* 4. SECTION DRIX — Cartes visuelles gagnant/perdant                */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {modeDuel && duel?.type !== "amical" && (drixData || drixBreakdown) && (
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14, animation:"finCardIn .5s .7s both" }}>
+          {/* Gagnant */}
+          <div style={{ position:"relative", overflow:"hidden", background:"linear-gradient(135deg,#14532d,#0f1a0f)", border:"1px solid #22c55e55", borderRadius:16, padding:"14px 10px 12px", textAlign:"center", boxShadow:"0 0 28px #22c55e22, inset 0 1px 0 #ffffff14" }}>
+            <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse at top, #22c55e22, transparent 70%)", pointerEvents:"none" }}/>
+            <div style={{ position:"relative", fontSize:18, marginBottom:2 }}>🔥</div>
+            <div style={{ position:"relative", fontSize:30, fontWeight:900, color:"#4ade80", lineHeight:1, textShadow:"0 0 12px #22c55e88" }}>
+              +<AnimCount target={winnerTotal} duration={1600}/>
+            </div>
+            <div style={{ position:"relative", fontSize:11, color:"#86efac", fontWeight:800, marginTop:4, letterSpacing:1 }}>DRIX GAGNÉS</div>
+          </div>
+          {/* Perdant */}
+          <div style={{ position:"relative", overflow:"hidden", background:"linear-gradient(135deg,#1a0a0a,#0f0608)", border:"1px solid #ef444444", borderRadius:16, padding:"14px 10px 12px", textAlign:"center" }}>
+            <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse at top, #ef444411, transparent 70%)", pointerEvents:"none" }}/>
+            <div style={{ position:"relative", fontSize:18, marginBottom:2 }}>{loserSign?"🔥":"💔"}</div>
+            <div style={{ position:"relative", fontSize:30, fontWeight:900, color:loserSign?"#4ade80":"#fca5a5", lineHeight:1 }}>
+              {loserSign?"+":"−"}<AnimCount target={loserTotal} duration={1600}/>
+            </div>
+            <div style={{ position:"relative", fontSize:11, color:loserSign?"#86efac":"#fca5a5", fontWeight:800, marginTop:4, letterSpacing:1 }}>{loserSign?"DRIX GAGNÉS":"DRIX PERDUS"}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Cas partie amicale */}
+      {modeDuel && duel?.type === "amical" && (
+        <div style={{ background:"linear-gradient(135deg,#1a0f2e,#0f0a1a)", border:"1px solid #7c3aed44", borderRadius:14, padding:"14px 16px", textAlign:"center", marginBottom:14, animation:"finCardIn .5s .7s both" }}>
+          <span style={{ fontSize:22 }}>🤝</span>
+          <div style={{ color:"#c4b5fd", fontWeight:800, fontSize:14, margin:"6px 0 2px" }}>Partie amicale</div>
+          <div style={{ color:"#94a3b8", fontSize:12 }}>Les DRIX ne sont pas affectés</div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* 5. BONUS DE PERFORMANCE — Chips visuelles                         */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {modeDuel && winnerBonuses && (winnerBonuses.bonusManches>0 || winnerBonuses.nbGrossesVolees>0 || winnerBonuses.nbGrosFinish>0) && (
+        <div style={{ marginBottom:14, animation:"finCardIn .5s .85s both" }}>
+          <div style={{ fontSize:10, fontWeight:800, color:"#64748b", letterSpacing:2, marginBottom:8, textTransform:"uppercase", textAlign:"center" }}>⭐ Bonus de performance</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6, justifyContent:"center" }}>
+            {winnerBonuses.bonusManches > 0 && (
+              <div style={{ background:"#1a1200", border:"1px solid #f59e0b55", borderRadius:10, padding:"7px 10px", display:"flex", alignItems:"center", gap:6, animation:"finChipIn .4s .9s both" }}>
+                <span style={{ fontSize:15 }}>💎</span>
+                <div>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#fbbf24", lineHeight:1 }}>+{winnerBonuses.bonusManches} DRIX</div>
+                  <div style={{ fontSize:9, color:"#92400e", marginTop:2 }}>{winnerBonuses.bonusManches/7} manche(s)</div>
+                </div>
+              </div>
+            )}
+            {winnerBonuses.nbGrossesVolees > 0 && (
+              <div style={{ background:"#1a0a00", border:"1px solid #f9731655", borderRadius:10, padding:"7px 10px", display:"flex", alignItems:"center", gap:6, animation:"finChipIn .4s 1s both" }}>
+                <span style={{ fontSize:15 }}>🔥</span>
+                <div>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#f97316", lineHeight:1 }}>+{winnerBonuses.bonusVolees} DRIX</div>
+                  <div style={{ fontSize:9, color:"#9a3412", marginTop:2 }}>{winnerBonuses.nbGrossesVolees} grosse(s) volée(s)</div>
+                </div>
+              </div>
+            )}
+            {winnerBonuses.nbGrosFinish > 0 && (
+              <div style={{ background:"#0a0014", border:"1px solid #a855f755", borderRadius:10, padding:"7px 10px", display:"flex", alignItems:"center", gap:6, animation:"finChipIn .4s 1.1s both" }}>
+                <span style={{ fontSize:15 }}>🏆</span>
+                <div>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#a78bfa", lineHeight:1 }}>+{winnerBonuses.bonusFinish} DRIX</div>
+                  <div style={{ fontSize:9, color:"#6b21a8", marginTop:2 }}>{winnerBonuses.nbGrosFinish} gros finish</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* 6. HIGHLIGHTS DU MATCH                                            */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      <div style={{ background:"linear-gradient(135deg,#0a0a14,#050510)", border:"1px solid #ffffff10", borderRadius:14, padding:"12px 14px", marginBottom:14, animation:"finCardIn .5s 1s both" }}>
+        <div style={{ fontSize:10, fontWeight:800, color:"#64748b", letterSpacing:2, marginBottom:10, textTransform:"uppercase", textAlign:"center" }}>📌 Highlights du match</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, background:"#0f0f1a", borderRadius:10, padding:"8px 10px" }}>
+            <span style={{ fontSize:18 }}>🏆</span>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:9, color:"#475569", letterSpacing:.5 }}>PLUS GROSSE VOLÉE</div>
+              <div style={{ fontSize:15, fontWeight:800, color:"#fff" }}>{bestVolee||"—"}</div>
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, background:"#0f0f1a", borderRadius:10, padding:"8px 10px" }}>
+            <span style={{ fontSize:18 }}>🎯</span>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:9, color:"#475569", letterSpacing:.5 }}>MEILLEUR FINISH</div>
+              <div style={{ fontSize:15, fontWeight:800, color:"#fff" }}>{bestFinish||"—"}</div>
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, background:"#0f0f1a", borderRadius:10, padding:"8px 10px" }}>
+            <span style={{ fontSize:18 }}>🔥</span>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:9, color:"#475569", letterSpacing:.5 }}>SCORE FINAL</div>
+              <div style={{ fontSize:15, fontWeight:800, color:"#fff" }}>{score}</div>
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, background:"#0f0f1a", borderRadius:10, padding:"8px 10px" }}>
+            <span style={{ fontSize:18 }}>⚡</span>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:9, color:"#475569", letterSpacing:.5 }}>MOYENNE MAX</div>
+              <div style={{ fontSize:15, fontWeight:800, color:"#fff" }}>{bestMoy||"—"}</div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Carte résultat duel */}
-      {modeDuel && (
-        <div style={{
-          background: duel?.type==="amical" ? "#0f0f1a" : "#0f1a0f",
-          border: `2px solid ${duel?.type==="amical" ? "#7c3aed44" : "#22c55e44"}`,
-          borderRadius:14, padding:"14px 16px", marginBottom:10,
-          transform: drixShow ? "translateY(0)" : "translateY(30px)",
-          opacity: drixShow ? 1 : 0,
-          transition: "transform 0.5s ease, opacity 0.4s ease",
-        }}>
-          {duel?.type === "amical" ? (
-            <>
-              <p style={{ fontWeight:700,fontSize:15,color:"#a78bfa",marginBottom:8,textAlign:"center" }}>✅ Résultat enregistré !</p>
-              <div style={{ background:"#1a0f2e",borderRadius:10,padding:"12px 16px",textAlign:"center",marginBottom:8 }}>
-                <span style={{ fontSize:22 }}>🤝</span>
-                <p style={{ color:"#c4b5fd",fontWeight:700,fontSize:14,margin:"6px 0 2px" }}>Partie amicale</p>
-                <p style={{ color:"#94a3b8",fontSize:12 }}>Les DRIX ne sont pas affectés</p>
-              </div>
-              <p style={{ color:"#94a3b8",fontSize:12,textAlign:"center" }}>L'adversaire peut contester dans les 24h s'il n'était pas présent.</p>
-            </>
-          ) : (
-            <>
-              <p style={{ fontWeight:700,fontSize:15,color:"#22c55e",marginBottom:12,textAlign:"center" }}>✅ Résultat enregistré !</p>
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* 7. ANALYSE IA                                                     */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      <div style={{ background:"linear-gradient(135deg,#0a0a14,#050510)", border:"1px solid #60a5fa33", borderRadius:14, padding:"14px 16px", marginBottom:14, display:"flex", alignItems:"flex-start", gap:12, animation:"finCardIn .5s 1.15s both" }}>
+        <div style={{ fontSize:24, lineHeight:1, filter:"drop-shadow(0 0 8px #60a5fa66)" }}>{analyseIA.emoji}</div>
+        <div style={{ flex:1 }}>
+          <div style={{ fontSize:9, fontWeight:800, color:"#60a5fa", letterSpacing:2, marginBottom:3, textTransform:"uppercase" }}>Analyse du match</div>
+          <div style={{ fontSize:13, color:"#cbd5e1", lineHeight:1.45, fontStyle:"italic" }}>"{analyseIA.text}"</div>
+        </div>
+      </div>
 
-              {/* ── Breakdown détaillé si disponible ── */}
-              {drixBreakdown && drixShow ? (() => {
-                const bkC = drixBreakdown.challenger;
-                const bkD = drixBreakdown.defie;
-                const gagnantIsC = gagnant?.nom === duel?.challenger_pseudo;
-                const bkW = gagnantIsC ? bkC : bkD;
-                const bkL = gagnantIsC ? bkD : bkC;
-                const wNom = gagnant?.nom;
-                const lNom = perdantNom;
-                const DrixLine = ({ label, val, color="#94a3b8" }) => val !== 0 ? (
-                  <div style={{ display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0",borderBottom:"1px solid #ffffff0a" }}>
-                    <span style={{ color:"#64748b" }}>{label}</span>
-                    <span style={{ fontWeight:700,color }}>{val>0?"+":""}{val} DRIX</span>
-                  </div>
-                ) : null;
-                return (
-                  <div style={{ display:"flex",gap:10,marginBottom:12,flexWrap:"wrap" }}>
-                    {/* Gagnant */}
-                    <div style={{ flex:1,minWidth:130,background:"#0f1a0f",border:"1px solid #22c55e33",borderRadius:14,padding:"10px 10px" }}>
-                      <div style={{ fontSize:11,color:"#86efac",fontWeight:800,marginBottom:6,textAlign:"center" }}>🏆 {wNom}</div>
-                      <DrixLine label="ELO" val={bkW.eloVariation} color={bkW.eloVariation>=0?"#22c55e":"#ef4444"}/>
-                      {bkW.bonus.bonusManches>0 && <DrixLine label={`💎 ${bkW.bonus.bonusManches/7} manche(s)`} val={bkW.bonus.bonusManches} color="#f59e0b"/>}
-                      {bkW.bonus.nbGrossesVolees>0 && <DrixLine label={`🔥 ${bkW.bonus.nbGrossesVolees} grosse(s) volée(s)`} val={bkW.bonus.bonusVolees} color="#f97316"/>}
-                      {bkW.bonus.nbGrosFinish>0 && <DrixLine label={`🏆 ${bkW.bonus.nbGrosFinish} gros finish`} val={bkW.bonus.bonusFinish} color="#a78bfa"/>}
-                      <div style={{ marginTop:6,paddingTop:6,borderTop:"1px solid #22c55e44",textAlign:"center" }}>
-                        <span style={{ fontSize:11,color:"#86efac" }}>TOTAL </span>
-                        <span style={{ fontSize:20,fontWeight:900,color:"#22c55e" }}>
-                          {bkW.totalVariation>=0?"+":""}<AnimCount target={Math.abs(bkW.totalVariation)} duration={1200}/>
-                        </span>
-                        <span style={{ fontSize:13,fontWeight:900,color:"#22c55e" }}> DRIX</span>
-                      </div>
-                    </div>
-                    {/* Perdant */}
-                    <div style={{ flex:1,minWidth:130,background:"#1a0a0a",border:"1px solid #ef444433",borderRadius:14,padding:"10px 10px" }}>
-                      <div style={{ fontSize:11,color:"#fca5a5",fontWeight:800,marginBottom:6,textAlign:"center" }}>💔 {lNom}</div>
-                      <DrixLine label="ELO" val={bkL.eloVariation} color={bkL.eloVariation>=0?"#22c55e":"#ef4444"}/>
-                      {bkL.bonus.bonusManches>0 && <DrixLine label={`💎 ${bkL.bonus.bonusManches/7} manche(s)`} val={bkL.bonus.bonusManches} color="#f59e0b"/>}
-                      {bkL.bonus.nbGrossesVolees>0 && <DrixLine label={`🔥 ${bkL.bonus.nbGrossesVolees} grosse(s) volée(s)`} val={bkL.bonus.bonusVolees} color="#f97316"/>}
-                      {bkL.bonus.nbGrosFinish>0 && <DrixLine label={`🏆 ${bkL.bonus.nbGrosFinish} gros finish`} val={bkL.bonus.bonusFinish} color="#a78bfa"/>}
-                      <div style={{ marginTop:6,paddingTop:6,borderTop:"1px solid #ef444433",textAlign:"center" }}>
-                        <span style={{ fontSize:11,color:"#fca5a5" }}>TOTAL </span>
-                        <span style={{ fontSize:20,fontWeight:900,color:bkL.totalVariation>=0?"#22c55e":"#ef4444" }}>
-                          {bkL.totalVariation>=0?"+":""}<AnimCount target={Math.abs(bkL.totalVariation)} duration={1200}/>
-                        </span>
-                        <span style={{ fontSize:13,fontWeight:900,color:bkL.totalVariation>=0?"#22c55e":"#ef4444" }}> DRIX</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })() : drixData && drixShow && (
-                /* fallback simple si pas encore de breakdown */
-                <div style={{ display:"flex",gap:10,marginBottom:12 }}>
-                  <div style={{ flex:1,background:"#14532d",borderRadius:12,padding:"12px 10px",textAlign:"center" }}>
-                    <div style={{ fontSize:11,color:"#86efac",marginBottom:4 }}>🏆 {gagnant?.nom}</div>
-                    <div style={{ fontWeight:900,fontSize:28,color:"#22c55e" }}>+<AnimCount target={dxGagnant?.gain||0} duration={1200}/></div>
-                    <div style={{ fontSize:10,color:"#86efac" }}>DRIX gagnés</div>
-                  </div>
-                  <div style={{ flex:1,background:"#7f1d1d",borderRadius:12,padding:"12px 10px",textAlign:"center" }}>
-                    <div style={{ fontSize:11,color:"#fca5a5",marginBottom:4 }}>💔 {perdantNom}</div>
-                    <div style={{ fontWeight:900,fontSize:28,color:"#ef4444" }}>−<AnimCount target={dxPerdant?.perte||0} duration={1200}/></div>
-                    <div style={{ fontSize:10,color:"#fca5a5" }}>DRIX perdus</div>
-                  </div>
-                </div>
-              )}
-              <p style={{ color:"#94a3b8",fontSize:12,textAlign:"center" }}>L'adversaire peut contester dans les 24h s'il n'était pas présent.</p>
-            </>
-          )}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* 8. MATCH VALIDÉ                                                   */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {modeDuel && (
+        <div style={{ background:"#0a1a0a", border:"1px solid #22c55e44", borderRadius:14, padding:"12px 16px", marginBottom:14, display:"flex", alignItems:"center", gap:12, animation:"finCardIn .5s 1.25s both" }}>
+          <div style={{ width:36, height:36, borderRadius:"50%", background:"linear-gradient(135deg,#22c55e,#16a34a)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:"0 0 16px #22c55e88", animation:"finCheckPop .6s 1.4s both" }}>
+            <Check size={20} color="#fff" strokeWidth={3}/>
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:13, fontWeight:900, color:"#22c55e", letterSpacing:1 }}>✔ MATCH VALIDÉ</div>
+            <div style={{ fontSize:11, color:"#86efac", marginTop:2 }}>L'adversaire peut contester dans les 24h</div>
+          </div>
         </div>
       )}
 
-      {/* 🔁 Rejouer le match — bouton premium */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* 9. REJOUER LE MATCH — CTA principal énorme                        */}
+      {/* ════════════════════════════════════════════════════════════════ */}
       {onRejouer && (
         <button onClick={onRejouer} style={{
-          width:"100%", padding:"15px", borderRadius:14, border:"2px solid #f9731677",
+          width:"100%", padding:"18px", borderRadius:18, border:"2px solid #fbbf2477",
           background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff",
-          fontWeight:900, fontSize:17, cursor:"pointer", marginBottom:10,
-          boxShadow:"0 0 24px #f9731655, 0 4px 20px #ea580c44",
-          animation:"rejouer-glow 2.2s ease-in-out infinite", letterSpacing:0.4,
-        }}>🔁 Rejouer le match</button>
+          fontWeight:900, fontSize:19, cursor:"pointer", marginBottom:10,
+          animation:"finRejouerGlow 2s ease-in-out infinite",
+          letterSpacing:.5, position:"relative", overflow:"hidden",
+          display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+          touchAction:"manipulation",
+        }}>
+          <div style={{ position:"absolute", top:0, left:0, bottom:0, width:80, background:"linear-gradient(90deg,transparent,#ffffff22,transparent)", animation:"finShine 3s ease-in-out infinite", pointerEvents:"none" }}/>
+          <span style={{ fontSize:22, position:"relative" }}>🔁</span>
+          <span style={{ position:"relative" }}>REJOUER LE MATCH</span>
+        </button>
       )}
-      <style>{`@keyframes rejouer-glow{0%,100%{box-shadow:0 0 18px #f9731655,0 4px 20px #ea580c44}50%{box-shadow:0 0 38px #f97316aa,0 6px 36px #ea580c88}}`}</style>
-      <div style={{ display:"flex",gap:10,marginBottom:10 }}>
-        <button onClick={()=>setShowStats(true)} style={{ flex:1,padding:"13px 8px",borderRadius:12,border:"1px solid #22c55e44",fontWeight:800,fontSize:15,cursor:"pointer",background:"#0f1a0f",color:"#22c55e" }}>📊 Stats</button>
-        <button onClick={quitterPartie} style={{ flex:1,padding:"13px 8px",borderRadius:12,border:"1px solid #2a2a2a",fontWeight:800,fontSize:15,cursor:"pointer",background:"#1a1a1a",color:"#94a3b8" }}>
-          {modeDuel ? "✅ Valider" : "🏠 Accueil"}
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* 10. ACTIONS SECONDAIRES                                           */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+        <button onClick={()=>setShowStats(true)} style={{ padding:"11px 6px", borderRadius:12, border:"1px solid #22c55e44", fontWeight:700, fontSize:12, cursor:"pointer", background:"#0a1a0a", color:"#22c55e", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+          <span style={{ fontSize:16 }}>📊</span>
+          <span>Stats</span>
+        </button>
+        <button onClick={partagerComptoir} style={{ padding:"11px 6px", borderRadius:12, border:"1px solid #a855f744", fontWeight:700, fontSize:12, cursor:"pointer", background:"#0f0a1a", color:"#a78bfa", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+          <span style={{ fontSize:16 }}>📤</span>
+          <span>Partager</span>
+        </button>
+        <button onClick={quitterPartie} style={{ padding:"11px 6px", borderRadius:12, border:"1px solid #2a2a2a", fontWeight:700, fontSize:12, cursor:"pointer", background:"#1a1a1a", color:"#94a3b8", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+          <span style={{ fontSize:16 }}>🏠</span>
+          <span>{modeDuel ? "Valider" : "Accueil"}</span>
         </button>
       </div>
+
+      {/* Toast partage */}
+      {showShareToast && (
+        <div style={{ position:"fixed", bottom:80, left:"50%", transform:"translateX(-50%)", background:"linear-gradient(135deg,#7c3aed,#6d28d9)", color:"#fff", padding:"12px 20px", borderRadius:24, fontSize:13, fontWeight:700, boxShadow:"0 8px 24px #7c3aed88", zIndex:9999 }}>
+          📤 Partage à venir bientôt !
+        </div>
+      )}
 
       {/* ── Modal stats ─────────────────────────────────────────────────────── */}
       {showStats && (
