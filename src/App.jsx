@@ -2600,14 +2600,6 @@ const ScoreurDoublette = ({ joueur, setPage }) => {
   };
 
   const handleRejouer = () => {
-    setReplayForm({ mode: config.mode||"501", manches: config.manches||1 });
-    setReplayOpen(true);
-  };
-
-  const lancerReplay = () => {
-    const newConfig = { ...config, mode: replayForm.mode, manches: replayForm.manches };
-    try { localStorage.setItem("dp_doublette", JSON.stringify(newConfig)); } catch {}
-    setReplayOpen(false);
     setGameKey(k => k + 1);
   };
 
@@ -2617,28 +2609,15 @@ const ScoreurDoublette = ({ joueur, setPage }) => {
   ];
 
   return (
-    <>
-      {replayOpen && (
-        <ReplayConfigModal
-          title="Rejouer"
-          players={teamPlayersDisplay}
-          form={replayForm}
-          setForm={setReplayForm}
-          onLancer={lancerReplay}
-          onClose={() => setReplayOpen(false)}
-          showType={false}
-        />
-      )}
-      <Scoreur
-        key={gameKey}
-        duel={fakeDuel}
-        drixData={drixData}
-        onResultat={handleResultat}
-        onRejouer={handleRejouer}
-        onDuelTermine={() => { try { localStorage.removeItem("dp_doublette"); } catch {} }}
-        setPage={setPage}
-      />
-    </>
+    <Scoreur
+      key={gameKey}
+      duel={fakeDuel}
+      drixData={drixData}
+      onResultat={handleResultat}
+      onRejouer={handleRejouer}
+      onDuelTermine={() => { try { localStorage.removeItem("dp_doublette"); } catch {} }}
+      setPage={setPage}
+    />
   );
 };
 
@@ -6996,7 +6975,7 @@ const ScoreurLibre = ({ setPage }) => {
 
   const rejouer = () => {
     setResultat(null);
-    setPhase("config"); // retour à la config avec noms pré-remplis
+    setPhase("jeu"); // relance direct le scoreur avec la même config
   };
 
   const backToConfig = () => {
@@ -7357,26 +7336,20 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
     }
   };
 
-  const handleRejouer = () => {
-    if (!duel) return;
-    setReplayForm({ mode: duel.mode||"501", manches: duel.manches||1, type: duel.type==="amical"?"amical":"drix" });
-    setReplayOpen(true);
-  };
-
-  const lancerReplay = async () => {
-    if (replayLoading || !duel) return;
+  const handleRejouer = async () => {
+    if (!duel || replayLoading) return;
     setReplayLoading(true);
     try {
       const res = await sb("duels", { method:"POST", body:JSON.stringify({
         challenger_id: duel.challenger_id, challenger_pseudo: duel.challenger_pseudo,
         defie_id: duel.defie_id, defie_pseudo: duel.defie_pseudo,
-        statut:"accepte", type: replayForm.type,
-        mode: replayForm.mode, manches: replayForm.manches,
+        statut:"accepte", type: duel.type,
+        mode: duel.mode, manches: duel.manches,
         date: Date.now(), valide_challenger:false, valide_defie:false,
         score_manches_challenger:0, score_manches_defie:0,
       }) });
       const newDuel = Array.isArray(res) ? res[0] : res;
-      if (newDuel?.id) { setReplayOpen(false); setPage("scoreur-duel-"+newDuel.id); }
+      if (newDuel?.id) setPage("scoreur-duel-"+newDuel.id);
     } catch(e) { console.error("Replay duel:", e); }
     setReplayLoading(false);
   };
@@ -7386,18 +7359,6 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
 
   return (
     <>
-      {replayOpen && (
-        <ReplayConfigModal
-          title="Rejouer le match"
-          players={[duel.challenger_pseudo, duel.defie_pseudo]}
-          form={replayForm}
-          setForm={setReplayForm}
-          onLancer={lancerReplay}
-          onClose={() => setReplayOpen(false)}
-          loading={replayLoading}
-          showType={true}
-        />
-      )}
       <Scoreur duel={duel} drixData={drixData} onDuelTermine={handleDuelTermine} onRejouer={handleRejouer} setPage={setPage}/>
       {newBadges.length > 0 && (
         <BadgesRecapModal badges={newBadges} onClose={()=>setNewBadges([])} setPage={setPage}/>
