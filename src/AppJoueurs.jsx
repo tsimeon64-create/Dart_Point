@@ -206,8 +206,14 @@ const getProgression = (drix) => {
   return { pct, restant: cur.max - drix, prochain };
 };
 
-// Code admin pour réinitialiser un mot de passe oublié (à communiquer à voix)
-const RESET_ADMIN_CODE = "jesuisunebrele";
+// Vérification du code de reset admin via RPC Supabase — le code n'est plus
+// en clair dans le code. Hash bcrypt stocké côté serveur dans admin_credentials.
+const verifyResetCode = async (code) => {
+  try {
+    const r = await sbJ("rpc/verify_reset_code", { method:"POST", body:JSON.stringify({ code }) });
+    return r === true;
+  } catch { return false; }
+};
 
 // ── CONNEXION / INSCRIPTION ───────────────────────────────────────────────────
 export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" }) => {
@@ -287,10 +293,13 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
   const resetPwd = async () => {
     setErr(""); setSuccess("");
     if (!pseudo.trim()) { setErr("Entre ton pseudo"); return; }
-    if (adminCode !== RESET_ADMIN_CODE) { setErr("Code administrateur incorrect"); return; }
+    if (!adminCode) { setErr("Code administrateur requis"); return; }
     if (!pwd || pwd.length < 4) { setErr("Nouveau mot de passe trop court (min 4 caractères)"); return; }
     if (pwd !== pwd2) { setErr("Les mots de passe ne correspondent pas"); return; }
     setLoading(true);
+    // Vérification serveur du code admin (bcrypt)
+    const codeOk = await verifyResetCode(adminCode);
+    if (!codeOk) { setErr("Code administrateur incorrect"); setLoading(false); return; }
     try {
       const j = await dbJ.getJoueurByPseudo(pseudo.trim());
       if (!j) { setErr("Pseudo introuvable"); setLoading(false); return; }

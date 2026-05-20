@@ -73,7 +73,15 @@ const db = {
 };
 
 // ── CONSTANTES ────────────────────────────────────────────────────────────────
-const ADMIN_PASSWORD = "dartpoint2025";
+// Vérification admin via RPC Supabase — le mot de passe n'est plus en clair
+// dans le code. Le hash bcrypt est stocké côté serveur dans admin_credentials
+// (RLS verrouillée, accessible uniquement via la fonction verify_admin_password)
+const verifyAdminPassword = async (pw) => {
+  try {
+    const r = await sb("rpc/verify_admin_password", { method:"POST", body:JSON.stringify({ pw }) });
+    return r === true;
+  } catch { return false; }
+};
 const slugify = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
 
 const TYPES = [
@@ -6533,14 +6541,24 @@ const Contact = () => {
 // ── ADMIN ─────────────────────────────────────────────────────────────────────
 const AdminLogin = ({ onLogin }) => {
   const [pw,setPw]=useState(""); const [err,setErr]=useState(false);
+  const [checking,setChecking]=useState(false);
+  const tryLogin = async () => {
+    if (!pw || checking) return;
+    setChecking(true); setErr(false);
+    const ok = await verifyAdminPassword(pw);
+    if (ok) onLogin(); else setErr(true);
+    setChecking(false);
+  };
   return (
     <div style={{ maxWidth:380,margin:"80px auto",padding:"0 20px" }}>
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:28,textAlign:"center" }}>
         <div style={{ fontSize:38,marginBottom:12 }}>🔐</div>
         <h2 style={{ fontWeight:700,fontSize:19,marginBottom:18 }}>Administration</h2>
-        <input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="Mot de passe" onKeyDown={e=>e.key==="Enter"&&(pw===ADMIN_PASSWORD?onLogin():setErr(true))} style={{ width:"100%",background:"#111",border:`1px solid ${err?C.red:C.border}`,borderRadius:8,padding:"11px 14px",color:C.text,fontSize:14,marginBottom:10 }}/>
+        <input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="Mot de passe" disabled={checking}
+          onKeyDown={e=>e.key==="Enter"&&tryLogin()}
+          style={{ width:"100%",background:"#111",border:`1px solid ${err?C.red:C.border}`,borderRadius:8,padding:"11px 14px",color:C.text,fontSize:14,marginBottom:10,opacity:checking?.6:1 }}/>
         {err&&<p style={{ color:C.red,fontSize:12,marginBottom:10 }}>Mot de passe incorrect</p>}
-        <Btn onClick={()=>pw===ADMIN_PASSWORD?onLogin():setErr(true)} style={{ width:"100%",padding:"11px" }}>Accéder →</Btn>
+        <Btn onClick={tryLogin} disabled={checking||!pw} style={{ width:"100%",padding:"11px" }}>{checking?"Vérification…":"Accéder →"}</Btn>
       </div>
     </div>
   );
