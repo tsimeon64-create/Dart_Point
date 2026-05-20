@@ -7992,6 +7992,19 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
                       ✅ Marquer comme lu
                     </button>
                   )}
+                  <button onClick={async()=>{
+                    if(!window.confirm(`Supprimer définitivement ce message de ${p.nom} ?`)) return;
+                    try {
+                      await sb(`propositions?id=eq.${p.id}`, { method:"DELETE", prefer:"return=minimal" });
+                      setPropositions(arr => arr.filter(x => x.id !== p.id));
+                      addLog?.("Message supprimé", p.nom, "danger");
+                    } catch(e) {
+                      alert("Erreur : " + e.message);
+                    }
+                  }}
+                    style={{ marginLeft:"auto", background:"#1a0000", border:`1px solid ${C.red}44`, borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, color:C.red, cursor:"pointer" }}>
+                    🗑 Supprimer
+                  </button>
                 </div>
               </div>
             );
