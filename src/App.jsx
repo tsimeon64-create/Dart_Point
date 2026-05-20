@@ -79,8 +79,12 @@ const db = {
 const verifyAdminPassword = async (pw) => {
   try {
     const r = await sb("rpc/verify_admin_password", { method:"POST", body:JSON.stringify({ pw }) });
+    console.log("[verifyAdminPassword] RPC returned:", r, "type:", typeof r);
     return r === true;
-  } catch { return false; }
+  } catch(e) {
+    console.error("[verifyAdminPassword] error:", e?.message || e);
+    return false;
+  }
 };
 const slugify = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
 
