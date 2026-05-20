@@ -506,10 +506,10 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
       )}
 
       {/* ════════════════════════════════════════════════════════════════ */}
-      {/* 9. REJOUER LE MATCH — CTA principal énorme                        */}
+      {/* 9. REVANCHE / REJOUER LE MATCH — CTA principal                    */}
       {/* ════════════════════════════════════════════════════════════════ */}
-      {onRejouer && (
-        <button onClick={onRejouer} style={{
+      {(onRejouer || demarrer) && (
+        <button onClick={onRejouer || demarrer} style={{
           width:"100%", padding:"18px", borderRadius:18, border:"2px solid #fbbf2477",
           background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff",
           fontWeight:900, fontSize:19, cursor:"pointer", marginBottom:10,
@@ -519,8 +519,8 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
           touchAction:"manipulation",
         }}>
           <div style={{ position:"absolute", top:0, left:0, bottom:0, width:80, background:"linear-gradient(90deg,transparent,#ffffff22,transparent)", animation:"finShine 3s ease-in-out infinite", pointerEvents:"none" }}/>
-          <span style={{ fontSize:22, position:"relative" }}>🔁</span>
-          <span style={{ position:"relative" }}>REJOUER LE MATCH</span>
+          <span style={{ fontSize:22, position:"relative" }}>⚔️</span>
+          <span style={{ position:"relative" }}>{modeDuel ? "REJOUER LE MATCH" : "REVANCHE"}</span>
         </button>
       )}
 
