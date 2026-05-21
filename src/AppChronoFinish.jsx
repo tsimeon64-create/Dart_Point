@@ -199,26 +199,83 @@ export const checkYesterdayReward = async (joueur, onWin) => {
   }
 };
 
+// ── Crée une tentative "en cours" (statut=abandonne par défaut) ──────────────
+// Si l'utilisateur quitte ou ferme la page avant d'avoir validé les 5 finishes,
+// l'entrée reste "abandonne" → ça consomme la tentative quotidienne et empêche
+// le triche par fermeture.
+const createAttempt = async (joueur, today) => {
+  if (!joueur?.id) return null;
+  try {
+    const res = await sb("chrono_finish_scores", {
+      method: "POST",
+      body: JSON.stringify({
+        joueur_id:     joueur.id,
+        joueur_pseudo: joueur.pseudo,
+        date_jour:     today,
+        temps_ms:      0,
+        erreurs:       0,
+        splits:        [],
+        finishes_ids:  [],
+        rewarded:      false,
+        statut:        "abandonne",
+      }),
+      prefer: "return=representation",
+    });
+    const row = Array.isArray(res) ? res[0] : res;
+    return row?.id || null;
+  } catch (e) {
+    console.warn("createAttempt failed:", e);
+    return null;
+  }
+};
+
+// ── Vérifie si le joueur a déjà tenté aujourd'hui (1 tentative/jour) ─────────
+const hasAttemptedToday = async (joueur, today) => {
+  if (!joueur?.id) return false;
+  try {
+    const r = await sb(`chrono_finish_scores?joueur_id=eq.${joueur.id}&date_jour=eq.${today}&select=id&limit=1`);
+    return (r||[]).length > 0;
+  } catch { return false; }
+};
+
 // ── Sauvegarde score + récompense participation (+5 DRIX) ────────────────────
-const saveScore = async (joueur, today, tempsMs, erreurs, splits, finishes) => {
+// Au lieu de créer une nouvelle entrée, on MET À JOUR l'entrée créée au lancement
+// avec statut="termine".
+const saveScore = async (joueur, today, tempsMs, erreurs, splits, finishes, attemptId) => {
   localStorage.setItem(storeKey(today), JSON.stringify({ tempsMs, erreurs, splits }));
   if (!joueur?.id) return;
 
-  // Enregistrement du score
-  await sb("chrono_finish_scores", {
-    method: "POST",
-    body: JSON.stringify({
-      joueur_id:     joueur.id,
-      joueur_pseudo: joueur.pseudo,
-      date_jour:     today,
-      temps_ms:      tempsMs,
-      erreurs,
-      splits,
-      finishes_ids:  finishes,
-      rewarded:      false,
-    }),
-    prefer: "return=minimal",
-  });
+  // Update de l'entrée existante (créée au démarrage du chrono) → statut termine
+  if (attemptId) {
+    await sb(`chrono_finish_scores?id=eq.${attemptId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        temps_ms:     tempsMs,
+        erreurs,
+        splits,
+        finishes_ids: finishes,
+        statut:       "termine",
+      }),
+      prefer: "return=minimal",
+    });
+  } else {
+    // Fallback : si pas d'attemptId (cas dégradé), POST direct
+    await sb("chrono_finish_scores", {
+      method: "POST",
+      body: JSON.stringify({
+        joueur_id:     joueur.id,
+        joueur_pseudo: joueur.pseudo,
+        date_jour:     today,
+        temps_ms:      tempsMs,
+        erreurs,
+        splits,
+        finishes_ids:  finishes,
+        rewarded:      false,
+        statut:        "termine",
+      }),
+      prefer: "return=minimal",
+    });
+  }
 
   // +5 DRIX pour avoir complété le défi (participation)
   const jArr = await sb(`joueurs?id=eq.${joueur.id}&select=id,drix`);
@@ -278,11 +335,21 @@ export const ChronoFinish = ({ setPage, joueur }) => {
   const [drixNotif,    setDrixNotif]    = useState(null);
   const [participDrix, setParticipDrix] = useState(null); // +5 DRIX participation
   const [leader,       setLeader]       = useState(null);
+  const [alreadyPlayed, setAlreadyPlayed] = useState(false); // bloqué pour aujourd'hui
+  const [checking,     setChecking]     = useState(true);
+  const attemptIdRef                    = useRef(null); // id de la tentative en cours
 
   useEffect(() => {
     checkYesterdayReward(joueur, (info) => setDrixNotif(info));
-    // Charger le classement complet pour l'écran d'accueil
     loadLeaderboard();
+    // Vérifie si le joueur a déjà tenté Chrono Finish aujourd'hui
+    (async () => {
+      if (joueur?.id) {
+        const played = await hasAttemptedToday(joueur, today);
+        setAlreadyPlayed(played);
+      }
+      setChecking(false);
+    })();
   }, []); // eslint-disable-line
 
   // ── Jeu ──────────────────────────────────────────────────────────────────
@@ -341,7 +408,7 @@ export const ChronoFinish = ({ setPage, joueur }) => {
           setRunning(false);
           const totalMs  = Date.now() - startRef.current;
           const erreurs  = newSplits.reduce((s, r) => s + r.mistakes, 0);
-          const reward   = await saveScore(joueur, today, totalMs, erreurs, newSplits, finishes);
+          const reward   = await saveScore(joueur, today, totalMs, erreurs, newSplits, finishes, attemptIdRef.current);
           if (reward && joueur?.id) setParticipDrix(reward);
           setFinalResults({ tempsMs: totalMs, erreurs, splits: newSplits });
           setScreen("results");
@@ -367,16 +434,41 @@ export const ChronoFinish = ({ setPage, joueur }) => {
 
   const loadLeaderboard = async () => {
     setLoadingScores(true);
+    // On charge tout (terminés + abandons) avec statut, puis on trie côté client
+    // pour mettre les terminés d'abord par temps, puis les abandons en bas
     const data = await sb(
-      `chrono_finish_scores?date_jour=eq.${today}&order=temps_ms.asc,erreurs.asc&limit=50&select=joueur_id,joueur_pseudo,temps_ms,erreurs`
+      `chrono_finish_scores?date_jour=eq.${today}&limit=50&select=joueur_id,joueur_pseudo,temps_ms,erreurs,statut`
     );
-    setScores(data || []);
+    const arr = data || [];
+    arr.sort((a, b) => {
+      const aTerm = (a.statut || "termine") === "termine";
+      const bTerm = (b.statut || "termine") === "termine";
+      if (aTerm && !bTerm) return -1;
+      if (!aTerm && bTerm) return 1;
+      if (aTerm && bTerm) {
+        if (a.temps_ms !== b.temps_ms) return a.temps_ms - b.temps_ms;
+        return (a.erreurs || 0) - (b.erreurs || 0);
+      }
+      return 0;
+    });
+    setScores(arr);
     setLoadingScores(false);
   };
 
   const openLeaderboard = () => { setScreen("leaderboard"); loadLeaderboard(); };
 
-  const commencer = () => {
+  const commencer = async () => {
+    // Vérification serveur juste avant le démarrage (anti-triche : double-tab)
+    if (joueur?.id) {
+      const already = await hasAttemptedToday(joueur, today);
+      if (already) {
+        setAlreadyPlayed(true);
+        return;
+      }
+      // Crée une tentative "abandonne" en base immédiatement → consomme le jeton du jour
+      const id = await createAttempt(joueur, today);
+      attemptIdRef.current = id;
+    }
     const now = Date.now();
     startRef.current      = now;
     splitStartRef.current = now;
@@ -412,7 +504,19 @@ export const ChronoFinish = ({ setPage, joueur }) => {
               💎 <b style={{ color:C.purple }}>+5 DRIX</b> pour avoir complété le défi ·{" "}
               🏆 <b style={{ color:C.yellow }}>+20 DRIX</b> au meilleur temps
             </div>
+            <div style={{ marginTop:10,fontSize:11,color:"#f59e0b",lineHeight:1.5,padding:"6px 10px",background:"#78350f22",borderRadius:8,border:"1px solid #f59e0b33" }}>
+              ⚠ <b>1 seule tentative par jour</b> — abandon ou ferme la page = tentative perdue
+            </div>
           </div>
+
+          {/* Banière "déjà joué" */}
+          {alreadyPlayed && (
+            <div style={{ background:"linear-gradient(135deg,#1a0a14,#0f0a18)",border:`2px solid ${C.red}66`,borderRadius:16,padding:"14px 16px",textAlign:"center" }}>
+              <div style={{ fontSize:28,marginBottom:4 }}>🔒</div>
+              <div style={{ fontWeight:900,fontSize:14,color:C.red,marginBottom:3 }}>Tu as déjà joué aujourd'hui</div>
+              <div style={{ fontSize:12,color:C.muted }}>Reviens demain pour une nouvelle tentative !</div>
+            </div>
+          )}
 
           {/* Classement du jour */}
           <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden" }}>
@@ -426,18 +530,34 @@ export const ChronoFinish = ({ setPage, joueur }) => {
             ) : (
               scores.map((s, i) => {
                 const isMe = s.joueur_id === joueur?.id;
+                const isAbandon = (s.statut || "termine") === "abandonne";
+                // Rank uniquement pour les terminés
+                const completedCount = scores.filter(x => (x.statut || "termine") === "termine").length;
+                const rankIdx = !isAbandon ? i : -1;
                 return (
-                  <div key={i} style={{ display:"flex",alignItems:"center",padding:"10px 14px",borderBottom:i<scores.length-1?`1px solid ${C.border}22`:"none",gap:10,background:isMe?`${C.purple}18`:"transparent" }}>
-                    <div style={{ width:26,textAlign:"center",fontWeight:900,fontSize:i<3?17:12,color:i<3?C.yellow:C.muted,flexShrink:0 }}>
-                      {i < 3 ? medals[i] : i+1}
+                  <div key={i} style={{
+                    display:"flex",alignItems:"center",padding:"10px 14px",
+                    borderBottom: i<scores.length-1 ? `1px solid ${C.border}22` : "none",
+                    gap:10,
+                    background: isMe ? `${C.purple}18` : isAbandon ? `${C.red}08` : "transparent",
+                    opacity: isAbandon ? .8 : 1,
+                  }}>
+                    <div style={{ width:26,textAlign:"center",fontWeight:900,fontSize:rankIdx<3 && !isAbandon ?17:12, color: isAbandon ? C.red : (rankIdx<3 ? C.yellow : C.muted), flexShrink:0 }}>
+                      {isAbandon ? "✗" : (rankIdx < 3 ? medals[rankIdx] : rankIdx+1)}
                     </div>
-                    <div style={{ flex:1,fontWeight:isMe?800:600,fontSize:14,color:isMe?C.purple:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                    <div style={{ flex:1,fontWeight:isMe?800:600,fontSize:14,color: isAbandon ? "#94a3b8" : (isMe?C.purple:C.text),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
                       {s.joueur_pseudo}{isMe?" (toi)":""}
                     </div>
-                    {s.erreurs > 0 && <div style={{ fontSize:11,color:C.red }}>{s.erreurs} err.</div>}
-                    <div style={{ fontWeight:900,fontSize:15,color:i===0?C.yellow:isMe?C.purple:C.text,fontVariantNumeric:"tabular-nums",flexShrink:0 }}>
-                      {formatChrono(s.temps_ms)}
-                    </div>
+                    {!isAbandon && s.erreurs > 0 && <div style={{ fontSize:11,color:C.red }}>{s.erreurs} err.</div>}
+                    {isAbandon ? (
+                      <div style={{ fontWeight:800,fontSize:12,color:C.red,fontStyle:"italic",flexShrink:0,letterSpacing:.5 }}>
+                        Abandon
+                      </div>
+                    ) : (
+                      <div style={{ fontWeight:900,fontSize:15,color:rankIdx===0?C.yellow:isMe?C.purple:C.text,fontVariantNumeric:"tabular-nums",flexShrink:0 }}>
+                        {formatChrono(s.temps_ms)}
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -447,8 +567,20 @@ export const ChronoFinish = ({ setPage, joueur }) => {
           {/* Boutons */}
           <div style={{ display:"flex",gap:10,marginTop:4 }}>
             <button onClick={commencer}
-              style={{ flex:1,background:`linear-gradient(135deg,${C.purple},#7c3aed)`,color:"#fff",border:"none",borderRadius:12,padding:"14px",fontWeight:900,fontSize:16,cursor:"pointer",touchAction:"manipulation",boxShadow:`0 4px 20px ${C.purple}55` }}>
-              🎯 Commencer
+              disabled={alreadyPlayed || checking}
+              style={{
+                flex:1,
+                background: (alreadyPlayed||checking) ? "#1a1a1a" : `linear-gradient(135deg,${C.purple},#7c3aed)`,
+                color: (alreadyPlayed||checking) ? C.muted : "#fff",
+                border: (alreadyPlayed||checking) ? `1px solid ${C.border}` : "none",
+                borderRadius:12, padding:"14px",
+                fontWeight:900, fontSize:16,
+                cursor: (alreadyPlayed||checking) ? "not-allowed" : "pointer",
+                touchAction:"manipulation",
+                boxShadow: (alreadyPlayed||checking) ? "none" : `0 4px 20px ${C.purple}55`,
+                opacity: (alreadyPlayed||checking) ? .6 : 1,
+              }}>
+              {checking ? "Vérification…" : alreadyPlayed ? "🔒 Bloqué jusqu'à demain" : "🎯 Commencer"}
             </button>
           </div>
 
