@@ -23,3 +23,15 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Supabase CLI binaries (gros fichiers, à télécharger localement)
+supabase.exe
+supabase-go.exe
+supabase_cli.tar.gz
+supabase/functions/
+
+# Claude Code skills locaux
+.claude/skills/
+
+# TypeScript build info
+*.tsbuildinfo
