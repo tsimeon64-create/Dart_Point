@@ -1069,7 +1069,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const quitterPartie = async () => {
     setShowConfirmQuitter(false);
     if (modeDuel && duel?.id && setPage) {
-      closeLiveSession();
+      // On AWAIT closeLiveSession pour éviter que la navigation n'avorte la requête
+      // (sinon la live_session reste 'en_cours' en base → zombie dans la liste LIVE)
+      await closeLiveSession();
       // Marquer le duel comme abandonné pour les deux joueurs
       try {
         await fetch(`${SB_URL}/rest/v1/duels?id=eq.${duel.id}`, {

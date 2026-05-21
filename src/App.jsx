@@ -4046,17 +4046,29 @@ const PageLive = ({ joueur, setPage }) => {
   useEffect(() => {
     if (!amiIds.length) return;
     let cancelled = false;
+    const STALE_MS = 2 * 60 * 60 * 1000; // 2 heures sans activité → session zombie
     const load = async () => {
       try {
         const inList = amiIds.join(",");
         const data = await sb(`live_sessions?statut=eq.en_cours&or=(joueur1_id.in.(${inList}),joueur2_id.in.(${inList}))&order=debut.desc`).catch(()=>[]);
-        if (!cancelled) { setSessions(data||[]); setLoading(false); }
+        const now = Date.now();
+        const fresh = (data||[]).filter(s => (now - (s.debut||now)) < STALE_MS);
+        const stale = (data||[]).filter(s => (now - (s.debut||now)) >= STALE_MS);
+
+        // Auto-cleanup des sessions zombies de l'utilisateur courant (et de ses amis qui sont participants)
+        const myId = String(joueur?.id||"");
+        const myStale = stale.filter(s => String(s.joueur1_id||"") === myId || String(s.joueur2_id||"") === myId);
+        for (const z of myStale) {
+          sb(`live_sessions?id=eq.${z.id}`, { method:"PATCH", body:JSON.stringify({ statut:"abandonne" }), prefer:"return=minimal" }).catch(()=>{});
+        }
+
+        if (!cancelled) { setSessions(fresh); setLoading(false); }
       } catch(e) { if (!cancelled) setLoading(false); }
     };
     load();
     const iv = setInterval(load, 10000);
     return () => { cancelled = true; clearInterval(iv); };
-  }, [amiIds]);
+  }, [amiIds, joueur?.id]);
 
   if (selected) return <LiveMatchView session={selected} joueur={joueur} setPage={setPage} onBack={()=>setSelected(null)}/>;
 
