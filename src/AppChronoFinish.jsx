@@ -618,15 +618,8 @@ export const ChronoFinish = ({ setPage, joueur }) => {
 
           {/* Titre du jour */}
           <div style={{ background:`${C.purple}15`,border:`1px solid ${C.purple}44`,borderRadius:14,padding:"12px 16px",marginBottom:14,textAlign:"center" }}>
-            <div style={{ fontSize:11,color:C.muted,letterSpacing:1,marginBottom:4 }}>DÉFI QUOTIDIEN</div>
-            <div style={{ display:"flex",justifyContent:"center",gap:8,flexWrap:"wrap" }}>
-              {finishes.map((f,i)=>(
-                <span key={i} style={{ background:C.card2,border:`1px solid ${C.border}`,borderRadius:8,padding:"3px 10px",fontWeight:700,fontSize:13,color:C.accent }}>
-                  {["①","②","③","④","⑤"][i]} {f}
-                </span>
-              ))}
-            </div>
-            <div style={{ fontSize:11,color:C.muted,marginTop:8 }}>🥇 Le vainqueur reçoit <b style={{ color:C.yellow }}>+20 DRIX</b> à minuit</div>
+            <div style={{ fontSize:11,color:C.muted,letterSpacing:1,marginBottom:4 }}>CLASSEMENT DU DÉFI QUOTIDIEN</div>
+            <div style={{ fontSize:11,color:C.muted,marginTop:4 }}>🥇 Le vainqueur reçoit <b style={{ color:C.yellow }}>+20 DRIX</b> à minuit</div>
           </div>
 
           {loadingScores ? (
