@@ -356,7 +356,7 @@ export const BoutonMessage=({joueur,cible,setPage})=>{
   if(!joueur||joueur.id===cible.id)return null;
   return(
     <button
-      onClick={()=>setPage("messages-"+cible.id+"-"+encodeURIComponent(cible.pseudo))}
+      onClick={()=>setPage("messages-"+cible.id+"|"+encodeURIComponent(cible.pseudo))}
       style={{background:"#60a5fa22",color:"#60a5fa",border:"1px solid #60a5fa44",cursor:"pointer",padding:"7px 14px",borderRadius:8,fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
       💬 Message
     </button>

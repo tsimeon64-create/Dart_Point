@@ -6799,7 +6799,7 @@ const AdminJoueurs = ({ addLog }) => {
       // Inscriptions tournois potes
       sb(`tournois_potes_joueurs?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
       // Messages
-      sb(`messages?or=(expediteur_id.eq.${id},destinataire_id.eq.${id})`,{method:"DELETE",prefer:"return=minimal"}),
+      sb(`messages?or=(from_id.eq.${id},to_id.eq.${id})`,{method:"DELETE",prefer:"return=minimal"}),
     ]);
   };
 
@@ -6847,7 +6847,7 @@ const AdminJoueurs = ({ addLog }) => {
         sb(`amis?ami_id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}),
         sb(`presences?joueur_id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}),
         sb(`presence_joueurs?joueur_id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}),
-        sb(`messages?or=(expediteur_id.eq.${j.id},destinataire_id.eq.${j.id})`,{method:"DELETE",prefer:"return=minimal"}),
+        sb(`messages?or=(from_id.eq.${j.id},to_id.eq.${j.id})`,{method:"DELETE",prefer:"return=minimal"}),
       ]);
       // 3. Retire de l'UI
       setTous(x=>x.filter(p=>p.id!==j.id));
@@ -9784,7 +9784,23 @@ export default function App() {
         {page.startsWith("tournoi-potes-") && <TournoiPotesDetail tournoiId={page.replace("tournoi-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
         {page.startsWith("scoreur-potes-") && <ScoreurPotesWrapper matchId={page.replace("scoreur-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
         {page==="messagerie"       && <MessagesPage joueur={joueur} setPage={nav}/>}
-        {page.startsWith("messages-") && (()=>{ const str=page.replace("messages-",""); const parts=str.split("-"); const tid=parts.slice(0,5).join("-"); const tpseudo=decodeURIComponent(parts.slice(5).join("-")); return <MessagesPage joueur={joueur} setPage={nav} targetId={tid} targetPseudo={tpseudo}/>; })()}
+        {page.startsWith("messages-") && (()=>{
+          // Nouveau format : "messages-<id>|<encodedPseudo>" (le | est encodé par encodeURIComponent donc safe)
+          // Fallback ancien format : "messages-<uuid-v4>-<encodedPseudo>" (5 segments UUID + reste = pseudo)
+          const str = page.replace("messages-","");
+          let tid, tpseudo;
+          if (str.includes("|")) {
+            const pipeIdx = str.indexOf("|");
+            tid = str.slice(0, pipeIdx);
+            tpseudo = decodeURIComponent(str.slice(pipeIdx + 1));
+          } else {
+            // Ancien format (legacy) — à supprimer dans une prochaine version
+            const parts = str.split("-");
+            tid = parts.slice(0,5).join("-");
+            tpseudo = decodeURIComponent(parts.slice(5).join("-"));
+          }
+          return <MessagesPage joueur={joueur} setPage={nav} targetId={tid} targetPseudo={tpseudo}/>;
+        })()}
         {page.startsWith("scoreur-duel-") && joueur && <ScoreurDuel duelId={page.replace("scoreur-duel-","")} joueur={joueur} setPage={nav}/>}
         {page==="scoreur-doublette"     && joueur && <ScoreurDoublette joueur={joueur} setPage={nav}/>}
         {page==="apropos"          && <APropos bars={bars} setPage={nav}/>}

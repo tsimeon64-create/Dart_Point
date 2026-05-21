@@ -2423,7 +2423,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       {/* ── BOUTONS ── */}
       {moi&&moi.id!==j.id&&(
         <div style={{display:"flex",gap:8,marginBottom:10}}>
-          <button onClick={()=>setPage("messages-"+j.id+"-"+encodeURIComponent(j.pseudo))}
+          <button onClick={()=>setPage("messages-"+j.id+"|"+encodeURIComponent(j.pseudo))}
             style={{flex:1,background:"#1d4ed8",border:"none",color:"#fff",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:700,fontSize:14,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
             💬 Message
           </button>
@@ -3214,11 +3214,6 @@ export const calculerDrix = (drixA, drixB, aGagne, options = {}) => {
     ? -(isDefiSemaine && !aEstPlusFort ? Math.round(perteB / 2) : perteB) + bonusB
     : +Math.round(K * EA) + bonusB;
 
-  console.log("🎯 DRIX:", {
-    drixA, drixB, aGagne, K, isDefiSemaine,
-    EA: EA.toFixed(3), EB: EB.toFixed(3),
-    variationA, variationB,
-  });
   return { variationA, variationB };
 };
 

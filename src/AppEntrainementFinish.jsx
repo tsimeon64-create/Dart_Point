@@ -173,7 +173,7 @@ const SelectionMode = ({ onSelect, setPage, joueur }) => {
             <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
               <span style={{ flexShrink:0, display:"flex", alignItems:"center", paddingTop:2 }}><Timer size={18} color={C.yellow}/></span>
               <span style={{ fontSize:13, color:C.text, lineHeight:1.5 }}>
-                <b style={{ color:C.yellow }}>1 min 20</b> pour répondre — le temps s'écoule, dépêche-toi !
+                <b style={{ color:C.yellow }}>12 secondes</b> pour répondre — le temps s'écoule, dépêche-toi !
               </span>
             </div>
           </div>
