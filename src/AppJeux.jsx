@@ -549,9 +549,27 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
       )}
 
       {/* ════════════════════════════════════════════════════════════════ */}
-      {/* 10. ACTIONS SECONDAIRES                                           */}
+      {/* 10. BOUTON VALIDER (gros bouton vert, équivalent au Rejouer)      */}
       {/* ════════════════════════════════════════════════════════════════ */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+      <style>{`@keyframes finValiderGlow{0%,100%{box-shadow:0 0 18px #22c55e55,0 4px 20px #16a34a44}50%{box-shadow:0 0 48px #22c55edd,0 6px 36px #16a34aaa}}`}</style>
+      <button onClick={quitterPartie} style={{
+        width:"100%", padding:"18px", borderRadius:18, border:"2px solid #4ade8077",
+        background:"linear-gradient(135deg,#22c55e,#16a34a)", color:"#fff",
+        fontWeight:900, fontSize:19, cursor:"pointer", marginBottom:10,
+        animation:"finValiderGlow 2s ease-in-out infinite",
+        letterSpacing:.5, position:"relative", overflow:"hidden",
+        display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+        touchAction:"manipulation",
+      }}>
+        <div style={{ position:"absolute", top:0, left:0, bottom:0, width:80, background:"linear-gradient(90deg,transparent,#ffffff22,transparent)", animation:"finShine 3s ease-in-out infinite", pointerEvents:"none" }}/>
+        <span style={{ fontSize:22, position:"relative" }}>{modeDuel ? "✅" : "🏠"}</span>
+        <span style={{ position:"relative" }}>{modeDuel ? "VALIDER LE MATCH" : "RETOUR ACCUEIL"}</span>
+      </button>
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* 11. ACTIONS SECONDAIRES                                           */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
         <button onClick={()=>setShowStats(true)} style={{ padding:"11px 6px", borderRadius:12, border:"1px solid #22c55e44", fontWeight:700, fontSize:12, cursor:"pointer", background:"#0a1a0a", color:"#22c55e", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
           <span style={{ fontSize:16 }}>📊</span>
           <span>Stats</span>
@@ -559,10 +577,6 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
         <button onClick={partagerWhatsApp} style={{ padding:"11px 6px", borderRadius:12, border:"1px solid #22c55e55", fontWeight:700, fontSize:12, cursor:"pointer", background:"linear-gradient(135deg,#0a1a0a,#0f1f15)", color:"#22c55e", display:"flex", flexDirection:"column", alignItems:"center", gap:3, boxShadow:"0 0 12px #22c55e22" }}>
           <span style={{ fontSize:16 }}>💬</span>
           <span>WhatsApp</span>
-        </button>
-        <button onClick={quitterPartie} style={{ padding:"11px 6px", borderRadius:12, border:"1px solid #2a2a2a", fontWeight:700, fontSize:12, cursor:"pointer", background:"#1a1a1a", color:"#94a3b8", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
-          <span style={{ fontSize:16 }}>🏠</span>
-          <span>{modeDuel ? "Valider" : "Accueil"}</span>
         </button>
       </div>
 
