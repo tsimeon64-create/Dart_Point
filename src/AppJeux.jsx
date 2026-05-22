@@ -1730,10 +1730,6 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
               opacity: isActif ? 1 : .55,
               transform: isActif ? "scale(1)" : "scale(0.96)",
             }}>
-              {/* Shine sur joueur actif */}
-              {isActif && (
-                <div style={{ position:"absolute",top:0,left:0,bottom:0,width:60,background:"linear-gradient(90deg,transparent,#f9731622,transparent)",animation:"scShine 4s ease-in-out infinite",pointerEvents:"none" }}/>
-              )}
 
               {/* Header carte : nom + indicateur */}
               <div style={{ position:"relative", display:"flex", alignItems:"center", gap:5, marginBottom:4 }}>
