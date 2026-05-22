@@ -1203,10 +1203,16 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           manches: manchesDetail || [],
         };
         const contenu = `__DUEL__|${JSON.stringify(duelPost)}`;
+        // Récupère la photo du gagnant pour l'inclure dans le wall_post
+        // (évite de fetch dans chaque DuelPost à l'affichage)
+        const gagnantPhotoArr = await fetch(`${SB_URL}/rest/v1/joueurs?id=eq.${gagnantId}&select=photo`, {
+          headers:{ "apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}` }
+        }).then(r=>r.json()).catch(()=>[]);
+        const gagnantPhoto = gagnantPhotoArr?.[0]?.photo || null;
         fetch(`${SB_URL}/rest/v1/wall_posts`, {
           method:"POST",
           headers:{ "apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`,"Content-Type":"application/json","Prefer":"return=minimal" },
-          body: JSON.stringify({ joueur_id:gagnantId, joueur_pseudo:gagnantNom, joueur_photo:null, contenu, date:Date.now() }),
+          body: JSON.stringify({ joueur_id:gagnantId, joueur_pseudo:gagnantNom, joueur_photo:gagnantPhoto, contenu, date:Date.now() }),
         }).catch(()=>{});
       }
 

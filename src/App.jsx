@@ -3524,17 +3524,26 @@ const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepu
 const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepuis, setPage }) => {
   const [openManches, setOpenManches] = useState(false);
   const [openDrix, setOpenDrix]       = useState(false);
+  // Photos des 2 joueurs (le wall_post est créé avec joueur_photo=null en base
+  // donc on doit les fetch via les pseudos)
+  const [winnerPhoto, setWinnerPhoto] = useState(p.joueur_photo || null);
   const [loserPhoto, setLoserPhoto]   = useState(null);
   const w = d.winner; const l = d.loser;
   const isRivalite = !!d.isRivalite;
 
-  // Fetch la photo du perdant (le gagnant a déjà sa photo via p.joueur_photo)
+  // Fetch photos des 2 joueurs (gagnant + perdant) en une seule requête
   useEffect(() => {
-    if (!l?.nom) return;
-    sb(`joueurs?pseudo=eq.${encodeURIComponent(l.nom)}&select=photo&limit=1`)
-      .then(r => { if (r?.[0]?.photo) setLoserPhoto(r[0].photo); })
+    if (!w?.nom || !l?.nom) return;
+    sb(`joueurs?pseudo=in.("${encodeURIComponent(w.nom)}","${encodeURIComponent(l.nom)}")&select=pseudo,photo`)
+      .then(r => {
+        const arr = r || [];
+        const wp = arr.find(x => x.pseudo === w.nom)?.photo;
+        const lp = arr.find(x => x.pseudo === l.nom)?.photo;
+        if (wp) setWinnerPhoto(wp);
+        if (lp) setLoserPhoto(lp);
+      })
       .catch(()=>{});
-  }, [l?.nom]);
+  }, [w?.nom, l?.nom]);
   const scoreW = w?.nbManches ?? (() => { const m = d.headline?.match(/(\d+)-(\d+)/); return m ? parseInt(m[1]) : null; })();
   const scoreL = l?.nbManches ?? (() => { const m = d.headline?.match(/(\d+)-(\d+)/); return m ? parseInt(m[2]) : null; })();
   const totalManches = (scoreW||0) + (scoreL||0);
@@ -3642,7 +3651,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
             <div style={{ flex:1, textAlign:"center", minWidth:0, animation:"duelScoreReveal .6s cubic-bezier(.34,1.56,.64,1) both" }}>
               {/* Avatar */}
               <div style={{ display:"flex", justifyContent:"center", marginBottom:8 }}>
-                <FeedAvatar photo={p.joueur_photo} pseudo={w.nom} size={42} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
+                <FeedAvatar photo={winnerPhoto} pseudo={w.nom} size={42} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
               </div>
               <div title={w.nom} style={{ fontWeight:900, fontSize:12, color:winColor, marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textShadow:`0 0 10px ${winColor}66` }}>
                 {w.nom}
