@@ -2521,16 +2521,12 @@ const PageDefi = ({ joueur, setPage }) => {
           return pa.localeCompare(pb, "fr", { sensitivity:"base" });
         });
         const q = searchDefi.trim().toLowerCase();
-        // Exclure le(s) rival(aux) de la liste amis (ils ont leur propre bloc)
-        const rivalIds = new Set([rivaliteHebdo?.rival?.id, rivaliteHebdo?.rival2?.id].filter(Boolean));
-        const amisSansCible = amisTries.filter(a => {
-          const aId = a.joueur_id===joueur.id ? a.ami_id : a.joueur_id;
-          return !rivalIds.has(aId);
-        });
-        const amisFiltres = q ? amisSansCible.filter(a => {
+        // Les rivaux restent dans la liste : tu peux toujours faire un duel "ami"
+        // contre eux même si la rivalité hebdo est en cours.
+        const amisFiltres = q ? amisTries.filter(a => {
           const pseudo = (a.joueur_id===joueur.id ? a.ami_pseudo : a.joueur_pseudo)||"";
           return pseudo.toLowerCase().includes(q);
-        }) : amisSansCible;
+        }) : amisTries;
 
         return (
           <>
