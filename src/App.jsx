@@ -3710,14 +3710,14 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
 
         {/* DRIX vivants */}
         <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-          <div style={{ flex:1, position:"relative", overflow:"hidden", background:`linear-gradient(135deg,${winColor}18,${winColor}08)`, border:`1px solid ${winColor}44`, borderRadius:12, padding:"10px 12px", boxShadow:`0 0 16px ${winColor}15` }}>
+          <div style={{ flex:1, position:"relative", overflow:"hidden", background:`linear-gradient(135deg,${winColor}18,${winColor}08)`, border:`1px solid ${winColor}44`, borderRadius:12, padding:"10px 12px", boxShadow:`0 0 16px ${winColor}15`, textAlign:"center" }}>
             <div style={{ fontSize:9, fontWeight:800, color:"#86efac", letterSpacing:1, marginBottom:2 }}>🔥 {w.nom.split(" ")[0].slice(0,12)}</div>
             <div style={{ fontSize:26, fontWeight:900, color:winColor, lineHeight:1, fontVariantNumeric:"tabular-nums", textShadow:`0 0 12px ${winColor}66` }}>
               {w.total>=0?"+":""}{w.total}
             </div>
             <div style={{ fontSize:9, color:"#86efac", marginTop:2, letterSpacing:.5 }}>DRIX gagnés</div>
           </div>
-          <div style={{ flex:1, position:"relative", overflow:"hidden", background: isRivalite ? "#ffffff05" : `linear-gradient(135deg,${loseColor}15,${loseColor}05)`, border: `1px solid ${isRivalite?"#ffffff15":loseColor+"44"}`, borderRadius:12, padding:"10px 12px" }}>
+          <div style={{ flex:1, position:"relative", overflow:"hidden", background: isRivalite ? "#ffffff05" : `linear-gradient(135deg,${loseColor}15,${loseColor}05)`, border: `1px solid ${isRivalite?"#ffffff15":loseColor+"44"}`, borderRadius:12, padding:"10px 12px", textAlign:"center" }}>
             <div style={{ fontSize:9, fontWeight:800, color: isRivalite?"#64748b":"#fca5a5", letterSpacing:1, marginBottom:2 }}>{isRivalite?"🛡":"💀"} {l.nom.split(" ")[0].slice(0,12)}</div>
             <div style={{ fontSize:26, fontWeight:900, color: isRivalite?"#334155":loseColor, lineHeight:1, fontVariantNumeric:"tabular-nums" }}>
               {isRivalite?"0":`${l.total>=0?"+":""}${l.total}`}
