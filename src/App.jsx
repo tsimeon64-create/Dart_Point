@@ -1849,6 +1849,7 @@ const PageDefi = ({ joueur, setPage }) => {
   const [rivaliteHistory, setRivaliteHistory] = useState(null);   // duels entre moi et le rival
   const [rivaliteTimerStr, setRivaliteTimerStr] = useState("");   // countdown dynamique
   const [hideAssoLock, setHideAssoLock] = useState(() => localStorage.getItem("dp_defi_hebdo_asso_skip") === "1");
+  const [rivaliteResults, setRivaliteResults] = useState({});     // {rivalId: 'won' | 'lost'}
 
   const charger = () => {
     if (!joueur) { setLoading(false); return; }
@@ -1951,6 +1952,35 @@ const PageDefi = ({ joueur, setPage }) => {
     setShowRivaliteHebdo(false);
     if (rivaliteHebdo?.weekKey) localStorage.setItem(rivaliteHebdo.weekKey + "_shown", "1");
   };
+
+  // ── Détection : la rivalité hebdo a-t-elle été jouée cette semaine ? ──────
+  // On vérifie les duels termine entre joueur et ses rivaux depuis lundi 00:00.
+  useEffect(() => {
+    if (!joueur?.id || !rivaliteHebdo?.rival?.id) return;
+    const rivalIds = [rivaliteHebdo.rival?.id, rivaliteHebdo.rival2?.id].filter(Boolean);
+    if (rivalIds.length === 0) return;
+    // Calcul du début de la semaine (lundi 00:00)
+    const now = new Date();
+    const dayOfWeek = now.getDay() || 7; // 0 (dimanche) → 7
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - dayOfWeek + 1);
+    monday.setHours(0, 0, 0, 0);
+    const weekStart = monday.getTime();
+
+    const filter = rivalIds.map(rid => `and(or(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id}),or(challenger_id.eq.${rid},defie_id.eq.${rid}))`).join(",");
+    sb(`duels?or=(${filter})&statut=eq.termine&date=gte.${weekStart}&order=date.desc&select=challenger_id,defie_id,gagnant_id,date`)
+      .then(rows => {
+        const results = {};
+        for (const d of (rows||[])) {
+          const opponentId = d.challenger_id === joueur.id ? d.defie_id : d.challenger_id;
+          if (!rivalIds.includes(opponentId)) continue;
+          if (results[opponentId]) continue; // garder seulement le 1er (le plus récent)
+          results[opponentId] = d.gagnant_id === joueur.id ? "won" : "lost";
+        }
+        setRivaliteResults(results);
+      })
+      .catch(()=>{});
+  }, [joueur?.id, rivaliteHebdo?.rival?.id, rivaliteHebdo?.rival2?.id]);
 
   // ── Timer countdown jusqu'à dimanche minuit (tourne dès que rivaliteHebdo est chargé) ──
   useEffect(() => {
@@ -2241,7 +2271,92 @@ const PageDefi = ({ joueur, setPage }) => {
 
       {/* ── Rivalité hebdo — grande carte immersive ── */}
       {rivaliteHebdo && (() => {
+        // Carte "Défi accompli" affichée quand la rivalité a déjà été jouée cette semaine
+        const renderDefiAccompli = (rival, result, isSecond = false) => {
+          const won = result === "won";
+          const mainColor = won ? "#22c55e" : "#a855f7"; // vert si gagné, violet doux sinon
+          const mainColor2 = won ? "#16a34a" : "#7c3aed";
+          const bgGradient = won
+            ? "linear-gradient(135deg,#0a1f0d 0%,#051a08 50%,#0f2415 100%)"
+            : "linear-gradient(135deg,#0d0010 0%,#0a0018 50%,#100010 100%)";
+          return (
+            <div key={`done-${rival.id}`} style={{
+              position:"relative", overflow:"hidden",
+              background: bgGradient,
+              border:`2px solid ${mainColor}55`,
+              borderRadius:22, padding:"22px 18px", marginBottom:12,
+              boxShadow:`0 8px 40px ${mainColor}1a`,
+              animation:"defisIn .35s ease both",
+            }}>
+              {/* Halos lumineux */}
+              <div style={{ position:"absolute",top:-50,left:-30,width:180,height:180,borderRadius:"50%",background:`radial-gradient(circle,${mainColor}15 0%,transparent 70%)`,pointerEvents:"none" }}/>
+              <div style={{ position:"absolute",bottom:-50,right:-30,width:180,height:180,borderRadius:"50%",background:`radial-gradient(circle,${mainColor2}12 0%,transparent 70%)`,pointerEvents:"none" }}/>
+              {/* Stripe haute animée */}
+              <div style={{ position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${mainColor2},${mainColor},${mainColor2})`,backgroundSize:"200% 100%",animation:"defisGlow 3s ease infinite" }}/>
+              <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 38%,rgba(255,255,255,0.04) 50%,transparent 62%)",animation:"defisShine 7s ease infinite 1.5s",pointerEvents:"none" }}/>
+
+              {/* Badge + label DÉFI ACCOMPLI */}
+              <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:18,flexWrap:"wrap" }}>
+                <div style={{ background:`linear-gradient(135deg,${mainColor},${mainColor2})`,borderRadius:8,padding:"4px 12px",display:"flex",alignItems:"center",gap:6,boxShadow:`0 0 18px ${mainColor}55`,flexShrink:0 }}>
+                  {won ? <Trophy size={11} color="#fff"/> : <Check size={11} color="#fff"/>}
+                  <span style={{ fontWeight:900,fontSize:11,color:"#fff",letterSpacing:.8 }}>DÉFI ACCOMPLI</span>
+                </div>
+                <span style={{ fontSize:11, color: won?"#86efac":"#94a3b8", fontWeight:700 }}>
+                  {isSecond ? "Rivalité ×2" : "Rivalité hebdo"}
+                </span>
+              </div>
+
+              {/* Icône hero */}
+              <div style={{ textAlign:"center", marginBottom:14 }}>
+                <div style={{ display:"inline-flex", width:84, height:84, borderRadius:"50%", background:`radial-gradient(circle,${mainColor}33,${mainColor}11)`, border:`3px solid ${mainColor}`, alignItems:"center", justifyContent:"center", boxShadow:`0 0 30px ${mainColor}66, inset 0 0 20px ${mainColor}33`, marginBottom:10 }}>
+                  <span style={{ fontSize:42, filter:`drop-shadow(0 0 8px ${mainColor})` }}>{won ? "🏆" : "🤝"}</span>
+                </div>
+                <div style={{ fontSize:22, fontWeight:900,
+                  background:`linear-gradient(135deg,${mainColor},${mainColor2})`,
+                  WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+                  textShadow:`0 0 20px ${mainColor}44`,
+                  letterSpacing:.5,
+                }}>
+                  {won ? "VICTOIRE !" : "DÉFI JOUÉ"}
+                </div>
+                <div style={{ fontSize:13, color:"#cbd5e1", marginTop:4 }}>
+                  {won ? `Tu as battu ${rival.pseudo}` : `Match joué contre ${rival.pseudo}`}
+                </div>
+              </div>
+
+              {/* Récompense ou consolation */}
+              {won && (
+                <div style={{ background:`linear-gradient(135deg,${mainColor}22,${mainColor}08)`, border:`1px solid ${mainColor}55`, borderRadius:14, padding:"12px 16px", marginBottom:12, textAlign:"center", boxShadow:`0 0 16px ${mainColor}22` }}>
+                  <div style={{ fontSize:10, fontWeight:800, color:"#86efac", letterSpacing:1.5, marginBottom:3 }}>RÉCOMPENSE</div>
+                  <div style={{ fontSize:24, fontWeight:900, color:mainColor, lineHeight:1, textShadow:`0 0 14px ${mainColor}66` }}>+50 DRIX</div>
+                  <div style={{ fontSize:11, color:"#86efac", marginTop:3 }}>Crédités sur ton compte 💎</div>
+                </div>
+              )}
+
+              {/* Message vivement la semaine prochaine */}
+              <div style={{ background:"linear-gradient(135deg,#0a0a14,#050510)", border:"1px solid #ffffff14", borderRadius:12, padding:"12px 14px", display:"flex", alignItems:"center", gap:10 }}>
+                <span style={{ fontSize:22, filter:"drop-shadow(0 0 6px #a78bfa66)" }}>⏳</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:11, fontWeight:800, color:"#a78bfa", letterSpacing:1.2, marginBottom:2 }}>PROCHAINE RIVALITÉ</div>
+                  <div style={{ fontSize:13, color:"#cbd5e1", lineHeight:1.4 }}>
+                    Vivement la semaine prochaine ! 🔥
+                  </div>
+                  {rivaliteTimerStr && (
+                    <div style={{ fontSize:11, color:"#64748b", marginTop:3 }}>Nouvelle rivalité dans {rivaliteTimerStr}</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        };
+
         const renderBigRivalCard = (rival, isSecond = false) => {
+          // Si déjà joué cette semaine → on affiche la carte 'défi accompli'
+          const result = rivaliteResults[rival.id];
+          if (result) {
+            return renderDefiAccompli(rival, result, isSecond);
+          }
+
           const { emoji:rEmoji, color:rColor } = getDrixTitre(rival.drix || 1000);
           const { emoji:myEmoji, color:myColor } = getDrixTitre(joueur.drix || 1000);
           const probMoi = Math.round(100 / (1 + Math.pow(10, ((rival.drix||1000) - (joueur.drix||1000)) / 400)));
