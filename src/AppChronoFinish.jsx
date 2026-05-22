@@ -140,8 +140,10 @@ export const checkYesterdayReward = async (joueur, onWin) => {
   localStorage.setItem("dp_chrono_last_check", today);
 
   const yesterday = getYesterday();
+  // ⚠ Filtre statut=termine pour exclure les abandons (temps_ms=0)
+  // Sans ce filtre, un joueur qui a abandonné serait déclaré vainqueur en 0.0s
   const scores = await sb(
-    `chrono_finish_scores?date_jour=eq.${yesterday}&rewarded=eq.false&order=temps_ms.asc&limit=1`
+    `chrono_finish_scores?date_jour=eq.${yesterday}&rewarded=eq.false&statut=eq.termine&temps_ms=gt.0&order=temps_ms.asc&limit=1`
   );
   if (!scores || scores.length === 0) return;
 
