@@ -3256,6 +3256,152 @@ const MancheDetail = ({ manches, joueur0, joueur1 }) => {
 };
 
 // ── Duel post avec breakdown DRIX replié ──────────────────────────────────────
+// ── Helper : parse le contenu d'un wall_post Chrono Finish ────────────────────
+// Détecte le format JSON moderne (__CHRONO__|{...}) ou le format texte legacy.
+// Retourne null si ce n'est pas un post Chrono Finish.
+const parseChronoFinishContent = (contenu) => {
+  if (!contenu) return null;
+  // Format JSON moderne
+  if (contenu.startsWith("__CHRONO__|")) {
+    try { return JSON.parse(contenu.slice(11)); } catch { return null; }
+  }
+  // Format texte legacy : "⏱ Chrono Finish — Défi du DD/MM/YYYY..." ou "🏆 Chrono Finish — Vainqueur..."
+  if (contenu.includes("Chrono Finish")) {
+    const isVainqueur = contenu.includes("Vainqueur") || contenu.includes("remporte le défi");
+    // Extraction du temps "X.Xs" ou "Xm XX.Xs"
+    const tempsMatch = contenu.match(/en\s+([\d:hms.\s]+)\s*!/);
+    const tempsStr = tempsMatch ? tempsMatch[1].trim() : null;
+    // Extraction erreurs
+    let erreurs = 0;
+    const errMatch = contenu.match(/(\d+)\s+erreur/);
+    if (errMatch) erreurs = parseInt(errMatch[1]);
+    if (contenu.includes("Zéro erreur")) erreurs = 0;
+    // Extraction DRIX
+    const drixMatch = contenu.match(/\+(\d+)\s+DRIX/);
+    const drix = drixMatch ? parseInt(drixMatch[1]) : (isVainqueur ? 20 : 5);
+    // Extraction date
+    const dateMatch = contenu.match(/du\s+(\d{2}\/\d{2}\/\d{4})/);
+    const dateLabel = dateMatch ? dateMatch[1] : null;
+    return {
+      type: isVainqueur ? "vainqueur" : "finish",
+      temps_label: tempsStr,
+      erreurs,
+      drix,
+      date_label: dateLabel,
+    };
+  }
+  return null;
+};
+
+// ── ChronoFinishPost — Carte premium speedrun darts ───────────────────────────
+const ChronoFinishPost = ({ p, info, C, cardBase, joueur, likesMap, commentsMap, tempsDepuis, setPage, FeedAvatar, LikeButton, CommentSection }) => {
+  const isVainqueur = info.type === "vainqueur";
+  const errCol = info.erreurs === 0 ? "#22c55e" : info.erreurs <= 2 ? "#f59e0b" : "#ef4444";
+  const errEmoji = info.erreurs === 0 ? "✅" : info.erreurs <= 2 ? "⚠️" : "❌";
+  const accentCol = isVainqueur ? "#fbbf24" : "#60a5fa";
+  const accentCol2 = isVainqueur ? "#f97316" : "#a78bfa";
+
+  return (
+    <div key={`post-${p.id}`} style={{
+      position:"relative", overflow:"hidden",
+      border: `1px solid ${accentCol}33`,
+      background: isVainqueur
+        ? "linear-gradient(160deg,#1a1200 0%,#0a0500 50%,#0a0a14 100%)"
+        : "linear-gradient(160deg,#0a1428 0%,#0a0a14 50%,#10081a 100%)",
+      borderRadius:16, marginBottom:12,
+      boxShadow: `0 4px 28px ${accentCol}22, 0 2px 10px rgba(0,0,0,0.4)`,
+      animation:"feedIn .3s ease-out both",
+    }}>
+      {/* Stripe haute animée */}
+      <div style={{ height:2, background:`linear-gradient(90deg,${accentCol2},${accentCol},${accentCol2})`, backgroundSize:"200% 100%", animation:"feedGlow 3s ease infinite" }}/>
+
+      {/* Lignes futuristes décoratives */}
+      <div style={{ position:"absolute", top:0, right:-20, width:140, height:140, borderRadius:"50%", background:`radial-gradient(circle, ${accentCol}22 0%, transparent 70%)`, pointerEvents:"none" }}/>
+      <div style={{ position:"absolute", bottom:-30, left:-20, width:120, height:120, borderRadius:"50%", background:`radial-gradient(circle, ${accentCol2}18 0%, transparent 70%)`, pointerEvents:"none" }}/>
+
+      <div style={{ position:"relative", padding:"14px 16px 12px" }}>
+        {/* Header : badge + avatar + pseudo + date */}
+        <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
+          <span style={{ fontSize:10, fontWeight:900, color:accentCol, letterSpacing:1.5, background:`${accentCol}18`, border:`1px solid ${accentCol}44`, borderRadius:8, padding:"2px 7px" }}>
+            {isVainqueur ? "🏆 VAINQUEUR DU JOUR" : "⏱ CHRONO FINISH"}
+          </span>
+          {info.date_label && (
+            <span style={{ fontSize:10, color:"#475569", marginLeft:"auto" }}>{info.date_label}</span>
+          )}
+        </div>
+
+        <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:14 }}>
+          <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={44} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:800, fontSize:14, color:"#fff", cursor:"pointer", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+              {p.joueur_pseudo}
+              {isVainqueur && <span style={{ marginLeft:6, fontSize:12 }}>👑</span>}
+            </div>
+            <div style={{ fontSize:11, color:"#64748b" }}>{tempsDepuis(p.date)}</div>
+          </div>
+        </div>
+
+        {/* TEMPS MASSIF AU CENTRE */}
+        <div style={{
+          position:"relative", overflow:"hidden",
+          background:"linear-gradient(135deg,#000510 0%,#0a0a14 100%)",
+          border:`1px solid ${accentCol}55`,
+          borderRadius:14, padding:"16px 12px",
+          marginBottom:10, textAlign:"center",
+          boxShadow:`inset 0 0 30px ${accentCol}15, 0 0 12px ${accentCol}22`,
+        }}>
+          {/* Effet scan line speedrun */}
+          <div style={{ position:"absolute", top:0, left:0, right:0, height:1, background:`linear-gradient(90deg,transparent,${accentCol}aa,transparent)`, animation:"feedShine 3s linear infinite" }}/>
+          <div style={{ fontSize:9, fontWeight:800, color:accentCol, letterSpacing:3, marginBottom:4, opacity:.7 }}>TEMPS RÉALISÉ</div>
+          <div style={{
+            fontSize:38, fontWeight:900, lineHeight:1,
+            background:`linear-gradient(135deg,${accentCol},${accentCol2})`,
+            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+            textShadow:`0 0 24px ${accentCol}66`,
+            fontVariantNumeric:"tabular-nums", letterSpacing:1,
+          }}>
+            ⏱ {info.temps_label || "—"}
+          </div>
+        </div>
+
+        {/* Mini badges : 5/5 finishes, erreurs, DRIX */}
+        <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap" }}>
+          {/* Finishes */}
+          <div style={{ flex:1, minWidth:0, background:"#0a1a0a", border:"1px solid #22c55e44", borderRadius:10, padding:"7px 9px", display:"flex", alignItems:"center", gap:6 }}>
+            <span style={{ fontSize:14 }}>🎯</span>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:900, color:"#22c55e", lineHeight:1 }}>5/5</div>
+              <div style={{ fontSize:9, color:"#65a30d", letterSpacing:.5 }}>FINISHES</div>
+            </div>
+          </div>
+          {/* Erreurs */}
+          <div style={{ flex:1, minWidth:0, background: info.erreurs===0 ? "#0a1a0a" : info.erreurs<=2 ? "#1a1200" : "#1a0a0a", border:`1px solid ${errCol}44`, borderRadius:10, padding:"7px 9px", display:"flex", alignItems:"center", gap:6 }}>
+            <span style={{ fontSize:14 }}>{errEmoji}</span>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:900, color:errCol, lineHeight:1 }}>
+                {info.erreurs === 0 ? "0" : info.erreurs}
+              </div>
+              <div style={{ fontSize:9, color:errCol, letterSpacing:.5 }}>{info.erreurs > 1 ? "ERREURS" : "ERREUR"}</div>
+            </div>
+          </div>
+          {/* DRIX */}
+          <div style={{ flex:1, minWidth:0, background:"#0a0a14", border:`1px solid ${accentCol}55`, borderRadius:10, padding:"7px 9px", display:"flex", alignItems:"center", gap:6, boxShadow:`0 0 10px ${accentCol}22` }}>
+            <span style={{ fontSize:14 }}>💎</span>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:900, color:accentCol, lineHeight:1, fontVariantNumeric:"tabular-nums" }}>+{info.drix}</div>
+              <div style={{ fontSize:9, color:accentCol, letterSpacing:.5, opacity:.8 }}>DRIX</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Likes + comments */}
+        <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
+        <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
+      </div>
+    </div>
+  );
+};
+
 const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepuis, setPage }) => {
   const [open, setOpen] = useState(false);
   const w = d.winner; const l = d.loser;
@@ -4413,6 +4559,17 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
           </div>
         );
       }
+    }
+
+    // ── Post Chrono Finish (texte legacy ou format JSON) ────────────────────
+    const chronoInfo = parseChronoFinishContent(p.contenu);
+    if (chronoInfo) {
+      return (
+        <ChronoFinishPost key={`post-${p.id}`} p={p} info={chronoInfo} C={C} cardBase={cardBase}
+          joueur={joueur} likesMap={likesMap} commentsMap={commentsMap}
+          tempsDepuis={tempsDepuis} setPage={setPage}
+          FeedAvatar={FeedAvatar} LikeButton={LikeButton} CommentSection={CommentSection}/>
+      );
     }
 
     // ── Post texte normal ────────────────────────────────────────────────────
