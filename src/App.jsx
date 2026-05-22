@@ -1954,27 +1954,27 @@ const PageDefi = ({ joueur, setPage }) => {
   };
 
   // ── Détection : la rivalité hebdo a-t-elle été jouée cette semaine ? ──────
-  // On vérifie les duels termine entre joueur et ses rivaux depuis lundi 00:00.
+  // On fetch tous nos duels terminés de la semaine, puis on filtre côté client.
   useEffect(() => {
     if (!joueur?.id || !rivaliteHebdo?.rival?.id) return;
     const rivalIds = [rivaliteHebdo.rival?.id, rivaliteHebdo.rival2?.id].filter(Boolean);
     if (rivalIds.length === 0) return;
-    // Calcul du début de la semaine (lundi 00:00)
+    // Début de la semaine (lundi 00:00 locale)
     const now = new Date();
-    const dayOfWeek = now.getDay() || 7; // 0 (dimanche) → 7
+    const dayOfWeek = now.getDay() || 7;
     const monday = new Date(now);
     monday.setDate(now.getDate() - dayOfWeek + 1);
     monday.setHours(0, 0, 0, 0);
     const weekStart = monday.getTime();
 
-    const filter = rivalIds.map(rid => `and(or(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id}),or(challenger_id.eq.${rid},defie_id.eq.${rid}))`).join(",");
-    sb(`duels?or=(${filter})&statut=eq.termine&date=gte.${weekStart}&order=date.desc&select=challenger_id,defie_id,gagnant_id,date`)
+    // Query simple : tous mes duels terminés depuis lundi
+    sb(`duels?or=(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id})&statut=eq.termine&date=gte.${weekStart}&order=date.desc&select=challenger_id,defie_id,gagnant_id,date`)
       .then(rows => {
         const results = {};
         for (const d of (rows||[])) {
           const opponentId = d.challenger_id === joueur.id ? d.defie_id : d.challenger_id;
           if (!rivalIds.includes(opponentId)) continue;
-          if (results[opponentId]) continue; // garder seulement le 1er (le plus récent)
+          if (results[opponentId]) continue; // garder le plus récent (already ordered desc)
           results[opponentId] = d.gagnant_id === joueur.id ? "won" : "lost";
         }
         setRivaliteResults(results);
