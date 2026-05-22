@@ -1743,15 +1743,13 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                 </span>
               </div>
 
-              {/* Score MASSIF */}
-              <div key={`score-${j.score}`} style={{
+              {/* Score MASSIF — sans effet (lisibilité max en jeu) */}
+              <div style={{
                 fontSize: joueurs.length <= 2 ? 64 : joueurs.length <= 4 ? 42 : 30,
                 fontWeight:900, lineHeight:.95,
                 color: isActif ? "#fff" : "#475569",
                 textAlign:"center", margin:"2px 0",
                 fontVariantNumeric:"tabular-nums",
-                textShadow: isActif ? "0 0 32px #f97316aa, 0 0 8px #fbbf2466" : "none",
-                animation: isActif ? "scScoreFlash .5s ease-out" : "none",
               }}>
                 {j.score}
               </div>
