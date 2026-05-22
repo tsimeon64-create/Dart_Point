@@ -3581,14 +3581,14 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
   return (
     <div key={`post-${p.id}`} style={{
       position:"relative", overflow:"hidden",
-      border: `1px solid ${isRivalite ? "#a855f755" : "#f9731644"}`,
+      border: `1px solid ${isRivalite ? "#a855f788" : "#f9731677"}`,
       background: isRivalite
-        ? "linear-gradient(165deg,#10001a 0%,#08000f 50%,#0a0510 100%)"
-        : "linear-gradient(165deg,#1a0d00 0%,#0d0500 50%,#0a0500 100%)",
-      borderRadius:18, marginBottom:14,
+        ? "linear-gradient(165deg,#15001f 0%,#0a0014 50%,#10051a 100%)"
+        : "linear-gradient(165deg,#1f1100 0%,#100600 50%,#0d0700 100%)",
+      borderRadius:20, marginBottom:16,
       boxShadow: isRivalite
-        ? "0 4px 32px rgba(168,85,247,0.18), inset 0 1px 0 rgba(168,85,247,0.10)"
-        : "0 4px 32px rgba(249,115,22,0.15), inset 0 1px 0 rgba(249,115,22,0.10)",
+        ? "0 8px 40px rgba(168,85,247,0.28), 0 0 60px rgba(168,85,247,0.10), inset 0 1px 0 rgba(168,85,247,0.18)"
+        : "0 8px 40px rgba(249,115,22,0.25), 0 0 60px rgba(249,115,22,0.10), inset 0 1px 0 rgba(249,115,22,0.18)",
       animation:"feedIn .3s ease-out both",
     }}>
       <style>{`
@@ -3637,11 +3637,11 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
         {/* SCORE MASSIF — élément central */}
         <div style={{
           position:"relative", overflow:"hidden",
-          background:"radial-gradient(ellipse at center,#0d0500 0%,#000 70%)",
-          border:`1px solid ${themeMain}44`,
-          borderRadius:16, padding:"20px 12px 18px",
-          marginBottom:12,
-          boxShadow:`inset 0 0 40px ${themeMain}15`,
+          background:`radial-gradient(ellipse at center, ${themeMain}10 0%, #0a0500 50%, #000 100%)`,
+          border:`1px solid ${themeMain}66`,
+          borderRadius:18, padding:"24px 12px 20px",
+          marginBottom:14,
+          boxShadow:`inset 0 0 50px ${themeMain}20, 0 4px 18px ${themeMain}15`,
         }}>
           {/* Shine balayage */}
           <div style={{ position:"absolute", top:0, left:0, bottom:0, width:100, background:"linear-gradient(90deg,transparent,#ffffff14,transparent)", animation:"duelShine 5s ease-in-out infinite", pointerEvents:"none" }}/>
@@ -3657,7 +3657,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
                 {w.nom}
               </div>
               <div style={{
-                fontSize:60, fontWeight:900, lineHeight:.9, color:winColor,
+                fontSize:72, fontWeight:900, lineHeight:.9, color:winColor,
                 fontVariantNumeric:"tabular-nums",
                 animation:"duelWinGlow 2.4s ease-in-out infinite",
               }}>
@@ -3668,19 +3668,19 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
               </div>
             </div>
 
-            {/* ⚔ central */}
-            <div style={{ flexShrink:0, textAlign:"center", padding:"0 4px", animation:"duelScoreReveal .6s .15s cubic-bezier(.34,1.56,.64,1) both" }}>
+            {/* ⚔ central — plus discret pour laisser le score dominer */}
+            <div style={{ flexShrink:0, textAlign:"center", padding:"0 2px", animation:"duelScoreReveal .6s .15s cubic-bezier(.34,1.56,.64,1) both" }}>
               <div style={{
-                width:54, height:54, borderRadius:"50%",
+                width:40, height:40, borderRadius:"50%",
                 background:`linear-gradient(135deg,${themeMain},${themeSecond})`,
                 display:"flex", alignItems:"center", justifyContent:"center",
-                margin:"0 auto 6px",
-                boxShadow:`0 0 24px ${themeMain}88, inset 0 1px 0 rgba(255,255,255,0.25)`,
+                margin:"0 auto 4px",
+                boxShadow:`0 0 16px ${themeMain}77, inset 0 1px 0 rgba(255,255,255,0.20)`,
                 animation:"duelSwordPulse 1.6s ease-in-out infinite",
               }}>
-                <Swords size={24} color="#fff"/>
+                <Swords size={16} color="#fff"/>
               </div>
-              <div style={{ fontSize:10, fontWeight:900, color:themeMain, letterSpacing:3, textShadow:`0 0 6px ${themeMain}` }}>VS</div>
+              <div style={{ fontSize:9, fontWeight:900, color:themeMain, letterSpacing:2, textShadow:`0 0 4px ${themeMain}` }}>VS</div>
             </div>
 
             {/* LOSER */}
@@ -3692,8 +3692,8 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
                 {l.nom}
               </div>
               <div style={{
-                fontSize:60, fontWeight:900, lineHeight:.9, color:loseColor,
-                fontVariantNumeric:"tabular-nums", opacity:.7,
+                fontSize:72, fontWeight:900, lineHeight:.9, color:loseColor,
+                fontVariantNumeric:"tabular-nums", opacity:.65, filter:"grayscale(.2)",
               }}>
                 {scoreL ?? "?"}
               </div>
@@ -3703,93 +3703,150 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
             </div>
           </div>
 
-          {/* Timeline manches */}
+          {/* Timeline manches — intégrée avec label */}
           {totalManches > 0 && manches.length > 0 && (
-            <div style={{ display:"flex", justifyContent:"center", gap:5, marginTop:14, paddingTop:12, borderTop:`1px solid ${themeMain}22` }}>
-              {manches.map((m, i) => {
-                const won = m.winner === w.nom;
-                return (
-                  <div key={i} title={`Manche ${i+1} — ${m.winner||""}${m.winner_finish?` · finish ${m.winner_finish}`:""}`} style={{
-                    width:28, height:28, borderRadius:8,
-                    background: won ? `${winColor}22` : `${loseColor}18`,
-                    border: `1px solid ${won ? winColor : loseColor}55`,
-                    display:"flex", alignItems:"center", justifyContent:"center",
-                    fontSize:11, fontWeight:900,
-                    color: won ? winColor : loseColor,
-                    boxShadow: won ? `0 0 8px ${winColor}33` : "none",
-                  }}>
-                    M{i+1}
-                  </div>
-                );
-              })}
+            <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${themeMain}33` }}>
+              <div style={{ fontSize:9, fontWeight:800, color:"#64748b", letterSpacing:2, marginBottom:8, textAlign:"center", textTransform:"uppercase" }}>🎯 Déroulé du match</div>
+              <div style={{ display:"flex", justifyContent:"center", gap:6 }}>
+                {manches.map((m, i) => {
+                  const won = m.winner === w.nom;
+                  return (
+                    <div key={i} title={`Manche ${i+1} — ${m.winner||""}${m.winner_finish?` · finish ${m.winner_finish}`:""}`} style={{
+                      minWidth:38, padding:"5px 8px", borderRadius:10,
+                      background: won
+                        ? `linear-gradient(135deg,${winColor}33,${winColor}10)`
+                        : `linear-gradient(135deg,${loseColor}22,${loseColor}08)`,
+                      border: `1px solid ${won ? winColor+"88" : loseColor+"55"}`,
+                      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                      boxShadow: won ? `0 0 12px ${winColor}33` : "none",
+                    }}>
+                      <div style={{ fontSize:8, fontWeight:700, color: won ? "#86efac" : "#fca5a5", letterSpacing:.5, opacity:.8 }}>M{i+1}</div>
+                      <div style={{ fontSize:14, fontWeight:900, color: won ? winColor : loseColor, lineHeight:1 }}>
+                        {won ? "✓" : "✗"}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
 
-        {/* DRIX vivants */}
-        <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-          <div style={{ flex:1, position:"relative", overflow:"hidden", background:`linear-gradient(135deg,${winColor}18,${winColor}08)`, border:`1px solid ${winColor}44`, borderRadius:12, padding:"10px 12px", boxShadow:`0 0 16px ${winColor}15`, textAlign:"center" }}>
-            <div style={{ fontSize:9, fontWeight:800, color:"#86efac", letterSpacing:1, marginBottom:2 }}>🔥 {w.nom.split(" ")[0].slice(0,12)}</div>
-            <div style={{ fontSize:26, fontWeight:900, color:winColor, lineHeight:1, fontVariantNumeric:"tabular-nums", textShadow:`0 0 12px ${winColor}66` }}>
+        {/* DRIX vivants — contours colorés bien distincts */}
+        <div style={{ display:"flex", gap:10, marginBottom:14 }}>
+          <div style={{ flex:1, position:"relative", overflow:"hidden", background:`linear-gradient(135deg,${winColor}22 0%,${winColor}0a 50%,#000 100%)`, border:`1px solid ${winColor}77`, borderRadius:14, padding:"12px 12px", boxShadow:`0 0 24px ${winColor}28, inset 0 1px 0 ${winColor}33`, textAlign:"center" }}>
+            <div style={{ fontSize:9, fontWeight:800, color:"#86efac", letterSpacing:1, marginBottom:3 }}>🔥 {w.nom.split(" ")[0].slice(0,12)}</div>
+            <div style={{ fontSize:30, fontWeight:900, color:winColor, lineHeight:1, fontVariantNumeric:"tabular-nums", textShadow:`0 0 18px ${winColor}99, 0 0 30px ${winColor}55` }}>
               {w.total>=0?"+":""}{w.total}
             </div>
-            <div style={{ fontSize:9, color:"#86efac", marginTop:2, letterSpacing:.5 }}>DRIX gagnés</div>
+            <div style={{ fontSize:9, color:"#86efac", marginTop:3, letterSpacing:.5 }}>DRIX gagnés</div>
           </div>
-          <div style={{ flex:1, position:"relative", overflow:"hidden", background: isRivalite ? "#ffffff05" : `linear-gradient(135deg,${loseColor}15,${loseColor}05)`, border: `1px solid ${isRivalite?"#ffffff15":loseColor+"44"}`, borderRadius:12, padding:"10px 12px", textAlign:"center" }}>
-            <div style={{ fontSize:9, fontWeight:800, color: isRivalite?"#64748b":"#fca5a5", letterSpacing:1, marginBottom:2 }}>{isRivalite?"🛡":"💀"} {l.nom.split(" ")[0].slice(0,12)}</div>
-            <div style={{ fontSize:26, fontWeight:900, color: isRivalite?"#334155":loseColor, lineHeight:1, fontVariantNumeric:"tabular-nums" }}>
+          <div style={{ flex:1, position:"relative", overflow:"hidden", background: isRivalite ? "linear-gradient(135deg,#ffffff08,#000)" : `linear-gradient(135deg,${loseColor}18 0%,${loseColor}05 50%,#000 100%)`, border: `1px solid ${isRivalite?"#ffffff20":loseColor+"66"}`, borderRadius:14, padding:"12px 12px", boxShadow: isRivalite ? "none" : `0 0 18px ${loseColor}22, inset 0 1px 0 ${loseColor}22`, textAlign:"center" }}>
+            <div style={{ fontSize:9, fontWeight:800, color: isRivalite?"#64748b":"#fca5a5", letterSpacing:1, marginBottom:3 }}>{isRivalite?"🛡":"💀"} {l.nom.split(" ")[0].slice(0,12)}</div>
+            <div style={{ fontSize:30, fontWeight:900, color: isRivalite?"#334155":loseColor, lineHeight:1, fontVariantNumeric:"tabular-nums", textShadow: isRivalite ? "none" : `0 0 12px ${loseColor}66` }}>
               {isRivalite?"0":`${l.total>=0?"+":""}${l.total}`}
             </div>
-            <div style={{ fontSize:9, color: isRivalite?"#475569":"#fca5a5", marginTop:2, letterSpacing:.5 }}>{isRivalite?"protégé":"DRIX perdus"}</div>
+            <div style={{ fontSize:9, color: isRivalite?"#475569":"#fca5a5", marginTop:3, letterSpacing:.5 }}>{isRivalite?"protégé":"DRIX perdus"}</div>
           </div>
         </div>
 
-        {/* HIGHLIGHTS du match */}
+        {/* HIGHLIGHTS du match — bloc violet néon spectaculaire */}
         {(bestFinish > 0 || bestVolee >= 100 || all180 > 0) && (
-          <div style={{ background:"linear-gradient(135deg,#0d0500,#000)", border:`1px solid ${themeMain}33`, borderRadius:12, padding:"10px 12px", marginBottom:10 }}>
-            <div style={{ fontSize:9, fontWeight:800, color:"#64748b", letterSpacing:2, marginBottom:6, textTransform:"uppercase" }}>📌 Highlights</div>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          <div style={{
+            position:"relative", overflow:"hidden",
+            background:"linear-gradient(135deg,#1a0a2e 0%,#0a0014 50%,#0a0a14 100%)",
+            border:"1px solid #a855f766",
+            borderRadius:14, padding:"12px 14px", marginBottom:14,
+            boxShadow:"0 0 24px rgba(168,85,247,0.18), inset 0 1px 0 rgba(168,85,247,0.20)",
+          }}>
+            {/* Shine balayage discret */}
+            <div style={{ position:"absolute", top:0, left:0, bottom:0, width:80, background:"linear-gradient(90deg,transparent,#a855f722,transparent)", animation:"duelShine 5s ease-in-out infinite 1s", pointerEvents:"none" }}/>
+            <div style={{ position:"relative", fontSize:10, fontWeight:900, color:"#c4b5fd", letterSpacing:2.5, marginBottom:8, textTransform:"uppercase", display:"flex", alignItems:"center", gap:6 }}>
+              📌 Highlights du match
+            </div>
+            <div style={{ position:"relative", display:"flex", gap:8, flexWrap:"wrap" }}>
               {bestFinish > 0 && (
-                <div style={{ display:"flex", alignItems:"center", gap:5, background:"#1a0014", border:"1px solid #a855f744", borderRadius:8, padding:"4px 8px", fontSize:11 }}>
-                  <span>🎯</span>
-                  <span style={{ color:"#a78bfa", fontWeight:800 }}>Finish {bestFinish}</span>
+                <div style={{ display:"flex", alignItems:"center", gap:7, background:"linear-gradient(135deg,#2a0d4a,#1a0030)", border:"1px solid #a855f788", borderRadius:10, padding:"6px 11px", fontSize:12, boxShadow:"0 0 14px rgba(168,85,247,0.30), inset 0 1px 0 rgba(168,85,247,0.30)" }}>
+                  <span style={{ fontSize:14 }}>🎯</span>
+                  <span style={{ color:"#c4b5fd", fontWeight:900, textShadow:"0 0 6px #a855f7" }}>Finish {bestFinish}</span>
                 </div>
               )}
               {all180 > 0 && (
-                <div style={{ display:"flex", alignItems:"center", gap:5, background:"#1a0a00", border:"1px solid #f9731644", borderRadius:8, padding:"4px 8px", fontSize:11 }}>
-                  <span>💥</span>
-                  <span style={{ color:"#f97316", fontWeight:800 }}>{all180}×180</span>
+                <div style={{ display:"flex", alignItems:"center", gap:7, background:"linear-gradient(135deg,#451a03,#1a0a00)", border:"1px solid #f9731688", borderRadius:10, padding:"6px 11px", fontSize:12, boxShadow:"0 0 14px rgba(249,115,22,0.28), inset 0 1px 0 rgba(249,115,22,0.30)" }}>
+                  <span style={{ fontSize:14 }}>💥</span>
+                  <span style={{ color:"#fdba74", fontWeight:900, textShadow:"0 0 6px #f97316" }}>{all180}×180</span>
                 </div>
               )}
               {bestVolee >= 100 && bestVolee < 180 && (
-                <div style={{ display:"flex", alignItems:"center", gap:5, background:"#1a1200", border:"1px solid #fbbf2444", borderRadius:8, padding:"4px 8px", fontSize:11 }}>
-                  <span>🔥</span>
-                  <span style={{ color:"#fbbf24", fontWeight:800 }}>Volée {bestVolee}</span>
+                <div style={{ display:"flex", alignItems:"center", gap:7, background:"linear-gradient(135deg,#451a03,#1a1200)", border:"1px solid #fbbf2488", borderRadius:10, padding:"6px 11px", fontSize:12, boxShadow:"0 0 14px rgba(251,191,36,0.28), inset 0 1px 0 rgba(251,191,36,0.30)" }}>
+                  <span style={{ fontSize:14 }}>🔥</span>
+                  <span style={{ color:"#fde68a", fontWeight:900, textShadow:"0 0 6px #fbbf24" }}>Volée {bestVolee}</span>
                 </div>
               )}
               {d.highlights && (
-                <div style={{ flex:1, fontSize:11, color:"#94a3b8", alignSelf:"center" }}>{d.highlights}</div>
+                <div style={{ flex:1, fontSize:11, color:"#94a3b8", alignSelf:"center", minWidth:120 }}>{d.highlights}</div>
               )}
             </div>
           </div>
         )}
 
-        {/* PHRASE IA */}
-        <div style={{ background:"linear-gradient(135deg,#0a0a14,#050510)", border:"1px solid #60a5fa33", borderRadius:12, padding:"10px 12px", marginBottom:10, display:"flex", alignItems:"flex-start", gap:10 }}>
-          <span style={{ fontSize:20, lineHeight:1, filter:"drop-shadow(0 0 6px #60a5fa66)" }}>{analyseIA.emoji}</span>
-          <div style={{ flex:1, fontSize:12, color:"#cbd5e1", lineHeight:1.5, fontStyle:"italic" }}>
-            "{analyseIA.text}"
+        {/* PHRASE IA — citation esport premium avec glow bleu */}
+        <div style={{
+          position:"relative", overflow:"hidden",
+          background:"linear-gradient(135deg,#0a1428 0%,#050518 50%,#0a0a18 100%)",
+          border:"1px solid #60a5fa66",
+          borderRadius:14, padding:"12px 14px 12px 16px", marginBottom:14,
+          boxShadow:"0 0 20px rgba(96,165,250,0.15), inset 0 1px 0 rgba(96,165,250,0.18)",
+          display:"flex", alignItems:"flex-start", gap:12,
+        }}>
+          {/* Guillemet décoratif */}
+          <div aria-hidden style={{ position:"absolute", top:-4, left:8, fontSize:36, color:"#60a5fa", opacity:.15, fontWeight:900, lineHeight:1, pointerEvents:"none", userSelect:"none" }}>"</div>
+          {/* Glow latéral */}
+          <div style={{ position:"absolute", left:0, top:0, bottom:0, width:3, background:"linear-gradient(180deg,#60a5fa,#a78bfa)", boxShadow:"0 0 12px #60a5fa88" }}/>
+
+          <span style={{ position:"relative", fontSize:24, lineHeight:1, filter:"drop-shadow(0 0 10px #60a5faaa)" }}>{analyseIA.emoji}</span>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:9, fontWeight:900, color:"#60a5fa", letterSpacing:2, textTransform:"uppercase", marginBottom:3, opacity:.8 }}>Analyse du match</div>
+            <div style={{ fontSize:13, color:"#cbd5e1", lineHeight:1.5, fontStyle:"italic", fontWeight:500 }}>
+              {analyseIA.text}
+            </div>
           </div>
         </div>
 
-        {/* DÉTAILS MODERNES (accordéons) */}
-        <div style={{ display:"flex", gap:8 }}>
+        {/* DÉTAILS MODERNES (accordéons) — boutons premium glow */}
+        <div style={{ display:"flex", gap:10 }}>
           {manches.length > 0 && (
-            <button onClick={()=>setOpenManches(o=>!o)} style={{ flex:1, background: openManches ? `${themeMain}18` : "#ffffff05", border:`1px solid ${openManches ? themeMain+"66" : "#ffffff10"}`, borderRadius:10, padding:"8px", color:openManches?themeMain:"#94a3b8", fontWeight:700, fontSize:12, cursor:"pointer", touchAction:"manipulation", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+            <button onClick={()=>setOpenManches(o=>!o)} style={{
+              flex:1,
+              background: openManches
+                ? `linear-gradient(135deg,${themeMain}22,${themeMain}08)`
+                : "linear-gradient(135deg,#15151c,#0a0a10)",
+              border:`1px solid ${openManches ? themeMain+"88" : "#ffffff15"}`,
+              borderRadius:12, padding:"10px",
+              color: openManches ? themeMain : "#cbd5e1",
+              fontWeight:800, fontSize:12, cursor:"pointer",
+              touchAction:"manipulation",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+              boxShadow: openManches ? `0 0 14px ${themeMain}33, inset 0 1px 0 ${themeMain}33` : "inset 0 1px 0 #ffffff08",
+              transition:"all .15s",
+            }}>
               📊 {openManches?"Masquer":"Voir"} les manches
             </button>
           )}
-          <button onClick={()=>setOpenDrix(o=>!o)} style={{ flex:1, background: openDrix ? `${winColor}18` : "#ffffff05", border:`1px solid ${openDrix ? winColor+"66" : "#ffffff10"}`, borderRadius:10, padding:"8px", color:openDrix?winColor:"#94a3b8", fontWeight:700, fontSize:12, cursor:"pointer", touchAction:"manipulation", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+          <button onClick={()=>setOpenDrix(o=>!o)} style={{
+            flex:1,
+            background: openDrix
+              ? `linear-gradient(135deg,${winColor}22,${winColor}08)`
+              : "linear-gradient(135deg,#15151c,#0a0a10)",
+            border:`1px solid ${openDrix ? winColor+"88" : "#ffffff15"}`,
+            borderRadius:12, padding:"10px",
+            color: openDrix ? winColor : "#cbd5e1",
+            fontWeight:800, fontSize:12, cursor:"pointer",
+            touchAction:"manipulation",
+            display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+            boxShadow: openDrix ? `0 0 14px ${winColor}33, inset 0 1px 0 ${winColor}33` : "inset 0 1px 0 #ffffff08",
+            transition:"all .15s",
+          }}>
             💎 {openDrix?"Masquer":"Voir"} les gains
           </button>
         </div>
