@@ -3524,8 +3524,17 @@ const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepu
 const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepuis, setPage }) => {
   const [openManches, setOpenManches] = useState(false);
   const [openDrix, setOpenDrix]       = useState(false);
+  const [loserPhoto, setLoserPhoto]   = useState(null);
   const w = d.winner; const l = d.loser;
   const isRivalite = !!d.isRivalite;
+
+  // Fetch la photo du perdant (le gagnant a déjà sa photo via p.joueur_photo)
+  useEffect(() => {
+    if (!l?.nom) return;
+    sb(`joueurs?pseudo=eq.${encodeURIComponent(l.nom)}&select=photo&limit=1`)
+      .then(r => { if (r?.[0]?.photo) setLoserPhoto(r[0].photo); })
+      .catch(()=>{});
+  }, [l?.nom]);
   const scoreW = w?.nbManches ?? (() => { const m = d.headline?.match(/(\d+)-(\d+)/); return m ? parseInt(m[1]) : null; })();
   const scoreL = l?.nbManches ?? (() => { const m = d.headline?.match(/(\d+)-(\d+)/); return m ? parseInt(m[2]) : null; })();
   const totalManches = (scoreW||0) + (scoreL||0);
@@ -3668,7 +3677,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
             {/* LOSER */}
             <div style={{ flex:1, textAlign:"center", minWidth:0, animation:"duelScoreReveal .6s .1s cubic-bezier(.34,1.56,.64,1) both" }}>
               <div style={{ display:"flex", justifyContent:"center", marginBottom:8 }}>
-                <FeedAvatar photo={null} pseudo={l.nom} size={42}/>
+                <FeedAvatar photo={loserPhoto} pseudo={l.nom} size={42}/>
               </div>
               <div title={l.nom} style={{ fontWeight:900, fontSize:12, color:"#94a3b8", marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                 {l.nom}
