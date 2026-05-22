@@ -231,7 +231,7 @@ const Field = ({ label, value, onChange, placeholder, type="text", as="input", o
 const Spinner = () => <div style={{ display:"flex",alignItems:"center",justifyContent:"center",padding:40 }}><div style={{ width:32,height:32,border:`3px solid ${C.border}`,borderTop:`3px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite" }}/></div>;
 
 // ── NAV ───────────────────────────────────────────────────────────────────────
-const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAmisCount=0, unreadMessages=0, newBadgesCount=0, onBadgesSeen, onBack, canGoBack, bars=[], barsActifs=[], associations=[], tournois=[] }) => {
+const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAmisCount=0, unreadMessages=0, newBadgesCount=0, onBadgesSeen, onBack, canGoBack, bars=[], barsActifs=[], associations=[], tournois=[], setBarSlug, setAssoSlug }) => {
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [liveStats, setLiveStats] = useState({ joueursConnectes:0, matchsLive:0 });
@@ -445,8 +445,17 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                       { icon:<Bell size={15}/>,   label:"Mes amis",      target:"profil-amis",  badge: demandesAmisCount, badgeColor:C.red },
                       { icon:<Search size={15}/>, label:"Mes défis",     target:"defi",         badge: defisCount, badgeColor:C.red },
                       { icon:<Mail size={15}/>,   label:"Messages",      target:"messagerie",   badge: unreadMessages, badgeColor:"#7c3aed" },
-                    ].map(({ icon, label, target, badge, badgeColor=C.red, badgeTitle }) => (
-                      <button key={label} onClick={()=>{ if(target==="mon-profil"&&newBadgesCount>0&&onBadgesSeen) onBadgesSeen(); go(target); }}
+                      // Mon bar — visible si le joueur est affilié à un bar
+                      joueur?.bar_slug && setBarSlug ? { icon:<Building2 size={15}/>, label:"Mon bar", target:"__bar__", barSlug: joueur.bar_slug } : null,
+                      // Mon asso — visible si le joueur est affilié à une asso
+                      joueur?.asso_slug && setAssoSlug ? { icon:<Users size={15}/>, label:"Mon asso", target:"__asso__", assoSlug: joueur.asso_slug } : null,
+                    ].filter(Boolean).map(({ icon, label, target, badge, badgeColor=C.red, badgeTitle, barSlug, assoSlug }) => (
+                      <button key={label} onClick={()=>{
+                        if(target==="mon-profil"&&newBadgesCount>0&&onBadgesSeen) onBadgesSeen();
+                        if (target === "__bar__" && barSlug) { setBarSlug(barSlug); go("bar"); return; }
+                        if (target === "__asso__" && assoSlug) { setAssoSlug(assoSlug); go("asso"); return; }
+                        go(target);
+                      }}
                         style={{ display:"flex", alignItems:"center", gap:10, width:"100%", padding:"10px 14px", background:"transparent", border:"none", cursor:"pointer", color:"#c8ccd4", fontSize:13, fontWeight:500, textAlign:"left", transition:"background .15s", touchAction:"manipulation" }}
                         onMouseEnter={e=>{e.currentTarget.style.background="#f9731610";}}
                         onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
@@ -10266,7 +10275,7 @@ export default function App() {
           </div>
         </div>
       )}
-      <Nav page={page} setPage={navSafe} isAdmin={isAdmin} joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} unreadMessages={unreadMessages} newBadgesCount={newBadgesCount} onBadgesSeen={()=>setNewBadgesCount(0)} onBack={goBack} canGoBack={history.length>1} bars={bars} barsActifs={barsActifs} associations={associations} tournois={tournois}/>
+      <Nav page={page} setPage={navSafe} isAdmin={isAdmin} joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} unreadMessages={unreadMessages} newBadgesCount={newBadgesCount} onBadgesSeen={()=>setNewBadgesCount(0)} onBack={goBack} canGoBack={history.length>1} bars={bars} barsActifs={barsActifs} associations={associations} tournois={tournois} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug}/>
       <main style={{ flex:1 }}>
         {page==="home"             && <Home joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="defi"             && joueur && <PageDefi joueur={joueur} setPage={nav}/>}
