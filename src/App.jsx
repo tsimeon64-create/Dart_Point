@@ -3519,140 +3519,291 @@ const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepu
 };
 
 const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepuis, setPage }) => {
-  const [open, setOpen] = useState(false);
+  const [openManches, setOpenManches] = useState(false);
+  const [openDrix, setOpenDrix]       = useState(false);
   const w = d.winner; const l = d.loser;
   const isRivalite = !!d.isRivalite;
-  // Use nbManches from winner/loser objects (reliable source).
-  // Headline regex is a fallback only — it may have challenger/defié order, not winner/loser order.
   const scoreW = w?.nbManches ?? (() => { const m = d.headline?.match(/(\d+)-(\d+)/); return m ? parseInt(m[1]) : null; })();
   const scoreL = l?.nbManches ?? (() => { const m = d.headline?.match(/(\d+)-(\d+)/); return m ? parseInt(m[2]) : null; })();
-  const BLine = ({ icon, label, val, color }) => (
-    <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, padding:"4px 0", borderBottom:`1px solid #ffffff08` }}>
-      <span style={{ color:"#64748b" }}>{icon} {label}</span>
-      <span style={{ fontWeight:700, color }}>{val > 0 ? "+" : ""}{val} DRIX</span>
-    </div>
-  );
+  const totalManches = (scoreW||0) + (scoreL||0);
+
+  // Détecte le mode et bo depuis headline + manches
+  const modeMatch = d.headline?.match(/(\d{3})/);
+  const modeLabel = modeMatch ? modeMatch[1] : null;
+  const boLabel = scoreW != null ? `BO${(scoreW * 2) - 1}` : null;
+
+  // Highlights auto à partir des manches
+  const manches = d.manches || [];
+  const bestFinish = manches.reduce((m, x) => Math.max(m, parseInt(x.winner_finish) || 0), 0);
+  const bestVolee = manches.reduce((m, x) => Math.max(m, parseInt(x.winner_180) ? 180 : 0, x.winner_volee || 0), 0);
+  const all180 = manches.filter(m => parseInt(m.winner_180) > 0).length;
+
+  // Phrase IA dynamique
+  const analyseIA = (() => {
+    const ecart = (scoreW || 0) - (scoreL || 0);
+    const winNom = w.nom;
+    const loseNom = l.nom;
+    if (ecart >= 3 && bestFinish >= 100) return { emoji:"🔥", text:`${winNom} a dominé avec un finish de classe à ${bestFinish}.` };
+    if (ecart >= 3) return { emoji:"⚡", text:`${winNom} n'a laissé aucune chance à ${loseNom}.` };
+    if (ecart === 1 && (scoreW || 0) >= 3) return { emoji:"⚔️", text:`Match serré, tout s'est joué dans la dernière manche.` };
+    if (bestFinish >= 100) return { emoji:"🎯", text:`Finish à ${bestFinish} — du grand art.` };
+    if (all180 > 0) return { emoji:"💥", text:`${all180}×180 dans ce match — explosif.` };
+    if (ecart === 0 && (scoreW || 0) > 0) return { emoji:"⚖️", text:`Duel équilibré du début à la fin.` };
+    return { emoji:"🏆", text:`Belle victoire de ${winNom}. La revanche attend.` };
+  })();
+
+  const themeMain   = isRivalite ? "#a855f7" : "#f97316";
+  const themeSecond = isRivalite ? "#7c3aed" : "#ea580c";
+  const winColor    = "#22c55e";
+  const loseColor   = "#ef4444";
+
   return (
     <div key={`post-${p.id}`} style={{
       position:"relative", overflow:"hidden",
-      border: isRivalite ? "1px solid #a855f755" : "1px solid #f9731628",
-      background: isRivalite ? "linear-gradient(160deg,#0d0010,#080008)" : "linear-gradient(160deg,#0d0800,#080500)",
-      borderRadius:16, marginBottom:12,
-      boxShadow: isRivalite ? "0 4px 24px rgba(168,85,247,0.12)" : "0 4px 24px rgba(249,115,22,0.08)",
+      border: `1px solid ${isRivalite ? "#a855f755" : "#f9731644"}`,
+      background: isRivalite
+        ? "linear-gradient(165deg,#10001a 0%,#08000f 50%,#0a0510 100%)"
+        : "linear-gradient(165deg,#1a0d00 0%,#0d0500 50%,#0a0500 100%)",
+      borderRadius:18, marginBottom:14,
+      boxShadow: isRivalite
+        ? "0 4px 32px rgba(168,85,247,0.18), inset 0 1px 0 rgba(168,85,247,0.10)"
+        : "0 4px 32px rgba(249,115,22,0.15), inset 0 1px 0 rgba(249,115,22,0.10)",
       animation:"feedIn .3s ease-out both",
     }}>
-      {/* Animated top stripe */}
-      <div style={{ height:2, background: isRivalite
-        ? "linear-gradient(90deg,#7c3aed,#a855f7,#f97316,#a855f7,#7c3aed)"
-        : "linear-gradient(90deg,#ea580c,#f97316,#fbbf24,#f97316,#ea580c)",
-        backgroundSize:"300% 100%", animation:"feedGlow 3s ease infinite"
-      }}/>
+      <style>{`
+        @keyframes duelScoreReveal { 0%{transform:scale(.4);opacity:0} 60%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }
+        @keyframes duelSwordPulse  { 0%,100%{transform:rotate(-6deg) scale(1)} 50%{transform:rotate(6deg) scale(1.12)} }
+        @keyframes duelWinGlow     { 0%,100%{text-shadow:0 0 24px #22c55e88, 0 0 48px #22c55e44} 50%{text-shadow:0 0 36px #22c55ecc, 0 0 80px #22c55e77} }
+        @keyframes duelShine       { 0%{transform:translateX(-120%) skewX(-20deg)} 60%,100%{transform:translateX(320%) skewX(-20deg)} }
+      `}</style>
 
-      <div style={{ padding:"14px 16px" }}>
-        {/* Rivalité badge */}
-        {isRivalite && (
-          <div style={{ display:"flex",alignItems:"center",gap:6,background:"#a855f715",border:"1px solid #a855f744",borderRadius:8,padding:"4px 10px",marginBottom:10 }}>
-            <Swords size={10} color="#a855f7"/>
-            <span style={{ fontSize:10,fontWeight:800,color:"#d8b4fe",letterSpacing:.8 }}>RIVALITÉ HEBDO · Match de la semaine</span>
-          </div>
-        )}
-
-        {/* Author header */}
-        <div style={{ display:"flex",gap:10,alignItems:"center",marginBottom:14 }}>
-          <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={34} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
-          <div style={{ flex:1 }}>
-            <span onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:700,fontSize:13,color:C.text,cursor:"pointer" }}>{p.joueur_pseudo}</span>
-            <span style={{ color:C.muted,fontSize:12 }}> a joué un duel</span>
-          </div>
-          <div style={{ display:"flex",alignItems:"center",gap:4,background:isRivalite?"#a855f718":"#f9731618",borderRadius:6,padding:"2px 8px" }}>
-            <Swords size={10} color={isRivalite?"#a855f7":"#f97316"}/>
-            <span style={{ fontSize:10,color:isRivalite?"#a855f7":"#f97316",fontWeight:700 }}>{tempsDepuis(p.date)}</span>
-          </div>
+      {/* HEADER BANDE compacte avec type de match */}
+      <div style={{
+        position:"relative", overflow:"hidden",
+        background: isRivalite
+          ? "linear-gradient(90deg,#1a0030,#3b0764,#1a0030)"
+          : "linear-gradient(90deg,#1a0a00,#451a03,#1a0a00)",
+        borderBottom: `1px solid ${themeMain}55`,
+        padding:"6px 14px",
+        display:"flex", alignItems:"center", justifyContent:"space-between", gap:8,
+      }}>
+        <div style={{ position:"absolute",top:0,left:0,right:0,height:1, background:`linear-gradient(90deg,transparent,${themeMain}cc,transparent)`, animation:"feedShine 4s linear infinite" }}/>
+        <div style={{ position:"relative", display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+          <span style={{ fontSize:11, fontWeight:900, color:themeMain, letterSpacing:2, textShadow:`0 0 8px ${themeMain}88` }}>
+            {isRivalite ? "⚔ RIVALITÉ HEBDO" : "⚔ DUEL"}
+          </span>
+          {modeLabel && (
+            <span style={{ fontSize:10, fontWeight:800, color:"#fbbf24", background:"#fbbf2418", border:"1px solid #fbbf2444", borderRadius:6, padding:"2px 7px", letterSpacing:.5 }}>
+              🎯 {modeLabel}
+            </span>
+          )}
+          {boLabel && (
+            <span style={{ fontSize:10, fontWeight:800, color:"#94a3b8", background:"#ffffff08", border:"1px solid #ffffff15", borderRadius:6, padding:"2px 7px" }}>
+              {boLabel}
+            </span>
+          )}
         </div>
+        <span style={{ position:"relative", fontSize:10, color:"#64748b", fontWeight:700, whiteSpace:"nowrap" }}>
+          {tempsDepuis(p.date)}
+        </span>
+      </div>
 
-        {/* ESPORT SCORE BLOCK */}
+      {/* Halos lumineux décoratifs */}
+      <div style={{ position:"absolute", top:50, left:-30, width:140, height:140, borderRadius:"50%", background:`radial-gradient(circle,${winColor}18 0%,transparent 70%)`, pointerEvents:"none" }}/>
+      <div style={{ position:"absolute", top:50, right:-30, width:140, height:140, borderRadius:"50%", background:`radial-gradient(circle,${loseColor}18 0%,transparent 70%)`, pointerEvents:"none" }}/>
+
+      <div style={{ position:"relative", padding:"16px 14px 12px" }}>
+        {/* SCORE MASSIF — élément central */}
         <div style={{
-          background: isRivalite ? "#08000f" : "#0a0500",
-          borderRadius:14, border:`1px solid ${isRivalite?"#a855f733":"#f9731622"}`,
-          padding:"16px 12px", marginBottom:10,
           position:"relative", overflow:"hidden",
+          background:"radial-gradient(ellipse at center,#0d0500 0%,#000 70%)",
+          border:`1px solid ${themeMain}44`,
+          borderRadius:16, padding:"20px 12px 18px",
+          marginBottom:12,
+          boxShadow:`inset 0 0 40px ${themeMain}15`,
         }}>
-          <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 35%,rgba(255,255,255,0.03) 50%,transparent 65%)",animation:"feedShine 6s ease infinite 2s",pointerEvents:"none" }}/>
-          <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+          {/* Shine balayage */}
+          <div style={{ position:"absolute", top:0, left:0, bottom:0, width:100, background:"linear-gradient(90deg,transparent,#ffffff14,transparent)", animation:"duelShine 5s ease-in-out infinite", pointerEvents:"none" }}/>
+
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             {/* WINNER */}
-            <div style={{ flex:1,textAlign:"center" }}>
-              <div style={{ fontWeight:900,fontSize:13,color:"#22c55e",marginBottom:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textShadow:"0 0 12px rgba(34,197,94,0.4)" }}>{w.nom}</div>
-              <div style={{ fontSize:34,fontWeight:900,color:"#22c55e",lineHeight:1,textShadow:"0 0 20px rgba(34,197,94,0.35)" }}>{scoreW ?? "?"}</div>
-              <div style={{ display:"flex",justifyContent:"center",marginTop:6 }}>
-                <div style={{ background:"#22c55e22",border:"1px solid #22c55e44",borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:800,color:"#22c55e",display:"flex",alignItems:"center",gap:3 }}>
-                  <Trophy size={9} color="#22c55e"/> WIN
-                </div>
+            <div style={{ flex:1, textAlign:"center", minWidth:0, animation:"duelScoreReveal .6s cubic-bezier(.34,1.56,.64,1) both" }}>
+              {/* Avatar */}
+              <div style={{ display:"flex", justifyContent:"center", marginBottom:8 }}>
+                <FeedAvatar photo={p.joueur_photo} pseudo={w.nom} size={42} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
+              </div>
+              <div title={w.nom} style={{ fontWeight:900, fontSize:12, color:winColor, marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textShadow:`0 0 10px ${winColor}66` }}>
+                {w.nom}
+              </div>
+              <div style={{
+                fontSize:60, fontWeight:900, lineHeight:.9, color:winColor,
+                fontVariantNumeric:"tabular-nums",
+                animation:"duelWinGlow 2.4s ease-in-out infinite",
+              }}>
+                {scoreW ?? "?"}
+              </div>
+              <div style={{ display:"inline-flex", alignItems:"center", gap:4, background:`${winColor}22`, border:`1px solid ${winColor}66`, borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:900, color:winColor, marginTop:6, letterSpacing:.5, boxShadow:`0 0 12px ${winColor}33` }}>
+                <Trophy size={10} color={winColor}/> WIN
               </div>
             </div>
-            {/* VS */}
-            <div style={{ flexShrink:0,textAlign:"center",padding:"0 4px" }}>
-              <div style={{ width:40,height:40,borderRadius:"50%",background:`linear-gradient(135deg,${isRivalite?"#a855f7":"#f97316"},${isRivalite?"#7c3aed":"#ea580c"})`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 4px",boxShadow:`0 0 16px ${isRivalite?"rgba(168,85,247,0.4)":"rgba(249,115,22,0.4)"}` }}>
-                <Swords size={16} color="#fff"/>
+
+            {/* ⚔ central */}
+            <div style={{ flexShrink:0, textAlign:"center", padding:"0 4px", animation:"duelScoreReveal .6s .15s cubic-bezier(.34,1.56,.64,1) both" }}>
+              <div style={{
+                width:54, height:54, borderRadius:"50%",
+                background:`linear-gradient(135deg,${themeMain},${themeSecond})`,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                margin:"0 auto 6px",
+                boxShadow:`0 0 24px ${themeMain}88, inset 0 1px 0 rgba(255,255,255,0.25)`,
+                animation:"duelSwordPulse 1.6s ease-in-out infinite",
+              }}>
+                <Swords size={24} color="#fff"/>
               </div>
-              <div style={{ fontSize:9,fontWeight:900,color:isRivalite?"#a855f7":"#f97316",letterSpacing:2 }}>VS</div>
+              <div style={{ fontSize:10, fontWeight:900, color:themeMain, letterSpacing:3, textShadow:`0 0 6px ${themeMain}` }}>VS</div>
             </div>
+
             {/* LOSER */}
-            <div style={{ flex:1,textAlign:"center" }}>
-              <div style={{ fontWeight:900,fontSize:13,color:"#ef4444",marginBottom:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{l.nom}</div>
-              <div style={{ fontSize:34,fontWeight:900,color:"#ef4444",lineHeight:1,opacity:.8 }}>{scoreL ?? "?"}</div>
-              <div style={{ display:"flex",justifyContent:"center",marginTop:6 }}>
-                <div style={{ background:"#ef444420",border:"1px solid #ef444444",borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:800,color:"#ef4444",display:"flex",alignItems:"center",gap:3 }}>
-                  <X size={9} color="#ef4444"/> DEF
-                </div>
+            <div style={{ flex:1, textAlign:"center", minWidth:0, animation:"duelScoreReveal .6s .1s cubic-bezier(.34,1.56,.64,1) both" }}>
+              <div style={{ display:"flex", justifyContent:"center", marginBottom:8 }}>
+                <FeedAvatar photo={null} pseudo={l.nom} size={42}/>
+              </div>
+              <div title={l.nom} style={{ fontWeight:900, fontSize:12, color:"#94a3b8", marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                {l.nom}
+              </div>
+              <div style={{
+                fontSize:60, fontWeight:900, lineHeight:.9, color:loseColor,
+                fontVariantNumeric:"tabular-nums", opacity:.7,
+              }}>
+                {scoreL ?? "?"}
+              </div>
+              <div style={{ display:"inline-flex", alignItems:"center", gap:4, background:`${loseColor}18`, border:`1px solid ${loseColor}44`, borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:900, color:loseColor, marginTop:6, letterSpacing:.5, opacity:.85 }}>
+                <X size={10} color={loseColor}/> DEFEAT
               </div>
             </div>
           </div>
+
+          {/* Timeline manches */}
+          {totalManches > 0 && manches.length > 0 && (
+            <div style={{ display:"flex", justifyContent:"center", gap:5, marginTop:14, paddingTop:12, borderTop:`1px solid ${themeMain}22` }}>
+              {manches.map((m, i) => {
+                const won = m.winner === w.nom;
+                return (
+                  <div key={i} title={`Manche ${i+1} — ${m.winner||""}${m.winner_finish?` · finish ${m.winner_finish}`:""}`} style={{
+                    width:28, height:28, borderRadius:8,
+                    background: won ? `${winColor}22` : `${loseColor}18`,
+                    border: `1px solid ${won ? winColor : loseColor}55`,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    fontSize:11, fontWeight:900,
+                    color: won ? winColor : loseColor,
+                    boxShadow: won ? `0 0 8px ${winColor}33` : "none",
+                  }}>
+                    M{i+1}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* DRIX summary */}
-        <div style={{ display:"flex",gap:8,marginBottom:10 }}>
-          <div style={{ flex:1,background:"#22c55e12",border:"1px solid #22c55e33",borderRadius:10,padding:"8px",textAlign:"center" }}>
-            <div style={{ fontSize:10,color:"#4ade80",fontWeight:700,marginBottom:3 }}>{w.nom.split(" ")[0].slice(0,9)}</div>
-            <div style={{ fontSize:24,fontWeight:900,color:"#22c55e",lineHeight:1 }}>{w.total>=0?"+":""}{w.total}</div>
-            <div style={{ fontSize:9,color:"#4ade80",marginTop:2 }}>DRIX</div>
+        {/* DRIX vivants */}
+        <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+          <div style={{ flex:1, position:"relative", overflow:"hidden", background:`linear-gradient(135deg,${winColor}18,${winColor}08)`, border:`1px solid ${winColor}44`, borderRadius:12, padding:"10px 12px", boxShadow:`0 0 16px ${winColor}15` }}>
+            <div style={{ fontSize:9, fontWeight:800, color:"#86efac", letterSpacing:1, marginBottom:2 }}>🔥 {w.nom.split(" ")[0].slice(0,12)}</div>
+            <div style={{ fontSize:26, fontWeight:900, color:winColor, lineHeight:1, fontVariantNumeric:"tabular-nums", textShadow:`0 0 12px ${winColor}66` }}>
+              {w.total>=0?"+":""}{w.total}
+            </div>
+            <div style={{ fontSize:9, color:"#86efac", marginTop:2, letterSpacing:.5 }}>DRIX gagnés</div>
           </div>
-          <div style={{ flex:1,background:isRivalite?"#ffffff05":"#ef444412",border:`1px solid ${isRivalite?"#ffffff12":"#ef444433"}`,borderRadius:10,padding:"8px",textAlign:"center" }}>
-            <div style={{ fontSize:10,color:isRivalite?"#64748b":"#fca5a5",fontWeight:700,marginBottom:3 }}>{l.nom.split(" ")[0].slice(0,9)}</div>
-            <div style={{ fontSize:24,fontWeight:900,color:isRivalite?"#334155":"#ef4444",lineHeight:1 }}>{isRivalite?"0":`${l.total>=0?"+":""}${l.total}`}</div>
-            <div style={{ fontSize:9,color:isRivalite?"#475569":"#fca5a5",marginTop:2 }}>{isRivalite?"aucune perte":"DRIX"}</div>
+          <div style={{ flex:1, position:"relative", overflow:"hidden", background: isRivalite ? "#ffffff05" : `linear-gradient(135deg,${loseColor}15,${loseColor}05)`, border: `1px solid ${isRivalite?"#ffffff15":loseColor+"44"}`, borderRadius:12, padding:"10px 12px" }}>
+            <div style={{ fontSize:9, fontWeight:800, color: isRivalite?"#64748b":"#fca5a5", letterSpacing:1, marginBottom:2 }}>{isRivalite?"🛡":"💀"} {l.nom.split(" ")[0].slice(0,12)}</div>
+            <div style={{ fontSize:26, fontWeight:900, color: isRivalite?"#334155":loseColor, lineHeight:1, fontVariantNumeric:"tabular-nums" }}>
+              {isRivalite?"0":`${l.total>=0?"+":""}${l.total}`}
+            </div>
+            <div style={{ fontSize:9, color: isRivalite?"#475569":"#fca5a5", marginTop:2, letterSpacing:.5 }}>{isRivalite?"protégé":"DRIX perdus"}</div>
           </div>
         </div>
 
-        {d.highlights && (
-          <div style={{ display:"flex",alignItems:"center",gap:6,background:"#f9731610",border:"1px solid #f9731628",borderRadius:8,padding:"6px 10px",marginBottom:8,fontSize:12,color:"#f97316",fontWeight:700 }}>
-            <Flame size={12} color="#f97316"/> {d.highlights}
+        {/* HIGHLIGHTS du match */}
+        {(bestFinish > 0 || bestVolee >= 100 || all180 > 0) && (
+          <div style={{ background:"linear-gradient(135deg,#0d0500,#000)", border:`1px solid ${themeMain}33`, borderRadius:12, padding:"10px 12px", marginBottom:10 }}>
+            <div style={{ fontSize:9, fontWeight:800, color:"#64748b", letterSpacing:2, marginBottom:6, textTransform:"uppercase" }}>📌 Highlights</div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {bestFinish > 0 && (
+                <div style={{ display:"flex", alignItems:"center", gap:5, background:"#1a0014", border:"1px solid #a855f744", borderRadius:8, padding:"4px 8px", fontSize:11 }}>
+                  <span>🎯</span>
+                  <span style={{ color:"#a78bfa", fontWeight:800 }}>Finish {bestFinish}</span>
+                </div>
+              )}
+              {all180 > 0 && (
+                <div style={{ display:"flex", alignItems:"center", gap:5, background:"#1a0a00", border:"1px solid #f9731644", borderRadius:8, padding:"4px 8px", fontSize:11 }}>
+                  <span>💥</span>
+                  <span style={{ color:"#f97316", fontWeight:800 }}>{all180}×180</span>
+                </div>
+              )}
+              {bestVolee >= 100 && bestVolee < 180 && (
+                <div style={{ display:"flex", alignItems:"center", gap:5, background:"#1a1200", border:"1px solid #fbbf2444", borderRadius:8, padding:"4px 8px", fontSize:11 }}>
+                  <span>🔥</span>
+                  <span style={{ color:"#fbbf24", fontWeight:800 }}>Volée {bestVolee}</span>
+                </div>
+              )}
+              {d.highlights && (
+                <div style={{ flex:1, fontSize:11, color:"#94a3b8", alignSelf:"center" }}>{d.highlights}</div>
+              )}
+            </div>
           </div>
         )}
 
-        <MancheDetail manches={d.manches||[]} />
-        <button onClick={()=>setOpen(o=>!o)} style={{ background:"none",border:"none",color:C.muted,fontSize:12,fontWeight:600,cursor:"pointer",padding:"6px 0 0",touchAction:"manipulation",display:"flex",alignItems:"center",gap:4 }}>
-          {open?"▾":"▸"} Détail DRIX
-        </button>
-        {open && (
-          <div style={{ marginTop:8,display:"flex",gap:8,marginBottom:6 }}>
-            <div style={{ flex:1,background:"#0f1a0f",border:"1px solid #22c55e22",borderRadius:10,padding:"8px 10px" }}>
-              <div style={{ fontSize:12,color:"#86efac",fontWeight:800,marginBottom:6,display:"flex",alignItems:"center",gap:4 }}><Trophy size={11} color="#86efac"/>{w.nom}</div>
-              <BLine icon="📈" label="ELO" val={w.elo} color={w.elo>=0?"#22c55e":"#ef4444"}/>
-              {w.bonusManches>0 && <BLine icon="💎" label={`${w.nbManches} manche(s)`} val={w.bonusManches} color="#f59e0b"/>}
-              {w.bonusVolees>0 && <BLine icon="🔥" label={`${w.nbVolees} grosse(s) volée(s)`} val={w.bonusVolees} color="#f97316"/>}
-              {w.bonusFinish>0 && <BLine icon="🏆" label={`${w.nbFinish} gros finish`} val={w.bonusFinish} color="#a78bfa"/>}
+        {/* PHRASE IA */}
+        <div style={{ background:"linear-gradient(135deg,#0a0a14,#050510)", border:"1px solid #60a5fa33", borderRadius:12, padding:"10px 12px", marginBottom:10, display:"flex", alignItems:"flex-start", gap:10 }}>
+          <span style={{ fontSize:20, lineHeight:1, filter:"drop-shadow(0 0 6px #60a5fa66)" }}>{analyseIA.emoji}</span>
+          <div style={{ flex:1, fontSize:12, color:"#cbd5e1", lineHeight:1.5, fontStyle:"italic" }}>
+            "{analyseIA.text}"
+          </div>
+        </div>
+
+        {/* DÉTAILS MODERNES (accordéons) */}
+        <div style={{ display:"flex", gap:8 }}>
+          {manches.length > 0 && (
+            <button onClick={()=>setOpenManches(o=>!o)} style={{ flex:1, background: openManches ? `${themeMain}18` : "#ffffff05", border:`1px solid ${openManches ? themeMain+"66" : "#ffffff10"}`, borderRadius:10, padding:"8px", color:openManches?themeMain:"#94a3b8", fontWeight:700, fontSize:12, cursor:"pointer", touchAction:"manipulation", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+              📊 {openManches?"Masquer":"Voir"} les manches
+            </button>
+          )}
+          <button onClick={()=>setOpenDrix(o=>!o)} style={{ flex:1, background: openDrix ? `${winColor}18` : "#ffffff05", border:`1px solid ${openDrix ? winColor+"66" : "#ffffff10"}`, borderRadius:10, padding:"8px", color:openDrix?winColor:"#94a3b8", fontWeight:700, fontSize:12, cursor:"pointer", touchAction:"manipulation", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+            💎 {openDrix?"Masquer":"Voir"} les gains
+          </button>
+        </div>
+
+        {openManches && (
+          <div style={{ marginTop:10 }}>
+            <MancheDetail manches={manches} />
+          </div>
+        )}
+
+        {openDrix && (
+          <div style={{ marginTop:10, display:"flex", gap:8 }}>
+            <div style={{ flex:1, background:"#0a1a0a", border:`1px solid ${winColor}33`, borderRadius:10, padding:"9px 11px" }}>
+              <div style={{ fontSize:11, color:"#86efac", fontWeight:800, marginBottom:6, display:"flex", alignItems:"center", gap:4 }}>
+                <Trophy size={10} color="#86efac"/>{w.nom}
+              </div>
+              <DrixLine icon="📈" label="ELO" val={w.elo} color={w.elo>=0?winColor:loseColor}/>
+              {w.bonusManches>0 && <DrixLine icon="💎" label={`${w.nbManches} manche(s)`} val={w.bonusManches} color="#f59e0b"/>}
+              {w.bonusVolees>0 && <DrixLine icon="🔥" label={`${w.nbVolees} grosse(s) volée(s)`} val={w.bonusVolees} color="#f97316"/>}
+              {w.bonusFinish>0 && <DrixLine icon="🏆" label={`${w.nbFinish} gros finish`} val={w.bonusFinish} color="#a78bfa"/>}
             </div>
-            <div style={{ flex:1,background:"#1a0a0a",border:"1px solid #ef444422",borderRadius:10,padding:"8px 10px" }}>
-              <div style={{ fontSize:12,color:"#fca5a5",fontWeight:800,marginBottom:6,display:"flex",alignItems:"center",gap:4 }}><X size={11} color="#fca5a5"/>{l.nom}</div>
-              <BLine icon="📈" label="ELO" val={l.elo} color={l.elo>=0?"#22c55e":"#ef4444"}/>
-              {l.bonusManches>0 && <BLine icon="💎" label={`${l.nbManches} manche(s)`} val={l.bonusManches} color="#f59e0b"/>}
-              {l.bonusVolees>0 && <BLine icon="🔥" label={`${l.nbVolees} grosse(s) volée(s)`} val={l.bonusVolees} color="#f97316"/>}
-              {l.bonusFinish>0 && <BLine icon="🏆" label={`${l.nbFinish} gros finish`} val={l.bonusFinish} color="#a78bfa"/>}
+            <div style={{ flex:1, background:"#1a0a0a", border:`1px solid ${loseColor}33`, borderRadius:10, padding:"9px 11px" }}>
+              <div style={{ fontSize:11, color:"#fca5a5", fontWeight:800, marginBottom:6, display:"flex", alignItems:"center", gap:4 }}>
+                <X size={10} color="#fca5a5"/>{l.nom}
+              </div>
+              <DrixLine icon="📈" label="ELO" val={l.elo} color={l.elo>=0?winColor:loseColor}/>
+              {l.bonusManches>0 && <DrixLine icon="💎" label={`${l.nbManches} manche(s)`} val={l.bonusManches} color="#f59e0b"/>}
+              {l.bonusVolees>0 && <DrixLine icon="🔥" label={`${l.nbVolees} grosse(s) volée(s)`} val={l.bonusVolees} color="#f97316"/>}
+              {l.bonusFinish>0 && <DrixLine icon="🏆" label={`${l.nbFinish} gros finish`} val={l.bonusFinish} color="#a78bfa"/>}
             </div>
           </div>
         )}
 
-        <div style={{ display:"flex",gap:8,marginTop:10,paddingTop:10,borderTop:`1px solid #ffffff08` }}>
+        {/* Actions */}
+        <div style={{ display:"flex", gap:8, marginTop:10, paddingTop:10, borderTop:"1px solid #ffffff08" }}>
           <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
         </div>
         <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
@@ -3660,6 +3811,14 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
     </div>
   );
 };
+
+// Petit helper réutilisable pour les lignes de breakdown DRIX
+const DrixLine = ({ icon, label, val, color }) => (
+  <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, padding:"3px 0", borderBottom:"1px solid #ffffff06" }}>
+    <span style={{ color:"#64748b" }}>{icon} {label}</span>
+    <span style={{ fontWeight:800, color, fontVariantNumeric:"tabular-nums" }}>{val > 0 ? "+" : ""}{val} DRIX</span>
+  </div>
+);
 
 // ── LIVE ──────────────────────────────────────────────────────────────────────
 
