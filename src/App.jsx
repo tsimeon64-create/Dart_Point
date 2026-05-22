@@ -3220,7 +3220,7 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
   );
 };
 
-// Détail des manches
+// Détail des manches — accordéon classique (utilisé hors DuelPost)
 const MancheDetail = ({ manches, joueur0, joueur1 }) => {
   const [open, setOpen] = useState(false);
   if (!manches || manches.length === 0) return null;
@@ -3229,31 +3229,34 @@ const MancheDetail = ({ manches, joueur0, joueur1 }) => {
       <button onClick={()=>setOpen(o=>!o)} style={{ background:"none", border:"none", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer", padding:0, touchAction:"manipulation" }}>
         {open?"▾":"▸"} Détail manche par manche ({manches.length})
       </button>
-      {open && (
-        <div style={{ marginTop:8, display:"flex", flexDirection:"column", gap:6 }}>
-          {manches.map((m, i) => (
-            <div key={i} style={{ background:"#0f0f0f", borderRadius:10, padding:"10px 12px" }}>
-              <div style={{ fontWeight:700, fontSize:12, color:C.accent, marginBottom:6, display:"flex", alignItems:"center", gap:4 }}>Manche {i+1} — {m.winner} <Trophy size={11} color={C.accent}/></div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, fontSize:12 }}>
-                <div>
-                  <div style={{ fontWeight:700, color:"#10b981", marginBottom:2 }}>{m.winner}</div>
-                  <div style={{ color:C.muted }}>{m.winner_volees} volée{m.winner_volees>1?"s":""}</div>
-                  <div style={{ color:C.muted }}>moy. {m.winner_moy} pts/volée</div>
-                </div>
-                <div>
-                  <div style={{ fontWeight:700, color:"#ef4444", marginBottom:2 }}>{m.loser}</div>
-                  <div style={{ color:C.muted }}>{m.loser_volees} volée{m.loser_volees>1?"s":""}</div>
-                  <div style={{ color:C.muted }}>moy. {m.loser_moy} pts/volée</div>
-                  <div style={{ color:"#f59e0b", fontWeight:600 }}>reste : {m.reste_loser} pts</div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {open && <MancheDetailList manches={manches}/>}
     </div>
   );
 };
+
+// Liste des manches sans accordéon — affichée directement quand on l'inclut
+const MancheDetailList = ({ manches }) => (
+  <div style={{ marginTop:8, display:"flex", flexDirection:"column", gap:6 }}>
+    {manches.map((m, i) => (
+      <div key={i} style={{ background:"#0f0f0f", borderRadius:10, padding:"10px 12px" }}>
+        <div style={{ fontWeight:700, fontSize:12, color:C.accent, marginBottom:6, display:"flex", alignItems:"center", gap:4 }}>Manche {i+1} — {m.winner} <Trophy size={11} color={C.accent}/></div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, fontSize:12 }}>
+          <div>
+            <div style={{ fontWeight:700, color:"#10b981", marginBottom:2 }}>{m.winner}</div>
+            <div style={{ color:C.muted }}>{m.winner_volees} volée{m.winner_volees>1?"s":""}</div>
+            <div style={{ color:C.muted }}>moy. {m.winner_moy} pts/volée</div>
+          </div>
+          <div>
+            <div style={{ fontWeight:700, color:"#ef4444", marginBottom:2 }}>{m.loser}</div>
+            <div style={{ color:C.muted }}>{m.loser_volees} volée{m.loser_volees>1?"s":""}</div>
+            <div style={{ color:C.muted }}>moy. {m.loser_moy} pts/volée</div>
+            <div style={{ color:"#f59e0b", fontWeight:600 }}>reste : {m.reste_loser} pts</div>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+);
 
 // ── Duel post avec breakdown DRIX replié ──────────────────────────────────────
 // ── Helper : parse le contenu d'un wall_post Chrono Finish ────────────────────
@@ -3775,7 +3778,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
 
         {openManches && (
           <div style={{ marginTop:10 }}>
-            <MancheDetail manches={manches} />
+            <MancheDetailList manches={manches} />
           </div>
         )}
 
