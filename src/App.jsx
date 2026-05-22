@@ -3639,14 +3639,19 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
           position:"relative", overflow:"hidden",
           background:`radial-gradient(ellipse at center, ${themeMain}10 0%, #0a0500 50%, #000 100%)`,
           border:`1px solid ${themeMain}66`,
-          borderRadius:18, padding:"24px 12px 20px",
+          borderRadius:18, padding:"24px 12px 22px",
           marginBottom:14,
           boxShadow:`inset 0 0 50px ${themeMain}20, 0 4px 18px ${themeMain}15`,
         }}>
+          {/* Halo VERT à gauche (côté gagnant) */}
+          <div style={{ position:"absolute", top:"50%", left:-60, transform:"translateY(-50%)", width:180, height:180, borderRadius:"50%", background:`radial-gradient(circle, ${winColor}28 0%, ${winColor}10 30%, transparent 70%)`, pointerEvents:"none" }}/>
+          {/* Halo ROUGE à droite (côté perdant) */}
+          <div style={{ position:"absolute", top:"50%", right:-60, transform:"translateY(-50%)", width:180, height:180, borderRadius:"50%", background:`radial-gradient(circle, ${loseColor}22 0%, ${loseColor}0a 30%, transparent 70%)`, pointerEvents:"none" }}/>
+
           {/* Shine balayage */}
           <div style={{ position:"absolute", top:0, left:0, bottom:0, width:100, background:"linear-gradient(90deg,transparent,#ffffff14,transparent)", animation:"duelShine 5s ease-in-out infinite", pointerEvents:"none" }}/>
 
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ position:"relative", display:"flex", alignItems:"center", gap:8 }}>
             {/* WINNER */}
             <div style={{ flex:1, textAlign:"center", minWidth:0, animation:"duelScoreReveal .6s cubic-bezier(.34,1.56,.64,1) both" }}>
               {/* Avatar */}
@@ -3663,24 +3668,27 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
               }}>
                 {scoreW ?? "?"}
               </div>
-              <div style={{ display:"inline-flex", alignItems:"center", gap:4, background:`${winColor}22`, border:`1px solid ${winColor}66`, borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:900, color:winColor, marginTop:6, letterSpacing:.5, boxShadow:`0 0 12px ${winColor}33` }}>
-                <Trophy size={10} color={winColor}/> WIN
+              <div style={{ display:"inline-flex", alignItems:"center", gap:5, background:`linear-gradient(135deg,${winColor}33,${winColor}15)`, border:`1px solid ${winColor}aa`, borderRadius:20, padding:"4px 12px", fontSize:10, fontWeight:900, color:winColor, marginTop:8, letterSpacing:1, boxShadow:`0 0 16px ${winColor}55, inset 0 1px 0 ${winColor}44` }}>
+                <Trophy size={11} color={winColor}/> VICTOIRE
               </div>
             </div>
 
-            {/* ⚔ central — plus discret pour laisser le score dominer */}
-            <div style={{ flexShrink:0, textAlign:"center", padding:"0 2px", animation:"duelScoreReveal .6s .15s cubic-bezier(.34,1.56,.64,1) both" }}>
-              <div style={{
-                width:40, height:40, borderRadius:"50%",
-                background:`linear-gradient(135deg,${themeMain},${themeSecond})`,
-                display:"flex", alignItems:"center", justifyContent:"center",
-                margin:"0 auto 4px",
-                boxShadow:`0 0 16px ${themeMain}77, inset 0 1px 0 rgba(255,255,255,0.20)`,
-                animation:"duelSwordPulse 1.6s ease-in-out infinite",
-              }}>
-                <Swords size={16} color="#fff"/>
+            {/* ⚔ central — anneau orange glow comme inspiration */}
+            <div style={{ flexShrink:0, textAlign:"center", padding:"0 4px", animation:"duelScoreReveal .6s .15s cubic-bezier(.34,1.56,.64,1) both" }}>
+              <div style={{ position:"relative", width:46, height:46, margin:"0 auto 5px" }}>
+                {/* Anneau extérieur lumineux */}
+                <div style={{ position:"absolute", inset:-3, borderRadius:"50%", border:`2px solid ${themeMain}`, boxShadow:`0 0 18px ${themeMain}, 0 0 32px ${themeMain}66, inset 0 0 12px ${themeMain}55`, animation:"duelSwordPulse 1.6s ease-in-out infinite" }}/>
+                {/* Centre avec épées */}
+                <div style={{
+                  position:"absolute", inset:0, borderRadius:"50%",
+                  background:`radial-gradient(circle,${themeMain} 0%,${themeSecond} 100%)`,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  boxShadow:"inset 0 2px 4px rgba(255,255,255,0.30), inset 0 -2px 4px rgba(0,0,0,0.40)",
+                }}>
+                  <Swords size={20} color="#fff"/>
+                </div>
               </div>
-              <div style={{ fontSize:9, fontWeight:900, color:themeMain, letterSpacing:2, textShadow:`0 0 4px ${themeMain}` }}>VS</div>
+              <div style={{ fontSize:10, fontWeight:900, color:themeMain, letterSpacing:3, textShadow:`0 0 6px ${themeMain}` }}>vs</div>
             </div>
 
             {/* LOSER */}
@@ -3697,8 +3705,8 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
               }}>
                 {scoreL ?? "?"}
               </div>
-              <div style={{ display:"inline-flex", alignItems:"center", gap:4, background:`${loseColor}18`, border:`1px solid ${loseColor}44`, borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:900, color:loseColor, marginTop:6, letterSpacing:.5, opacity:.85 }}>
-                <X size={10} color={loseColor}/> DEFEAT
+              <div style={{ display:"inline-flex", alignItems:"center", gap:5, background:`linear-gradient(135deg,${loseColor}22,${loseColor}0d)`, border:`1px solid ${loseColor}77`, borderRadius:20, padding:"4px 12px", fontSize:10, fontWeight:900, color:loseColor, marginTop:8, letterSpacing:1, opacity:.85, boxShadow:`0 0 10px ${loseColor}33` }}>
+                <X size={11} color={loseColor}/> DÉFAITE
               </div>
             </div>
           </div>
