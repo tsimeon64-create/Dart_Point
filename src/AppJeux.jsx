@@ -1591,14 +1591,15 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       <style>{`.scoreur-wrap button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; } .scoreur-wrap button:active { opacity: 0.7; transform: scale(0.95); }`}</style>
       {showConfirmQuitter && <ModalConfirmQuitter/>}
 
-      {/* ── LIVE BONUS NOTIFICATION ── */}
+      {/* ── LIVE BONUS NOTIFICATION — positionné sous les cartes joueurs ── */}
       {liveBonusNotif && (
-        <div style={{ position:"fixed",top:60,left:"50%",transform:"translateX(-50%)",zIndex:10001,
+        <div style={{ position:"fixed",top:260,left:"50%",transform:"translateX(-50%)",zIndex:10001,
           background:"linear-gradient(135deg,#1a0a2e,#2d1458)",border:`1px solid ${liveBonusNotif.color}66`,
-          borderRadius:16,padding:"14px 22px",textAlign:"center",boxShadow:`0 4px 30px ${liveBonusNotif.color}44`,
-          pointerEvents:"none",minWidth:220 }}>
-          <div style={{ fontSize:13,color:"#e2e8f0",fontWeight:700,marginBottom:4 }}>{liveBonusNotif.label}</div>
-          <div style={{ fontSize:22,fontWeight:900,color:liveBonusNotif.color }}>+{liveBonusNotif.points} DRIX 💎</div>
+          borderRadius:14,padding:"10px 18px",textAlign:"center",boxShadow:`0 4px 30px ${liveBonusNotif.color}44`,
+          pointerEvents:"none",minWidth:200, animation:"sbonusIn .3s ease-out both" }}>
+          <style>{`@keyframes sbonusIn{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}`}</style>
+          <div style={{ fontSize:12,color:"#e2e8f0",fontWeight:700,marginBottom:2 }}>{liveBonusNotif.label}</div>
+          <div style={{ fontSize:19,fontWeight:900,color:liveBonusNotif.color }}>+{liveBonusNotif.points} DRIX 💎</div>
         </div>
       )}
 
