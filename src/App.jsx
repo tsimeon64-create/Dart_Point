@@ -1968,18 +1968,22 @@ const PageDefi = ({ joueur, setPage }) => {
     const weekStart = monday.getTime();
 
     // Query simple : tous mes duels terminés depuis lundi
-    sb(`duels?or=(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id})&statut=eq.termine&date=gte.${weekStart}&order=date.desc&select=challenger_id,defie_id,gagnant_id,date`)
+    console.log("[Rivalité] joueur.id =", joueur.id, "weekStart =", new Date(weekStart).toISOString(), "rivalIds =", rivalIds);
+    sb(`duels?or=(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id})&statut=eq.termine&date=gte.${weekStart}&order=date.desc&select=challenger_id,defie_id,gagnant_id,gagnant_pseudo,date`)
       .then(rows => {
+        console.log("[Rivalité] duels terminés cette semaine =", rows);
         const results = {};
         for (const d of (rows||[])) {
           const opponentId = d.challenger_id === joueur.id ? d.defie_id : d.challenger_id;
+          console.log("[Rivalité] duel:", d, "opponent =", opponentId, "rival match =", rivalIds.includes(opponentId));
           if (!rivalIds.includes(opponentId)) continue;
-          if (results[opponentId]) continue; // garder le plus récent (already ordered desc)
+          if (results[opponentId]) continue;
           results[opponentId] = d.gagnant_id === joueur.id ? "won" : "lost";
         }
+        console.log("[Rivalité] results =", results);
         setRivaliteResults(results);
       })
-      .catch(()=>{});
+      .catch(e => console.error("[Rivalité] error:", e));
   }, [joueur?.id, rivaliteHebdo?.rival?.id, rivaliteHebdo?.rival2?.id]);
 
   // ── Timer countdown jusqu'à dimanche minuit (tourne dès que rivaliteHebdo est chargé) ──
