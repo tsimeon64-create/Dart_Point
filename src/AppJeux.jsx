@@ -1069,17 +1069,20 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const quitterPartie = async () => {
     setShowConfirmQuitter(false);
     if (modeDuel && duel?.id && setPage) {
-      // On AWAIT closeLiveSession pour éviter que la navigation n'avorte la requête
-      // (sinon la live_session reste 'en_cours' en base → zombie dans la liste LIVE)
       await closeLiveSession();
-      // Marquer le duel comme abandonné pour les deux joueurs
-      try {
-        await fetch(`${SB_URL}/rest/v1/duels?id=eq.${duel.id}`, {
-          method: "PATCH",
-          headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
-          body: JSON.stringify({ statut: "abandonne" }),
-        });
-      } catch {}
+      // ⚠ Ne JAMAIS marquer abandonne si le match est déjà terminé !
+      // Sinon clic 'Valider' sur l'écran de fin écrasait statut=termine → abandonne
+      // (ce qui créait des duels avec gagnant_id set + statut=abandonne en base)
+      const matchDejaTermine = resultEnregistre || etape === "fin";
+      if (!matchDejaTermine) {
+        try {
+          await fetch(`${SB_URL}/rest/v1/duels?id=eq.${duel.id}`, {
+            method: "PATCH",
+            headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
+            body: JSON.stringify({ statut: "abandonne" }),
+          });
+        } catch {}
+      }
       setPage("mon-profil");
       return;
     }

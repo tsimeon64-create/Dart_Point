@@ -1492,6 +1492,15 @@ const MatchActifCard = ({ d, joueur, setPage, onAbandon }) => {
   }, [d.id]); // eslint-disable-line
 
   const abandonner = async () => {
+    // Sécurité : vérifie que le duel n'est pas déjà terminé avant d'écraser le statut
+    // (évite de marquer abandonne un duel déjà gagné)
+    try {
+      const check = await sb(`duels?id=eq.${d.id}&select=statut,gagnant_id`);
+      if (check?.[0]?.statut === "termine" || check?.[0]?.gagnant_id) {
+        onAbandon();
+        return;
+      }
+    } catch {}
     await sb(`duels?id=eq.${d.id}`, { method:"PATCH", body:JSON.stringify({ statut:"abandonne" }), prefer:"return=minimal" });
     onAbandon();
   };
