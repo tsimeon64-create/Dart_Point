@@ -1848,6 +1848,7 @@ const PageDefi = ({ joueur, setPage }) => {
   const [searchLoading, setSearchLoading] = useState(false);
   // ── modal défi premium ──
   const [modalAmi, setModalAmi] = useState(null); // { amiId, amiPseudo, profil }
+  const [modalFromRivalite, setModalFromRivalite] = useState(false); // ouvre via rivalité hebdo ?
   const [modalData, setModalData] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [defiForm, setDefiForm] = useState({ mode:"501", manches:1, type:"classe" });
@@ -1976,15 +1977,15 @@ const PageDefi = ({ joueur, setPage }) => {
     monday.setHours(0, 0, 0, 0);
     const weekStart = monday.getTime();
 
-    // Query : tous mes duels finis (terminés OU abandonnés avec un gagnant) depuis lundi.
-    // On inclut 'abandonne' car beaucoup de duels finissent avec ce statut + gagnant_id.
-    sb(`duels?or=(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id})&statut=in.(termine,abandonne)&date=gte.${weekStart}&order=date.desc&select=challenger_id,defie_id,gagnant_id,statut,date`)
+    // Query : mes duels de type 'rivalite' finis depuis lundi.
+    // Un duel normal (type=drix) contre le rival ne compte PAS comme rivalité accomplie.
+    sb(`duels?or=(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id})&type=eq.rivalite&statut=in.(termine,abandonne)&date=gte.${weekStart}&order=date.desc&select=challenger_id,defie_id,gagnant_id,statut,date`)
       .then(rows => {
         const results = {};
         for (const d of (rows||[])) {
           const opponentId = d.challenger_id === joueur.id ? d.defie_id : d.challenger_id;
           if (!rivalIds.includes(opponentId)) continue;
-          if (!d.gagnant_id) continue; // ignore les abandons sans gagnant
+          if (!d.gagnant_id) continue;
           if (results[opponentId]) continue;
           results[opponentId] = d.gagnant_id === joueur.id ? "won" : "lost";
         }
@@ -2045,6 +2046,7 @@ const PageDefi = ({ joueur, setPage }) => {
     const amiId = a.joueur_id===joueur.id ? a.ami_id : a.joueur_id;
     const amiPseudo = a.joueur_id===joueur.id ? a.ami_pseudo : a.joueur_pseudo;
     const profil = amisData[amiId] || {};
+    setModalFromRivalite(false); // chemin normal = duel ELO classique
     setModalAmi({ amiId, amiPseudo, profil });
     setModalData(null);
     setModalLoading(true);
@@ -2063,10 +2065,17 @@ const PageDefi = ({ joueur, setPage }) => {
     if (!modalAmi || sending) return;
     setSending(true);
     try {
+      // Détermination du type de duel :
+      // - 'rivalite' si ouvert depuis le bouton 'Défier mon rival' du bloc Rivalité Hebdo
+      // - 'amical' si l'utilisateur a choisi 'amical' dans la modal
+      // - 'drix' sinon (duel classé ELO standard)
+      const duelType = modalFromRivalite
+        ? "rivalite"
+        : (defiForm.type === "classe" ? "drix" : "amical");
       const res = await sb("duels", { method:"POST", body:JSON.stringify({
         challenger_id: joueur.id, challenger_pseudo: joueur.pseudo,
         defie_id: modalAmi.amiId, defie_pseudo: modalAmi.amiPseudo,
-        statut:"accepte", type: defiForm.type==="classe"?"drix":"amical",
+        statut:"accepte", type: duelType,
         mode: defiForm.mode === "Cricket" ? "Cricket" : defiForm.mode,
         manches: defiForm.mode === "Cricket" ? 1 : defiForm.manches,
         date: Date.now(), valide_challenger:false, valide_defie:false,
@@ -2075,12 +2084,13 @@ const PageDefi = ({ joueur, setPage }) => {
       const newDuel = Array.isArray(res) ? res[0] : res;
       if (newDuel?.id) {
         setModalAmi(null);
+        setModalFromRivalite(false);
         if (defiForm.mode === "Cricket") {
           localStorage.setItem("dp_cricket_duel", JSON.stringify({
             duelId: newDuel.id,
             challengerId: joueur.id, challengerPseudo: joueur.pseudo, challengerDrix: joueur.drix||1000,
             defiId: modalAmi.amiId, defiPseudo: modalAmi.amiPseudo, defiDrix: modalAmi.profil?.drix||1000,
-            type: defiForm.type==="classe"?"drix":"amical",
+            type: duelType,
           }));
           setPage("cricket-config");
         } else {
@@ -2671,15 +2681,32 @@ const PageDefi = ({ joueur, setPage }) => {
         const rvWins = hist.filter(d => d.gagnant_id === rival.id).length;
         const lastMatch = hist[0];
 
-        // Ouvrir modal défi
+        // Ouvrir modal défi en mode RIVALITÉ HEBDO (+50/0 DRIX)
         const ouvrirRivalPopup = () => {
           fermerRivaliteHebdo();
           if (!amisData[rival.id]) setAmisData(prev => ({ ...prev, [rival.id]: rival }));
+          setModalFromRivalite(true); // ⚔ flag : duel sera de type 'rivalite'
           const amiRecord = amis.find(a =>
             (a.joueur_id === joueur.id && a.ami_id    === rival.id) ||
             (a.ami_id    === joueur.id && a.joueur_id === rival.id)
           );
-          if (amiRecord) { ouvrirModal(amiRecord); return; }
+          if (amiRecord) {
+            // Ouvre la modal SANS reset du flag (sinon ouvrirModal le remet à false)
+            const amiId = amiRecord.joueur_id===joueur.id ? amiRecord.ami_id : amiRecord.joueur_id;
+            const amiPseudo = amiRecord.joueur_id===joueur.id ? amiRecord.ami_pseudo : amiRecord.joueur_pseudo;
+            const profil = amisData[amiId] || rival;
+            setModalAmi({ amiId, amiPseudo, profil });
+            setModalData(null); setModalLoading(true);
+            setDefiForm({ mode:"501", manches:1, type:"classe" });
+            Promise.all([
+              sb(`duels?or=(challenger_id.eq.${amiId},defie_id.eq.${amiId})&order=date.desc&select=*`).catch(()=>[]),
+              sb(`joueurs?order=drix.desc&select=id,drix`).catch(()=>[]),
+            ]).then(([duelsAdv, allJ]) => {
+              setModalData({ duelsAdv: duelsAdv||[], allJoueurs: allJ||[] });
+              setModalLoading(false);
+            }).catch(() => setModalLoading(false));
+            return;
+          }
           setModalAmi({ amiId: rival.id, amiPseudo: rival.pseudo, profil: { ...rival } });
           setModalData(null); setModalLoading(true);
           setDefiForm({ mode:"501", manches:1, type:"classe" });
@@ -2925,8 +2952,10 @@ const PageDefi = ({ joueur, setPage }) => {
 
             {/* BLOC COMPARAISON DRIX */}
             {(() => {
-              const isRival = rivaliteHebdo?.rival?.id === modalAmi.amiId
-                           || rivaliteHebdo?.rival2?.id === modalAmi.amiId;
+              // Le mode 'rivalité' (+50/0) ne s'active QUE si on a ouvert la modal via
+              // le bouton 'Défier mon rival'. Sinon (chemin classique 'Défier un ami'),
+              // c'est de l'ELO standard, même si l'adversaire est notre rival du moment.
+              const isRival = modalFromRivalite;
               const gainAffiche  = isRival ? 50          : (ms.gainElo||"?");
               const perteAffiche = isRival ? 0           : (ms.perteElo||"?");
               return (

@@ -3222,8 +3222,10 @@ export const appliquerDrixDuel = async (duel, perfBonus = null) => {
     const K = 32 * manches;
 
     // ── Rivalité hebdo ? ────────────────────────────────────────────────────────
-    const isRivalite = isRivaliteMatch(duel.challenger_id, duel.defie_id)
-                    || isRivaliteMatch(duel.defie_id, duel.challenger_id);
+    // Détection désormais basée sur duel.type === 'rivalite' (champ persistant en base)
+    // au lieu d'un check localStorage. Cela garantit qu'un duel n'est traité comme
+    // rivalité QUE s'il a explicitement été créé via le bouton 'Défier mon rival'.
+    const isRivalite = duel.type === "rivalite";
 
     // ── Probabilités ELO (utilisées seulement si pas rivalité) ─────────────────
     const EA = 1 / (1 + Math.pow(10, (drixD - drixC) / 400));
