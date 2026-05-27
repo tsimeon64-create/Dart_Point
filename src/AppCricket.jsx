@@ -525,6 +525,43 @@ export const ScoreurCricket = ({ config, setPage }) => {
       ]);
       const winnerPhoto = challengerWon ? jCFull?.photo : jDFull?.photo;
 
+      // Scores de manches (sets gagnés en Cricket)
+      const challengerJ = joueurs.find(j => j.id === d.challengerId);
+      const defiJ       = joueurs.find(j => j.id === d.defiId);
+      const scoreChallenger = config.cutThroat
+        ? (challengerJ?.score || 0)
+        : (challengerJ?.setsGagnes || 0);
+      const scoreDefie = config.cutThroat
+        ? (defiJ?.score || 0)
+        : (defiJ?.setsGagnes || 0);
+
+      // Préparation du post __DUEL__| pour la carte DuelPost premium
+      const winNbManches  = challengerWon ? scoreChallenger : scoreDefie;
+      const loseNbManches = challengerWon ? scoreDefie      : scoreChallenger;
+      const duelPostData = {
+        duel_id: d.duelId,
+        isAmical: false,
+        isRivalite: false,
+        headline: `🏆 ${winnerJ?.pseudo} bat ${loserPseudo} ${winNbManches}-${loseNbManches}`,
+        highlights: "🏏 Cricket",
+        winner: {
+          nom: winnerJ?.pseudo,
+          nbManches: winNbManches,
+          elo: winnerGain, bonusManches: 0, bonusVolees: 0, nbVolees: 0,
+          bonusFinish: 0, nbFinish: 0,
+          total: winnerGain,
+        },
+        loser: {
+          nom: loserPseudo,
+          nbManches: loseNbManches,
+          elo: challengerWon ? defiGain : challengerGain,
+          bonusManches: 0, bonusVolees: 0, nbVolees: 0,
+          bonusFinish: 0, nbFinish: 0,
+          total: challengerWon ? defiGain : challengerGain,
+        },
+        manches: [],
+      };
+
       Promise.all([
       // Mise à jour DRIX joueurs
       sbC(`joueurs?id=eq.${d.challengerId}`, { method:"PATCH", body:JSON.stringify({ drix:newChallengerDrix }), prefer:"return=minimal" }).catch(()=>{}),
@@ -541,15 +578,22 @@ export const ScoreurCricket = ({ config, setPage }) => {
         const s = r?.[0]; if (!s) return;
         return sbC(`stats_joueurs?id=eq.${s.id}`, { method:"PATCH", prefer:"return=minimal", body:JSON.stringify({ parties:(s.parties||0)+1, victoires:challengerWon?s.victoires:(s.victoires||0)+1, defaites:challengerWon?(s.defaites||0)+1:s.defaites }) });
       }).catch(()=>{}),
-      // Fermeture du duel
-      sbC(`duels?id=eq.${d.duelId}`, { method:"PATCH", body:JSON.stringify({ statut:"termine", gagnant_id:winnerId, gagnant_pseudo:winnerJ?.pseudo, valide_challenger:true, valide_defie:true }), prefer:"return=minimal" }).catch(()=>{}),
-      // Publication sur le Comptoir
+      // Fermeture du duel — y compris les scores de manches (sets gagnés)
+      sbC(`duels?id=eq.${d.duelId}`, { method:"PATCH", body:JSON.stringify({
+        statut:"termine",
+        gagnant_id:winnerId,
+        gagnant_pseudo:winnerJ?.pseudo,
+        valide_challenger:true,
+        valide_defie:true,
+        score_manches_challenger: scoreChallenger,
+        score_manches_defie: scoreDefie,
+      }), prefer:"return=minimal" }).catch(()=>{}),
+      // Publication sur le Comptoir — format __DUEL__| pour bénéficier du DuelPost premium
       sbC("wall_posts", { method:"POST", body:JSON.stringify({
         joueur_id: winnerId,
         joueur_pseudo: winnerJ?.pseudo,
         joueur_photo: winnerPhoto || null,
-        contenu: `⚔️🏏 Cricket DRIX — ${winnerJ?.pseudo} bat ${loserPseudo} ! (+${winnerGain} DRIX)`,
-        type: "defi",
+        contenu: `__DUEL__|${JSON.stringify(duelPostData)}`,
         date: now,
       })}).catch(()=>{}),
       ]).catch(()=>{});
