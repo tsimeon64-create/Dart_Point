@@ -1176,52 +1176,55 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       const breakdown = await finaliserDuel({ ...duel, gagnant_id: gagnantId }, perfBonus);
       if (breakdown) setDrixBreakdown(breakdown);
 
-      // ── Post Comptoir (duels classés uniquement) ──
-      if (duel.type !== "amical" && breakdown) {
-        const bkC = breakdown.challenger;
-        const bkD = breakdown.defie;
+      // ── Post Comptoir (TOUS les duels — y compris amicaux) ──
+      {
+        const isAmical = duel.type === "amical";
         const perdantNom = gagnantIsChallenger ? duel.defie_pseudo : duel.challenger_pseudo;
-        const bkW = gagnantIsChallenger ? bkC : bkD;
-        const bkL = gagnantIsChallenger ? bkD : bkC;
         const j0 = joueursData[0]; const j1 = joueursData[1];
         const all180 = [...(j0?.tours||[]),...(j1?.tours||[])].filter(v=>v===180).length;
         const highlights = [
           all180 > 0 ? `💥 ${all180}×180 dans ce match` : "",
           manchesDetail.some(m=>(m.winner_finish||0)>=160) ? `🐟 Big Fish ≥ 160 !` : "",
         ].filter(Boolean).join("  ");
-        // Post structuré : headline courte + breakdown dans un objet JSON
+
+        // Pour les amicales : pas de breakdown DRIX, on construit un objet minimal
+        const bkC = breakdown?.challenger;
+        const bkD = breakdown?.defie;
+        const bkW = bkC ? (gagnantIsChallenger ? bkC : bkD) : null;
+        const bkL = bkC ? (gagnantIsChallenger ? bkD : bkC) : null;
+
         const duelPost = {
           duel_id:    duel.id,
+          isAmical:   isAmical,
           isRivalite: breakdown?.isRivalite || false,
           headline: `🏆 ${gagnantNom} bat ${perdantNom} ${scoreC}-${scoreD}`,
           highlights: highlights || null,
           winner: {
             nom: gagnantNom,
-            elo: bkW.eloVariation,
-            bonusManches: bkW.bonus.bonusManches,
-            nbManches: bkW.bonus.bonusManches > 0 ? Math.round(bkW.bonus.bonusManches / 7) : 0,
-            bonusVolees: bkW.bonus.bonusVolees,
-            nbVolees: bkW.bonus.nbGrossesVolees,
-            bonusFinish: bkW.bonus.bonusFinish,
-            nbFinish: bkW.bonus.nbGrosFinish,
-            total: bkW.totalVariation,
+            nbManches: gagnantIsChallenger ? scoreC : scoreD,
+            // DRIX info seulement si pas amical
+            elo: bkW?.eloVariation || 0,
+            bonusManches: bkW?.bonus?.bonusManches || 0,
+            bonusVolees: bkW?.bonus?.bonusVolees || 0,
+            nbVolees: bkW?.bonus?.nbGrossesVolees || 0,
+            bonusFinish: bkW?.bonus?.bonusFinish || 0,
+            nbFinish: bkW?.bonus?.nbGrosFinish || 0,
+            total: bkW?.totalVariation || 0,
           },
           loser: {
             nom: perdantNom,
-            elo: bkL.eloVariation,
-            bonusManches: bkL.bonus.bonusManches,
-            nbManches: bkL.bonus.bonusManches > 0 ? Math.round(bkL.bonus.bonusManches / 7) : 0,
-            bonusVolees: bkL.bonus.bonusVolees,
-            nbVolees: bkL.bonus.nbGrossesVolees,
-            bonusFinish: bkL.bonus.bonusFinish,
-            nbFinish: bkL.bonus.nbGrosFinish,
-            total: bkL.totalVariation,
+            nbManches: gagnantIsChallenger ? scoreD : scoreC,
+            elo: bkL?.eloVariation || 0,
+            bonusManches: bkL?.bonus?.bonusManches || 0,
+            bonusVolees: bkL?.bonus?.bonusVolees || 0,
+            nbVolees: bkL?.bonus?.nbGrossesVolees || 0,
+            bonusFinish: bkL?.bonus?.bonusFinish || 0,
+            nbFinish: bkL?.bonus?.nbGrosFinish || 0,
+            total: bkL?.totalVariation || 0,
           },
           manches: manchesDetail || [],
         };
         const contenu = `__DUEL__|${JSON.stringify(duelPost)}`;
-        // Récupère la photo du gagnant pour l'inclure dans le wall_post
-        // (évite de fetch dans chaque DuelPost à l'affichage)
         const gagnantPhotoArr = await fetch(`${SB_URL}/rest/v1/joueurs?id=eq.${gagnantId}&select=photo`, {
           headers:{ "apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}` }
         }).then(r=>r.json()).catch(()=>[]);

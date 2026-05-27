@@ -3684,12 +3684,11 @@ const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepu
 const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepuis, setPage }) => {
   const [openManches, setOpenManches] = useState(false);
   const [openDrix, setOpenDrix]       = useState(false);
-  // Photos des 2 joueurs (le wall_post est créé avec joueur_photo=null en base
-  // donc on doit les fetch via les pseudos)
   const [winnerPhoto, setWinnerPhoto] = useState(p.joueur_photo || null);
   const [loserPhoto, setLoserPhoto]   = useState(null);
   const w = d.winner; const l = d.loser;
   const isRivalite = !!d.isRivalite;
+  const isAmical   = !!d.isAmical;
 
   // Fetch photos des 2 joueurs (gagnant + perdant) en une seule requête
   useEffect(() => {
@@ -3733,21 +3732,27 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
     return { emoji:"🏆", text:`Belle victoire de ${winNom}. La revanche attend.` };
   })();
 
-  const themeMain   = isRivalite ? "#a855f7" : "#f97316";
-  const themeSecond = isRivalite ? "#7c3aed" : "#ea580c";
+  // Thème : violet pour rivalité, bleu pour amical, orange pour ranked
+  const themeMain   = isRivalite ? "#a855f7" : isAmical ? "#60a5fa" : "#f97316";
+  const themeSecond = isRivalite ? "#7c3aed" : isAmical ? "#3b82f6" : "#ea580c";
   const winColor    = "#22c55e";
   const loseColor   = "#ef4444";
+  const headerLabel = isRivalite ? "⚔ RIVALITÉ HEBDO" : isAmical ? "🤝 PARTIE AMICALE" : "⚔ DUEL";
 
   return (
     <div key={`post-${p.id}`} style={{
       position:"relative", overflow:"hidden",
-      border: `1px solid ${isRivalite ? "#a855f788" : "#f9731677"}`,
+      border: `1px solid ${isRivalite ? "#a855f788" : isAmical ? "#60a5fa66" : "#f9731677"}`,
       background: isRivalite
         ? "linear-gradient(165deg,#15001f 0%,#0a0014 50%,#10051a 100%)"
+        : isAmical
+        ? "linear-gradient(165deg,#0a1428 0%,#050b1a 50%,#080d18 100%)"
         : "linear-gradient(165deg,#1f1100 0%,#100600 50%,#0d0700 100%)",
       borderRadius:20, marginBottom:16,
       boxShadow: isRivalite
         ? "0 8px 40px rgba(168,85,247,0.28), 0 0 60px rgba(168,85,247,0.10), inset 0 1px 0 rgba(168,85,247,0.18)"
+        : isAmical
+        ? "0 8px 32px rgba(96,165,250,0.20), 0 0 50px rgba(96,165,250,0.08), inset 0 1px 0 rgba(96,165,250,0.15)"
         : "0 8px 40px rgba(249,115,22,0.25), 0 0 60px rgba(249,115,22,0.10), inset 0 1px 0 rgba(249,115,22,0.18)",
       animation:"feedIn .3s ease-out both",
     }}>
@@ -3763,6 +3768,8 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
         position:"relative", overflow:"hidden",
         background: isRivalite
           ? "linear-gradient(90deg,#1a0030,#3b0764,#1a0030)"
+          : isAmical
+          ? "linear-gradient(90deg,#0a1428,#1e3a8a,#0a1428)"
           : "linear-gradient(90deg,#1a0a00,#451a03,#1a0a00)",
         borderBottom: `1px solid ${themeMain}55`,
         padding:"6px 14px",
@@ -3771,7 +3778,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
         <div style={{ position:"absolute",top:0,left:0,right:0,height:1, background:`linear-gradient(90deg,transparent,${themeMain}cc,transparent)`, animation:"feedShine 4s linear infinite" }}/>
         <div style={{ position:"relative", display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
           <span style={{ fontSize:11, fontWeight:900, color:themeMain, letterSpacing:2, textShadow:`0 0 8px ${themeMain}88` }}>
-            {isRivalite ? "⚔ RIVALITÉ HEBDO" : "⚔ DUEL"}
+            {headerLabel}
           </span>
           {modeLabel && (
             <span style={{ fontSize:10, fontWeight:800, color:"#fbbf24", background:"#fbbf2418", border:"1px solid #fbbf2444", borderRadius:6, padding:"2px 7px", letterSpacing:.5 }}>
@@ -3900,23 +3907,36 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
           )}
         </div>
 
-        {/* DRIX vivants — contours colorés bien distincts */}
-        <div style={{ display:"flex", gap:10, marginBottom:14 }}>
-          <div style={{ flex:1, position:"relative", overflow:"hidden", background:`linear-gradient(135deg,${winColor}22 0%,${winColor}0a 50%,#000 100%)`, border:`1px solid ${winColor}77`, borderRadius:14, padding:"12px 12px", boxShadow:`0 0 24px ${winColor}28, inset 0 1px 0 ${winColor}33`, textAlign:"center" }}>
-            <div style={{ fontSize:9, fontWeight:800, color:"#86efac", letterSpacing:1, marginBottom:3 }}>🔥 {w.nom.split(" ")[0].slice(0,12)}</div>
-            <div style={{ fontSize:30, fontWeight:900, color:winColor, lineHeight:1, fontVariantNumeric:"tabular-nums", textShadow:`0 0 18px ${winColor}99, 0 0 30px ${winColor}55` }}>
-              {w.total>=0?"+":""}{w.total}
+        {/* DRIX vivants — masqués pour les amicales (pas de DRIX en jeu) */}
+        {!isAmical && (
+          <div style={{ display:"flex", gap:10, marginBottom:14 }}>
+            <div style={{ flex:1, position:"relative", overflow:"hidden", background:`linear-gradient(135deg,${winColor}22 0%,${winColor}0a 50%,#000 100%)`, border:`1px solid ${winColor}77`, borderRadius:14, padding:"12px 12px", boxShadow:`0 0 24px ${winColor}28, inset 0 1px 0 ${winColor}33`, textAlign:"center" }}>
+              <div style={{ fontSize:9, fontWeight:800, color:"#86efac", letterSpacing:1, marginBottom:3 }}>🔥 {w.nom.split(" ")[0].slice(0,12)}</div>
+              <div style={{ fontSize:30, fontWeight:900, color:winColor, lineHeight:1, fontVariantNumeric:"tabular-nums", textShadow:`0 0 18px ${winColor}99, 0 0 30px ${winColor}55` }}>
+                {w.total>=0?"+":""}{w.total}
+              </div>
+              <div style={{ fontSize:9, color:"#86efac", marginTop:3, letterSpacing:.5 }}>DRIX gagnés</div>
             </div>
-            <div style={{ fontSize:9, color:"#86efac", marginTop:3, letterSpacing:.5 }}>DRIX gagnés</div>
-          </div>
-          <div style={{ flex:1, position:"relative", overflow:"hidden", background: isRivalite ? "linear-gradient(135deg,#ffffff08,#000)" : `linear-gradient(135deg,${loseColor}18 0%,${loseColor}05 50%,#000 100%)`, border: `1px solid ${isRivalite?"#ffffff20":loseColor+"66"}`, borderRadius:14, padding:"12px 12px", boxShadow: isRivalite ? "none" : `0 0 18px ${loseColor}22, inset 0 1px 0 ${loseColor}22`, textAlign:"center" }}>
-            <div style={{ fontSize:9, fontWeight:800, color: isRivalite?"#64748b":"#fca5a5", letterSpacing:1, marginBottom:3 }}>{isRivalite?"🛡":"💀"} {l.nom.split(" ")[0].slice(0,12)}</div>
-            <div style={{ fontSize:30, fontWeight:900, color: isRivalite?"#334155":loseColor, lineHeight:1, fontVariantNumeric:"tabular-nums", textShadow: isRivalite ? "none" : `0 0 12px ${loseColor}66` }}>
-              {isRivalite?"0":`${l.total>=0?"+":""}${l.total}`}
+            <div style={{ flex:1, position:"relative", overflow:"hidden", background: isRivalite ? "linear-gradient(135deg,#ffffff08,#000)" : `linear-gradient(135deg,${loseColor}18 0%,${loseColor}05 50%,#000 100%)`, border: `1px solid ${isRivalite?"#ffffff20":loseColor+"66"}`, borderRadius:14, padding:"12px 12px", boxShadow: isRivalite ? "none" : `0 0 18px ${loseColor}22, inset 0 1px 0 ${loseColor}22`, textAlign:"center" }}>
+              <div style={{ fontSize:9, fontWeight:800, color: isRivalite?"#64748b":"#fca5a5", letterSpacing:1, marginBottom:3 }}>{isRivalite?"🛡":"💀"} {l.nom.split(" ")[0].slice(0,12)}</div>
+              <div style={{ fontSize:30, fontWeight:900, color: isRivalite?"#334155":loseColor, lineHeight:1, fontVariantNumeric:"tabular-nums", textShadow: isRivalite ? "none" : `0 0 12px ${loseColor}66` }}>
+                {isRivalite?"0":`${l.total>=0?"+":""}${l.total}`}
+              </div>
+              <div style={{ fontSize:9, color: isRivalite?"#475569":"#fca5a5", marginTop:3, letterSpacing:.5 }}>{isRivalite?"protégé":"DRIX perdus"}</div>
             </div>
-            <div style={{ fontSize:9, color: isRivalite?"#475569":"#fca5a5", marginTop:3, letterSpacing:.5 }}>{isRivalite?"protégé":"DRIX perdus"}</div>
           </div>
-        </div>
+        )}
+
+        {/* Indicateur AMICAL — remplace les DRIX */}
+        {isAmical && (
+          <div style={{ display:"flex", alignItems:"center", gap:12, background:"linear-gradient(135deg,#0a1428,#050b1a)", border:"1px solid #60a5fa44", borderRadius:14, padding:"12px 14px", marginBottom:14 }}>
+            <span style={{ fontSize:22 }}>🤝</span>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:11, fontWeight:900, color:"#60a5fa", letterSpacing:1.5, marginBottom:2 }}>PARTIE AMICALE</div>
+              <div style={{ fontSize:12, color:"#94a3b8" }}>Aucun DRIX en jeu · Match comptabilisé dans les stats</div>
+            </div>
+          </div>
+        )}
 
         {/* HIGHLIGHTS du match — bloc violet néon spectaculaire */}
         {(bestFinish > 0 || bestVolee >= 100 || all180 > 0) && (
@@ -4001,22 +4021,24 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
               📊 {openManches?"Masquer":"Voir"} les manches
             </button>
           )}
-          <button onClick={()=>setOpenDrix(o=>!o)} style={{
-            flex:1,
-            background: openDrix
-              ? `linear-gradient(135deg,${winColor}22,${winColor}08)`
-              : "linear-gradient(135deg,#15151c,#0a0a10)",
-            border:`1px solid ${openDrix ? winColor+"88" : "#ffffff15"}`,
-            borderRadius:12, padding:"10px",
-            color: openDrix ? winColor : "#cbd5e1",
-            fontWeight:800, fontSize:12, cursor:"pointer",
-            touchAction:"manipulation",
-            display:"flex", alignItems:"center", justifyContent:"center", gap:6,
-            boxShadow: openDrix ? `0 0 14px ${winColor}33, inset 0 1px 0 ${winColor}33` : "inset 0 1px 0 #ffffff08",
-            transition:"all .15s",
-          }}>
-            💎 {openDrix?"Masquer":"Voir"} les gains
-          </button>
+          {!isAmical && (
+            <button onClick={()=>setOpenDrix(o=>!o)} style={{
+              flex:1,
+              background: openDrix
+                ? `linear-gradient(135deg,${winColor}22,${winColor}08)`
+                : "linear-gradient(135deg,#15151c,#0a0a10)",
+              border:`1px solid ${openDrix ? winColor+"88" : "#ffffff15"}`,
+              borderRadius:12, padding:"10px",
+              color: openDrix ? winColor : "#cbd5e1",
+              fontWeight:800, fontSize:12, cursor:"pointer",
+              touchAction:"manipulation",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+              boxShadow: openDrix ? `0 0 14px ${winColor}33, inset 0 1px 0 ${winColor}33` : "inset 0 1px 0 #ffffff08",
+              transition:"all .15s",
+            }}>
+              💎 {openDrix?"Masquer":"Voir"} les gains
+            </button>
+          )}
         </div>
 
         {openManches && (
