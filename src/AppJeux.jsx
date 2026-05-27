@@ -1408,11 +1408,6 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         const moyD = parseFloat(moyenneCalc(updated[1]));
         setGagnant({ ...joueur, manchesGagnees:newManches, tours:[...joueur.tours,val], totalPoints:joueur.totalPoints+val, flechettes:joueur.flechettes+nbFlechettes });
         pushLiveVolee(actifIdx, val, false, true, updated);
-        // 🎯 Badge Bull's Eye — finish 50 en 1 fléchette
-        if (val === 50 && nbFlechettes === 1) {
-          setLiveBadgeNotif({ emoji:"🎯", nom:"Bullseye Killer", desc:"Finish Bull en 1 fléchette !", couleur:"#22c55e" });
-          setTimeout(() => setLiveBadgeNotif(null), 4000);
-        }
         setEtape("fin");
         if (modeDuel || onResultat) enregistrerResultatDuel(joueur.nom, scoreC, scoreD, moyC, moyD, allManches, updated);
         return;
