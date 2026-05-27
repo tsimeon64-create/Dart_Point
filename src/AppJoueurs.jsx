@@ -2365,17 +2365,33 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
           if (sending) return;
           setSending(true);
           try {
+            const isCricket = /^cricket$/i.test(defiForm.mode);
+            const duelType  = defiForm.type === "classe" ? "drix" : "amical";
             const res = await sbJ("duels", { method:"POST", body:JSON.stringify({
               challenger_id:moi.id, challenger_pseudo:moi.pseudo,
               defie_id:j.id, defie_pseudo:j.pseudo,
-              statut:"accepte", type: defiForm.type==="classe"?"drix":"amical",
-              mode:defiForm.mode, manches:defiForm.manches,
-
+              statut:"accepte", type: duelType,
+              mode: isCricket ? "Cricket" : defiForm.mode,
+              manches: isCricket ? 1 : defiForm.manches,
               date:Date.now(), valide_challenger:false, valide_defie:false,
               score_manches_challenger:0, score_manches_defie:0,
             })});
             const newDuel = Array.isArray(res)?res[0]:res;
-            if (newDuel?.id) { setShowDefi(false); setPage("scoreur-duel-"+newDuel.id); }
+            if (newDuel?.id) {
+              setShowDefi(false);
+              if (isCricket) {
+                // Cricket : on stocke le contexte du duel et on route vers la config Cricket
+                localStorage.setItem("dp_cricket_duel", JSON.stringify({
+                  duelId: newDuel.id,
+                  challengerId: moi.id, challengerPseudo: moi.pseudo, challengerDrix: moi.drix||1000,
+                  defiId: j.id, defiPseudo: j.pseudo, defiDrix: j.drix||1000,
+                  type: duelType,
+                }));
+                setPage("cricket-config");
+              } else {
+                setPage("scoreur-duel-"+newDuel.id);
+              }
+            }
           } catch(e) { alert("Erreur : "+e.message); }
           setSending(false);
         };
@@ -2521,7 +2537,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                   <div style={{marginBottom:12}}>
                     <div style={{fontSize:10,color:CJ.muted,fontWeight:700,marginBottom:7}}>MODE DE JEU</div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7}}>
-                      {[["501","🎯","501","Classique"],["301","🎯","301","Classique"],["cricket","🦗","Cricket",""]].map(([v,ic,nm,sub])=>(
+                      {[["501","🎯","501","Classique"],["301","🎯","301","Classique"],["Cricket","🦗","Cricket",""]].map(([v,ic,nm,sub])=>(
                         <button key={v} onClick={()=>setDefiForm(f=>({...f,mode:v}))}
                           style={{background:defiForm.mode===v?"#1a1a1a":"#0d0d0d",border:`2px solid ${defiForm.mode===v?CJ.accent:"#2a2a2a"}`,borderRadius:12,padding:"10px 6px",cursor:"pointer",touchAction:"manipulation",transition:"all .15s",textAlign:"center"}}>
                           <div style={{fontSize:22,marginBottom:3}}>{ic}</div>
