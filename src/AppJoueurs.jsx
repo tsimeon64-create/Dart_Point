@@ -1344,7 +1344,6 @@ export const ALL_BADGES = [
   { id:"f_bigfish", cat:"finish",    emoji:"🐟",  nom:"Big Fish",              desc:"Finish 170",                   seuil:1,   couleur:"#22c55e", val:d=>d.plusGrosFinish>=170?1:0 },
   { id:"f_100_10",  cat:"finish",    emoji:"🎯",  nom:"Chirurgien",            desc:"10 finishes 100+",             seuil:10,  couleur:"#22c55e", val:d=>d.nbFinishes100 },
   { id:"f_100_50",  cat:"finish",    emoji:"🔥",  nom:"Bourreau",              desc:"50 finishes 100+",             seuil:50,  couleur:"#22c55e", val:d=>d.nbFinishes100 },
-  { id:"f_bull",    cat:"finish",    emoji:"🎯",  nom:"Bullseye Killer",       desc:"Finish bull (50 pts)",         seuil:1,   couleur:"#22c55e", val:d=>d.hasBullFinish?1:0 },
   { id:"f_67",      cat:"finish",    emoji:"🍀",  nom:"Six Seven",             desc:"Finish 67",                    seuil:1,   couleur:"#22c55e", val:d=>d.hasSixSevenFinish?1:0 },
   // Duels
   { id:"d_first",   cat:"duels",     emoji:"🥊",  nom:"Premier sang",          desc:"Premier duel joué",            seuil:1,   couleur:"#60a5fa", val:d=>d.parties },
@@ -1393,7 +1392,7 @@ export const computeBadgeValues = (joueur, stats, duels, drixMvts, amis, nbTourn
   const parties   = stats?.parties??0;
 
   let nb180=0, nb140=0, nb100=0, nb26=0, nbFinishes100=0, plusGrosFinish=0;
-  let hasBullFinish=false, hasSixSevenFinish=false;
+  let hasSixSevenFinish=false;
 
   termines.forEach(d=>{
     (d.manches_detail||[]).forEach(m=>{
@@ -1409,7 +1408,6 @@ export const computeBadgeValues = (joueur, stats, duels, drixMvts, amis, nbTourn
         const fin = m.winner_finish||0;
         if(fin>=100) nbFinishes100++;
         if(fin>plusGrosFinish) plusGrosFinish=fin;
-        if(fin===50) hasBullFinish=true;
         if(fin===67) hasSixSevenFinish=true;
       }
     });
@@ -1448,7 +1446,7 @@ export const computeBadgeValues = (joueur, stats, duels, drixMvts, amis, nbTourn
 
   return {
     nb180, nb140, nb100, nb26, nbFinishes100, plusGrosFinish,
-    hasBullFinish, hasSixSevenFinish,
+    hasSixSevenFinish,
     victoires, parties, meilleureSerieW, maxDrix, streakJours,
     nbAmis, nbTournois, nbTournoisGagnes, nbDoublettes, nbWinsDoublette,
     hasGiantKill,
