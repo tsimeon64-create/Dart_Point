@@ -3707,10 +3707,11 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
   const scoreL = l?.nbManches ?? (() => { const m = d.headline?.match(/(\d+)-(\d+)/); return m ? parseInt(m[2]) : null; })();
   const totalManches = (scoreW||0) + (scoreL||0);
 
-  // Détecte le mode et bo depuis headline + manches
+  // Détecte le mode : champ explicite si présent, sinon regex sur headline
+  const isCricket = (d.mode && /cricket/i.test(d.mode)) || /cricket/i.test(d.headline||"");
   const modeMatch = d.headline?.match(/(\d{3})/);
-  const modeLabel = modeMatch ? modeMatch[1] : null;
-  const boLabel = scoreW != null ? `BO${(scoreW * 2) - 1}` : null;
+  const modeLabel = d.mode || (modeMatch ? modeMatch[1] : null);
+  const boLabel = !isCricket && scoreW != null ? `BO${(scoreW * 2) - 1}` : null;
 
   // Highlights auto à partir des manches
   const manches = d.manches || [];
@@ -3781,8 +3782,15 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
             {headerLabel}
           </span>
           {modeLabel && (
-            <span style={{ fontSize:10, fontWeight:800, color:"#fbbf24", background:"#fbbf2418", border:"1px solid #fbbf2444", borderRadius:6, padding:"2px 7px", letterSpacing:.5 }}>
-              🎯 {modeLabel}
+            <span style={{
+              fontSize:10, fontWeight:800,
+              color: isCricket ? "#22c55e" : "#fbbf24",
+              background: isCricket ? "#14532d33" : "#fbbf2418",
+              border: `1px solid ${isCricket ? "#22c55e66" : "#fbbf2444"}`,
+              borderRadius:6, padding:"2px 7px", letterSpacing:.5,
+              boxShadow: isCricket ? "0 0 8px #22c55e33" : "none",
+            }}>
+              {isCricket ? "🏏 CRICKET" : `🎯 ${modeLabel}`}
             </span>
           )}
           {boLabel && (

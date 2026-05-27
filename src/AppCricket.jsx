@@ -540,10 +540,11 @@ export const ScoreurCricket = ({ config, setPage }) => {
       const loseNbManches = challengerWon ? scoreDefie      : scoreChallenger;
       const duelPostData = {
         duel_id: d.duelId,
-        isAmical: false,
+        isAmical: d.type === "amical",
         isRivalite: false,
+        mode: "Cricket",
         headline: `🏆 ${winnerJ?.pseudo} bat ${loserPseudo} ${winNbManches}-${loseNbManches}`,
-        highlights: "🏏 Cricket",
+        highlights: null,
         winner: {
           nom: winnerJ?.pseudo,
           nbManches: winNbManches,

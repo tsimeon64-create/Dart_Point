@@ -1197,6 +1197,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           duel_id:    duel.id,
           isAmical:   isAmical,
           isRivalite: breakdown?.isRivalite || false,
+          mode:       duel.mode || "501",
           headline: `🏆 ${gagnantNom} bat ${perdantNom} ${scoreC}-${scoreD}`,
           highlights: highlights || null,
           winner: {
