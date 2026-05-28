@@ -218,6 +218,15 @@ const todayLocal = () => {
   return `${y}-${m}-${day}`;
 };
 
+// Clé localStorage : verrou local en plus du verrou DB (1 vie/jour incassable)
+const scoreurLockKey = (d) => `dp_scoreur_locked_${d}`;
+const isLocallyLocked = (today) => {
+  try { return localStorage.getItem(scoreurLockKey(today)) === "1"; } catch { return false; }
+};
+const setLocalLock = (today) => {
+  try { localStorage.setItem(scoreurLockKey(today), "1"); } catch {}
+};
+
 const yesterdayLocal = () => {
   const d = new Date();
   d.setDate(d.getDate() - 1);
@@ -259,12 +268,21 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
   // Séquence de volées du jour (même pour tous les joueurs)
   const volees = useMemo(() => generateVolleysSequence(today), [today]);
 
-  // ─── Au montage : check si déjà joué + charge le classement
+  // ─── Au montage : check si déjà joué (localStorage + DB)
   useEffect(() => {
     if (!joueur?.id) { setChecking(false); return; }
+    // 1️⃣ Verrou local prioritaire (instantané, incassable même hors-ligne)
+    if (isLocallyLocked(today)) {
+      setAlreadyPlayed(true);
+      setChecking(false);
+      return;
+    }
+    // 2️⃣ Sinon vérification serveur (au cas où le joueur a joué depuis un autre device)
     sb(`chrono_scoreur_scores?joueur_id=eq.${joueur.id}&date_jour=eq.${today}&select=id,statut`)
       .then(r => {
-        setAlreadyPlayed(!!(r && r[0]));
+        const played = !!(r && r[0]);
+        if (played) setLocalLock(today); // sync local cache
+        setAlreadyPlayed(played);
         setChecking(false);
       });
   }, [joueur?.id, today]);
@@ -293,6 +311,9 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
   // ─── Commencer le run
   const commencer = async () => {
     if (!joueur?.id || alreadyPlayed) return;
+    // 🔒 Verrou local IMMÉDIAT — même si le POST échoue, le joueur ne pourra plus relancer
+    setLocalLock(today);
+    setAlreadyPlayed(true);
     // Crée le run (statut abandonne par défaut, sera passé à termine si terminé)
     const created = await sb("chrono_scoreur_scores", {
       method: "POST",
@@ -311,8 +332,6 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
       }),
     });
     if (created?.[0]?.id) runIdRef.current = created[0].id;
-    // 🔒 Vie consommée dès le lancement → impossible de rejouer (même si on quitte/recharge)
-    setAlreadyPlayed(true);
 
     startTimeRef.current = performance.now();
     penaltyMsRef.current = 0;
@@ -384,6 +403,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
       });
     }
     setFinalResults({ tempsMs: finalMs, nbVolees, errors: nbErrors });
+    setLocalLock(today);
     setAlreadyPlayed(true);
     setScreen("results");
   };
@@ -400,6 +420,8 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
         body: JSON.stringify({ statut: "abandonne", temps_ms: finalMs, nb_volees: currentIdx, erreurs: errors }),
       });
     }
+    // 🔒 Double verrou : DB + localStorage
+    setLocalLock(today);
     setAlreadyPlayed(true);
     setPage("jeux-sans");
   };
