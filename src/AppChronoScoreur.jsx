@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { ArrowLeft, Timer, Trophy, Zap, Target } from "lucide-react";
 
 const C = {
@@ -244,6 +244,9 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
   const [errors, setErrors] = useState(0);
   const [input, setInput] = useState("");
   const [flashError, setFlashError] = useState(false);
+  const [flashSuccess, setFlashSuccess] = useState(false);
+  const [showPenalty, setShowPenalty] = useState(false);
+  const [volleyKey, setVolleyKey] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [finalResults, setFinalResults] = useState(null);
 
@@ -336,20 +339,26 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
       const newIdx = currentIdx + 1;
       setRemaining(newRemaining);
       setInput("");
+      setFlashSuccess(true);
+      if (navigator.vibrate) navigator.vibrate(20);
+      setTimeout(() => setFlashSuccess(false), 250);
 
       if (newRemaining === 0 || newIdx >= volees.length) {
         // 🏁 Fin du run
         terminerRun(newIdx, errors);
       } else {
         setCurrentIdx(newIdx);
+        setVolleyKey(k => k + 1); // déclenche animation nouvelle volée
       }
     } else {
-      // ❌ Erreur → +3s pénalité, flash rouge, vibration
+      // ❌ Erreur → +3s pénalité, flash rouge, vibration, shake
       penaltyMsRef.current += 3000;
       setErrors(e => e + 1);
       setFlashError(true);
-      if (navigator.vibrate) navigator.vibrate(80);
-      setTimeout(() => setFlashError(false), 350);
+      setShowPenalty(true);
+      if (navigator.vibrate) navigator.vibrate([60, 30, 60]);
+      setTimeout(() => setFlashError(false), 400);
+      setTimeout(() => setShowPenalty(false), 900);
       setInput("");
     }
   };
@@ -474,138 +483,362 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // ÉCRAN : JEU
+  // ÉCRAN : JEU — REFONTE SPEEDRUN ESPORT
   // ═══════════════════════════════════════════════════════════════════════
   if (screen === "game") {
     const currentVolee = volees[currentIdx];
-    const remainingAfter = currentVolee ? remaining - currentVolee.score : 0;
+    const progress = volees.length > 0 ? (currentIdx / volees.length) * 100 : 0;
+
+    // ─── Parser un segment de label en {value, type, color}
+    const parseDartSegment = (seg) => {
+      const s = String(seg).trim();
+      if (/^bull/i.test(s)) return { value: "BULL", color: "#ef4444", glow: "#ef4444" };
+      if (/^t\d+/i.test(s)) return { value: s.toUpperCase(), color: "#fb923c", glow: "#fb923c" }; // Triple = orange
+      if (/^d\d+/i.test(s)) return { value: s.toUpperCase(), color: "#22c55e", glow: "#22c55e" }; // Double = vert
+      return { value: s, color: "#f8fafc", glow: "#94a3b8" }; // Simple = blanc
+    };
+    const segments = (currentVolee?.label || "—").split("·").map(parseDartSegment);
+
+    // ─── Pression temporelle : couleur du chrono évolue avec le temps écoulé
+    // 0-30s = bleu/violet calme, 30-60s = chaud, 60s+ = brûlant
+    const sec = elapsed / 1000;
+    const pressure = Math.min(1, sec / 90); // 0 → 1 sur 90s
+    const chronoColor = pressure < 0.4 ? "#60a5fa" : pressure < 0.7 ? "#fb923c" : "#ef4444";
+    const chronoGlow  = pressure < 0.4 ? "#a78bfa" : pressure < 0.7 ? "#f97316" : "#dc2626";
+    const chronoIntensity = 18 + pressure * 32;
+
+    const bgBase = flashError
+      ? "radial-gradient(ellipse at center,#2a0010 0%,#0a0006 70%,#020003 100%)"
+      : flashSuccess
+        ? "radial-gradient(ellipse at center,#003a18 0%,#000a06 70%,#000604 100%)"
+        : "radial-gradient(ellipse at top,#0a0f1c 0%,#050810 50%,#02030a 100%)";
 
     return (
-      <div style={{ position:"fixed",inset:0,zIndex:200,background:C.bg,display:"flex",flexDirection:"column",overflow:"hidden",
-        transition: flashError ? "background .15s" : "background .3s",
-        background: flashError ? C.redBg : C.bg,
+      <div style={{
+        position:"fixed", inset:0, zIndex:200,
+        display:"flex", flexDirection:"column", overflow:"hidden",
+        background: bgBase,
+        transition: "background .25s ease-out",
+        animation: flashError ? "scoreurShake .35s cubic-bezier(.36,.07,.19,.97) both" : "none",
       }}>
-        {/* Header chrono */}
-        <div style={{ background:C.card,borderBottom:`1px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0 }}>
-          <button onClick={abandonner} style={{ background:"#1a0000",border:`1px solid ${C.red}55`,color:C.red,cursor:"pointer",fontSize:11,fontWeight:800,padding:"5px 10px",borderRadius:8 }}>⚠ ABANDONNER</button>
-          <div style={{ flex:1,textAlign:"center",fontWeight:900,fontSize:24,color:C.blue,fontVariantNumeric:"tabular-nums",textShadow:`0 0 18px ${C.blue}66` }}>
+        <style>{`
+          @keyframes scoreurShake { 0%,100%{transform:translateX(0)} 15%{transform:translateX(-8px)} 30%{transform:translateX(7px)} 45%{transform:translateX(-5px)} 60%{transform:translateX(4px)} 75%{transform:translateX(-2px)} }
+          @keyframes scoreurVolleyIn { 0%{transform:translateY(-30px) scale(.92);opacity:0;filter:blur(8px)} 50%{filter:blur(0)} 100%{transform:translateY(0) scale(1);opacity:1;filter:blur(0)} }
+          @keyframes scoreurChronoPulse { 0%,100%{filter:drop-shadow(0 0 var(--g1) var(--c1)) drop-shadow(0 0 var(--g2) var(--c2))} 50%{filter:drop-shadow(0 0 var(--g2) var(--c1)) drop-shadow(0 0 var(--g3) var(--c2))} }
+          @keyframes scoreurCursorBlink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+          @keyframes scoreurPenaltyPop { 0%{transform:translate(-50%,-50%) scale(.5);opacity:0} 25%{transform:translate(-50%,-90px) scale(1.3);opacity:1} 100%{transform:translate(-50%,-160px) scale(1);opacity:0} }
+          @keyframes scoreurBgScan { 0%{transform:translateY(-100%)} 100%{transform:translateY(100%)} }
+          @keyframes scoreurProgress { 0%{box-shadow:0 0 6px #60a5fa66} 50%{box-shadow:0 0 14px #a78bfa99} 100%{box-shadow:0 0 6px #60a5fa66} }
+          @keyframes scoreurFlashSuccess { 0%{opacity:0} 30%{opacity:.45} 100%{opacity:0} }
+          .scoreur-key { transition: transform .08s ease-out, box-shadow .12s ease-out, background .15s; }
+          .scoreur-key:active { transform: translateY(2px) scale(.96); box-shadow: inset 0 2px 6px #00000099 !important; }
+        `}</style>
+
+        {/* Lignes de scan décoratives — ambiance speedrun */}
+        <div aria-hidden style={{
+          position:"absolute", inset:0,
+          background:"repeating-linear-gradient(180deg,transparent 0,transparent 3px,rgba(96,165,250,0.025) 3px,rgba(96,165,250,0.025) 4px)",
+          pointerEvents:"none",
+        }}/>
+        {/* Halo radial dynamique selon pression */}
+        <div aria-hidden style={{
+          position:"absolute", top:-100, left:"50%", transform:"translateX(-50%)",
+          width:500, height:500, borderRadius:"50%",
+          background:`radial-gradient(circle, ${chronoColor}1c 0%, transparent 65%)`,
+          pointerEvents:"none", transition:"background .4s",
+        }}/>
+
+        {/* Flash success overlay */}
+        {flashSuccess && (
+          <div aria-hidden style={{
+            position:"absolute", inset:0, pointerEvents:"none",
+            background:"radial-gradient(circle at center, #22c55e44 0%, transparent 60%)",
+            animation:"scoreurFlashSuccess .25s ease-out both",
+          }}/>
+        )}
+
+        {/* +3s penalty pop */}
+        {showPenalty && (
+          <div aria-hidden style={{
+            position:"absolute", top:"50%", left:"50%",
+            zIndex:300, pointerEvents:"none",
+            fontSize:48, fontWeight:900,
+            color:"#ef4444",
+            textShadow:"0 0 24px #ef4444cc, 0 0 48px #dc2626aa",
+            letterSpacing:1,
+            animation:"scoreurPenaltyPop .9s cubic-bezier(.22,1.2,.36,1) both",
+            fontVariantNumeric:"tabular-nums",
+          }}>
+            +3s ❌
+          </div>
+        )}
+
+        {/* ─── HEADER : chrono dominant ─── */}
+        <div style={{
+          position:"relative", flexShrink:0,
+          padding:"10px 12px 8px",
+          borderBottom:"1px solid #1a2238",
+          background:"linear-gradient(180deg, rgba(10,15,28,0.92) 0%, rgba(5,8,16,0.6) 100%)",
+          backdropFilter:"blur(8px)",
+        }}>
+          {/* Top row : abandon discret + compteur erreurs */}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+            <button onClick={abandonner} style={{
+              background:"transparent", border:"1px solid #3a1a1a",
+              color:"#6b1a1a", cursor:"pointer",
+              fontSize:9, fontWeight:700, padding:"3px 8px", borderRadius:6,
+              letterSpacing:1, opacity:.7,
+            }}>
+              ⚠ ABANDON
+            </button>
+            <div style={{
+              fontSize:10, fontWeight:800,
+              color: errors>0 ? "#ef4444" : "#475569",
+              letterSpacing:1.5,
+              padding:"3px 9px", borderRadius:6,
+              background: errors>0 ? "#3a0a0a55" : "transparent",
+              border: errors>0 ? "1px solid #ef444466" : "1px solid transparent",
+            }}>
+              {errors > 0 ? `❌ ${errors} ERREUR${errors>1?"S":""}` : "✓ ZÉRO ERREUR"}
+            </div>
+          </div>
+
+          {/* CHRONO MASSIF */}
+          <div style={{
+            textAlign:"center",
+            fontWeight:900,
+            fontSize:62,
+            lineHeight:1,
+            color: chronoColor,
+            fontVariantNumeric:"tabular-nums",
+            letterSpacing:1,
+            fontFamily:"Inter, system-ui, sans-serif",
+            textShadow:`0 0 ${chronoIntensity}px ${chronoColor}cc, 0 0 ${chronoIntensity*2}px ${chronoGlow}66`,
+            transition:"color .4s, text-shadow .4s",
+            padding:"4px 0 2px",
+          }}>
             ⏱ {formatChrono(elapsed)}
           </div>
-          <div style={{ fontSize:11,color:errors>0?C.red:C.muted,fontWeight:700,minWidth:50,textAlign:"right" }}>
-            {errors > 0 ? `❌ ${errors}` : "✓ 0"}
+
+          {/* Volée X/N + barre de progression */}
+          <div style={{ marginTop:8 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+              <span style={{ fontSize:10, fontWeight:900, color:"#a78bfa", letterSpacing:2.5 }}>
+                ⚡ VOLÉE {currentIdx + 1} / {volees.length}
+              </span>
+              <span style={{ fontSize:9, color:"#475569", letterSpacing:1, fontWeight:700 }}>
+                {Math.round(progress)}%
+              </span>
+            </div>
+            <div style={{
+              height:4, borderRadius:3,
+              background:"#0a0f1a",
+              border:"1px solid #1a2238",
+              overflow:"hidden",
+              position:"relative",
+            }}>
+              <div style={{
+                width:`${progress}%`, height:"100%",
+                background:"linear-gradient(90deg,#60a5fa,#a78bfa,#60a5fa)",
+                backgroundSize:"200% 100%",
+                transition:"width .35s cubic-bezier(.4,1,.6,1)",
+                animation:"scoreurProgress 2s ease-in-out infinite",
+                boxShadow:"0 0 8px #a78bfaaa",
+              }}/>
+            </div>
           </div>
         </div>
 
-        <div style={{ flex:1,display:"flex",flexDirection:"column",justifyContent:"space-between",padding:"16px 14px 12px",overflow:"hidden" }}>
-          {/* Volée en cours */}
-          <div>
-            <div style={{ textAlign:"center",fontSize:10,color:C.muted,letterSpacing:2,marginBottom:6 }}>
-              VOLÉE {currentIdx + 1} / {volees.length}
-            </div>
+        {/* ─── ZONE PRINCIPALE ─── */}
+        <div style={{
+          flex:1, display:"flex", flexDirection:"column",
+          justifyContent:"space-between", padding:"14px 14px 10px",
+          overflow:"hidden", position:"relative",
+        }}>
+          {/* ─── HERO VOLLEY BLOCK ─── */}
+          <div key={`vol-${volleyKey}`} style={{
+            position:"relative", overflow:"hidden",
+            background:"radial-gradient(ellipse at center,#0a142e 0%,#06091a 60%,#020308 100%)",
+            border:"2px solid #60a5fa",
+            borderRadius:20, padding:"22px 16px 18px",
+            textAlign:"center",
+            boxShadow:"inset 0 0 50px #60a5fa1a, 0 0 30px #60a5fa44, 0 0 60px #a78bfa22",
+            animation:"scoreurVolleyIn .35s cubic-bezier(.34,1.56,.64,1) both",
+          }}>
+            {/* Scan vertical décoratif */}
+            <div aria-hidden style={{
+              position:"absolute", left:0, right:0, height:40,
+              background:"linear-gradient(180deg,transparent,#60a5fa18,transparent)",
+              animation:"scoreurBgScan 3s linear infinite",
+              pointerEvents:"none",
+            }}/>
             <div style={{
-              position:"relative", overflow:"hidden",
-              background:"linear-gradient(135deg,#0a1428 0%,#10182e 50%,#0a1428 100%)",
-              border:`2px solid ${C.blue}`,
-              borderRadius:18, padding:"24px 16px",
-              textAlign:"center",
-              boxShadow:`inset 0 0 40px ${C.blue}25, 0 0 24px ${C.blue}33`,
+              fontSize:9, fontWeight:900, letterSpacing:4,
+              color:"#60a5fa", marginBottom:10, textTransform:"uppercase",
+              textShadow:"0 0 8px #60a5fa88",
             }}>
-              <div style={{ fontSize:10,fontWeight:900,color:C.blue,letterSpacing:3,marginBottom:8,textTransform:"uppercase" }}>🎯 Volée</div>
-              <div style={{
-                fontSize:34, fontWeight:900, lineHeight:1.1,
-                background:`linear-gradient(135deg,${C.blue},#a78bfa)`,
-                WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
-                fontVariantNumeric:"tabular-nums", letterSpacing:1,
-                marginBottom:4,
-              }}>
-                {currentVolee?.label || "—"}
-              </div>
+              🎯 Volée à calculer
+            </div>
+            {/* Segments fléchettes colorés */}
+            <div style={{
+              display:"flex", justifyContent:"center", alignItems:"center",
+              gap:"clamp(6px,3vw,14px)", flexWrap:"wrap",
+              fontFamily:"Inter, system-ui, sans-serif",
+            }}>
+              {segments.map((seg, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && <span style={{ fontSize:30, color:"#334155", fontWeight:900 }}>·</span>}
+                  <span style={{
+                    fontSize:"clamp(34px,9vw,48px)",
+                    fontWeight:900, lineHeight:1,
+                    color: seg.color,
+                    textShadow:`0 0 18px ${seg.glow}aa, 0 0 36px ${seg.glow}44`,
+                    fontVariantNumeric:"tabular-nums",
+                    letterSpacing:.5,
+                  }}>
+                    {seg.value}
+                  </span>
+                </React.Fragment>
+              ))}
             </div>
           </div>
 
-          {/* Score actuel */}
-          <div style={{ margin:"14px 0",textAlign:"center" }}>
-            <div style={{ fontSize:10,color:C.muted,letterSpacing:2,marginBottom:4 }}>SCORE AVANT VOLÉE</div>
-            <div style={{ fontSize:54,fontWeight:900,color:C.text,lineHeight:1,fontVariantNumeric:"tabular-nums",textShadow:`0 0 18px ${C.accent}33` }}>
+          {/* ─── SCORE AVANT VOLÉE (réduit ~30%) ─── */}
+          <div style={{ margin:"10px 0", textAlign:"center" }}>
+            <div style={{ fontSize:9, color:"#475569", letterSpacing:2, marginBottom:2, fontWeight:700 }}>
+              SCORE AVANT
+            </div>
+            <div style={{
+              fontSize:36, fontWeight:900, color:"#cbd5e1",
+              lineHeight:1, fontVariantNumeric:"tabular-nums",
+              textShadow:"0 0 12px #64748b44",
+              letterSpacing:1,
+            }}>
               {remaining}
             </div>
           </div>
 
-          {/* Saisie : score restant */}
+          {/* ─── ZONE RÉPONSE ─── */}
           <div>
-            <div style={{ textAlign:"center",fontSize:11,color:C.muted,marginBottom:8 }}>SCORE RESTANT APRÈS CETTE VOLÉE ?</div>
-            <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+            <div style={{ textAlign:"center", fontSize:10, color:"#475569", marginBottom:6, letterSpacing:2, fontWeight:700 }}>
+              SCORE RESTANT ?
+            </div>
+
+            {/* Champ + bouton valider */}
+            <div style={{ display:"flex", gap:8, alignItems:"stretch", marginBottom:10 }}>
               <div style={{
-                flex:1, background:"linear-gradient(135deg,#0f0f0f,#1a1a1a)",
-                border:`2px solid ${input?C.blue:"#2a2a2a"}`,
-                borderRadius:14, padding:"14px 18px",
-                display:"flex", alignItems:"center", gap:8,
-                boxShadow: input ? `inset 0 0 20px ${C.blue}22, 0 0 0 1px ${C.blue}44` : "inset 0 1px 3px #00000088",
+                flex:1, position:"relative",
+                background:"linear-gradient(135deg,#080a14,#0d1020)",
+                border:`2px solid ${input ? "#a78bfa" : "#1a2238"}`,
+                borderRadius:14, padding:"12px 18px",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                boxShadow: input
+                  ? "inset 0 0 24px #a78bfa33, 0 0 0 1px #a78bfa55, 0 0 18px #60a5fa44"
+                  : "inset 0 2px 6px #00000099",
                 transition:"all .2s",
+                minHeight:54,
               }}>
-                <span style={{ fontSize:24,fontWeight:900,color:input?"#fff":"#475569",fontVariantNumeric:"tabular-nums",flex:1,textAlign:"center" }}>
-                  {input || "?"}
+                <span style={{
+                  fontSize:32, fontWeight:900,
+                  color: input ? "#fff" : "#334155",
+                  fontVariantNumeric:"tabular-nums",
+                  letterSpacing:2,
+                  textShadow: input ? "0 0 16px #a78bfaaa" : "none",
+                }}>
+                  {input || "—"}
                 </span>
+                {/* Curseur clignotant */}
+                {input && (
+                  <span style={{
+                    display:"inline-block", width:3, height:30, marginLeft:4,
+                    background:"#a78bfa", borderRadius:2,
+                    boxShadow:"0 0 8px #a78bfacc",
+                    animation:"scoreurCursorBlink 1s steps(1) infinite",
+                  }}/>
+                )}
               </div>
               <button onClick={valider} disabled={!input}
                 style={{
-                  background: input ? `linear-gradient(135deg,${C.green},#16a34a)` : "#1a1a1a",
-                  border:"none", borderRadius:14, padding:"14px 18px",
-                  fontWeight:900, fontSize:14, color: input?"#fff":C.muted,
-                  cursor: input?"pointer":"not-allowed",
+                  background: input
+                    ? "linear-gradient(135deg,#22c55e 0%,#16a34a 50%,#15803d 100%)"
+                    : "linear-gradient(135deg,#0a0f1a,#06090f)",
+                  border:"none", borderRadius:14, padding:"0 18px",
+                  fontWeight:900, fontSize:13, letterSpacing:1.5,
+                  color: input ? "#fff" : "#334155",
+                  cursor: input ? "pointer" : "not-allowed",
                   touchAction:"manipulation",
-                  boxShadow: input ? `0 0 20px ${C.green}66` : "none",
-                  minWidth:90,
+                  boxShadow: input
+                    ? "0 0 24px #22c55e88, inset 0 1px 0 #ffffff44, inset 0 -3px 0 #14532d99"
+                    : "inset 0 2px 4px #00000066",
+                  minWidth:88,
+                  textShadow: input ? "0 1px 2px #00000055" : "none",
+                  transition:"all .15s",
                 }}>
-                ✓ VALIDER
+                ✓ GO
               </button>
             </div>
 
-            {/* Clavier numérique */}
-            <div style={{ marginTop:10,display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6 }}>
+            {/* ─── CLAVIER GAMING ─── */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:6 }}>
               {["1","2","3","4","5","6","7","8","9"].map(n => (
-                <button key={n}
-                  onPointerDown={e=>{ e.preventDefault(); if(input.length<3) setInput(input+n); }}
+                <button key={n} className="scoreur-key"
+                  onPointerDown={e=>{ e.preventDefault(); if(input.length<3) { setInput(input+n); if(navigator.vibrate) navigator.vibrate(8); } }}
                   style={{
-                    borderRadius:12,border:"1px solid #2a2a2a",
-                    background:"linear-gradient(135deg,#1f1f25,#0f0f15)",
-                    color:C.text,fontSize:24,fontWeight:800,cursor:"pointer",
-                    WebkitTapHighlightColor:"transparent",touchAction:"manipulation",
-                    boxShadow:"inset 0 1px 0 #ffffff14,inset 0 -2px 0 #00000044,0 2px 6px #00000066",
-                    padding:"12px 0",
+                    borderRadius:12, border:"1px solid #1e293b",
+                    background:"linear-gradient(180deg,#1a2030 0%,#0f1422 50%,#080b14 100%)",
+                    color:"#e2e8f0", fontSize:24, fontWeight:800,
+                    cursor:"pointer",
+                    WebkitTapHighlightColor:"transparent", touchAction:"manipulation",
+                    boxShadow:"inset 0 1px 0 #ffffff15, inset 0 -3px 0 #00000088, 0 3px 8px #00000077",
+                    padding:"14px 0",
+                    fontFamily:"Inter, system-ui, sans-serif",
+                    textShadow:"0 1px 2px #00000088",
                   }}>
                   {n}
                 </button>
               ))}
-              <button onPointerDown={e=>{ e.preventDefault(); setInput(p=>p.slice(0,-1)); }}
+              <button className="scoreur-key"
+                onPointerDown={e=>{ e.preventDefault(); setInput(p=>p.slice(0,-1)); if(navigator.vibrate) navigator.vibrate(8); }}
                 style={{
-                  borderRadius:12,border:`1px solid ${C.red}44`,
-                  background:"linear-gradient(135deg,#2a0a0a,#1a0608)",
-                  color:C.red,fontSize:20,fontWeight:800,cursor:"pointer",
-                  WebkitTapHighlightColor:"transparent",touchAction:"manipulation",
-                  padding:"12px 0",
+                  borderRadius:12, border:"1px solid #4c1010",
+                  background:"linear-gradient(180deg,#3a0a0a 0%,#1f0608 50%,#100406 100%)",
+                  color:"#ef4444", fontSize:22, fontWeight:800, cursor:"pointer",
+                  WebkitTapHighlightColor:"transparent", touchAction:"manipulation",
+                  boxShadow:"inset 0 1px 0 #ffffff15, inset 0 -3px 0 #00000088, 0 3px 8px #00000077, 0 0 8px #ef444433",
+                  padding:"14px 0",
+                  textShadow:"0 0 6px #ef444466",
                 }}>
                 ⌫
               </button>
-              <button onPointerDown={e=>{ e.preventDefault(); if(input.length<3) setInput(input+"0"); }}
+              <button className="scoreur-key"
+                onPointerDown={e=>{ e.preventDefault(); if(input.length<3) { setInput(input+"0"); if(navigator.vibrate) navigator.vibrate(8); } }}
                 style={{
-                  borderRadius:12,border:"1px solid #2a2a2a",
-                  background:"linear-gradient(135deg,#1f1f25,#0f0f15)",
-                  color:C.text,fontSize:24,fontWeight:800,cursor:"pointer",
-                  WebkitTapHighlightColor:"transparent",touchAction:"manipulation",
-                  padding:"12px 0",
+                  borderRadius:12, border:"1px solid #1e293b",
+                  background:"linear-gradient(180deg,#1a2030 0%,#0f1422 50%,#080b14 100%)",
+                  color:"#e2e8f0", fontSize:24, fontWeight:800, cursor:"pointer",
+                  WebkitTapHighlightColor:"transparent", touchAction:"manipulation",
+                  boxShadow:"inset 0 1px 0 #ffffff15, inset 0 -3px 0 #00000088, 0 3px 8px #00000077",
+                  padding:"14px 0",
+                  textShadow:"0 1px 2px #00000088",
                 }}>
                 0
               </button>
-              <button onPointerDown={e=>{ e.preventDefault(); valider(); }} disabled={!input}
+              <button className="scoreur-key"
+                onPointerDown={e=>{ e.preventDefault(); valider(); }} disabled={!input}
                 style={{
-                  borderRadius:12,border:"none",
-                  background: input ? `linear-gradient(135deg,${C.green},#16a34a)` : "#1a1a2a",
-                  color: input?"#fff":C.muted, fontSize:24, fontWeight:900,
-                  cursor: input?"pointer":"not-allowed",
-                  touchAction:"manipulation",
-                  boxShadow: input ? `0 0 16px ${C.green}66` : "none",
-                  padding:"12px 0",
+                  borderRadius:12, border:"none",
+                  background: input
+                    ? "linear-gradient(180deg,#22c55e 0%,#16a34a 50%,#15803d 100%)"
+                    : "linear-gradient(180deg,#0f1422,#080b14)",
+                  color: input ? "#fff" : "#334155",
+                  fontSize:26, fontWeight:900,
+                  cursor: input ? "pointer" : "not-allowed",
+                  WebkitTapHighlightColor:"transparent", touchAction:"manipulation",
+                  boxShadow: input
+                    ? "inset 0 1px 0 #ffffff44, inset 0 -3px 0 #14532d99, 0 3px 12px #22c55e88"
+                    : "inset 0 -3px 0 #00000066, 0 3px 8px #00000077",
+                  padding:"14px 0",
+                  textShadow: input ? "0 1px 2px #00000055" : "none",
                 }}>
                 ✓
               </button>
