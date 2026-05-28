@@ -22,40 +22,58 @@ const sb = (path, opts = {}) =>
     ...opts,
   }).then(r => r.ok ? (r.status === 204 ? null : r.json()) : null).catch(() => null);
 
-// ─── Pool de volées réalistes avec poids (distribution comme une vraie partie)
+// ─── Pool de volées réalistes (profil "Joueur moyen" : 45% simples, 20% doubles, 35% triples)
+// Average ~50-65 points → ~8-10 volées pour faire 501 → 0
 const VOLEES_POOL = [
-  // 180s (très rare ~2%)
-  { score: 180, label: "T20·T20·T20", weight: 2 },
-  // 140-179 (gros scores ~8%)
-  { score: 167, label: "T20·T19·T19", weight: 2 },
-  { score: 160, label: "T20·T20·D20", weight: 3 },
-  { score: 145, label: "T19·T16·D20", weight: 2 },
-  { score: 140, label: "T20·T20·20", weight: 10 },
-  // 100-139 (très commun ~30%)
-  { score: 137, label: "T20·T19·20", weight: 8 },
-  { score: 130, label: "T20·T20·10", weight: 5 },
-  { score: 125, label: "T20·T20·5",  weight: 6 },
-  { score: 121, label: "T20·T19·5",  weight: 4 },
-  { score: 113, label: "T19·T18·2",  weight: 3 },
-  { score: 105, label: "T20·20·25",  weight: 5 },
-  { score: 100, label: "T20·20·20",  weight: 10 },
-  // 60-99 (très commun ~35%)
-  { score: 99,  label: "T19·20·22",  weight: 5 },
-  { score: 96,  label: "T19·20·19",  weight: 4 },
-  { score: 85,  label: "T20·20·5",   weight: 8 },
-  { score: 81,  label: "T19·19·5",   weight: 6 },
-  { score: 75,  label: "T20·5·10",   weight: 5 },
-  { score: 69,  label: "T19·1·11",   weight: 4 },
-  { score: 60,  label: "20·20·20",   weight: 8 },
-  // 26-59 (ratés ~15%)
-  { score: 55,  label: "20·15·20",   weight: 4 },
-  { score: 45,  label: "20·20·5",    weight: 4 },
-  { score: 38,  label: "18·5·15",    weight: 3 },
-  { score: 26,  label: "20·5·1",     weight: 3 },
-  // <26 (très ratés ~5%)
-  { score: 22,  label: "20·1·1",     weight: 2 },
-  { score: 16,  label: "5·10·1",     weight: 1 },
-  { score: 7,   label: "5·1·1",      weight: 1 },
+  // ─── 180s très rares (~1%)
+  { score: 180, label: "T20·T20·T20", weight: 1 },
+
+  // ─── 140-179 rares (~4%)
+  { score: 160, label: "T20·T20·D20", weight: 1 },
+  { score: 140, label: "T20·T20·20",  weight: 3 },
+
+  // ─── 100-139 gros scores (~10%)
+  { score: 137, label: "T20·T19·20",  weight: 3 }, // 60+57+20
+  { score: 125, label: "T20·T20·5",   weight: 2 }, // 60+60+5
+  { score: 121, label: "T20·T19·4",   weight: 2 }, // 60+57+4
+  { score: 113, label: "T19·T18·2",   weight: 1 }, // 57+54+2
+  { score: 100, label: "T20·20·20",   weight: 4 }, // 60+20+20
+
+  // ─── 60-99 (très commun ~35%)
+  { score: 99,  label: "T19·20·D11",  weight: 3 }, // 57+20+22
+  { score: 97,  label: "T19·20·20",   weight: 4 }, // 57+20+20
+  { score: 85,  label: "T20·20·5",    weight: 6 }, // 60+20+5
+  { score: 81,  label: "T19·19·5",    weight: 5 }, // 57+19+5
+  { score: 75,  label: "T20·5·10",    weight: 4 }, // 60+5+10
+  { score: 73,  label: "T19·15·1",    weight: 3 }, // 57+15+1
+  { score: 65,  label: "T19·5·3",     weight: 4 }, // 57+5+3
+  { score: 60,  label: "20·20·20",    weight: 6 }, // 20+20+20
+
+  // ─── Volées "humaines" : gros puis raté (~3%)
+  { score: 59,  label: "T19·1·1",     weight: 2 }, // 57+1+1 T19 raté
+  { score: 62,  label: "T20·1·1",     weight: 2 }, // 60+1+1
+  { score: 64,  label: "T20·2·2",     weight: 2 }, // 60+2+2
+
+  // ─── 40-58 ratés moyens (~25%)
+  { score: 58,  label: "20·20·18",    weight: 4 }, // 20+20+18
+  { score: 55,  label: "20·15·20",    weight: 4 }, // 20+15+20
+  { score: 50,  label: "20·10·20",    weight: 4 }, // 20+10+20
+  { score: 45,  label: "20·20·5",     weight: 5 }, // 20+20+5
+  { score: 40,  label: "20·15·5",     weight: 4 }, // 20+15+5
+
+  // ─── 25-39 ratés (~15%)
+  { score: 39,  label: "20·15·4",     weight: 3 }, // 20+15+4
+  { score: 35,  label: "20·5·10",     weight: 3 }, // 20+5+10
+  { score: 32,  label: "20·5·7",      weight: 3 }, // 20+5+7
+  { score: 28,  label: "20·5·3",      weight: 3 }, // 20+5+3
+  { score: 26,  label: "20·5·1",      weight: 4 }, // 20+5+1
+
+  // ─── <25 très ratés "humains" (~7%)
+  { score: 22,  label: "20·1·1",      weight: 3 }, // 20+1+1
+  { score: 18,  label: "5·5·8",       weight: 2 }, // 5+5+8
+  { score: 14,  label: "5·1·8",       weight: 2 }, // 5+1+8
+  { score: 11,  label: "5·5·1",       weight: 2 }, // 5+5+1
+  { score: 7,   label: "5·1·1",       weight: 2 }, // 5+1+1
 ];
 
 // ─── Table des finishes ≤ 170 (T20·T20·Bull etc.)
@@ -74,13 +92,13 @@ const CHECKOUTS = {
   129:"T19·T16·D12", 128:"T18·T14·D16", 127:"T20·T17·D8",
   126:"T19·T19·D6", 125:"25·T20·D20", 124:"T20·T16·D8",
   123:"T19·T16·D9", 122:"T18·T20·D4", 121:"T17·T10·D20",
-  120:"T20·20·D20", 119:"T19·T12·D13", 118:"T18·18·Bull",
+  120:"T20·20·D20", 119:"T19·T12·D13", 118:"T20·18·D20",
   117:"T20·17·D20", 116:"T20·16·D20", 115:"T20·15·D20",
   114:"T20·14·D20", 113:"T20·13·D20", 112:"T20·12·D20",
-  111:"T20·11·D20", 110:"T20·10·Bull", 109:"T20·9·D20",
+  111:"T20·11·D20", 110:"T20·Bull", 109:"T20·9·D20",
   108:"T20·16·D16", 107:"T19·10·D20", 106:"T20·6·D20",
-  105:"T20·5·D20",  104:"T18·18·Bull", 103:"T19·6·D20",
-  102:"T20·10·D16", 101:"T17·10·Bull", 100:"T20·D20",
+  105:"T20·5·D20",  104:"T18·Bull",    103:"T19·6·D20",
+  102:"T20·10·D16", 101:"T17·Bull",    100:"T20·D20",
   99:"T19·10·D16", 98:"T20·D19", 97:"T19·D20",
   96:"T20·D18", 95:"T19·D19", 94:"T18·D20",
   93:"T19·D18", 92:"T20·D16", 91:"T17·D20",
@@ -401,7 +419,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
               À chaque volée, calcule mentalement le <b style={{ color:C.blue }}>score restant</b>.
             </div>
             <div style={{ marginTop:10,fontSize:12,color:"#64748b",lineHeight:1.7 }}>
-              💎 <b style={{ color:C.blue }}>+5 DRIX</b> participation · 🏆 <b style={{ color:C.yellow }}>+25 DRIX</b> meilleur temps
+              💎 <b style={{ color:C.blue }}>+5 DRIX</b> participation · 🏆 <b style={{ color:C.yellow }}>+20 DRIX</b> vainqueur du jour
             </div>
             <div style={{ marginTop:10,fontSize:11,color:C.yellow,lineHeight:1.5,padding:"6px 10px",background:"#78350f22",borderRadius:8,border:`1px solid ${C.yellow}33` }}>
               ⚠ <b>1 seule tentative par jour</b> · Même série pour tous les joueurs · ❌ erreur = +3s
@@ -497,9 +515,6 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
                 marginBottom:4,
               }}>
                 {currentVolee?.label || "—"}
-              </div>
-              <div style={{ fontSize:14,color:"#94a3b8",fontWeight:700 }}>
-                = <b style={{ color:C.yellow }}>{currentVolee?.score || 0}</b> points
               </div>
             </div>
           </div>
@@ -613,7 +628,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
         <div style={{ flex:1,overflowY:"auto",padding:"12px 14px 40px" }}>
           <div style={{ background:`${C.blue}15`,border:`1px solid ${C.blue}44`,borderRadius:14,padding:"12px 16px",marginBottom:14,textAlign:"center" }}>
             <div style={{ fontSize:11,color:C.muted,letterSpacing:1,marginBottom:4 }}>CLASSEMENT DU CHRONO SCOREUR</div>
-            <div style={{ fontSize:11,color:C.muted }}>🥇 Le vainqueur reçoit <b style={{ color:C.yellow }}>+25 DRIX</b> à minuit</div>
+            <div style={{ fontSize:11,color:C.muted }}>🥇 Le vainqueur reçoit <b style={{ color:C.yellow }}>+20 DRIX</b> · 💎 <b style={{ color:C.blue }}>+5 DRIX</b> participation · publication à 00:01</div>
           </div>
 
           {loadingScores ? (
@@ -694,14 +709,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
             🏠 Retour aux mini-jeux
           </button>
 
-          {/* Publish wall_post + comptoir */}
-          <PublishComptoir
-            joueur={joueur}
-            tempsMs={tempsMs}
-            nbVolees={nbVolees}
-            errors={errs}
-            today={today}
-          />
+          {/* La publication sur le Comptoir se fait automatiquement à 00:01 (uniquement le vainqueur) */}
         </div>
       </div>
     );
@@ -710,52 +718,23 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
   return null;
 };
 
-// ─── Publication automatique sur le Comptoir
-const PublishComptoir = ({ joueur, tempsMs, nbVolees, errors, today }) => {
-  const publishedRef = useRef(false);
-  useEffect(() => {
-    if (publishedRef.current) return;
-    if (!joueur?.id) return;
-    publishedRef.current = true;
-    const dateFr = today.split("-").reverse().join("/");
-    const payload = {
-      type: "chrono_scoreur",
-      temps_ms: tempsMs,
-      nb_volees: nbVolees,
-      erreurs: errors,
-      date_jour: today,
-    };
-    const contenu = `__CHRONO_SCOREUR__|${JSON.stringify(payload)}\n\n` +
-      `⏱ Chrono Scoreur — Défi du ${dateFr}\n` +
-      `⚡ ${joueur.pseudo} termine en ${formatChrono(tempsMs)}\n` +
-      `🎯 ${nbVolees} volées · ${errors === 0 ? "✅ Zéro erreur" : `❌ ${errors} erreur${errors>1?"s":""}`}\n` +
-      `💎 +5 DRIX`;
-    sb("wall_posts", { method:"POST", headers:{ Prefer:"return=minimal" }, body: JSON.stringify({
-      joueur_id: joueur.id, joueur_pseudo: joueur.pseudo, joueur_photo: joueur.photo || null,
-      contenu, date: Date.now(),
-    })});
-  }, [joueur?.id, tempsMs, nbVolees, errors, today]);
-  return null;
-};
-
 // ─── Récompense quotidienne à minuit (appelée au démarrage de l'app)
-// Distribue les DRIX du jour précédent (vainqueur +25, top10 +15, participation +5)
+// Distribue les DRIX du jour précédent (vainqueur +20, participation +5, abandon 0)
 export const checkYesterdayScoreurReward = async (joueur) => {
   if (!joueur?.id) return;
   const yest = yesterdayLocal();
-  // Mon run d'hier
+  // Mon run d'hier — uniquement les runs terminés (les abandons ne reçoivent rien)
   const myRow = await sb(`chrono_scoreur_scores?joueur_id=eq.${joueur.id}&date_jour=eq.${yest}&statut=eq.termine&rewarded=eq.false&select=*`);
   if (!myRow || !myRow[0]) return;
   const me = myRow[0];
 
   // Classement d'hier
-  const ranking = await sb(`chrono_scoreur_scores?date_jour=eq.${yest}&statut=eq.termine&order=temps_ms.asc&limit=20&select=joueur_id,temps_ms`);
+  const ranking = await sb(`chrono_scoreur_scores?date_jour=eq.${yest}&statut=eq.termine&order=temps_ms.asc&limit=50&select=joueur_id,temps_ms`);
   if (!ranking) return;
   const myPos = ranking.findIndex(r => r.joueur_id === joueur.id);
   let drix = 5;
   let label = "🎯 Participation";
-  if (myPos === 0) { drix = 25; label = "🥇 Vainqueur du jour"; }
-  else if (myPos < 10) { drix = 15; label = `🏆 Top ${myPos + 1}`; }
+  if (myPos === 0) { drix = 20; label = "🥇 Vainqueur du jour"; }
 
   const newDrix = (joueur.drix || 1000) + drix;
   await Promise.all([
@@ -775,13 +754,13 @@ export const checkYesterdayScoreurReward = async (joueur) => {
     const payload = {
       type: "chrono_scoreur_vainqueur",
       temps_ms: me.temps_ms,
-      drix: 25,
+      drix: 20,
       date_jour: yest,
     };
     const contenu = `__CHRONO_SCOREUR__|${JSON.stringify(payload)}\n\n` +
       `🏆 Chrono Scoreur — Vainqueur du ${dateFr}\n` +
       `👑 ${joueur.pseudo} remporte le défi en ${formatChrono(me.temps_ms)} !\n` +
-      `🥇 +25 DRIX`;
+      `🥇 +20 DRIX`;
     sb("wall_posts", { method:"POST", headers:{ Prefer:"return=minimal" }, body: JSON.stringify({
       joueur_id: joueur.id, joueur_pseudo: joueur.pseudo, joueur_photo: joueur.photo || null,
       contenu, date: Date.now(),

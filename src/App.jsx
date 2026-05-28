@@ -3345,15 +3345,12 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
   };
 
   const totalComments = comments.length;
+  const hasComments = totalComments > 0;
   return (
     <div style={{ marginTop:10, borderTop:`1px solid ${C.border}`, paddingTop:8 }}>
-      <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-        <button onClick={()=>setOpen(o=>!o)} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:20, padding:"4px 14px", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer", touchAction:"manipulation" }}>
-          <MessageCircle size={13}/> {totalComments>0?`${totalComments} commentaire${totalComments>1?"s":""}` : "Commenter"}
-        </button>
-      </div>
-      {open && (
-        <div style={{ marginTop:10 }}>
+      {/* Commentaires affichés directement si présents */}
+      {hasComments && (
+        <div style={{ marginBottom:8 }}>
           {comments.map((c,i) => (
             <div key={c.id||i} style={{ display:"flex", gap:8, marginBottom:8, alignItems:"flex-start" }}>
               <FeedAvatar photo={c.joueur_photo} pseudo={c.joueur_pseudo} size={28}/>
@@ -3364,17 +3361,28 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
               </div>
             </div>
           ))}
-          {joueur && (
-            <div style={{ display:"flex", gap:8, alignItems:"center", marginTop:6 }}>
-              <FeedAvatar photo={joueur.photo} pseudo={joueur.pseudo} size={28}/>
-              <input value={texte} onChange={e=>setTexte(e.target.value)} onKeyDown={e=>e.key==="Enter"&&publier()}
-                placeholder="Écrire un commentaire…" maxLength={300}
-                style={{ flex:1, background:"#0f0f0f", border:`1px solid ${C.border}`, borderRadius:20, padding:"7px 14px", color:C.text, fontSize:13, outline:"none", fontFamily:"inherit" }}/>
-              <button onClick={publier} disabled={!texte.trim()||busy} style={{ background:texte.trim()?C.accent:"#2a2a2a", color:texte.trim()?"#fff":C.muted, border:"none", borderRadius:20, padding:"7px 14px", fontWeight:700, fontSize:12, cursor:texte.trim()?"pointer":"default", touchAction:"manipulation" }}>
-                {busy?"…":"Envoyer"}
-              </button>
-            </div>
-          )}
+        </div>
+      )}
+
+      {/* Bouton commenter — toggle zone d'écriture (ou affichage si pas encore de commentaires) */}
+      <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+        <button onClick={()=>setOpen(o=>!o)} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:20, padding:"4px 14px", color:C.muted, fontSize:12, fontWeight:600, cursor:"pointer", touchAction:"manipulation" }}>
+          <MessageCircle size={13}/> {hasComments ? "Répondre" : "Commenter"}
+        </button>
+      </div>
+
+      {/* Zone de saisie */}
+      {open && joueur && (
+        <div style={{ marginTop:10 }}>
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            <FeedAvatar photo={joueur.photo} pseudo={joueur.pseudo} size={28}/>
+            <input value={texte} onChange={e=>setTexte(e.target.value)} onKeyDown={e=>e.key==="Enter"&&publier()}
+              placeholder="Écrire un commentaire…" maxLength={300} autoFocus
+              style={{ flex:1, background:"#0f0f0f", border:`1px solid ${C.border}`, borderRadius:20, padding:"7px 14px", color:C.text, fontSize:13, outline:"none", fontFamily:"inherit" }}/>
+            <button onClick={publier} disabled={!texte.trim()||busy} style={{ background:texte.trim()?C.accent:"#2a2a2a", color:texte.trim()?"#fff":C.muted, border:"none", borderRadius:20, padding:"7px 14px", fontWeight:700, fontSize:12, cursor:texte.trim()?"pointer":"default", touchAction:"manipulation" }}>
+              {busy?"…":"Envoyer"}
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -3455,6 +3463,39 @@ const parseChronoFinishContent = (contenu) => {
     };
   }
   return null;
+};
+
+// ── Helper : parse le contenu d'un wall_post Chrono Scoreur (vainqueur du jour)
+// Format : __CHRONO_SCOREUR__|{"type":"chrono_scoreur_vainqueur","temps_ms":...,"drix":20,"date_jour":"YYYY-MM-DD"}
+const parseChronoScoreurContent = (contenu) => {
+  if (!contenu) return null;
+  if (!contenu.startsWith("__CHRONO_SCOREUR__|")) return null;
+  try {
+    const sep = contenu.indexOf("\n");
+    const jsonStr = sep > 0 ? contenu.slice(19, sep) : contenu.slice(19);
+    const data = JSON.parse(jsonStr);
+    if (data.type !== "chrono_scoreur_vainqueur") return null;
+    // Formatage du temps en mm:ss ou s.ss
+    const ms = data.temps_ms || 0;
+    const totalSec = ms / 1000;
+    let temps_label;
+    if (totalSec >= 60) {
+      const m = Math.floor(totalSec / 60);
+      const s = (totalSec - m * 60).toFixed(1);
+      temps_label = `${m}m ${s}s`;
+    } else {
+      temps_label = `${totalSec.toFixed(1)}s`;
+    }
+    const date_label = data.date_jour ? data.date_jour.split("-").reverse().join("/") : null;
+    return {
+      type: "vainqueur",
+      kind: "scoreur",
+      temps_label,
+      erreurs: 0,
+      drix: data.drix || 20,
+      date_label,
+    };
+  } catch { return null; }
 };
 
 // ── ChronoFinishPost — Carte SPEEDRUN bleu/violet (chrono classique) ──────────
@@ -5111,6 +5152,17 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
           </div>
         );
       }
+    }
+
+    // ── Post Chrono Scoreur (vainqueur du jour) — Carte dorée ───────────────
+    const scoreurInfo = parseChronoScoreurContent(p.contenu);
+    if (scoreurInfo) {
+      return (
+        <ChronoVainqueurPost key={`post-${p.id}`} p={p} info={scoreurInfo}
+          joueur={joueur} likesMap={likesMap} commentsMap={commentsMap}
+          tempsDepuis={tempsDepuis} setPage={setPage}
+          FeedAvatar={FeedAvatar} LikeButton={LikeButton} CommentSection={CommentSection}/>
+      );
     }
 
     // ── Post Chrono Finish (texte legacy ou format JSON) ────────────────────
