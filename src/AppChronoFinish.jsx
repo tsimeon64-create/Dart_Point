@@ -171,7 +171,7 @@ export const checkYesterdayReward = async (joueur, onWin) => {
     body: JSON.stringify({
       joueur_id:        j.id,
       joueur_pseudo:    winner.joueur_pseudo,
-      adversaire_pseudo:"⏱ Chrono Finish — 🥇 Vainqueur du jour",
+      adversaire_pseudo:"⏱ Finish Speedrun — 🥇 Vainqueur du jour",
       variation:        20,
       drix_avant:       j.drix || 1000,
       drix_apres:       newDrix,
@@ -190,7 +190,7 @@ export const checkYesterdayReward = async (joueur, onWin) => {
       joueur_id:     winner.joueur_id,
       joueur_pseudo: winner.joueur_pseudo,
       joueur_photo:  photo,
-      contenu:       `🏆 Chrono Finish — Vainqueur du ${dd}/${mm}/${yd}\n👑 ${winner.joueur_pseudo} remporte le défi du jour en ${formatChrono(winner.temps_ms)} !\n🥇 +20 DRIX`,
+      contenu:       `🏆 Finish Speedrun — Vainqueur du ${dd}/${mm}/${yd}\n👑 ${winner.joueur_pseudo} remporte le défi du jour en ${formatChrono(winner.temps_ms)} !\n🥇 +20 DRIX`,
       date:          Date.now(),
     }),
   }).catch(() => {});
@@ -294,7 +294,7 @@ const saveScore = async (joueur, today, tempsMs, erreurs, splits, finishes, atte
     body: JSON.stringify({
       joueur_id:        j.id,
       joueur_pseudo:    joueur.pseudo,
-      adversaire_pseudo:"⏱ Chrono Finish — Défi complété",
+      adversaire_pseudo:"⏱ Finish Speedrun — Défi complété",
       variation:        5,
       drix_avant:       j.drix || 1000,
       drix_apres:       newDrix,
@@ -312,7 +312,7 @@ const saveScore = async (joueur, today, tempsMs, erreurs, splits, finishes, atte
       joueur_id:     joueur.id,
       joueur_pseudo: joueur.pseudo,
       joueur_photo:  joueur.photo || null,
-      contenu:       `⏱ Chrono Finish — Défi du ${dd}/${mm}/${yy}\n🎯 ${joueur.pseudo} a complété les 5 finishes en ${formatChrono(tempsMs)} !${errLabel}\n💎 +5 DRIX`,
+      contenu:       `⏱ Finish Speedrun — Défi du ${dd}/${mm}/${yy}\n🎯 ${joueur.pseudo} a complété les 5 finishes en ${formatChrono(tempsMs)} !${errLabel}\n💎 +5 DRIX`,
       date:          Date.now(),
     }),
   }).catch(() => {});
@@ -345,7 +345,7 @@ export const ChronoFinish = ({ setPage, joueur }) => {
   useEffect(() => {
     checkYesterdayReward(joueur, (info) => setDrixNotif(info));
     loadLeaderboard();
-    // Vérifie si le joueur a déjà tenté Chrono Finish aujourd'hui
+    // Vérifie si le joueur a déjà tenté Finish Speedrun aujourd'hui
     (async () => {
       if (joueur?.id) {
         const played = await hasAttemptedToday(joueur, today);
@@ -531,7 +531,7 @@ export const ChronoFinish = ({ setPage, joueur }) => {
         {/* Header minimal */}
         <div style={{ background:"rgba(10,5,24,0.7)",backdropFilter:"blur(8px)",borderBottom:"1px solid #2a1a4a",padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0,position:"relative",zIndex:5 }}>
           <button onClick={()=>setPage("jeux-sans")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:13,padding:0 }}><ArrowLeft size={16}/> Retour</button>
-          <div style={{ flex:1,fontWeight:900,fontSize:14,color:"#a78bfa",letterSpacing:2,textAlign:"center" }}>⏱ CHRONO FINISH</div>
+          <div style={{ flex:1,fontWeight:900,fontSize:14,color:"#a78bfa",letterSpacing:2,textAlign:"center" }}>⏱ FINISH SPEEDRUN</div>
           <div style={{ fontSize:10,color:"#64748b",fontVariantNumeric:"tabular-nums" }}>{today}</div>
         </div>
 
@@ -906,7 +906,7 @@ export const ChronoFinish = ({ setPage, joueur }) => {
           <div style={{ position:"absolute",top:60,left:"50%",transform:"translateX(-50%)",zIndex:999,background:"#000c",borderRadius:16,padding:"14px 24px",textAlign:"center",boxShadow:`0 0 40px ${C.yellow}55`,pointerEvents:"none" }}>
             <div style={{ fontSize:24,marginBottom:4 }}>🏆</div>
             <div style={{ fontWeight:900,fontSize:16,color:C.yellow }}>+20 DRIX remportés !</div>
-            <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>Vainqueur du Chrono Finish d'hier</div>
+            <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>Vainqueur du Finish Speedrun d'hier</div>
           </div>
         )}
         {/* DRIX notif participation +5 */}
@@ -921,7 +921,7 @@ export const ChronoFinish = ({ setPage, joueur }) => {
         {/* Header */}
         <div style={{ background:C.card,borderBottom:`1px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0 }}>
           <button onClick={()=>setPage("jeux-sans")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}><ArrowLeft size={16}/> Retour</button>
-          <div style={{ flex:1,fontWeight:800,fontSize:16,color:C.purple,display:"flex",alignItems:"center",gap:8 }}><Timer size={16} color={C.purple}/> Chrono Finish</div>
+          <div style={{ flex:1,fontWeight:800,fontSize:16,color:C.purple,display:"flex",alignItems:"center",gap:8 }}><Timer size={16} color={C.purple}/> Finish Speedrun</div>
           <div style={{ fontSize:11,color:C.muted }}>Défi du {today}</div>
         </div>
 
@@ -1013,7 +1013,7 @@ export const ChronoFinish = ({ setPage, joueur }) => {
       {/* ── Header ── */}
       <div style={{ background:C.card,borderBottom:`1px solid ${C.border}`,padding:"8px 12px",display:"flex",alignItems:"center",gap:10,flexShrink:0 }}>
         <button onClick={()=>setPage("jeux-sans")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}><ArrowLeft size={16}/> Retour</button>
-        <div style={{ flex:1,fontWeight:800,fontSize:15,color:C.purple,display:"flex",alignItems:"center",gap:8 }}><Timer size={16} color={C.purple}/> Chrono Finish</div>
+        <div style={{ flex:1,fontWeight:800,fontSize:15,color:C.purple,display:"flex",alignItems:"center",gap:8 }}><Timer size={16} color={C.purple}/> Finish Speedrun</div>
         {/* Chrono */}
         <div style={{ background:`${C.purple}22`,border:`1px solid ${C.purple}55`,borderRadius:10,padding:"4px 12px",fontVariantNumeric:"tabular-nums",fontWeight:900,fontSize:18,color:C.purple,letterSpacing:1,minWidth:72,textAlign:"center" }}>
           {formatChrono(chronoMs)}

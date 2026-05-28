@@ -303,7 +303,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
     liveStats.joueursConnectes > 0 ? `👥 ${liveStats.joueursConnectes} joueurs aujourd'hui` : null,
     barsActifs.length > 0 ? `🍺 ${barsActifs.length} bars actifs ce soir` : null,
     tournoisDuJour > 0 ? `🏆 ${tournoisDuJour} tournoi${tournoisDuJour>1?"s":""} aujourd'hui` : null,
-    chronoRecord ? `⏱ Chrono Finish — 🥇 ${chronoRecord.joueur_pseudo}  ${fmtTickerMs(chronoRecord.temps_ms)}` : null,
+    chronoRecord ? `⏱ Finish Speedrun — 🥇 ${chronoRecord.joueur_pseudo}  ${fmtTickerMs(chronoRecord.temps_ms)}` : null,
     `🎯 ${bars.length} bars répertoriés`,
     `🫂 ${associations.length} associations`,
   ].filter(Boolean).join("   ·   ");
@@ -3437,8 +3437,8 @@ const parseChronoFinishContent = (contenu) => {
   if (contenu.startsWith("__CHRONO__|")) {
     try { return JSON.parse(contenu.slice(11)); } catch { return null; }
   }
-  // Format texte legacy : "⏱ Chrono Finish — Défi du DD/MM/YYYY..." ou "🏆 Chrono Finish — Vainqueur..."
-  if (contenu.includes("Chrono Finish")) {
+  // Format texte legacy : "⏱ Chrono Finish — ..." ou "🏆 Finish Speedrun — ..."
+  if (contenu.includes("Chrono Finish") || contenu.includes("Finish Speedrun")) {
     const isVainqueur = contenu.includes("Vainqueur") || contenu.includes("remporte le défi");
     // Extraction du temps "X.Xs" ou "Xm XX.Xs"
     const tempsMatch = contenu.match(/en\s+([\d:hms.\s]+)\s*!/);
@@ -3536,7 +3536,7 @@ const ChronoFinishPost = ({ p, info, C, cardBase, joueur, likesMap, commentsMap,
         {/* Ligne shine horizontale */}
         <div style={{ position:"absolute",top:0,left:0,right:0,height:1, background:"linear-gradient(90deg,transparent,#a78bfacc,#60a5fa,#a78bfacc,transparent)", animation:"chronoLines 3.5s linear infinite" }}/>
         <span style={{ position:"relative", fontSize:11, fontWeight:900, color:"#a78bfa", letterSpacing:3, textShadow:"0 0 8px #a78bfa88" }}>
-          ⏱ CHRONO FINISH
+          ⏱ FINISH SPEEDRUN
         </span>
         {info.date_label && (
           <span style={{ position:"relative", fontSize:10, color:"#60a5fa", fontVariantNumeric:"tabular-nums", fontWeight:700 }}>{info.date_label}</span>
@@ -5752,7 +5752,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           <ModeBtn icon={Target} label="Calcul finish"
             sub="Entraîne-toi à construire tes finishes en 1, 2 ou 3 fléchettes."
             onClick={()=>setPage("entrainement-finish")} col="#f97316"/>
-          <ModeBtn icon={Timer} label="Chrono Finish"
+          <ModeBtn icon={Timer} label="Finish Speedrun"
             sub="5 finishes à enchaîner le plus vite possible. Chronomètre lancé — à toi de jouer !"
             onClick={()=>setPage("chrono-finish")} col="#a78bfa"/>
           <ModeBtn icon={Zap} label="Chrono Scoreur"
