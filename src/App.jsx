@@ -17,6 +17,7 @@ import { JeuCapital } from "./AppJeuDecalePoint";
 import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper } from "./AppTournoiPotes";
 import { EntrainementFinish } from "./AppEntrainementFinish";
 import { ChronoFinish, checkYesterdayReward } from "./AppChronoFinish";
+import { ChronoScoreur, checkYesterdayScoreurReward } from "./AppChronoScoreur";
 import { RushMode } from "./AppRushMode";
 import { HorlogeDouble } from "./AppHorlogeDouble";
 import { MessagesPage, dbM } from "./AppMessages";
@@ -5702,6 +5703,9 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           <ModeBtn icon={Timer} label="Chrono Finish"
             sub="5 finishes à enchaîner le plus vite possible. Chronomètre lancé — à toi de jouer !"
             onClick={()=>setPage("chrono-finish")} col="#a78bfa"/>
+          <ModeBtn icon={Zap} label="Chrono Scoreur"
+            sub="Pars de 501 → 0 ! Calcule mentalement le score restant à chaque volée. Le plus rapide gagne !"
+            onClick={()=>setPage("chrono-scoreur")} col="#60a5fa"/>
           <ModeBtn icon={Clock} label="Horloge Double"
             sub="Enchaîne D1 à D20, Bull et Double Bull. Chrono par cible, stats et double favori."
             onClick={()=>setPage("horloge-double")} col="#a855f7"/>
@@ -9870,6 +9874,17 @@ export default function App() {
     return () => clearTimeout(timer);
   },[]); // eslint-disable-line
 
+  // ── Récompense Chrono Scoreur : check au chargement quand joueur connecté ───
+  useEffect(()=>{
+    if (!joueur?.id) return;
+    checkYesterdayScoreurReward(joueur).then(r => {
+      if (r?.drix) {
+        // Met à jour le DRIX local
+        setJoueur(prev => prev ? { ...prev, drix: (prev.drix||1000) + r.drix } : prev);
+      }
+    }).catch(()=>{});
+  },[joueur?.id]); // eslint-disable-line
+
   // Vérification de version — mise à jour automatique sans bandeau
   useEffect(()=>{
     const VERSION_KEY = "dp_version";
@@ -10105,6 +10120,7 @@ export default function App() {
   const isGamePage = (p) =>
     p === "jeux-capital" || p === "scoreur" || p === "scoreur-doublette" ||
     p === "cricket-config" || p === "rush-mode" || p === "chrono-finish" ||
+    p === "chrono-scoreur" ||
     p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-");
 
   const navSafe = (targetPage) => {
@@ -10486,6 +10502,7 @@ export default function App() {
         {page==="jeux-capital"          && <JeuCapital setPage={nav}/>}
         {page==="entrainement-finish"   && <EntrainementFinish setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="chrono-finish"         && <ChronoFinish setPage={nav} joueur={joueur}/>}
+        {page==="chrono-scoreur"        && <ChronoScoreur setPage={nav} joueur={joueur}/>}
         {page==="horloge-double"        && <HorlogeDouble setPage={nav}/>}
         {page==="rush-mode"             && <RushMode setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="tournois-potes"   && <TournoiPotesPage joueur={joueur} setPage={nav}/>}
