@@ -487,7 +487,7 @@ export const ChronoFinish = ({ setPage, joueur }) => {
       <div style={{ position:"fixed",inset:0,zIndex:200,background:C.bg,display:"flex",flexDirection:"column",overflow:"hidden" }}>
         {/* Header */}
         <div style={{ background:C.card,borderBottom:`1px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0 }}>
-          <button onClick={()=>setPage("jeux")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}><ArrowLeft size={16}/> Retour</button>
+          <button onClick={()=>setPage("jeux-sans")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}><ArrowLeft size={16}/> Retour</button>
           <div style={{ flex:1,fontWeight:800,fontSize:16,color:C.purple,display:"flex",alignItems:"center",gap:8 }}><Timer size={16} color={C.purple}/> Chrono Finish</div>
           <div style={{ fontSize:11,color:C.muted }}>{today}</div>
         </div>
@@ -724,7 +724,7 @@ export const ChronoFinish = ({ setPage, joueur }) => {
 
         {/* Header */}
         <div style={{ background:C.card,borderBottom:`1px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0 }}>
-          <button onClick={()=>setPage("jeux")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}><ArrowLeft size={16}/> Retour</button>
+          <button onClick={()=>setPage("jeux-sans")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}><ArrowLeft size={16}/> Retour</button>
           <div style={{ flex:1,fontWeight:800,fontSize:16,color:C.purple,display:"flex",alignItems:"center",gap:8 }}><Timer size={16} color={C.purple}/> Chrono Finish</div>
           <div style={{ fontSize:11,color:C.muted }}>Défi du {today}</div>
         </div>
@@ -816,7 +816,7 @@ export const ChronoFinish = ({ setPage, joueur }) => {
 
       {/* ── Header ── */}
       <div style={{ background:C.card,borderBottom:`1px solid ${C.border}`,padding:"8px 12px",display:"flex",alignItems:"center",gap:10,flexShrink:0 }}>
-        <button onClick={()=>setPage("jeux")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}><ArrowLeft size={16}/> Retour</button>
+        <button onClick={()=>setPage("jeux-sans")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}><ArrowLeft size={16}/> Retour</button>
         <div style={{ flex:1,fontWeight:800,fontSize:15,color:C.purple,display:"flex",alignItems:"center",gap:8 }}><Timer size={16} color={C.purple}/> Chrono Finish</div>
         {/* Chrono */}
         <div style={{ background:`${C.purple}22`,border:`1px solid ${C.purple}55`,borderRadius:10,padding:"4px 12px",fontVariantNumeric:"tabular-nums",fontWeight:900,fontSize:18,color:C.purple,letterSpacing:1,minWidth:72,textAlign:"center" }}>
