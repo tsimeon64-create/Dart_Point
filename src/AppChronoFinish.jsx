@@ -571,34 +571,11 @@ export const ChronoFinish = ({ setPage, joueur }) => {
               animation:"cfChronoPulse 2.4s ease-in-out infinite",
               marginBottom:4, whiteSpace:"nowrap",
             }}>
-              ⏱ DAILY SPEEDRUN
+              ⏱ FINISH SPEEDRUN
             </div>
 
-            <div style={{ fontSize:11,color:"#94a3b8",lineHeight:1.4,marginBottom:10 }}>
+            <div style={{ fontSize:11,color:"#94a3b8",lineHeight:1.4,marginBottom:12 }}>
               <b style={{ color:"#a78bfa" }}>5 finishes</b> · plus vite possible · chrono au clic
-            </div>
-
-            {/* Aperçu finishes */}
-            <div style={{
-              background:"linear-gradient(135deg,#0a0418,#050210)",
-              border:"1px solid #2a1a4a",
-              borderRadius:8, padding:"6px 8px", marginBottom:10,
-            }}>
-              <div style={{ fontSize:8,fontWeight:900,color:"#64748b",letterSpacing:1.5,marginBottom:4 }}>🎯 SÉRIE DU JOUR</div>
-              <div style={{ display:"flex",alignItems:"center",justifyContent:"center",gap:3,flexWrap:"wrap",fontSize:12,fontWeight:900,fontVariantNumeric:"tabular-nums" }}>
-                {finishes.map((f, i) => (
-                  <span key={i} style={{ display:"inline-flex",alignItems:"center",gap:3 }}>
-                    <span style={{
-                      padding:"2px 7px", borderRadius:5,
-                      background:"linear-gradient(135deg,#1e1142,#0d0625)",
-                      border:"1px solid #a78bfa55",
-                      color:"#a78bfa",
-                      textShadow:"0 0 4px #a78bfa66",
-                    }}>{f}</span>
-                    {i < finishes.length-1 && <span style={{ color:"#475569",fontSize:9 }}>›</span>}
-                  </span>
-                ))}
-              </div>
             </div>
 
             {/* Badges DRIX */}
