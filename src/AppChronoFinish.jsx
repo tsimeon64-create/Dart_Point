@@ -535,170 +535,141 @@ export const ChronoFinish = ({ setPage, joueur }) => {
           <div style={{ fontSize:10,color:"#64748b",fontVariantNumeric:"tabular-nums" }}>{today}</div>
         </div>
 
-        <div style={{ flex:1,overflowY:"auto",padding:"14px 14px 32px",display:"flex",flexDirection:"column",gap:12 }}>
+        <div style={{ flex:1,overflowY:"auto",padding:"10px 12px 24px",display:"flex",flexDirection:"column",gap:10 }}>
 
-          {/* ─── HERO BLOCK ─── */}
+          {/* ─── HERO BLOCK COMPACT ─── */}
           <div className="cf-section" style={{
             position:"relative", overflow:"hidden",
             background:"radial-gradient(ellipse at center,#1e1142 0%,#0d0625 60%,#050213 100%)",
-            border:"2px solid #a78bfa",
-            borderRadius:22, padding:"22px 18px 20px",
+            border:"1.5px solid #a78bfa",
+            borderRadius:16, padding:"14px 12px 12px",
             textAlign:"center",
             animation:"cfHeroGlow 3.5s ease-in-out infinite, cfIntroIn .45s cubic-bezier(.34,1.2,.64,1) both",
           }}>
-            {/* Halo radial dynamique */}
-            <div aria-hidden style={{ position:"absolute",top:-40,left:"50%",transform:"translateX(-50%)",width:340,height:340,borderRadius:"50%",background:"radial-gradient(circle,#a78bfa28 0%,transparent 65%)",pointerEvents:"none" }}/>
-            {/* Shine balayage */}
-            <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:120,background:"linear-gradient(90deg,transparent,#ffffff15,transparent)",animation:"cfShine 4s ease-in-out infinite",pointerEvents:"none" }}/>
-            {/* Particules subtiles */}
-            {[...Array(4)].map((_,i) => (
-              <span key={i} aria-hidden style={{
-                position:"absolute", bottom:30+i*8, left:`${20+i*22}%`,
-                width:4, height:4, borderRadius:"50%",
-                background:"#a78bfa", opacity:.5,
-                boxShadow:"0 0 6px #a78bfacc",
-                animation:`cfParticle ${3+i*0.5}s ${i*0.4}s ease-out infinite`,
-                "--x": `${(i%2?-1:1)*15}px`,
-                pointerEvents:"none",
-              }}/>
-            ))}
+            <div aria-hidden style={{ position:"absolute",top:-40,left:"50%",transform:"translateX(-50%)",width:260,height:260,borderRadius:"50%",background:"radial-gradient(circle,#a78bfa22 0%,transparent 65%)",pointerEvents:"none" }}/>
+            <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:100,background:"linear-gradient(90deg,transparent,#ffffff12,transparent)",animation:"cfShine 4s ease-in-out infinite",pointerEvents:"none" }}/>
 
-            {/* Bandeau "DÉFI DU JOUR" */}
+            {/* Bandeau DÉFI DU JOUR */}
             <div style={{
-              position:"relative", display:"inline-flex", alignItems:"center", gap:8,
-              padding:"4px 14px",
-              borderRadius:6,
-              fontSize:10, fontWeight:900, color:"#fbbf24", letterSpacing:3,
-              background:"linear-gradient(90deg,transparent 0%,#78350f44 20%,#78350f66 50%,#78350f44 80%,transparent 100%)",
-              border:"1px solid #fbbf2466",
-              textShadow:"0 0 8px #fbbf24aa",
-              marginBottom:14,
+              position:"relative", display:"inline-flex", alignItems:"center", gap:6,
+              padding:"3px 10px", borderRadius:5,
+              fontSize:9, fontWeight:900, color:"#fbbf24", letterSpacing:2.5,
+              background:"linear-gradient(90deg,transparent,#78350f55,transparent)",
+              border:"1px solid #fbbf2455",
+              textShadow:"0 0 6px #fbbf24aa",
+              marginBottom:8,
             }}>
-              ━ 🏆 DÉFI DU JOUR 🏆 ━
+              🏆 DÉFI DU JOUR 🏆
             </div>
 
-            {/* CHRONO TITRE MASSIF */}
+            {/* TITRE COMPACT */}
             <div style={{
-              fontSize:42, fontWeight:900, lineHeight:1,
+              fontSize:"clamp(24px,7vw,32px)", fontWeight:900, lineHeight:1,
               background:"linear-gradient(135deg,#a78bfa 0%,#c084fc 50%,#7c3aed 100%)",
               WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
-              fontVariantNumeric:"tabular-nums", letterSpacing:2,
+              fontVariantNumeric:"tabular-nums", letterSpacing:1.5,
               animation:"cfChronoPulse 2.4s ease-in-out infinite",
-              fontFamily:"Inter, system-ui, sans-serif",
-              marginBottom:6,
+              marginBottom:4, whiteSpace:"nowrap",
             }}>
               ⏱ DAILY SPEEDRUN
             </div>
 
-            <div style={{ fontSize:12,color:"#cbd5e1",lineHeight:1.55,marginBottom:14,maxWidth:300,marginLeft:"auto",marginRight:"auto" }}>
-              Enchaîne <b style={{ color:"#a78bfa" }}>5 finishes</b> le plus vite possible.<br/>
-              Le chrono démarre au clic sur <b style={{ color:"#fff" }}>Commencer</b>.
+            <div style={{ fontSize:11,color:"#94a3b8",lineHeight:1.4,marginBottom:10 }}>
+              <b style={{ color:"#a78bfa" }}>5 finishes</b> · plus vite possible · chrono au clic
             </div>
 
-            {/* Aperçu des finishes du jour */}
+            {/* Aperçu finishes */}
             <div style={{
               background:"linear-gradient(135deg,#0a0418,#050210)",
               border:"1px solid #2a1a4a",
-              borderRadius:10,
-              padding:"8px 10px",
-              marginBottom:14,
+              borderRadius:8, padding:"6px 8px", marginBottom:10,
             }}>
-              <div style={{ fontSize:9,fontWeight:900,color:"#64748b",letterSpacing:2,marginBottom:4 }}>🎯 LES 5 FINISHES À ENCHAÎNER</div>
-              <div style={{ display:"flex",alignItems:"center",justifyContent:"center",gap:4,flexWrap:"wrap",fontSize:14,fontWeight:900,fontVariantNumeric:"tabular-nums",color:"#e2e8f0",letterSpacing:.5 }}>
+              <div style={{ fontSize:8,fontWeight:900,color:"#64748b",letterSpacing:1.5,marginBottom:4 }}>🎯 SÉRIE DU JOUR</div>
+              <div style={{ display:"flex",alignItems:"center",justifyContent:"center",gap:3,flexWrap:"wrap",fontSize:12,fontWeight:900,fontVariantNumeric:"tabular-nums" }}>
                 {finishes.map((f, i) => (
-                  <span key={i} style={{ display:"inline-flex",alignItems:"center",gap:4 }}>
+                  <span key={i} style={{ display:"inline-flex",alignItems:"center",gap:3 }}>
                     <span style={{
-                      padding:"2px 8px", borderRadius:6,
+                      padding:"2px 7px", borderRadius:5,
                       background:"linear-gradient(135deg,#1e1142,#0d0625)",
                       border:"1px solid #a78bfa55",
                       color:"#a78bfa",
-                      textShadow:"0 0 6px #a78bfa66",
+                      textShadow:"0 0 4px #a78bfa66",
                     }}>{f}</span>
-                    {i < finishes.length-1 && <span style={{ color:"#475569",fontSize:10 }}>›</span>}
+                    {i < finishes.length-1 && <span style={{ color:"#475569",fontSize:9 }}>›</span>}
                   </span>
                 ))}
               </div>
             </div>
 
-            {/* Badges récompenses DRIX */}
-            <div style={{ display:"flex",justifyContent:"center",gap:8,flexWrap:"wrap" }}>
+            {/* Badges DRIX */}
+            <div style={{ display:"flex",justifyContent:"center",gap:6,flexWrap:"wrap" }}>
               <div style={{
-                display:"flex",alignItems:"center",gap:6,
-                padding:"6px 12px", borderRadius:20,
+                display:"flex",alignItems:"center",gap:5,
+                padding:"4px 9px", borderRadius:16,
                 background:"linear-gradient(135deg,#1e1142,#0d0625)",
                 border:"1px solid #a78bfa66",
-                boxShadow:"0 0 12px #a78bfa33, inset 0 1px 0 #ffffff10",
-                fontSize:11, fontWeight:800,
+                boxShadow:"0 0 8px #a78bfa33",
+                fontSize:10, fontWeight:800,
               }}>
-                <span style={{ fontSize:14 }}>💎</span>
-                <span style={{ color:"#a78bfa",textShadow:"0 0 6px #a78bfa88" }}>+5</span>
-                <span style={{ color:"#94a3b8",fontWeight:700 }}>Participation</span>
+                <span>💎</span>
+                <span style={{ color:"#a78bfa",textShadow:"0 0 4px #a78bfa88" }}>+5</span>
+                <span style={{ color:"#94a3b8" }}>participation</span>
               </div>
               <div style={{
-                display:"flex",alignItems:"center",gap:6,
-                padding:"6px 12px", borderRadius:20,
+                display:"flex",alignItems:"center",gap:5,
+                padding:"4px 9px", borderRadius:16,
                 background:"linear-gradient(135deg,#3a1f00,#1a0f00)",
                 border:"1px solid #fbbf2477",
-                boxShadow:"0 0 14px #fbbf2444, inset 0 1px 0 #ffffff10",
-                fontSize:11, fontWeight:800,
+                boxShadow:"0 0 10px #fbbf2444",
+                fontSize:10, fontWeight:800,
               }}>
-                <span style={{ fontSize:14 }}>🏆</span>
-                <span style={{ color:"#fbbf24",textShadow:"0 0 6px #fbbf24aa" }}>+20</span>
-                <span style={{ color:"#fcd34d",fontWeight:700 }}>Meilleur temps</span>
+                <span>🏆</span>
+                <span style={{ color:"#fbbf24",textShadow:"0 0 4px #fbbf24aa" }}>+20</span>
+                <span style={{ color:"#fcd34d" }}>meilleur temps</span>
               </div>
             </div>
 
-            {/* Warning subtil */}
-            <div style={{ marginTop:14, fontSize:10, color:"#64748b", lineHeight:1.4, letterSpacing:.5 }}>
-              ⚠ <b style={{ color:"#94a3b8" }}>1 tentative par jour</b>
-              <div style={{ fontSize:9, color:"#475569", marginTop:2 }}>Quitter ou fermer la page = tentative perdue</div>
+            <div style={{ marginTop:8, fontSize:9, color:"#475569", lineHeight:1.3 }}>
+              ⚠ <b style={{ color:"#64748b" }}>1 tentative/jour</b> · quitter = perdue
             </div>
           </div>
 
-          {/* ─── BLOC "DÉJÀ JOUÉ" avec countdown ─── */}
+          {/* ─── BLOC "DÉJÀ JOUÉ" countdown compact ─── */}
           {alreadyPlayed && (
             <div className="cf-section" style={{
-              position:"relative", overflow:"hidden",
               background:"radial-gradient(ellipse at center,#1a0a14 0%,#0a0510 70%,#050008 100%)",
               border:"1px solid #6b1a4a66",
-              borderRadius:16,
-              padding:"14px 16px",
-              textAlign:"center",
+              borderRadius:12,
+              padding:"10px 14px",
+              display:"flex",alignItems:"center",gap:12,
             }}>
-              <div style={{ fontSize:20,marginBottom:4 }}>🔒</div>
-              <div style={{ fontSize:10,fontWeight:900,color:"#a78bfa",letterSpacing:2,marginBottom:6,textTransform:"uppercase" }}>Reviens dans</div>
-              <div style={{
-                fontSize:32, fontWeight:900,
-                color:"#a78bfa", fontVariantNumeric:"tabular-nums", letterSpacing:1,
-                textShadow:"0 0 16px #a78bfa88,0 0 32px #7c3aed55",
-                lineHeight:1, marginBottom:6,
-              }}>
-                {fmtCountdown(countdownMs)}
+              <div style={{ fontSize:22 }}>🔒</div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:9,fontWeight:900,color:"#a78bfa",letterSpacing:1.5,textTransform:"uppercase",marginBottom:1 }}>Reviens dans</div>
+                <div style={{ fontSize:22, fontWeight:900, color:"#a78bfa", fontVariantNumeric:"tabular-nums", textShadow:"0 0 12px #a78bfa88", lineHeight:1 }}>
+                  {fmtCountdown(countdownMs)}
+                </div>
               </div>
-              <div style={{ fontSize:11,color:"#64748b" }}>Nouvelle tentative à minuit</div>
+              <div style={{ fontSize:10,color:"#64748b",textAlign:"right" }}>nouvelle<br/>tentative<br/>à minuit</div>
             </div>
           )}
 
-          {/* ─── BLOC RECORD + LIVE ACTIVITY ─── */}
+          {/* ─── BLOC RECORD + LIVE compact ─── */}
           {!loadingScores && (recordMs || totalPlayers > 0) && (
             <div className="cf-section" style={{ display:"flex",gap:8 }}>
               {recordMs !== null && (
                 <div style={{
-                  flex:1, position:"relative", overflow:"hidden",
+                  flex:1,
                   background:"linear-gradient(135deg,#1a0f00,#0a0500)",
                   border:"1px solid #fbbf2466",
-                  borderRadius:12, padding:"10px 12px",
-                  boxShadow:"0 0 14px #fbbf2422",
+                  borderRadius:10, padding:"7px 10px",
+                  boxShadow:"0 0 10px #fbbf2422",
                 }}>
-                  <div style={{ fontSize:9,fontWeight:900,color:"#fbbf24",letterSpacing:2,marginBottom:4 }}>⚡ RECORD DU JOUR</div>
-                  <div style={{
-                    fontSize:22, fontWeight:900, color:"#fbbf24",
-                    fontVariantNumeric:"tabular-nums", lineHeight:1,
-                    animation:"cfRecordGlow 2.4s ease-in-out infinite",
-                  }}>
+                  <div style={{ fontSize:8,fontWeight:900,color:"#fbbf24",letterSpacing:1.5,marginBottom:2 }}>⚡ RECORD</div>
+                  <div style={{ fontSize:18,fontWeight:900,color:"#fbbf24",fontVariantNumeric:"tabular-nums",lineHeight:1,animation:"cfRecordGlow 2.4s ease-in-out infinite" }}>
                     {formatChrono(recordMs)}
                   </div>
-                  {recordHolder && <div style={{ fontSize:10,color:"#a16207",marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>par {recordHolder}</div>}
+                  {recordHolder && <div style={{ fontSize:9,color:"#a16207",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>par {recordHolder}</div>}
                 </div>
               )}
               {totalPlayers > 0 && (
@@ -706,38 +677,38 @@ export const ChronoFinish = ({ setPage, joueur }) => {
                   flex:1,
                   background:"linear-gradient(135deg,#0a1428,#050a18)",
                   border:"1px solid #60a5fa55",
-                  borderRadius:12, padding:"10px 12px",
+                  borderRadius:10, padding:"7px 10px",
                 }}>
-                  <div style={{ fontSize:9,fontWeight:900,color:"#60a5fa",letterSpacing:2,marginBottom:4,display:"flex",alignItems:"center",gap:5 }}>
-                    <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:"#22c55e",boxShadow:"0 0 6px #22c55e",animation:"cfLiveDot 1.6s ease-in-out infinite" }}/>
-                    LIVE AUJOURD'HUI
+                  <div style={{ fontSize:8,fontWeight:900,color:"#60a5fa",letterSpacing:1.5,marginBottom:2,display:"flex",alignItems:"center",gap:4 }}>
+                    <span style={{ display:"inline-block",width:5,height:5,borderRadius:"50%",background:"#22c55e",boxShadow:"0 0 5px #22c55e",animation:"cfLiveDot 1.6s ease-in-out infinite" }}/>
+                    LIVE
                   </div>
-                  <div style={{ fontSize:22,fontWeight:900,color:"#60a5fa",fontVariantNumeric:"tabular-nums",lineHeight:1 }}>
+                  <div style={{ fontSize:18,fontWeight:900,color:"#60a5fa",fontVariantNumeric:"tabular-nums",lineHeight:1 }}>
                     {totalPlayers}
                   </div>
-                  <div style={{ fontSize:10,color:"#475569",marginTop:3 }}>{totalPlayers > 1 ? "joueurs ont tenté" : "joueur a tenté"}</div>
+                  <div style={{ fontSize:9,color:"#475569",marginTop:2 }}>{totalPlayers > 1 ? "joueurs" : "joueur"}</div>
                 </div>
               )}
             </div>
           )}
 
-          {/* ─── PODIUM ─── */}
+          {/* ─── PODIUM compact ─── */}
           {!loadingScores && podium.length > 0 && (
             <div className="cf-section" style={{
               background:"linear-gradient(135deg,#0d0a1a,#080612)",
               border:"1px solid #2a1a4a",
-              borderRadius:16, overflow:"hidden",
+              borderRadius:12, overflow:"hidden",
             }}>
               <div style={{
-                padding:"8px 14px",
+                padding:"6px 12px",
                 background:"linear-gradient(90deg,#1a0f30,#2a1a4a,#1a0f30)",
                 backgroundSize:"200% 100%",
                 animation:"cfBannerScroll 6s linear infinite",
                 borderBottom:"1px solid #2a1a4a",
-                fontWeight:900, fontSize:10, color:"#fbbf24", letterSpacing:3,
-                display:"flex", alignItems:"center", gap:6,
+                fontWeight:900, fontSize:9, color:"#fbbf24", letterSpacing:2.5,
+                display:"flex", alignItems:"center", gap:5,
               }}>
-                <Trophy size={12} color="#fbbf24"/> PODIUM SPEEDRUN
+                <Trophy size={11} color="#fbbf24"/> PODIUM SPEEDRUN
               </div>
               {podium.map((s, i) => {
                 const isMe = s.joueur_id === joueur?.id;
@@ -750,50 +721,34 @@ export const ChronoFinish = ({ setPage, joueur }) => {
                 return (
                   <div key={i} style={{
                     display:"flex", alignItems:"center",
-                    padding:"10px 14px", gap:10,
+                    padding:"7px 12px", gap:8,
                     background: isMe ? "linear-gradient(90deg,#1e1142,#0d0625)" : col.bg,
                     borderBottom: i<podium.length-1 ? "1px solid #2a1a4a44" : "none",
                   }}>
-                    <div style={{ fontSize:22, lineHeight:1, filter:`drop-shadow(0 0 8px ${col.border}aa)` }}>
-                      {col.medal}
-                    </div>
+                    <div style={{ fontSize:17, lineHeight:1, filter:`drop-shadow(0 0 6px ${col.border}aa)` }}>{col.medal}</div>
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{
-                        fontWeight:900, fontSize:14, color: isMe ? "#a78bfa" : col.text,
-                        overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
-                        textShadow: i === 0 ? `0 0 8px ${col.border}66` : "none",
-                      }}>
+                      <div style={{ fontWeight:900,fontSize:13,color: isMe?"#a78bfa":col.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
                         {s.joueur_pseudo}{isMe ? " (toi)" : ""}
                       </div>
-                      {s.erreurs > 0 && <div style={{ fontSize:10, color:"#ef4444", marginTop:1 }}>{s.erreurs} err.</div>}
+                      {s.erreurs > 0 && <div style={{ fontSize:9,color:"#ef4444" }}>{s.erreurs} err.</div>}
                     </div>
-                    <div style={{
-                      fontWeight:900, fontSize:i===0?22:18, color: col.text,
-                      fontVariantNumeric:"tabular-nums",
-                      textShadow:`0 0 ${i===0?14:8}px ${col.border}88`,
-                      letterSpacing:.5,
-                    }}>
+                    <div style={{ fontWeight:900,fontSize:i===0?17:15,color:col.text,fontVariantNumeric:"tabular-nums",textShadow:`0 0 ${i===0?10:6}px ${col.border}88` }}>
                       {formatChrono(s.temps_ms)}
                     </div>
                   </div>
                 );
               })}
-              {/* Mon rang si pas dans le podium */}
               {myRank && myRank > 3 && myScore && (
                 <div style={{
-                  display:"flex", alignItems:"center",
-                  padding:"10px 14px", gap:10,
+                  display:"flex",alignItems:"center",padding:"7px 12px",gap:8,
                   background:"linear-gradient(90deg,#1e1142,#0d0625)",
-                  borderTop:"2px dashed #a78bfa44",
+                  borderTop:"1px dashed #a78bfa44",
                 }}>
-                  <div style={{ width:26,textAlign:"center",fontWeight:900,fontSize:14,color:"#a78bfa" }}>
-                    #{myRank}
+                  <div style={{ width:22,textAlign:"center",fontWeight:900,fontSize:12,color:"#a78bfa" }}>#{myRank}</div>
+                  <div style={{ flex:1,fontWeight:900,fontSize:12,color:"#a78bfa" }}>
+                    📍 Toi {myScore.erreurs > 0 && <span style={{ marginLeft:6,fontSize:9,color:"#ef4444" }}>{myScore.erreurs} err.</span>}
                   </div>
-                  <div style={{ flex:1,fontWeight:900,fontSize:13,color:"#a78bfa" }}>
-                    📍 Toi
-                    {myScore.erreurs > 0 && <span style={{ marginLeft:8,fontSize:10,color:"#ef4444",fontWeight:700 }}>{myScore.erreurs} err.</span>}
-                  </div>
-                  <div style={{ fontWeight:900,fontSize:16,color:"#a78bfa",fontVariantNumeric:"tabular-nums",textShadow:"0 0 8px #a78bfa66" }}>
+                  <div style={{ fontWeight:900,fontSize:14,color:"#a78bfa",fontVariantNumeric:"tabular-nums",textShadow:"0 0 6px #a78bfa66" }}>
                     {formatChrono(myScore.temps_ms)}
                   </div>
                 </div>
@@ -802,66 +757,62 @@ export const ChronoFinish = ({ setPage, joueur }) => {
           )}
 
           {loadingScores && (
-            <div style={{ textAlign:"center",padding:24,color:"#475569",fontSize:12 }}>Chargement du classement...</div>
+            <div style={{ textAlign:"center",padding:14,color:"#475569",fontSize:11 }}>Chargement…</div>
           )}
 
           {!loadingScores && scores.length === 0 && (
             <div className="cf-section" style={{
               background:"linear-gradient(135deg,#0a0518,#050210)",
               border:"1px dashed #2a1a4a",
-              borderRadius:12, padding:18, textAlign:"center",
+              borderRadius:10, padding:"12px 10px", textAlign:"center",
             }}>
-              <div style={{ fontSize:24,marginBottom:4 }}>🥇</div>
-              <div style={{ fontSize:13,fontWeight:800,color:"#a78bfa",marginBottom:2 }}>Sois le premier !</div>
-              <div style={{ fontSize:11,color:"#64748b" }}>Aucune tentative aujourd'hui — pose ton record</div>
+              <div style={{ fontSize:18,marginBottom:2 }}>🥇</div>
+              <div style={{ fontSize:12,fontWeight:800,color:"#a78bfa" }}>Sois le premier !</div>
+              <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>Pose ton record du jour</div>
             </div>
           )}
 
-          {/* ─── CTA MASSIF "COMMENCER LE RUN" ─── */}
-          <div className="cf-section">
+          {/* ─── CTAs ─── */}
+          <div className="cf-section" style={{ display:"flex",flexDirection:"column",gap:8,marginTop:2 }}>
             <button onClick={commencer}
               disabled={alreadyPlayed || checking}
               style={{
-                width:"100%",
-                position:"relative",
-                overflow:"hidden",
+                width:"100%", position:"relative", overflow:"hidden",
                 background: (alreadyPlayed||checking)
                   ? "linear-gradient(135deg,#1a1a2a,#0f0f1a)"
                   : "linear-gradient(135deg,#a78bfa 0%,#8b5cf6 50%,#7c3aed 100%)",
                 color: (alreadyPlayed||checking) ? "#475569" : "#fff",
-                border:"none",
-                borderRadius:16,
-                padding:"18px 16px",
-                fontWeight:900, fontSize:17, letterSpacing:2,
+                border:"none", borderRadius:12,
+                padding:"14px 12px",
+                fontWeight:900, fontSize:15, letterSpacing:1.5,
                 cursor: (alreadyPlayed||checking) ? "not-allowed" : "pointer",
                 touchAction:"manipulation",
                 boxShadow: (alreadyPlayed||checking)
                   ? "inset 0 -2px 0 #00000066"
-                  : "0 0 28px #a78bfa88,inset 0 1px 0 #ffffff44,inset 0 -3px 0 #4c1d9599",
+                  : "0 0 22px #a78bfa77,inset 0 1px 0 #ffffff44,inset 0 -3px 0 #4c1d9599",
                 animation: (alreadyPlayed||checking) ? "none" : "cfCtaPulse 2.4s ease-in-out infinite",
                 textShadow: (alreadyPlayed||checking) ? "none" : "0 1px 2px #00000077",
               }}>
               {!alreadyPlayed && !checking && (
-                <span aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:80,background:"linear-gradient(90deg,transparent,#ffffff44,transparent)",animation:"cfShine 2.8s ease-in-out infinite",pointerEvents:"none" }}/>
+                <span aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:70,background:"linear-gradient(90deg,transparent,#ffffff44,transparent)",animation:"cfShine 2.8s ease-in-out infinite",pointerEvents:"none" }}/>
               )}
               <span style={{ position:"relative" }}>
                 {checking ? "⏳ VÉRIFICATION…" : alreadyPlayed ? "🔒 BLOQUÉ JUSQU'À DEMAIN" : "⚡ COMMENCER LE RUN"}
               </span>
             </button>
 
-            {/* Bouton classement complet */}
             <button onClick={openLeaderboard}
               style={{
-                width:"100%", marginTop:8,
+                width:"100%",
                 background:"linear-gradient(135deg,#3a2200,#1a0f00)",
                 color:"#fbbf24", border:"1px solid #fbbf2477",
-                borderRadius:12, padding:"12px",
-                fontWeight:900, fontSize:13, letterSpacing:2,
+                borderRadius:10, padding:"9px",
+                fontWeight:900, fontSize:11, letterSpacing:1.5,
                 cursor:"pointer", touchAction:"manipulation",
-                boxShadow:"0 0 14px #fbbf2433,inset 0 1px 0 #ffffff10",
-                display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+                boxShadow:"0 0 10px #fbbf2433",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:6,
               }}>
-              <Trophy size={14} color="#fbbf24"/> VOIR LE CLASSEMENT COMPLET
+              <Trophy size={12} color="#fbbf24"/> CLASSEMENT COMPLET
             </button>
           </div>
 
