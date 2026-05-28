@@ -308,6 +308,8 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
       }),
     });
     if (created?.[0]?.id) runIdRef.current = created[0].id;
+    // 🔒 Vie consommée dès le lancement → impossible de rejouer (même si on quitte/recharge)
+    setAlreadyPlayed(true);
 
     startTimeRef.current = performance.now();
     penaltyMsRef.current = 0;
@@ -378,6 +380,8 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
   };
 
   const abandonner = async () => {
+    // Confirmation : l'abandon consomme la vie du jour, pas de rejeu possible
+    if (!window.confirm("⚠ Abandonner ?\n\nC'est ta seule vie du jour. Tu ne pourras pas recommencer avant demain.\n\n0 DRIX gagné si tu abandonnes.")) return;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     const finalMs = Math.round(performance.now() - startTimeRef.current + penaltyMsRef.current);
     if (runIdRef.current) {
@@ -422,7 +426,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
               💎 <b style={{ color:C.blue }}>+5 DRIX</b> participation · 🏆 <b style={{ color:C.yellow }}>+20 DRIX</b> vainqueur du jour
             </div>
             <div style={{ marginTop:10,fontSize:11,color:C.yellow,lineHeight:1.5,padding:"6px 10px",background:"#78350f22",borderRadius:8,border:`1px solid ${C.yellow}33` }}>
-              ⚠ <b>1 seule tentative par jour</b> · Même série pour tous les joueurs · ❌ erreur = +3s
+              ⚠ <b>1 seule vie par jour</b> · L'abandon compte comme une tentative · Même série pour tous · ❌ erreur = +3s
             </div>
           </div>
 
