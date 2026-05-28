@@ -339,6 +339,7 @@ export const ChronoFinish = ({ setPage, joueur }) => {
   const [leader,       setLeader]       = useState(null);
   const [alreadyPlayed, setAlreadyPlayed] = useState(false); // bloqué pour aujourd'hui
   const [checking,     setChecking]     = useState(true);
+  const [countdownMs,  setCountdownMs]  = useState(0); // temps restant avant minuit
   const attemptIdRef                    = useRef(null); // id de la tentative en cours
 
   useEffect(() => {
@@ -353,6 +354,25 @@ export const ChronoFinish = ({ setPage, joueur }) => {
       setChecking(false);
     })();
   }, []); // eslint-disable-line
+
+  // ── Countdown minuit (tick toutes les 30s) ─────────────────────────────────
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      const tmr = new Date(now);
+      tmr.setHours(24, 0, 0, 0);
+      setCountdownMs(tmr.getTime() - now.getTime());
+    };
+    tick();
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const fmtCountdown = (ms) => {
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    return `${h}h ${String(m).padStart(2,"0")}m`;
+  };
 
   // ── Jeu ──────────────────────────────────────────────────────────────────
   const [currentIdx,  setCurrentIdx]  = useState(0);
@@ -479,121 +499,369 @@ export const ChronoFinish = ({ setPage, joueur }) => {
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // ÉCRAN : INTRO
+  // ÉCRAN : INTRO — REFONTE SPEEDRUN PREMIUM
   // ─────────────────────────────────────────────────────────────────────────
   if (screen === "intro") {
-    const medals = ["🥇","🥈","🥉"];
+    const completedScores = scores.filter(s => (s.statut || "termine") === "termine");
+    const totalPlayers    = scores.length;
+    const recordMs        = completedScores[0]?.temps_ms || null;
+    const recordHolder    = completedScores[0]?.joueur_pseudo || null;
+    const myScore         = completedScores.find(s => s.joueur_id === joueur?.id);
+    const myRank          = myScore ? completedScores.findIndex(s => s.joueur_id === joueur?.id) + 1 : null;
+    const podium          = completedScores.slice(0, 3);
+
     return (
-      <div style={{ position:"fixed",inset:0,zIndex:200,background:C.bg,display:"flex",flexDirection:"column",overflow:"hidden" }}>
-        {/* Header */}
-        <div style={{ background:C.card,borderBottom:`1px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0 }}>
-          <button onClick={()=>setPage("jeux-sans")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}><ArrowLeft size={16}/> Retour</button>
-          <div style={{ flex:1,fontWeight:800,fontSize:16,color:C.purple,display:"flex",alignItems:"center",gap:8 }}><Timer size={16} color={C.purple}/> Chrono Finish</div>
-          <div style={{ fontSize:11,color:C.muted }}>{today}</div>
+      <div style={{ position:"fixed",inset:0,zIndex:200,background:"radial-gradient(ellipse at top,#0a0518 0%,#050208 50%,#02000a 100%)",display:"flex",flexDirection:"column",overflow:"hidden" }}>
+        <style>{`
+          @keyframes cfIntroIn   { 0%{opacity:0;transform:translateY(12px)} 100%{opacity:1;transform:translateY(0)} }
+          @keyframes cfChronoPulse { 0%,100%{text-shadow:0 0 24px #a78bfacc,0 0 56px #7c3aed66} 50%{text-shadow:0 0 40px #a78bfa,0 0 80px #7c3aed99} }
+          @keyframes cfHeroGlow  { 0%,100%{box-shadow:inset 0 0 60px #a78bfa1a,0 0 28px #7c3aed44,0 0 56px #a78bfa22} 50%{box-shadow:inset 0 0 80px #a78bfa33,0 0 40px #7c3aed77,0 0 90px #a78bfa44} }
+          @keyframes cfCtaPulse  { 0%,100%{box-shadow:0 0 28px #a78bfa88,inset 0 1px 0 #ffffff44,inset 0 -3px 0 #4c1d9599} 50%{box-shadow:0 0 50px #a78bfacc,0 0 80px #7c3aed66,inset 0 1px 0 #ffffff55,inset 0 -3px 0 #4c1d9599} }
+          @keyframes cfShine     { 0%{transform:translateX(-150%) skewX(-22deg)} 100%{transform:translateX(280%) skewX(-22deg)} }
+          @keyframes cfParticle  { 0%{transform:translateY(0) translateX(0);opacity:0} 30%{opacity:.6} 100%{transform:translateY(-60px) translateX(var(--x));opacity:0} }
+          @keyframes cfBannerScroll { 0%{background-position:0 0} 100%{background-position:200% 0} }
+          @keyframes cfRecordGlow { 0%,100%{text-shadow:0 0 12px #fbbf24cc} 50%{text-shadow:0 0 22px #fbbf24,0 0 36px #f9731699} }
+          @keyframes cfLiveDot   { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.85)} }
+          .cf-section { animation: cfIntroIn .45s cubic-bezier(.34,1.2,.64,1) both; }
+        `}</style>
+
+        {/* Lignes scan ambiance */}
+        <div aria-hidden style={{ position:"absolute",inset:0,background:"repeating-linear-gradient(180deg,transparent 0,transparent 3px,rgba(167,139,250,0.025) 3px,rgba(167,139,250,0.025) 4px)",pointerEvents:"none" }}/>
+
+        {/* Header minimal */}
+        <div style={{ background:"rgba(10,5,24,0.7)",backdropFilter:"blur(8px)",borderBottom:"1px solid #2a1a4a",padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0,position:"relative",zIndex:5 }}>
+          <button onClick={()=>setPage("jeux-sans")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:13,padding:0 }}><ArrowLeft size={16}/> Retour</button>
+          <div style={{ flex:1,fontWeight:900,fontSize:14,color:"#a78bfa",letterSpacing:2,textAlign:"center" }}>⏱ CHRONO FINISH</div>
+          <div style={{ fontSize:10,color:"#64748b",fontVariantNumeric:"tabular-nums" }}>{today}</div>
         </div>
 
-        <div style={{ flex:1,overflowY:"auto",padding:"16px 14px 40px",display:"flex",flexDirection:"column",gap:12 }}>
+        <div style={{ flex:1,overflowY:"auto",padding:"14px 14px 32px",display:"flex",flexDirection:"column",gap:12 }}>
 
-          {/* Titre du défi */}
-          <div style={{ background:"linear-gradient(135deg,#1a1030,#0f0f20)",border:`2px solid ${C.purple}`,borderRadius:20,padding:"24px 16px",textAlign:"center" }}>
-            <div style={{ fontSize:52,marginBottom:6 }}>⏱️</div>
-            <div style={{ fontWeight:900,fontSize:22,color:C.purple,marginBottom:6 }}>Défi du jour</div>
-            <div style={{ fontSize:13,color:C.muted,lineHeight:1.6 }}>
-              5 finishes à enchaîner le plus vite possible.<br/>
-              Le chronomètre démarre dès que tu cliques <b style={{ color:C.text }}>Commencer</b>.
+          {/* ─── HERO BLOCK ─── */}
+          <div className="cf-section" style={{
+            position:"relative", overflow:"hidden",
+            background:"radial-gradient(ellipse at center,#1e1142 0%,#0d0625 60%,#050213 100%)",
+            border:"2px solid #a78bfa",
+            borderRadius:22, padding:"22px 18px 20px",
+            textAlign:"center",
+            animation:"cfHeroGlow 3.5s ease-in-out infinite, cfIntroIn .45s cubic-bezier(.34,1.2,.64,1) both",
+          }}>
+            {/* Halo radial dynamique */}
+            <div aria-hidden style={{ position:"absolute",top:-40,left:"50%",transform:"translateX(-50%)",width:340,height:340,borderRadius:"50%",background:"radial-gradient(circle,#a78bfa28 0%,transparent 65%)",pointerEvents:"none" }}/>
+            {/* Shine balayage */}
+            <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:120,background:"linear-gradient(90deg,transparent,#ffffff15,transparent)",animation:"cfShine 4s ease-in-out infinite",pointerEvents:"none" }}/>
+            {/* Particules subtiles */}
+            {[...Array(4)].map((_,i) => (
+              <span key={i} aria-hidden style={{
+                position:"absolute", bottom:30+i*8, left:`${20+i*22}%`,
+                width:4, height:4, borderRadius:"50%",
+                background:"#a78bfa", opacity:.5,
+                boxShadow:"0 0 6px #a78bfacc",
+                animation:`cfParticle ${3+i*0.5}s ${i*0.4}s ease-out infinite`,
+                "--x": `${(i%2?-1:1)*15}px`,
+                pointerEvents:"none",
+              }}/>
+            ))}
+
+            {/* Bandeau "DÉFI DU JOUR" */}
+            <div style={{
+              position:"relative", display:"inline-flex", alignItems:"center", gap:8,
+              padding:"4px 14px",
+              borderRadius:6,
+              fontSize:10, fontWeight:900, color:"#fbbf24", letterSpacing:3,
+              background:"linear-gradient(90deg,transparent 0%,#78350f44 20%,#78350f66 50%,#78350f44 80%,transparent 100%)",
+              border:"1px solid #fbbf2466",
+              textShadow:"0 0 8px #fbbf24aa",
+              marginBottom:14,
+            }}>
+              ━ 🏆 DÉFI DU JOUR 🏆 ━
             </div>
-            <div style={{ marginTop:10,fontSize:12,color:C.muted,lineHeight:1.7 }}>
-              💎 <b style={{ color:C.purple }}>+5 DRIX</b> pour avoir complété le défi ·{" "}
-              🏆 <b style={{ color:C.yellow }}>+20 DRIX</b> au meilleur temps
+
+            {/* CHRONO TITRE MASSIF */}
+            <div style={{
+              fontSize:42, fontWeight:900, lineHeight:1,
+              background:"linear-gradient(135deg,#a78bfa 0%,#c084fc 50%,#7c3aed 100%)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+              fontVariantNumeric:"tabular-nums", letterSpacing:2,
+              animation:"cfChronoPulse 2.4s ease-in-out infinite",
+              fontFamily:"Inter, system-ui, sans-serif",
+              marginBottom:6,
+            }}>
+              ⏱ DAILY SPEEDRUN
             </div>
-            <div style={{ marginTop:10,fontSize:11,color:"#f59e0b",lineHeight:1.5,padding:"6px 10px",background:"#78350f22",borderRadius:8,border:"1px solid #f59e0b33" }}>
-              ⚠ <b>1 seule tentative par jour</b> — abandon ou ferme la page = tentative perdue
+
+            <div style={{ fontSize:12,color:"#cbd5e1",lineHeight:1.55,marginBottom:14,maxWidth:300,marginLeft:"auto",marginRight:"auto" }}>
+              Enchaîne <b style={{ color:"#a78bfa" }}>5 finishes</b> le plus vite possible.<br/>
+              Le chrono démarre au clic sur <b style={{ color:"#fff" }}>Commencer</b>.
+            </div>
+
+            {/* Aperçu des finishes du jour */}
+            <div style={{
+              background:"linear-gradient(135deg,#0a0418,#050210)",
+              border:"1px solid #2a1a4a",
+              borderRadius:10,
+              padding:"8px 10px",
+              marginBottom:14,
+            }}>
+              <div style={{ fontSize:9,fontWeight:900,color:"#64748b",letterSpacing:2,marginBottom:4 }}>🎯 LES 5 FINISHES À ENCHAÎNER</div>
+              <div style={{ display:"flex",alignItems:"center",justifyContent:"center",gap:4,flexWrap:"wrap",fontSize:14,fontWeight:900,fontVariantNumeric:"tabular-nums",color:"#e2e8f0",letterSpacing:.5 }}>
+                {finishes.map((f, i) => (
+                  <span key={i} style={{ display:"inline-flex",alignItems:"center",gap:4 }}>
+                    <span style={{
+                      padding:"2px 8px", borderRadius:6,
+                      background:"linear-gradient(135deg,#1e1142,#0d0625)",
+                      border:"1px solid #a78bfa55",
+                      color:"#a78bfa",
+                      textShadow:"0 0 6px #a78bfa66",
+                    }}>{f}</span>
+                    {i < finishes.length-1 && <span style={{ color:"#475569",fontSize:10 }}>›</span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Badges récompenses DRIX */}
+            <div style={{ display:"flex",justifyContent:"center",gap:8,flexWrap:"wrap" }}>
+              <div style={{
+                display:"flex",alignItems:"center",gap:6,
+                padding:"6px 12px", borderRadius:20,
+                background:"linear-gradient(135deg,#1e1142,#0d0625)",
+                border:"1px solid #a78bfa66",
+                boxShadow:"0 0 12px #a78bfa33, inset 0 1px 0 #ffffff10",
+                fontSize:11, fontWeight:800,
+              }}>
+                <span style={{ fontSize:14 }}>💎</span>
+                <span style={{ color:"#a78bfa",textShadow:"0 0 6px #a78bfa88" }}>+5</span>
+                <span style={{ color:"#94a3b8",fontWeight:700 }}>Participation</span>
+              </div>
+              <div style={{
+                display:"flex",alignItems:"center",gap:6,
+                padding:"6px 12px", borderRadius:20,
+                background:"linear-gradient(135deg,#3a1f00,#1a0f00)",
+                border:"1px solid #fbbf2477",
+                boxShadow:"0 0 14px #fbbf2444, inset 0 1px 0 #ffffff10",
+                fontSize:11, fontWeight:800,
+              }}>
+                <span style={{ fontSize:14 }}>🏆</span>
+                <span style={{ color:"#fbbf24",textShadow:"0 0 6px #fbbf24aa" }}>+20</span>
+                <span style={{ color:"#fcd34d",fontWeight:700 }}>Meilleur temps</span>
+              </div>
+            </div>
+
+            {/* Warning subtil */}
+            <div style={{ marginTop:14, fontSize:10, color:"#64748b", lineHeight:1.4, letterSpacing:.5 }}>
+              ⚠ <b style={{ color:"#94a3b8" }}>1 tentative par jour</b>
+              <div style={{ fontSize:9, color:"#475569", marginTop:2 }}>Quitter ou fermer la page = tentative perdue</div>
             </div>
           </div>
 
-          {/* Banière "déjà joué" */}
+          {/* ─── BLOC "DÉJÀ JOUÉ" avec countdown ─── */}
           {alreadyPlayed && (
-            <div style={{ background:"linear-gradient(135deg,#1a0a14,#0f0a18)",border:`2px solid ${C.red}66`,borderRadius:16,padding:"14px 16px",textAlign:"center" }}>
-              <div style={{ fontSize:28,marginBottom:4 }}>🔒</div>
-              <div style={{ fontWeight:900,fontSize:14,color:C.red,marginBottom:3 }}>Tu as déjà joué aujourd'hui</div>
-              <div style={{ fontSize:12,color:C.muted }}>Reviens demain pour une nouvelle tentative !</div>
+            <div className="cf-section" style={{
+              position:"relative", overflow:"hidden",
+              background:"radial-gradient(ellipse at center,#1a0a14 0%,#0a0510 70%,#050008 100%)",
+              border:"1px solid #6b1a4a66",
+              borderRadius:16,
+              padding:"14px 16px",
+              textAlign:"center",
+            }}>
+              <div style={{ fontSize:20,marginBottom:4 }}>🔒</div>
+              <div style={{ fontSize:10,fontWeight:900,color:"#a78bfa",letterSpacing:2,marginBottom:6,textTransform:"uppercase" }}>Reviens dans</div>
+              <div style={{
+                fontSize:32, fontWeight:900,
+                color:"#a78bfa", fontVariantNumeric:"tabular-nums", letterSpacing:1,
+                textShadow:"0 0 16px #a78bfa88,0 0 32px #7c3aed55",
+                lineHeight:1, marginBottom:6,
+              }}>
+                {fmtCountdown(countdownMs)}
+              </div>
+              <div style={{ fontSize:11,color:"#64748b" }}>Nouvelle tentative à minuit</div>
             </div>
           )}
 
-          {/* Classement du jour */}
-          <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden" }}>
-            <div style={{ padding:"10px 14px",borderBottom:`1px solid ${C.border}`,fontWeight:800,fontSize:13,color:C.text,display:"flex",alignItems:"center",gap:8 }}>
-              <Trophy size={14} color={C.yellow}/> Classement du jour
+          {/* ─── BLOC RECORD + LIVE ACTIVITY ─── */}
+          {!loadingScores && (recordMs || totalPlayers > 0) && (
+            <div className="cf-section" style={{ display:"flex",gap:8 }}>
+              {recordMs !== null && (
+                <div style={{
+                  flex:1, position:"relative", overflow:"hidden",
+                  background:"linear-gradient(135deg,#1a0f00,#0a0500)",
+                  border:"1px solid #fbbf2466",
+                  borderRadius:12, padding:"10px 12px",
+                  boxShadow:"0 0 14px #fbbf2422",
+                }}>
+                  <div style={{ fontSize:9,fontWeight:900,color:"#fbbf24",letterSpacing:2,marginBottom:4 }}>⚡ RECORD DU JOUR</div>
+                  <div style={{
+                    fontSize:22, fontWeight:900, color:"#fbbf24",
+                    fontVariantNumeric:"tabular-nums", lineHeight:1,
+                    animation:"cfRecordGlow 2.4s ease-in-out infinite",
+                  }}>
+                    {formatChrono(recordMs)}
+                  </div>
+                  {recordHolder && <div style={{ fontSize:10,color:"#a16207",marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>par {recordHolder}</div>}
+                </div>
+              )}
+              {totalPlayers > 0 && (
+                <div style={{
+                  flex:1,
+                  background:"linear-gradient(135deg,#0a1428,#050a18)",
+                  border:"1px solid #60a5fa55",
+                  borderRadius:12, padding:"10px 12px",
+                }}>
+                  <div style={{ fontSize:9,fontWeight:900,color:"#60a5fa",letterSpacing:2,marginBottom:4,display:"flex",alignItems:"center",gap:5 }}>
+                    <span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:"#22c55e",boxShadow:"0 0 6px #22c55e",animation:"cfLiveDot 1.6s ease-in-out infinite" }}/>
+                    LIVE AUJOURD'HUI
+                  </div>
+                  <div style={{ fontSize:22,fontWeight:900,color:"#60a5fa",fontVariantNumeric:"tabular-nums",lineHeight:1 }}>
+                    {totalPlayers}
+                  </div>
+                  <div style={{ fontSize:10,color:"#475569",marginTop:3 }}>{totalPlayers > 1 ? "joueurs ont tenté" : "joueur a tenté"}</div>
+                </div>
+              )}
             </div>
-            {loadingScores ? (
-              <div style={{ padding:"20px",textAlign:"center",color:C.muted,fontSize:13 }}>Chargement...</div>
-            ) : scores.length === 0 ? (
-              <div style={{ padding:"20px",textAlign:"center",color:C.muted,fontSize:13 }}>Sois le premier à jouer aujourd'hui !</div>
-            ) : (
-              scores.map((s, i) => {
+          )}
+
+          {/* ─── PODIUM ─── */}
+          {!loadingScores && podium.length > 0 && (
+            <div className="cf-section" style={{
+              background:"linear-gradient(135deg,#0d0a1a,#080612)",
+              border:"1px solid #2a1a4a",
+              borderRadius:16, overflow:"hidden",
+            }}>
+              <div style={{
+                padding:"8px 14px",
+                background:"linear-gradient(90deg,#1a0f30,#2a1a4a,#1a0f30)",
+                backgroundSize:"200% 100%",
+                animation:"cfBannerScroll 6s linear infinite",
+                borderBottom:"1px solid #2a1a4a",
+                fontWeight:900, fontSize:10, color:"#fbbf24", letterSpacing:3,
+                display:"flex", alignItems:"center", gap:6,
+              }}>
+                <Trophy size={12} color="#fbbf24"/> PODIUM SPEEDRUN
+              </div>
+              {podium.map((s, i) => {
                 const isMe = s.joueur_id === joueur?.id;
-                const isAbandon = (s.statut || "termine") === "abandonne";
-                // Rank uniquement pour les terminés
-                const completedCount = scores.filter(x => (x.statut || "termine") === "termine").length;
-                const rankIdx = !isAbandon ? i : -1;
+                const colors = [
+                  { bg:"linear-gradient(90deg,#3a2200,#1a0f00)", border:"#fbbf24", text:"#fbbf24", medal:"🥇" },
+                  { bg:"linear-gradient(90deg,#1a1a26,#0f0f18)", border:"#cbd5e1", text:"#cbd5e1", medal:"🥈" },
+                  { bg:"linear-gradient(90deg,#2a1500,#150a00)", border:"#fb923c", text:"#fb923c", medal:"🥉" },
+                ];
+                const col = colors[i];
                 return (
                   <div key={i} style={{
-                    display:"flex",alignItems:"center",padding:"10px 14px",
-                    borderBottom: i<scores.length-1 ? `1px solid ${C.border}22` : "none",
-                    gap:10,
-                    background: isMe ? `${C.purple}18` : isAbandon ? `${C.red}08` : "transparent",
-                    opacity: isAbandon ? .8 : 1,
+                    display:"flex", alignItems:"center",
+                    padding:"10px 14px", gap:10,
+                    background: isMe ? "linear-gradient(90deg,#1e1142,#0d0625)" : col.bg,
+                    borderBottom: i<podium.length-1 ? "1px solid #2a1a4a44" : "none",
                   }}>
-                    <div style={{ width:26,textAlign:"center",fontWeight:900,fontSize:rankIdx<3 && !isAbandon ?17:12, color: isAbandon ? C.red : (rankIdx<3 ? C.yellow : C.muted), flexShrink:0 }}>
-                      {isAbandon ? "✗" : (rankIdx < 3 ? medals[rankIdx] : rankIdx+1)}
+                    <div style={{ fontSize:22, lineHeight:1, filter:`drop-shadow(0 0 8px ${col.border}aa)` }}>
+                      {col.medal}
                     </div>
-                    <div style={{ flex:1,fontWeight:isMe?800:600,fontSize:14,color: isAbandon ? "#94a3b8" : (isMe?C.purple:C.text),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
-                      {s.joueur_pseudo}{isMe?" (toi)":""}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{
+                        fontWeight:900, fontSize:14, color: isMe ? "#a78bfa" : col.text,
+                        overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+                        textShadow: i === 0 ? `0 0 8px ${col.border}66` : "none",
+                      }}>
+                        {s.joueur_pseudo}{isMe ? " (toi)" : ""}
+                      </div>
+                      {s.erreurs > 0 && <div style={{ fontSize:10, color:"#ef4444", marginTop:1 }}>{s.erreurs} err.</div>}
                     </div>
-                    {!isAbandon && s.erreurs > 0 && <div style={{ fontSize:11,color:C.red }}>{s.erreurs} err.</div>}
-                    {isAbandon ? (
-                      <div style={{ fontWeight:800,fontSize:12,color:C.red,fontStyle:"italic",flexShrink:0,letterSpacing:.5 }}>
-                        Abandon
-                      </div>
-                    ) : (
-                      <div style={{ fontWeight:900,fontSize:15,color:rankIdx===0?C.yellow:isMe?C.purple:C.text,fontVariantNumeric:"tabular-nums",flexShrink:0 }}>
-                        {formatChrono(s.temps_ms)}
-                      </div>
-                    )}
+                    <div style={{
+                      fontWeight:900, fontSize:i===0?22:18, color: col.text,
+                      fontVariantNumeric:"tabular-nums",
+                      textShadow:`0 0 ${i===0?14:8}px ${col.border}88`,
+                      letterSpacing:.5,
+                    }}>
+                      {formatChrono(s.temps_ms)}
+                    </div>
                   </div>
                 );
-              })
-            )}
-          </div>
+              })}
+              {/* Mon rang si pas dans le podium */}
+              {myRank && myRank > 3 && myScore && (
+                <div style={{
+                  display:"flex", alignItems:"center",
+                  padding:"10px 14px", gap:10,
+                  background:"linear-gradient(90deg,#1e1142,#0d0625)",
+                  borderTop:"2px dashed #a78bfa44",
+                }}>
+                  <div style={{ width:26,textAlign:"center",fontWeight:900,fontSize:14,color:"#a78bfa" }}>
+                    #{myRank}
+                  </div>
+                  <div style={{ flex:1,fontWeight:900,fontSize:13,color:"#a78bfa" }}>
+                    📍 Toi
+                    {myScore.erreurs > 0 && <span style={{ marginLeft:8,fontSize:10,color:"#ef4444",fontWeight:700 }}>{myScore.erreurs} err.</span>}
+                  </div>
+                  <div style={{ fontWeight:900,fontSize:16,color:"#a78bfa",fontVariantNumeric:"tabular-nums",textShadow:"0 0 8px #a78bfa66" }}>
+                    {formatChrono(myScore.temps_ms)}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* Boutons */}
-          <div style={{ display:"flex",gap:10,marginTop:4 }}>
+          {loadingScores && (
+            <div style={{ textAlign:"center",padding:24,color:"#475569",fontSize:12 }}>Chargement du classement...</div>
+          )}
+
+          {!loadingScores && scores.length === 0 && (
+            <div className="cf-section" style={{
+              background:"linear-gradient(135deg,#0a0518,#050210)",
+              border:"1px dashed #2a1a4a",
+              borderRadius:12, padding:18, textAlign:"center",
+            }}>
+              <div style={{ fontSize:24,marginBottom:4 }}>🥇</div>
+              <div style={{ fontSize:13,fontWeight:800,color:"#a78bfa",marginBottom:2 }}>Sois le premier !</div>
+              <div style={{ fontSize:11,color:"#64748b" }}>Aucune tentative aujourd'hui — pose ton record</div>
+            </div>
+          )}
+
+          {/* ─── CTA MASSIF "COMMENCER LE RUN" ─── */}
+          <div className="cf-section">
             <button onClick={commencer}
               disabled={alreadyPlayed || checking}
               style={{
-                flex:1,
-                background: (alreadyPlayed||checking) ? "#1a1a1a" : `linear-gradient(135deg,${C.purple},#7c3aed)`,
-                color: (alreadyPlayed||checking) ? C.muted : "#fff",
-                border: (alreadyPlayed||checking) ? `1px solid ${C.border}` : "none",
-                borderRadius:12, padding:"14px",
-                fontWeight:900, fontSize:16,
+                width:"100%",
+                position:"relative",
+                overflow:"hidden",
+                background: (alreadyPlayed||checking)
+                  ? "linear-gradient(135deg,#1a1a2a,#0f0f1a)"
+                  : "linear-gradient(135deg,#a78bfa 0%,#8b5cf6 50%,#7c3aed 100%)",
+                color: (alreadyPlayed||checking) ? "#475569" : "#fff",
+                border:"none",
+                borderRadius:16,
+                padding:"18px 16px",
+                fontWeight:900, fontSize:17, letterSpacing:2,
                 cursor: (alreadyPlayed||checking) ? "not-allowed" : "pointer",
                 touchAction:"manipulation",
-                boxShadow: (alreadyPlayed||checking) ? "none" : `0 4px 20px ${C.purple}55`,
-                opacity: (alreadyPlayed||checking) ? .6 : 1,
+                boxShadow: (alreadyPlayed||checking)
+                  ? "inset 0 -2px 0 #00000066"
+                  : "0 0 28px #a78bfa88,inset 0 1px 0 #ffffff44,inset 0 -3px 0 #4c1d9599",
+                animation: (alreadyPlayed||checking) ? "none" : "cfCtaPulse 2.4s ease-in-out infinite",
+                textShadow: (alreadyPlayed||checking) ? "none" : "0 1px 2px #00000077",
               }}>
-              {checking ? "Vérification…" : alreadyPlayed ? "🔒 Bloqué jusqu'à demain" : "🎯 Commencer"}
+              {!alreadyPlayed && !checking && (
+                <span aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:80,background:"linear-gradient(90deg,transparent,#ffffff44,transparent)",animation:"cfShine 2.8s ease-in-out infinite",pointerEvents:"none" }}/>
+              )}
+              <span style={{ position:"relative" }}>
+                {checking ? "⏳ VÉRIFICATION…" : alreadyPlayed ? "🔒 BLOQUÉ JUSQU'À DEMAIN" : "⚡ COMMENCER LE RUN"}
+              </span>
             </button>
+
+            {/* Bouton classement complet */}
             <button onClick={openLeaderboard}
               style={{
-                background:"#1a1200", color:C.yellow, border:`1px solid ${C.yellow}55`,
-                borderRadius:12, padding:"14px 18px",
-                fontWeight:800, fontSize:14, cursor:"pointer",
-                touchAction:"manipulation",
-                display:"flex", alignItems:"center", justifyContent:"center", gap:6,
-                whiteSpace:"nowrap",
+                width:"100%", marginTop:8,
+                background:"linear-gradient(135deg,#3a2200,#1a0f00)",
+                color:"#fbbf24", border:"1px solid #fbbf2477",
+                borderRadius:12, padding:"12px",
+                fontWeight:900, fontSize:13, letterSpacing:2,
+                cursor:"pointer", touchAction:"manipulation",
+                boxShadow:"0 0 14px #fbbf2433,inset 0 1px 0 #ffffff10",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:8,
               }}>
-              <Trophy size={16} color={C.yellow}/> Classement
+              <Trophy size={14} color="#fbbf24"/> VOIR LE CLASSEMENT COMPLET
             </button>
           </div>
 
