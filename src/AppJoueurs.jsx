@@ -1,6 +1,114 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Navigation, Crosshair, Star, Zap, Flame, Sparkles } from "lucide-react";
 
+// ── Modal de crop circulaire (zoom + drag) — réutilisable ─────────────────────
+const CropPhotoModal = ({ imageDataUrl, onSave, onClose, label="Cadrer la photo" }) => {
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x:0, y:0 });
+  const [dragging, setDragging] = useState(false);
+  const dragStart = useRef({ x:0, y:0, ox:0, oy:0 });
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgNat, setImgNat] = useState({ w:0, h:0 });
+  const BOX = 260;
+
+  useEffect(() => {
+    if (!imageDataUrl) return;
+    const img = new Image();
+    img.onload = () => { setImgNat({ w:img.width, h:img.height }); setImgLoaded(true); };
+    img.src = imageDataUrl;
+  }, [imageDataUrl]);
+
+  const onPointerDown = (e) => {
+    e.preventDefault();
+    dragStart.current = { x:e.clientX, y:e.clientY, ox:offset.x, oy:offset.y };
+    setDragging(true);
+  };
+  const onPointerMove = (e) => {
+    if (!dragging) return;
+    setOffset({ x: dragStart.current.ox + (e.clientX - dragStart.current.x), y: dragStart.current.oy + (e.clientY - dragStart.current.y) });
+  };
+  const onPointerUp = () => setDragging(false);
+
+  const baseScale = imgNat.w && imgNat.h ? Math.max(BOX/imgNat.w, BOX/imgNat.h) : 1;
+  const totalScale = baseScale * zoom;
+
+  const handleSave = () => {
+    if (!imgLoaded) return;
+    const OUT = 320;
+    const canvas = document.createElement("canvas");
+    canvas.width = OUT; canvas.height = OUT;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#0a0a14";
+    ctx.fillRect(0, 0, OUT, OUT);
+    const ratio = OUT / BOX;
+    const drawW = imgNat.w * totalScale * ratio;
+    const drawH = imgNat.h * totalScale * ratio;
+    const dx = (OUT - drawW)/2 + offset.x * ratio;
+    const dy = (OUT - drawH)/2 + offset.y * ratio;
+    const img = new Image();
+    img.onload = () => {
+      ctx.drawImage(img, dx, dy, drawW, drawH);
+      onSave(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.src = imageDataUrl;
+  };
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"#000000ee", zIndex:1500, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div style={{ background:"#0d0d14", border:"1px solid #2a2a2a", borderRadius:18, padding:18, maxWidth:340, width:"100%" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+          <div style={{ fontWeight:900, fontSize:15, color:"#f1f5f9" }}>📷 {label}</div>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#64748b", fontSize:20, cursor:"pointer", lineHeight:1 }}>✕</button>
+        </div>
+        <div
+          onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}
+          style={{
+            position:"relative", width:BOX, height:BOX, margin:"0 auto 12px",
+            background:"#000", borderRadius:12, overflow:"hidden",
+            cursor: dragging ? "grabbing" : "grab", touchAction:"none",
+            border:"1px solid #2a2a2a",
+          }}>
+          {imageDataUrl && (
+            <img src={imageDataUrl} alt="" draggable={false}
+              style={{
+                position:"absolute", left:"50%", top:"50%",
+                transform:`translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) scale(${totalScale})`,
+                transformOrigin:"center center",
+                userSelect:"none", pointerEvents:"none", maxWidth:"none",
+              }}/>
+          )}
+          <div aria-hidden style={{
+            position:"absolute", inset:0,
+            boxShadow:"0 0 0 9999px #000000bb inset",
+            borderRadius:"50%",
+            pointerEvents:"none",
+            border:"2px solid #f97316aa",
+          }}/>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+          <button onClick={()=>setZoom(z => Math.max(0.4, +(z - 0.1).toFixed(2)))}
+            style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#f1f5f9", borderRadius:8, padding:"4px 10px", fontWeight:900, fontSize:14, cursor:"pointer", lineHeight:1 }}>−</button>
+          <input type="range" min={0.4} max={3} step={0.02} value={zoom}
+            onChange={e=>setZoom(parseFloat(e.target.value))}
+            style={{ flex:1, accentColor:"#f97316" }}/>
+          <button onClick={()=>setZoom(z => Math.min(3, +(z + 0.1).toFixed(2)))}
+            style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#f1f5f9", borderRadius:8, padding:"4px 10px", fontWeight:900, fontSize:14, cursor:"pointer", lineHeight:1 }}>+</button>
+          <span style={{ fontSize:11, color:"#f1f5f9", minWidth:38, textAlign:"right" }}>{zoom.toFixed(2)}x</span>
+        </div>
+        <div style={{ fontSize:10, color:"#64748b", textAlign:"center", marginBottom:12 }}>
+          Glisse pour positionner · Zoom pour ajuster
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={onClose} style={{ flex:1, background:"#1a1a1a", border:"1px solid #2a2a2a", color:"#64748b", borderRadius:10, padding:"10px", fontWeight:700, fontSize:13, cursor:"pointer" }}>Annuler</button>
+          <button onClick={handleSave} disabled={!imgLoaded} style={{ flex:1, background:"linear-gradient(135deg,#f97316,#ea580c)", border:"none", color:"#fff", borderRadius:10, padding:"10px", fontWeight:900, fontSize:13, cursor: imgLoaded?"pointer":"not-allowed", boxShadow:"0 4px 14px #f9731666" }}>
+            ✓ Sauvegarder
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── AppJoueurs.jsx ────────────────────────────────────────────────────────────
 // Système joueurs DartPoint : inscription, profils, duels, présence, scoreur
 // Importé depuis App.jsx
@@ -415,6 +523,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   const [tournoisPotes, setTournoisPotes] = useState([]);
   const [badgeCount, setBadgeCount] = useState(getBadgesStored(joueur.id).size);
   const [amisCount, setAmisCount] = useState(0);
+  const [cropImage, setCropImage] = useState(null);
   const BADGES_SEEN_KEY = `dp_badges_seen_${joueur.id}`;
   const [badgesSeen, setBadgesSeen] = useState(() => parseInt(localStorage.getItem(`dp_badges_seen_${joueur.id}`) || "0"));
   const newBadgesCount = Math.max(0, badgeCount - badgesSeen);
@@ -519,24 +628,37 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     setSavingEdit(false); setEditMode(false);
   };
 
-  const uploadPhoto = async (e) => {
+  // Étape 1 : utilisateur choisit un fichier → on ouvre le modal de crop
+  const uploadPhoto = (e) => {
     const file = e.target.files?.[0]; if (!file) return;
     const reader = new FileReader();
-    reader.onload = async (ev) => {
+    reader.onload = (ev) => {
       const img = new Image();
-      img.onload = async () => {
-        const MAX=300; let w=img.width, h=img.height;
-        if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
-        const canvas=document.createElement("canvas"); canvas.width=w; canvas.height=h;
-        canvas.getContext("2d").drawImage(img,0,0,w,h);
-        const data = canvas.toDataURL("image/jpeg",0.8);
-        await dbJ.updateJoueur(joueur.id,{photo:data});
-        const updated = {...joueur, photo:data};
-        setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
+      img.onload = () => {
+        // Pré-redimensionne pour limiter la mémoire avant crop (max 900px côté)
+        const MAX = 900;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        setCropImage(canvas.toDataURL("image/jpeg", 0.9));
       };
       img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  // Étape 2 : après crop → sauvegarde
+  const saveCroppedPhoto = async (dataUrl) => {
+    setCropImage(null);
+    await dbJ.updateJoueur(joueur.id, { photo: dataUrl });
+    const updated = { ...joueur, photo: dataUrl };
+    setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
   };
 
   const choisirBar = async (slug) => {
@@ -608,6 +730,16 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
 
   return (
     <div style={{ maxWidth:600, margin:"0 auto", padding:"16px 16px 80px" }}>
+
+      {/* Modal de crop photo de profil */}
+      {cropImage && (
+        <CropPhotoModal
+          imageDataUrl={cropImage}
+          label="Cadrer ta photo"
+          onSave={saveCroppedPhoto}
+          onClose={()=>setCropImage(null)}
+        />
+      )}
 
       {/* ── 1. HERO PROFIL — CARTE JOUEUR PREMIUM ─────────────────────────── */}
       <div style={{
