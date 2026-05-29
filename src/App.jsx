@@ -5914,12 +5914,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           }}>
             🎯 JEUX AVEC FLÉCHETTES
           </div>
-          <div style={{ fontSize:11,color:"#94a3b8",marginBottom:10 }}>Prends ta cible, on joue !</div>
-          <div style={{ display:"flex",justifyContent:"center",gap:6,flexWrap:"wrap" }}>
-            <Capsule icon="🎯" label="MODE JEU LIBRE" col="#fbbf24"/>
-            <Capsule icon="🔥" label={`${flecheStats.total} PARTIES AUJOURD'HUI`} col="#ef4444"/>
-            <Capsule icon="👥" label="AFFRONTE TES AMIS" col="#60a5fa"/>
-          </div>
+          <div style={{ fontSize:11,color:"#94a3b8" }}>Prends ta cible, on joue !</div>
         </div>
 
         {/* ═══ REPRENDRE UNE PARTIE ═══ */}
