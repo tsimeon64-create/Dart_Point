@@ -7079,13 +7079,16 @@ const CropLogoModal = ({ imageDataUrl, onSave, onClose, label="Cadrer le logo" }
           }}/>
         </div>
 
-        {/* Zoom */}
-        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
-          <span style={{ fontSize:11, color:C.muted, minWidth:34 }}>Zoom</span>
-          <input type="range" min={1} max={3} step={0.02} value={zoom}
+        {/* Zoom — slider + boutons */}
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+          <button onClick={()=>setZoom(z => Math.max(0.4, +(z - 0.1).toFixed(2)))}
+            style={{ background:"#1a1a1a", border:`1px solid ${C.border}`, color:C.text, borderRadius:8, padding:"4px 10px", fontWeight:900, fontSize:14, cursor:"pointer", lineHeight:1 }}>−</button>
+          <input type="range" min={0.4} max={3} step={0.02} value={zoom}
             onChange={e=>setZoom(parseFloat(e.target.value))}
             style={{ flex:1, accentColor:"#f97316" }}/>
-          <span style={{ fontSize:11, color:C.text, minWidth:34, textAlign:"right" }}>{zoom.toFixed(1)}x</span>
+          <button onClick={()=>setZoom(z => Math.min(3, +(z + 0.1).toFixed(2)))}
+            style={{ background:"#1a1a1a", border:`1px solid ${C.border}`, color:C.text, borderRadius:8, padding:"4px 10px", fontWeight:900, fontSize:14, cursor:"pointer", lineHeight:1 }}>+</button>
+          <span style={{ fontSize:11, color:C.text, minWidth:38, textAlign:"right" }}>{zoom.toFixed(2)}x</span>
         </div>
 
         <div style={{ fontSize:10, color:C.muted, textAlign:"center", marginBottom:12 }}>
