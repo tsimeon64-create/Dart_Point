@@ -6033,7 +6033,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
           letterSpacing:1.5, marginBottom:10,
         }}>
-          🧠 MINI JEUX & DÉFIS
+          MINI JEUX & DÉFIS
         </div>
         <div style={{ display:"flex",justifyContent:"center",gap:6,flexWrap:"wrap" }}>
           <Capsule icon="🏆" label="CLASSEMENTS QUOTIDIENS" col="#fbbf24"/>
