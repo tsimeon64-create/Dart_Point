@@ -5640,7 +5640,154 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
 const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
   const [categorie, setCategorie] = useState(initCat);
 
-  // Carte jeu active
+  // ─── Données défis du jour (records + participants) ─────────────────────────
+  const [dailyData, setDailyData] = useState({ finishRecord:null, finishCount:0, scoreurRecord:null, scoreurCount:0, finishPlayed:false, scoreurPlayed:false });
+
+  useEffect(() => {
+    if (categorie !== "sans") return;
+    const today = new Date().toISOString().split("T")[0];
+    const finishPlayed = !!localStorage.getItem(`dp_chrono_${today}`);
+    const scoreurPlayed = localStorage.getItem(`dp_scoreur_locked_${today}`) === "1";
+    Promise.all([
+      sb(`chrono_finish_scores?date_jour=eq.${today}&statut=eq.termine&order=temps_ms.asc&limit=1&select=temps_ms,joueur_pseudo`),
+      sb(`chrono_finish_scores?date_jour=eq.${today}&select=id`),
+      sb(`chrono_scoreur_scores?date_jour=eq.${today}&statut=eq.termine&order=temps_ms.asc&limit=1&select=temps_ms,joueur_pseudo`),
+      sb(`chrono_scoreur_scores?date_jour=eq.${today}&select=id`),
+    ]).then(([fr, fc, sr, sc]) => {
+      setDailyData({
+        finishRecord: fr?.[0] || null,
+        finishCount: fc?.length || 0,
+        scoreurRecord: sr?.[0] || null,
+        scoreurCount: sc?.length || 0,
+        finishPlayed,
+        scoreurPlayed,
+      });
+    });
+  }, [categorie]);
+
+  const fmtMs = (ms) => {
+    if (!ms) return "—";
+    const t = Math.floor(ms/100); const d = t%10; const s = Math.floor(t/10)%60; const m = Math.floor(t/600);
+    return m > 0 ? `${m}:${String(s).padStart(2,"0")}.${d}s` : `${s}.${d}s`;
+  };
+
+  // ─── Capsule (Hero header + badges) ─────────────────────────────────────────
+  const Capsule = ({ icon, label, col }) => (
+    <div style={{
+      display:"inline-flex",alignItems:"center",gap:5,
+      padding:"4px 10px",borderRadius:20,
+      background:`linear-gradient(135deg,${col}1f,${col}0a)`,
+      border:`1px solid ${col}55`,
+      fontSize:10,fontWeight:800,color:col,letterSpacing:.5,
+      boxShadow:`0 0 8px ${col}22`,
+      whiteSpace:"nowrap",
+    }}>
+      <span style={{ fontSize:12 }}>{icon}</span>{label}
+    </div>
+  );
+
+  // ─── Carte jeu PREMIUM (refonte) ────────────────────────────────────────────
+  const GameCard = ({ icon: IconComp, label, sub, onClick, col, badge, badgeIcon, difficulty, drix, stat, statIcon, played, bgIcon }) => {
+    const diffMap = {
+      debut: { label:"Débutant", col:"#22c55e", dot:"🟢" },
+      inter: { label:"Intermédiaire", col:"#f59e0b", dot:"🟠" },
+      expert: { label:"Expert", col:"#ef4444", dot:"🔴" },
+    };
+    const diff = diffMap[difficulty];
+    return (
+      <div onClick={onClick} className="mj-card"
+        style={{
+          position:"relative", overflow:"hidden",
+          background:`linear-gradient(135deg,${col}14 0%,#121218 50%,#0a0a10 100%)`,
+          border:`1.5px solid ${col}55`,
+          borderRadius:18, padding:"14px 14px 12px",
+          cursor:"pointer", userSelect:"none",
+          transition:"all .2s cubic-bezier(.4,1,.6,1)",
+          boxShadow:`0 0 16px ${col}1a, inset 0 1px 0 #ffffff0a`,
+        }}>
+        {/* Illustration de fond très discrète */}
+        {bgIcon && (
+          <div aria-hidden style={{
+            position:"absolute", right:-12, bottom:-12,
+            fontSize:96, opacity:.04, lineHeight:1,
+            pointerEvents:"none", filter:`drop-shadow(0 0 10px ${col})`,
+          }}>{bgIcon}</div>
+        )}
+        {/* Glow halo */}
+        <div aria-hidden style={{ position:"absolute",top:-30,right:-30,width:140,height:140,borderRadius:"50%",background:`radial-gradient(circle,${col}1a 0%,transparent 65%)`,pointerEvents:"none" }}/>
+
+        {/* Top row : icon + badge */}
+        <div style={{ display:"flex",alignItems:"flex-start",gap:12,marginBottom:8,position:"relative" }}>
+          <div style={{
+            flexShrink:0, width:46, height:46, borderRadius:12,
+            background:`linear-gradient(135deg,${col}33,${col}11)`,
+            border:`1px solid ${col}66`,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            boxShadow:`0 0 12px ${col}44, inset 0 1px 0 #ffffff15`,
+          }}>
+            <IconComp size={24} color={col} style={{ filter:`drop-shadow(0 0 4px ${col})` }}/>
+          </div>
+          <div style={{ flex:1,minWidth:0 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:2,flexWrap:"wrap" }}>
+              <span style={{ fontWeight:900,fontSize:15,color:"#f1f5f9",letterSpacing:.3 }}>{label}</span>
+              {badge && (
+                <span style={{
+                  background:`linear-gradient(135deg,${col}33,${col}11)`,
+                  border:`1px solid ${col}77`,
+                  color:col, fontSize:9, fontWeight:900,
+                  borderRadius:5, padding:"2px 6px",
+                  letterSpacing:1, textShadow:`0 0 6px ${col}88`,
+                }}>{badgeIcon} {badge}</span>
+              )}
+              {played && (
+                <span style={{
+                  background:"#052e1655", border:"1px solid #22c55e88",
+                  color:"#22c55e", fontSize:9, fontWeight:900,
+                  borderRadius:5, padding:"2px 6px", letterSpacing:.5,
+                }}>✓ FAIT</span>
+              )}
+            </div>
+            <div style={{ fontSize:11,color:"#94a3b8",lineHeight:1.4 }}>{sub}</div>
+          </div>
+        </div>
+
+        {/* Mid row : difficulté + DRIX + stat */}
+        <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:8,position:"relative" }}>
+          {diff && (
+            <span style={{ fontSize:9,fontWeight:800,color:diff.col,padding:"2px 7px",borderRadius:10,background:`${diff.col}15`,border:`1px solid ${diff.col}44`,letterSpacing:.4 }}>
+              {diff.dot} {diff.label}
+            </span>
+          )}
+          {drix && (
+            <span style={{ fontSize:9,fontWeight:800,color:"#a78bfa",padding:"2px 7px",borderRadius:10,background:"#a78bfa15",border:"1px solid #a78bfa44",letterSpacing:.4,display:"inline-flex",alignItems:"center",gap:3 }}>
+              💎 {drix}
+            </span>
+          )}
+          {stat && (
+            <span style={{ fontSize:9,fontWeight:800,color:"#64748b",padding:"2px 7px",borderRadius:10,background:"#64748b15",border:"1px solid #64748b33",letterSpacing:.4 }}>
+              {statIcon} {stat}
+            </span>
+          )}
+        </div>
+
+        {/* Bottom : bouton Jouer */}
+        <div style={{ display:"flex",justifyContent:"flex-end",position:"relative" }}>
+          <span style={{
+            display:"inline-flex",alignItems:"center",gap:5,
+            padding:"5px 12px",borderRadius:8,
+            background:`linear-gradient(135deg,${col},${col}cc)`,
+            color:"#fff", fontSize:11, fontWeight:900, letterSpacing:1,
+            boxShadow:`0 2px 10px ${col}66, inset 0 1px 0 #ffffff44, inset 0 -2px 0 #00000033`,
+            textShadow:"0 1px 1px #00000055",
+          }}>
+            ▶ JOUER
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  // Carte jeu active (ancienne version, encore utilisée pour fléchettes)
   const ModeBtn = ({ icon: IconComp, label, sub, onClick, col, badge }) => (
     <div onClick={onClick}
       style={{ background:"linear-gradient(135deg,#1a1a1a,#141414)",border:`2px solid ${col}33`,borderRadius:16,padding:"18px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,transition:"all .15s",userSelect:"none",position:"relative",overflow:"hidden" }}
@@ -5698,51 +5845,225 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
     </div>
   );
 
-  const back = categorie === "fleche"
-    ? <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:2,display:"flex",alignItems:"center",gap:8 }}><Target size={22} color={C.yellow}/> Jeux avec fléchettes</h1><p style={{ color:C.muted,fontSize:13,marginBottom:18 }}>Prends ta cible, on joue !</p></>
-    : <><h1 style={{ fontWeight:800,fontSize:22,marginBottom:2,display:"flex",alignItems:"center",gap:8 }}><Gamepad2 size={22} color={C.red}/> Mini jeux & défis</h1><p style={{ color:C.muted,fontSize:13,marginBottom:18 }}>Entraîne ton mental, n'importe où !</p></>;
+  // ─── Vue ancienne pour fléchettes (inchangée) ──────────────────────────────
+  if (categorie === "fleche") {
+    return (
+      <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
+        <button onClick={()=>initCat ? setPage("home") : setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:0 }}>
+          <ArrowLeft size={16}/> {initCat ? "Accueil" : "Retour"}
+        </button>
+        <h1 style={{ fontWeight:800,fontSize:22,marginBottom:2,display:"flex",alignItems:"center",gap:8 }}><Target size={22} color={C.yellow}/> Jeux avec fléchettes</h1>
+        <p style={{ color:C.muted,fontSize:13,marginBottom:18 }}>Prends ta cible, on joue !</p>
+        <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+          <ModeBtn icon={Target} label="501" sub="Pars de 501 et descends à 0. Termine sur un double." onClick={()=>setPage("scoreur")} col="#f97316"/>
+          <ModeBtn icon={Target} label="301" sub="Pars de 301 et descends à 0. Termine sur un double." onClick={()=>setPage("scoreur")} col="#f59e0b"/>
+          <ModeBtn icon={Swords} label="Cricket" sub="Ferme les zones 15 à 20 et Bull avant tes adversaires. Mode points ou Cut Throat." onClick={()=>setPage("cricket-config")} col="#22c55e"/>
+          <ModeBtn icon={Building2} label="Capital" sub="Jeu de précision : descends ton score en visant des zones précises." onClick={()=>setPage("jeux-capital")} col="#a78bfa"/>
+          <ModeBtn icon={Users} label="Tournoi entre potes" sub="Organise un tournoi avec tes amis. Format libre, ambiance garantie." onClick={()=>setPage("tournois-potes")} col="#60a5fa"/>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── REFONTE : Mini Jeux & Défis ────────────────────────────────────────────
+  // Choix du défi du jour featured : celui avec le plus de participants, sinon Finish
+  const featuredIsFinish = (dailyData.finishCount >= dailyData.scoreurCount);
+  const featured = featuredIsFinish
+    ? { name:"Finish Speedrun", target:"chrono-finish", col:"#a78bfa", icon:Timer, record:dailyData.finishRecord, count:dailyData.finishCount, played:dailyData.finishPlayed, drix:"+5 à +20" }
+    : { name:"Scoreur Speedrun", target:"chrono-scoreur", col:"#60a5fa", icon:Zap, record:dailyData.scoreurRecord, count:dailyData.scoreurCount, played:dailyData.scoreurPlayed, drix:"+5 à +20" };
+
+  const dailyChallenges = [
+    { name:"Finish Speedrun", done:dailyData.finishPlayed, col:"#a78bfa" },
+    { name:"Scoreur Speedrun", done:dailyData.scoreurPlayed, col:"#60a5fa" },
+  ];
+  const doneCount = dailyChallenges.filter(d => d.done).length;
 
   return (
-    <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
-      <button onClick={()=>initCat ? setPage("home") : setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:0 }}>
+    <div style={{ maxWidth:700,margin:"0 auto",padding:"18px 14px 32px" }}>
+      <style>{`
+        @keyframes mjCardIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes mjHeroGlow { 0%,100%{box-shadow:0 0 24px #f9731633,inset 0 0 40px #f9731611} 50%{box-shadow:0 0 40px #f9731655,inset 0 0 60px #f9731622} }
+        @keyframes mjShine { 0%{transform:translateX(-150%) skewX(-22deg)} 100%{transform:translateX(280%) skewX(-22deg)} }
+        @keyframes mjPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.04)} }
+        .mj-card { animation: mjCardIn .35s cubic-bezier(.34,1.2,.64,1) both; }
+        .mj-card:hover, .mj-card:active { transform:translateY(-3px) !important; box-shadow:0 8px 28px var(--mjShadow,#0006), inset 0 1px 0 #ffffff15 !important; }
+      `}</style>
+
+      <button onClick={()=>initCat ? setPage("home") : setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:14,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:0 }}>
         <ArrowLeft size={16}/> {initCat ? "Accueil" : "Retour"}
       </button>
-      {back}
+
+      {/* ═══ HERO HEADER ═══ */}
+      <div className="mj-card" style={{
+        position:"relative", overflow:"hidden",
+        background:"radial-gradient(ellipse at center,#1a0a00 0%,#0f0500 60%,#0a0306 100%)",
+        border:"1.5px solid #f9731677",
+        borderRadius:18, padding:"16px 14px 14px",
+        textAlign:"center", marginBottom:12,
+        animation:"mjHeroGlow 3.5s ease-in-out infinite, mjCardIn .35s cubic-bezier(.34,1.2,.64,1) both",
+      }}>
+        <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:100,background:"linear-gradient(90deg,transparent,#ffffff10,transparent)",animation:"mjShine 4s ease-in-out infinite",pointerEvents:"none" }}/>
+        <div style={{ fontSize:9,fontWeight:900,color:"#f97316",letterSpacing:3,marginBottom:4,textShadow:"0 0 8px #f9731688" }}>━ SALLE D'ENTRAÎNEMENT ━</div>
+        <div style={{
+          fontSize:"clamp(22px,6vw,28px)",fontWeight:900,lineHeight:1,
+          background:"linear-gradient(135deg,#fbbf24 0%,#f97316 50%,#ef4444 100%)",
+          WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+          letterSpacing:1.5, marginBottom:10,
+        }}>
+          🧠 MINI JEUX & DÉFIS
+        </div>
+        <div style={{ display:"flex",justifyContent:"center",gap:6,flexWrap:"wrap" }}>
+          <Capsule icon="🏆" label="CLASSEMENTS QUOTIDIENS" col="#fbbf24"/>
+          <Capsule icon="💎" label="DRIX À GAGNER" col="#a78bfa"/>
+          <Capsule icon="🔥" label="BADGES À DÉBLOQUER" col="#ef4444"/>
+        </div>
+      </div>
+
+      {/* ═══ PROGRESSION QUOTIDIENNE ═══ */}
+      <div className="mj-card" style={{
+        background:"linear-gradient(135deg,#0a0a14,#08080f)",
+        border:"1px solid #2a2a3a",
+        borderRadius:14, padding:"10px 12px", marginBottom:12,
+      }}>
+        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6 }}>
+          <span style={{ fontSize:10,fontWeight:900,color:"#94a3b8",letterSpacing:2 }}>🎯 TES DÉFIS AUJOURD'HUI</span>
+          <span style={{ fontSize:10,fontWeight:900,color:doneCount===dailyChallenges.length?"#22c55e":"#fbbf24",letterSpacing:1 }}>
+            {doneCount}/{dailyChallenges.length} {doneCount===dailyChallenges.length?"✓":""}
+          </span>
+        </div>
+        <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+          {dailyChallenges.map((d,i) => (
+            <div key={i} style={{
+              flex:"1 1 calc(50% - 3px)",
+              display:"flex",alignItems:"center",gap:6,
+              padding:"6px 10px",borderRadius:8,
+              background: d.done ? "#052e1633" : "#0f0f18",
+              border: d.done ? "1px solid #22c55e55" : `1px solid ${d.col}33`,
+            }}>
+              <span style={{ fontSize:14 }}>{d.done ? "✅" : "⏳"}</span>
+              <span style={{ fontSize:11,fontWeight:800,color:d.done?"#22c55e":d.col,flex:1 }}>{d.name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ═══ DÉFI DU JOUR FEATURED ═══ */}
+      <div className="mj-card" onClick={()=>setPage(featured.target)} style={{
+        position:"relative", overflow:"hidden",
+        background:`linear-gradient(135deg,${featured.col}22 0%,#0a0a14 50%,#050510 100%)`,
+        border:`2px solid ${featured.col}`,
+        borderRadius:18, padding:"14px 14px 12px",
+        cursor:"pointer", userSelect:"none", marginBottom:14,
+        boxShadow:`0 0 22px ${featured.col}55, inset 0 1px 0 #ffffff10`,
+        "--mjShadow": `${featured.col}66`,
+      }}>
+        {/* Bannière */}
+        <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:80,background:"linear-gradient(90deg,transparent,#ffffff15,transparent)",animation:"mjShine 3s ease-in-out infinite",pointerEvents:"none" }}/>
+        <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
+          <span style={{
+            fontSize:9,fontWeight:900,color:"#fbbf24",letterSpacing:2,
+            padding:"3px 10px",borderRadius:5,
+            background:"linear-gradient(90deg,#78350f44,#78350f66,#78350f44)",
+            border:"1px solid #fbbf2477", textShadow:"0 0 6px #fbbf24aa",
+          }}>🏆 DÉFI DU JOUR</span>
+          {featured.played && (
+            <span style={{ fontSize:9,fontWeight:900,color:"#22c55e",padding:"3px 8px",borderRadius:5,background:"#052e1655",border:"1px solid #22c55e88" }}>✓ FAIT</span>
+          )}
+        </div>
+
+        <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:10 }}>
+          <div style={{
+            flexShrink:0,width:54,height:54,borderRadius:14,
+            background:`linear-gradient(135deg,${featured.col}44,${featured.col}11)`,
+            border:`1.5px solid ${featured.col}`,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            boxShadow:`0 0 16px ${featured.col}88, inset 0 1px 0 #ffffff20`,
+            animation: featured.played ? "none" : "mjPulse 2.4s ease-in-out infinite",
+          }}>
+            <featured.icon size={28} color={featured.col} style={{ filter:`drop-shadow(0 0 6px ${featured.col})` }}/>
+          </div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:18,fontWeight:900,color:featured.col,letterSpacing:.5,textShadow:`0 0 8px ${featured.col}66` }}>
+              {featured.name}
+            </div>
+            <div style={{ fontSize:11,color:"#94a3b8",marginTop:2 }}>
+              {featured.target === "chrono-finish" ? "5 finishes le plus vite possible" : "501 → 0 en calcul mental"}
+            </div>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display:"flex",gap:6,marginBottom:10,flexWrap:"wrap" }}>
+          <div style={{ flex:"1 1 0",background:"#0a0a14",border:`1px solid ${featured.col}33`,borderRadius:8,padding:"6px 8px",textAlign:"center",minWidth:80 }}>
+            <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}>⏱ RECORD</div>
+            <div style={{ fontSize:14,fontWeight:900,color:"#fbbf24",fontVariantNumeric:"tabular-nums" }}>
+              {featured.record ? fmtMs(featured.record.temps_ms) : "—"}
+            </div>
+          </div>
+          <div style={{ flex:"1 1 0",background:"#0a0a14",border:"1px solid #a78bfa33",borderRadius:8,padding:"6px 8px",textAlign:"center",minWidth:80 }}>
+            <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}>💎 DRIX</div>
+            <div style={{ fontSize:14,fontWeight:900,color:"#a78bfa" }}>{featured.drix}</div>
+          </div>
+          <div style={{ flex:"1 1 0",background:"#0a0a14",border:"1px solid #ef444433",borderRadius:8,padding:"6px 8px",textAlign:"center",minWidth:80 }}>
+            <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}>🔥 JOUEURS</div>
+            <div style={{ fontSize:14,fontWeight:900,color:"#ef4444" }}>{featured.count}</div>
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div style={{ display:"flex",justifyContent:"center" }}>
+          <span style={{
+            display:"inline-flex",alignItems:"center",gap:6,
+            padding:"8px 16px",borderRadius:10,
+            background: featured.played
+              ? "#1a1a2a"
+              : `linear-gradient(135deg,${featured.col},${featured.col}dd)`,
+            color: featured.played ? "#64748b" : "#fff",
+            fontSize:13, fontWeight:900, letterSpacing:1.5,
+            boxShadow: featured.played ? "none" : `0 4px 14px ${featured.col}88, inset 0 1px 0 #ffffff33, inset 0 -2px 0 #00000044`,
+            textShadow: featured.played ? "none" : "0 1px 2px #00000066",
+          }}>
+            {featured.played ? "🔒 BLOQUÉ JUSQU'À DEMAIN" : "⚡ JOUER MAINTENANT"}
+          </span>
+        </div>
+      </div>
+
+      {/* ═══ AUTRES JEUX ═══ */}
+      <div style={{ fontSize:10,fontWeight:900,color:"#64748b",letterSpacing:2.5,marginBottom:8,paddingLeft:4 }}>
+        🎮 TOUS LES MODES
+      </div>
       <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-        {categorie==="fleche" && <>
-          <ModeBtn icon={Target} label="501"
-            sub="Pars de 501 et descends à 0. Termine sur un double."
-            onClick={()=>setPage("scoreur")} col="#f97316"/>
-          <ModeBtn icon={Target} label="301"
-            sub="Pars de 301 et descends à 0. Termine sur un double."
-            onClick={()=>setPage("scoreur")} col="#f59e0b"/>
-          <ModeBtn icon={Swords} label="Cricket"
-            sub="Ferme les zones 15 à 20 et Bull avant tes adversaires. Mode points ou Cut Throat."
-            onClick={()=>setPage("cricket-config")} col="#22c55e"/>
-          <ModeBtn icon={Building2} label="Capital"
-            sub="Jeu de précision : descends ton score en visant des zones précises."
-            onClick={()=>setPage("jeux-capital")} col="#a78bfa"/>
-          <ModeBtn icon={Users} label="Tournoi entre potes"
-            sub="Organise un tournoi avec tes amis. Format libre, ambiance garantie."
-            onClick={()=>setPage("tournois-potes")} col="#60a5fa"/>
-        </>}
-        {categorie==="sans" && <>
-          <ModeBtn icon={Zap} label="Rush Mode"
-            sub="Calcul mental sous pression : score, finishes, bust, routes. 3 niveaux, combos et badges !"
-            onClick={()=>setPage("rush-mode")} col="#ef4444"/>
-          <ModeBtn icon={Target} label="Calcul finish"
-            sub="Entraîne-toi à construire tes finishes en 1, 2 ou 3 fléchettes."
-            onClick={()=>setPage("entrainement-finish")} col="#f97316"/>
-          <ModeBtn icon={Timer} label="Finish Speedrun"
-            sub="5 finishes à enchaîner le plus vite possible. Chronomètre lancé — à toi de jouer !"
-            onClick={()=>setPage("chrono-finish")} col="#a78bfa"/>
-          <ModeBtn icon={Zap} label="Scoreur Speedrun"
-            sub="Pars de 501 → 0 ! Calcule mentalement le score restant à chaque volée. Le plus rapide gagne !"
-            onClick={()=>setPage("chrono-scoreur")} col="#60a5fa"/>
-          <ModeBtn icon={Clock} label="Horloge Double"
-            sub="Enchaîne D1 à D20, Bull et Double Bull. Chrono par cible, stats et double favori."
-            onClick={()=>setPage("horloge-double")} col="#a855f7"/>
-        </>}
+        <GameCard icon={Zap} label="Rush Mode" col="#ef4444"
+          sub="Calcul mental sous pression : score, finishes, bust, routes."
+          badge="POPULAIRE" badgeIcon="🔥" difficulty="expert"
+          drix="Badges" stat="3 niveaux" statIcon="⚡" bgIcon="⚡"
+          onClick={()=>setPage("rush-mode")}/>
+
+        <GameCard icon={Target} label="Calcul Finish" col="#f97316"
+          sub="Entraîne-toi à construire tes finishes en 1, 2 ou 3 fléchettes."
+          badge="ENTRAÎNEMENT" badgeIcon="🎯" difficulty="inter"
+          drix="Pratique libre" stat="Tous niveaux" statIcon="🎯" bgIcon="🎯"
+          onClick={()=>setPage("entrainement-finish")}/>
+
+        <GameCard icon={Timer} label="Finish Speedrun" col="#a78bfa"
+          sub="5 finishes à enchaîner le plus vite possible. Chrono lancé !"
+          badge="QUOTIDIEN" badgeIcon="⚡" difficulty="expert"
+          drix="+5 à +20" stat={dailyData.finishRecord ? `Record ${fmtMs(dailyData.finishRecord.temps_ms)}` : `${dailyData.finishCount} joueurs`}
+          statIcon={dailyData.finishRecord ? "🏆" : "🔥"} played={dailyData.finishPlayed} bgIcon="⏱"
+          onClick={()=>setPage("chrono-finish")}/>
+
+        <GameCard icon={Zap} label="Scoreur Speedrun" col="#60a5fa"
+          sub="Pars de 501 → 0 ! Calcule mentalement le score restant."
+          badge="QUOTIDIEN" badgeIcon="⚡" difficulty="expert"
+          drix="+5 à +20" stat={dailyData.scoreurRecord ? `Record ${fmtMs(dailyData.scoreurRecord.temps_ms)}` : `${dailyData.scoreurCount} joueurs`}
+          statIcon={dailyData.scoreurRecord ? "🏆" : "🔥"} played={dailyData.scoreurPlayed} bgIcon="🎯"
+          onClick={()=>setPage("chrono-scoreur")}/>
+
+        <GameCard icon={Clock} label="Horloge Double" col="#a855f7"
+          sub="Enchaîne D1 à D20, Bull et Double Bull. Chrono par cible."
+          badge="ENTRAÎNEMENT" badgeIcon="🎯" difficulty="inter"
+          drix="Pratique libre" stat="Stats double favori" statIcon="🎯" bgIcon="🕐"
+          onClick={()=>setPage("horloge-double")}/>
       </div>
     </div>
   );
