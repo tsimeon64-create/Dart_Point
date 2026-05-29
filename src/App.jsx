@@ -5643,6 +5643,10 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
   // ─── Données défis du jour (records + participants) ─────────────────────────
   const [dailyData, setDailyData] = useState({ finishRecord:null, finishCount:0, scoreurRecord:null, scoreurCount:0, finishPlayed:false, scoreurPlayed:false });
 
+  // ─── Stats fléchettes du jour (count par mode) + partie en cours ───────────
+  const [flecheStats, setFlecheStats] = useState({ "501":0, "301":0, "Cricket":0, "Capital":0, total:0 });
+  const [partieEnCours, setPartieEnCours] = useState(null);
+
   useEffect(() => {
     if (categorie !== "sans") return;
     const today = new Date().toISOString().split("T")[0];
@@ -5663,6 +5667,31 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
         scoreurPlayed,
       });
     });
+  }, [categorie]);
+
+  useEffect(() => {
+    if (categorie !== "fleche") return;
+    // Partie en cours (localStorage scoreur)
+    try {
+      const saved = localStorage.getItem("dp_scoreur_state");
+      if (saved) {
+        const s = JSON.parse(saved);
+        if (s && s.joueurs && s.joueurs.length > 0 && !s.fini) setPartieEnCours(s);
+      }
+    } catch {}
+    // Stats par mode aujourd'hui
+    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+    const iso = todayStart.toISOString();
+    sb(`duels?statut=eq.termine&date=gte.${iso}&select=mode&limit=500`)
+      .then(r => {
+        const arr = r || [];
+        const counts = { "501":0, "301":0, "Cricket":0, "Capital":0, total:arr.length };
+        for (const d of arr) {
+          const m = d.mode || "501";
+          if (counts[m] != null) counts[m]++;
+        }
+        setFlecheStats(counts);
+      });
   }, [categorie]);
 
   const fmtMs = (ms) => {
@@ -5845,21 +5874,202 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
     </div>
   );
 
-  // ─── Vue ancienne pour fléchettes (inchangée) ──────────────────────────────
+  // ─── REFONTE : Jeux avec fléchettes (salle de jeux Dart Point) ─────────────
   if (categorie === "fleche") {
     return (
-      <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
-        <button onClick={()=>initCat ? setPage("home") : setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:0 }}>
+      <div style={{ maxWidth:700,margin:"0 auto",padding:"18px 14px 32px" }}>
+        <style>{`
+          @keyframes mjCardIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+          @keyframes mjHeroGlow { 0%,100%{box-shadow:0 0 24px #f9731633,inset 0 0 40px #f9731611} 50%{box-shadow:0 0 40px #f9731655,inset 0 0 60px #f9731622} }
+          @keyframes mjShine { 0%{transform:translateX(-150%) skewX(-22deg)} 100%{transform:translateX(280%) skewX(-22deg)} }
+          @keyframes mjPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.04)} }
+          .mj-card { animation: mjCardIn .35s cubic-bezier(.34,1.2,.64,1) both; }
+          .mj-card:hover, .mj-card:active { transform:translateY(-3px) !important; box-shadow:0 8px 28px var(--mjShadow,#0006), inset 0 1px 0 #ffffff15 !important; }
+        `}</style>
+
+        <button onClick={()=>initCat ? setPage("home") : setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:14,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:0 }}>
           <ArrowLeft size={16}/> {initCat ? "Accueil" : "Retour"}
         </button>
-        <h1 style={{ fontWeight:800,fontSize:22,marginBottom:2,display:"flex",alignItems:"center",gap:8 }}><Target size={22} color={C.yellow}/> Jeux avec fléchettes</h1>
-        <p style={{ color:C.muted,fontSize:13,marginBottom:18 }}>Prends ta cible, on joue !</p>
+
+        {/* ═══ HERO HEADER ═══ */}
+        <div className="mj-card" style={{
+          position:"relative", overflow:"hidden",
+          background:"radial-gradient(ellipse at center,#1a0a00 0%,#0f0500 60%,#0a0306 100%)",
+          border:"1.5px solid #f9731677",
+          borderRadius:18, padding:"16px 14px 14px",
+          textAlign:"center", marginBottom:12,
+          animation:"mjHeroGlow 3.5s ease-in-out infinite, mjCardIn .35s cubic-bezier(.34,1.2,.64,1) both",
+        }}>
+          <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:100,background:"linear-gradient(90deg,transparent,#ffffff10,transparent)",animation:"mjShine 4s ease-in-out infinite",pointerEvents:"none" }}/>
+          <div style={{ fontSize:9,fontWeight:900,color:"#f97316",letterSpacing:3,marginBottom:4,textShadow:"0 0 8px #f9731688" }}>━ SALLE DE JEUX DART POINT ━</div>
+          <div style={{
+            fontSize:"clamp(22px,6vw,28px)",fontWeight:900,lineHeight:1,
+            background:"linear-gradient(135deg,#fbbf24 0%,#f97316 50%,#ef4444 100%)",
+            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+            letterSpacing:1.5, marginBottom:6,
+          }}>
+            🎯 JEUX AVEC FLÉCHETTES
+          </div>
+          <div style={{ fontSize:11,color:"#94a3b8",marginBottom:10 }}>Prends ta cible, on joue !</div>
+          <div style={{ display:"flex",justifyContent:"center",gap:6,flexWrap:"wrap" }}>
+            <Capsule icon="🏆" label="CLASSEMENTS DRIX" col="#fbbf24"/>
+            <Capsule icon="🔥" label={`${flecheStats.total} PARTIES AUJOURD'HUI`} col="#ef4444"/>
+            <Capsule icon="👥" label="AFFRONTE TES AMIS" col="#60a5fa"/>
+          </div>
+        </div>
+
+        {/* ═══ REPRENDRE UNE PARTIE ═══ */}
+        {partieEnCours && (
+          <div className="mj-card" onClick={()=>setPage("scoreur")} style={{
+            position:"relative", overflow:"hidden",
+            background:"linear-gradient(135deg,#1a0a00,#0f0500)",
+            border:"2px solid #fbbf24",
+            borderRadius:14, padding:"12px 14px",
+            cursor:"pointer", userSelect:"none", marginBottom:12,
+            boxShadow:"0 0 18px #fbbf2466, inset 0 1px 0 #ffffff10",
+            "--mjShadow": "#fbbf2488",
+          }}>
+            <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:60,background:"linear-gradient(90deg,transparent,#ffffff20,transparent)",animation:"mjShine 2.5s ease-in-out infinite",pointerEvents:"none" }}/>
+            <div style={{ display:"flex",alignItems:"center",gap:10,position:"relative" }}>
+              <div style={{
+                fontSize:24,width:40,height:40,borderRadius:10,
+                background:"linear-gradient(135deg,#fbbf2444,#fbbf2411)",
+                border:"1px solid #fbbf24aa",
+                display:"flex",alignItems:"center",justifyContent:"center",
+                boxShadow:"0 0 12px #fbbf2466",
+                animation:"mjPulse 1.8s ease-in-out infinite",
+              }}>🎯</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:9,fontWeight:900,color:"#fbbf24",letterSpacing:2 }}>━ REPRENDRE MA PARTIE ━</div>
+                <div style={{ fontSize:13,fontWeight:900,color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                  {partieEnCours.mode || "501"} · {(partieEnCours.joueurs || []).map(j => j.nom).join(" vs ")}
+                </div>
+              </div>
+              <span style={{
+                padding:"6px 12px",borderRadius:8,
+                background:"linear-gradient(135deg,#fbbf24,#f59e0b)",
+                color:"#3b1f00",fontSize:11,fontWeight:900,letterSpacing:1,
+                boxShadow:"0 2px 8px #fbbf2488, inset 0 1px 0 #ffffff44",
+              }}>▶ REPRENDRE</span>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ 501 FEATURED ═══ */}
+        <div className="mj-card" onClick={()=>setPage("scoreur")} style={{
+          position:"relative", overflow:"hidden",
+          background:"linear-gradient(135deg,#f9731622 0%,#0a0a14 50%,#050510 100%)",
+          border:"2px solid #f97316",
+          borderRadius:18, padding:"14px 14px 12px",
+          cursor:"pointer", userSelect:"none", marginBottom:14,
+          boxShadow:"0 0 22px #f9731655, inset 0 1px 0 #ffffff10",
+          "--mjShadow": "#f9731666",
+        }}>
+          {/* Bg illustration */}
+          <div aria-hidden style={{
+            position:"absolute", right:-12, bottom:-30,
+            fontSize:160, opacity:.05, lineHeight:1,
+            pointerEvents:"none", color:"#f97316",
+            filter:"drop-shadow(0 0 12px #f97316)",
+            fontWeight:900, fontFamily:"Inter",
+          }}>501</div>
+          <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:80,background:"linear-gradient(90deg,transparent,#ffffff15,transparent)",animation:"mjShine 3s ease-in-out infinite",pointerEvents:"none" }}/>
+
+          <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
+            <span style={{
+              fontSize:9,fontWeight:900,color:"#fbbf24",letterSpacing:2,
+              padding:"3px 10px",borderRadius:5,
+              background:"linear-gradient(90deg,#78350f44,#78350f66,#78350f44)",
+              border:"1px solid #fbbf2477", textShadow:"0 0 6px #fbbf24aa",
+            }}>🏆 MODE LE PLUS JOUÉ</span>
+            <span style={{
+              fontSize:9,fontWeight:900,color:"#f97316",letterSpacing:1.5,
+              padding:"3px 8px",borderRadius:5,
+              background:"#f9731622", border:"1px solid #f9731677",
+            }}>🥇 CLASSIQUE</span>
+          </div>
+
+          <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:10,position:"relative" }}>
+            <div style={{
+              flexShrink:0,width:54,height:54,borderRadius:14,
+              background:"linear-gradient(135deg,#f9731644,#f9731611)",
+              border:"1.5px solid #f97316",
+              display:"flex",alignItems:"center",justifyContent:"center",
+              boxShadow:"0 0 16px #f9731688, inset 0 1px 0 #ffffff20",
+            }}>
+              <Target size={28} color="#f97316" style={{ filter:"drop-shadow(0 0 6px #f97316)" }}/>
+            </div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:22,fontWeight:900,color:"#f97316",letterSpacing:.5,textShadow:"0 0 8px #f9731666",lineHeight:1 }}>
+                501
+              </div>
+              <div style={{ fontSize:11,color:"#94a3b8",marginTop:3,lineHeight:1.4 }}>
+                🎯 Le grand classique. Descends de 501 à 0 et termine sur un double.
+              </div>
+            </div>
+          </div>
+
+          {/* Stats row */}
+          <div style={{ display:"flex",gap:6,marginBottom:10,flexWrap:"wrap",position:"relative" }}>
+            <div style={{ flex:"1 1 0",background:"#0a0a14",border:"1px solid #f9731633",borderRadius:8,padding:"6px 8px",textAlign:"center",minWidth:80 }}>
+              <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}>🔥 AUJOURD'HUI</div>
+              <div style={{ fontSize:14,fontWeight:900,color:"#f97316",fontVariantNumeric:"tabular-nums" }}>
+                {flecheStats["501"]} parties
+              </div>
+            </div>
+            <div style={{ flex:"1 1 0",background:"#0a0a14",border:"1px solid #fbbf2433",borderRadius:8,padding:"6px 8px",textAlign:"center",minWidth:80 }}>
+              <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}>💎 DRIX</div>
+              <div style={{ fontSize:14,fontWeight:900,color:"#fbbf24" }}>+5 à +30</div>
+            </div>
+            <div style={{ flex:"1 1 0",background:"#0a0a14",border:"1px solid #22c55e33",borderRadius:8,padding:"6px 8px",textAlign:"center",minWidth:80 }}>
+              <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}>🟢 NIVEAU</div>
+              <div style={{ fontSize:14,fontWeight:900,color:"#22c55e" }}>Tous</div>
+            </div>
+          </div>
+
+          {/* CTA */}
+          <div style={{ display:"flex",justifyContent:"center",position:"relative" }}>
+            <span style={{
+              display:"inline-flex",alignItems:"center",gap:6,
+              padding:"8px 16px",borderRadius:10,
+              background:"linear-gradient(135deg,#f97316,#ea580c)",
+              color:"#fff", fontSize:13, fontWeight:900, letterSpacing:1.5,
+              boxShadow:"0 4px 14px #f9731688, inset 0 1px 0 #ffffff33, inset 0 -2px 0 #00000044",
+              textShadow:"0 1px 2px #00000066",
+            }}>
+              ▶ JOUER MAINTENANT
+            </span>
+          </div>
+        </div>
+
+        {/* ═══ AUTRES MODES ═══ */}
+        <div style={{ fontSize:10,fontWeight:900,color:"#64748b",letterSpacing:2.5,marginBottom:8,paddingLeft:4 }}>
+          🎮 AUTRES MODES
+        </div>
         <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-          <ModeBtn icon={Target} label="501" sub="Pars de 501 et descends à 0. Termine sur un double." onClick={()=>setPage("scoreur")} col="#f97316"/>
-          <ModeBtn icon={Target} label="301" sub="Pars de 301 et descends à 0. Termine sur un double." onClick={()=>setPage("scoreur")} col="#f59e0b"/>
-          <ModeBtn icon={Swords} label="Cricket" sub="Ferme les zones 15 à 20 et Bull avant tes adversaires. Mode points ou Cut Throat." onClick={()=>setPage("cricket-config")} col="#22c55e"/>
-          <ModeBtn icon={Building2} label="Capital" sub="Jeu de précision : descends ton score en visant des zones précises." onClick={()=>setPage("jeux-capital")} col="#a78bfa"/>
-          <ModeBtn icon={Users} label="Tournoi entre potes" sub="Organise un tournoi avec tes amis. Format libre, ambiance garantie." onClick={()=>setPage("tournois-potes")} col="#60a5fa"/>
+          <GameCard icon={Target} label="301" col="#f59e0b"
+            sub="⚡ Version rapide du 501. Parties courtes et nerveuses."
+            badge="RAPIDE" badgeIcon="⚡" difficulty="inter"
+            drix="+5 à +20" stat={`${flecheStats["301"]} parties aujourd'hui`} statIcon="🔥" bgIcon="301"
+            onClick={()=>setPage("scoreur")}/>
+
+          <GameCard icon={Swords} label="Cricket" col="#22c55e"
+            sub="⚔ Ferme les zones 15-20 + Bull avant ton adversaire."
+            badge="POPULAIRE" badgeIcon="🔥" difficulty="inter"
+            drix="+5 à +25" stat={`${flecheStats["Cricket"]} parties aujourd'hui`} statIcon="🔥" bgIcon="🎯"
+            onClick={()=>setPage("cricket-config")}/>
+
+          <GameCard icon={Building2} label="Capital" col="#a78bfa"
+            sub="🎯 Précision et stratégie. Chaque cible compte."
+            badge="TECHNIQUE" badgeIcon="🎯" difficulty="expert"
+            drix="+5 à +20" stat={`${flecheStats["Capital"]} parties aujourd'hui`} statIcon="⚡" bgIcon="🏛"
+            onClick={()=>setPage("jeux-capital")}/>
+
+          <GameCard icon={Users} label="Tournoi entre potes" col="#60a5fa"
+            sub="🏆 Organise ton propre tournoi privé entre amis."
+            badge="MULTIJOUEUR" badgeIcon="👥" difficulty="debut"
+            drix="Format libre" stat="Ambiance garantie" statIcon="🏆" bgIcon="🏆"
+            onClick={()=>setPage("tournois-potes")}/>
         </div>
       </div>
     );
