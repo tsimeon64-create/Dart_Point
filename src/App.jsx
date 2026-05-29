@@ -5905,16 +5905,14 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           animation:"mjHeroGlow 3.5s ease-in-out infinite, mjCardIn .35s cubic-bezier(.34,1.2,.64,1) both",
         }}>
           <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:100,background:"linear-gradient(90deg,transparent,#ffffff10,transparent)",animation:"mjShine 4s ease-in-out infinite",pointerEvents:"none" }}/>
-          <div style={{ fontSize:9,fontWeight:900,color:"#f97316",letterSpacing:3,marginBottom:4,textShadow:"0 0 8px #f9731688" }}>━ SALLE DE JEUX DART POINT ━</div>
           <div style={{
-            fontSize:"clamp(22px,6vw,28px)",fontWeight:900,lineHeight:1,
+            fontSize:"clamp(20px,5.5vw,26px)",fontWeight:900,lineHeight:1.1,
             background:"linear-gradient(135deg,#fbbf24 0%,#f97316 50%,#ef4444 100%)",
             WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
-            letterSpacing:1.5, marginBottom:6,
+            letterSpacing:1.5,
           }}>
-            🎯 JEUX AVEC FLÉCHETTES
+            🎯 LA SALLE DE JEUX DART POINT
           </div>
-          <div style={{ fontSize:11,color:"#94a3b8" }}>Prends ta cible, on joue !</div>
         </div>
 
         {/* ═══ REPRENDRE UNE PARTIE ═══ */}
