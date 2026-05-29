@@ -11335,6 +11335,10 @@ export default function App() {
         .leaflet-popup-content-wrapper { background:#fff !important; color:#111 !important; }
 .leaflet-popup-content { color:#111 !important; -webkit-text-fill-color:#111 !important; }
 .leaflet-popup-tip { background:#fff !important; }
+.leaflet-control-zoom a { background:#fff !important; color:#111 !important; -webkit-text-fill-color:#111 !important; border:1px solid #ccc !important; font-weight:900 !important; }
+.leaflet-control-zoom a:hover { background:#f97316 !important; color:#fff !important; -webkit-text-fill-color:#fff !important; }
+.leaflet-control-attribution { background:rgba(255,255,255,0.85) !important; color:#111 !important; -webkit-text-fill-color:#111 !important; }
+.leaflet-control-attribution a { color:#0066cc !important; -webkit-text-fill-color:#0066cc !important; }
       `}</style>
       {/* ── Help modal ── */}
       {helpOpen && HELP_CONTENT[page] && (
