@@ -7312,8 +7312,6 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
           {[
             { Icon:Users, v: stats.n > 0 ? stats.n : "—", l:"Membres" },
             { Icon:Gem, v: stats.drixMoyen ? stats.drixMoyen : "—", l:"DRIX moy." },
-            { Icon:Swords, v: stats.totalM > 0 ? stats.totalM : "—", l:"Matchs" },
-            { Icon:Trophy, v: stats.wr != null ? `${stats.wr}%` : "—", l:"Winrate" },
             { Icon:Calendar, v: events.length > 0 ? events.length : "—", l:"Tournois" },
           ].map(s => (
             <div key={s.l} style={{ background:"#ffffff08", borderRadius:12, padding:"12px 8px", textAlign:"center",
