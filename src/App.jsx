@@ -6332,17 +6332,78 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
   const [userPos, setUserPos]     = useState(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoErr, setGeoErr]       = useState("");
-  const [chipFilter, setChipFilter] = useState("tous"); // pour bars : tous/actifs/traditionnel/electronique/tournois
+  const [chipFilter, setChipFilter] = useState("tous");
   const [joueursPresentAujourd, setJoueursPresentAujourd] = useState(0);
+  const [presencesParBar, setPresencesParBar] = useState({}); // {bar_slug: count}
+  const [liveActivity, setLiveActivity] = useState([]); // récent : presences + duels
 
   useEffect(() => { if (villeFilter) { setSearch(villeFilter); setVilleFilter(null); } }, [villeFilter]);
 
-  // Stats live : nb joueurs actifs aujourd'hui
+  // Stats live : nb joueurs actifs aujourd'hui + breakdown par bar + activité récente
   useEffect(() => {
-    sb(`presences?date_jour=eq.${new Date().toISOString().slice(0,10)}&select=joueur_id`).then(r => {
-      setJoueursPresentAujourd((r||[]).length);
+    const today = new Date().toISOString().slice(0,10);
+    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+    Promise.all([
+      sb(`presences?date_jour=eq.${today}&select=joueur_id,bar_slug,joueur_pseudo,heure&order=heure.desc&limit=100`),
+      sb(`duels?statut=eq.termine&date=gte.${todayStart.toISOString()}&order=date.desc&limit=10&select=gagnant_pseudo,challenger_pseudo,defie_pseudo,bar_slug,date`),
+    ]).then(([pres, duels]) => {
+      const presArr = pres || [];
+      setJoueursPresentAujourd(new Set(presArr.map(p => p.joueur_id)).size);
+      // Compte par bar
+      const counts = {};
+      for (const p of presArr) {
+        if (p.bar_slug) counts[p.bar_slug] = (counts[p.bar_slug] || 0) + 1;
+      }
+      setPresencesParBar(counts);
+      // Activité récente : duels gagnés + arrivées (5 dernières)
+      const events = [];
+      (duels || []).forEach(d => {
+        const adv = d.gagnant_pseudo === d.challenger_pseudo ? d.defie_pseudo : d.challenger_pseudo;
+        events.push({ type:"duel", date: d.date, label:`🏆 ${d.gagnant_pseudo} a battu ${adv}`, bar:d.bar_slug });
+      });
+      // Présences récentes (uniquement les arrivées les + récentes)
+      const seenJoueurs = new Set();
+      presArr.slice(0, 20).forEach(p => {
+        if (seenJoueurs.has(p.joueur_id)) return;
+        seenJoueurs.add(p.joueur_id);
+        const ts = p.heure ? new Date(p.heure).getTime() : Date.now();
+        if (events.length < 8) events.push({ type:"presence", date: ts, label:`📍 ${p.joueur_pseudo} est arrivé`, bar:p.bar_slug });
+      });
+      events.sort((a,b) => (b.date||0) - (a.date||0));
+      setLiveActivity(events.slice(0, 6));
     }).catch(() => {});
   }, []);
+
+  // Helper temps relatif court
+  const tempsDepuisShort = (ts) => {
+    if (!ts) return "";
+    const diff = Date.now() - ts;
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return "à l'instant";
+    if (m < 60) return `${m}min`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h`;
+    return `${Math.floor(h/24)}j`;
+  };
+
+  // Top bars du moment (par nombre de présences aujourd'hui)
+  const spotsDuMoment = useMemo(() => {
+    return bars
+      .map(b => ({ ...b, _present: presencesParBar[b.slug] || 0, _actif: barsActifs.includes(b.slug) }))
+      .filter(b => b._present > 0 || b._actif)
+      .sort((a,b) => b._present - a._present)
+      .slice(0, 6);
+  }, [bars, presencesParBar, barsActifs]);
+
+  // Compteurs pour chips
+  const chipCounts = useMemo(() => ({
+    tous: bars.length,
+    actifs: barsActifs.length,
+    traditionnel: bars.filter(b => b.type === "traditionnel").length,
+    electronique: bars.filter(b => b.type === "electronique").length,
+    tournois: bars.filter(b => b.tournois).length,
+    maintenant: bars.filter(b => barsActifs.includes(b.slug) || (presencesParBar[b.slug] || 0) > 0).length,
+  }), [bars, barsActifs, presencesParBar]);
 
   const geolocate = () => {
     if (!navigator.geolocation) { setGeoErr("Géolocalisation non supportée"); return; }
@@ -6358,6 +6419,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
     const q = search.toLowerCase();
     let list = bars.filter(b => {
       if (q && !b.ville?.toLowerCase().includes(q) && !b.nom?.toLowerCase().includes(q)) return false;
+      if (chipFilter === "maintenant"    && !barsActifs.includes(b.slug) && !(presencesParBar[b.slug] > 0)) return false;
       if (chipFilter === "actifs"        && !barsActifs.includes(b.slug)) return false;
       if (chipFilter === "traditionnel"  && b.type !== "traditionnel")    return false;
       if (chipFilter === "electronique"  && b.type !== "electronique")    return false;
@@ -6412,10 +6474,24 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
         {/* ── ONGLETS PRINCIPAUX ─────────────────────────────────────────────── */}
         <div style={{ display:"flex", gap:8, marginBottom:20 }}>
           <button onClick={()=>{ setTypeVue("bars"); setChipFilter("tous"); }} style={tabBtn(typeVue==="bars","#f97316")}>
-            <Building2 size={20}/><span>Bars</span>
+            <Building2 size={20}/>
+            <span>Bars</span>
+            <span style={{
+              background: typeVue==="bars" ? "#f9731633" : "#2a2a2a",
+              color: typeVue==="bars" ? "#f97316" : "#64748b",
+              fontSize:11, fontWeight:800, padding:"2px 7px", borderRadius:10,
+              minWidth:24, textAlign:"center",
+            }}>{bars.length}</span>
           </button>
           <button onClick={()=>{ setTypeVue("assos"); setChipFilter("tous"); }} style={tabBtn(typeVue==="assos","#7c3aed")}>
-            <Users size={20}/><span>Associations</span>
+            <Users size={20}/>
+            <span>Associations</span>
+            <span style={{
+              background: typeVue==="assos" ? "#7c3aed33" : "#2a2a2a",
+              color: typeVue==="assos" ? "#a78bfa" : "#64748b",
+              fontSize:11, fontWeight:800, padding:"2px 7px", borderRadius:10,
+              minWidth:24, textAlign:"center",
+            }}>{associations.length}</span>
           </button>
         </div>
 
@@ -6424,45 +6500,132 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
         {/* ══════════════════════════════════════════════════════════════════════ */}
         {typeVue === "bars" && (<>
 
-          {/* Header orange avec stats live */}
-          <div style={{ background:"linear-gradient(135deg,#1a0f00,#2a1500)", border:"1px solid #f9731630", borderRadius:20, padding:"20px 20px 16px", marginBottom:16, position:"relative", overflow:"hidden" }}>
-            <div style={{ position:"absolute", top:-30, right:-30, width:120, height:120, borderRadius:"50%", background:"radial-gradient(circle,#f9731620,transparent)", pointerEvents:"none" }}/>
-            <h1 style={{ fontWeight:900, fontSize:22, color:"#fff", marginBottom:12, textShadow:"0 0 20px #f9731688", display:"flex", alignItems:"center", gap:10 }}><Building2 size={22} color="#f97316"/> Bars à fléchettes</h1>
-            <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                <div style={{ width:8, height:8, borderRadius:"50%", background:"#f97316", animation:"pulse-dot 2s infinite" }}/>
-                <span style={{ fontWeight:700, fontSize:14, color:"#f97316" }}>{bars.length}</span>
-                <span style={{ fontSize:12, color:"#94a3b8" }}>bars référencés</span>
-              </div>
+          {/* ── HERO premium avec capsules ── */}
+          <div style={{
+            position:"relative", overflow:"hidden",
+            background:"radial-gradient(ellipse at top,#2a1500 0%,#1a0a00 50%,#0a0500 100%)",
+            border:"1.5px solid #f9731677",
+            borderRadius:20, padding:"16px 16px 14px", marginBottom:14,
+            boxShadow:"0 0 24px #f9731633, inset 0 1px 0 #ffffff0a",
+          }}>
+            <div aria-hidden style={{ position:"absolute", top:-40, right:-30, width:220, height:220, borderRadius:"50%", background:"radial-gradient(circle,#f9731620,transparent 65%)", pointerEvents:"none" }}/>
+            <div aria-hidden style={{ position:"absolute", top:0, left:0, bottom:0, width:90, background:"linear-gradient(90deg,transparent,#ffffff08,transparent)", animation:"glow-bar 4s ease-in-out infinite", pointerEvents:"none" }}/>
+            <h1 style={{
+              fontSize:"clamp(20px,5.5vw,26px)", fontWeight:900, lineHeight:1.1,
+              background:"linear-gradient(135deg,#fbbf24 0%,#f97316 50%,#ef4444 100%)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+              letterSpacing:1, margin:"0 0 10px", position:"relative",
+              display:"flex", alignItems:"center", gap:8,
+            }}>
+              🍺 BARS À FLÉCHETTES
+            </h1>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap", position:"relative" }}>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:14, background:"linear-gradient(135deg,#f9731622,#f9731608)", border:"1px solid #f9731677", fontSize:10, fontWeight:800, color:"#f97316" }}>
+                🎯 {bars.length} référencés
+              </span>
               {barsActifs.length > 0 && (
-                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                  <div style={{ width:8, height:8, borderRadius:"50%", background:"#22c55e", animation:"pulse-dot 2s .5s infinite" }}/>
-                  <span style={{ fontWeight:700, fontSize:14, color:"#22c55e" }}>{barsActifs.length}</span>
-                  <span style={{ fontSize:12, color:"#94a3b8" }}>actifs ce soir</span>
-                </div>
+                <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:14, background:"linear-gradient(135deg,#22c55e22,#22c55e08)", border:"1px solid #22c55e77", fontSize:10, fontWeight:800, color:"#22c55e" }}>
+                  <span style={{ width:6,height:6,borderRadius:"50%",background:"#22c55e",animation:"pulse-dot 2s infinite" }}/>
+                  {barsActifs.length} actifs ce soir
+                </span>
               )}
               {joueursPresentAujourd > 0 && (
-                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                  <div style={{ width:8, height:8, borderRadius:"50%", background:"#60a5fa", animation:"pulse-dot 2s 1s infinite" }}/>
-                  <span style={{ fontWeight:700, fontSize:14, color:"#60a5fa" }}>{joueursPresentAujourd}</span>
-                  <span style={{ fontSize:12, color:"#94a3b8" }}>joueurs présents aujourd'hui</span>
-                </div>
+                <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:14, background:"linear-gradient(135deg,#60a5fa22,#60a5fa08)", border:"1px solid #60a5fa77", fontSize:10, fontWeight:800, color:"#60a5fa" }}>
+                  👥 {joueursPresentAujourd} joueurs aujourd'hui
+                </span>
+              )}
+              {bars.filter(b => b.tournois).length > 0 && (
+                <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:14, background:"linear-gradient(135deg,#fbbf2422,#fbbf2408)", border:"1px solid #fbbf2477", fontSize:10, fontWeight:800, color:"#fbbf24" }}>
+                  🏆 {bars.filter(b => b.tournois).length} tournois
+                </span>
               )}
             </div>
           </div>
 
-          {/* Chips filtres horizontaux scrollables */}
+          {/* ── SPOTS DU MOMENT (carrousel horizontal) ── */}
+          {spotsDuMoment.length > 0 && (
+            <div style={{ marginBottom:14 }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                <span style={{ fontSize:11, fontWeight:900, color:"#f97316", letterSpacing:1.5, display:"inline-flex", alignItems:"center", gap:5 }}>
+                  🔥 SPOTS DU MOMENT
+                </span>
+                <span style={{ fontSize:10, color:"#64748b" }}>swipe →</span>
+              </div>
+              <div className="chip-scroll" style={{ display:"flex", gap:10, overflowX:"auto", paddingBottom:6 }}>
+                {spotsDuMoment.map(b => (
+                  <div key={b.slug} onClick={()=>{ setBarSlug(b.slug); setPage("bar"); }}
+                    style={{
+                      flexShrink:0, width:200,
+                      background: b._actif ? "linear-gradient(135deg,#052e1633,#0a0a14)" : "linear-gradient(135deg,#1a0f00,#0a0500)",
+                      border:`1px solid ${b._actif ? "#22c55e88" : "#f9731644"}`,
+                      borderRadius:14, padding:"10px 12px",
+                      cursor:"pointer", position:"relative", overflow:"hidden",
+                      boxShadow: b._actif ? "0 0 16px #22c55e22" : "none",
+                    }}>
+                    {b._actif && (
+                      <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:"linear-gradient(90deg,#22c55e,transparent)" }}/>
+                    )}
+                    <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:6 }}>
+                      <span style={{ fontSize:18 }}>{b._actif ? "🟢" : "🍺"}</span>
+                      <span style={{ fontWeight:900, fontSize:13, color:"#f1f5f9", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1 }}>{b.nom}</span>
+                    </div>
+                    <div style={{ fontSize:10, color:"#94a3b8", marginBottom:6, display:"flex", alignItems:"center", gap:4 }}>
+                      <MapPin size={9}/> {b.ville}
+                    </div>
+                    <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+                      {b._present > 0 && (
+                        <span style={{ fontSize:9, fontWeight:800, color:"#60a5fa", background:"#60a5fa18", padding:"2px 6px", borderRadius:8 }}>👥 {b._present} joueur{b._present>1?"s":""}</span>
+                      )}
+                      {b._actif && (
+                        <span style={{ fontSize:9, fontWeight:800, color:"#22c55e", background:"#22c55e18", padding:"2px 6px", borderRadius:8 }}>⚡ Live</span>
+                      )}
+                      {b.tournois && (
+                        <span style={{ fontSize:9, fontWeight:800, color:"#fbbf24", background:"#fbbf2418", padding:"2px 6px", borderRadius:8 }}>🏆</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── ACTIVITÉ LIVE ── */}
+          {liveActivity.length > 0 && (
+            <div style={{ marginBottom:14, background:"linear-gradient(135deg,#0a0a14,#06060c)", border:"1px solid #2a2a3a", borderRadius:14, padding:"10px 12px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:8 }}>
+                <span style={{ width:7,height:7,borderRadius:"50%",background:"#ef4444",animation:"pulse-dot 1.4s infinite" }}/>
+                <span style={{ fontSize:10, fontWeight:900, color:"#ef4444", letterSpacing:1.5 }}>ACTIVITÉ EN DIRECT</span>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                {liveActivity.map((evt, i) => {
+                  const bar = bars.find(b => b.slug === evt.bar);
+                  return (
+                    <div key={i} onClick={()=>{ if (bar) { setBarSlug(bar.slug); setPage("bar"); } }}
+                      style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 0", borderBottom: i<liveActivity.length-1?"1px solid #1a1a2a":"none", cursor: bar?"pointer":"default", gap:8 }}>
+                      <span style={{ fontSize:11, color:"#cbd5e1", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                        {evt.label}{bar ? <span style={{ color:"#64748b" }}> · {bar.nom}</span> : null}
+                      </span>
+                      <span style={{ fontSize:9, color:"#475569", flexShrink:0 }}>{tempsDepuisShort(evt.date)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Chips filtres horizontaux scrollables avec compteurs */}
           <div className="chip-scroll" style={{ display:"flex", gap:8, overflowX:"auto", marginBottom:14, paddingBottom:4 }}>
             {[
-              { v:"tous", Icon:Building2, l:"Tous" },
-              { v:"actifs", Icon:null, l:"Actifs ce soir" },
-              { v:"traditionnel", Icon:Target, l:"Traditionnel" },
-              { v:"electronique", Icon:Zap, l:"Électronique" },
-              { v:"tournois", Icon:Trophy, l:"Avec tournois" },
-            ].map(({ v, Icon:FIcon, l }) => (
+              { v:"tous", Icon:Building2, l:"Tous", count: chipCounts.tous },
+              { v:"maintenant", Icon:null, dot:"#ef4444", l:"Jouer maintenant", count: chipCounts.maintenant },
+              { v:"actifs", Icon:null, dot:"#22c55e", l:"Actifs ce soir", count: chipCounts.actifs },
+              { v:"tournois", Icon:Trophy, l:"Tournois", count: chipCounts.tournois },
+              { v:"traditionnel", Icon:Target, l:"Traditionnel", count: chipCounts.traditionnel },
+              { v:"electronique", Icon:Zap, l:"Électronique", count: chipCounts.electronique },
+            ].map(({ v, Icon:FIcon, dot, l, count }) => (
               <button key={v} onClick={()=>setChipFilter(v)} style={{
                 whiteSpace:"nowrap", flexShrink:0,
-                padding:"8px 14px", borderRadius:20,
+                padding:"8px 12px", borderRadius:20,
                 border:`1.5px solid ${chipFilter===v?"#f97316":"#2a2a2a"}`,
                 background: chipFilter===v?"linear-gradient(135deg,#f97316,#ea580c)":"#1a1a1a",
                 color: chipFilter===v?"#fff":"#94a3b8",
@@ -6470,13 +6633,17 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
                 cursor:"pointer", transition:"all .15s",
                 display:"flex", alignItems:"center", gap:5,
               }}>
-                {v==="actifs"
-                  ? <div style={{ width:8,height:8,borderRadius:"50%",background:chipFilter==="actifs"?"#fff":"#22c55e",animation:"pulse-dot 2s infinite",flexShrink:0 }}/>
-                  : FIcon && <FIcon size={14} color={chipFilter===v?"#fff":"#94a3b8"}/>
+                {dot
+                  ? <span style={{ width:7,height:7,borderRadius:"50%",background:chipFilter===v?"#fff":dot,animation:"pulse-dot 1.6s infinite",flexShrink:0 }}/>
+                  : FIcon && <FIcon size={13} color={chipFilter===v?"#fff":"#94a3b8"}/>
                 }
                 <span>{l}</span>
-                {v==="actifs" && barsActifs.length>0 && chipFilter!=="actifs" && (
-                  <span style={{ background:"#22c55e", color:"#fff", borderRadius:10, padding:"0 5px", fontSize:10, fontWeight:700, marginLeft:2 }}>{barsActifs.length}</span>
+                {count != null && (
+                  <span style={{
+                    background: chipFilter===v ? "#ffffff33" : "#2a2a2a",
+                    color: chipFilter===v ? "#fff" : "#64748b",
+                    borderRadius:10, padding:"0 5px", fontSize:10, fontWeight:800, marginLeft:1,
+                  }}>{count}</span>
                 )}
               </button>
             ))}
@@ -6559,12 +6726,20 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
           {/* FABs */}
           <div style={{ position:"fixed",bottom:24,right:16,zIndex:500,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end" }}>
             {barsActifs.length>0&&(
-              <button onClick={()=>{ setChipFilter("actifs"); setView("liste"); }} style={{ background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",border:"none",borderRadius:50,padding:"11px 18px",cursor:"pointer",fontSize:13,fontWeight:700,boxShadow:"0 4px 20px #22c55e55",display:"flex",alignItems:"center",gap:7 }}>
-                <Target size={15}/> Trouver une partie
+              <button onClick={()=>{ setChipFilter("actifs"); setView("liste"); }} style={{ background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",border:"none",borderRadius:50,padding:"10px 14px",cursor:"pointer",fontSize:12,fontWeight:700,boxShadow:"0 4px 20px #22c55e55",display:"flex",alignItems:"center",gap:6 }}>
+                <Target size={14}/> Partie
               </button>
             )}
-            <button onClick={()=>setPage("proposer")} style={{ background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff",border:"none",borderRadius:50,padding:"11px 18px",cursor:"pointer",fontSize:13,fontWeight:700,boxShadow:"0 4px 20px #f9731655",display:"flex",alignItems:"center",gap:7 }}>
-              <span style={{ fontSize:16 }}>+</span> Ajouter un bar
+            <button onClick={()=>setPage("proposer")} title="Ajouter un bar"
+              style={{
+                background:"linear-gradient(135deg,#f97316,#ea580c)",
+                color:"#fff", border:"none",
+                width:56, height:56, borderRadius:"50%",
+                cursor:"pointer", fontSize:28, fontWeight:900, lineHeight:1,
+                boxShadow:"0 6px 24px #f9731699, inset 0 1px 0 #ffffff44, inset 0 -3px 0 #00000033",
+                display:"flex", alignItems:"center", justifyContent:"center",
+              }}>
+              +
             </button>
           </div>
         </>)}
