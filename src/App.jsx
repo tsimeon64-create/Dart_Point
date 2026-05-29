@@ -5911,7 +5911,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
             WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
             letterSpacing:1.5,
           }}>
-            🎯 LA SALLE DE JEUX DART POINT
+            LA SALLE DE JEUX DART POINT
           </div>
         </div>
 
