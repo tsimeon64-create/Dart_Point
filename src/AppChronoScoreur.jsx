@@ -12,15 +12,19 @@ const C = {
 
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
-const sb = (path, opts = {}) =>
-  fetch(`${SB_URL}/rest/v1/${path}`, {
-    headers: {
-      apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`,
-      "Content-Type": "application/json",
-      ...(opts.prefer ? { Prefer: opts.prefer } : {}),
-    },
+const sb = (path, opts = {}) => {
+  const baseHeaders = {
+    apikey: SB_KEY,
+    Authorization: `Bearer ${SB_KEY}`,
+    "Content-Type": "application/json",
+    ...(opts.prefer ? { Prefer: opts.prefer } : {}),
+  };
+  // 🔒 Merge headers : on garde les headers d'auth ET on ajoute ceux passés (Prefer, etc.)
+  return fetch(`${SB_URL}/rest/v1/${path}`, {
     ...opts,
+    headers: { ...baseHeaders, ...(opts.headers || {}) },
   }).then(r => r.ok ? (r.status === 204 ? null : r.json()) : null).catch(() => null);
+};
 
 // ─── Pool de volées réalistes (profil "Joueur moyen" : 45% simples, 20% doubles, 35% triples)
 // Average ~50-65 points → ~8-10 volées pour faire 501 → 0
