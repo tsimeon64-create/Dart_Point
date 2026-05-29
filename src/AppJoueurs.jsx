@@ -414,6 +414,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   const [loading, setLoading]     = useState(true);
   const [tournoisPotes, setTournoisPotes] = useState([]);
   const [badgeCount, setBadgeCount] = useState(getBadgesStored(joueur.id).size);
+  const [amisCount, setAmisCount] = useState(0);
   const BADGES_SEEN_KEY = `dp_badges_seen_${joueur.id}`;
   const [badgesSeen, setBadgesSeen] = useState(() => parseInt(localStorage.getItem(`dp_badges_seen_${joueur.id}`) || "0"));
   const newBadgesCount = Math.max(0, badgeCount - badgesSeen);
@@ -453,6 +454,9 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       sbJ(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&select=statut`).catch(()=>[]),
     ]).then(([s, d, mvts, allJ, amis]) => {
       setStats(s); setDuels(d||[]); setDrixMvts(mvts||[]);
+      // Amis acceptés uniquement
+      const amisOk = (amis||[]).filter(a => a.statut === "accepte" || a.statut === "accepté");
+      setAmisCount(amisOk.length);
       if (allJ?.length) {
         const pos = allJ.findIndex(j => j.id === joueur.id);
         setClassement({ position: pos >= 0 ? pos + 1 : null, total: allJ.length });
@@ -558,94 +562,204 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     return scores.length > 0 ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : null;
   })();
 
+  // ── PROGRESSION : DRIX du jour / mois ──
+  const nowDate = new Date();
+  const debutJour = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate()).getTime();
+  const debutMois = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
+  const drixAujourdhui = drixMvts.filter(m => (m.date||0) >= debutJour).reduce((s,m) => s + (m.variation||0), 0);
+  const drixMois = drixMvts.filter(m => (m.date||0) >= debutMois).reduce((s,m) => s + (m.variation||0), 0);
+  // Série de victoires (consécutives à partir des plus récentes)
+  const serieVictoires = (() => {
+    const sorted = [...drixMvts].sort((a,b)=>(b.date||0)-(a.date||0));
+    let count = 0;
+    for (const m of sorted) {
+      if (m.variation > 0) count++; else break;
+    }
+    return count;
+  })();
+
+  // ── RECORDS personnels ──
+  let plusGrosFinish = 0;
+  let nombre180 = 0;
+  let meilleureMoyenne = 0;
+  let pluslongueSerie = 0;
+  for (const d of termines) {
+    const isChal = d.challenger_id === joueur.id;
+    const myScore = parseFloat(isChal ? d.score_challenger : d.score_defie);
+    if (!isNaN(myScore) && myScore > meilleureMoyenne) meilleureMoyenne = myScore;
+    for (const m of (d.manches_detail || [])) {
+      const iWon = m.winner === joueur.pseudo;
+      nombre180 += iWon ? (m.winner_180 || 0) : (m.loser_180 || 0);
+      if (iWon) plusGrosFinish = Math.max(plusGrosFinish, m.winner_finish || 0);
+    }
+  }
+  // Plus longue série de victoires consécutives historique
+  {
+    const sorted = [...drixMvts].sort((a,b)=>(a.date||0)-(b.date||0));
+    let cur = 0;
+    for (const m of sorted) {
+      if (m.variation > 0) { cur++; pluslongueSerie = Math.max(pluslongueSerie, cur); }
+      else cur = 0;
+    }
+  }
+
   // Activité récente : les 5 derniers mouvements DRIX
   const activiteRecente = drixMvts.slice(0, 5);
 
   return (
     <div style={{ maxWidth:600, margin:"0 auto", padding:"16px 16px 80px" }}>
 
-      {/* ── 1. HERO PROFIL ─────────────────────────────────────────────────── */}
+      {/* ── 1. HERO PROFIL — CARTE JOUEUR PREMIUM ─────────────────────────── */}
       <div style={{
         position:"relative", overflow:"hidden",
-        background:`linear-gradient(135deg,#0d0d1a 0%,#1a0a00 50%,#0d0d1a 100%)`,
-        border:`1px solid ${color}66`,
-        borderRadius:20, padding:20, marginBottom:14,
-        boxShadow:`0 0 30px ${color}22, 0 0 60px ${color}11, inset 0 0 40px #00000044`,
+        background:`linear-gradient(165deg,${color}1a 0%,#0a0a14 40%,#06060c 100%)`,
+        border:`1.5px solid ${color}`,
+        borderRadius:22, padding:"18px 16px", marginBottom:14,
+        boxShadow:`0 0 40px ${color}44, 0 0 80px ${color}1a, inset 0 1px 0 #ffffff0a`,
       }}>
-        {/* Fond neon décoratif */}
-        <div style={{ position:"absolute", top:-40, right:-40, width:180, height:180, borderRadius:"50%", background:`radial-gradient(circle,${color}18 0%,transparent 70%)`, pointerEvents:"none" }}/>
-        <div style={{ position:"absolute", bottom:-30, left:-30, width:120, height:120, borderRadius:"50%", background:`radial-gradient(circle,${color}10 0%,transparent 70%)`, pointerEvents:"none" }}/>
+        <style>{`
+          @keyframes monShine { 0%{transform:translateX(-150%) skewX(-22deg)} 100%{transform:translateX(280%) skewX(-22deg)} }
+          @keyframes monGlow { 0%,100%{filter:drop-shadow(0 0 12px var(--gc)) drop-shadow(0 0 24px var(--gc))} 50%{filter:drop-shadow(0 0 20px var(--gc)) drop-shadow(0 0 40px var(--gc))} }
+          @keyframes monBar { from{width:0} }
+        `}</style>
 
-        <div style={{ display:"flex", gap:16, alignItems:"flex-start", position:"relative" }}>
+        {/* Halos décoratifs */}
+        <div aria-hidden style={{ position:"absolute", top:-60, right:-30, width:240, height:240, borderRadius:"50%", background:`radial-gradient(circle,${color}24 0%,transparent 70%)`, pointerEvents:"none" }}/>
+        <div aria-hidden style={{ position:"absolute", bottom:-40, left:-40, width:180, height:180, borderRadius:"50%", background:`radial-gradient(circle,${color}14 0%,transparent 70%)`, pointerEvents:"none" }}/>
+        {/* Cible texture en arrière-plan */}
+        <div aria-hidden style={{ position:"absolute", top:"50%", right:"-20%", transform:"translateY(-50%)", fontSize:240, opacity:.03, lineHeight:1, pointerEvents:"none", color:color }}>🎯</div>
+        {/* Shine balayage */}
+        <div aria-hidden style={{ position:"absolute", top:0, left:0, bottom:0, width:100, background:"linear-gradient(90deg,transparent,#ffffff08,transparent)", animation:"monShine 5s ease-in-out infinite", pointerEvents:"none" }}/>
 
+        {/* Header row : photo + pseudo + classement national */}
+        <div style={{ display:"flex", gap:14, alignItems:"flex-start", position:"relative", marginBottom:12 }}>
           {/* Photo avec halo neon */}
           <div style={{ position:"relative", flexShrink:0 }}>
-            {/* Halo lumineux derrière la photo */}
-            <div style={{ position:"absolute", inset:-6, borderRadius:"50%", background:`radial-gradient(circle,${color}44 0%,transparent 70%)`, filter:"blur(8px)", zIndex:0 }}/>
+            <div style={{ position:"absolute", inset:-6, borderRadius:"50%", background:`radial-gradient(circle,${color}55 0%,transparent 70%)`, filter:"blur(10px)", zIndex:0 }}/>
             <div onClick={()=>photoRef.current?.click()} style={{ position:"relative", zIndex:1,
-              width:80, height:80, borderRadius:"50%",
-              border:`2px solid ${color}`,
-              boxShadow:`0 0 12px ${color}88, 0 0 24px ${color}44`,
+              width:72, height:72, borderRadius:"50%",
+              border:`2.5px solid ${color}`,
+              boxShadow:`0 0 16px ${color}aa, 0 0 32px ${color}55, inset 0 0 0 2px #00000033`,
               overflow:"hidden", cursor:"pointer",
-              background:color+"22", display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>
+              background:color+"22", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28 }}>
               {joueur.photo
                 ? <img src={joueur.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
-                : <RankIcon drix={joueur.drix||1000} size={32}/>}
+                : <RankIcon drix={joueur.drix||1000} size={28}/>}
             </div>
             <div onClick={()=>photoRef.current?.click()}
-              style={{ position:"absolute",bottom:0,right:0,zIndex:2,
+              style={{ position:"absolute",bottom:-2,right:-2,zIndex:2,
                 background:"#f97316", borderRadius:"50%", width:22, height:22,
                 display:"flex", alignItems:"center", justifyContent:"center",
-                cursor:"pointer", border:`2px solid #0d0d1a`,
+                cursor:"pointer", border:`2px solid #0a0a14`,
                 boxShadow:"0 0 8px #f9731688" }}>
               <Camera size={11} color="#fff"/>
             </div>
             <input ref={photoRef} type="file" accept="image/*" style={{ display:"none" }} onChange={uploadPhoto}/>
           </div>
 
-          {/* Identité */}
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4, flexWrap:"wrap" }}>
               <h1 style={{ fontWeight:900, fontSize:22, margin:0,
-                textShadow:`0 0 20px ${color}88, 0 0 40px ${color}44`,
+                textShadow:`0 0 16px ${color}88`,
                 color:"#fff", letterSpacing:.5 }}>{joueur.pseudo}</h1>
               {!editMode && (
                 <button onClick={()=>{ setEditMode(true); setEditPseudo(joueur.pseudo); setPseudoErreur(""); }}
-                  style={{ background:"none",border:`1px solid ${CJ.border}`,color:CJ.muted,cursor:"pointer",borderRadius:6,padding:"4px 8px",touchAction:"manipulation",display:"flex",alignItems:"center" }}>
-                  <Pencil size={12}/>
+                  style={{ background:"none",border:`1px solid ${CJ.border}`,color:CJ.muted,cursor:"pointer",borderRadius:6,padding:"3px 7px",touchAction:"manipulation",display:"flex",alignItems:"center" }}>
+                  <Pencil size={11}/>
                 </button>
               )}
             </div>
-
-            {/* DRIX + rang — pill neon */}
-            <div style={{ display:"inline-flex", alignItems:"center", gap:8,
-              background:`linear-gradient(90deg,${color}22,${color}11)`,
-              border:`1px solid ${color}66`,
-              boxShadow:`0 0 12px ${color}33`,
-              borderRadius:20, padding:"5px 14px", marginBottom:8 }}>
-              <RankIcon drix={joueur.drix||1000} size={18}/>
-              <span style={{ fontWeight:900, fontSize:18, color,
-                textShadow:`0 0 10px ${color}` }}>{joueur.drix||1000}</span>
-              <span style={{ fontSize:11, color, fontWeight:700, opacity:.85 }}>DRIX · {titre}</span>
-            </div>
-
-            {/* Stats rapides */}
-            {stats && (
-              <div style={{ display:"flex", gap:14, marginBottom:8 }}>
-                <span style={{ fontSize:12, color:"#94a3b8" }}><span style={{ color:CJ.green, fontWeight:700 }}>{stats.victoires}V</span> · <span style={{ color:CJ.red, fontWeight:700 }}>{stats.defaites}D</span> · <span style={{ color:CJ.yellow, fontWeight:700 }}>{winRate}%</span> WR</span>
-              </div>
-            )}
-
-            {/* Classement + infos */}
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
-              {classement?.position && (
-                <BadgeJ color={CJ.yellow}>🏆 #{classement.position} national</BadgeJ>
+            {/* Affiliations en badges premium */}
+            <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:5 }}>
+              {bar && (
+                <span onClick={()=>{ if (setBarSlug) { setBarSlug(bar.slug); setPage("page-bar"); } }} style={{
+                  display:"inline-flex",alignItems:"center",gap:4,
+                  padding:"3px 9px",borderRadius:14,
+                  background:`linear-gradient(135deg,${CJ.accent}22,${CJ.accent}0a)`,
+                  border:`1px solid ${CJ.accent}77`,
+                  fontSize:10,fontWeight:800,color:CJ.accent,
+                  boxShadow:`0 0 8px ${CJ.accent}33`,
+                  cursor: setBarSlug?"pointer":"default",
+                }}>🍺 {bar.nom}</span>
               )}
-              {joueur.age && <BadgeJ color={CJ.muted}>🎂 {joueur.age} ans</BadgeJ>}
-              {joueur.ville && <BadgeJ color={CJ.blue}>📍 {joueur.ville}</BadgeJ>}
-              {joueur.style_jeu && <BadgeJ color={CJ.accent}>{STYLES.find(s=>s[0]===joueur.style_jeu)?.[1]||joueur.style_jeu}</BadgeJ>}
+              {asso && (
+                <span style={{
+                  display:"inline-flex",alignItems:"center",gap:4,
+                  padding:"3px 9px",borderRadius:14,
+                  background:"linear-gradient(135deg,#a78bfa22,#a78bfa0a)",
+                  border:"1px solid #a78bfa77",
+                  fontSize:10,fontWeight:800,color:"#a78bfa",
+                  boxShadow:"0 0 8px #a78bfa33",
+                }}>🫂 {asso.nom}</span>
+              )}
+            </div>
+            {/* Infos persos */}
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", fontSize:11, color:CJ.muted }}>
+              {joueur.ville && <span>📍 {joueur.ville}</span>}
+              {joueur.age && <span>🎂 {joueur.age} ans</span>}
+              {joueur.style_jeu && <span>{STYLES.find(s=>s[0]===joueur.style_jeu)?.[1]||joueur.style_jeu}</span>}
             </div>
           </div>
+        </div>
+
+        {/* DRIX MASSIF + classement */}
+        <div style={{ position:"relative", textAlign:"center", marginBottom:12 }}>
+          <div style={{
+            display:"inline-flex", alignItems:"baseline", gap:8,
+            "--gc": color,
+          }}>
+            <span style={{ fontSize:28, animation:"monGlow 2.4s ease-in-out infinite" }}>💎</span>
+            <span style={{
+              fontWeight:900, fontSize:"clamp(40px,11vw,52px)",
+              background:`linear-gradient(135deg,${color},${color}dd,${color})`,
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+              fontVariantNumeric:"tabular-nums", letterSpacing:1, lineHeight:1,
+              textShadow:`0 0 20px ${color}aa`,
+              filter:`drop-shadow(0 0 14px ${color}88)`,
+            }}>{joueur.drix||1000}</span>
+            <span style={{ fontSize:14, fontWeight:800, color, letterSpacing:1.5, textShadow:`0 0 8px ${color}66` }}>DRIX</span>
+          </div>
+          <div style={{ display:"flex", justifyContent:"center", gap:6, marginTop:6, flexWrap:"wrap" }}>
+            <span style={{
+              display:"inline-flex", alignItems:"center", gap:4,
+              padding:"3px 10px", borderRadius:14,
+              background:`linear-gradient(135deg,${color}22,${color}0a)`,
+              border:`1px solid ${color}77`,
+              fontSize:11, fontWeight:800, color, letterSpacing:.5,
+            }}>{emoji} {titre}</span>
+            {classement?.position && (
+              <span style={{
+                display:"inline-flex", alignItems:"center", gap:4,
+                padding:"3px 10px", borderRadius:14,
+                background:"linear-gradient(135deg,#fbbf2433,#fbbf2411)",
+                border:"1px solid #fbbf24",
+                fontSize:11, fontWeight:900, color:"#fbbf24", letterSpacing:.5,
+                boxShadow:"0 0 12px #fbbf2466",
+                textShadow:"0 0 6px #fbbf2488",
+              }}>🏆 #{classement.position} FRANCE</span>
+            )}
+          </div>
+        </div>
+
+        {/* Quick stats row (amis · badges · matchs) */}
+        <div style={{
+          display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6,
+          padding:"8px 4px", borderRadius:12,
+          background:"linear-gradient(135deg,#0a0a14aa,#06060ccc)",
+          border:`1px solid ${color}33`,
+          position:"relative",
+        }}>
+          {[
+            { icon:"👥", val:amisCount, label:"amis", col:CJ.green },
+            { icon:"🏅", val:badgeCount, label:"badges", col:"#fbbf24" },
+            { icon:"⚔", val:termines.length, label:"matchs", col:CJ.blue },
+          ].map((s,i) => (
+            <div key={i} style={{ textAlign:"center", borderRight: i<2 ? `1px solid ${color}22` : "none" }}>
+              <div style={{ fontSize:14, marginBottom:1 }}>{s.icon}</div>
+              <div style={{ fontWeight:900, fontSize:16, color:s.col, lineHeight:1, fontVariantNumeric:"tabular-nums" }}>{s.val}</div>
+              <div style={{ fontSize:9, color:CJ.muted, letterSpacing:.5, textTransform:"uppercase", marginTop:1 }}>{s.label}</div>
+            </div>
+          ))}
         </div>
 
         {/* Edit mode */}
@@ -727,43 +841,145 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       </div>
 
       {/* ── 2. PROGRESSION DE RANG ─────────────────────────────────────────── */}
-      <div style={{ background:CJ.card, border:`1px solid ${color}33`, borderRadius:14, padding:16, marginBottom:14 }}>
+      <div style={{
+        background:`linear-gradient(135deg,${color}0f,#0d0d14)`,
+        border:`1px solid ${color}55`,
+        borderRadius:14, padding:14, marginBottom:14,
+        boxShadow:`0 0 16px ${color}11`,
+      }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <RankIcon drix={joueur.drix||1000} size={20}/>
-            <span style={{ fontWeight:800, fontSize:14, color }}>{titre}</span>
+            <RankIcon drix={joueur.drix||1000} size={18}/>
+            <span style={{ fontWeight:900, fontSize:13, color, letterSpacing:.5 }}>{titre}</span>
           </div>
           {prog.prochain ? (
-            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-              <ChevronRight size={13} color={CJ.muted}/>
-              <RankIcon drix={prog.prochain.min} size={16}/>
-              <span style={{ fontWeight:700, fontSize:12, color:prog.prochain.color }}>{prog.prochain.titre}</span>
+            <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+              <ChevronRight size={12} color={CJ.muted}/>
+              <RankIcon drix={prog.prochain.min} size={14}/>
+              <span style={{ fontWeight:700, fontSize:11, color:prog.prochain.color }}>{prog.prochain.titre}</span>
             </div>
           ) : (
-            <span style={{ fontSize:11, color:CJ.yellow, fontWeight:700 }}>Rang maximum</span>
+            <span style={{ fontSize:11, color:CJ.yellow, fontWeight:700 }}>🏆 Rang max</span>
           )}
         </div>
 
-        {/* Barre de progression */}
-        <div style={{ background:"#ffffff12", borderRadius:8, height:10, overflow:"hidden", marginBottom:8 }}>
+        {/* Barre de progression animée */}
+        <div style={{ background:"#00000055", borderRadius:8, height:12, overflow:"hidden", marginBottom:6, border:`1px solid ${color}22`, position:"relative" }}>
           <div style={{
             height:"100%", borderRadius:8,
-            background:`linear-gradient(90deg, ${color}aa, ${color})`,
+            background:`linear-gradient(90deg, ${color}aa, ${color}, ${color}cc)`,
             width:`${prog.pct}%`,
-            transition:"width 0.8s cubic-bezier(0.34,1.56,0.64,1)",
-            boxShadow:`0 0 8px ${color}88`,
+            transition:"width 1s cubic-bezier(.34,1.56,.64,1)",
+            boxShadow:`0 0 12px ${color}aa, inset 0 1px 0 #ffffff33`,
+            animation:"monBar 1s cubic-bezier(.34,1.56,.64,1) both",
           }}/>
         </div>
 
-        <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:CJ.muted }}>
-          <span style={{ fontWeight:700, color }}>{joueur.drix||1000} DRIX</span>
+        <div style={{ textAlign:"center", fontSize:11, color:CJ.muted }}>
           {prog.prochain ? (
-            <span style={{ color:CJ.muted }}>{prog.restant} DRIX avant <strong style={{ color:prog.prochain.color }}>{prog.prochain.titre}</strong></span>
+            <span>Plus que <strong style={{ color:prog.prochain.color, fontSize:13 }}>{prog.restant} DRIX</strong> pour <strong style={{ color:prog.prochain.color }}>{prog.prochain.titre}</strong> {prog.prochain.emoji}</span>
           ) : (
-            <span style={{ color:CJ.yellow }}>Niveau maximal atteint 🏆</span>
+            <span style={{ color:CJ.yellow }}>🏆 Niveau maximal atteint</span>
           )}
         </div>
       </div>
+
+      {/* ── 3. PROGRESSION (DRIX du jour/mois + série) ───────────────────── */}
+      <div style={{
+        background:"linear-gradient(135deg,#0a0a14,#06060c)",
+        border:"1px solid #2a2a3a",
+        borderRadius:14, padding:14, marginBottom:14,
+      }}>
+        <div style={{ fontSize:10, fontWeight:900, color:"#94a3b8", letterSpacing:2, marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
+          <TrendingUp size={12} color="#22c55e"/> PROGRESSION
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+          <div style={{
+            background:`linear-gradient(135deg,${drixAujourdhui>=0?"#052e1633":"#7f1d1d33"},#0a0a14)`,
+            border:`1px solid ${drixAujourdhui>=0?"#22c55e55":"#ef444455"}`,
+            borderRadius:10, padding:"8px 10px",
+          }}>
+            <div style={{ fontSize:9, color:CJ.muted, letterSpacing:1, marginBottom:2 }}>⚡ AUJOURD'HUI</div>
+            <div style={{ fontWeight:900, fontSize:18, color:drixAujourdhui>=0?CJ.green:CJ.red, fontVariantNumeric:"tabular-nums" }}>
+              {drixAujourdhui>=0?"+":""}{drixAujourdhui} <span style={{ fontSize:10,fontWeight:700 }}>DRIX</span>
+            </div>
+          </div>
+          <div style={{
+            background:`linear-gradient(135deg,${drixMois>=0?"#052e1633":"#7f1d1d33"},#0a0a14)`,
+            border:`1px solid ${drixMois>=0?"#22c55e55":"#ef444455"}`,
+            borderRadius:10, padding:"8px 10px",
+          }}>
+            <div style={{ fontSize:9, color:CJ.muted, letterSpacing:1, marginBottom:2 }}>🔥 CE MOIS-CI</div>
+            <div style={{ fontWeight:900, fontSize:18, color:drixMois>=0?CJ.green:CJ.red, fontVariantNumeric:"tabular-nums" }}>
+              {drixMois>=0?"+":""}{drixMois} <span style={{ fontSize:10,fontWeight:700 }}>DRIX</span>
+            </div>
+          </div>
+          {serieVictoires > 0 && (
+            <div style={{
+              background:"linear-gradient(135deg,#3a220066,#0a0a14)",
+              border:"1px solid #fbbf2477",
+              borderRadius:10, padding:"8px 10px",
+            }}>
+              <div style={{ fontSize:9, color:CJ.muted, letterSpacing:1, marginBottom:2 }}>🎯 SÉRIE ACTUELLE</div>
+              <div style={{ fontWeight:900, fontSize:18, color:"#fbbf24", textShadow:"0 0 6px #fbbf2466" }}>
+                {serieVictoires} <span style={{ fontSize:10,fontWeight:700 }}>victoires</span>
+              </div>
+            </div>
+          )}
+          {classement?.position && (
+            <div style={{
+              background:"linear-gradient(135deg,#1e114266,#0a0a14)",
+              border:"1px solid #a78bfa77",
+              borderRadius:10, padding:"8px 10px",
+            }}>
+              <div style={{ fontSize:9, color:CJ.muted, letterSpacing:1, marginBottom:2 }}>🏆 RANG</div>
+              <div style={{ fontWeight:900, fontSize:18, color:"#a78bfa" }}>
+                #{classement.position} <span style={{ fontSize:10,fontWeight:700,color:CJ.muted }}>/ {classement.total}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── 4. RECORDS PERSONNELS ──────────────────────────────────────────── */}
+      {(plusGrosFinish > 0 || nombre180 > 0 || meilleureMoyenne > 0 || pluslongueSerie > 0) && (
+        <div style={{
+          background:"linear-gradient(135deg,#1a0f00,#0a0a14)",
+          border:"1px solid #fbbf2455",
+          borderRadius:14, padding:14, marginBottom:14,
+          boxShadow:"0 0 16px #fbbf2422",
+        }}>
+          <div style={{ fontSize:10, fontWeight:900, color:"#fbbf24", letterSpacing:2, marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
+            <Trophy size={12} color="#fbbf24"/> RECORDS PERSONNELS
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+            {plusGrosFinish > 0 && (
+              <div style={{ background:"#0a0a14", border:"1px solid #fbbf2433", borderRadius:10, padding:"7px 10px" }}>
+                <div style={{ fontSize:8, color:CJ.muted, letterSpacing:1, marginBottom:2 }}>🎯 PLUS GROS FINISH</div>
+                <div style={{ fontWeight:900, fontSize:18, color:"#fbbf24", fontVariantNumeric:"tabular-nums", textShadow:"0 0 8px #fbbf2466" }}>{plusGrosFinish}</div>
+              </div>
+            )}
+            {nombre180 > 0 && (
+              <div style={{ background:"#0a0a14", border:"1px solid #ef444433", borderRadius:10, padding:"7px 10px" }}>
+                <div style={{ fontSize:8, color:CJ.muted, letterSpacing:1, marginBottom:2 }}>💥 NOMBRE DE 180</div>
+                <div style={{ fontWeight:900, fontSize:18, color:"#ef4444", fontVariantNumeric:"tabular-nums", textShadow:"0 0 8px #ef444466" }}>{nombre180}</div>
+              </div>
+            )}
+            {meilleureMoyenne > 0 && (
+              <div style={{ background:"#0a0a14", border:"1px solid #60a5fa33", borderRadius:10, padding:"7px 10px" }}>
+                <div style={{ fontSize:8, color:CJ.muted, letterSpacing:1, marginBottom:2 }}>⚡ MEILLEURE MOY</div>
+                <div style={{ fontWeight:900, fontSize:18, color:"#60a5fa", fontVariantNumeric:"tabular-nums" }}>{meilleureMoyenne.toFixed(1)}</div>
+              </div>
+            )}
+            {pluslongueSerie > 0 && (
+              <div style={{ background:"#0a0a14", border:"1px solid #22c55e33", borderRadius:10, padding:"7px 10px" }}>
+                <div style={{ fontSize:8, color:CJ.muted, letterSpacing:1, marginBottom:2 }}>🏅 PLUS LONGUE SÉRIE</div>
+                <div style={{ fontWeight:900, fontSize:18, color:"#22c55e", fontVariantNumeric:"tabular-nums" }}>{pluslongueSerie} <span style={{ fontSize:10 }}>V</span></div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── 3. STATS RAPIDES ───────────────────────────────────────────────── */}
       {stats && (
