@@ -444,7 +444,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
         {/* Header */}
         <div style={{ background:C.card,borderBottom:`1px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0 }}>
           <button onClick={()=>setPage("jeux-sans")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}><ArrowLeft size={16}/> Retour</button>
-          <div style={{ flex:1,fontWeight:800,fontSize:16,color:C.blue,display:"flex",alignItems:"center",gap:8 }}><Zap size={16} color={C.blue}/> Chrono Scoreur</div>
+          <div style={{ flex:1,fontWeight:800,fontSize:16,color:C.blue,display:"flex",alignItems:"center",gap:8 }}><Zap size={16} color={C.blue}/> Scoreur Speedrun</div>
           <div style={{ fontSize:11,color:C.muted }}>{today}</div>
         </div>
 
@@ -890,7 +890,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
 
         <div style={{ flex:1,overflowY:"auto",padding:"12px 14px 40px" }}>
           <div style={{ background:`${C.blue}15`,border:`1px solid ${C.blue}44`,borderRadius:14,padding:"12px 16px",marginBottom:14,textAlign:"center" }}>
-            <div style={{ fontSize:11,color:C.muted,letterSpacing:1,marginBottom:4 }}>CLASSEMENT DU CHRONO SCOREUR</div>
+            <div style={{ fontSize:11,color:C.muted,letterSpacing:1,marginBottom:4 }}>CLASSEMENT DU SCOREUR SPEEDRUN</div>
             <div style={{ fontSize:11,color:C.muted }}>🥇 Le vainqueur reçoit <b style={{ color:C.yellow }}>+20 DRIX</b> · 💎 <b style={{ color:C.blue }}>+5 DRIX</b> participation · publication à 00:01</div>
           </div>
 
@@ -1005,7 +1005,7 @@ export const checkYesterdayScoreurReward = async (joueur) => {
     sb(`chrono_scoreur_scores?id=eq.${me.id}`, { method:"PATCH", headers:{ Prefer:"return=minimal" }, body: JSON.stringify({ rewarded: true }) }),
     sb("drix_mouvements", { method:"POST", headers:{ Prefer:"return=minimal" }, body: JSON.stringify({
       joueur_id: joueur.id, joueur_pseudo: joueur.pseudo,
-      adversaire_pseudo: `⏱ Chrono Scoreur — ${label}`,
+      adversaire_pseudo: `⏱ Scoreur Speedrun — ${label}`,
       variation: drix, drix_avant: joueur.drix || 1000, drix_apres: newDrix,
       resultat: "victoire", date: Date.now(),
     })}),
@@ -1021,7 +1021,7 @@ export const checkYesterdayScoreurReward = async (joueur) => {
       date_jour: yest,
     };
     const contenu = `__CHRONO_SCOREUR__|${JSON.stringify(payload)}\n\n` +
-      `🏆 Chrono Scoreur — Vainqueur du ${dateFr}\n` +
+      `🏆 Scoreur Speedrun — Vainqueur du ${dateFr}\n` +
       `👑 ${joueur.pseudo} remporte le défi en ${formatChrono(me.temps_ms)} !\n` +
       `🥇 +20 DRIX`;
     sb("wall_posts", { method:"POST", headers:{ Prefer:"return=minimal" }, body: JSON.stringify({

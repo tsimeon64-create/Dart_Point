@@ -5739,7 +5739,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           <ModeBtn icon={Timer} label="Finish Speedrun"
             sub="5 finishes à enchaîner le plus vite possible. Chronomètre lancé — à toi de jouer !"
             onClick={()=>setPage("chrono-finish")} col="#a78bfa"/>
-          <ModeBtn icon={Zap} label="Chrono Scoreur"
+          <ModeBtn icon={Zap} label="Scoreur Speedrun"
             sub="Pars de 501 → 0 ! Calcule mentalement le score restant à chaque volée. Le plus rapide gagne !"
             onClick={()=>setPage("chrono-scoreur")} col="#60a5fa"/>
           <ModeBtn icon={Clock} label="Horloge Double"
