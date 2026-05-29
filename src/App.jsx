@@ -4844,6 +4844,37 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
   const [posting, setPosting] = useState(false);
   const [erreur, setErreur] = useState(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [photoData, setPhotoData] = useState(null); // base64 image attachée au post
+  const photoInputRef = useRef(null);
+
+  // Compresse et stocke l'image sélectionnée
+  const handlePhotoPick = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { alert("Choisis une image."); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1000;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        const data = canvas.toDataURL("image/jpeg", 0.82);
+        // ~2MB max après compression (sinon refuse)
+        if (data.length > 2 * 1024 * 1024 * 1.4) { alert("Image trop lourde, choisis une plus petite."); return; }
+        setPhotoData(data);
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
   const [liveCount, setLiveCount] = useState(0);
 
   const chargerFeed = useCallback(async () => {
@@ -5018,7 +5049,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
   }, [joueur?.id]);
 
   const publier = async () => {
-    if (!texte.trim() || posting) return;
+    if ((!texte.trim() && !photoData) || posting) return;
     setPosting(true);
     setErreur(null);
     try {
@@ -5028,11 +5059,13 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
           joueur_id: joueur.id,
           joueur_pseudo: joueur.pseudo,
           joueur_photo: joueur.photo || null,
-          contenu: texte.trim(),
+          contenu: texte.trim() || (photoData ? "📷" : ""),
+          image_url: photoData || null,
           date: Date.now(),
         }),
       });
       setTexte("");
+      setPhotoData(null);
       setRefreshTick(t => t+1);
     } catch(e) {
       setErreur("Erreur lors de la publication. Vérifie la table wall_posts dans Supabase.");
@@ -5040,6 +5073,16 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
       setPosting(false);
     }
   };
+
+  // ── Auto-cleanup des photos anciennes (>14 jours) pour ne pas saturer la DB ──
+  useEffect(() => {
+    const fortnightAgo = Date.now() - 14 * 86400000;
+    sb(`wall_posts?image_url=not.is.null&date=lt.${fortnightAgo}`, {
+      method:"PATCH",
+      body: JSON.stringify({ image_url: null }),
+      prefer:"return=minimal",
+    }).catch(()=>{});
+  }, []); // eslint-disable-line
 
   // ─── Renderers ────────────────────────────────────────────────────────────
   const cardBase = {
@@ -5170,7 +5213,14 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
             <div style={{ fontSize:12,color:C.muted }}>{tempsDepuis(p.date)}</div>
           </div>
         </div>
-        <div style={{ fontSize:14,lineHeight:1.7,color:"#e2e8f0",whiteSpace:"pre-wrap",paddingLeft:54,marginBottom:10 }}>{p.contenu}</div>
+        {p.contenu && p.contenu !== "📷" && (
+          <div style={{ fontSize:14,lineHeight:1.7,color:"#e2e8f0",whiteSpace:"pre-wrap",paddingLeft:54,marginBottom:10 }}>{p.contenu}</div>
+        )}
+        {p.image_url && (
+          <div style={{ paddingLeft:54, marginBottom:10 }}>
+            <img src={p.image_url} alt="" style={{ width:"100%", maxHeight:380, objectFit:"cover", borderRadius:12, border:"1px solid #ffffff10", display:"block" }}/>
+          </div>
+        )}
         <div style={{ paddingLeft:54 }}>
           <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
         </div>
@@ -5565,19 +5615,33 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
               onChange={e=>setTexte(e.target.value)}
               onKeyDown={e=>{ if(e.key==="Enter"&&e.ctrlKey) publier(); }}
               placeholder="Quoi de neuf au comptoir ? (Ctrl+Entrée pour publier)"
-              style={{ flex:1,background:"#070710",border:`1px solid ${texte.trim()?"#a855f755":"#ffffff10"}`,borderRadius:12,padding:"10px 12px",color:"#e2e8f0",fontSize:14,resize:"none",height:70,fontFamily:"inherit",outline:"none",boxSizing:"border-box",transition:"border-color .15s" }}
+              style={{ flex:1,background:"#070710",border:`1px solid ${texte.trim()||photoData?"#a855f755":"#ffffff10"}`,borderRadius:12,padding:"10px 12px",color:"#e2e8f0",fontSize:14,resize:"none",height:70,fontFamily:"inherit",outline:"none",boxSizing:"border-box",transition:"border-color .15s" }}
               maxLength={500}
             />
           </div>
+
+          {/* Aperçu de la photo attachée */}
+          {photoData && (
+            <div style={{ position:"relative", marginLeft:54, marginBottom:10, borderRadius:12, overflow:"hidden", border:"1px solid #a855f755", maxHeight:220 }}>
+              <img src={photoData} alt="" style={{ width:"100%", maxHeight:220, objectFit:"cover", display:"block" }}/>
+              <button onClick={()=>setPhotoData(null)}
+                style={{ position:"absolute", top:6, right:6, background:"#000000bb", border:"none", color:"#fff", borderRadius:"50%", width:26, height:26, cursor:"pointer", fontSize:14, lineHeight:1, fontWeight:900, touchAction:"manipulation" }}>
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* Quick actions */}
           <div style={{ display:"flex",gap:8,alignItems:"center" }}>
-            <button style={{ display:"flex",alignItems:"center",gap:5,background:"transparent",border:"1px solid #ffffff0a",borderRadius:8,padding:"5px 10px",fontSize:12,color:C.muted,cursor:"pointer",touchAction:"manipulation" }} title="Photo">
-              <Camera size={13} color="#64748b"/> Photo
+            <input ref={photoInputRef} type="file" accept="image/*" style={{display:"none"}} onChange={handlePhotoPick}/>
+            <button onClick={()=>photoInputRef.current?.click()}
+              style={{ display:"flex",alignItems:"center",gap:5,background:photoData?"#a855f722":"transparent",border:`1px solid ${photoData?"#a855f777":"#ffffff0a"}`,borderRadius:8,padding:"5px 10px",fontSize:12,color:photoData?"#a855f7":C.muted,cursor:"pointer",touchAction:"manipulation" }} title="Photo">
+              <Camera size={13} color={photoData?"#a855f7":"#64748b"}/> {photoData ? "Photo prête" : "Photo"}
             </button>
             <div style={{ flex:1 }}/>
             <span style={{ fontSize:11,color:"#334155" }}>{texte.length}/500</span>
-            <button onClick={publier} disabled={!texte.trim()||posting}
-              style={{ background:texte.trim()?"linear-gradient(135deg,#7c3aed,#a855f7)":"#1e1e1e",color:texte.trim()?"#fff":C.muted,border:"none",borderRadius:10,padding:"8px 18px",fontWeight:700,fontSize:14,cursor:texte.trim()&&!posting?"pointer":"default",transition:"all .15s",opacity:posting?.6:1 }}>
+            <button onClick={publier} disabled={(!texte.trim()&&!photoData)||posting}
+              style={{ background:(texte.trim()||photoData)?"linear-gradient(135deg,#7c3aed,#a855f7)":"#1e1e1e",color:(texte.trim()||photoData)?"#fff":C.muted,border:"none",borderRadius:10,padding:"8px 18px",fontWeight:700,fontSize:14,cursor:(texte.trim()||photoData)&&!posting?"pointer":"default",transition:"all .15s",opacity:posting?.6:1 }}>
               {posting ? "…" : "Publier"}
             </button>
           </div>
