@@ -5954,98 +5954,14 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           </div>
         )}
 
-        {/* ═══ 501 FEATURED ═══ */}
-        <div className="mj-card" onClick={()=>setPage("scoreur")} style={{
-          position:"relative", overflow:"hidden",
-          background:"linear-gradient(135deg,#f9731622 0%,#0a0a14 50%,#050510 100%)",
-          border:"2px solid #f97316",
-          borderRadius:18, padding:"14px 14px 12px",
-          cursor:"pointer", userSelect:"none", marginBottom:14,
-          boxShadow:"0 0 22px #f9731655, inset 0 1px 0 #ffffff10",
-          "--mjShadow": "#f9731666",
-        }}>
-          {/* Bg illustration */}
-          <div aria-hidden style={{
-            position:"absolute", right:-12, bottom:-30,
-            fontSize:160, opacity:.05, lineHeight:1,
-            pointerEvents:"none", color:"#f97316",
-            filter:"drop-shadow(0 0 12px #f97316)",
-            fontWeight:900, fontFamily:"Inter",
-          }}>501</div>
-          <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:80,background:"linear-gradient(90deg,transparent,#ffffff15,transparent)",animation:"mjShine 3s ease-in-out infinite",pointerEvents:"none" }}/>
-
-          <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
-            <span style={{
-              fontSize:9,fontWeight:900,color:"#fbbf24",letterSpacing:2,
-              padding:"3px 10px",borderRadius:5,
-              background:"linear-gradient(90deg,#78350f44,#78350f66,#78350f44)",
-              border:"1px solid #fbbf2477", textShadow:"0 0 6px #fbbf24aa",
-            }}>🏆 MODE LE PLUS JOUÉ</span>
-            <span style={{
-              fontSize:9,fontWeight:900,color:"#f97316",letterSpacing:1.5,
-              padding:"3px 8px",borderRadius:5,
-              background:"#f9731622", border:"1px solid #f9731677",
-            }}>🥇 CLASSIQUE</span>
-          </div>
-
-          <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:10,position:"relative" }}>
-            <div style={{
-              flexShrink:0,width:54,height:54,borderRadius:14,
-              background:"linear-gradient(135deg,#f9731644,#f9731611)",
-              border:"1.5px solid #f97316",
-              display:"flex",alignItems:"center",justifyContent:"center",
-              boxShadow:"0 0 16px #f9731688, inset 0 1px 0 #ffffff20",
-            }}>
-              <Target size={28} color="#f97316" style={{ filter:"drop-shadow(0 0 6px #f97316)" }}/>
-            </div>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:22,fontWeight:900,color:"#f97316",letterSpacing:.5,textShadow:"0 0 8px #f9731666",lineHeight:1 }}>
-                501
-              </div>
-              <div style={{ fontSize:11,color:"#94a3b8",marginTop:3,lineHeight:1.4 }}>
-                🎯 Le grand classique. Descends de 501 à 0 et termine sur un double.
-              </div>
-            </div>
-          </div>
-
-          {/* Stats row */}
-          <div style={{ display:"flex",gap:6,marginBottom:10,flexWrap:"wrap",position:"relative" }}>
-            <div style={{ flex:"1 1 0",background:"#0a0a14",border:"1px solid #f9731633",borderRadius:8,padding:"6px 8px",textAlign:"center",minWidth:80 }}>
-              <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}>🔥 AUJOURD'HUI</div>
-              <div style={{ fontSize:14,fontWeight:900,color:"#f97316",fontVariantNumeric:"tabular-nums" }}>
-                {flecheStats["501"]} parties
-              </div>
-            </div>
-            <div style={{ flex:"1 1 0",background:"#0a0a14",border:"1px solid #60a5fa33",borderRadius:8,padding:"6px 8px",textAlign:"center",minWidth:80 }}>
-              <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}>🎯 MODE</div>
-              <div style={{ fontSize:14,fontWeight:900,color:"#60a5fa" }}>Jeu libre</div>
-            </div>
-            <div style={{ flex:"1 1 0",background:"#0a0a14",border:"1px solid #22c55e33",borderRadius:8,padding:"6px 8px",textAlign:"center",minWidth:80 }}>
-              <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}>🟢 NIVEAU</div>
-              <div style={{ fontSize:14,fontWeight:900,color:"#22c55e" }}>Tous</div>
-            </div>
-          </div>
-
-          {/* CTA */}
-          <div style={{ display:"flex",justifyContent:"center",position:"relative" }}>
-            <span style={{
-              display:"inline-flex",alignItems:"center",gap:6,
-              padding:"8px 16px",borderRadius:10,
-              background:"linear-gradient(135deg,#f97316,#ea580c)",
-              color:"#fff", fontSize:13, fontWeight:900, letterSpacing:1.5,
-              boxShadow:"0 4px 14px #f9731688, inset 0 1px 0 #ffffff33, inset 0 -2px 0 #00000044",
-              textShadow:"0 1px 2px #00000066",
-            }}>
-              ▶ JOUER MAINTENANT
-            </span>
-          </div>
-        </div>
-
-        {/* ═══ AUTRES MODES ═══ */}
-        <div style={{ fontSize:10,fontWeight:900,color:"#64748b",letterSpacing:2.5,marginBottom:8,paddingLeft:4 }}>
-          🎮 AUTRES MODES
-        </div>
+        {/* ═══ TOUS LES MODES ═══ */}
         <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+          <GameCard icon={Target} label="501" col="#f97316"
+            sub="🎯 Le grand classique. Descends de 501 à 0 et termine sur un double."
+            badge="CLASSIQUE" badgeIcon="🥇" difficulty="inter"
+            drix="Jeu libre" stat={`${flecheStats["501"]} parties aujourd'hui`} statIcon="🔥" bgIcon="501"
+            onClick={()=>setPage("scoreur")}/>
+
           <GameCard icon={Target} label="301" col="#f59e0b"
             sub="⚡ Version rapide du 501. Parties courtes et nerveuses."
             badge="RAPIDE" badgeIcon="⚡" difficulty="inter"
