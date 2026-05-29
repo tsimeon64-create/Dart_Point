@@ -5725,9 +5725,6 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           <ModeBtn icon={Users} label="Tournoi entre potes"
             sub="Organise un tournoi avec tes amis. Format libre, ambiance garantie."
             onClick={()=>setPage("tournois-potes")} col="#60a5fa"/>
-          <SoonBtn icon={Clock} label="Around the Clock" sub="Vise chaque zone dans l'ordre, de 1 à 20." />
-          <SoonBtn icon={Flame} label="Shanghai" sub="Marque le max de points sur une zone spécifique chaque tour." />
-          <SoonBtn icon={Skull} label="Killer" sub="Deviens killer et élimine tes adversaires." />
         </>}
         {categorie==="sans" && <>
           <ModeBtn icon={Zap} label="Rush Mode"
@@ -5745,9 +5742,6 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           <ModeBtn icon={Clock} label="Horloge Double"
             sub="Enchaîne D1 à D20, Bull et Double Bull. Chrono par cible, stats et double favori."
             onClick={()=>setPage("horloge-double")} col="#a855f7"/>
-          <SoonBtn icon={HelpCircle} label="Quiz fléchettes" sub="Teste tes connaissances sur les règles, les pros et l'histoire du fléché." />
-          <SoonBtn icon={Brain} label="Défis mentaux" sub="Calcul rapide, mémoire des zones, routes optimales..." />
-          <SoonBtn icon={Users} label="Jeux communautaires" sub="Défis partagés, classements hebdo, événements spéciaux." />
         </>}
       </div>
     </div>
