@@ -5574,12 +5574,6 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
             <button style={{ display:"flex",alignItems:"center",gap:5,background:"transparent",border:"1px solid #ffffff0a",borderRadius:8,padding:"5px 10px",fontSize:12,color:C.muted,cursor:"pointer",touchAction:"manipulation" }} title="Photo">
               <Camera size={13} color="#64748b"/> Photo
             </button>
-            <button style={{ display:"flex",alignItems:"center",gap:5,background:"transparent",border:"1px solid #ffffff0a",borderRadius:8,padding:"5px 10px",fontSize:12,color:C.muted,cursor:"pointer",touchAction:"manipulation" }} title="Exploit">
-              <Trophy size={13} color="#f59e0b"/> Exploit
-            </button>
-            <button style={{ display:"flex",alignItems:"center",gap:5,background:"transparent",border:"1px solid #ffffff0a",borderRadius:8,padding:"5px 10px",fontSize:12,color:C.muted,cursor:"pointer",touchAction:"manipulation" }} title="180 !">
-              <Flame size={13} color="#f97316"/> 180 !
-            </button>
             <div style={{ flex:1 }}/>
             <span style={{ fontSize:11,color:"#334155" }}>{texte.length}/500</span>
             <button onClick={publier} disabled={!texte.trim()||posting}
