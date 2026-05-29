@@ -653,12 +653,22 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     e.target.value = "";
   };
 
-  // Étape 2 : après crop → sauvegarde
+  // Étape 2 : après crop → sauvegarde + cascade sur les snapshots existants
   const saveCroppedPhoto = async (dataUrl) => {
     setCropImage(null);
     await dbJ.updateJoueur(joueur.id, { photo: dataUrl });
     const updated = { ...joueur, photo: dataUrl };
     setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
+    // Cascade : mets à jour la photo dans tous les snapshots (wall_posts + wall_comments)
+    // pour que la nouvelle photo apparaisse partout où elle a déjà été embarquée.
+    Promise.all([
+      sbJ(`wall_posts?joueur_id=eq.${joueur.id}`, {
+        method:"PATCH", body: JSON.stringify({ joueur_photo: dataUrl }), prefer:"return=minimal",
+      }).catch(()=>{}),
+      sbJ(`wall_comments?joueur_id=eq.${joueur.id}`, {
+        method:"PATCH", body: JSON.stringify({ joueur_photo: dataUrl }), prefer:"return=minimal",
+      }).catch(()=>{}),
+    ]);
   };
 
   const choisirBar = async (slug) => {

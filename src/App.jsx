@@ -5142,7 +5142,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
               </div>
               {/* Author header */}
               <div style={{ display:"flex",gap:10,alignItems:"center",marginBottom:14 }}>
-                <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={40} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
+                <FeedAvatar photo={photosMap[p.joueur_id] || p.joueur_photo} pseudo={p.joueur_pseudo} size={40} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
                 <div style={{ flex:1 }}>
                   <div style={{ fontWeight:700,fontSize:14 }}>
                     <span onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ color:C.text,cursor:"pointer" }}>{p.joueur_pseudo}</span>
@@ -5207,7 +5207,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     return (
       <div key={`post-${p.id}`} style={cardBase}>
         <div style={{ display:"flex",gap:10,alignItems:"flex-start",marginBottom:10 }}>
-          <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={44} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
+          <FeedAvatar photo={photosMap[p.joueur_id] || p.joueur_photo} pseudo={p.joueur_pseudo} size={44} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
           <div style={{ flex:1 }}>
             <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:700,fontSize:14,color:C.text,cursor:"pointer" }}>{p.joueur_pseudo}</div>
             <div style={{ fontSize:12,color:C.muted }}>{tempsDepuis(p.date)}</div>
