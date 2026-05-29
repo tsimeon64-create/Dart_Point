@@ -493,22 +493,6 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
           </div>
         </div>
 
-        {/* ── Live ticker (tableau de bord uniquement) ─────────────── */}
-        {page === "home" && <div style={{ borderTop:"1px solid #f9731612", height:22, overflow:"hidden", background:"rgba(249,115,22,0.03)", position:"relative" }}>
-          <div style={{ display:"flex", alignItems:"center", height:"100%", whiteSpace:"nowrap", animation:"dp-ticker 28s linear infinite" }}>
-            {[tickerItems, tickerItems].map((t,i) => (
-              <span key={i} style={{ fontSize:10, color:"#4a5568", fontWeight:600, letterSpacing:.3, padding:"0 40px" }}>
-                {t.split("   ·   ").map((item,j) => (
-                  <span key={j}>
-                    <span style={{ color:"#64748b" }}>{item}</span>
-                    {j < t.split("   ·   ").length-1 && <span style={{ color:"#1e2030", margin:"0 12px" }}>·</span>}
-                  </span>
-                ))}
-              </span>
-            ))}
-          </div>
-        </div>}
-
       </nav>
 
       {/* ═══ BACKDROP ═════════════════════════════════════════════════ */}
