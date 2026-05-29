@@ -6984,6 +6984,125 @@ const Associations = ({ associations, setPage, setAssoSlug }) => {
   );
 };
 
+// ── Modal de crop circulaire (zoom + drag) ────────────────────────────────────
+const CropLogoModal = ({ imageDataUrl, onSave, onClose, label="Cadrer le logo" }) => {
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x:0, y:0 });
+  const [dragging, setDragging] = useState(false);
+  const dragStart = useRef({ x:0, y:0, ox:0, oy:0 });
+  const imgRef = useRef(null);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgNat, setImgNat] = useState({ w:0, h:0 });
+  const BOX = 260; // taille zone de crop affichée
+
+  useEffect(() => {
+    if (!imageDataUrl) return;
+    const img = new Image();
+    img.onload = () => { setImgNat({ w:img.width, h:img.height }); setImgLoaded(true); };
+    img.src = imageDataUrl;
+  }, [imageDataUrl]);
+
+  const onPointerDown = (e) => {
+    e.preventDefault();
+    dragStart.current = { x:e.clientX, y:e.clientY, ox:offset.x, oy:offset.y };
+    setDragging(true);
+  };
+  const onPointerMove = (e) => {
+    if (!dragging) return;
+    setOffset({ x: dragStart.current.ox + (e.clientX - dragStart.current.x), y: dragStart.current.oy + (e.clientY - dragStart.current.y) });
+  };
+  const onPointerUp = () => setDragging(false);
+
+  // Échelle de base : remplir le carré sans déformer (min cover)
+  const baseScale = imgNat.w && imgNat.h ? Math.max(BOX/imgNat.w, BOX/imgNat.h) : 1;
+  const totalScale = baseScale * zoom;
+
+  const handleSave = () => {
+    if (!imgLoaded) return;
+    const OUT = 384;
+    const canvas = document.createElement("canvas");
+    canvas.width = OUT; canvas.height = OUT;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#0a0a14";
+    ctx.fillRect(0, 0, OUT, OUT);
+    // Échelle équivalente en sortie
+    const ratio = OUT / BOX;
+    const drawW = imgNat.w * totalScale * ratio;
+    const drawH = imgNat.h * totalScale * ratio;
+    const dx = (OUT - drawW)/2 + offset.x * ratio;
+    const dy = (OUT - drawH)/2 + offset.y * ratio;
+    const img = new Image();
+    img.onload = () => {
+      ctx.drawImage(img, dx, dy, drawW, drawH);
+      const out = canvas.toDataURL("image/jpeg", 0.88);
+      onSave(out);
+    };
+    img.src = imageDataUrl;
+  };
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"#000000ee", zIndex:1500, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div style={{ background:"#0d0d14", border:`1px solid ${C.border}`, borderRadius:18, padding:18, maxWidth:340, width:"100%" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+          <div style={{ fontWeight:900, fontSize:15, color:C.text }}>🎯 {label}</div>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:C.muted, fontSize:20, cursor:"pointer", lineHeight:1 }}>✕</button>
+        </div>
+
+        {/* Zone de crop carrée + masque circulaire */}
+        <div
+          onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}
+          style={{
+            position:"relative", width:BOX, height:BOX, margin:"0 auto 12px",
+            background:"#000", borderRadius:12, overflow:"hidden",
+            cursor: dragging ? "grabbing" : "grab", touchAction:"none",
+            border:`1px solid ${C.border}`,
+          }}>
+          {imageDataUrl && (
+            <img ref={imgRef} src={imageDataUrl} alt=""
+              draggable={false}
+              style={{
+                position:"absolute",
+                left:"50%", top:"50%",
+                transform:`translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) scale(${totalScale})`,
+                transformOrigin:"center center",
+                userSelect:"none", pointerEvents:"none",
+                maxWidth:"none",
+              }}/>
+          )}
+          {/* Masque circulaire */}
+          <div aria-hidden style={{
+            position:"absolute", inset:0,
+            boxShadow:`0 0 0 9999px #000000bb inset`,
+            borderRadius:"50%",
+            pointerEvents:"none",
+            border:"2px solid #f97316aa",
+          }}/>
+        </div>
+
+        {/* Zoom */}
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+          <span style={{ fontSize:11, color:C.muted, minWidth:34 }}>Zoom</span>
+          <input type="range" min={1} max={3} step={0.02} value={zoom}
+            onChange={e=>setZoom(parseFloat(e.target.value))}
+            style={{ flex:1, accentColor:"#f97316" }}/>
+          <span style={{ fontSize:11, color:C.text, minWidth:34, textAlign:"right" }}>{zoom.toFixed(1)}x</span>
+        </div>
+
+        <div style={{ fontSize:10, color:C.muted, textAlign:"center", marginBottom:12 }}>
+          Glisse pour positionner · Zoom pour ajuster
+        </div>
+
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={onClose} style={{ flex:1, background:"#1a1a1a", border:`1px solid ${C.border}`, color:C.muted, borderRadius:10, padding:"10px", fontWeight:700, fontSize:13, cursor:"pointer" }}>Annuler</button>
+          <button onClick={handleSave} disabled={!imgLoaded} style={{ flex:1, background:"linear-gradient(135deg,#f97316,#ea580c)", border:"none", color:"#fff", borderRadius:10, padding:"10px", fontWeight:900, fontSize:13, cursor: imgLoaded?"pointer":"not-allowed", boxShadow:"0 4px 14px #f9731666" }}>
+            ✓ Sauvegarder
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBarSlug, isAdmin, joueur }) => {
   const asso = associations.find(a => a.slug === slug);
   if (!asso) return null;
@@ -6995,6 +7114,51 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
   const [editingAsso, setEditingAsso] = useState(false);
   const [assoClassesIds, setAssoClassesIds] = useState(new Set());
   const [showAssoNonClasses, setShowAssoNonClasses] = useState(false);
+  const [cropImage, setCropImage] = useState(null);
+  const [savingPhoto, setSavingPhoto] = useState(false);
+  const photoInputRef = useRef(null);
+
+  const handlePhotoSelected = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      // Pré-redimensionne pour limiter la mémoire avant crop
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 900;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        setCropImage(canvas.toDataURL("image/jpeg", 0.9));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const savePhoto = async (dataUrl) => {
+    setSavingPhoto(true);
+    setCropImage(null);
+    try {
+      await sb(`associations?slug=eq.${encodeURIComponent(slug)}`, {
+        method:"PATCH",
+        body: JSON.stringify({ photo: dataUrl }),
+        prefer:"return=minimal",
+      });
+      setAssociations(arr => arr.map(a => a.slug === slug ? { ...a, photo: dataUrl } : a));
+    } catch (err) {
+      alert("❌ Impossible de sauvegarder le logo : " + (err?.message || err));
+    } finally {
+      setSavingPhoto(false);
+    }
+  };
   useEffect(() => {
     sb(`joueurs?asso_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo,ville&limit=50`)
       .then(d => setMembres(Array.isArray(d) ? d : []))
@@ -7069,11 +7233,38 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
       <div style={{ padding:"28px 24px 24px" }}>
         {/* Logo + titre */}
         <div style={{ display:"flex", alignItems:"flex-start", gap:18, marginBottom:20 }}>
-          <div style={{ width:72, height:72, borderRadius:18, background:`linear-gradient(135deg,${C.accent}33,#7c3aed33)`,
-            border:`2px solid ${C.accent}66`, display:"flex", alignItems:"center", justifyContent:"center",
-            flexShrink:0, boxShadow:`0 0 20px ${C.accent}33` }}>
-            <Target size={32} color={C.accent}/>
+          <div
+            onClick={() => { if (joueur && !savingPhoto) photoInputRef.current?.click(); }}
+            title={joueur ? "Cliquer pour changer le logo" : "Connexion requise pour modifier le logo"}
+            style={{
+              position:"relative",
+              width:72, height:72, borderRadius:18,
+              background: asso.photo ? "#0a0a14" : `linear-gradient(135deg,${C.accent}33,#7c3aed33)`,
+              border:`2px solid ${C.accent}66`,
+              display:"flex", alignItems:"center", justifyContent:"center",
+              flexShrink:0, overflow:"hidden",
+              boxShadow:`0 0 20px ${C.accent}33`,
+              cursor: joueur ? "pointer" : "default",
+            }}>
+            {asso.photo
+              ? <img src={asso.photo} alt={asso.nom} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+              : <Target size={32} color={C.accent}/>}
+            {joueur && (
+              <div style={{
+                position:"absolute", bottom:-2, right:-2,
+                background:"#f97316", borderRadius:"50%", width:22, height:22,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                border:"2px solid #0a0a14",
+                boxShadow:"0 0 8px #f9731688",
+              }}>
+                <Camera size={11} color="#fff"/>
+              </div>
+            )}
+            {savingPhoto && (
+              <div style={{ position:"absolute", inset:0, background:"#000000cc", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, color:"#f97316" }}>⏳</div>
+            )}
           </div>
+          <input ref={photoInputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handlePhotoSelected}/>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
               <h1 style={{ fontWeight:900, fontSize:24, lineHeight:1.2, margin:0, flex:1 }}>{asso.nom}</h1>
@@ -7356,6 +7547,15 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
 
   return (
     <div style={{ maxWidth:860, margin:"0 auto", padding:"20px 16px 88px" }}>
+      {/* Modal de crop logo */}
+      {cropImage && (
+        <CropLogoModal
+          imageDataUrl={cropImage}
+          label={`Cadrer le logo de ${asso.nom}`}
+          onSave={savePhoto}
+          onClose={()=>setCropImage(null)}
+        />
+      )}
       {/* Modal édition */}
       {editingAsso && (
         <EditAssoModal
