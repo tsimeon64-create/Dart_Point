@@ -5787,11 +5787,15 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
               {diff.dot} {diff.label}
             </span>
           )}
-          {drix && (
-            <span style={{ fontSize:9,fontWeight:800,color:"#a78bfa",padding:"2px 7px",borderRadius:10,background:"#a78bfa15",border:"1px solid #a78bfa44",letterSpacing:.4,display:"inline-flex",alignItems:"center",gap:3 }}>
-              💎 {drix}
-            </span>
-          )}
+          {drix && (() => {
+            const isLibre = /libre/i.test(drix);
+            const cAcc = isLibre ? "#fbbf24" : "#a78bfa";
+            return (
+              <span style={{ fontSize:9,fontWeight:800,color:cAcc,padding:"2px 7px",borderRadius:10,background:`${cAcc}15`,border:`1px solid ${cAcc}44`,letterSpacing:.4,display:"inline-flex",alignItems:"center",gap:3 }}>
+                {isLibre ? "🎯" : "💎"} {drix}
+              </span>
+            );
+          })()}
           {stat && (
             <span style={{ fontSize:9,fontWeight:800,color:"#64748b",padding:"2px 7px",borderRadius:10,background:"#64748b15",border:"1px solid #64748b33",letterSpacing:.4 }}>
               {statIcon} {stat}
@@ -5912,7 +5916,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           </div>
           <div style={{ fontSize:11,color:"#94a3b8",marginBottom:10 }}>Prends ta cible, on joue !</div>
           <div style={{ display:"flex",justifyContent:"center",gap:6,flexWrap:"wrap" }}>
-            <Capsule icon="🏆" label="CLASSEMENTS DRIX" col="#fbbf24"/>
+            <Capsule icon="🎯" label="MODE JEU LIBRE" col="#fbbf24"/>
             <Capsule icon="🔥" label={`${flecheStats.total} PARTIES AUJOURD'HUI`} col="#ef4444"/>
             <Capsule icon="👥" label="AFFRONTE TES AMIS" col="#60a5fa"/>
           </div>
@@ -6017,9 +6021,9 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
                 {flecheStats["501"]} parties
               </div>
             </div>
-            <div style={{ flex:"1 1 0",background:"#0a0a14",border:"1px solid #fbbf2433",borderRadius:8,padding:"6px 8px",textAlign:"center",minWidth:80 }}>
-              <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}>💎 DRIX</div>
-              <div style={{ fontSize:14,fontWeight:900,color:"#fbbf24" }}>+5 à +30</div>
+            <div style={{ flex:"1 1 0",background:"#0a0a14",border:"1px solid #60a5fa33",borderRadius:8,padding:"6px 8px",textAlign:"center",minWidth:80 }}>
+              <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}>🎯 MODE</div>
+              <div style={{ fontSize:14,fontWeight:900,color:"#60a5fa" }}>Jeu libre</div>
             </div>
             <div style={{ flex:"1 1 0",background:"#0a0a14",border:"1px solid #22c55e33",borderRadius:8,padding:"6px 8px",textAlign:"center",minWidth:80 }}>
               <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}>🟢 NIVEAU</div>
@@ -6050,19 +6054,19 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           <GameCard icon={Target} label="301" col="#f59e0b"
             sub="⚡ Version rapide du 501. Parties courtes et nerveuses."
             badge="RAPIDE" badgeIcon="⚡" difficulty="inter"
-            drix="+5 à +20" stat={`${flecheStats["301"]} parties aujourd'hui`} statIcon="🔥" bgIcon="301"
+            drix="Jeu libre" stat={`${flecheStats["301"]} parties aujourd'hui`} statIcon="🔥" bgIcon="301"
             onClick={()=>setPage("scoreur")}/>
 
           <GameCard icon={Swords} label="Cricket" col="#22c55e"
             sub="⚔ Ferme les zones 15-20 + Bull avant ton adversaire."
             badge="POPULAIRE" badgeIcon="🔥" difficulty="inter"
-            drix="+5 à +25" stat={`${flecheStats["Cricket"]} parties aujourd'hui`} statIcon="🔥" bgIcon="🎯"
+            drix="Jeu libre" stat={`${flecheStats["Cricket"]} parties aujourd'hui`} statIcon="🔥" bgIcon="🎯"
             onClick={()=>setPage("cricket-config")}/>
 
           <GameCard icon={Building2} label="Capital" col="#a78bfa"
             sub="🎯 Précision et stratégie. Chaque cible compte."
             badge="TECHNIQUE" badgeIcon="🎯" difficulty="expert"
-            drix="+5 à +20" stat={`${flecheStats["Capital"]} parties aujourd'hui`} statIcon="⚡" bgIcon="🏛"
+            drix="Jeu libre" stat={`${flecheStats["Capital"]} parties aujourd'hui`} statIcon="⚡" bgIcon="🏛"
             onClick={()=>setPage("jeux-capital")}/>
 
           <GameCard icon={Users} label="Tournoi entre potes" col="#60a5fa"
