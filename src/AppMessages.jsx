@@ -107,8 +107,14 @@ const ConversationView=({joueur,autreId,autrePseudo,onBack})=>{
     prevCountRef.current=count;
   },[messages,loading]);
 
+  const MAX_LEN = 2000;
   const envoyer=async()=>{
     if(!texte.trim()||sending)return;
+    // 🔒 Validation longueur (évite payload trop lourd, lag, et risque 414)
+    if (texte.length > MAX_LEN) {
+      alert(`Message trop long (${texte.length} caractères, max ${MAX_LEN}).`);
+      return;
+    }
     setSending(true);
     const msg={from_id:joueur.id,from_pseudo:joueur.pseudo,to_id:autreId,to_pseudo:autrePseudo,contenu:texte.trim(),date:new Date().toISOString(),lu:false};
     const sent=await dbM.sendMessage(msg).catch(()=>null);
@@ -206,12 +212,23 @@ const ConversationView=({joueur,autreId,autrePseudo,onBack})=>{
           <textarea
             ref={textareaRef}
             value={texte}
-            onChange={e=>{setTexte(e.target.value);e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,120)+"px";}}
+            onChange={e=>{
+              const v = e.target.value.slice(0, 2000); // 🔒 hard cap 2000 chars
+              setTexte(v);
+              e.target.style.height="auto";
+              e.target.style.height=Math.min(e.target.scrollHeight,120)+"px";
+            }}
             onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();envoyer();}}}
             placeholder={`Message à ${autrePseudo}…`}
             rows={1}
+            maxLength={2000}
             style={{flex:1,background:"transparent",border:"none",color:CM.text,fontSize:14,resize:"none",lineHeight:1.5,maxHeight:120,overflowY:"auto",fontFamily:"inherit",padding:"5px 0",minHeight:34}}
           />
+          {texte.length > 1500 && (
+            <span style={{ fontSize:10, color: texte.length > 1900 ? "#ef4444" : "#94a3b8", fontWeight:700, alignSelf:"center", marginRight:4 }}>
+              {texte.length}/2000
+            </span>
+          )}
           <button
             className="send-btn"
             onClick={envoyer}

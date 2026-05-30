@@ -539,8 +539,21 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   const photoRef = useRef(null);
 
   const PSEUDO_CHANGES_KEY = `dp_pseudo_changes_${joueur.id}`;
-  const getPseudoChanges = () => parseInt(localStorage.getItem(PSEUDO_CHANGES_KEY)||"0");
+  // Source de vérité = colonne DB `joueurs.pseudo_changes_count`.
+  // localStorage utilisé en cache (lecture instantanée) puis sync au mount.
+  const getPseudoChanges = () => {
+    const dbVal = joueur.pseudo_changes_count;
+    const lsVal = parseInt(localStorage.getItem(PSEUDO_CHANGES_KEY)||"0");
+    return Math.max(dbVal != null ? dbVal : 0, lsVal);
+  };
   const [pseudoChanges, setPseudoChanges] = useState(getPseudoChanges);
+  useEffect(() => {
+    // À chaque changement de joueur (login/refresh), resync depuis DB
+    if (joueur.pseudo_changes_count != null) {
+      setPseudoChanges(prev => Math.max(prev, joueur.pseudo_changes_count));
+      localStorage.setItem(PSEUDO_CHANGES_KEY, String(joueur.pseudo_changes_count));
+    }
+  }, [joueur.pseudo_changes_count]); // eslint-disable-line
 
   // Affiliations expand
   const [affilBar, setAffilBar]   = useState(false);
@@ -611,7 +624,10 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
 
     setSavingEdit(true);
     const patch = { age: parseInt(editAge)||null, ville: editVille.trim()||null, style_jeu: editStyle };
-    if (pseudoChange) patch.pseudo = newPseudo;
+    if (pseudoChange) {
+      patch.pseudo = newPseudo;
+      patch.pseudo_changes_count = pseudoChanges + 1; // 🔒 DB source de vérité
+    }
     await dbJ.updateJoueur(joueur.id, patch);
     const updated = {...joueur, ...patch};
     setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
@@ -3682,13 +3698,32 @@ export const appliquerDrixDuel = async (duel, perfBonus = null) => {
 };
 
 // Finalise un duel : DRIX + stats en un seul appel (utilisé par AppJeux)
+// Crée la ligne stats_joueurs si absente, sinon update
+const upsertStatsRow = async (statsRow, joueurId, isWinner) => {
+  if (statsRow) {
+    return dbJ.updateStats(statsRow.id, {
+      parties:   (statsRow.parties || 0) + 1,
+      victoires: isWinner ? (statsRow.victoires || 0) + 1 : (statsRow.victoires || 0),
+      defaites:  !isWinner ? (statsRow.defaites || 0) + 1 : (statsRow.defaites || 0),
+    });
+  }
+  // 🆕 Pas de stats → on crée la ligne avec la 1ère partie
+  return dbJ.addStats({
+    joueur_id: joueurId,
+    saison: String(new Date().getFullYear()),
+    parties:   1,
+    victoires: isWinner ? 1 : 0,
+    defaites:  isWinner ? 0 : 1,
+  });
+};
+
 export const finaliserDuel = async (duel, perfBonus = null) => {
   const breakdown = await appliquerDrixDuel(duel, perfBonus);
   const gagnantId = duel.gagnant_id;
   const [sC, sD] = await Promise.all([dbJ.getStats(duel.challenger_id), dbJ.getStats(duel.defie_id)]);
   await Promise.all([
-    sC && dbJ.updateStats(sC.id, { parties:sC.parties+1, victoires:gagnantId===duel.challenger_id?sC.victoires+1:sC.victoires, defaites:gagnantId!==duel.challenger_id?sC.defaites+1:sC.defaites }),
-    sD && dbJ.updateStats(sD.id, { parties:sD.parties+1, victoires:gagnantId===duel.defie_id?sD.victoires+1:sD.victoires, defaites:gagnantId!==duel.defie_id?sD.defaites+1:sD.defaites }),
+    upsertStatsRow(sC, duel.challenger_id, gagnantId === duel.challenger_id).catch(()=>{}),
+    upsertStatsRow(sD, duel.defie_id,      gagnantId === duel.defie_id).catch(()=>{}),
   ]);
   return breakdown;
 };
