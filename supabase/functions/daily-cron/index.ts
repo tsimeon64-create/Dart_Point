@@ -88,10 +88,12 @@ async function processGame(table: string, gameName: string, postPrefix: string) 
   });
 
   // Récupère les joueurs d'un coup pour minimiser les requêtes
-  const joueurIds = [...new Set(scores.map((s: any) => s.joueur_id))].join(",");
+  type Score = { joueur_id: string; joueur_pseudo: string; temps_ms: number };
+  type Joueur = { id: string; drix?: number; photo?: string | null };
+  const joueurIds = [...new Set((scores as Score[]).map(s => s.joueur_id))].join(",");
   const joueurs = await api(`joueurs?id=in.(${joueurIds})&select=id,drix,photo`);
-  const jMap: Record<string, any> = {};
-  (joueurs || []).forEach((j: any) => { jMap[j.id] = j; });
+  const jMap: Record<string, Joueur> = {};
+  ((joueurs || []) as Joueur[]).forEach(j => { jMap[j.id] = j; });
 
   const now = Date.now();
   const results = [];
@@ -170,7 +172,7 @@ async function cleanupOldImages() {
 }
 
 // ─── Point d'entrée ─────────────────────────────────────────────────────────
-serve(async (_req) => {
+serve(async () => {
   try {
     const [finishResult, scoreurResult, cleanupResult] = await Promise.all([
       processGame("chrono_finish_scores", "Finish Speedrun", "CHRONO").catch(e => ({ ok: false, error: String(e), game: "finish" })),

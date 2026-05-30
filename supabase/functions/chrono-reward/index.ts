@@ -51,7 +51,7 @@ const formatChrono = (ms: number): string => {
   return `${s}.${d}s`;
 };
 
-serve(async (_req) => {
+serve(async () => {
   try {
     const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
     const [yd, mm, dd] = yesterday.split("-");
