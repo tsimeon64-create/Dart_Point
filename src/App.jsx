@@ -851,8 +851,22 @@ const AvisSection = ({ barSlug, isAdmin }) => {
   const toggleR = id => setForm(f=>({...f,reactions:f.reactions.includes(id)?f.reactions.filter(r=>r!==id):[...f.reactions,id]}));
   const submit = async () => {
     if (!form.texte.trim() && form.reactions.length===0) return;
-    await db.addAvis({ bar_slug:barSlug,pseudo:form.pseudo.trim()||"Anonyme",texte:form.texte.trim(),reactions:form.reactions,date:Date.now(),signale:false,valide:false });
-    setForm({pseudo:"",texte:"",reactions:[]}); setSent(true); setTimeout(()=>setSent(false),3000);
+    // 🔒 Validation longueur
+    if (form.texte.length > 1000) {
+      window.dpToast?.("Avis trop long (max 1000 caractères)", "warning");
+      return;
+    }
+    if (form.pseudo.length > 50) {
+      window.dpToast?.("Pseudo trop long (max 50 caractères)", "warning");
+      return;
+    }
+    try {
+      await db.addAvis({ bar_slug:barSlug,pseudo:form.pseudo.trim()||"Anonyme",texte:form.texte.trim(),reactions:form.reactions,date:Date.now(),signale:false,valide:false });
+      setForm({pseudo:"",texte:"",reactions:[]}); setSent(true); setTimeout(()=>setSent(false),3000);
+      window.dpToast?.("Avis envoyé, en attente de modération", "success");
+    } catch {
+      window.dpToast?.("Erreur lors de l'envoi de l'avis", "error");
+    }
   };
   return (
     <div style={{ marginBottom:20 }}>
@@ -871,7 +885,8 @@ const AvisSection = ({ barSlug, isAdmin }) => {
         <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:10 }}>
           {REACTIONS_LIST.map(r=><button key={r.id} onClick={()=>toggleR(r.id)} style={{ background:form.reactions.includes(r.id)?C.accent+"33":"#111",border:`1px solid ${form.reactions.includes(r.id)?C.accent:C.border}`,borderRadius:20,padding:"5px 11px",cursor:"pointer",fontSize:12,color:form.reactions.includes(r.id)?C.accent:C.muted,display:"flex",alignItems:"center",gap:5 }}>{r.emoji} {r.label}</button>)}
         </div>
-        <textarea value={form.texte} onChange={e=>setForm(f=>({...f,texte:e.target.value}))} placeholder="Votre commentaire…" rows={3} style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,resize:"vertical",marginBottom:10 }}/>
+        <textarea value={form.texte} onChange={e=>setForm(f=>({...f,texte:e.target.value.slice(0,1000)}))} placeholder="Votre commentaire (max 1000 caractères)…" rows={3} maxLength={1000} style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,resize:"vertical",marginBottom:4 }}/>
+        <div style={{ fontSize:10, color: form.texte.length > 900 ? C.red : C.muted, textAlign:"right", marginBottom:10 }}>{form.texte.length}/1000</div>
         <div style={{ display:"flex",gap:10,alignItems:"center",flexWrap:"wrap" }}>
           <input value={form.pseudo} onChange={e=>setForm(f=>({...f,pseudo:e.target.value}))} placeholder="Pseudo (optionnel)" style={{ flex:1,minWidth:130,background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:13 }}/>
           <Btn onClick={submit} style={{ fontSize:13,padding:"8px 18px" }} disabled={!form.texte.trim()&&form.reactions.length===0}>{sent?"✅ Envoyé !":"Publier →"}</Btn>
@@ -7382,8 +7397,9 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
         prefer:"return=minimal",
       });
       setAssociations(arr => arr.map(a => a.slug === slug ? { ...a, photo: dataUrl } : a));
+      window.dpToast?.("Logo enregistré", "success");
     } catch (err) {
-      alert("❌ Impossible de sauvegarder le logo : " + (err?.message || err));
+      window.dpToast?.(`Erreur logo : ${err?.message || "impossible de sauvegarder"}`, "error", 5000);
     } finally {
       setSavingPhoto(false);
     }
