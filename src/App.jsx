@@ -1437,11 +1437,11 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
         {/* Halo coin haut gauche */}
         <div style={{ position:"absolute",top:-30,left:-30,width:90,height:90,borderRadius:"50%",background:"radial-gradient(circle,#f9731633 0%,transparent 70%)",pointerEvents:"none" }}/>
         {/* Halo coin bas droit */}
-        <div style={{ position:"absolute",bottom:-25,right:-25,width:80,height:80,borderRadius:"50%",background:"radial-gradient(circle,#a855f733 0%,transparent 70%)",pointerEvents:"none" }}/>
+        <div style={{ position:"absolute",bottom:-25,right:-25,width:80,height:80,borderRadius:"50%",background:"radial-gradient(circle,#a78bfa33 0%,transparent 70%)",pointerEvents:"none" }}/>
         {/* Shine balayage */}
         <div style={{ position:"absolute",top:0,left:0,bottom:0,width:80,background:"linear-gradient(90deg,transparent,#ffffff18,transparent)",animation:"fbShine 4.5s ease-in-out infinite",pointerEvents:"none" }}/>
         {/* Icône ampoule animée */}
-        <div style={{ position:"relative",width:42,height:42,borderRadius:12,background:"linear-gradient(135deg,#f9731622,#a855f722)",border:"1px solid #f9731644",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,zIndex:1 }}>
+        <div style={{ position:"relative",width:42,height:42,borderRadius:12,background:"linear-gradient(135deg,#f9731622,#a78bfa22)",border:"1px solid #f9731644",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,zIndex:1 }}>
           <span style={{ fontSize:22,animation:"fbBulb 2.4s ease-in-out infinite",display:"inline-block" }}>💡</span>
         </div>
         {/* Texte */}
@@ -1783,10 +1783,10 @@ const FaceAFaceCard = ({ joueur, rival, myColor, rColor, myEmoji, rEmoji, myTitr
 
         {/* VS */}
         <div style={{ textAlign:"center",padding:"0 6px",flexShrink:0 }}>
-          <div style={{ width:46,height:46,borderRadius:"50%",background:"linear-gradient(135deg,#a855f7,#f97316)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 24px rgba(168,85,247,0.45)",margin:"0 auto 8px",animation:"rivalPulse 2.5s ease infinite" }}>
+          <div style={{ width:46,height:46,borderRadius:"50%",background:"linear-gradient(135deg,#a78bfa,#f97316)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 24px rgba(168,85,247,0.45)",margin:"0 auto 8px",animation:"rivalPulse 2.5s ease infinite" }}>
             <Swords size={18} color="#fff"/>
           </div>
-          <div style={{ fontSize:10,fontWeight:900,color:"#a855f7",letterSpacing:3 }}>VS</div>
+          <div style={{ fontSize:10,fontWeight:900,color:"#a78bfa",letterSpacing:3 }}>VS</div>
         </div>
 
         {/* RIVAL */}
@@ -2151,7 +2151,7 @@ const PageDefi = ({ joueur, setPage }) => {
         @keyframes defisTimerBlink { 0%,100%{opacity:1} 50%{opacity:.45} }
       `}</style>
 
-      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:14,fontSize:13,display:"flex",alignItems:"center",gap:6 }}><ArrowLeft size={16}/> Accueil</button>
+      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:8,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:"10px 6px",minHeight:44,touchAction:"manipulation" }}><ArrowLeft size={16}/> Accueil</button>
 
       {/* ── Hero header ── */}
       <div style={{ position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#0d0010 0%,#0a0a0f 60%,#001012 100%)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:20,padding:"22px 20px",marginBottom:20 }}>
@@ -2159,13 +2159,13 @@ const PageDefi = ({ joueur, setPage }) => {
         <div style={{ position:"absolute",bottom:-30,left:-10,width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,rgba(249,115,22,0.1) 0%,transparent 70%)",pointerEvents:"none" }}/>
         <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.025) 50%,transparent 60%)",animation:"defisShine 9s ease infinite",pointerEvents:"none" }}/>
         <div style={{ position:"relative",display:"flex",alignItems:"center",gap:14 }}>
-          <div style={{ width:52,height:52,borderRadius:16,background:"linear-gradient(135deg,#a855f7,#7c3aed)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 30px rgba(168,85,247,0.45)",flexShrink:0 }}>
+          <div style={{ width:52,height:52,borderRadius:16,background:"linear-gradient(135deg,#a78bfa,#7c3aed)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 30px rgba(168,85,247,0.45)",flexShrink:0 }}>
             <Swords size={24} color="#fff"/>
           </div>
           <div style={{ flex:1 }}>
             <h1 style={{ fontWeight:900,fontSize:24,margin:0,letterSpacing:-.3 }}>Défis</h1>
             <p style={{ color:C.muted,fontSize:12,margin:"4px 0 0",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
-              {rivaliteHebdo && <span style={{ background:"#a855f722",color:"#d8b4fe",padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:700 }}>⚔️ Rivalité active</span>}
+              {rivaliteHebdo && <span style={{ background:"#a78bfa22",color:"#d8b4fe",padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:700 }}>⚔️ Rivalité active</span>}
               <span>{amis.length} ami{amis.length!==1?"s":""}</span>
             </p>
           </div>
@@ -2225,7 +2225,7 @@ const PageDefi = ({ joueur, setPage }) => {
           flex:1, padding:"13px 0", border:"none", cursor:"pointer", fontWeight:800, fontSize:14, borderRadius:12,
           transition:"all .15s",
           background: tab==="doublette"
-            ? "linear-gradient(135deg,#a855f7,#7c3aed)"
+            ? "linear-gradient(135deg,#a78bfa,#7c3aed)"
             : "#1a1a1a",
           color: tab==="doublette" ? "#fff" : C.muted,
           boxShadow: tab==="doublette"
@@ -2283,7 +2283,7 @@ const PageDefi = ({ joueur, setPage }) => {
         // Carte "Défi accompli" affichée quand la rivalité a déjà été jouée cette semaine
         const renderDefiAccompli = (rival, result, isSecond = false) => {
           const won = result === "won";
-          const mainColor = won ? "#22c55e" : "#a855f7"; // vert si gagné, violet doux sinon
+          const mainColor = won ? "#22c55e" : "#a78bfa"; // vert si gagné, violet doux sinon
           const mainColor2 = won ? "#16a34a" : "#7c3aed";
           const bgGradient = won
             ? "linear-gradient(135deg,#0a1f0d 0%,#051a08 50%,#0f2415 100%)"
@@ -2389,12 +2389,12 @@ const PageDefi = ({ joueur, setPage }) => {
             >
               <div style={{ position:"absolute",top:-50,left:-30,width:180,height:180,borderRadius:"50%",background:`radial-gradient(circle,${myColor}12 0%,transparent 70%)`,pointerEvents:"none" }}/>
               <div style={{ position:"absolute",top:-50,right:-30,width:180,height:180,borderRadius:"50%",background:`radial-gradient(circle,${rColor}12 0%,transparent 70%)`,pointerEvents:"none" }}/>
-              <div style={{ position:"absolute",top:0,left:0,right:0,height:3,background:"linear-gradient(90deg,#7c3aed,#a855f7,#f97316,#a855f7,#7c3aed)",backgroundSize:"300% 100%",animation:"defisGlow 3s ease infinite" }}/>
+              <div style={{ position:"absolute",top:0,left:0,right:0,height:3,background:"linear-gradient(90deg,#7c3aed,#a78bfa,#f97316,#a78bfa,#7c3aed)",backgroundSize:"300% 100%",animation:"defisGlow 3s ease infinite" }}/>
               <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 38%,rgba(255,255,255,0.04) 50%,transparent 62%)",animation:"defisShine 7s ease infinite 1.5s",pointerEvents:"none" }}/>
 
               {/* Badge + Timer */}
               <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:18,flexWrap:"wrap" }}>
-                <div style={{ background:"linear-gradient(135deg,#a855f7,#7c3aed)",borderRadius:8,padding:"4px 12px",display:"flex",alignItems:"center",gap:6,boxShadow:"0 0 18px rgba(168,85,247,0.4)",flexShrink:0 }}>
+                <div style={{ background:"linear-gradient(135deg,#a78bfa,#7c3aed)",borderRadius:8,padding:"4px 12px",display:"flex",alignItems:"center",gap:6,boxShadow:"0 0 18px rgba(168,85,247,0.4)",flexShrink:0 }}>
                   <Swords size={11} color="#fff"/>
                   <span style={{ fontWeight:900,fontSize:11,color:"#fff",letterSpacing:.8 }}>{isSecond ? "RIVALITÉ ×2" : "RIVALITÉ HEBDO"}</span>
                 </div>
@@ -2428,10 +2428,10 @@ const PageDefi = ({ joueur, setPage }) => {
                   </div>
                 </div>
                 <div style={{ textAlign:"center",padding:"0 10px",flexShrink:0 }}>
-                  <div style={{ width:46,height:46,borderRadius:"50%",background:"linear-gradient(135deg,#a855f7,#f97316)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 6px",boxShadow:"0 0 22px rgba(168,85,247,0.4)",animation:"defisPulse 2.5s ease infinite" }}>
+                  <div style={{ width:46,height:46,borderRadius:"50%",background:"linear-gradient(135deg,#a78bfa,#f97316)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 6px",boxShadow:"0 0 22px rgba(168,85,247,0.4)",animation:"defisPulse 2.5s ease infinite" }}>
                     <Swords size={18} color="#fff"/>
                   </div>
-                  <div style={{ fontSize:11,fontWeight:900,color:"#a855f7",letterSpacing:3 }}>VS</div>
+                  <div style={{ fontSize:11,fontWeight:900,color:"#a78bfa",letterSpacing:3 }}>VS</div>
                 </div>
                 <div style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8 }}>
                   <div style={{ position:"relative" }}>
@@ -2462,7 +2462,7 @@ const PageDefi = ({ joueur, setPage }) => {
                 </div>
                 <div style={{ flex:1.4,background:"rgba(168,85,247,0.07)",border:"1px solid rgba(168,85,247,0.18)",borderRadius:12,padding:"11px 8px",textAlign:"center" }}>
                   <div style={{ fontSize:10,color:"#d8b4fe",fontWeight:700,marginBottom:4 }}>⚡ CHANCES</div>
-                  <div style={{ fontSize:26,fontWeight:900,color:"#a855f7",lineHeight:1 }}>{probMoi}%</div>
+                  <div style={{ fontSize:26,fontWeight:900,color:"#a78bfa",lineHeight:1 }}>{probMoi}%</div>
                   <div style={{ fontSize:9,color:"#d8b4fe",marginTop:2 }}>victoire</div>
                 </div>
               </div>
@@ -2472,7 +2472,7 @@ const PageDefi = ({ joueur, setPage }) => {
                 onClick={e=>{ e.stopPropagation(); setShowRivaliteHebdo(true); }}
                 style={{
                   width:"100%",padding:"14px 0",border:"none",borderRadius:14,
-                  background:"linear-gradient(135deg,#a855f7,#7c3aed)",
+                  background:"linear-gradient(135deg,#a78bfa,#7c3aed)",
                   color:"#fff",fontWeight:900,fontSize:15,cursor:"pointer",
                   boxShadow:"0 6px 28px rgba(168,85,247,0.38)",
                   display:"flex",alignItems:"center",justifyContent:"center",gap:8,
@@ -2490,8 +2490,8 @@ const PageDefi = ({ joueur, setPage }) => {
             <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:14 }}>
               <div style={{ flex:1,height:1,background:"linear-gradient(90deg,transparent,rgba(168,85,247,0.25))" }}/>
               <div style={{ display:"flex",alignItems:"center",gap:7,padding:"4px 13px",background:"rgba(168,85,247,0.08)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:20 }}>
-                <Swords size={11} color="#a855f7"/>
-                <span style={{ fontSize:11,fontWeight:800,color:"#a855f7",letterSpacing:.8 }}>RIVALITÉ HEBDO</span>
+                <Swords size={11} color="#a78bfa"/>
+                <span style={{ fontSize:11,fontWeight:800,color:"#a78bfa",letterSpacing:.8 }}>RIVALITÉ HEBDO</span>
               </div>
               <div style={{ flex:1,height:1,background:"linear-gradient(90deg,rgba(168,85,247,0.25),transparent)" }}/>
             </div>
@@ -2738,7 +2738,7 @@ const PageDefi = ({ joueur, setPage }) => {
             }}>
 
               {/* Barre top animée */}
-              <div style={{ height:3,background:"linear-gradient(90deg,#7c3aed,#a855f7,#f97316,#a855f7,#7c3aed)",backgroundSize:"300% 100%",animation:"rivalGlow 3s ease infinite" }}/>
+              <div style={{ height:3,background:"linear-gradient(90deg,#7c3aed,#a78bfa,#f97316,#a78bfa,#7c3aed)",backgroundSize:"300% 100%",animation:"rivalGlow 3s ease infinite" }}/>
 
               {/* Corps scrollable */}
               <div style={{ overflowY:"auto",maxHeight:"88vh",padding:"22px 20px 40px" }}>
@@ -2748,7 +2748,7 @@ const PageDefi = ({ joueur, setPage }) => {
                   <div>
                     <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:7 }}>
                       <div style={{
-                        background:"linear-gradient(135deg,#a855f7,#7c3aed)",
+                        background:"linear-gradient(135deg,#a78bfa,#7c3aed)",
                         borderRadius:10,padding:"7px 14px",
                         display:"flex",alignItems:"center",gap:7,
                         boxShadow:"0 0 24px rgba(168,85,247,0.5)",
@@ -2865,7 +2865,7 @@ const PageDefi = ({ joueur, setPage }) => {
                     <Eye size={14}/> Voir profil
                   </button>
                   <button onClick={ouvrirRivalPopup}
-                    style={{ flex:2,position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#a855f7,#7c3aed)",border:"1px solid rgba(168,85,247,0.45)",color:"#fff",borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:900,cursor:"pointer",boxShadow:"0 6px 32px rgba(168,85,247,0.45)",display:"flex",alignItems:"center",justifyContent:"center",gap:8,minHeight:52,letterSpacing:.4,animation:"rivalPulse 3s ease infinite" }}>
+                    style={{ flex:2,position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#a78bfa,#7c3aed)",border:"1px solid rgba(168,85,247,0.45)",color:"#fff",borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:900,cursor:"pointer",boxShadow:"0 6px 32px rgba(168,85,247,0.45)",display:"flex",alignItems:"center",justifyContent:"center",gap:8,minHeight:52,letterSpacing:.4,animation:"rivalPulse 3s ease infinite" }}>
                     <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.14) 50%,transparent 60%)",animation:"rivalShine 4s ease infinite",pointerEvents:"none" }}/>
                     <Swords size={16}/> Défier mon rival
                   </button>
@@ -2887,7 +2887,7 @@ const PageDefi = ({ joueur, setPage }) => {
             {/* EN-TÊTE */}
             <div style={{ position:"sticky",top:0,zIndex:10,background:"#0a0a0a",padding:"16px 20px",borderBottom:`1px solid #222`,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
               <div>
-                <div style={{ fontWeight:900,fontSize:18,background:"linear-gradient(90deg,#f97316,#a855f7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",display:"flex",alignItems:"center",gap:7 }}><Swords size={17} color="#f97316"/>Préparer le défi</div>
+                <div style={{ fontWeight:900,fontSize:18,background:"linear-gradient(90deg,#f97316,#a78bfa)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",display:"flex",alignItems:"center",gap:7 }}><Swords size={17} color="#f97316"/>Préparer le défi</div>
                 <div style={{ color:C.muted,fontSize:12,marginTop:2 }}>Analyse complète avant de défier</div>
               </div>
               <button onClick={()=>setModalAmi(null)} style={{ background:"#222",border:"none",color:"#fff",borderRadius:8,width:36,height:36,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}><X size={16}/></button>
@@ -2947,11 +2947,11 @@ const PageDefi = ({ joueur, setPage }) => {
               const gainAffiche  = isRival ? 50          : (ms.gainElo||"?");
               const perteAffiche = isRival ? 0           : (ms.perteElo||"?");
               return (
-                <div style={{ margin:"12px 16px 0",background:C.card,border:`1px solid ${isRival?"#a855f7":C.border}`,borderRadius:16,padding:16 }}>
+                <div style={{ margin:"12px 16px 0",background:C.card,border:`1px solid ${isRival?"#a78bfa":C.border}`,borderRadius:16,padding:16 }}>
                   {isRival && (
-                    <div style={{ display:"flex",alignItems:"center",gap:6,background:"#a855f718",border:"1px solid #a855f744",borderRadius:8,padding:"6px 10px",marginBottom:10 }}>
-                      <Swords size={12} color="#a855f7"/>
-                      <span style={{ fontSize:11,fontWeight:700,color:"#a855f7" }}>RIVALITÉ HEBDO — +50 DRIX si victoire, 0 si défaite</span>
+                    <div style={{ display:"flex",alignItems:"center",gap:6,background:"#a78bfa18",border:"1px solid #a78bfa44",borderRadius:8,padding:"6px 10px",marginBottom:10 }}>
+                      <Swords size={12} color="#a78bfa"/>
+                      <span style={{ fontSize:11,fontWeight:700,color:"#a78bfa" }}>RIVALITÉ HEBDO — +50 DRIX si victoire, 0 si défaite</span>
                     </div>
                   )}
                   <div style={{ fontSize:11,color:C.muted,marginBottom:12,fontWeight:700,letterSpacing:1 }}>COMPARAISON DRIX</div>
@@ -2962,7 +2962,7 @@ const PageDefi = ({ joueur, setPage }) => {
                       <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
                     </div>
                     <div style={{ textAlign:"center",padding:"0 4px" }}>
-                      <Swords size={20} color={isRival?"#a855f7":C.accent}/>
+                      <Swords size={20} color={isRival?"#a78bfa":C.accent}/>
                       <div style={{ fontSize:10,color:C.muted }}>VS</div>
                     </div>
                     <div style={{ flex:1,textAlign:"center",background:"#111",borderRadius:12,padding:"12px 8px" }}>
@@ -2973,20 +2973,20 @@ const PageDefi = ({ joueur, setPage }) => {
                   </div>
                   <div style={{ display:"flex",gap:8,marginTop:10 }}>
                     <div style={{ flex:1,background:"#14532d",borderRadius:10,padding:"10px 8px",textAlign:"center",position:"relative" }}>
-                      {isRival && <div style={{ position:"absolute",top:-6,right:6,background:"#a855f7",color:"#fff",fontSize:8,fontWeight:800,padding:"1px 5px",borderRadius:20 }}>+50</div>}
+                      {isRival && <div style={{ position:"absolute",top:-6,right:6,background:"#a78bfa",color:"#fff",fontSize:8,fontWeight:800,padding:"1px 5px",borderRadius:20 }}>+50</div>}
                       <div style={{ fontSize:10,color:"#4ade80",marginBottom:2 }}>SI VICTOIRE</div>
                       <div style={{ fontWeight:900,fontSize:18,color:"#22c55e" }}>+{gainAffiche}</div>
                       <div style={{ fontSize:9,color:"#4ade80" }}>DRIX</div>
                     </div>
-                    <div style={{ flex:1,background:"#1e1e2e",borderRadius:10,padding:"10px 8px",textAlign:"center",position:"relative",border:isRival?"1px solid #a855f744":"none" }}>
+                    <div style={{ flex:1,background:"#1e1e2e",borderRadius:10,padding:"10px 8px",textAlign:"center",position:"relative",border:isRival?"1px solid #a78bfa44":"none" }}>
                       {isRival && <div style={{ position:"absolute",top:-6,right:6,background:"#6b7280",color:"#fff",fontSize:8,fontWeight:800,padding:"1px 5px",borderRadius:20 }}>0</div>}
                       <div style={{ fontSize:10,color:isRival?"#d8b4fe":"#fca5a5",marginBottom:2 }}>SI DÉFAITE</div>
-                      <div style={{ fontWeight:900,fontSize:18,color:isRival?"#a855f7":"#ef4444" }}>{isRival ? "0" : `-${perteAffiche}`}</div>
+                      <div style={{ fontWeight:900,fontSize:18,color:isRival?"#a78bfa":"#ef4444" }}>{isRival ? "0" : `-${perteAffiche}`}</div>
                       <div style={{ fontSize:9,color:isRival?"#d8b4fe":"#fca5a5" }}>DRIX</div>
                     </div>
                   </div>
                   {isRival && (
-                    <div style={{ marginTop:8,textAlign:"center",fontSize:10,color:"#a855f7" }}>
+                    <div style={{ marginTop:8,textAlign:"center",fontSize:10,color:"#a78bfa" }}>
                       Bonus performance conservés des deux côtés
                     </div>
                   )}
@@ -3267,7 +3267,7 @@ const tempsDepuis = (ts) => {
 };
 
 const FeedAvatar = ({ photo, pseudo, size=40, onClick, status }) => {
-  const cols = ["#f97316","#3b82f6","#10b981","#a855f7","#ec4899","#eab308"];
+  const cols = ["#f97316","#3b82f6","#10b981","#a78bfa","#ec4899","#eab308"];
   const col = cols[pseudo ? pseudo.charCodeAt(0) % cols.length : 0];
   const statusRing = { live:"#ef4444", hot:"#f97316", up:"#22c55e", online:"#3b82f6" };
   const ringColor = status ? statusRing[status] : null;
@@ -3763,7 +3763,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
   })();
 
   // Thème : violet pour rivalité, bleu pour amical, orange pour ranked
-  const themeMain   = isRivalite ? "#a855f7" : isAmical ? "#60a5fa" : "#f97316";
+  const themeMain   = isRivalite ? "#a78bfa" : isAmical ? "#60a5fa" : "#f97316";
   const themeSecond = isRivalite ? "#7c3aed" : isAmical ? "#3b82f6" : "#ea580c";
   const winColor    = "#22c55e";
   const loseColor   = "#ef4444";
@@ -3772,7 +3772,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
   return (
     <div key={`post-${p.id}`} style={{
       position:"relative", overflow:"hidden",
-      border: `1px solid ${isRivalite ? "#a855f788" : isAmical ? "#60a5fa66" : "#f9731677"}`,
+      border: `1px solid ${isRivalite ? "#a78bfa88" : isAmical ? "#60a5fa66" : "#f9731677"}`,
       background: isRivalite
         ? "linear-gradient(165deg,#15001f 0%,#0a0014 50%,#10051a 100%)"
         : isAmical
@@ -3980,20 +3980,20 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
           <div style={{
             position:"relative", overflow:"hidden",
             background:"linear-gradient(135deg,#1a0a2e 0%,#0a0014 50%,#0a0a14 100%)",
-            border:"1px solid #a855f766",
+            border:"1px solid #a78bfa66",
             borderRadius:14, padding:"12px 14px", marginBottom:14,
             boxShadow:"0 0 24px rgba(168,85,247,0.18), inset 0 1px 0 rgba(168,85,247,0.20)",
           }}>
             {/* Shine balayage discret */}
-            <div style={{ position:"absolute", top:0, left:0, bottom:0, width:80, background:"linear-gradient(90deg,transparent,#a855f722,transparent)", animation:"duelShine 5s ease-in-out infinite 1s", pointerEvents:"none" }}/>
+            <div style={{ position:"absolute", top:0, left:0, bottom:0, width:80, background:"linear-gradient(90deg,transparent,#a78bfa22,transparent)", animation:"duelShine 5s ease-in-out infinite 1s", pointerEvents:"none" }}/>
             <div style={{ position:"relative", fontSize:10, fontWeight:900, color:"#c4b5fd", letterSpacing:2.5, marginBottom:8, textTransform:"uppercase", display:"flex", alignItems:"center", gap:6 }}>
               📌 Highlights du match
             </div>
             <div style={{ position:"relative", display:"flex", gap:8, flexWrap:"wrap" }}>
               {bestFinish > 0 && (
-                <div style={{ display:"flex", alignItems:"center", gap:7, background:"linear-gradient(135deg,#2a0d4a,#1a0030)", border:"1px solid #a855f788", borderRadius:10, padding:"6px 11px", fontSize:12, boxShadow:"0 0 14px rgba(168,85,247,0.30), inset 0 1px 0 rgba(168,85,247,0.30)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:7, background:"linear-gradient(135deg,#2a0d4a,#1a0030)", border:"1px solid #a78bfa88", borderRadius:10, padding:"6px 11px", fontSize:12, boxShadow:"0 0 14px rgba(168,85,247,0.30), inset 0 1px 0 rgba(168,85,247,0.30)" }}>
                   <span style={{ fontSize:14 }}>🎯</span>
-                  <span style={{ color:"#c4b5fd", fontWeight:900, textShadow:"0 0 6px #a855f7" }}>Finish {bestFinish}</span>
+                  <span style={{ color:"#c4b5fd", fontWeight:900, textShadow:"0 0 6px #a78bfa" }}>Finish {bestFinish}</span>
                 </div>
               )}
               {all180 > 0 && (
@@ -5070,8 +5070,10 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
       setTexte("");
       setPhotoData(null);
       setRefreshTick(t => t+1);
+      window.dpToast?.("Publication envoyée", "success");
     } catch(e) {
       setErreur("Erreur lors de la publication. Vérifie la table wall_posts dans Supabase.");
+      window.dpToast?.("Erreur lors de la publication", "error");
     } finally {
       setPosting(false);
     }
@@ -5120,7 +5122,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         const rarete = badge.rarete || "commun";
         const rareteConfig = {
           legendaire: { label:"LÉGENDAIRE", color:"#f59e0b", bg:"#451a03", border:"#f59e0b66", glow:"rgba(245,158,11,0.35)", shimmer:true },
-          epique:     { label:"ÉPIQUE",     color:"#a855f7", bg:"#2e1065", border:"#a855f766", glow:"rgba(168,85,247,0.3)", shimmer:true },
+          epique:     { label:"ÉPIQUE",     color:"#a78bfa", bg:"#2e1065", border:"#a78bfa66", glow:"rgba(168,85,247,0.3)", shimmer:true },
           rare:       { label:"RARE",       color:"#3b82f6", bg:"#1e3a5f", border:"#3b82f655", glow:"rgba(59,130,246,0.2)", shimmer:false },
           commun:     { label:"COMMUN",     color:"#64748b", bg:"#1e293b", border:"#64748b44", glow:"rgba(100,116,139,0.1)", shimmer:false },
         };
@@ -5139,7 +5141,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
               {/* Rarity banner */}
               <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:10 }}>
                 {rarete==="legendaire" && <Crown size={12} color="#f59e0b"/>}
-                {rarete==="epique" && <Gem size={12} color="#a855f7"/>}
+                {rarete==="epique" && <Gem size={12} color="#a78bfa"/>}
                 {rarete==="rare" && <Medal size={12} color="#3b82f6"/>}
                 <span style={{ fontSize:10,fontWeight:900,color:rc.color,letterSpacing:1.5 }}>{rc.label}</span>
               </div>
@@ -5497,7 +5499,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     if (bestFinish)
       cards.push({ Icon:Target, color:"#f97316", label:"MEILLEUR FINISH", name:bestFinish.data.joueur_pseudo, val:`+${bestFinish.data.variation} DRIX` });
     if (hotRivalCard)
-      cards.push({ Icon:Swords, color:"#a855f7", label:"RIVALITÉ ACTIVE", name:`${hotRivalCard.winner?.nom?.split(" ")[0]||"?"} vs ${hotRivalCard.loser?.nom?.split(" ")[0]||"?"}`, val:"Rivalité hebdo ⚔" });
+      cards.push({ Icon:Swords, color:"#a78bfa", label:"RIVALITÉ ACTIVE", name:`${hotRivalCard.winner?.nom?.split(" ")[0]||"?"} vs ${hotRivalCard.loser?.nom?.split(" ")[0]||"?"}`, val:"Rivalité hebdo ⚔" });
 
     if (cards.length === 0) return null;
     return (
@@ -5568,7 +5570,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         @keyframes livePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.35)} }
       `}</style>
 
-      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}><ArrowLeft size={16}/> Accueil</button>
+      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:10,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:"10px 6px",minHeight:44,touchAction:"manipulation" }}><ArrowLeft size={16}/> Accueil</button>
 
       {/* ── Hero header ── */}
       <div style={{ position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#0a0014,#050010,#000814)",border:"1px solid rgba(168,85,247,0.15)",borderRadius:20,padding:"20px 20px 18px",marginBottom:20 }}>
@@ -5576,7 +5578,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         <div style={{ position:"absolute",bottom:-20,left:40,width:80,height:80,borderRadius:"50%",background:"radial-gradient(circle,rgba(249,115,22,.08),transparent 70%)",pointerEvents:"none" }}/>
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",position:"relative" }}>
           <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-            <div style={{ width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#7c3aed,#a855f7)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 20px rgba(168,85,247,0.4)",flexShrink:0 }}>
+            <div style={{ width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#7c3aed,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 20px rgba(168,85,247,0.4)",flexShrink:0 }}>
               <Users size={26} color="#fff"/>
             </div>
             <div>
@@ -5593,7 +5595,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
       {/* ── Onglets ── */}
       <div style={{ display:"flex",background:"#0d0d12",border:"1px solid #ffffff08",borderRadius:14,padding:4,gap:4,marginBottom:20 }}>
         <button onClick={()=>setMainTab("feed")} style={{ flex:1,padding:"10px",borderRadius:10,border:"none",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .2s",background:mainTab==="feed"?"linear-gradient(135deg,#1e1b2e,#1a1a2e)":"transparent",color:mainTab==="feed"?"#f1f5f9":C.muted,boxShadow:mainTab==="feed"?"0 2px 8px rgba(0,0,0,0.3)":"none",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
-          <Users size={14} color={mainTab==="feed"?"#a855f7":C.muted}/>Communauté
+          <Users size={14} color={mainTab==="feed"?"#a78bfa":C.muted}/>Communauté
         </button>
         <button onClick={()=>setMainTab("live")} style={{ flex:1,padding:"10px",borderRadius:10,border:"none",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .2s",background:mainTab==="live"?"linear-gradient(135deg,#1a0b0b,#1a0808)":"transparent",color:mainTab==="live"?"#ef4444":C.muted,boxShadow:mainTab==="live"?"0 2px 8px rgba(0,0,0,0.3)":"none",display:"flex",alignItems:"center",justifyContent:"center",gap:7 }}>
           <span style={{ display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#ef4444",flexShrink:0,animation:"livePulse 1.2s infinite" }}/>
@@ -5618,14 +5620,14 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
               onChange={e=>setTexte(e.target.value)}
               onKeyDown={e=>{ if(e.key==="Enter"&&e.ctrlKey) publier(); }}
               placeholder="Quoi de neuf au comptoir ? (Ctrl+Entrée pour publier)"
-              style={{ flex:1,background:"#070710",border:`1px solid ${texte.trim()||photoData?"#a855f755":"#ffffff10"}`,borderRadius:12,padding:"10px 12px",color:"#e2e8f0",fontSize:14,resize:"none",height:70,fontFamily:"inherit",outline:"none",boxSizing:"border-box",transition:"border-color .15s" }}
+              style={{ flex:1,background:"#070710",border:`1px solid ${texte.trim()||photoData?"#a78bfa55":"#ffffff10"}`,borderRadius:12,padding:"10px 12px",color:"#e2e8f0",fontSize:14,resize:"none",height:70,fontFamily:"inherit",outline:"none",boxSizing:"border-box",transition:"border-color .15s" }}
               maxLength={500}
             />
           </div>
 
           {/* Aperçu de la photo attachée */}
           {photoData && (
-            <div style={{ position:"relative", marginLeft:54, marginBottom:10, borderRadius:12, overflow:"hidden", border:"1px solid #a855f755", maxHeight:220 }}>
+            <div style={{ position:"relative", marginLeft:54, marginBottom:10, borderRadius:12, overflow:"hidden", border:"1px solid #a78bfa55", maxHeight:220 }}>
               <img src={photoData} alt="" style={{ width:"100%", maxHeight:220, objectFit:"cover", display:"block" }}/>
               <button onClick={()=>setPhotoData(null)}
                 style={{ position:"absolute", top:6, right:6, background:"#000000bb", border:"none", color:"#fff", borderRadius:"50%", width:26, height:26, cursor:"pointer", fontSize:14, lineHeight:1, fontWeight:900, touchAction:"manipulation" }}>
@@ -5638,13 +5640,13 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
           <div style={{ display:"flex",gap:8,alignItems:"center" }}>
             <input ref={photoInputRef} type="file" accept="image/*" style={{display:"none"}} onChange={handlePhotoPick}/>
             <button onClick={()=>photoInputRef.current?.click()}
-              style={{ display:"flex",alignItems:"center",gap:5,background:photoData?"#a855f722":"transparent",border:`1px solid ${photoData?"#a855f777":"#ffffff0a"}`,borderRadius:8,padding:"5px 10px",fontSize:12,color:photoData?"#a855f7":C.muted,cursor:"pointer",touchAction:"manipulation" }} title="Photo">
-              <Camera size={13} color={photoData?"#a855f7":"#64748b"}/> {photoData ? "Photo prête" : "Photo"}
+              style={{ display:"flex",alignItems:"center",gap:5,background:photoData?"#a78bfa22":"transparent",border:`1px solid ${photoData?"#a78bfa77":"#ffffff0a"}`,borderRadius:8,padding:"5px 10px",fontSize:12,color:photoData?"#a78bfa":C.muted,cursor:"pointer",touchAction:"manipulation" }} title="Photo">
+              <Camera size={13} color={photoData?"#a78bfa":"#64748b"}/> {photoData ? "Photo prête" : "Photo"}
             </button>
             <div style={{ flex:1 }}/>
             <span style={{ fontSize:11,color:"#334155" }}>{texte.length}/500</span>
             <button onClick={publier} disabled={(!texte.trim()&&!photoData)||posting}
-              style={{ background:(texte.trim()||photoData)?"linear-gradient(135deg,#7c3aed,#a855f7)":"#1e1e1e",color:(texte.trim()||photoData)?"#fff":C.muted,border:"none",borderRadius:10,padding:"8px 18px",fontWeight:700,fontSize:14,cursor:(texte.trim()||photoData)&&!posting?"pointer":"default",transition:"all .15s",opacity:posting?.6:1 }}>
+              style={{ background:(texte.trim()||photoData)?"linear-gradient(135deg,#7c3aed,#a78bfa)":"#1e1e1e",color:(texte.trim()||photoData)?"#fff":C.muted,border:"none",borderRadius:10,padding:"8px 18px",fontWeight:700,fontSize:14,cursor:(texte.trim()||photoData)&&!posting?"pointer":"default",transition:"all .15s",opacity:posting?.6:1 }}>
               {posting ? "…" : "Publier"}
             </button>
           </div>
@@ -5923,7 +5925,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
 
   if (!categorie) return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"24px 16px" }}>
-      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:16,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:0 }}>
+      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:10,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:"10px 6px",minHeight:44,touchAction:"manipulation" }}>
         <ArrowLeft size={16}/> Accueil
       </button>
       <h1 style={{ fontWeight:800,fontSize:22,marginBottom:4,display:"flex",alignItems:"center",gap:8 }}>
@@ -6231,7 +6233,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           drix="Pratique libre" stat="Tous niveaux" statIcon="🎯" bgIcon="🎯"
           onClick={()=>setPage("entrainement-finish")}/>
 
-        <GameCard icon={Clock} label="Horloge Double" col="#a855f7"
+        <GameCard icon={Clock} label="Horloge Double" col="#a78bfa"
           sub="Enchaîne D1 à D20, Bull et Double Bull. Chrono par cible."
           badge="ENTRAÎNEMENT" badgeIcon="🎯" difficulty="inter"
           drix="Pratique libre" stat="Stats double favori" statIcon="🎯" bgIcon="🕐"
@@ -8801,7 +8803,7 @@ const AdminDuels = ({ addLog }) => {
     ["en_cours", "🎯 En cours", C.accent],
     ["termine",  "✅ Terminés",  C.green],
     ["annule",   "❌ Annulés",   C.muted],
-    ["annule_admin", "🛡 Annulés admin", "#a855f7"],
+    ["annule_admin", "🛡 Annulés admin", "#a78bfa"],
     ["tous",     "📋 Tous",      C.blue],
   ];
 
@@ -8809,7 +8811,7 @@ const AdminDuels = ({ addLog }) => {
     ? duels.filter(d => (d.challenger_pseudo||"").toLowerCase().includes(recherche.toLowerCase()) || (d.defie_pseudo||"").toLowerCase().includes(recherche.toLowerCase()))
     : duels;
 
-  const stColor = (s) => s==="conteste"?C.red : s==="en_cours"?C.accent : s==="termine"?C.green : s==="annule_admin"?"#a855f7" : C.muted;
+  const stColor = (s) => s==="conteste"?C.red : s==="en_cours"?C.accent : s==="termine"?C.green : s==="annule_admin"?"#a78bfa" : C.muted;
 
   return (
     <div>
@@ -8875,7 +8877,7 @@ const AdminDuels = ({ addLog }) => {
 
             {/* Trace admin */}
             {d.admin_action && (
-              <div style={{background:"#1a0014",border:`1px solid #a855f733`,borderRadius:8,padding:"6px 10px",fontSize:11,color:"#a855f7",marginBottom:8}}>
+              <div style={{background:"#1a0014",border:`1px solid #a78bfa33`,borderRadius:8,padding:"6px 10px",fontSize:11,color:"#a78bfa",marginBottom:8}}>
                 🛡 <strong>{d.admin_action}</strong>
                 {d.admin_note && <div style={{color:C.muted,marginTop:2,fontStyle:"italic"}}>"{d.admin_note}"</div>}
               </div>
@@ -9920,9 +9922,9 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
 // ── BADGES RECAP MODAL ────────────────────────────────────────────────────────
 const BadgesRecapModal = ({ badges, onClose, setPage }) => (
   <div style={{ position:"fixed",inset:0,background:"#000c",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }} onClick={onClose}>
-    <div style={{ background:"#1a1a1a",border:"1px solid #ffd70066",borderRadius:20,padding:28,maxWidth:380,width:"100%",textAlign:"center" }} onClick={e=>e.stopPropagation()}>
+    <div style={{ background:"#1a1a1a",border:"1px solid #fbbf2466",borderRadius:20,padding:28,maxWidth:380,width:"100%",textAlign:"center" }} onClick={e=>e.stopPropagation()}>
       <div style={{ fontSize:40, marginBottom:8 }}>🏅</div>
-      <h2 style={{ fontWeight:900, fontSize:20, color:"#ffd700", marginBottom:4 }}>Badge{badges.length>1?"s":""} débloqué{badges.length>1?"s":""}!</h2>
+      <h2 style={{ fontWeight:900, fontSize:20, color:"#fbbf24", marginBottom:4 }}>Badge{badges.length>1?"s":""} débloqué{badges.length>1?"s":""}!</h2>
       <p style={{ color:"#94a3b8", fontSize:13, marginBottom:20 }}>Félicitations !</p>
       <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:24 }}>
         {badges.map(b=>(
@@ -9936,7 +9938,7 @@ const BadgesRecapModal = ({ badges, onClose, setPage }) => (
         ))}
       </div>
       <div style={{ display:"flex", gap:10 }}>
-        <button onClick={()=>{onClose();setPage("profil-badges");}} style={{ flex:1,background:"#ffd70022",border:"1px solid #ffd70066",color:"#ffd700",borderRadius:10,padding:"10px",cursor:"pointer",fontWeight:700,fontSize:13 }}>Voir mes badges</button>
+        <button onClick={()=>{onClose();setPage("profil-badges");}} style={{ flex:1,background:"#fbbf2422",border:"1px solid #fbbf2466",color:"#fbbf24",borderRadius:10,padding:"10px",cursor:"pointer",fontWeight:700,fontSize:13 }}>Voir mes badges</button>
         <button onClick={onClose} style={{ flex:1,background:"#ffffff12",border:"1px solid #ffffff22",color:"#fff",borderRadius:10,padding:"10px",cursor:"pointer",fontWeight:700,fontSize:13 }}>Continuer</button>
       </div>
     </div>
@@ -11115,9 +11117,9 @@ export default function App() {
       {/* ── Popup email obligatoire (anciens comptes sans email) ── */}
       {showEmailRequired && (
         <div style={{ position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.96)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
-          <div style={{ background:"linear-gradient(160deg,#0e0e14,#0b0b10)",border:"1px solid #a855f733",borderRadius:24,padding:"28px 24px",maxWidth:380,width:"100%",boxShadow:"0 0 60px rgba(168,85,247,0.2)" }}>
+          <div style={{ background:"linear-gradient(160deg,#0e0e14,#0b0b10)",border:"1px solid #a78bfa33",borderRadius:24,padding:"28px 24px",maxWidth:380,width:"100%",boxShadow:"0 0 60px rgba(168,85,247,0.2)" }}>
             {/* Icône */}
-            <div style={{ width:64,height:64,borderRadius:18,background:"linear-gradient(135deg,#7c3aed,#a855f7)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",boxShadow:"0 0 24px rgba(168,85,247,0.4)" }}>
+            <div style={{ width:64,height:64,borderRadius:18,background:"linear-gradient(135deg,#7c3aed,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",boxShadow:"0 0 24px rgba(168,85,247,0.4)" }}>
               <Mail size={28} color="#fff"/>
             </div>
             {/* Titre */}
@@ -11135,20 +11137,20 @@ export default function App() {
                 value={emailReqValue}
                 onChange={e=>{ setEmailReqValue(e.target.value); setEmailReqErr(""); }}
                 placeholder="ton@email.com"
-                style={{ width:"100%",background:"#070710",border:`1px solid ${emailReqErr?"#ef4444":emailReqValue.includes("@")?"#a855f755":"#1e1e2e"}`,borderRadius:10,padding:"11px 14px",color:"#f1f5f9",fontSize:14,outline:"none",boxSizing:"border-box",transition:"border-color .15s",fontFamily:"inherit" }}
+                style={{ width:"100%",background:"#070710",border:`1px solid ${emailReqErr?"#ef4444":emailReqValue.includes("@")?"#a78bfa55":"#1e1e2e"}`,borderRadius:10,padding:"11px 14px",color:"#f1f5f9",fontSize:14,outline:"none",boxSizing:"border-box",transition:"border-color .15s",fontFamily:"inherit" }}
               />
             </div>
             {/* CGU pour anciens comptes */}
             <label style={{ display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",marginBottom:18,padding:"10px 12px",background:"#0a0a14",borderRadius:10,border:"1px solid #1e1e2e" }}>
               <input type="checkbox" checked={emailReqCgu} onChange={e=>setEmailReqCgu(e.target.checked)}
-                style={{ marginTop:2,width:16,height:16,accentColor:"#a855f7",flexShrink:0,cursor:"pointer" }}/>
+                style={{ marginTop:2,width:16,height:16,accentColor:"#a78bfa",flexShrink:0,cursor:"pointer" }}/>
               <span style={{ fontSize:12,color:"#64748b",lineHeight:1.5 }}>
                 J'accepte les{" "}
-                <span onClick={e=>{e.preventDefault();e.stopPropagation();setShowLegal("cgu");}} style={{ color:"#a855f7",textDecoration:"underline",cursor:"pointer" }}>
+                <span onClick={e=>{e.preventDefault();e.stopPropagation();setShowLegal("cgu");}} style={{ color:"#a78bfa",textDecoration:"underline",cursor:"pointer" }}>
                   Conditions d'utilisation
                 </span>
                 {" "}et la{" "}
-                <span onClick={e=>{e.preventDefault();e.stopPropagation();setShowLegal("privacy");}} style={{ color:"#a855f7",textDecoration:"underline",cursor:"pointer" }}>
+                <span onClick={e=>{e.preventDefault();e.stopPropagation();setShowLegal("privacy");}} style={{ color:"#a78bfa",textDecoration:"underline",cursor:"pointer" }}>
                   Politique de confidentialité
                 </span>
               </span>
@@ -11211,7 +11213,7 @@ export default function App() {
                     </div>
                   )}
 
-                  <button onClick={()=>setShowLegal(null)} style={{ width:"100%",background:"linear-gradient(135deg,#7c3aed,#a855f7)",color:"#fff",border:"none",borderRadius:12,padding:"13px",fontWeight:800,fontSize:15,cursor:"pointer",marginTop:8 }}>
+                  <button onClick={()=>setShowLegal(null)} style={{ width:"100%",background:"linear-gradient(135deg,#7c3aed,#a78bfa)",color:"#fff",border:"none",borderRadius:12,padding:"13px",fontWeight:800,fontSize:15,cursor:"pointer",marginTop:8 }}>
                     ← Retour au formulaire
                   </button>
                 </div>
@@ -11246,7 +11248,7 @@ export default function App() {
                 }
                 setEmailReqLoading(false);
               }}
-              style={{ width:"100%",background:(!emailReqValue.includes("@")||!emailReqCgu)?"#1e1e2e":"linear-gradient(135deg,#7c3aed,#a855f7)",color:(!emailReqValue.includes("@")||!emailReqCgu)?"#475569":"#fff",border:"none",borderRadius:12,padding:"13px",fontWeight:800,fontSize:15,cursor:(!emailReqValue.includes("@")||!emailReqCgu||emailReqLoading)?"default":"pointer",transition:"all .2s",opacity:emailReqLoading?.6:1 }}>
+              style={{ width:"100%",background:(!emailReqValue.includes("@")||!emailReqCgu)?"#1e1e2e":"linear-gradient(135deg,#7c3aed,#a78bfa)",color:(!emailReqValue.includes("@")||!emailReqCgu)?"#475569":"#fff",border:"none",borderRadius:12,padding:"13px",fontWeight:800,fontSize:15,cursor:(!emailReqValue.includes("@")||!emailReqCgu||emailReqLoading)?"default":"pointer",transition:"all .2s",opacity:emailReqLoading?.6:1 }}>
               {emailReqLoading ? "Enregistrement…" : "Valider mon adresse →"}
             </button>
             <p style={{ fontSize:11,color:"#1e293b",textAlign:"center",marginTop:12 }}>
@@ -11263,17 +11265,17 @@ export default function App() {
           <div onClick={e=>e.stopPropagation()}
             style={{ background:"#0d0d0d",borderRadius:24,padding:28,maxWidth:360,width:"100%",border:"1px solid #f9731644",boxShadow:"0 0 60px rgba(249,115,22,0.25)",textAlign:"center" }}>
             {/* Icône */}
-            <div style={{ width:72,height:72,borderRadius:"50%",background:"linear-gradient(135deg,#f97316,#a855f7)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",boxShadow:"0 0 30px rgba(249,115,22,0.5)" }}>
+            <div style={{ width:72,height:72,borderRadius:"50%",background:"linear-gradient(135deg,#f97316,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",boxShadow:"0 0 30px rgba(249,115,22,0.5)" }}>
               <Trophy size={32} color="#fff"/>
             </div>
             {/* Titre */}
-            <div style={{ fontWeight:900,fontSize:22,marginBottom:8,background:"linear-gradient(90deg,#f97316,#a855f7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent" }}>
+            <div style={{ fontWeight:900,fontSize:22,marginBottom:8,background:"linear-gradient(90deg,#f97316,#a78bfa)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent" }}>
               Défi de la Semaine débloqué !
             </div>
             {/* Texte */}
             <p style={{ color:"#cbd5e1",fontSize:14,lineHeight:1.7,marginBottom:24 }}>
               Tu as atteint <strong style={{ color:"#f97316" }}>10 amis</strong> sur DartPoint 🎉<br/>
-              Chaque lundi, un adversaire te sera proposé pour maximiser tes gains DRIX. Bats-le pour remporter un <strong style={{ color:"#f97316" }}>gain × 2</strong> et <strong style={{ color:"#a855f7" }}>+25 DRIX</strong> de participation.
+              Chaque lundi, un adversaire te sera proposé pour maximiser tes gains DRIX. Bats-le pour remporter un <strong style={{ color:"#f97316" }}>gain × 2</strong> et <strong style={{ color:"#a78bfa" }}>+25 DRIX</strong> de participation.
             </p>
             {/* Boutons */}
             <div style={{ display:"flex",gap:10 }}>

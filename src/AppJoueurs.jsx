@@ -221,7 +221,7 @@ const RANGS = [
   { titre:"Légende",     min:1700, max:1900,     emoji:"🏆",   color:"#f97316", icon:Trophy     },
   { titre:"Master Bull", min:1900, max:2100,     emoji:"👑",   color:"#ef4444", icon:Crown      },
   { titre:"Titan",       min:2100, max:2500,     emoji:"🔥",   color:"#dc2626", icon:Flame      },
-  { titre:"Mythique",    min:2500, max:Infinity, emoji:"✨",   color:"#ffd700", icon:Sparkles   },
+  { titre:"Mythique",    min:2500, max:Infinity, emoji:"✨",   color:"#fbbf24", icon:Sparkles   },
 ];
 const getDrixTitreLocal = (drix) => {
   for (const r of RANGS) { if (drix < r.max) return r; }
@@ -1740,16 +1740,16 @@ export const ALL_BADGES = [
   { id:"d_win1",    cat:"duels",     emoji:"🏆",  nom:"Première victoire",     desc:"Gagner son premier duel",      seuil:1,   couleur:"#22c55e", val:d=>d.victoires },
   { id:"d_win10",   cat:"duels",     emoji:"⚔️",  nom:"Gladiateur",            desc:"10 victoires",                 seuil:10,  couleur:"#22c55e", val:d=>d.victoires },
   { id:"d_win50",   cat:"duels",     emoji:"🛡️",  nom:"Vétéran",               desc:"50 victoires",                 seuil:50,  couleur:"#22c55e", val:d=>d.victoires },
-  { id:"d_win100",  cat:"duels",     emoji:"👑",  nom:"Conquérant",            desc:"100 victoires",                seuil:100, couleur:"#ffd700", val:d=>d.victoires },
+  { id:"d_win100",  cat:"duels",     emoji:"👑",  nom:"Conquérant",            desc:"100 victoires",                seuil:100, couleur:"#fbbf24", val:d=>d.victoires },
   { id:"d_serie3",  cat:"duels",     emoji:"🔥",  nom:"Sur série",             desc:"3 victoires d'affilée",        seuil:3,   couleur:"#f97316", val:d=>d.meilleureSerieW },
   { id:"d_serie5",  cat:"duels",     emoji:"💀",  nom:"Intouchable",           desc:"5 victoires d'affilée",        seuil:5,   couleur:"#f97316", val:d=>d.meilleureSerieW },
   { id:"d_serie10", cat:"duels",     emoji:"☠️",  nom:"Légende noire",         desc:"10 victoires d'affilée",       seuil:10,  couleur:"#f97316", val:d=>d.meilleureSerieW },
-  { id:"d_giant",   cat:"duels",     emoji:"🦁",  nom:"Tueur de géants",       desc:"Battre un joueur +200 DRIX",   seuil:1,   couleur:"#ffd700", val:d=>d.hasGiantKill?1:0 },
+  { id:"d_giant",   cat:"duels",     emoji:"🦁",  nom:"Tueur de géants",       desc:"Battre un joueur +200 DRIX",   seuil:1,   couleur:"#fbbf24", val:d=>d.hasGiantKill?1:0 },
   // Parties
   { id:"p_10",      cat:"parties",   emoji:"🎮",  nom:"Échauffement",          desc:"10 parties jouées",            seuil:10,  couleur:"#a78bfa", val:d=>d.parties },
   { id:"p_50",      cat:"parties",   emoji:"🕹️",  nom:"Habitué",               desc:"50 parties jouées",            seuil:50,  couleur:"#a78bfa", val:d=>d.parties },
   { id:"p_100",     cat:"parties",   emoji:"🎲",  nom:"Marathonien",           desc:"100 parties jouées",           seuil:100, couleur:"#a78bfa", val:d=>d.parties },
-  { id:"p_500",     cat:"parties",   emoji:"🏆",  nom:"Pilier du bar",         desc:"500 parties jouées",           seuil:500, couleur:"#ffd700", val:d=>d.parties },
+  { id:"p_500",     cat:"parties",   emoji:"🏆",  nom:"Pilier du bar",         desc:"500 parties jouées",           seuil:500, couleur:"#fbbf24", val:d=>d.parties },
   // Anti-26
   { id:"a26_10",    cat:"anti26",    emoji:"🍌",  nom:"Le 26 classique",       desc:"10 fois 26",                   seuil:10,  couleur:"#f59e0b", val:d=>d.nb26 },
   { id:"a26_50",    cat:"anti26",    emoji:"🤡",  nom:"Abonné au 26",          desc:"50 fois 26",                   seuil:50,  couleur:"#f59e0b", val:d=>d.nb26 },
@@ -1758,14 +1758,14 @@ export const ALL_BADGES = [
   // DRIX
   { id:"dr_1200",   cat:"drix",      emoji:"📈",  nom:"Ascension",             desc:"Atteindre 1200 DRIX",          seuil:1,   couleur:"#22c55e", val:d=>d.maxDrix>=1200?1:0 },
   { id:"dr_1500",   cat:"drix",      emoji:"💎",  nom:"Confirmé",              desc:"Atteindre 1500 DRIX",          seuil:1,   couleur:"#a78bfa", val:d=>d.maxDrix>=1500?1:0 },
-  { id:"dr_2000",   cat:"drix",      emoji:"🚀",  nom:"Élite",                 desc:"Atteindre 2000 DRIX",          seuil:1,   couleur:"#ffd700", val:d=>d.maxDrix>=2000?1:0 },
+  { id:"dr_2000",   cat:"drix",      emoji:"🚀",  nom:"Élite",                 desc:"Atteindre 2000 DRIX",          seuil:1,   couleur:"#fbbf24", val:d=>d.maxDrix>=2000?1:0 },
   // Social
   { id:"soc_1",     cat:"social",    emoji:"🤝",  nom:"Premier pote",          desc:"Premier ami ajouté",           seuil:1,   couleur:"#10b981", val:d=>d.nbAmis },
   { id:"soc_5",     cat:"social",    emoji:"👥",  nom:"Petit cercle",          desc:"5 amis",                       seuil:5,   couleur:"#10b981", val:d=>d.nbAmis },
   { id:"soc_10",    cat:"social",    emoji:"🫂",  nom:"La bande",              desc:"10 amis",                      seuil:10,  couleur:"#10b981", val:d=>d.nbAmis },
   { id:"soc_20",    cat:"social",    emoji:"🌍",  nom:"Le réseau",             desc:"20 amis",                      seuil:20,  couleur:"#10b981", val:d=>d.nbAmis },
   { id:"soc_trn",   cat:"social",    emoji:"🎯",  nom:"Tournoi entre potes",   desc:"Participer à un tournoi privé",seuil:1,   couleur:"#10b981", val:d=>d.nbTournois },
-  { id:"soc_wtrn",  cat:"social",    emoji:"🏆",  nom:"Boss de la bande",      desc:"Gagner un tournoi privé",      seuil:1,   couleur:"#ffd700", val:d=>d.nbTournoisGagnes },
+  { id:"soc_wtrn",  cat:"social",    emoji:"🏆",  nom:"Boss de la bande",      desc:"Gagner un tournoi privé",      seuil:1,   couleur:"#fbbf24", val:d=>d.nbTournoisGagnes },
   // Streak
   { id:"str_7",     cat:"streak",    emoji:"📆",  nom:"Régulier",              desc:"7 jours avec au moins 1 duel", seuil:7,   couleur:"#06b6d4", val:d=>d.streakJours },
   { id:"str_30",    cat:"streak",    emoji:"🗓️",  nom:"Accroché au comptoir",  desc:"30 jours avec un duel",        seuil:30,  couleur:"#06b6d4", val:d=>d.streakJours },
@@ -2228,14 +2228,20 @@ export const AmiSection = ({ joueur, setPage }) => {
   }, [searchAmis]);
 
   const accepter = async (d) => {
-    await dbAmis.accepterAmi(d.id);
-    setDemandes(x=>x.filter(x=>x.id!==d.id));
-    setAmis(x=>[...x,{...d,statut:"accepte"}]);
+    try {
+      await dbAmis.accepterAmi(d.id);
+      setDemandes(x=>x.filter(x=>x.id!==d.id));
+      setAmis(x=>[...x,{...d,statut:"accepte"}]);
+      window.dpToast?.(`${d.joueur_pseudo || "Joueur"} ajouté à tes amis`, "success");
+    } catch { window.dpToast?.("Erreur lors de l'acceptation", "error"); }
   };
 
   const refuser = async (d) => {
-    await dbAmis.refuserAmi(d.id);
-    setDemandes(x=>x.filter(x=>x.id!==d.id));
+    try {
+      await dbAmis.refuserAmi(d.id);
+      setDemandes(x=>x.filter(x=>x.id!==d.id));
+      window.dpToast?.("Demande refusée", "info");
+    } catch { window.dpToast?.("Erreur lors du refus", "error"); }
   };
 
   if (loading) return <SpinnerJ/>;
@@ -4084,7 +4090,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
               const renderJoueur = (j, rang, isMe) => {
                 const { titre, color } = getDrixTitreLocal(j.drix || 1000);
                 const variation = variationMap[j.id] || 0;
-                const medalColors = ["#ffd700","#c0c0c0","#cd7f32"];
+                const medalColors = ["#fbbf24","#c0c0c0","#cd7f32"];
                 return (
                   <div key={j.id} onClick={() => setPage("profil-joueur-"+j.id)}
                     style={{ background:isMe?`linear-gradient(135deg,${CJ.yellow}15,${CJ.card})`:(rang<=3?`${color}0a`:CJ.card), border:`1.5px solid ${isMe?CJ.yellow+"77":rang===1?color:rang<=3?color+"44":CJ.border}`, borderRadius:14, padding:"12px 14px", marginBottom:8, cursor:"pointer", boxShadow:isMe?`0 0 22px ${CJ.yellow}22`:rang===1?`0 0 14px ${color}22`:"none" }}>
