@@ -293,9 +293,22 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
 
   const loadScores = useCallback(() => {
     setLoadingScores(true);
-    sb(`chrono_scoreur_scores?date_jour=eq.${today}&statut=eq.termine&order=temps_ms.asc&limit=50&select=*`)
+    // Charge TOUT (terminés + abandons), tri côté client : terminés d'abord par temps, abandons à la fin
+    sb(`chrono_scoreur_scores?date_jour=eq.${today}&limit=50&select=*`)
       .then(r => {
-        setScores(r || []);
+        const arr = r || [];
+        arr.sort((a, b) => {
+          const aTerm = (a.statut || "termine") === "termine";
+          const bTerm = (b.statut || "termine") === "termine";
+          if (aTerm && !bTerm) return -1;
+          if (!aTerm && bTerm) return 1;
+          if (aTerm && bTerm) {
+            if (a.temps_ms !== b.temps_ms) return a.temps_ms - b.temps_ms;
+            return (a.erreurs || 0) - (b.erreurs || 0);
+          }
+          return 0;
+        });
+        setScores(arr);
         setLoadingScores(false);
       });
   }, [today]);
@@ -902,23 +915,34 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
             <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden" }}>
               {scores.map((s, i) => {
                 const isMe = s.joueur_id === joueur?.id;
+                const isAbandon = (s.statut || "termine") === "abandonne";
                 const medals = ["🥇","🥈","🥉"];
+                // Rank uniquement pour les terminés
+                const completedCount = scores.filter(x => (x.statut || "termine") === "termine").length;
+                const rankIdx = !isAbandon ? i : -1;
                 return (
                   <div key={i} style={{
                     display:"flex",alignItems:"center",padding:"11px 14px",gap:10,
                     borderBottom:i<scores.length-1?`1px solid ${C.border}22`:"none",
-                    background:isMe?`${C.blue}18`:"transparent",
+                    background: isMe ? `${C.blue}18` : isAbandon ? `${C.red}08` : "transparent",
+                    opacity: isAbandon ? .8 : 1,
                   }}>
-                    <div style={{ width:28,textAlign:"center",fontWeight:900,fontSize:i<3?18:13,color:i<3?C.yellow:C.muted,flexShrink:0 }}>
-                      {i < 3 ? medals[i] : i+1}
+                    <div style={{ width:28,textAlign:"center",fontWeight:900,fontSize:rankIdx<3 && !isAbandon ?18:13, color: isAbandon ? C.red : (rankIdx<3 ? C.yellow : C.muted), flexShrink:0 }}>
+                      {isAbandon ? "✗" : (rankIdx < 3 ? medals[rankIdx] : rankIdx+1)}
                     </div>
-                    <div style={{ flex:1,fontWeight:isMe?800:600,fontSize:14,color:isMe?C.blue:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                    <div style={{ flex:1,fontWeight:isMe?800:600,fontSize:14,color: isAbandon ? "#94a3b8" : (isMe?C.blue:C.text),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
                       {s.joueur_pseudo}{isMe?" (toi)":""}
                     </div>
-                    {s.erreurs > 0 && <div style={{ fontSize:11,color:C.red }}>{s.erreurs} err.</div>}
-                    <div style={{ fontWeight:900,fontSize:15,color:i===0?C.yellow:isMe?C.blue:C.text,fontVariantNumeric:"tabular-nums",flexShrink:0 }}>
-                      {formatChrono(s.temps_ms)}
-                    </div>
+                    {!isAbandon && s.erreurs > 0 && <div style={{ fontSize:11,color:C.red }}>{s.erreurs} err.</div>}
+                    {isAbandon ? (
+                      <div style={{ fontWeight:800,fontSize:12,color:C.red,fontStyle:"italic",flexShrink:0,letterSpacing:.5 }}>
+                        Abandon
+                      </div>
+                    ) : (
+                      <div style={{ fontWeight:900,fontSize:15,color:rankIdx===0?C.yellow:isMe?C.blue:C.text,fontVariantNumeric:"tabular-nums",flexShrink:0 }}>
+                        {formatChrono(s.temps_ms)}
+                      </div>
+                    )}
                   </div>
                 );
               })}
