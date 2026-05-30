@@ -573,10 +573,13 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     Promise.all([
       dbJ.getStats(joueur.id),
       dbJ.getDuels(joueur.id),
-      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=20&select=*`).catch(()=>[]),
+      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=200&select=*`).catch(()=>[]),
       sbJ(`joueurs?order=drix.desc&select=id`).catch(()=>[]),
       sbJ(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&select=statut`).catch(()=>[]),
-    ]).then(([s, d, mvts, allJ, amis]) => {
+      // 🆕 Pour le calcul des badges sociaux/tournois (sinon soc_trn et soc_wtrn jamais débloqués)
+      sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
+      sbJ(`tournois_potes?gagnant_id=eq.${joueur.id}&select=id`).catch(()=>[]),
+    ]).then(([s, d, mvts, allJ, amis, trn, wtrn]) => {
       setStats(s); setDuels(d||[]); setDrixMvts(mvts||[]);
       // Amis acceptés uniquement
       const amisOk = (amis||[]).filter(a => a.statut === "accepte" || a.statut === "accepté");
@@ -585,8 +588,8 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
         const pos = allJ.findIndex(j => j.id === joueur.id);
         setClassement({ position: pos >= 0 ? pos + 1 : null, total: allJ.length });
       }
-      // Calcul badge count réel
-      const vals = computeBadgeValues(joueur, s, d||[], mvts||[], amis||[]);
+      // Calcul badge count réel — passe nbTournois et nbTournoisGagnes
+      const vals = computeBadgeValues(joueur, s, d||[], mvts||[], amis||[], (trn||[]).length, (wtrn||[]).length);
       const unlocked = ALL_BADGES.filter(b=>b.val(vals)>=b.seuil).length;
       setBadgeCount(unlocked);
       storeBadgesSet(joueur.id, new Set(ALL_BADGES.filter(b=>b.val(vals)>=b.seuil).map(b=>b.id)));
@@ -1836,8 +1839,12 @@ export const computeBadgeValues = (joueur, stats, duels, drixMvts, amis, nbTourn
   // Amis acceptés
   const nbAmis=(amis||[]).filter(a=>a.statut==="accepte").length;
 
-  // Tueur de géants : non trackable précisément sans info adversaire au moment du match
-  const hasGiantKill=false;
+  // 🦁 Tueur de géants : a battu un joueur +200 DRIX
+  // Proxy via formule ELO (K=32) : battre qqn +200 DRIX donne ~+24 DRIX au gagnant.
+  // On considère un giant kill si on a au moins 1 victoire avec gain >= 24 DRIX.
+  const hasGiantKill = (drixMvts||[]).some(m =>
+    m.resultat === "victoire" && (m.variation || 0) >= 24
+  );
 
   return {
     nb180, nb140, nb100, nb26, nbFinishes100, plusGrosFinish,
@@ -1871,7 +1878,7 @@ export const PageProfilBadges = ({ joueur, setPage }) => {
     Promise.all([
       dbJ.getStats(joueur.id),
       dbJ.getDuels(joueur.id),
-      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=200&select=drix_apres`).catch(()=>[]),
+      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=200&select=drix_apres,variation,resultat`).catch(()=>[]),
       sbJ(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&select=statut`).catch(()=>[]),
       sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
       sbJ(`tournois_potes?gagnant_id=eq.${joueur.id}&select=id`).catch(()=>[]),
@@ -2430,6 +2437,10 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const [defiForm, setDefiForm] = useState({ mode:"501", manches:1, type:"classe" });
   const [sending, setSending]   = useState(false);
   const [classementMoi, setClassementMoi] = useState(null);
+  // 🆕 Données pour calcul badges complets
+  const [jAmis, setJAmis] = useState([]);
+  const [jNbTournois, setJNbTournois] = useState(0);
+  const [jNbTournoisGagnes, setJNbTournoisGagnes] = useState(0);
 
   // ── Chargement données ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -2439,16 +2450,23 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       dbJ.getJoueur(joueurId),
       dbJ.getStats(joueurId),
       dbJ.getDuels(joueurId),
-      sbJ(`drix_mouvements?joueur_id=eq.${joueurId}&order=date.desc&limit=60&select=*`).catch(()=>[]),
+      sbJ(`drix_mouvements?joueur_id=eq.${joueurId}&order=date.desc&limit=200&select=*`).catch(()=>[]),
       sbJ(`joueurs?order=drix.desc&select=id`).catch(()=>[]),
       moi ? dbJ.getStats(moi.id) : Promise.resolve(null),
       moi ? dbJ.getDuels(moi.id) : Promise.resolve(null),
-    ]).then(([jd, s, d, mvts, allJ, ms, md]) => {
+      // 🆕 Données pour calcul correct des badges (amis, tournois)
+      sbJ(`amis?or=(joueur_id.eq.${joueurId},ami_id.eq.${joueurId})&select=statut`).catch(()=>[]),
+      sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueurId}&select=tournoi_id`).catch(()=>[]),
+      sbJ(`tournois_potes?gagnant_id=eq.${joueurId}&select=id`).catch(()=>[]),
+    ]).then(([jd, s, d, mvts, allJ, ms, md, jAmis, jTrn, jWtrn]) => {
       setJ(jd);
       setStats(s);
       const termines = (d||[]).filter(x => x.statut==="termine").sort((a,b)=>(b.date||0)-(a.date||0));
       setDuels(termines);
       setDrixMvts(mvts||[]);
+      setJAmis(jAmis||[]);
+      setJNbTournois((jTrn||[]).length);
+      setJNbTournoisGagnes((jWtrn||[]).length);
       if (allJ?.length) {
         const pos = allJ.findIndex(x => x.id === joueurId);
         setClassement({ position: pos >= 0 ? pos+1 : null, total: allJ.length });
@@ -2661,7 +2679,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const badgesOk = BADGES_CIBLE.filter(b=>b.valeur>=b.seuil);
 
   // Vals complets pour l'onglet badges détaillé (même calcul que PageProfilBadges)
-  const valsComplets = computeBadgeValues(j, stats, duels, drixMvts, []);
+  const valsComplets = computeBadgeValues(j, stats, duels, drixMvts, jAmis, jNbTournois, jNbTournoisGagnes);
   const totalBadgesOk = ALL_BADGES.filter(b=>b.val(valsComplets)>=b.seuil).length;
 
   const FicheBadgeCard = ({ b }) => {
