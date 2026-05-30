@@ -327,8 +327,9 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
 
   // ─── Commencer le run
   const commencer = async () => {
-    if (!joueur?.id || alreadyPlayed) return;
-    // 🔒 Verrou local IMMÉDIAT — même si le POST échoue, le joueur ne pourra plus relancer
+    // 🔒 Triple garde : state React + localStorage synchrone + bail si déjà locké
+    if (!joueur?.id || alreadyPlayed || isLocallyLocked(today)) return;
+    // Verrou local IMMÉDIAT — même si le POST échoue, le joueur ne pourra plus relancer
     setLocalLock(today);
     setAlreadyPlayed(true);
     // Crée le run (statut abandonne par défaut, sera passé à termine si terminé)
