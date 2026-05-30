@@ -620,10 +620,17 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       const newCount = pseudoChanges + 1;
       localStorage.setItem(PSEUDO_CHANGES_KEY, String(newCount));
       setPseudoChanges(newCount);
-      // Cascade : mettre à jour joueur_pseudo dans drix_mouvements (affichage uniquement)
-      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}`, { method:"PATCH", body:JSON.stringify({ joueur_pseudo:newPseudo }), prefer:"return=minimal" }).catch(()=>{});
-      // NOTE : on ne met PAS à jour challenger_pseudo/defie_pseudo dans les duels,
-      // car manches_detail[].winner stocke l'ancien pseudo — les modifier casserait le calcul des stats.
+      // Cascade affichage : met à jour le pseudo dans les snapshots stockés.
+      // NOTE : on ne touche PAS à challenger_pseudo/defie_pseudo dans duels,
+      //         ni manches_detail[].winner (cassé le calcul des stats).
+      Promise.all([
+        sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}`, { method:"PATCH", body:JSON.stringify({ joueur_pseudo:newPseudo }), prefer:"return=minimal" }),
+        sbJ(`wall_posts?joueur_id=eq.${joueur.id}`,     { method:"PATCH", body:JSON.stringify({ joueur_pseudo:newPseudo }), prefer:"return=minimal" }),
+        sbJ(`wall_comments?joueur_id=eq.${joueur.id}`,  { method:"PATCH", body:JSON.stringify({ joueur_pseudo:newPseudo }), prefer:"return=minimal" }),
+        sbJ(`presences?joueur_id=eq.${joueur.id}`,      { method:"PATCH", body:JSON.stringify({ joueur_pseudo:newPseudo }), prefer:"return=minimal" }),
+        sbJ(`amis?joueur_id=eq.${joueur.id}`,           { method:"PATCH", body:JSON.stringify({ joueur_pseudo:newPseudo }), prefer:"return=minimal" }),
+        sbJ(`amis?ami_id=eq.${joueur.id}`,              { method:"PATCH", body:JSON.stringify({ ami_pseudo:newPseudo }),    prefer:"return=minimal" }),
+      ].map(p => p.catch(()=>{})));
     }
     setSavingEdit(false); setEditMode(false);
   };
@@ -2072,9 +2079,17 @@ const DefiForm = ({ joueur, cible, setPage }) => {
     if (newDuel?.id) setPage("scoreur-duel-" + newDuel.id);
   };
 
+  const [ajoutAmiBusy, setAjoutAmiBusy] = useState(false);
   const ajouterAmi = async () => {
-    await sbJ("amis", { method:"POST", body:JSON.stringify({ joueur_id:joueur.id, ami_id:cible.id, joueur_pseudo:joueur.pseudo, ami_pseudo:cible.pseudo, statut:"en_attente", date:Date.now() }) });
-    setAmiStatut("en_attente");
+    if (ajoutAmiBusy || amiStatut) return;
+    setAjoutAmiBusy(true);
+    try {
+      // 🔒 Vérif anti-doublon
+      const existing = await sbJ(`amis?or=(and(joueur_id.eq.${joueur.id},ami_id.eq.${cible.id}),and(joueur_id.eq.${cible.id},ami_id.eq.${joueur.id}))&select=statut&limit=1`).catch(()=>null);
+      if (existing && existing[0]) { setAmiStatut(existing[0].statut || "en_attente"); return; }
+      await sbJ("amis", { method:"POST", body:JSON.stringify({ joueur_id:joueur.id, ami_id:cible.id, joueur_pseudo:joueur.pseudo, ami_pseudo:cible.pseudo, statut:"en_attente", date:Date.now() }) });
+      setAmiStatut("en_attente");
+    } finally { setAjoutAmiBusy(false); }
   };
 
   return (
@@ -2131,8 +2146,8 @@ const DefiForm = ({ joueur, cible, setPage }) => {
       {/* Ajout ami */}
       <div style={{ marginTop:10, textAlign:"center" }}>
         {amiStatut===null && (
-          <button onClick={ajouterAmi} style={{ background:"transparent",border:`1px solid ${CJ.border}`,color:CJ.muted,borderRadius:8,padding:"8px 18px",fontSize:12,fontWeight:600,cursor:"pointer",touchAction:"manipulation" }}>
-            👥 Ajouter {cible.pseudo} en ami
+          <button onClick={ajouterAmi} disabled={ajoutAmiBusy} style={{ background:"transparent",border:`1px solid ${CJ.border}`,color:CJ.muted,borderRadius:8,padding:"8px 18px",fontSize:12,fontWeight:600,cursor:ajoutAmiBusy?"not-allowed":"pointer",touchAction:"manipulation",opacity:ajoutAmiBusy?.6:1 }}>
+            {ajoutAmiBusy?"…":`👥 Ajouter ${cible.pseudo} en ami`}
           </button>
         )}
         {amiStatut==="en_attente" && <span style={{ fontSize:12,color:CJ.yellow }}>⏳ Demande d'ami envoyée</span>}
@@ -2427,10 +2442,20 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       }).catch(()=>{});
   }, [moi?.id, joueurId]);
 
+  const [ajoutBusy, setAjoutBusy] = useState(false);
   const ajouterAmi = async () => {
-    if (!moi || !j) return;
-    await sbJ("amis", { method:"POST", body:JSON.stringify({ joueur_id:moi.id, ami_id:j.id, joueur_pseudo:moi.pseudo, ami_pseudo:j.pseudo, statut:"en_attente", date:Date.now() }) });
-    setAmiStatut("en_attente");
+    if (!moi || !j || ajoutBusy || amiStatut) return;
+    setAjoutBusy(true);
+    try {
+      // 🔒 Vérif anti-doublon : refresh côté serveur juste avant l'insert
+      const existing = await sbJ(`amis?or=(and(joueur_id.eq.${moi.id},ami_id.eq.${j.id}),and(joueur_id.eq.${j.id},ami_id.eq.${moi.id}))&select=statut&limit=1`).catch(()=>null);
+      if (existing && existing[0]) {
+        setAmiStatut(existing[0].statut || "en_attente");
+        return;
+      }
+      await sbJ("amis", { method:"POST", body:JSON.stringify({ joueur_id:moi.id, ami_id:j.id, joueur_pseudo:moi.pseudo, ami_pseudo:j.pseudo, statut:"en_attente", date:Date.now() }) });
+      setAmiStatut("en_attente");
+    } finally { setAjoutBusy(false); }
   };
 
   if (loading) return <SpinnerJ/>;
@@ -2670,7 +2695,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
               <h1 style={{fontWeight:900,fontSize:18,margin:0}}>{j.pseudo}</h1>
               {moi&&moi.id!==j.id&&(
                 amiStatut===null
-                  ?<button onClick={ajouterAmi} style={{background:`linear-gradient(135deg,${CJ.accent},#ea580c)`,border:"none",color:"#fff",borderRadius:20,padding:"8px 20px",cursor:"pointer",fontSize:14,fontWeight:800,touchAction:"manipulation",boxShadow:`0 4px 16px ${CJ.accent}55`,letterSpacing:.3}}>👥 Ajouter</button>
+                  ?<button onClick={ajouterAmi} disabled={ajoutBusy} style={{background: ajoutBusy ? "#1a1a1a" :`linear-gradient(135deg,${CJ.accent},#ea580c)`,border:"none",color:ajoutBusy?CJ.muted:"#fff",borderRadius:20,padding:"8px 20px",cursor:ajoutBusy?"not-allowed":"pointer",fontSize:14,fontWeight:800,touchAction:"manipulation",boxShadow:ajoutBusy?"none":`0 4px 16px ${CJ.accent}55`,letterSpacing:.3,opacity:ajoutBusy?.6:1}}>{ajoutBusy?"…":"👥 Ajouter"}</button>
                   :amiStatut==="en_attente"
                     ?<span style={{background:"#78350f33",border:`1px solid ${CJ.yellow}44`,color:CJ.yellow,borderRadius:20,padding:"6px 14px",fontSize:13,fontWeight:600}}>⏳ En attente</span>
                     :<span style={{background:"#14532d33",border:`1px solid ${CJ.green}44`,color:CJ.green,borderRadius:20,padding:"6px 14px",fontSize:13,fontWeight:600}}>✅ Ami(e)</span>

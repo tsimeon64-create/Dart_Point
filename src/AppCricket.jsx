@@ -563,40 +563,50 @@ export const ScoreurCricket = ({ config, setPage }) => {
         manches: [],
       };
 
+      // 🤝 Mode amical : pas de DRIX ni de stats, juste fermeture du duel + post Comptoir
+      const isAmical = d.type === "amical";
+      const drixOps = isAmical ? [] : [
+        // Mise à jour DRIX joueurs
+        sbC(`joueurs?id=eq.${d.challengerId}`, { method:"PATCH", body:JSON.stringify({ drix:newChallengerDrix }), prefer:"return=minimal" }).catch(()=>{}),
+        sbC(`joueurs?id=eq.${d.defiId}`,       { method:"PATCH", body:JSON.stringify({ drix:newDefiDrix }),       prefer:"return=minimal" }).catch(()=>{}),
+        // Historique DRIX mouvements (pour le Comptoir + classement)
+        sbC("drix_mouvements", { method:"POST", body:JSON.stringify({ joueur_id:d.challengerId, joueur_pseudo:d.challengerPseudo, adversaire_pseudo:d.defiPseudo,    variation:challengerGain, drix_avant:d.challengerDrix, drix_apres:newChallengerDrix, resultat:challengerWon?"victoire":"defaite", duel_id:d.duelId, date:now }) }).catch(()=>{}),
+        sbC("drix_mouvements", { method:"POST", body:JSON.stringify({ joueur_id:d.defiId,       joueur_pseudo:d.defiPseudo,       adversaire_pseudo:d.challengerPseudo, variation:defiGain,       drix_avant:d.defiDrix,       drix_apres:newDefiDrix,       resultat:challengerWon?"defaite":"victoire", duel_id:d.duelId, date:now }) }).catch(()=>{}),
+        // Mise à jour stats_joueurs (victoires / défaites / parties)
+        sbC(`stats_joueurs?joueur_id=eq.${d.challengerId}&select=id,parties,victoires,defaites`).then(r => {
+          const s = r?.[0]; if (!s) return;
+          return sbC(`stats_joueurs?id=eq.${s.id}`, { method:"PATCH", prefer:"return=minimal", body:JSON.stringify({ parties:(s.parties||0)+1, victoires:challengerWon?(s.victoires||0)+1:s.victoires, defaites:challengerWon?s.defaites:(s.defaites||0)+1 }) });
+        }).catch(()=>{}),
+        sbC(`stats_joueurs?joueur_id=eq.${d.defiId}&select=id,parties,victoires,defaites`).then(r => {
+          const s = r?.[0]; if (!s) return;
+          return sbC(`stats_joueurs?id=eq.${s.id}`, { method:"PATCH", prefer:"return=minimal", body:JSON.stringify({ parties:(s.parties||0)+1, victoires:challengerWon?s.victoires:(s.victoires||0)+1, defaites:challengerWon?(s.defaites||0)+1:s.defaites }) });
+        }).catch(()=>{}),
+      ];
+      // Si amical, on remet le gain à 0 pour la carte (cosmétique)
+      if (isAmical) {
+        duelPostData.winner.elo = 0; duelPostData.winner.total = 0;
+        duelPostData.loser.elo = 0;  duelPostData.loser.total = 0;
+      }
       Promise.all([
-      // Mise à jour DRIX joueurs
-      sbC(`joueurs?id=eq.${d.challengerId}`, { method:"PATCH", body:JSON.stringify({ drix:newChallengerDrix }), prefer:"return=minimal" }).catch(()=>{}),
-      sbC(`joueurs?id=eq.${d.defiId}`,       { method:"PATCH", body:JSON.stringify({ drix:newDefiDrix }),       prefer:"return=minimal" }).catch(()=>{}),
-      // Historique DRIX mouvements (pour le Comptoir + classement)
-      sbC("drix_mouvements", { method:"POST", body:JSON.stringify({ joueur_id:d.challengerId, joueur_pseudo:d.challengerPseudo, adversaire_pseudo:d.defiPseudo,    variation:challengerGain, drix_avant:d.challengerDrix, drix_apres:newChallengerDrix, resultat:challengerWon?"victoire":"defaite", duel_id:d.duelId, date:now }) }).catch(()=>{}),
-      sbC("drix_mouvements", { method:"POST", body:JSON.stringify({ joueur_id:d.defiId,       joueur_pseudo:d.defiPseudo,       adversaire_pseudo:d.challengerPseudo, variation:defiGain,       drix_avant:d.defiDrix,       drix_apres:newDefiDrix,       resultat:challengerWon?"defaite":"victoire", duel_id:d.duelId, date:now }) }).catch(()=>{}),
-      // Mise à jour stats_joueurs (victoires / défaites / parties)
-      sbC(`stats_joueurs?joueur_id=eq.${d.challengerId}&select=id,parties,victoires,defaites`).then(r => {
-        const s = r?.[0]; if (!s) return;
-        return sbC(`stats_joueurs?id=eq.${s.id}`, { method:"PATCH", prefer:"return=minimal", body:JSON.stringify({ parties:(s.parties||0)+1, victoires:challengerWon?(s.victoires||0)+1:s.victoires, defaites:challengerWon?s.defaites:(s.defaites||0)+1 }) });
-      }).catch(()=>{}),
-      sbC(`stats_joueurs?joueur_id=eq.${d.defiId}&select=id,parties,victoires,defaites`).then(r => {
-        const s = r?.[0]; if (!s) return;
-        return sbC(`stats_joueurs?id=eq.${s.id}`, { method:"PATCH", prefer:"return=minimal", body:JSON.stringify({ parties:(s.parties||0)+1, victoires:challengerWon?s.victoires:(s.victoires||0)+1, defaites:challengerWon?(s.defaites||0)+1:s.defaites }) });
-      }).catch(()=>{}),
-      // Fermeture du duel — y compris les scores de manches (sets gagnés)
-      sbC(`duels?id=eq.${d.duelId}`, { method:"PATCH", body:JSON.stringify({
-        statut:"termine",
-        gagnant_id:winnerId,
-        gagnant_pseudo:winnerJ?.pseudo,
-        valide_challenger:true,
-        valide_defie:true,
-        score_manches_challenger: scoreChallenger,
-        score_manches_defie: scoreDefie,
-      }), prefer:"return=minimal" }).catch(()=>{}),
-      // Publication sur le Comptoir — format __DUEL__| pour bénéficier du DuelPost premium
-      sbC("wall_posts", { method:"POST", body:JSON.stringify({
-        joueur_id: winnerId,
-        joueur_pseudo: winnerJ?.pseudo,
-        joueur_photo: winnerPhoto || null,
-        contenu: `__DUEL__|${JSON.stringify(duelPostData)}`,
-        date: now,
-      })}).catch(()=>{}),
+        ...drixOps,
+        // Fermeture du duel — y compris les scores de manches (sets gagnés)
+        sbC(`duels?id=eq.${d.duelId}`, { method:"PATCH", body:JSON.stringify({
+          statut:"termine",
+          gagnant_id:winnerId,
+          gagnant_pseudo:winnerJ?.pseudo,
+          valide_challenger:true,
+          valide_defie:true,
+          score_manches_challenger: scoreChallenger,
+          score_manches_defie: scoreDefie,
+        }), prefer:"return=minimal" }).catch(()=>{}),
+        // Publication sur le Comptoir — format __DUEL__| pour bénéficier du DuelPost premium
+        sbC("wall_posts", { method:"POST", body:JSON.stringify({
+          joueur_id: winnerId,
+          joueur_pseudo: winnerJ?.pseudo,
+          joueur_photo: winnerPhoto || null,
+          contenu: `__DUEL__|${JSON.stringify(duelPostData)}`,
+          date: now,
+        })}).catch(()=>{}),
       ]).catch(()=>{});
       localStorage.removeItem("dp_cricket_duel");
     })();

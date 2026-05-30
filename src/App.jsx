@@ -11354,8 +11354,9 @@ export default function App() {
       )}
       {/* Modale confirmation quitter partie */}
       {pendingNav && (
-        <div style={{ position:"fixed",inset:0,background:"#000000cc",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
-          <div style={{ background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:20,padding:32,maxWidth:320,width:"100%",textAlign:"center",boxShadow:"0 24px 64px #000000aa" }}>
+        <div onClick={()=>setPendingNav(null)} style={{ position:"fixed",inset:0,background:"#000000cc",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ position:"relative",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:20,padding:32,maxWidth:320,width:"100%",textAlign:"center",boxShadow:"0 24px 64px #000000aa" }}>
+            <button onClick={()=>setPendingNav(null)} aria-label="Fermer" style={{ position:"absolute",top:10,right:10,background:"none",border:"none",color:C.muted,fontSize:22,cursor:"pointer",lineHeight:1,padding:"4px 8px",touchAction:"manipulation" }}>✕</button>
             <div style={{ fontSize:44,marginBottom:12 }}>⚠️</div>
             <h2 style={{ fontWeight:800,fontSize:19,marginBottom:8,color:C.text }}>Quitter la partie ?</h2>
             <p style={{ color:C.muted,fontSize:14,marginBottom:28,lineHeight:1.6 }}>Ta partie en cours sera perdue et les scores ne seront pas sauvegardés.</p>
