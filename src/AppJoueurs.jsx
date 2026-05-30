@@ -1212,21 +1212,27 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
           </div>
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             {activiteRecente.map((m, i) => {
-              const gain = m.variation > 0;
+              // Source de vérité : m.resultat ("victoire"/"defaite"). Fallback sur variation si absent.
+              const isVictoire = m.resultat === "victoire" || (!m.resultat && m.variation > 0);
+              const isDefaite  = m.resultat === "defaite"  || (!m.resultat && m.variation < 0);
+              const gainDrix   = m.variation > 0; // pour la couleur du badge DRIX
               const date = m.date ? new Date(m.date).toLocaleDateString("fr-FR",{day:"numeric",month:"short"}) : "";
+              const label = isVictoire ? "Victoire" : isDefaite ? "Défaite" : "Match";
+              const emoji = isVictoire ? "🏆" : isDefaite ? "💀" : "🎯";
+              const avatarBg = isVictoire ? "#14532d" : isDefaite ? "#7f1d1d" : "#1e293b";
               return (
                 <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:i<activiteRecente.length-1?`1px solid ${CJ.border}33`:"none" }}>
-                  <div style={{ width:34,height:34,borderRadius:"50%",background:gain?"#14532d":"#7f1d1d",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0 }}>
-                    {gain ? "🏆" : "💀"}
+                  <div style={{ width:34,height:34,borderRadius:"50%",background:avatarBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0 }}>
+                    {emoji}
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontWeight:600, fontSize:13 }}>
-                      {gain ? "Victoire" : "Défaite"} vs {m.adversaire_pseudo || "?"}
+                      {label} vs {m.adversaire_pseudo || "?"}
                     </div>
                     <div style={{ fontSize:11, color:CJ.muted }}>{date} · {m.drix_avant}→{m.drix_apres} DRIX</div>
                   </div>
-                  <div style={{ fontWeight:800, fontSize:14, color:gain?CJ.green:CJ.red, background:gain?"#14532d":"#7f1d1d", borderRadius:8, padding:"3px 9px", flexShrink:0 }}>
-                    {gain?"+":""}{m.variation}
+                  <div style={{ fontWeight:800, fontSize:14, color:gainDrix?CJ.green:CJ.red, background:gainDrix?"#14532d":"#7f1d1d", borderRadius:8, padding:"3px 9px", flexShrink:0 }}>
+                    {gainDrix?"+":""}{m.variation}
                   </div>
                 </div>
               );
@@ -3804,19 +3810,24 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
           </svg>
         </div>
         <div style={{ fontSize:12, fontWeight:700, color:CJ.muted, marginBottom:8 }}>Derniers mouvements</div>
-        {monHistorique.slice(0, 8).map((m, i) => (
-          <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:`1px solid ${CJ.border}` }}>
-            <div style={{ width:28, height:28, borderRadius:"50%", background:m.variation > 0 ? "#16a34a22" : "#7f1d1d22", border:`1.5px solid ${m.variation > 0 ? "#22c55e44" : "#ef444444"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, flexShrink:0 }}>{m.variation > 0 ? "V" : "D"}</div>
-            <div style={{ flex:1 }}>
-              <div style={{ fontWeight:600, fontSize:13 }}>vs {m.adversaire_pseudo}</div>
-              <div style={{ fontSize:11, color:CJ.muted }}>{m.drix_avant} → {m.drix_apres} DRIX</div>
+        {monHistorique.slice(0, 8).map((m, i) => {
+          const isVictoire = m.resultat === "victoire" || (!m.resultat && m.variation > 0);
+          const isDefaite  = m.resultat === "defaite"  || (!m.resultat && m.variation < 0);
+          const gainDrix   = m.variation > 0;
+          return (
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:`1px solid ${CJ.border}` }}>
+              <div style={{ width:28, height:28, borderRadius:"50%", background:isVictoire ? "#16a34a22" : isDefaite ? "#7f1d1d22" : "#1e293b22", border:`1.5px solid ${isVictoire ? "#22c55e44" : isDefaite ? "#ef444444" : "#33415544"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, flexShrink:0 }}>{isVictoire ? "V" : isDefaite ? "D" : "·"}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:600, fontSize:13 }}>vs {m.adversaire_pseudo}</div>
+                <div style={{ fontSize:11, color:CJ.muted }}>{m.drix_avant} → {m.drix_apres} DRIX</div>
+              </div>
+              <div>
+                <div style={{ fontWeight:800, fontSize:15, color:gainDrix ? CJ.green : CJ.red, textAlign:"right" }}>{gainDrix ? "+" : ""}{m.variation}</div>
+                <div style={{ fontSize:10, color:CJ.muted }}>{new Date(m.date).toLocaleDateString("fr-FR")}</div>
+              </div>
             </div>
-            <div>
-              <div style={{ fontWeight:800, fontSize:15, color:m.variation > 0 ? CJ.green : CJ.red, textAlign:"right" }}>{m.variation > 0 ? "+" : ""}{m.variation}</div>
-              <div style={{ fontSize:10, color:CJ.muted }}>{new Date(m.date).toLocaleDateString("fr-FR")}</div>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
