@@ -2797,6 +2797,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
             const newDuel = Array.isArray(res)?res[0]:res;
             if (newDuel?.id) {
               setShowDefi(false);
+              window.dpToast?.(`Défi lancé contre ${j.pseudo}`, "success");
               if (isCricket) {
                 // Cricket : on stocke le contexte du duel et on route vers la config Cricket
                 localStorage.setItem("dp_cricket_duel", JSON.stringify({
@@ -2810,8 +2811,9 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                 setPage("scoreur-duel-"+newDuel.id);
               }
             }
-          } catch(e) { alert("Erreur : "+e.message); }
-          setSending(false);
+          } catch(e) {
+            window.dpToast?.(`Erreur : ${e.message || "impossible de lancer le défi"}`, "error", 5000);
+          } finally { setSending(false); }
         };
         const probaColor = probaVictoire>=60?"#22c55e":probaVictoire>=40?"#f59e0b":"#ef4444";
 
