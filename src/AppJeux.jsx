@@ -335,7 +335,7 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
         {[
           { icon:"🎯", label:"Moyenne", val:moyenne(gagnant), col:"#22c55e" },
           { icon:"⚡", label:"Fléchettes", val:gagnant?.flechettes||0, col:"#f97316" },
-          { icon:"🔥", label:"Tours", val:gagnant?.tours?.length||0, col:"#a855f7" },
+          { icon:"🔥", label:"Tours", val:gagnant?.tours?.length||0, col:"#a78bfa" },
         ].map(s => (
           <div key={s.label} style={{ background:"linear-gradient(135deg,#0f0f1a,#0a0a14)", border:`1px solid ${s.col}33`, borderRadius:14, padding:"12px 8px", textAlign:"center", boxShadow:`0 0 18px ${s.col}11, inset 0 1px 0 #ffffff08` }}>
             <div style={{ fontSize:18, marginBottom:3, filter:`drop-shadow(0 0 6px ${s.col}66)` }}>{s.icon}</div>
@@ -376,20 +376,20 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
         <div style={{
           position:"relative", overflow:"hidden",
           background:"linear-gradient(135deg,#1a0f2e,#0f0a1a)",
-          border:"1px solid #a855f755", borderRadius:16,
+          border:"1px solid #a78bfa55", borderRadius:16,
           padding:"16px 14px 14px", marginBottom:14,
-          boxShadow:"0 0 28px #a855f722, inset 0 1px 0 #ffffff14",
+          boxShadow:"0 0 28px #a78bfa22, inset 0 1px 0 #ffffff14",
           animation:"finCardIn .5s .7s both",
         }}>
           {/* Orbes */}
-          <div style={{ position:"absolute",top:-30,left:"20%",width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,#a855f733,transparent 70%)",pointerEvents:"none" }}/>
+          <div style={{ position:"absolute",top:-30,left:"20%",width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,#a78bfa33,transparent 70%)",pointerEvents:"none" }}/>
           <div style={{ position:"absolute",bottom:-30,right:"15%",width:100,height:100,borderRadius:"50%",background:"radial-gradient(circle,#f9731622,transparent 70%)",pointerEvents:"none" }}/>
           {/* Shine */}
           <div style={{ position:"absolute",top:0,left:0,bottom:0,width:80,background:"linear-gradient(90deg,transparent,#ffffff15,transparent)",animation:"finShine 4.5s ease-in-out infinite",pointerEvents:"none" }}/>
 
           <div style={{ position:"relative", display:"flex", alignItems:"center", gap:14 }}>
             {/* Icône */}
-            <div style={{ width:54,height:54,borderRadius:14,background:"linear-gradient(135deg,#7c3aed,#a855f7)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 0 22px #a855f755",fontSize:28 }}>🤝</div>
+            <div style={{ width:54,height:54,borderRadius:14,background:"linear-gradient(135deg,#7c3aed,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 0 22px #a78bfa55",fontSize:28 }}>🤝</div>
             {/* Texte */}
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:10,fontWeight:800,color:"#a78bfa",letterSpacing:2,textTransform:"uppercase",marginBottom:3 }}>Partie amicale</div>
@@ -425,7 +425,7 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
               </div>
             )}
             {b.nbGrosFinish > 0 && (
-              <div style={{ background:"#0a0014", border:"1px solid #a855f755", borderRadius:10, padding:"6px 10px", display:"flex", alignItems:"center", gap:6, animation:`finChipIn .4s ${delay+0.2}s both` }}>
+              <div style={{ background:"#0a0014", border:"1px solid #a78bfa55", borderRadius:10, padding:"6px 10px", display:"flex", alignItems:"center", gap:6, animation:`finChipIn .4s ${delay+0.2}s both` }}>
                 <span style={{ fontSize:15 }}>🏆</span>
                 <div>
                   <div style={{ fontSize:11, fontWeight:700, color:"#a78bfa", lineHeight:1 }}>+{b.bonusFinish} DRIX</div>
@@ -1980,7 +1980,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                       <span key={vi} style={{
                         padding:"3px 8px", borderRadius:6, fontSize:12, fontWeight:700,
                         background: v >= 100 ? "#1a0a00" : v >= 60 ? "#1a1200" : "#0f0f15",
-                        color: v >= 140 ? "#a855f7" : v >= 100 ? "#f97316" : v >= 60 ? "#fbbf24" : v === 0 ? "#64748b" : "#94a3b8",
+                        color: v >= 140 ? "#a78bfa" : v >= 100 ? "#f97316" : v >= 60 ? "#fbbf24" : v === 0 ? "#64748b" : "#94a3b8",
                         border: `1px solid ${v >= 100 ? "#f9731644" : "#2a2a3e"}`,
                       }}>
                         {v}

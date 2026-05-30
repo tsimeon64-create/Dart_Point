@@ -8,7 +8,7 @@ const TARGETS = [
     label: `Double ${i + 1}`,
     short: `D${i + 1}`,
     zone:  i + 1,
-    color: i < 10 ? "#f97316" : "#a855f7",
+    color: i < 10 ? "#f97316" : "#a78bfa",
   })),
   { label: "Bull",        short: "Bull",   zone: 25, color: "#22c55e" },
   { label: "Double Bull", short: "D-Bull", zone: 50, color: "#ef4444" },
@@ -132,16 +132,16 @@ export const HorlogeDouble = ({ setPage }) => {
   if (phase === "intro") return wrap(
     <>
       <h1 style={{ fontWeight:900, fontSize:24, marginBottom:4, display:"flex", alignItems:"center", gap:8 }}>
-        <Clock size={24} color="#a855f7"/> Horloge Double
+        <Clock size={24} color="#a78bfa"/> Horloge Double
       </h1>
       <p style={{ color:C.muted, fontSize:13, marginBottom:24, lineHeight:1.6 }}>
         Enchaîne les doubles de 1 à 20, puis Bull et Double Bull. Le chrono se lance à chaque cible.
       </p>
 
       {/* Règles */}
-      <div style={{ background:"#0d0d0d", border:"1px solid #a855f733", borderRadius:16, padding:20, marginBottom:24 }}>
-        <div style={{ fontWeight:800, fontSize:14, color:"#a855f7", marginBottom:14, display:"flex", alignItems:"center", gap:7 }}>
-          <Star size={14} color="#a855f7"/> RÈGLES
+      <div style={{ background:"#0d0d0d", border:"1px solid #a78bfa33", borderRadius:16, padding:20, marginBottom:24 }}>
+        <div style={{ fontWeight:800, fontSize:14, color:"#a78bfa", marginBottom:14, display:"flex", alignItems:"center", gap:7 }}>
+          <Star size={14} color="#a78bfa"/> RÈGLES
         </div>
         {[
           ["Je l'ai !!!", "Tu vises le double — quand tu le touches, appuie immédiatement."],
@@ -150,7 +150,7 @@ export const HorlogeDouble = ({ setPage }) => {
           ["Cibles",     "D1 → D2 → … → D20 → Bull → Double Bull."],
         ].map(([k, v]) => (
           <div key={k} style={{ display:"flex", gap:12, marginBottom:12 }}>
-            <span style={{ background:"#a855f722", border:"1px solid #a855f755", borderRadius:8, padding:"2px 10px", fontWeight:800, fontSize:12, color:"#a855f7", flexShrink:0, alignSelf:"flex-start" }}>{k}</span>
+            <span style={{ background:"#a78bfa22", border:"1px solid #a78bfa55", borderRadius:8, padding:"2px 10px", fontWeight:800, fontSize:12, color:"#a78bfa", flexShrink:0, alignSelf:"flex-start" }}>{k}</span>
             <span style={{ fontSize:13, color:"#cbd5e1", lineHeight:1.5 }}>{v}</span>
           </div>
         ))}
@@ -166,7 +166,7 @@ export const HorlogeDouble = ({ setPage }) => {
       </div>
 
       <button onClick={handleStart}
-        style={{ width:"100%", background:"linear-gradient(135deg,#a855f7,#7c3aed)", border:"none", color:"#fff", borderRadius:16, padding:"18px", fontSize:18, fontWeight:900, cursor:"pointer", boxShadow:"0 6px 30px rgba(168,85,247,0.4)", display:"flex", alignItems:"center", justifyContent:"center", gap:10 }}>
+        style={{ width:"100%", background:"linear-gradient(135deg,#a78bfa,#7c3aed)", border:"none", color:"#fff", borderRadius:16, padding:"18px", fontSize:18, fontWeight:900, cursor:"pointer", boxShadow:"0 6px 30px rgba(168,85,247,0.4)", display:"flex", alignItems:"center", justifyContent:"center", gap:10 }}>
         <Timer size={22}/> Lancer la session
       </button>
     </>
@@ -233,7 +233,7 @@ export const HorlogeDouble = ({ setPage }) => {
         <div style={{ fontWeight:900, fontSize:52, color:"#22c55e", marginBottom:4 }}>✓</div>
         <div style={{ fontWeight:800, fontSize:20, marginBottom:4 }}>{target.label} réussi !</div>
         <div style={{ fontSize:28, fontWeight:900, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-          <Timer size={22} color="#a855f7"/> {fmtMs(savedTime)}
+          <Timer size={22} color="#a78bfa"/> {fmtMs(savedTime)}
         </div>
       </div>
 
@@ -304,7 +304,7 @@ export const HorlogeDouble = ({ setPage }) => {
           {[
             { label:"Misses",      value:totalMisses,  color:"#ef4444" },
             { label:"Précision",   value:`${pctHit}%`, color:"#f59e0b" },
-            { label:"Fléchettes",  value:totalDarts,   color:"#a855f7" },
+            { label:"Fléchettes",  value:totalDarts,   color:"#a78bfa" },
           ].map(s => (
             <div key={s.label} style={{ background:"#0d0d0d", border:`1px solid ${s.color}33`, borderRadius:14, padding:"14px 8px", textAlign:"center" }}>
               <div style={{ fontWeight:900, fontSize:22, color:s.color }}>{s.value}</div>
@@ -376,7 +376,7 @@ export const HorlogeDouble = ({ setPage }) => {
         {/* Boutons */}
         <div style={{ display:"flex", gap:10 }}>
           <button onClick={reset}
-            style={{ flex:2, background:"linear-gradient(135deg,#a855f7,#7c3aed)", border:"none", color:"#fff", borderRadius:14, padding:"16px", fontSize:15, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+            style={{ flex:2, background:"linear-gradient(135deg,#a78bfa,#7c3aed)", border:"none", color:"#fff", borderRadius:14, padding:"16px", fontSize:15, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
             <RotateCcw size={16}/> Rejouer
           </button>
           <button onClick={() => setPage("jeux-sans")}
