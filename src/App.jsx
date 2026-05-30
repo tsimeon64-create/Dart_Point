@@ -215,7 +215,9 @@ const Btn = ({ children, onClick, variant="primary", style={}, disabled=false })
     success:{ background:"#14532d", color:C.green, border:`1px solid ${C.green}44` },
     yellow:{ background:"#78350f", color:C.yellow, border:`1px solid ${C.yellow}44` },
   };
-  return <button onClick={disabled?undefined:onClick} style={{ cursor:disabled?"not-allowed":"pointer",borderRadius:8,fontWeight:600,fontSize:14,padding:"10px 20px",transition:"all .15s",opacity:disabled?.5:1,...variants[variant],...style }}>{children}</button>;
+  const variantStyle = variants[variant];
+  const disabledStyle = disabled ? { background:"#2a2a2a", color:"#64748b", border:"1px solid #333", opacity:.6 } : {};
+  return <button onClick={disabled?undefined:onClick} style={{ cursor:disabled?"not-allowed":"pointer",borderRadius:8,fontWeight:600,fontSize:14,padding:"10px 20px",transition:"all .15s",touchAction:"manipulation",minHeight:40,...variantStyle,...disabledStyle,...style }}>{children}</button>;
 };
 
 const Field = ({ label, value, onChange, placeholder, type="text", as="input", options }) => (
@@ -933,16 +935,17 @@ const SignalForm = ({ barSlug, barNom, onClose }) => {
   const [type,setType]=useState("horaires"); const [msg,setMsg]=useState(""); const [sent,setSent]=useState(false);
   const types=[["horaires","⏰ Horaires"],["ferme","🚫 Bar fermé"],["adresse","📍 Adresse"],["cibles","🎯 Fléchettes"],["autre","💬 Autre"]];
   if (sent) return (
-    <div style={{ position:"fixed",inset:0,background:"#000a",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center" }}>
-      <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:32,maxWidth:420,width:"90%",textAlign:"center" }}>
+    <div onClick={onClose} style={{ position:"fixed",inset:0,background:"#000a",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:32,maxWidth:420,width:"90%",textAlign:"center" }}>
         <div style={{ fontSize:44,marginBottom:10 }}>✅</div><h3 style={{ fontWeight:700,marginBottom:8 }}>Signalement envoyé !</h3>
         <Btn onClick={onClose}>Fermer</Btn>
       </div>
     </div>
   );
   return (
-    <div style={{ position:"fixed",inset:0,background:"#000a",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center" }}>
-      <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:28,maxWidth:440,width:"90%" }}>
+    <div onClick={onClose} style={{ position:"fixed",inset:0,background:"#000a",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:28,maxWidth:440,width:"90%",position:"relative" }}>
+        <button onClick={onClose} aria-label="Fermer" style={{ position:"absolute",top:10,right:10,background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer",lineHeight:1,padding:"4px 8px" }}>✕</button>
         <h3 style={{ fontWeight:700,marginBottom:4 }}>⚠️ Signaler une erreur — {barNom}</h3>
         <div style={{ display:"flex",flexDirection:"column",gap:12,marginTop:14 }}>
           <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>{types.map(([v,l])=><button key={v} onClick={()=>setType(v)} style={{ background:type===v?C.accent+"33":"#111",border:`1px solid ${type===v?C.accent:C.border}`,borderRadius:20,padding:"5px 12px",cursor:"pointer",fontSize:12,color:type===v?C.accent:C.muted }}>{l}</button>)}</div>
@@ -10737,6 +10740,17 @@ export default function App() {
     return () => { window.removeEventListener("online", goOn); window.removeEventListener("offline", goOff); };
   }, []);
   const [barsActifs,setBarsActifs]=useState([]);
+  // ── Système de toast global ─────────────────────────────────────────────
+  const [toasts, setToasts] = useState([]);
+  const showToast = useCallback((message, type="info", duration=3000) => {
+    const id = Date.now() + Math.random();
+    setToasts(t => [...t, { id, message, type }]);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), duration);
+    if (type === "success" && navigator.vibrate) navigator.vibrate(30);
+    if (type === "error" && navigator.vibrate) navigator.vibrate([60, 30, 60]);
+  }, []);
+  // Expose globalement pour les modules importés
+  useEffect(() => { window.dpToast = showToast; return () => { delete window.dpToast; }; }, [showToast]);
   const [installPrompt,setInstallPrompt]=useState(null);
   const [isInstalled,setIsInstalled]=useState(false);
   const [showChronoPopup,setShowChronoPopup]=useState(false);
@@ -11393,6 +11407,40 @@ export default function App() {
           display:"flex", alignItems:"center", justifyContent:"center", gap:8,
         }}>
           📡 Hors connexion — certaines actions ne fonctionneront pas
+        </div>
+      )}
+      {/* ── Toast container ── */}
+      {toasts.length > 0 && (
+        <div style={{ position:"fixed", top:isOffline?44:12, left:"50%", transform:"translateX(-50%)", zIndex:9999, display:"flex", flexDirection:"column", gap:8, pointerEvents:"none", maxWidth:"calc(100% - 24px)" }}>
+          {toasts.map(t => {
+            const colors = {
+              success: { bg:"linear-gradient(135deg,#14532d,#052e16)", border:"#22c55e", icon:"✓" },
+              error:   { bg:"linear-gradient(135deg,#7f1d1d,#3a0a0a)", border:"#ef4444", icon:"✕" },
+              info:    { bg:"linear-gradient(135deg,#1e3a8a,#0a1e3a)", border:"#60a5fa", icon:"ℹ" },
+              warning: { bg:"linear-gradient(135deg,#78350f,#3a1e00)", border:"#fbbf24", icon:"⚠" },
+            };
+            const c = colors[t.type] || colors.info;
+            return (
+              <div key={t.id} style={{
+                background: c.bg,
+                border: `1px solid ${c.border}88`,
+                borderRadius: 12,
+                padding: "10px 16px 10px 12px",
+                color: "#f1f5f9",
+                fontSize: 13,
+                fontWeight: 600,
+                boxShadow: `0 4px 20px ${c.border}44`,
+                display: "flex", alignItems: "center", gap: 10,
+                pointerEvents: "auto",
+                minWidth: 240, maxWidth: 400,
+                animation: "toastIn .3s cubic-bezier(.4,1.4,.6,1) both",
+              }}>
+                <span style={{ fontSize: 16, fontWeight: 900, color: c.border }}>{c.icon}</span>
+                <span style={{ flex: 1 }}>{t.message}</span>
+              </div>
+            );
+          })}
+          <style>{`@keyframes toastIn { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }`}</style>
         </div>
       )}
       <main style={{ flex:1 }}>

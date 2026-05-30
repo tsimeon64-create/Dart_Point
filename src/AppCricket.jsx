@@ -607,7 +607,9 @@ export const ScoreurCricket = ({ config, setPage }) => {
           contenu: `__DUEL__|${JSON.stringify(duelPostData)}`,
           date: now,
         })}).catch(()=>{}),
-      ]).catch(()=>{});
+      ]).catch(()=>{
+        window.dpToast?.("Erreur lors de la sauvegarde du résultat", "error", 5000);
+      });
       localStorage.removeItem("dp_cricket_duel");
     })();
   }, [phase, config.defi, drixPublished, joueurs]);

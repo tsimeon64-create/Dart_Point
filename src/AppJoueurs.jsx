@@ -193,7 +193,9 @@ const BtnJ = ({ children, onClick, variant="primary", style={}, disabled=false }
     success:{ background:"#14532d", color:CJ.green, border:`1px solid ${CJ.green}44` },
     yellow:{ background:"#78350f", color:CJ.yellow, border:`1px solid ${CJ.yellow}44` },
   };
-  return <button onPointerDown={disabled?undefined:(e)=>{e.preventDefault();onClick&&onClick(e);}} style={{ cursor:disabled?"not-allowed":"pointer",borderRadius:8,fontWeight:600,fontSize:14,padding:"10px 20px",transition:"all .15s",opacity:disabled?.5:1,touchAction:"manipulation",WebkitTapHighlightColor:"transparent",...variants[variant],...style }}>{children}</button>;
+  const variantStyle = variants[variant];
+  const disabledStyle = disabled ? { background:"#2a2a2a", color:"#64748b", border:"1px solid #333", opacity:.6 } : {};
+  return <button onPointerDown={disabled?undefined:(e)=>{e.preventDefault();onClick&&onClick(e);}} style={{ cursor:disabled?"not-allowed":"pointer",borderRadius:8,fontWeight:600,fontSize:14,padding:"10px 20px",transition:"all .15s",touchAction:"manipulation",WebkitTapHighlightColor:"transparent",minHeight:40,...variantStyle,...disabledStyle,...style }}>{children}</button>;
 };
 
 const FieldJ = ({ label, value, onChange, placeholder, type="text", as="input", options }) => (
@@ -649,6 +651,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       ].map(p => p.catch(()=>{})));
     }
     setSavingEdit(false); setEditMode(false);
+    window.dpToast?.(pseudoChange ? "Pseudo et profil enregistrés" : "Profil enregistré", "success");
   };
 
   // Étape 1 : utilisateur choisit un fichier → on ouvre le modal de crop
@@ -2105,6 +2108,9 @@ const DefiForm = ({ joueur, cible, setPage }) => {
       if (existing && existing[0]) { setAmiStatut(existing[0].statut || "en_attente"); return; }
       await sbJ("amis", { method:"POST", body:JSON.stringify({ joueur_id:joueur.id, ami_id:cible.id, joueur_pseudo:joueur.pseudo, ami_pseudo:cible.pseudo, statut:"en_attente", date:Date.now() }) });
       setAmiStatut("en_attente");
+      window.dpToast?.(`Demande envoyée à ${cible.pseudo}`, "success");
+    } catch (e) {
+      window.dpToast?.("Erreur lors de l'envoi", "error");
     } finally { setAjoutAmiBusy(false); }
   };
 
@@ -2471,6 +2477,9 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       }
       await sbJ("amis", { method:"POST", body:JSON.stringify({ joueur_id:moi.id, ami_id:j.id, joueur_pseudo:moi.pseudo, ami_pseudo:j.pseudo, statut:"en_attente", date:Date.now() }) });
       setAmiStatut("en_attente");
+      window.dpToast?.(`Demande envoyée à ${j.pseudo}`, "success");
+    } catch (e) {
+      window.dpToast?.("Erreur lors de l'envoi de la demande", "error");
     } finally { setAjoutBusy(false); }
   };
 
