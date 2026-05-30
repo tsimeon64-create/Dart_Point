@@ -30,16 +30,18 @@ export const C = {
   red:          "#ef4444",
   redBg:        "#7f1d1d",
   redLight:     "#f87171",
-  yellow:       "#f59e0b",
+  yellow:       "#fbbf24",
+  yellowDeep:   "#f59e0b",
   yellowBg:     "#78350f",
   purple:       "#a78bfa",
   purpleDark:   "#7c3aed",
   blue:         "#60a5fa",
   emerald:      "#34d399",
   // Podium
-  gold:         "#f59e0b",
-  silver:       "#94a3b8",
-  bronze:       "#d97706",
+  gold:         "#fbbf24",
+  goldDeep:     "#f59e0b",
+  silver:       "#cbd5e1",
+  bronze:       "#fb923c",
 };
 
 // Z-index scale

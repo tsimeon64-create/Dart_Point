@@ -6974,7 +6974,7 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
   },[bar]);
 
   if(loading) return <Spinner/>;
-  if(!bar) return <div style={{ maxWidth:860,margin:"0 auto",padding:"36px 20px",textAlign:"center" }}><Btn onClick={()=>window.history.back()}>← Retour</Btn></div>;
+  if(!bar) return <div style={{ maxWidth:860,margin:"0 auto",padding:"36px 20px",textAlign:"center" }}><Btn onClick={()=>setPage("bars")}>← Retour</Btn></div>;
 
   const CIBLE_SEUIL = 10;
   const alreadyVotedCible = joueur && cibleReports.some(r => r.joueur_id === joueur.id);
@@ -7019,7 +7019,7 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
             </div>
         }
         <div style={{ position:"absolute",inset:0,background:"linear-gradient(to bottom,rgba(0,0,0,.5) 0%,transparent 45%,rgba(15,15,15,.97) 100%)" }}/>
-        <button onClick={()=>window.history.back()} style={{ position:"absolute",top:16,left:16,background:"rgba(0,0,0,.55)",border:"none",color:"#fff",cursor:"pointer",borderRadius:10,padding:"7px 14px",fontSize:13,backdropFilter:"blur(10px)",fontWeight:500,display:"flex",alignItems:"center",gap:6 }}><ArrowLeft size={15}/> Retour</button>
+        <button onClick={()=>setPage("bars")} style={{ position:"absolute",top:16,left:16,background:"rgba(0,0,0,.55)",border:"none",color:"#fff",cursor:"pointer",borderRadius:10,padding:"7px 14px",fontSize:13,backdropFilter:"blur(10px)",fontWeight:500,display:"flex",alignItems:"center",gap:6 }}><ArrowLeft size={15}/> Retour</button>
         {(isAdmin||joueur)&&<button onClick={()=>joueur?setShowEdit(true):null} style={{ position:"absolute",top:16,right:16,background:"rgba(0,0,0,.55)",border:`1px solid ${isAdmin?C.yellow+"66":"#ffffff44"}`,color:isAdmin?C.yellow:"#fff",cursor:"pointer",borderRadius:10,padding:"7px 13px",fontSize:12,backdropFilter:"blur(10px)",display:"flex",alignItems:"center",gap:5 }}><Pencil size={13}/> Modifier</button>}
       </div>
 
@@ -7894,7 +7894,7 @@ const TournoiDetail = ({ slug, tournois, setTournois, bars, setPage, setBarSlug,
     <div style={{ maxWidth:860,margin:"0 auto",padding:"36px 20px" }}>
       {showEdit && <EditTournoiModal tournoi={t} onSave={u=>{setTournois(ts=>ts.map(x=>x.slug===u.slug?{...x,...u}:x));setShowEdit(false);}} onClose={()=>setShowEdit(false)}/>}
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:18 }}>
-        <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13 }}>← Retour</button>
+        <button onClick={()=>setPage("bars")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13 }}>← Retour</button>
         {isCreateur && <Btn onClick={()=>setShowEdit(true)} style={{ fontSize:12,background:"transparent",border:`1px solid ${C.yellow}`,color:C.yellow,padding:"6px 14px" }}>✏️ Modifier le tournoi</Btn>}
       </div>
       <div style={{ display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:6 }}><h1 style={{ fontWeight:800,fontSize:28 }}>{t.nom}</h1><Badge color={isPast?C.muted:C.green}>{isPast?"Passé":"À venir"}</Badge></div>
@@ -10727,6 +10727,15 @@ export default function App() {
   const [unreadMessages,setUnreadMessages]=useState(0);
   const [newBadgesCount,setNewBadgesCount]=useState(0);
   const prevDemandesRef = useRef(0);
+  // Détection hors-ligne (bannière globale)
+  const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && navigator.onLine === false);
+  useEffect(() => {
+    const goOn = () => setIsOffline(false);
+    const goOff = () => setIsOffline(true);
+    window.addEventListener("online", goOn);
+    window.addEventListener("offline", goOff);
+    return () => { window.removeEventListener("online", goOn); window.removeEventListener("offline", goOff); };
+  }, []);
   const [barsActifs,setBarsActifs]=useState([]);
   const [installPrompt,setInstallPrompt]=useState(null);
   const [isInstalled,setIsInstalled]=useState(false);
@@ -11374,6 +11383,18 @@ export default function App() {
         </div>
       )}
       <Nav page={page} setPage={navSafe} isAdmin={isAdmin} joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} unreadMessages={unreadMessages} newBadgesCount={newBadgesCount} onBadgesSeen={()=>setNewBadgesCount(0)} onBack={goBack} canGoBack={history.length>1} bars={bars} barsActifs={barsActifs} associations={associations} tournois={tournois} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug}/>
+      {isOffline && (
+        <div style={{
+          position:"sticky", top:0, zIndex:1500,
+          background:"linear-gradient(135deg,#7f1d1d,#991b1b)",
+          color:"#fff", textAlign:"center",
+          padding:"8px 14px", fontSize:12, fontWeight:800, letterSpacing:.5,
+          boxShadow:"0 2px 12px #ef444466",
+          display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+        }}>
+          📡 Hors connexion — certaines actions ne fonctionneront pas
+        </div>
+      )}
       <main style={{ flex:1 }}>
         {page==="home"             && <Home joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="defi"             && joueur && <PageDefi joueur={joueur} setPage={nav}/>}
