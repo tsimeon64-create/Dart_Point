@@ -28,7 +28,6 @@ dist-ssr
 supabase.exe
 supabase-go.exe
 supabase_cli.tar.gz
-supabase/functions/
 
 # Claude Code skills locaux
 .claude/skills/
