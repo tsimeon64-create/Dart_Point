@@ -4479,108 +4479,241 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
     );
   }
 
+  // ── Helpers spectateur ──────────────────────────────────────────────────
+  // Détermine qui joue maintenant (à partir de la dernière volée)
+  const lastVolee = volees.length > 0 ? volees[volees.length - 1] : null;
+  // Le joueur actif = celui qui n'a pas joué en dernier (ou j1 si pas de volée encore)
+  const activeJoueurId = !lastVolee ? session.joueur1_id
+    : lastVolee.joueur_id === session.joueur1_id ? session.joueur2_id : session.joueur1_id;
+  const activePseudo = activeJoueurId === session.joueur1_id ? session.joueur1_pseudo : session.joueur2_pseudo;
+  const activeColor  = activeJoueurId === session.joueur1_id ? c1 : c2;
+
+  // Dernière volée par joueur
+  const lastV1 = [...vJ1].pop() || null;
+  const lastV2 = [...vJ2].pop() || null;
+  const lastBothVolees = [lastV1, lastV2].filter(Boolean).sort((a,b)=>(b.date||0)-(a.date||0));
+
+  // Momentum : sur les 4 dernières volées non-bust, qui a marqué le plus
+  const recentVolees = volees.slice(-6).filter(v => v.score !== -1);
+  let mom1 = 0, mom2 = 0;
+  recentVolees.forEach(v => {
+    if (v.joueur_id === session.joueur1_id) mom1 += v.score;
+    else mom2 += v.score;
+  });
+  const momentumDiff = Math.abs(mom1 - mom2);
+  const momentum = momentumDiff < 30 ? { label:"Match équilibré", emoji:"⚖", color:C.muted }
+    : mom1 > mom2 ? { label:`Momentum : ${session.joueur1_pseudo}`, emoji:"🔥", color:c1 }
+    : { label:`Momentum : ${session.joueur2_pseudo}`, emoji:"🔥", color:c2 };
+
+  // Volée colorée pour les highlights
+  const voleeBadge = (v) => {
+    if (v.score === -1) return { emoji:"❌", label:"Bust", color:"#ef4444" };
+    if (v.score === 180) return { emoji:"💥", label:"180 !", color:"#a78bfa" };
+    if (v.reste === 0) return { emoji:"🏆", label:`Finish ${v.score}`, color:"#fbbf24" };
+    if (v.score >= 140) return { emoji:"🔥", label:`Gros score`, color:"#60a5fa" };
+    if (v.score >= 100) return { emoji:"⚡", label:`Beau score`, color:"#f97316" };
+    return null;
+  };
+
+  // Highlights live : événements marquants depuis le début
+  const highlights = volees
+    .map(v => {
+      const badge = voleeBadge(v);
+      if (!badge) return null;
+      const pseudo = v.joueur_id === session.joueur1_id ? session.joueur1_pseudo : session.joueur2_pseudo;
+      return { ...badge, pseudo, date: v.date, score: v.score };
+    })
+    .filter(Boolean)
+    .reverse();
+
+  // Manches state : ouvert / fermé (par défaut seulement la manche en cours ouverte)
+  const [openManches, setOpenManches] = useState(new Set([manches.length - 1]));
+  useEffect(() => { setOpenManches(new Set([manches.length - 1])); }, [manches.length]);
+
   return (
-    <div style={{ maxWidth:700,margin:"0 auto",padding:"12px 16px 24px" }}>
-      <style>{`@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.35)}} @keyframes liveEventSlide{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <div style={{ maxWidth:700,margin:"0 auto",padding:"10px 14px 24px" }}>
+      <style>{`
+        @keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.35)}}
+        @keyframes liveEventSlide{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes voleeFlash{0%{background:#f9731644}100%{background:transparent}}
+        @keyframes mancheBadgePulse{0%,100%{box-shadow:0 0 10px #f9731644}50%{box-shadow:0 0 22px #f97316aa}}
+      `}</style>
 
-      {/* ── Back row ── */}
-      <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:14 }}>
-        <button onClick={onBack} style={{ background:"#1a1a2a",border:"1px solid #2a2a3a",color:C.muted,cursor:"pointer",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:600 }}>← Retour</button>
-        <div style={{ display:"flex",gap:6,marginLeft:"auto" }}>
-          <span style={{ background:"#1a1a2a",color:C.muted,borderRadius:8,padding:"4px 10px",fontSize:11,fontWeight:600 }}>{session.mode}</span>
-          {session.format&&<span style={{ background:"#1a1a2a",color:C.muted,borderRadius:8,padding:"4px 10px",fontSize:11 }}>{session.format}</span>}
-        </div>
-        <div style={{ display:"flex",alignItems:"center",gap:5,background:"#1a0808",border:"1px solid #ef444430",borderRadius:10,padding:"4px 10px" }}>
-          <div style={{ width:6,height:6,borderRadius:"50%",background:"#ef4444",animation:"livePulse 1.2s infinite" }}/>
-          <span style={{ fontSize:11,fontWeight:800,color:"#ef4444" }}>LIVE</span>
-          <span style={{ fontSize:10,color:C.muted }}>{elStr}</span>
-          {totalReacs>0&&<span style={{ fontSize:10,color:C.muted }}>· {totalReacs} 🔥</span>}
-        </div>
-      </div>
-
-      {/* ── Main scoreboard ── */}
-      <div style={{ background:"linear-gradient(145deg,#12121e 0%,#0d0d18 60%,#100a1a 100%)",border:"1px solid #1e1e30",borderRadius:20,padding:"18px 14px 14px",marginBottom:10,position:"relative",overflow:"hidden" }}>
-        {/* top glow bar */}
-        <div style={{ position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${c1},#f97316,${c2})`,borderRadius:"20px 20px 0 0" }}/>
-
-        {/* ── Joueur 1 ── */}
-        <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:8 }}>
-          <div style={{ position:"relative",flexShrink:0 }}>
-            <FeedAvatar pseudo={session.joueur1_pseudo} size={44} onClick={()=>session.joueur1_id&&setPage("profil-joueur-"+session.joueur1_id)}/>
-            {leader===1&&<div style={{ position:"absolute",top:-4,right:-4,width:14,height:14,borderRadius:"50%",background:"#f59e0b",border:"2px solid #12121e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7 }}>★</div>}
-          </div>
-          <div style={{ flex:1,minWidth:0 }}>
-            <TruncPseudo pseudo={session.joueur1_pseudo} max={13} style={{ fontWeight:800,fontSize:14,color:leader===1?"#fff":C.muted,display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}/>
-            <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:1 }}>
-              <span style={{ fontSize:10,color:c1,fontWeight:700 }}>{e1} {session.joueur1_drix}</span>
-              <span style={{ fontSize:10,color:"#f97316",fontWeight:700 }}>Moy {typeof s1.moy==="number"?s1.moy.toFixed(1):s1.moy||"—"}</span>
-              {(s1.nb180||0)>0&&<span style={{ fontSize:10,color:"#a78bfa" }}>💥×{s1.nb180}</span>}
-            </div>
-            <div style={{ fontSize:10,color:C.muted,marginTop:1 }}>Reste : <b style={{ color:leader===1?"#f59e0b":C.text }}>{s1.reste!=null?s1.reste:"—"}</b></div>
-            <div style={{ marginTop:4 }}><HeatmapStrip volees={vJ1}/></div>
-          </div>
-          <div style={{ flexShrink:0,textAlign:"right" }}>
-            <div style={{ fontWeight:900,fontSize:40,lineHeight:1,color:leader===1?"#f59e0b":C.text,textShadow:leader===1?"0 0 18px #f59e0b88":"none",transition:"all .3s",minWidth:36,textAlign:"center" }}>{sc1}</div>
-          </div>
-        </div>
-
-        {/* ── Séparateur ⚔ ── */}
-        <div style={{ display:"flex",alignItems:"center",gap:8,margin:"6px 0" }}>
-          <div style={{ flex:1,height:1,background:"#1e1e30" }}/>
-          <span style={{ fontSize:16,color:"#2a2a3a",fontWeight:900 }}>⚔</span>
-          <div style={{ flex:1,height:1,background:"#1e1e30" }}/>
-        </div>
-
-        {/* ── Joueur 2 ── */}
-        <div style={{ display:"flex",alignItems:"center",gap:10,marginTop:8 }}>
-          <div style={{ position:"relative",flexShrink:0 }}>
-            <FeedAvatar pseudo={session.joueur2_pseudo} size={44} onClick={()=>session.joueur2_id&&setPage("profil-joueur-"+session.joueur2_id)}/>
-            {leader===2&&<div style={{ position:"absolute",top:-4,right:-4,width:14,height:14,borderRadius:"50%",background:"#f59e0b",border:"2px solid #12121e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7 }}>★</div>}
-          </div>
-          <div style={{ flex:1,minWidth:0 }}>
-            <TruncPseudo pseudo={session.joueur2_pseudo} max={13} style={{ fontWeight:800,fontSize:14,color:leader===2?"#fff":C.muted,display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}/>
-            <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:1 }}>
-              <span style={{ fontSize:10,color:c2,fontWeight:700 }}>{e2} {session.joueur2_drix}</span>
-              <span style={{ fontSize:10,color:"#f97316",fontWeight:700 }}>Moy {typeof s2.moy==="number"?s2.moy.toFixed(1):s2.moy||"—"}</span>
-              {(s2.nb180||0)>0&&<span style={{ fontSize:10,color:"#a78bfa" }}>💥×{s2.nb180}</span>}
-            </div>
-            <div style={{ fontSize:10,color:C.muted,marginTop:1 }}>Reste : <b style={{ color:leader===2?"#f59e0b":C.text }}>{s2.reste!=null?s2.reste:"—"}</b></div>
-            <div style={{ marginTop:4 }}><HeatmapStrip volees={vJ2}/></div>
-          </div>
-          <div style={{ flexShrink:0,textAlign:"right" }}>
-            <div style={{ fontWeight:900,fontSize:40,lineHeight:1,color:leader===2?"#f59e0b":C.text,textShadow:leader===2?"0 0 18px #f59e0b88":"none",transition:"all .3s",minWidth:36,textAlign:"center" }}>{sc2}</div>
-          </div>
+      {/* ── Back + LIVE compact ── */}
+      <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
+        <button onClick={onBack} style={{ background:"#1a1a2a",border:"1px solid #2a2a3a",color:C.muted,cursor:"pointer",borderRadius:10,padding:"6px 12px",fontSize:12,fontWeight:600,minHeight:34 }}>← Retour</button>
+        <span style={{ background:"#1a1a2a",color:C.muted,borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700 }}>{session.mode}</span>
+        {session.format&&<span style={{ background:"#1a1a2a",color:C.muted,borderRadius:6,padding:"3px 8px",fontSize:10 }}>{session.format}</span>}
+        <div style={{ marginLeft:"auto", display:"flex",alignItems:"center",gap:5,background:"#1a0808",border:"1px solid #ef444444",borderRadius:10,padding:"4px 9px" }}>
+          <div style={{ width:7,height:7,borderRadius:"50%",background:"#ef4444",animation:"livePulse 1.2s infinite" }}/>
+          <span style={{ fontSize:11,fontWeight:900,color:"#ef4444",letterSpacing:1 }}>LIVE</span>
+          <span style={{ fontSize:9,color:C.muted }}>· {elStr}</span>
         </div>
       </div>
 
-      {/* ── Last event banner ── */}
-      {lastEvent && (
-        <div key={lastEvent.text} style={{ background:`${lastEvent.color}18`,border:`1px solid ${lastEvent.color}44`,borderRadius:12,padding:"8px 14px",marginBottom:10,display:"flex",alignItems:"center",gap:8,animation:"liveEventSlide .3s ease" }}>
-          <span style={{ fontSize:18 }}>{lastEvent.emoji}</span>
-          <span style={{ fontSize:13,fontWeight:700,color:lastEvent.color }}>{lastEvent.text}</span>
+      {/* ═══ HERO MATCH — SCORE GÉANT ═══ */}
+      <div style={{ background:"linear-gradient(160deg,#0a0a18 0%,#100a20 50%,#0a0a18 100%)",border:"1.5px solid #1e1e3a",borderRadius:20,padding:"16px 12px 12px",marginBottom:10,position:"relative",overflow:"hidden" }}>
+        {/* Glow bar top */}
+        <div style={{ position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${c1},#f97316,${c2})` }}/>
+
+        {/* Noms + sets centrés */}
+        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:10 }}>
+          {/* J1 */}
+          <div style={{ display:"flex",alignItems:"center",gap:8,minWidth:0,flex:1 }}>
+            <FeedAvatar pseudo={session.joueur1_pseudo} size={36} onClick={()=>session.joueur1_id&&setPage("profil-joueur-"+session.joueur1_id)}/>
+            <div style={{ minWidth:0 }}>
+              <TruncPseudo pseudo={session.joueur1_pseudo} max={12} style={{ fontWeight:900,fontSize:13,color:leader===1?"#fff":C.text,display:"block" }}/>
+              <div style={{ fontSize:9,color:c1,fontWeight:700 }}>{e1} {session.joueur1_drix}</div>
+            </div>
+          </div>
+
+          {/* Sets central énorme */}
+          <div style={{ textAlign:"center", flexShrink:0, padding:"0 6px" }}>
+            <div style={{ display:"flex",alignItems:"baseline",gap:6 }}>
+              <span style={{ fontWeight:900,fontSize:42,color:leader===1?"#f59e0b":C.text,textShadow:leader===1?"0 0 16px #f59e0baa":"none",lineHeight:1,fontVariantNumeric:"tabular-nums" }}>{sc1}</span>
+              <span style={{ color:"#ef4444",fontSize:18,fontWeight:900 }}>⚔</span>
+              <span style={{ fontWeight:900,fontSize:42,color:leader===2?"#f59e0b":C.text,textShadow:leader===2?"0 0 16px #f59e0baa":"none",lineHeight:1,fontVariantNumeric:"tabular-nums" }}>{sc2}</span>
+            </div>
+            <div style={{ fontSize:8,color:"#475569",fontWeight:700,letterSpacing:2,marginTop:2 }}>MANCHES</div>
+          </div>
+
+          {/* J2 */}
+          <div style={{ display:"flex",alignItems:"center",gap:8,minWidth:0,flex:1,justifyContent:"flex-end" }}>
+            <div style={{ minWidth:0,textAlign:"right" }}>
+              <TruncPseudo pseudo={session.joueur2_pseudo} max={12} style={{ fontWeight:900,fontSize:13,color:leader===2?"#fff":C.text,display:"block" }}/>
+              <div style={{ fontSize:9,color:c2,fontWeight:700 }}>{e2} {session.joueur2_drix}</div>
+            </div>
+            <FeedAvatar pseudo={session.joueur2_pseudo} size={36} onClick={()=>session.joueur2_id&&setPage("profil-joueur-"+session.joueur2_id)}/>
+          </div>
+        </div>
+
+        {/* SCORE RESTANT GÉANT */}
+        <div style={{ display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:6,alignItems:"center",padding:"10px 0",borderTop:"1px solid #1e1e3a",borderBottom:"1px solid #1e1e3a",margin:"4px 0 8px" }}>
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontSize:"clamp(48px,14vw,68px)",fontWeight:900,color:activeJoueurId===session.joueur1_id?"#fff":c1,fontVariantNumeric:"tabular-nums",lineHeight:1,textShadow:`0 0 20px ${activeJoueurId===session.joueur1_id?"#ffffff44":c1+"44"}` }}>
+              {s1.reste != null ? s1.reste : "—"}
+            </div>
+            <div style={{ fontSize:9,color:C.muted,letterSpacing:1.5,marginTop:2 }}>📊 MOY {typeof s1.moy==="number"?s1.moy.toFixed(1):s1.moy||"—"}</div>
+          </div>
+          <div style={{ fontSize:14,color:"#334155",fontWeight:900 }}>—</div>
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontSize:"clamp(48px,14vw,68px)",fontWeight:900,color:activeJoueurId===session.joueur2_id?"#fff":c2,fontVariantNumeric:"tabular-nums",lineHeight:1,textShadow:`0 0 20px ${activeJoueurId===session.joueur2_id?"#ffffff44":c2+"44"}` }}>
+              {s2.reste != null ? s2.reste : "—"}
+            </div>
+            <div style={{ fontSize:9,color:C.muted,letterSpacing:1.5,marginTop:2 }}>📊 MOY {typeof s2.moy==="number"?s2.moy.toFixed(1):s2.moy||"—"}</div>
+          </div>
+        </div>
+
+        {/* AU TOUR DE X */}
+        <div style={{ display:"flex",justifyContent:"center" }}>
+          <div style={{
+            display:"inline-flex",alignItems:"center",gap:6,
+            background:`${activeColor}18`,border:`1px solid ${activeColor}66`,
+            borderRadius:20,padding:"5px 14px",
+            animation:"mancheBadgePulse 2s infinite",
+          }}>
+            <span style={{ width:8,height:8,borderRadius:"50%",background:"#22c55e",animation:"livePulse 1.2s infinite" }}/>
+            <span style={{ fontSize:11,fontWeight:900,color:activeColor,letterSpacing:1.5 }}>
+              AU TOUR DE <TruncPseudo pseudo={activePseudo} max={14} as="span"/>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ DERNIÈRE VOLÉE prominente ═══ */}
+      {lastBothVolees.length > 0 && (
+        <div key={`last-${lastVolee?.id}`} style={{
+          background:"linear-gradient(135deg,#1a0f00,#0a0500)",
+          border:"1.5px solid #f97316",
+          borderRadius:14,padding:"10px 12px",marginBottom:10,
+          boxShadow:"0 0 16px #f9731633",
+          animation:"liveEventSlide .35s ease",
+        }}>
+          <div style={{ fontSize:9,fontWeight:900,color:"#f97316",letterSpacing:2,marginBottom:6 }}>🎯 DERNIÈRE VOLÉE</div>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+            {lastV1 && (
+              <div style={{ background:"#000000aa",borderRadius:10,padding:"8px 10px",borderLeft:`3px solid ${c1}` }}>
+                <div style={{ fontSize:10,color:c1,fontWeight:700,marginBottom:2 }}><TruncPseudo pseudo={session.joueur1_pseudo} max={10} as="span"/></div>
+                <div style={{ fontSize:24,fontWeight:900,color:lastV1.score === -1 ? "#ef4444" : "#fff",fontVariantNumeric:"tabular-nums" }}>
+                  {lastV1.score === -1 ? "❌ Bust" : lastV1.score}
+                </div>
+              </div>
+            )}
+            {lastV2 && (
+              <div style={{ background:"#000000aa",borderRadius:10,padding:"8px 10px",borderLeft:`3px solid ${c2}` }}>
+                <div style={{ fontSize:10,color:c2,fontWeight:700,marginBottom:2 }}><TruncPseudo pseudo={session.joueur2_pseudo} max={10} as="span"/></div>
+                <div style={{ fontSize:24,fontWeight:900,color:lastV2.score === -1 ? "#ef4444" : "#fff",fontVariantNumeric:"tabular-nums" }}>
+                  {lastV2.score === -1 ? "❌ Bust" : lastV2.score}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* ── Réactions ── */}
-      <div style={{ display:"flex",gap:6,marginBottom:12,overflowX:"auto",paddingBottom:2 }}>
-        {REACTIONS.map(r => (
-          <button key={r.type} onClick={()=>sendReaction(r.type)} style={{ display:"flex",alignItems:"center",gap:5,background:(reactions[r.type]||0)>0?"#1e1e30":"#111118",border:`1px solid ${(reactions[r.type]||0)>0?"#f9731644":"#1e1e30"}`,borderRadius:20,padding:"6px 12px",cursor:"pointer",flexShrink:0,transition:"all .15s" }}>
-            <span style={{ fontSize:15 }}>{r.emoji}</span>
-            <span style={{ fontSize:10,color:(reactions[r.type]||0)>0?"#f97316":C.muted,fontWeight:700 }}>{r.label}</span>
-            {(reactions[r.type]||0)>0&&<span style={{ fontSize:11,fontWeight:800,color:"#f97316" }}>{reactions[r.type]}</span>}
-          </button>
-        ))}
+      {/* ═══ MOMENTUM ═══ */}
+      <div style={{
+        background:`linear-gradient(135deg,${momentum.color}11,#0a0a14)`,
+        border:`1px solid ${momentum.color}44`,
+        borderRadius:10,padding:"7px 12px",marginBottom:10,
+        display:"flex",alignItems:"center",justifyContent:"center",gap:6,
+        fontSize:11,fontWeight:800,color:momentum.color,letterSpacing:.5,
+      }}>
+        <span style={{ fontSize:14 }}>{momentum.emoji}</span>
+        {momentum.label}
       </div>
 
-      {/* ── Tabs ── */}
+      {/* ═══ MOMENTS CLÉS (highlights) ═══ */}
+      {highlights.length > 0 && (
+        <div style={{ marginBottom:10 }}>
+          <div style={{ fontSize:9,fontWeight:900,color:"#94a3b8",letterSpacing:2,marginBottom:6 }}>🏆 MOMENTS CLÉS</div>
+          <div style={{ display:"flex",gap:6,overflowX:"auto",paddingBottom:4 }}>
+            {highlights.slice(0,8).map((h,i) => (
+              <div key={i} style={{
+                flexShrink:0,
+                background:`${h.color}15`,border:`1px solid ${h.color}55`,
+                borderRadius:10,padding:"6px 10px",
+                display:"flex",alignItems:"center",gap:5,
+                whiteSpace:"nowrap",
+              }}>
+                <span style={{ fontSize:14 }}>{h.emoji}</span>
+                <span style={{ fontSize:10,fontWeight:700,color:h.color }}>{h.label}</span>
+                <span style={{ fontSize:9,color:C.muted }}>· {h.pseudo}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ RÉACTIONS compactes (compteurs) ═══ */}
+      <div style={{ display:"flex",gap:5,marginBottom:12,flexWrap:"wrap" }}>
+        {REACTIONS.map(r => {
+          const count = reactions[r.type] || 0;
+          return (
+            <button key={r.type} onClick={()=>sendReaction(r.type)} style={{
+              display:"flex",alignItems:"center",gap:4,
+              background:count>0?"#1e1e30":"#0f0f18",
+              border:`1px solid ${count>0?"#f9731644":"#1e1e30"}`,
+              borderRadius:14,padding:"4px 10px",
+              cursor:"pointer",transition:"all .15s",
+              minHeight:30,touchAction:"manipulation",
+            }}>
+              <span style={{ fontSize:13 }}>{r.emoji}</span>
+              <span style={{ fontSize:10,fontWeight:800,color:count>0?"#f97316":C.muted,fontVariantNumeric:"tabular-nums" }}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ═══ TABS ═══ */}
       <div style={{ display:"flex",background:"#0b0b16",border:"1px solid #1e1e30",borderRadius:12,padding:4,gap:2,marginBottom:14 }}>
-        {tabBtn("volees","🎯 Volées")}
+        {tabBtn("volees","🎯 Manches")}
         {tabBtn("stats","📊 Stats")}
         {tabBtn("ai","📋 Résumé")}
         {tabBtn("comments","💬 Live",comments.length)}
       </div>
 
-      {/* ══ VOLÉES tab ══ */}
+      {/* ══ MANCHES tab — repliable ══ */}
       {activeTab==="volees" && (
         <div>
           {manches.length===0 ? (
@@ -4588,49 +4721,57 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
               <div style={{ fontSize:32,marginBottom:8 }}>⏳</div>
               En attente des premières volées…
             </div>
-          ) : [...manches].reverse().map((manche, mi) => {
-            const mancheNum = manches.length - mi;
+          ) : [...manches].map((manche, mi) => {
+            const mancheNum = mi + 1;
+            const isOpen = openManches.has(mi);
+            const isCurrentManche = mi === manches.length - 1 && !manche.winner;
             const vM1 = manche.volees.filter(v=>v.joueur_id===session.joueur1_id);
             const vM2 = manche.volees.filter(v=>v.joueur_id===session.joueur2_id);
             const maxRows = Math.max(vM1.length, vM2.length);
-            const isCurrentManche = mi === 0 && !manche.winner;
+            const toggle = () => setOpenManches(prev => {
+              const next = new Set(prev);
+              if (next.has(mi)) next.delete(mi); else next.add(mi);
+              return next;
+            });
             return (
-              <div key={manche.id} style={{ marginBottom:12,border:`1px solid ${isCurrentManche?"#f9731644":"#1e1e30"}`,borderRadius:14,overflow:"hidden" }}>
-                {/* Manche header */}
-                <div style={{ background:isCurrentManche?"#1a0e00":"#0f0f1a",padding:"8px 14px",display:"flex",alignItems:"center",justifyContent:"space-between" }}>
-                  <span style={{ fontSize:12,fontWeight:700,color:isCurrentManche?"#f97316":C.muted }}>
-                    {isCurrentManche&&<span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:"#ef4444",animation:"livePulse 1.2s infinite",marginRight:6 }}/>}
+              <div key={manche.id} style={{ marginBottom:10,border:`1px solid ${isCurrentManche?"#f9731644":"#1e1e30"}`,borderRadius:12,overflow:"hidden" }}>
+                {/* Manche header cliquable */}
+                <div onClick={toggle} style={{ background:isCurrentManche?"#1a0e00":"#0f0f1a",padding:"9px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",userSelect:"none",touchAction:"manipulation" }}>
+                  <span style={{ fontSize:12,fontWeight:800,color:isCurrentManche?"#f97316":C.text,display:"flex",alignItems:"center",gap:6 }}>
+                    <span style={{ fontSize:10,color:C.muted }}>{isOpen ? "▼" : "▶"}</span>
+                    {isCurrentManche&&<span style={{ display:"inline-block",width:6,height:6,borderRadius:"50%",background:"#ef4444",animation:"livePulse 1.2s infinite" }}/>}
                     Manche {mancheNum}
+                    {!manche.winner && !isCurrentManche && <span style={{ fontSize:10,color:C.muted,fontWeight:400 }}>· {vM1.length + vM2.length} volées</span>}
+                    {isCurrentManche && <span style={{ fontSize:10,color:"#f97316",fontWeight:700,letterSpacing:1 }}>EN COURS</span>}
                   </span>
                   {manche.winner && (
-                    <span style={{ fontSize:11,fontWeight:700,color:"#f59e0b" }}>
-                      🏆 {manche.winner===1?session.joueur1_pseudo:session.joueur2_pseudo}
+                    <span style={{ fontSize:11,fontWeight:800,color:"#fbbf24",display:"flex",alignItems:"center",gap:4 }}>
+                      🏆 <TruncPseudo pseudo={manche.winner===1?session.joueur1_pseudo:session.joueur2_pseudo} max={11} as="span"/>
                     </span>
                   )}
                 </div>
-                {/* Column headers */}
-                <div style={{ display:"grid",gridTemplateColumns:"1fr 40px 40px 1fr",gap:0,background:"#0b0b14",padding:"5px 14px",borderBottom:"1px solid #1e1e30" }}>
-                  <span style={{ fontSize:10,fontWeight:700,color:c1 }}>{session.joueur1_pseudo.slice(0,9)}</span>
-                  <span style={{ fontSize:9,color:C.muted,textAlign:"center" }}>Score</span>
-                  <span style={{ fontSize:9,color:C.muted,textAlign:"center" }}>Score</span>
-                  <span style={{ fontSize:10,fontWeight:700,color:c2,textAlign:"right" }}>{session.joueur2_pseudo.slice(0,9)}</span>
-                </div>
-                {/* Volées rows */}
-                {Array.from({length:maxRows}).map((_,ri)=>{
-                  const v1 = vM1[ri], v2 = vM2[ri];
-                  return (
-                    <div key={ri} style={{ display:"grid",gridTemplateColumns:"1fr 40px 40px 1fr",gap:0,padding:"5px 14px",borderBottom:ri<maxRows-1?"1px solid #1a1a28":"none",background:ri%2===0?"transparent":"#ffffff03" }}>
-                      {/* J1 reste */}
-                      <span style={{ fontSize:11,color:C.muted }}>{v1?v1.reste:""}</span>
-                      {/* J1 score */}
-                      <span style={{ fontSize:12,fontWeight:700,color:v1?volee_color(v1):"transparent",textAlign:"center" }}>{v1?(v1.score===-1?"💥":v1.score):""}</span>
-                      {/* J2 score */}
-                      <span style={{ fontSize:12,fontWeight:700,color:v2?volee_color(v2):"transparent",textAlign:"center" }}>{v2?(v2.score===-1?"💥":v2.score):""}</span>
-                      {/* J2 reste */}
-                      <span style={{ fontSize:11,color:C.muted,textAlign:"right" }}>{v2?v2.reste:""}</span>
+                {/* Contenu repliable */}
+                {isOpen && (
+                  <>
+                    <div style={{ display:"grid",gridTemplateColumns:"1fr 40px 40px 1fr",gap:0,background:"#0b0b14",padding:"5px 14px",borderTop:"1px solid #1e1e30",borderBottom:"1px solid #1e1e30" }}>
+                      <span style={{ fontSize:10,fontWeight:700,color:c1 }}>{session.joueur1_pseudo.slice(0,9)}</span>
+                      <span style={{ fontSize:9,color:C.muted,textAlign:"center" }}>Score</span>
+                      <span style={{ fontSize:9,color:C.muted,textAlign:"center" }}>Score</span>
+                      <span style={{ fontSize:10,fontWeight:700,color:c2,textAlign:"right" }}>{session.joueur2_pseudo.slice(0,9)}</span>
                     </div>
-                  );
-                })}
+                    {Array.from({length:maxRows}).map((_,ri)=>{
+                      const v1 = vM1[ri], v2 = vM2[ri];
+                      return (
+                        <div key={ri} style={{ display:"grid",gridTemplateColumns:"1fr 40px 40px 1fr",gap:0,padding:"5px 14px",borderBottom:ri<maxRows-1?"1px solid #1a1a28":"none",background:ri%2===0?"transparent":"#ffffff03" }}>
+                          <span style={{ fontSize:11,color:C.muted }}>{v1?v1.reste:""}</span>
+                          <span style={{ fontSize:12,fontWeight:700,color:v1?volee_color(v1):"transparent",textAlign:"center" }}>{v1?(v1.score===-1?"💥":v1.score):""}</span>
+                          <span style={{ fontSize:12,fontWeight:700,color:v2?volee_color(v2):"transparent",textAlign:"center" }}>{v2?(v2.score===-1?"💥":v2.score):""}</span>
+                          <span style={{ fontSize:11,color:C.muted,textAlign:"right" }}>{v2?v2.reste:""}</span>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
               </div>
             );
           })}
