@@ -329,8 +329,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
   const commencer = async () => {
     // 🔒 Triple garde : state React + localStorage synchrone + bail si déjà locké
     if (!joueur?.id || alreadyPlayed || isLocallyLocked(today)) return;
-    // Verrou local IMMÉDIAT — même si le POST échoue, le joueur ne pourra plus relancer
-    setLocalLock(today);
+    // Verrou UI uniquement (in-memory) — évite la double-click pendant l'await
     setAlreadyPlayed(true);
     // Crée le run (statut abandonne par défaut, sera passé à termine si terminé)
     const created = await sb("chrono_scoreur_scores", {
@@ -349,7 +348,17 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
         rewarded: false,
       }),
     });
-    if (created?.[0]?.id) runIdRef.current = created[0].id;
+    // ❌ Si le POST a échoué (table manquante, RLS, etc.) → on relâche le verrou pour retry
+    if (!created?.[0]?.id) {
+      setAlreadyPlayed(false);
+      if (typeof window !== "undefined") {
+        window.dpToast?.("⚠ Erreur DB (table chrono_scoreur_scores). Recharge l'app et réessaie.", "error", 8000);
+      }
+      return;
+    }
+    runIdRef.current = created[0].id;
+    // 🔒 Verrou local POSÉ APRÈS succès POST — assure cohérence DB ⇄ local
+    setLocalLock(today);
 
     startTimeRef.current = performance.now();
     penaltyMsRef.current = 0;
