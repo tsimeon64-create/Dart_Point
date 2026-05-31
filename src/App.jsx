@@ -33,22 +33,35 @@ const sb = async (path, opts = {}) => {
   const text = await res.text();
   return text ? JSON.parse(text) : null;
 };
+// Opérations admin sensibles (DELETE/UPDATE) → Edge Function admin-ops (service key côté
+// serveur). Le mot de passe admin, stocké en session à la connexion, est revérifié serveur.
+const sbAdmin = async (op, table, match, body) => {
+  const pw = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("dp_admin_pw")) || "";
+  const res = await fetch(`${SB_URL}/functions/v1/admin-ops`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+    body: JSON.stringify({ pw, op, table, match, body }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || j.error) throw new Error(j.error || `admin-ops ${res.status}`);
+  return j.data;
+};
 const db = {
   getBars: () => sb("bars?order=nom.asc&select=*"),
   getBar: (slug) => sb(`bars?slug=eq.${encodeURIComponent(slug)}&select=*`).then(r => r?.[0]),
   addBar: (d) => sb("bars", { method:"POST", body:JSON.stringify(d) }),
   updateBar: (slug, d) => sb(`bars?slug=eq.${encodeURIComponent(slug)}`, { method:"PATCH", body:JSON.stringify(d), prefer:"return=minimal" }),
-  deleteBar: (slug) => sb(`bars?slug=eq.${encodeURIComponent(slug)}`, { method:"DELETE", prefer:"return=minimal" }),
+  deleteBar: (slug) => sbAdmin("delete", "bars", { slug }),
   updateBarVues: (slug, v) => sb(`bars?slug=eq.${encodeURIComponent(slug)}`, { method:"PATCH", body:JSON.stringify({ vues:v+1 }), prefer:"return=minimal" }).catch(()=>{}),
   toggleVerifie: (slug, v) => sb(`bars?slug=eq.${encodeURIComponent(slug)}`, { method:"PATCH", body:JSON.stringify({ verifie:v }), prefer:"return=minimal" }),
   getAssociations: () => sb("associations?order=nom.asc&select=*"),
   addAssociation: (d) => sb("associations", { method:"POST", body:JSON.stringify(d) }),
   updateAssociation: (slug, d) => sb(`associations?slug=eq.${encodeURIComponent(slug)}`, { method:"PATCH", body:JSON.stringify(d), prefer:"return=minimal" }),
-  deleteAssociation: (slug) => sb(`associations?slug=eq.${encodeURIComponent(slug)}`, { method:"DELETE", prefer:"return=minimal" }),
+  deleteAssociation: (slug) => sbAdmin("delete", "associations", { slug }),
   getTournois: () => sb("tournois?order=date.asc&select=*"),
   addTournoi: (d) => sb("tournois", { method:"POST", body:JSON.stringify(d) }),
   updateTournoi: (slug, d) => sb(`tournois?slug=eq.${encodeURIComponent(slug)}`, { method:"PATCH", body:JSON.stringify(d), prefer:"return=minimal" }),
-  deleteTournoi: (slug) => sb(`tournois?slug=eq.${encodeURIComponent(slug)}`, { method:"DELETE", prefer:"return=minimal" }),
+  deleteTournoi: (slug) => sbAdmin("delete", "tournois", { slug }),
   getInscrits: (slug) => sb(`tournoi_inscriptions?tournoi_slug=eq.${encodeURIComponent(slug)}&order=date.asc&select=*`),
   addInscription: (d) => sb("tournoi_inscriptions", { method:"POST", body:JSON.stringify(d) }),
   deleteInscription: (tournoi_slug, joueur_id) => sb(`tournoi_inscriptions?tournoi_slug=eq.${encodeURIComponent(tournoi_slug)}&joueur_id=eq.${joueur_id}`, { method:"DELETE", prefer:"return=minimal" }),
@@ -58,7 +71,7 @@ const db = {
   getAvis: (slug) => sb(`avis?bar_slug=eq.${encodeURIComponent(slug)}&order=date.desc&select=*`),
   addAvis: (d) => sb("avis", { method:"POST", body:JSON.stringify(d) }),
   updateAvis: (id, d) => sb(`avis?id=eq.${id}`, { method:"PATCH", body:JSON.stringify(d), prefer:"return=minimal" }),
-  deleteAvis: (id) => sb(`avis?id=eq.${id}`, { method:"DELETE", prefer:"return=minimal" }),
+  deleteAvis: (id) => sbAdmin("delete", "avis", { id }),
   getReactions: (slug) => sb(`reactions?bar_slug=eq.${encodeURIComponent(slug)}&select=*`).then(r => r?.[0]),
   getCibleReports: (slug) => sb(`bar_cible_reports?bar_slug=eq.${encodeURIComponent(slug)}&select=joueur_id`),
   addCibleReport: (d) => sb("bar_cible_reports", { method:"POST", body:JSON.stringify(d), prefer:"return=minimal" }),
@@ -67,7 +80,7 @@ const db = {
   updateSignalement: (id, d) => sb(`signalements?id=eq.${id}`, { method:"PATCH", body:JSON.stringify(d), prefer:"return=minimal" }),
   getPhotos: (slug) => sb(`photos?bar_slug=eq.${encodeURIComponent(slug)}&order=date.desc&select=*`),
   addPhoto: (d) => sb("photos", { method:"POST", body:JSON.stringify(d) }),
-  deletePhoto: (id) => sb(`photos?id=eq.${id}`, { method:"DELETE", prefer:"return=minimal" }),
+  deletePhoto: (id) => sbAdmin("delete", "photos", { id }),
   getPhotosAsso: (slug) => sb(`photos_associations?asso_slug=eq.${encodeURIComponent(slug)}&order=date.desc&select=*`),
   addPhotoAsso: (d) => sb("photos_associations", { method:"POST", body:JSON.stringify(d) }),
   deletePhotoAsso: (id) => sb(`photos_associations?id=eq.${id}`, { method:"DELETE", prefer:"return=minimal" }),
@@ -8559,7 +8572,7 @@ const AdminLogin = ({ onLogin }) => {
     if (!pw || checking) return;
     setChecking(true); setErr(false);
     const ok = await verifyAdminPassword(pw);
-    if (ok) onLogin(); else setErr(true);
+    if (ok) { try { sessionStorage.setItem("dp_admin_pw", pw); } catch (e) { /* ignore */ } onLogin(); } else setErr(true);
     setChecking(false);
   };
   return (
