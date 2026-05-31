@@ -230,6 +230,10 @@ const isLocallyLocked = (today) => {
 const setLocalLock = (today) => {
   try { localStorage.setItem(scoreurLockKey(today), "1"); } catch {}
 };
+// Purge un verrou périmé (ancien bug : verrou posé avant un POST qui a échoué → aucun run en base)
+const clearLocalLock = (today) => {
+  try { localStorage.removeItem(scoreurLockKey(today)); } catch {}
+};
 
 const yesterdayLocal = () => {
   const d = new Date();
@@ -272,23 +276,32 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
   // Séquence de volées du jour (même pour tous les joueurs)
   const volees = useMemo(() => generateVolleysSequence(today), [today]);
 
-  // ─── Au montage : check si déjà joué (localStorage + DB)
+  // ─── Au montage : check si déjà joué (DB = source de vérité, localStorage = cache/secours)
   useEffect(() => {
     if (!joueur?.id) { setChecking(false); return; }
-    // 1️⃣ Verrou local prioritaire (instantané, incassable même hors-ligne)
-    if (isLocallyLocked(today)) {
-      setAlreadyPlayed(true);
-      setChecking(false);
-      return;
-    }
-    // 2️⃣ Sinon vérification serveur (au cas où le joueur a joué depuis un autre device)
+    let cancelled = false;
+    // On vérifie TOUJOURS le serveur. Le verrou local seul ne suffit pas : un verrou
+    // périmé (ancien bug = verrou posé avant un POST qui a échoué) doit pouvoir être purgé.
     sb(`chrono_scoreur_scores?joueur_id=eq.${joueur.id}&date_jour=eq.${today}&select=id,statut`)
       .then(r => {
-        const played = !!(r && r[0]);
-        if (played) setLocalLock(today); // sync local cache
+        if (cancelled) return;
+        if (r === null) {
+          // Requête KO (réseau coupé ou table absente) → on se rabat sur le verrou local
+          setAlreadyPlayed(isLocallyLocked(today));
+          setChecking(false);
+          return;
+        }
+        // r est un tableau (réponse valide). On a donc une réponse fiable.
+        const played = r.length > 0;
+        if (played) {
+          setLocalLock(today);       // run réel en base → on (re)pose le verrou local
+        } else {
+          clearLocalLock(today);     // aucun run aujourd'hui → tout verrou local est périmé
+        }
         setAlreadyPlayed(played);
         setChecking(false);
       });
+    return () => { cancelled = true; };
   }, [joueur?.id, today]);
 
   const loadScores = useCallback(() => {
