@@ -3923,6 +3923,13 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
   const [view, setView]               = useState("classement"); // classement|evolution
   const [showVoisinage, setShowVoisinage] = useState(false);
   const [showNonClasses, setShowNonClasses] = useState(false);
+  // Cartes déroulantes (MON CLASSEMENT / CIBLES / FILTRES) — état mémorisé entre les visites
+  const [cardsOpen, setCardsOpen] = useState(() => {
+    try { return { mon:true, cibles:true, filtres:true, ...JSON.parse(localStorage.getItem("drix_cards_open") || "{}") }; }
+    catch { return { mon:true, cibles:true, filtres:true }; }
+  });
+  useEffect(() => { try { localStorage.setItem("drix_cards_open", JSON.stringify(cardsOpen)); } catch { /* ignore */ } }, [cardsOpen]);
+  const toggleCard = (k) => setCardsOpen(o => ({ ...o, [k]: !o[k] }));
   const saisonActuelle = new Date().getFullYear();
 
   useEffect(() => {
@@ -4280,8 +4287,11 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
         {joueur && (
           <div style={{ background:CJ.card, border:`1.5px solid ${CJ.yellow}55`, borderRadius:16, padding:16, marginBottom:12, position:"relative", overflow:"hidden", boxShadow:`0 0 24px ${CJ.yellow}18` }}>
             <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${CJ.yellow},${CJ.accent},${CJ.yellow})` }}/>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
-              <span style={{ fontSize:10, fontWeight:900, color:CJ.yellow, letterSpacing:2 }}>MON CLASSEMENT</span>
+            <div onClick={() => toggleCard("mon")} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: cardsOpen.mon?14:0, cursor:"pointer" }}>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:10, fontWeight:900, color:CJ.yellow, letterSpacing:2 }}>
+                <ChevronDown size={14} style={{ transition:"transform .2s", transform: cardsOpen.mon?"none":"rotate(-90deg)" }}/>
+                MON CLASSEMENT
+              </span>
               {monRangGlobal && (
                 <span style={{ display:"inline-flex", alignItems:"center", gap:5, background:"#0f0f0f", border:`1px solid ${CJ.border}`, borderRadius:20, padding:"3px 9px" }}>
                   <span style={{ fontSize:9, color:CJ.muted, fontWeight:700 }}>vs semaine&nbsp;-1</span>
@@ -4289,6 +4299,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
                 </span>
               )}
             </div>
+            {cardsOpen.mon && (<>
 
             {/* Rang + Photo + DRIX */}
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -4415,6 +4426,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
                 })}
               </div>
             )}
+            </>)}
           </div>
         )}
 
@@ -4422,11 +4434,13 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
         {joueur && aPortee.length > 0 && (
           <div style={{ background:CJ.card, border:`1px solid ${CJ.accent}55`, borderRadius:16, padding:16, marginBottom:12, position:"relative", overflow:"hidden" }}>
             <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${CJ.accent},${CJ.yellow})` }}/>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+            <div onClick={() => toggleCard("cibles")} style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
               <Swords size={18} color={CJ.accent}/>
               <span style={{ fontWeight:900, fontSize:14, color:CJ.accent, letterSpacing:.5 }}>CIBLES PRIORITAIRES</span>
+              <ChevronDown size={16} color={CJ.accent} style={{ marginLeft:"auto", transition:"transform .2s", transform: cardsOpen.cibles?"none":"rotate(-90deg)" }}/>
             </div>
-            <div style={{ fontSize:12, color:CJ.muted, marginBottom:12 }}>Les joueurs juste au-dessus — bats-les pour grimper.</div>
+            {cardsOpen.cibles && (<>
+            <div style={{ fontSize:12, color:CJ.muted, margin:"6px 0 12px" }}>Les joueurs juste au-dessus — bats-les pour grimper.</div>
             {aPortee.slice(0, 5).map(j => {
               const rang  = classement.findIndex(x => x.id === j.id) + 1;
               const ecart = (j.drix || 1000) - monDrix;
@@ -4452,15 +4466,23 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
                 </div>
               );
             })}
+            </>)}
           </div>
         )}
 
         {/* ── FILTRES ── */}
         <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:14, marginBottom:14 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:10 }}>
+          <div onClick={() => toggleCard("filtres")} style={{ display:"flex", alignItems:"center", gap:7, marginBottom: cardsOpen.filtres?10:0, cursor:"pointer" }}>
             <Settings size={15} color={CJ.text}/>
             <span style={{ fontWeight:800, fontSize:13, color:CJ.text, letterSpacing:1 }}>FILTRES</span>
+            {!cardsOpen.filtres && (
+              <span style={{ marginLeft:8, fontSize:10, fontWeight:800, color:CJ.accent, background:`${CJ.accent}1f`, border:`1px solid ${CJ.accent}55`, borderRadius:20, padding:"2px 8px", letterSpacing:.5 }}>
+                {({ national:"National", amis:"Mes amis", bar:"Mon bar", asso:"Mon asso", feu:"En feu", chasseurs:"Chasseurs" })[filtre]}
+              </span>
+            )}
+            <ChevronDown size={15} color={CJ.muted} style={{ marginLeft:"auto", transition:"transform .2s", transform: cardsOpen.filtres?"none":"rotate(-90deg)" }}/>
           </div>
+          {cardsOpen.filtres && (<>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
             {[
               { key:"national",  Icon:Globe,     label:"NATIONAL",  color:CJ.yellow },
@@ -4480,6 +4502,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
           {filtre === "chasseurs" && !monRangGlobal && <p style={{ color:CJ.red, fontSize:12, marginTop:6, textAlign:"center" }}>Joue un match classé pour apparaître au classement.</p>}
           {filtre === "bar"  && !joueur?.bar_slug  && <p style={{ color:CJ.red, fontSize:12, marginTop:8, textAlign:"center" }}>Associe-toi à un bar depuis ton profil.</p>}
           {filtre === "asso" && !joueur?.asso_slug && <p style={{ color:CJ.red, fontSize:12, marginTop:8, textAlign:"center" }}>Rejoins une association depuis ton profil.</p>}
+          </>)}
         </div>
 
         {/* ── CONTENU PRINCIPAL ── */}
