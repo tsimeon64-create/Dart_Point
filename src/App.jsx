@@ -1018,6 +1018,11 @@ const EditBarModal = ({ bar, onSave, onClose, joueur=null }) => {
           </div>
           <Field label="Description" value={f.description} onChange={set("description")} placeholder="Description…" as="textarea"/>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Latitude" value={f.lat} onChange={set("lat")} placeholder="43.49" type="number"/><Field label="Longitude" value={f.lng} onChange={set("lng")} placeholder="-1.47" type="number"/></div>
+          <MapPicker
+            value={(f.lat && f.lng && !isNaN(parseFloat(f.lat)) && !isNaN(parseFloat(f.lng))) ? { lat:parseFloat(f.lat), lng:parseFloat(f.lng) } : null}
+            onChange={c => setF(p => ({ ...p, lat: c ? String(c.lat) : "", lng: c ? String(c.lng) : "" }))}
+            address={f.adresse} ville={f.ville} cp={f.cp}
+          />
           <div style={{ display:"flex",gap:10 }}><Btn onClick={save} disabled={saving||!f.nom||!f.ville} style={{ flex:1 }}>{saving?"…":"💾 Sauvegarder"}</Btn><Btn onClick={onClose} variant="dark" style={{ flex:1 }}>Annuler</Btn></div>
         </div>
       </div>
