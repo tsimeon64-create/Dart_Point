@@ -3923,12 +3923,12 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
   const [view, setView]               = useState("classement"); // classement|evolution
   const [showVoisinage, setShowVoisinage] = useState(false);
   const [showNonClasses, setShowNonClasses] = useState(false);
-  // Cartes déroulantes (MON CLASSEMENT / CIBLES / FILTRES) — état mémorisé entre les visites
+  // Cartes déroulantes (MON CLASSEMENT / CIBLES / FILTRES) — fermées par défaut, état mémorisé entre les visites
   const [cardsOpen, setCardsOpen] = useState(() => {
-    try { return { mon:true, cibles:true, filtres:true, ...JSON.parse(localStorage.getItem("drix_cards_open") || "{}") }; }
-    catch { return { mon:true, cibles:true, filtres:true }; }
+    try { return { mon:false, cibles:false, filtres:false, ...JSON.parse(localStorage.getItem("drix_cards_open_v2") || "{}") }; }
+    catch { return { mon:false, cibles:false, filtres:false }; }
   });
-  useEffect(() => { try { localStorage.setItem("drix_cards_open", JSON.stringify(cardsOpen)); } catch { /* ignore */ } }, [cardsOpen]);
+  useEffect(() => { try { localStorage.setItem("drix_cards_open_v2", JSON.stringify(cardsOpen)); } catch { /* ignore */ } }, [cardsOpen]);
   const toggleCard = (k) => setCardsOpen(o => ({ ...o, [k]: !o[k] }));
   const saisonActuelle = new Date().getFullYear();
 
