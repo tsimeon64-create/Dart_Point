@@ -84,6 +84,10 @@ const verifyAdminPassword = async (pw) => {
   } catch { return false; }
 };
 const slugify = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
+// \u00c9chappe le HTML \u2014 pour tout contenu utilisateur inject\u00e9 en innerHTML (popups Leaflet)
+const escHtml = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+// Parse un nombre fini ou null (n'\u00e9crase PAS une coordonn\u00e9e l\u00e9gitime de 0 comme `||null`)
+const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
 
 const TYPES = [
   { v:"electronique", l:"⚡ Électronique", color:"#f97316" },
@@ -118,8 +122,12 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
 
   useEffect(() => {
     if (window.L) { setReady(true); return; }
-    const css = document.createElement("link"); css.rel="stylesheet"; css.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(css);
-    const js = document.createElement("script"); js.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; js.onload=()=>setReady(true); document.head.appendChild(js);
+    if (!document.querySelector('script[src*="leaflet.min.js"]')) {  // évite la double-injection
+      const css = document.createElement("link"); css.rel="stylesheet"; css.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(css);
+      const js = document.createElement("script"); js.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; document.head.appendChild(js);
+    }
+    const iv = setInterval(() => { if (window.L) { clearInterval(iv); setReady(true); } }, 120);
+    return () => clearInterval(iv);
   }, []);
 
   useEffect(() => {
@@ -141,29 +149,32 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
     markersRef.current.forEach(m => m.remove()); markersRef.current = [];
     const mkIcon = (emoji, bg, size=30, badge=false) => L.divIcon({ className:"", html:`<div style="width:${size}px;height:${size}px;background:${bg};border:3px solid rgba(255,255,255,0.4);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:${size*0.5}px;box-shadow:0 2px 8px rgba(0,0,0,0.5);cursor:pointer;position:relative">${emoji}${badge?`<span style="position:absolute;top:-4px;right:-4px;background:#22c55e;border-radius:50%;width:12px;height:12px;border:2px solid #0f0f0f"></span>`:""}</div>`, iconSize:[size,size], iconAnchor:[size/2,size/2] });
     const popup = (html) => `<div style="font-family:Inter,sans-serif;min-width:160px;color:#111111;background:#ffffff">${html}</div>`;
+    // Boutons de popup liés via popupopen (plus d'onclick inline ni de global window.__dp*)
+    const mkBtn = (color) => `<button data-dpgo="1" style="margin-top:8px;background:${color};color:#fff;border:none;border-radius:6px;padding:9px 14px;cursor:pointer;font-size:12px;font-weight:600">Voir →</button>`;
+    const bindGo = (m, cb, slug) => { if (!cb) return; m.on("popupopen", e => { const b = e.popup.getElement()?.querySelector("[data-dpgo]"); if (b) b.onclick = () => cb(slug); }); };
     bars.forEach(bar => {
-      if (!bar.lat || !bar.lng) return;
+      if (bar.lat == null || bar.lng == null) return;
       const isHL = bar.slug===centerSlug; const isActif = barsActifs.includes(bar.slug);
       const m = L.marker([bar.lat,bar.lng], { icon:mkIcon("🍺", isHL?"#fff":C.accent, isHL?40:32, isActif) }).addTo(map);
-      m.bindPopup(popup(`<strong>${bar.nom}</strong><br><span style="color:#555;font-size:12px">📍 ${bar.ville}</span>${isActif?'<br><span style="color:#16a34a;font-size:11px">🟢 Joueurs ce soir</span>':""}<br><button style="margin-top:8px;background:#f97316;color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600" onclick="window.__dpBar('${bar.slug}')">Voir →</button>`));
+      m.bindPopup(popup(`<strong>${escHtml(bar.nom)}</strong><br><span style="color:#555;font-size:12px">📍 ${escHtml(bar.ville)}</span>${isActif?'<br><span style="color:#16a34a;font-size:11px">🟢 Joueurs ce soir</span>':""}<br>${mkBtn("#f97316")}`));
+      bindGo(m, onBarClick, bar.slug);
       markersRef.current.push(m);
     });
     associations.forEach(asso => {
-      if (!asso.lat || !asso.lng) return;
+      if (asso.lat == null || asso.lng == null) return;
       const m = L.marker([asso.lat,asso.lng], { icon:mkIcon("👥","#7c3aed", asso.slug===centerSlug?38:28) }).addTo(map);
-      m.bindPopup(popup(`<strong>${asso.nom}</strong><br><span style="color:#555;font-size:12px">📍 ${asso.ville}</span>${onAssoClick?`<br><button style="margin-top:8px;background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600" onclick="window.__dpAsso('${asso.slug}')">Voir →</button>`:""}`));
+      m.bindPopup(popup(`<strong>${escHtml(asso.nom)}</strong><br><span style="color:#555;font-size:12px">📍 ${escHtml(asso.ville)}</span>${onAssoClick?"<br>"+mkBtn("#7c3aed"):""}`));
+      bindGo(m, onAssoClick, asso.slug);
       markersRef.current.push(m);
     });
     tournois.forEach(t => {
-      if (!t.lat || !t.lng) return;
+      if (t.lat == null || t.lng == null) return;
       const m = L.marker([t.lat,t.lng], { icon:mkIcon("🏆",C.yellow,30) }).addTo(map);
-      m.bindPopup(popup(`<strong>${t.nom}</strong><br><span style="color:#555;font-size:12px">📍 ${t.ville}</span>${onTournoiClick?`<br><button style="margin-top:8px;background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600" onclick="window.__dpTournoi('${t.slug}')">Voir →</button>`:""}`));
+      m.bindPopup(popup(`<strong>${escHtml(t.nom)}</strong><br><span style="color:#555;font-size:12px">📍 ${escHtml(t.ville)}</span>${onTournoiClick?"<br>"+mkBtn("#f59e0b"):""}`));
+      bindGo(m, onTournoiClick, t.slug);
       markersRef.current.push(m);
     });
     if (centerSlug) { const all=[...bars,...associations,...tournois].find(x=>x.slug===centerSlug); if(all?.lat) map.flyTo([all.lat,all.lng],15,{duration:0.8}); }
-    window.__dpBar = s => onBarClick && onBarClick(s);
-    window.__dpAsso = s => onAssoClick && onAssoClick(s);
-    window.__dpTournoi = s => onTournoiClick && onTournoiClick(s);
   }, [ready, bars, associations, tournois, centerSlug, barsActifs]);
 
   useEffect(() => {
@@ -358,6 +369,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
         .dp-menu-scroll::-webkit-scrollbar{width:3px}
         .dp-menu-scroll::-webkit-scrollbar-thumb{background:#2a2a35;border-radius:3px}
         .dp-topbtn:active{transform:scale(.94)}
+        @media (prefers-reduced-motion: reduce){ *,*::before,*::after{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; scroll-behavior:auto!important } }
       `}</style>
 
       {/* ═══ TOP BAR ══════════════════════════════════════════════════ */}
@@ -995,11 +1007,11 @@ const EditBarModal = ({ bar, onSave, onClose, joueur=null }) => {
   const set=k=>v=>setF(p=>({...p,[k]:v}));
   const save=async()=>{
     setSaving(true);
-    await db.updateBar(bar.slug,{nom:f.nom,ville:f.ville,cp:f.cp,adresse:f.adresse,tel:f.tel,type:f.type,cibles:parseInt(f.cibles)||1,horaires:f.horaires,description:f.description,tournois:f.tournois==="oui",lat:parseFloat(f.lat)||null,lng:parseFloat(f.lng)||null});
+    await db.updateBar(bar.slug,{nom:f.nom,ville:f.ville,cp:f.cp,adresse:f.adresse,tel:f.tel,type:f.type,cibles:parseInt(f.cibles)||1,horaires:f.horaires,description:f.description,tournois:f.tournois==="oui",lat:num(f.lat),lng:num(f.lng)});
     // Log de modification
     const champs = Object.entries(f).filter(([k,v])=>String(bar[k]||"")!==v).map(([k])=>k).join(", ");
     db.addProposition({ nom:bar.nom, ville:bar.ville, slug:bar.slug, statut:"info", date:Date.now(), type_prop:"modif_bar", commentaire:`Modifié par ${joueur?.pseudo||"admin"} (ID:${joueur?.id||"admin"}). Champs: ${champs||"(aucun changement détecté)"}` }).catch(()=>{});
-    onSave({...bar,...f,cibles:parseInt(f.cibles)||1,tournois:f.tournois==="oui",lat:parseFloat(f.lat)||null,lng:parseFloat(f.lng)||null});
+    onSave({...bar,...f,cibles:parseInt(f.cibles)||1,tournois:f.tournois==="oui",lat:num(f.lat),lng:num(f.lng)});
     setSaving(false);
     onClose();
   };
@@ -1037,13 +1049,14 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
   const [saving,setSaving]=useState(false);
   const [errMsg, setErrMsg]=useState("");
   const set=k=>v=>setF(p=>({...p,[k]:v}));
-  const toggleBar = (nom) => setSelectedBars(prev => prev.includes(nom) ? prev.filter(n=>n!==nom) : [...prev, nom]);
+  // Stocke le slug (stable) ; rétro-compatible avec l'ancien stockage par nom
+  const toggleBar = (b) => { const slug = typeof b==="string"?b:b.slug, nom = typeof b==="string"?b:b.nom; setSelectedBars(prev => (prev.includes(slug)||prev.includes(nom)) ? prev.filter(x=>x!==slug&&x!==nom) : [...prev, slug]); };
   const filteredBars = allBars.filter(b => b.nom.toLowerCase().includes(barSearch.toLowerCase()) || b.ville.toLowerCase().includes(barSearch.toLowerCase()));
   const save=async()=>{
     setSaving(true);
     setErrMsg("");
     try {
-      const payload = { nom:f.nom, ville:f.ville, zone:f.zone, type:f.type, president:f.president, contact_nom:f.contact_nom, jours:f.jours, lieu:f.lieu, tel:f.tel, contact:f.contact, description:f.description, bars:selectedBars, lat:parseFloat(f.lat)||null, lng:parseFloat(f.lng)||null };
+      const payload = { nom:f.nom, ville:f.ville, zone:f.zone, type:f.type, president:f.president, contact_nom:f.contact_nom, jours:f.jours, lieu:f.lieu, tel:f.tel, contact:f.contact, description:f.description, bars:selectedBars, lat:num(f.lat), lng:num(f.lng) };
       await db.updateAssociation(asso.slug, payload);
       // Log de modification
       const champs = Object.entries(f).filter(([k,v])=>String(asso[k]||"")!==v).map(([k])=>k).join(", ");
@@ -1126,10 +1139,10 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
           <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:240, overflowY:"auto" }}>
             {filteredBars.length===0 && <span style={{ color:C.muted, fontSize:13 }}>Aucun bar trouvé</span>}
             {filteredBars.map(b => {
-              const checked = selectedBars.includes(b.nom);
+              const checked = selectedBars.includes(b.slug) || selectedBars.includes(b.nom);
               return (
                 <label key={b.slug} style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 12px", borderRadius:10, cursor:"pointer", background:checked?`${C.accent}14`:"#ffffff06", border:`1px solid ${checked?C.accent+"55":C.border}`, transition:"all .15s" }}>
-                  <input type="checkbox" checked={checked} onChange={()=>toggleBar(b.nom)} style={{ accentColor:C.accent, width:18, height:18, flexShrink:0 }}/>
+                  <input type="checkbox" checked={checked} onChange={()=>toggleBar(b)} style={{ accentColor:C.accent, width:18, height:18, flexShrink:0 }}/>
                   <span style={{ fontWeight:checked?700:400, fontSize:14, flex:1 }}>{b.nom}</span>
                   <span style={{ fontSize:12, color:C.muted }}>📍 {b.ville}</span>
                 </label>
@@ -1138,12 +1151,12 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
           </div>
           {selectedBars.length>0 && (
             <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-              {selectedBars.map(nom=>(
-                <span key={nom} style={{ background:`${C.accent}22`, border:`1px solid ${C.accent}44`, borderRadius:20, padding:"4px 12px", fontSize:12, fontWeight:600, color:C.accent, display:"flex", alignItems:"center", gap:6 }}>
-                  {nom}
-                  <span onClick={()=>toggleBar(nom)} style={{ cursor:"pointer", opacity:.7, fontSize:14 }}>✕</span>
+              {selectedBars.map(ref=>{ const label=allBars.find(x=>x.slug===ref||x.nom===ref)?.nom||ref; return (
+                <span key={ref} style={{ background:`${C.accent}22`, border:`1px solid ${C.accent}44`, borderRadius:20, padding:"4px 12px", fontSize:12, fontWeight:600, color:C.accent, display:"flex", alignItems:"center", gap:6 }}>
+                  {label}
+                  <span onClick={()=>toggleBar(ref)} style={{ cursor:"pointer", opacity:.7, fontSize:14 }}>✕</span>
                 </span>
-              ))}
+              );})}
             </div>
           )}
         </div>
@@ -1175,7 +1188,7 @@ const EditTournoiModal = ({ tournoi, onSave, onClose }) => {
   const [f,setF]=useState({ nom:tournoi.nom||"",ville:tournoi.ville||"",date:tournoi.date||"",bar:tournoi.bar||"",association:tournoi.association||"",type:tournoi.type||"electronique",format:tournoi.format||"individuel",niveau:tournoi.niveau||"tous",prix:tournoi.prix||"",dotations:tournoi.dotations||"",places:tournoi.places||"",description:tournoi.description||"",contact:tournoi.contact||"",lien:tournoi.lien||"",lat:String(tournoi.lat||""),lng:String(tournoi.lng||"") });
   const [saving,setSaving]=useState(false);
   const set=k=>v=>setF(p=>({...p,[k]:v}));
-  const save=async()=>{ setSaving(true); await db.updateTournoi(tournoi.slug,{...f,lat:parseFloat(f.lat)||null,lng:parseFloat(f.lng)||null}); onSave({...tournoi,...f}); setSaving(false); onClose(); };
+  const save=async()=>{ setSaving(true); await db.updateTournoi(tournoi.slug,{...f,lat:num(f.lat),lng:num(f.lng)}); onSave({...tournoi,...f}); setSaving(false); onClose(); };
   return (
     <div style={{ position:"fixed",inset:0,background:"#000c",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}>
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,maxWidth:620,width:"100%",maxHeight:"90vh",overflowY:"auto" }}>
@@ -6553,8 +6566,8 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
   const chipCounts = useMemo(() => ({
     tous: bars.length,
     actifs: barsActifs.length,
-    traditionnel: bars.filter(b => b.type === "traditionnel").length,
-    electronique: bars.filter(b => b.type === "electronique").length,
+    traditionnel: bars.filter(b => ["traditionnel","trad-auto","les deux"].includes(b.type)).length,
+    electronique: bars.filter(b => ["electronique","les deux"].includes(b.type)).length,
     tournois: bars.filter(b => b.tournois).length,
     maintenant: bars.filter(b => barsActifs.includes(b.slug) || (presencesParBar[b.slug] || 0) > 0).length,
   }), [bars, barsActifs, presencesParBar]);
@@ -6565,7 +6578,8 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
     setGeoLoading(true); setGeoErr("");
     navigator.geolocation.getCurrentPosition(
       pos => { setUserPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setGeoLoading(false); setSearch(""); },
-      ()  => { setGeoErr("Position non disponible — vérifiez les permissions"); setGeoLoading(false); }
+      err => { setGeoErr(err.code===1 ? "Permission refusée — autorise la localisation" : err.code===3 ? "Délai dépassé — réessaie" : "Position indisponible"); setGeoLoading(false); },
+      { timeout: 10000, maximumAge: 60000 }
     );
   };
 
@@ -6575,14 +6589,14 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
       if (q && !b.ville?.toLowerCase().includes(q) && !b.nom?.toLowerCase().includes(q)) return false;
       if (chipFilter === "maintenant"    && !barsActifs.includes(b.slug) && !(presencesParBar[b.slug] > 0)) return false;
       if (chipFilter === "actifs"        && !barsActifs.includes(b.slug)) return false;
-      if (chipFilter === "traditionnel"  && b.type !== "traditionnel")    return false;
-      if (chipFilter === "electronique"  && b.type !== "electronique")    return false;
+      if (chipFilter === "traditionnel"  && !["traditionnel","trad-auto","les deux"].includes(b.type)) return false;
+      if (chipFilter === "electronique"  && !["electronique","les deux"].includes(b.type))             return false;
       if (chipFilter === "tournois"      && !b.tournois)                  return false;
       if (typeVue === "tournois"         && !b.tournois)                  return false;
       return true;
     });
     if (userPos) {
-      list = list.map(b => ({ ...b, _dist: b.lat&&b.lng ? haversine(userPos.lat,userPos.lng,b.lat,b.lng) : Infinity }))
+      list = list.map(b => { const la=num(b.lat), lo=num(b.lng); return { ...b, _dist: la!=null&&lo!=null ? haversine(userPos.lat,userPos.lng,la,lo) : Infinity }; })
                  .sort((a,b) => a._dist - b._dist);
     }
     return list;
@@ -6754,7 +6768,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
                 {liveActivity.map((evt, i) => {
                   const bar = bars.find(b => b.slug === evt.bar);
                   return (
-                    <div key={i} onClick={()=>{ if (bar) { setBarSlug(bar.slug); setPage("bar"); } }}
+                    <div key={`${evt.bar||""}-${evt.label||""}-${evt.date||i}`} onClick={()=>{ if (bar) { setBarSlug(bar.slug); setPage("bar"); } }}
                       style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 0", borderBottom: i<liveActivity.length-1?"1px solid #1a1a2a":"none", cursor: bar?"pointer":"default", gap:8 }}>
                       <span style={{ fontSize:11, color:"#cbd5e1", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                         {evt.label}{bar ? <span style={{ color:"#64748b" }}> · {bar.nom}</span> : null}
@@ -6809,7 +6823,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
               <Search size={15} style={{ position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",pointerEvents:"none" }} color="#64748b"/>
               <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher un bar ou une ville…"
                 style={{ width:"100%",background:"#1a1a1a",border:`1px solid ${search?"#f97316":"#2a2a2a"}`,borderRadius:10,padding:"10px 36px 10px 36px",color:"#f1f5f9",fontSize:16,boxSizing:"border-box",outline:"none" }}/>
-              {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748b",cursor:"pointer",display:"flex",alignItems:"center" }}><X size={15}/></button>}
+              {search&&<button onClick={()=>setSearch("")} aria-label="Effacer la recherche" style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748b",cursor:"pointer",display:"flex",alignItems:"center" }}><X size={15}/></button>}
             </div>
             <button onClick={geolocate} disabled={geoLoading}
               style={{ background:userPos?"#22c55e22":"#1a1a1a",color:userPos?"#22c55e":"#94a3b8",border:`1px solid ${userPos?"#22c55e":"#2a2a2a"}`,borderRadius:10,padding:"0 14px",cursor:"pointer",fontSize:12,fontWeight:600,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5,flexShrink:0 }}>
@@ -6833,8 +6847,11 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
 
           {/* Carte */}
           {view==="carte"&&(
-            <div style={{ marginBottom:16,borderRadius:16,overflow:"hidden",border:"1px solid #f9731620",boxShadow:"0 0 30px #f9731620" }}>
-              <LeafletMap bars={filteredBars} associations={[]} onBarClick={s=>{setBarSlug(s);setPage("bar");}} centerVille={search||null} height="48vh" barsActifs={barsActifs} userPos={userPos}/>
+            <div style={{ marginBottom:16 }}>
+              <div style={{ borderRadius:16,overflow:"hidden",border:"1px solid #f9731620",boxShadow:"0 0 30px #f9731620" }}>
+                <LeafletMap bars={filteredBars} associations={[]} onBarClick={s=>{setBarSlug(s);setPage("bar");}} centerVille={search||null} height="48vh" barsActifs={barsActifs} userPos={userPos}/>
+              </div>
+              {(() => { const sans = filteredBars.filter(b => num(b.lat)==null || num(b.lng)==null).length; return sans>0 ? <div style={{ fontSize:12, color:"#94a3b8", marginTop:8, textAlign:"center" }}>📍 {sans} spot{sans>1?"s":""} sans position — passe en vue Liste pour {sans>1?"les":"le"} voir</div> : null; })()}
             </div>
           )}
 
@@ -6913,8 +6930,8 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
                 <span style={{ fontSize:12,color:"#94a3b8" }}>clubs référencés</span>
               </div>
               <div style={{ display:"flex",alignItems:"center",gap:7 }}>
-                <span style={{ fontWeight:700,fontSize:14,color:"#c4b5fd" }}>{filteredAssos.filter(a=>a.description||a.ville).length}</span>
-                <span style={{ fontSize:12,color:"#94a3b8" }}>clubs actifs</span>
+                <span style={{ fontWeight:700,fontSize:14,color:"#c4b5fd" }}>{filteredAssos.filter(a=>a.bars?.length>0).length}</span>
+                <span style={{ fontSize:12,color:"#94a3b8" }}>avec bar affilié</span>
               </div>
             </div>
           </div>
@@ -6924,7 +6941,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
             <Search size={15} style={{ position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",pointerEvents:"none" }} color="#64748b"/>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher une association ou une ville…"
               style={{ width:"100%",background:"#13101e",border:`1px solid ${search?"#7c3aed":"#2a2a3e"}`,borderRadius:10,padding:"10px 36px",color:"#f1f5f9",fontSize:16,boxSizing:"border-box",outline:"none" }}/>
-            {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748b",cursor:"pointer",display:"flex",alignItems:"center" }}><X size={15}/></button>}
+            {search&&<button onClick={()=>setSearch("")} aria-label="Effacer la recherche" style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748b",cursor:"pointer",display:"flex",alignItems:"center" }}><X size={15}/></button>}
           </div>
 
           {/* Carte/Liste */}
@@ -7020,7 +7037,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
             <Search size={15} style={{ position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",pointerEvents:"none" }} color="#64748b"/>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher un bar ou une ville…"
               style={{ width:"100%",background:"#1a0f0f",border:`1px solid ${search?"#dc2626":"#3a1a1a"}`,borderRadius:10,padding:"10px 36px",color:"#f1f5f9",fontSize:16,boxSizing:"border-box",outline:"none" }}/>
-            {search&&<button onClick={()=>setSearch("")} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748b",cursor:"pointer",display:"flex",alignItems:"center" }}><X size={15}/></button>}
+            {search&&<button onClick={()=>setSearch("")} aria-label="Effacer la recherche" style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#64748b",cursor:"pointer",display:"flex",alignItems:"center" }}><X size={15}/></button>}
           </div>
 
           {/* Carte/Liste */}
@@ -7125,7 +7142,12 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
   useEffect(()=>{
     setLoading(true); setCover(null); setUserDist(null);
     db.getBar(slug).then(b=>{
-      if(b){ const nv=(b.vues||0)+1; db.updateBarVues(slug,b.vues||0); setBar({...b,vues:nv}); setBars(p=>p.map(x=>x.slug===slug?{...x,vues:nv}:x)); }
+      if(b){ // 1 vue / spot / 24 h (dédup localStorage) pour éviter le gonflage du compteur
+        const vk="dp_vue_"+slug, last=+(localStorage.getItem(vk)||0), fresh=Date.now()-last>86400000;
+        const nv=(b.vues||0)+(fresh?1:0);
+        if(fresh){ db.updateBarVues(slug,b.vues||0); try{localStorage.setItem(vk,String(Date.now()));}catch{} setBars(p=>p.map(x=>x.slug===slug?{...x,vues:nv}:x)); }
+        setBar({...b,vues:nv});
+      }
       setLoading(false);
     }).catch(()=>setLoading(false));
     db.getPhotos(slug).then(p=>{ if(p?.[0]) setCover(p[0].data); }).catch(()=>{});
@@ -7151,13 +7173,9 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
     setCibleSending(true);
     try {
       await db.addCibleReport({ bar_slug: bar.slug, joueur_id: joueur.id });
-      const newReports = [...cibleReports, { joueur_id: joueur.id }];
-      setCibleReports(newReports);
-      if (newReports.length >= CIBLE_SEUIL) {
-        await db.deleteBar(bar.slug);
-        setBars(p => p.filter(x => x.slug !== bar.slug));
-        setPage("bars");
-      }
+      setCibleReports([...cibleReports, { joueur_id: joueur.id }]);
+      // Plus de suppression automatique côté client (vandalisme/abus possible) :
+      // le signalement est enregistré et revu par un admin.
     } catch(e) { /* conflit UNIQUE = déjà voté */ }
     setCibleSending(false);
   };
@@ -7495,7 +7513,7 @@ const CropLogoModal = ({ imageDataUrl, onSave, onClose, label="Cadrer le logo" }
 
 const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBarSlug, isAdmin, joueur }) => {
   const asso = associations.find(a => a.slug === slug);
-  if (!asso) return null;
+  // (garde "asso introuvable" déplacé APRÈS les hooks — voir plus bas — pour respecter les règles des hooks)
 
   const [tab, setTab] = useState("club");
   const [membres, setMembres] = useState([]);
@@ -7555,7 +7573,7 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
       .then(d => setMembres(Array.isArray(d) ? d : []))
       .catch(() => setMembres([]))
       .finally(() => setLoadMembres(false));
-    sb(`tournois?association=eq.${encodeURIComponent(asso.nom)}&order=date.desc&select=*&limit=10`)
+    sb(`tournois?association=eq.${encodeURIComponent(asso?.nom || "")}&order=date.desc&select=*&limit=10`)
       .then(d => setEvents(Array.isArray(d) ? d : []))
       .catch(() => []);
     sb(`drix_mouvements?resultat=in.(victoire,defaite)&select=joueur_id`)
@@ -7579,6 +7597,7 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
     return b;
   }, [stats, events]);
 
+  if (!asso) return null;   // garde APRÈS tous les hooks (évite "rendered fewer hooks than expected")
   const ti = typeInfo(asso.type);
   const isUrl = v => v && (v.startsWith("http://") || v.startsWith("https://"));
   const isTel = v => v && /^[0-9 +().-]{6,}$/.test(v);
@@ -7751,13 +7770,13 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
       {asso.bars?.length > 0 && (
         <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20,marginBottom:16 }}>
           <div style={{ fontWeight:700,fontSize:13,color:C.accent,marginBottom:14,letterSpacing:.5,display:"flex",alignItems:"center",gap:6 }}><Building2 size={14} color={C.accent}/> BARS AFFILIÉS</div>
-          {asso.bars.map(nom => {
-            const b = bars.find(x => x.nom === nom);
+          {asso.bars.map(ref => {
+            const b = bars.find(x => x.slug === ref || x.nom === ref);
             return (
-              <div key={nom} onClick={b ? ()=>{setBarSlug(b.slug);setPage("bar");} : undefined}
+              <div key={ref} onClick={b ? ()=>{setBarSlug(b.slug);setPage("bar");} : undefined}
                 style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",
                   borderBottom:`1px solid ${C.border}`,cursor:b?"pointer":"default" }}>
-                <span style={{ fontWeight:600,display:"flex",alignItems:"center",gap:5 }}><Building2 size={13} color={C.accent}/> {nom}</span>
+                <span style={{ fontWeight:600,display:"flex",alignItems:"center",gap:5 }}><Building2 size={13} color={C.accent}/> {b?.nom || ref}</span>
                 {b && <span style={{ color:C.muted,fontSize:12,display:"flex",alignItems:"center",gap:4 }}><MapPin size={11}/> {b.ville} <ChevronRight size={12}/></span>}
               </div>
             );
@@ -7957,7 +7976,7 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
       )}
 
       {/* Retour */}
-      <button onClick={() => window.history.back()}
+      <button onClick={() => setPage("bars")}
         style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:20,fontSize:13,display:"flex",alignItems:"center",gap:6 }}>
         <ArrowLeft size={15}/> Retour
       </button>
@@ -8211,8 +8230,9 @@ function MapPicker({ value, onChange, address, ville, cp, height=220 }) {
 const Proposer = ({ bars, onSubmit }) => {
   const [f,setF]=useState({nom:"",adresse:"",ville:"",cp:"",type:"electronique",cibles:"1",tournois:"non",tel:"",commentaire:"",lat:null,lng:null});
   const [sent,setSent]=useState(false); const [doublon,setDoublon]=useState(null);
+  const [sending,setSending]=useState(false); const [err,setErr]=useState("");
   const set=k=>v=>setF(p=>({...p,[k]:v})); const valid=f.nom.trim()&&f.ville.trim()&&!doublon;
-  useEffect(()=>{ if(!f.nom.trim()||!f.ville.trim()){setDoublon(null);return;} const q=f.nom.toLowerCase(),v=f.ville.toLowerCase(); setDoublon(bars.find(b=>b.nom.toLowerCase().includes(q)&&b.ville.toLowerCase().includes(v))||null); },[f.nom,f.ville,bars]);
+  useEffect(()=>{ if(!f.nom.trim()||!f.ville.trim()){setDoublon(null);return;} const norm=s=>(s||"").trim().toLowerCase(); setDoublon(bars.find(b=>norm(b.nom)===norm(f.nom)&&norm(b.ville)===norm(f.ville))||null); },[f.nom,f.ville,bars]);
   if(sent) return <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}><div style={{ fontSize:50,marginBottom:12 }}>✅</div><h2 style={{ fontWeight:700,marginBottom:8 }}>Bar ajouté !</h2><p style={{ color:C.muted }}>Il est maintenant visible dans la liste des bars.</p></div>;
   return (
     <div style={{ maxWidth:660,margin:"0 auto",padding:"36px 20px" }}>
@@ -8225,16 +8245,17 @@ const Proposer = ({ bars, onSubmit }) => {
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Nb de cibles" value={f.cibles} onChange={set("cibles")} placeholder="2" type="number"/><Field label="Tournois ?" as="select" value={f.tournois} onChange={set("tournois")} options={[{v:"non",l:"Non"},{v:"oui",l:"Oui"},{v:"nsp",l:"Je ne sais pas"}]}/></div>
         <Field label="Commentaire" value={f.commentaire} onChange={set("commentaire")} placeholder="Ambiance, infos…" as="textarea"/>
         <MapPicker value={f.lat!=null?{lat:f.lat,lng:f.lng}:null} onChange={c=>setF(p=>({...p,lat:c?c.lat:null,lng:c?c.lng:null}))} address={f.adresse} ville={f.ville} cp={f.cp}/>
-        <Btn onClick={()=>{if(valid){onSubmit(f);setSent(true);}}} disabled={!valid} style={{ marginTop:4,padding:"13px 22px",fontSize:15 }}>Envoyer →</Btn>
+        {err&&<div style={{ background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:10,padding:12 }}><p style={{ color:C.red,fontSize:13,margin:0 }}>{err}</p></div>}
+        <Btn onClick={async()=>{ if(!valid||sending) return; setErr(""); setSending(true); const ok=await onSubmit(f); setSending(false); if(ok) setSent(true); else setErr("L'ajout a échoué (réseau ou bar en double). Réessaie."); }} disabled={!valid||sending} style={{ marginTop:4,padding:"13px 22px",fontSize:15 }}>{sending?"Envoi…":"Envoyer →"}</Btn>
       </div>
     </div>
   );
 };
 
 const ProposerAsso = ({ onSubmit }) => {
-  const [f,setF]=useState({nom:"",ville:"",zone:"",type:"electronique",jours:"",lieu:"",tel:"",contact:"",description:""});
-  const [sent,setSent]=useState(false); const set=k=>v=>setF(p=>({...p,[k]:v})); const valid=f.nom.trim()&&f.ville.trim();
-  if(sent) return <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}><div style={{ fontSize:50 }}>✅</div><h2 style={{ fontWeight:700,marginTop:12 }}>Merci !</h2></div>;
+  const [f,setF]=useState({nom:"",ville:"",zone:"",type:"electronique",jours:"",lieu:"",tel:"",contact:"",president:"",contact_nom:"",description:""});
+  const [sent,setSent]=useState(false); const [sending,setSending]=useState(false); const set=k=>v=>setF(p=>({...p,[k]:v})); const valid=f.nom.trim()&&f.ville.trim();
+  if(sent) return <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}><div style={{ fontSize:50 }}>✅</div><h2 style={{ fontWeight:700,marginTop:12 }}>Proposition envoyée !</h2><p style={{ color:C.muted,marginTop:8 }}>Ton association sera visible après validation par un admin.</p></div>;
   return (
     <div style={{ maxWidth:660,margin:"0 auto",padding:"36px 20px" }}>
       <h1 style={{ fontWeight:800,fontSize:26,marginBottom:24 }}>🫂 Proposer une association</h1>
@@ -8243,8 +8264,9 @@ const ProposerAsso = ({ onSubmit }) => {
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Zone" value={f.zone} onChange={set("zone")} placeholder="Côte Basque"/><Field label="Type" as="select" value={f.type} onChange={set("type")} options={TYPES.slice(0,3)}/></div>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Jours" value={f.jours} onChange={set("jours")} placeholder="Vendredi 20h"/><Field label="Lieu" value={f.lieu} onChange={set("lieu")} placeholder="Bar des Sports"/></div>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Tél" value={f.tel} onChange={set("tel")} placeholder="06 XX"/><Field label="Contact" value={f.contact} onChange={set("contact")} placeholder="email"/></div>
+        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Président" value={f.president} onChange={set("president")} placeholder="Nom du président"/><Field label="Personne à contacter" value={f.contact_nom} onChange={set("contact_nom")} placeholder="Nom"/></div>
         <Field label="Description" value={f.description} onChange={set("description")} placeholder="Présentez votre asso…" as="textarea"/>
-        <Btn onClick={()=>{if(valid){onSubmit({...f,type_prop:"association"});setSent(true);}}} disabled={!valid} style={{ marginTop:4,padding:"13px 22px",fontSize:15,background:"#7c3aed" }}>Envoyer →</Btn>
+        <Btn onClick={async()=>{ if(!valid||sending) return; setSending(true); await onSubmit({...f,type_prop:"association"}); setSending(false); setSent(true); }} disabled={!valid||sending} style={{ marginTop:4,padding:"13px 22px",fontSize:15,background:"#7c3aed" }}>{sending?"Envoi…":"Envoyer →"}</Btn>
       </div>
     </div>
   );
@@ -9512,7 +9534,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
   },[]);
 
   const validerBar=async p=>{const slug=slugify(p.nom+"-"+p.ville);let lat=null,lng=null;try{const q=encodeURIComponent(`${p.adresse||p.nom}, ${p.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const geoData=await geo.json();if(geoData?.[0]){lat=parseFloat(geoData[0].lat);lng=parseFloat(geoData[0].lon);}if(!lat){const q2=encodeURIComponent(`${p.ville}, France`);const geo2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);const geoData2=await geo2.json();if(geoData2?.[0]){lat=parseFloat(geoData2[0].lat);lng=parseFloat(geoData2[0].lon);}}}catch(e){}const nb={slug,nom:p.nom,ville:p.ville,cp:p.cp||"",adresse:p.adresse||"",tel:p.tel||"",type:p.type||"electronique",cibles:parseInt(p.cibles)||1,horaires:"",description:"",tournois:p.tournois==="oui",association:null,source:"user",verifie:true,vues:0,lat,lng};const r=await db.addBar(nb);if(r?.[0])setBars(b=>[...b,r[0]]);await db.updateProposition(p.id,{statut:"publie"});setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));addLog("Bar validé",p.nom,"success");};
-  const validerAsso=async p=>{const slug=slugify(p.nom+"-"+p.ville);const nb={slug,nom:p.nom,ville:p.ville,zone:p.zone||"",type:p.type||"electronique",jours:p.jours||"À confirmer",lieu:p.lieu||"",tel:p.tel||"",contact:p.contact||"",description:p.description||"",bars:[],source:"user",verifie:true,lat:null,lng:null};const r=await db.addAssociation(nb);if(r?.[0])setAssociations(a=>[...a,r[0]]);await db.updateProposition(p.id,{statut:"publie"});setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));addLog("Association validée",p.nom,"success");};
+  const validerAsso=async p=>{const slug=slugify(p.nom+"-"+p.ville);let lat=null,lng=null;try{const q=encodeURIComponent(`${p.lieu?p.lieu+", ":""}${p.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const gd=await geo.json();if(gd?.[0]){lat=parseFloat(gd[0].lat);lng=parseFloat(gd[0].lon);}}catch(e){}const nb={slug,nom:p.nom,ville:p.ville,zone:p.zone||"",type:p.type||"electronique",jours:p.jours||"À confirmer",lieu:p.lieu||"",tel:p.tel||"",contact:p.contact||"",president:p.president||"",contact_nom:p.contact_nom||"",description:p.description||"",bars:[],source:"user",verifie:true,lat,lng};const r=await db.addAssociation(nb);if(r?.[0])setAssociations(a=>[...a,r[0]]);await db.updateProposition(p.id,{statut:"publie"});setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));addLog("Association validée",p.nom,"success");};
   const validerTournoi=async p=>{const slug=slugify(p.nom+"-"+p.ville+"-"+(p.date||""));const nb={slug,nom:p.nom,ville:p.ville,date:p.date||"",bar:p.bar||"",association:p.association||"",type:p.type||"electronique",format:p.format||"individuel",niveau:p.niveau||"tous",prix:p.prix||"",dotations:p.dotations||"",places:p.places||"",description:p.description||"",contact:p.contact||"",lien:p.lien||"",source:"user",statut:"publie",lat:null,lng:null};const r=await db.addTournoi(nb);if(r?.[0])setTournois(t=>[...t,r[0]]);await db.updateProposition(p.id,{statut:"publie"});setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));addLog("Tournoi validé",p.nom,"success");};
   const refuser=async(id,nom)=>{await db.updateProposition(id,{statut:"refuse"});setPropositions(x=>x.map(y=>y.id===id?{...y,statut:"refuse"}:y));addLog("Proposition refusée",nom||id,"warning");};
 
@@ -10043,7 +10065,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
   return (
     <div style={{maxWidth:1100,margin:"0 auto",padding:"0 0 60px"}}>
       {editBar&&<EditBarModal bar={editBar} onSave={u=>{setBars(b=>b.map(x=>x.slug===u.slug?u:x));setEditBar(null);addLog("Bar édité",u.nom,"info");}} onClose={()=>setEditBar(null)}/>}
-      {editAsso&&<EditAssoModal asso={editAsso} allBars={bars} onSave={u=>{setAssociations(a=>a.map(x=>x.slug===u.slug?u:x));setEditAsso(null);addLog("Association éditée",u.nom,"info");}} onClose={()=>setEditAsso(null)}/>}
+      {editAsso&&<EditAssoModal asso={editAsso} allBars={bars} onSave={u=>{setAssociations(a=>a.map(x=>x.slug===u.slug?{...x,...u}:x));setEditAsso(null);addLog("Association éditée",u.nom,"info");}} onClose={()=>setEditAsso(null)}/>}
       {editTournoi&&<EditTournoiModal tournoi={editTournoi} onSave={u=>{setTournois(t=>t.map(x=>x.slug===u.slug?u:x));setEditTournoi(null);addLog("Tournoi édité",u.nom,"info");}} onClose={()=>setEditTournoi(null)}/>}
 
       {/* ── HEADER ── */}
@@ -11251,17 +11273,22 @@ export default function App() {
 
   const handleLogin=(j)=>{ setJoueur(j); localStorage.setItem("dp_joueur",JSON.stringify(j)); nav("home"); };
   const handleProposal=async f=>{
-    const slug = slugify(f.nom+"-"+f.ville);
-    // Ajout direct dans la table bars
+    // Slug unique : suffixe -2/-3… si un bar partage déjà le même slug (évite l'écrasement par-slug)
+    const base = slugify(f.nom+"-"+f.ville);
+    let slug = base, n = 2;
+    while (bars.some(b => b.slug === slug)) slug = `${base}-${n++}`;
+    // Ajout direct dans la table bars (le commentaire devient la description de la fiche)
     const result = await db.addBar({
       nom:f.nom, ville:f.ville, adresse:f.adresse||"", cp:f.cp||"",
       type:f.type, cibles:parseInt(f.cibles)||1, tournois:f.tournois==="oui",
-      tel:f.tel||"", slug, source:"user", verifie:false,
+      tel:f.tel||"", description:f.commentaire||"", slug, source:"user", verifie:false,
       lat:f.lat??null, lng:f.lng??null,
     }).catch(()=>null);
-    if (result?.[0]) setBars(prev=>[...prev, result[0]]);
-    // Log pour l'admin (info seulement)
-    await db.addProposition({ nom:f.nom, ville:f.ville, slug, statut:"auto_accepte", date:Date.now(), commentaire:`Bar ajouté directement. ${f.commentaire||""}`.trim() }).catch(()=>{});
+    if (!result?.[0]) return false;     // échec → le formulaire affiche l'erreur (pas de faux succès)
+    setBars(prev=>[...prev, result[0]]);
+    // Log pour l'admin (info seulement, non bloquant)
+    db.addProposition({ nom:f.nom, ville:f.ville, slug, statut:"auto_accepte", date:Date.now(), commentaire:`Bar ajouté directement. ${f.commentaire||""}`.trim() }).catch(()=>{});
+    return true;
   };
   const handleProposalAsso=async f=>{ await db.addProposition({...f,slug:slugify(f.nom+"-"+f.ville),statut:"en_attente",date:Date.now(),type_prop:"association"}); };
   const handleProposalTournoi=async f=>{ await db.addProposition({...f,slug:slugify(f.nom+"-"+f.ville),statut:"en_attente",date:Date.now(),type_prop:"tournoi"}); };
