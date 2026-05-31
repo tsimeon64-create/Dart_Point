@@ -8112,8 +8112,99 @@ const TournoiDetail = ({ slug, tournois, setTournois, bars, setPage, setBarSlug,
 };
 
 // ── FORMULAIRES PROPOSER ──────────────────────────────────────────────────────
+// Sélecteur de position sur carte — clic/glisser pour placer le pin, + géocodage de l'adresse
+function MapPicker({ value, onChange, address, ville, cp, height=220 }) {
+  const divRef = useRef(null);
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
+  const cbRef = useRef(onChange);
+  cbRef.current = onChange;
+  const [ready, setReady] = useState(!!window.L);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  // Place / déplace le pin (ne lit que des refs → pas de closure périmée)
+  const place = (lat, lng, fly = true) => {
+    const L = window.L, map = mapRef.current;
+    if (!map || lat == null || lng == null) return;
+    lat = +(+lat).toFixed(6); lng = +(+lng).toFixed(6);
+    if (markerRef.current) {
+      markerRef.current.setLatLng([lat, lng]);
+    } else {
+      const icon = L.divIcon({ className:"", html:`<div style="width:38px;height:38px;background:${C.accent};border:3px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 10px rgba(0,0,0,0.6);cursor:grab">🍺</div>`, iconSize:[38,38], iconAnchor:[19,19] });
+      const m = L.marker([lat, lng], { icon, draggable:true }).addTo(map);
+      m.on("dragend", () => { const p = m.getLatLng(); cbRef.current({ lat:+p.lat.toFixed(6), lng:+p.lng.toFixed(6) }); });
+      markerRef.current = m;
+    }
+    cbRef.current({ lat, lng });
+    if (fly) map.setView([lat, lng], Math.max(map.getZoom() || 5, 15));
+  };
+
+  // Chargement de Leaflet (partagé avec LeafletMap via window.L)
+  useEffect(() => {
+    if (window.L) { setReady(true); return; }
+    if (!document.querySelector('script[src*="leaflet.min.js"]')) {
+      const css = document.createElement("link"); css.rel="stylesheet"; css.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(css);
+      const js = document.createElement("script"); js.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; document.head.appendChild(js);
+    }
+    const iv = setInterval(() => { if (window.L) { clearInterval(iv); setReady(true); } }, 120);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Init de la carte
+  useEffect(() => {
+    if (!ready || !divRef.current || mapRef.current) return;
+    if (divRef.current._leaflet_id) { try { window.L.map(divRef.current).remove(); } catch(e) {} divRef.current._leaflet_id = undefined; }
+    const has = value && value.lat != null;
+    const map = window.L.map(divRef.current, { scrollWheelZoom:false }).setView(has ? [value.lat, value.lng] : [46.6, 2.4], has ? 15 : 5);
+    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution:"© OpenStreetMap", maxZoom:19 }).addTo(map);
+    map.on("click", e => place(e.latlng.lat, e.latlng.lng, false));
+    mapRef.current = map;
+    setTimeout(() => map.invalidateSize(), 120);
+    if (has) place(value.lat, value.lng, false);
+    return () => { try { map.remove(); } catch(e) {} mapRef.current = null; markerRef.current = null; };
+  }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const geocoder = async () => {
+    const q = [address, cp, ville, "France"].filter(s => s && s.trim()).join(", ");
+    if (!q || q === "France") { setMsg("Renseigne d'abord l'adresse ou la ville."); return; }
+    setBusy(true); setMsg("");
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`);
+      const j = await r.json();
+      if (j && j[0]) { place(parseFloat(j[0].lat), parseFloat(j[0].lon)); setMsg("📍 Adresse localisée — déplace le point si ce n'est pas exact."); }
+      else setMsg("Adresse introuvable — clique sur la carte pour placer le point.");
+    } catch { setMsg("Localisation indisponible — clique sur la carte pour placer le point."); }
+    setBusy(false);
+  };
+
+  const clear = () => { if (markerRef.current) { markerRef.current.remove(); markerRef.current = null; } cbRef.current(null); setMsg(""); };
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
+        <label style={{ fontSize:13, fontWeight:500, color:C.muted }}>Position sur la carte</label>
+        <button type="button" onClick={geocoder} disabled={busy}
+          style={{ background:`${C.accent}22`, border:`1px solid ${C.accent}66`, borderRadius:8, color:C.accent, fontWeight:700, fontSize:12, padding:"6px 11px", cursor:busy?"default":"pointer" }}>
+          {busy ? "…" : "📍 Localiser l'adresse"}
+        </button>
+      </div>
+      <div style={{ position:"relative", height, borderRadius:12, overflow:"hidden", border:`1px solid ${C.border}` }}>
+        {!ready && <div style={{ position:"absolute", inset:0, background:"#1a1f2e", display:"flex", alignItems:"center", justifyContent:"center", gap:8, zIndex:10, color:C.muted, fontSize:13 }}>🗺️ Chargement de la carte…</div>}
+        <div ref={divRef} style={{ width:"100%", height:"100%" }} />
+      </div>
+      <div style={{ fontSize:12, color: value && value.lat != null ? C.green : C.muted }}>
+        {value && value.lat != null
+          ? <>✅ Position : {(+value.lat).toFixed(5)}, {(+value.lng).toFixed(5)} · <span onClick={clear} style={{ color:C.red, cursor:"pointer", textDecoration:"underline" }}>effacer</span></>
+          : "Clique sur la carte (ou « Localiser l'adresse ») pour positionner le bar — tu peux ensuite déplacer le point."}
+      </div>
+      {msg && <div style={{ fontSize:12, color:C.yellow }}>{msg}</div>}
+    </div>
+  );
+}
+
 const Proposer = ({ bars, onSubmit }) => {
-  const [f,setF]=useState({nom:"",adresse:"",ville:"",cp:"",type:"electronique",cibles:"1",tournois:"non",tel:"",commentaire:""});
+  const [f,setF]=useState({nom:"",adresse:"",ville:"",cp:"",type:"electronique",cibles:"1",tournois:"non",tel:"",commentaire:"",lat:null,lng:null});
   const [sent,setSent]=useState(false); const [doublon,setDoublon]=useState(null);
   const set=k=>v=>setF(p=>({...p,[k]:v})); const valid=f.nom.trim()&&f.ville.trim()&&!doublon;
   useEffect(()=>{ if(!f.nom.trim()||!f.ville.trim()){setDoublon(null);return;} const q=f.nom.toLowerCase(),v=f.ville.toLowerCase(); setDoublon(bars.find(b=>b.nom.toLowerCase().includes(q)&&b.ville.toLowerCase().includes(v))||null); },[f.nom,f.ville,bars]);
@@ -8128,6 +8219,7 @@ const Proposer = ({ bars, onSubmit }) => {
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Code postal" value={f.cp} onChange={set("cp")} placeholder="64100"/><Field label="Type" as="select" value={f.type} onChange={set("type")} options={TYPES}/></div>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Nb de cibles" value={f.cibles} onChange={set("cibles")} placeholder="2" type="number"/><Field label="Tournois ?" as="select" value={f.tournois} onChange={set("tournois")} options={[{v:"non",l:"Non"},{v:"oui",l:"Oui"},{v:"nsp",l:"Je ne sais pas"}]}/></div>
         <Field label="Commentaire" value={f.commentaire} onChange={set("commentaire")} placeholder="Ambiance, infos…" as="textarea"/>
+        <MapPicker value={f.lat!=null?{lat:f.lat,lng:f.lng}:null} onChange={c=>setF(p=>({...p,lat:c?c.lat:null,lng:c?c.lng:null}))} address={f.adresse} ville={f.ville} cp={f.cp}/>
         <Btn onClick={()=>{if(valid){onSubmit(f);setSent(true);}}} disabled={!valid} style={{ marginTop:4,padding:"13px 22px",fontSize:15 }}>Envoyer →</Btn>
       </div>
     </div>
@@ -11160,6 +11252,7 @@ export default function App() {
       nom:f.nom, ville:f.ville, adresse:f.adresse||"", cp:f.cp||"",
       type:f.type, cibles:parseInt(f.cibles)||1, tournois:f.tournois==="oui",
       tel:f.tel||"", slug, source:"user", verifie:false,
+      lat:f.lat??null, lng:f.lng??null,
     }).catch(()=>null);
     if (result?.[0]) setBars(prev=>[...prev, result[0]]);
     // Log pour l'admin (info seulement)
