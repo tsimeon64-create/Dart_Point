@@ -67,7 +67,7 @@ const db = {
   deleteInscription: (tournoi_slug, joueur_id) => sb(`tournoi_inscriptions?tournoi_slug=eq.${encodeURIComponent(tournoi_slug)}&joueur_id=eq.${joueur_id}`, { method:"DELETE", prefer:"return=minimal" }),
   getPropositions: () => sb("propositions?order=date.desc&select=*"),
   addProposition: (d) => sb("propositions", { method:"POST", body:JSON.stringify(d) }),
-  updateProposition: (id, d) => sb(`propositions?id=eq.${id}`, { method:"PATCH", body:JSON.stringify(d), prefer:"return=minimal" }),
+  updateProposition: (id, d) => sbAdmin("update", "propositions", { id }, d),
   getAvis: (slug) => sb(`avis?bar_slug=eq.${encodeURIComponent(slug)}&order=date.desc&select=*`),
   addAvis: (d) => sb("avis", { method:"POST", body:JSON.stringify(d) }),
   updateAvis: (id, d) => sb(`avis?id=eq.${id}`, { method:"PATCH", body:JSON.stringify(d), prefer:"return=minimal" }),
@@ -77,13 +77,13 @@ const db = {
   addCibleReport: (d) => sb("bar_cible_reports", { method:"POST", body:JSON.stringify(d), prefer:"return=minimal" }),
   getSignalements: () => sb("signalements?order=date.desc&select=*"),
   addSignalement: (d) => sb("signalements", { method:"POST", body:JSON.stringify(d) }),
-  updateSignalement: (id, d) => sb(`signalements?id=eq.${id}`, { method:"PATCH", body:JSON.stringify(d), prefer:"return=minimal" }),
+  updateSignalement: (id, d) => sbAdmin("update", "signalements", { id }, d),
   getPhotos: (slug) => sb(`photos?bar_slug=eq.${encodeURIComponent(slug)}&order=date.desc&select=*`),
   addPhoto: (d) => sb("photos", { method:"POST", body:JSON.stringify(d) }),
   deletePhoto: (id) => sbAdmin("delete", "photos", { id }),
   getPhotosAsso: (slug) => sb(`photos_associations?asso_slug=eq.${encodeURIComponent(slug)}&order=date.desc&select=*`),
   addPhotoAsso: (d) => sb("photos_associations", { method:"POST", body:JSON.stringify(d) }),
-  deletePhotoAsso: (id) => sb(`photos_associations?id=eq.${id}`, { method:"DELETE", prefer:"return=minimal" }),
+  deletePhotoAsso: (id) => sbAdmin("delete", "photos_associations", { id }),
 };
 
 // ── CONSTANTES ────────────────────────────────────────────────────────────────
@@ -9482,15 +9482,15 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
   const addLog = (action, cible, type="info") => {
     const localEntry = { id:Date.now(), action, cible, type, date:new Date().toLocaleString("fr-FR"), admin_pseudo: joueur?.pseudo||"admin" };
     setAdminLogs(l => [localEntry, ...l.slice(0,199)]);
-    // Persistance fire-and-forget
-    sb("admin_logs", { method:"POST", body:JSON.stringify({
+    // Persistance via l'Edge Function (service key) → journal non falsifiable par l'anon
+    sbAdmin("insert", "admin_logs", null, {
       action, cible, type, admin_pseudo: joueur?.pseudo||"admin", date: Date.now()
-    }), prefer:"return=minimal" }).catch(()=>{});
+    }).catch(()=>{});
   };
 
   const viderLogs = async () => {
     if (!window.confirm("⚠️ Supprimer définitivement tous les logs admin ?")) return;
-    await sb(`admin_logs?id=gte.0`, { method:"DELETE", prefer:"return=minimal" }).catch(()=>{});
+    await sbAdmin("purge", "admin_logs").catch(()=>{});
     setAdminLogs([]);
   };
 

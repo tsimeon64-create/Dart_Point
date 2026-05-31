@@ -32,7 +32,7 @@ const json = (data: unknown, status = 200) =>
 // Tables sur lesquelles l'admin peut supprimer / modifier
 const ALLOWED = new Set([
   "bars", "associations", "tournois", "avis", "photos", "photos_associations",
-  "propositions", "signalements",
+  "propositions", "signalements", "admin_logs",
 ]);
 
 const api = (path: string, opts: RequestInit = {}) =>
@@ -59,7 +59,21 @@ serve(async (req) => {
     if (okAuth !== true) return json({ error: "unauthorized" }, 401);
 
     // 2) Garde-fous
-    if (!ALLOWED.has(table))                 return json({ error: "table non autorisée" }, 400);
+    if (!ALLOWED.has(table)) return json({ error: "table non autorisée" }, 400);
+
+    // INSERT (ex. journal admin) — pas de filtre
+    if (op === "insert") {
+      const r = await api(table, { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(body || {}) });
+      const data = r.status === 204 ? [] : await r.json().catch(() => null);
+      return json({ ok: r.ok, status: r.status, data });
+    }
+    // PURGE — réservé au journal admin (vidage complet)
+    if (op === "purge") {
+      if (table !== "admin_logs") return json({ error: "purge réservée à admin_logs" }, 400);
+      const r = await api("admin_logs?id=gte.0", { method: "DELETE", headers: { Prefer: "return=minimal" } });
+      return json({ ok: r.ok, status: r.status });
+    }
+
     if (op !== "delete" && op !== "update")  return json({ error: "op non autorisée" }, 400);
     if (!match || typeof match !== "object" || Object.keys(match).length === 0)
       return json({ error: "filtre `match` requis (pas d'opération sans WHERE)" }, 400);
