@@ -254,6 +254,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
 
   const [scores, setScores] = useState([]);
   const [loadingScores, setLoadingScores] = useState(false);
+  const [countdownMs, setCountdownMs] = useState(0); // temps restant avant minuit
 
   // État du run
   const [currentIdx, setCurrentIdx] = useState(0);  // index volée en cours
@@ -325,6 +326,28 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
         setLoadingScores(false);
       });
   }, [today]);
+
+  // ─── Charge le classement dès l'arrivée sur l'intro (record / live / podium)
+  useEffect(() => { loadScores(); }, [loadScores]);
+
+  // ─── Countdown minuit (tick toutes les 30s) — pour le bloc "déjà joué"
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      const tmr = new Date(now);
+      tmr.setHours(24, 0, 0, 0);
+      setCountdownMs(tmr.getTime() - now.getTime());
+    };
+    tick();
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const fmtCountdown = (ms) => {
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    return `${h}h ${String(m).padStart(2, "0")}m`;
+  };
 
   // ─── Chronomètre live (RAF)
   useEffect(() => {
@@ -475,70 +498,296 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
   // ÉCRAN : INTRO
   // ═══════════════════════════════════════════════════════════════════════
   if (screen === "intro") {
+    const completedScores = scores.filter(s => (s.statut || "termine") === "termine");
+    const totalPlayers    = scores.length;
+    const recordMs        = completedScores[0]?.temps_ms ?? null;
+    const recordHolder    = completedScores[0]?.joueur_pseudo || null;
+    const myScore         = completedScores.find(s => s.joueur_id === joueur?.id);
+    const myRank          = myScore ? completedScores.findIndex(s => s.joueur_id === joueur?.id) + 1 : null;
+    const podium          = completedScores.slice(0, 3);
+
     return (
-      <div style={{ position:"fixed",inset:0,zIndex:200,background:C.bg,display:"flex",flexDirection:"column",overflow:"hidden" }}>
-        {/* Header */}
-        <div style={{ background:C.card,borderBottom:`1px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0 }}>
-          <button onClick={()=>setPage("jeux-sans")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0 }}><ArrowLeft size={16}/> Retour</button>
-          <div style={{ flex:1,fontWeight:800,fontSize:16,color:C.blue,display:"flex",alignItems:"center",gap:8 }}><Zap size={16} color={C.blue}/> Scoreur Speedrun</div>
-          <div style={{ fontSize:11,color:C.muted }}>{today}</div>
+      <div style={{ position:"fixed",inset:0,zIndex:200,background:"radial-gradient(ellipse at top,#05101f 0%,#03080f 50%,#01040a 100%)",display:"flex",flexDirection:"column",overflow:"hidden" }}>
+        <style>{`
+          @keyframes csIntroIn    { 0%{opacity:0;transform:translateY(12px)} 100%{opacity:1;transform:translateY(0)} }
+          @keyframes csTitlePulse { 0%,100%{text-shadow:0 0 24px #60a5facc,0 0 56px #2563eb66} 50%{text-shadow:0 0 40px #60a5fa,0 0 80px #2563eb99} }
+          @keyframes csHeroGlow   { 0%,100%{box-shadow:inset 0 0 60px #60a5fa1a,0 0 28px #2563eb44,0 0 56px #60a5fa22} 50%{box-shadow:inset 0 0 80px #60a5fa33,0 0 40px #2563eb77,0 0 90px #60a5fa44} }
+          @keyframes csCtaPulse   { 0%,100%{box-shadow:0 0 28px #60a5fa88,inset 0 1px 0 #ffffff44,inset 0 -3px 0 #1e3a8a99} 50%{box-shadow:0 0 50px #60a5facc,0 0 80px #2563eb66,inset 0 1px 0 #ffffff55,inset 0 -3px 0 #1e3a8a99} }
+          @keyframes csShine      { 0%{transform:translateX(-150%) skewX(-22deg)} 100%{transform:translateX(280%) skewX(-22deg)} }
+          @keyframes csBannerScroll { 0%{background-position:0 0} 100%{background-position:200% 0} }
+          @keyframes csRecordGlow { 0%,100%{text-shadow:0 0 12px #fbbf24cc} 50%{text-shadow:0 0 22px #fbbf24,0 0 36px #f9731699} }
+          @keyframes csLiveDot    { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.85)} }
+          .cs-section { animation: csIntroIn .45s cubic-bezier(.34,1.2,.64,1) both; }
+        `}</style>
+
+        {/* Lignes scan ambiance */}
+        <div aria-hidden style={{ position:"absolute",inset:0,background:"repeating-linear-gradient(180deg,transparent 0,transparent 3px,rgba(96,165,250,0.025) 3px,rgba(96,165,250,0.025) 4px)",pointerEvents:"none" }}/>
+
+        {/* Header minimal */}
+        <div style={{ background:"rgba(8,16,32,0.7)",backdropFilter:"blur(8px)",borderBottom:"1px solid #16294a",padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0,position:"relative",zIndex:5 }}>
+          <button onClick={()=>setPage("jeux-sans")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:13,padding:0 }}><ArrowLeft size={16}/> Retour</button>
+          <div style={{ flex:1,fontWeight:900,fontSize:14,color:"#60a5fa",letterSpacing:2,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}><Zap size={14} color="#60a5fa"/> SCOREUR SPEEDRUN</div>
+          <div style={{ fontSize:10,color:"#64748b",fontVariantNumeric:"tabular-nums" }}>{today}</div>
         </div>
 
-        <div style={{ flex:1,overflowY:"auto",padding:"16px 14px 40px",display:"flex",flexDirection:"column",gap:12 }}>
-          {/* Description */}
-          <div style={{ background:"linear-gradient(135deg,#0a1428,#0f1f32)",border:`2px solid ${C.blue}`,borderRadius:20,padding:"24px 16px",textAlign:"center" }}>
-            <div style={{ fontSize:52,marginBottom:6 }}>⏱</div>
-            <div style={{ fontWeight:900,fontSize:22,color:C.blue,marginBottom:6 }}>Défi du jour</div>
-            <div style={{ fontSize:13,color:"#94a3b8",lineHeight:1.6 }}>
-              Pars de <b style={{ color:C.text }}>501</b> et descends à <b style={{ color:C.text }}>0</b>.<br/>
-              À chaque volée, calcule mentalement le <b style={{ color:C.blue }}>score restant</b>.
+        <div style={{ flex:1,overflowY:"auto",padding:"10px 12px 24px",display:"flex",flexDirection:"column",gap:10 }}>
+
+          {/* ─── HERO BLOCK COMPACT ─── */}
+          <div className="cs-section" style={{
+            position:"relative", overflow:"hidden",
+            background:"radial-gradient(ellipse at center,#0a1a3a 0%,#06122a 60%,#030a18 100%)",
+            border:"1.5px solid #60a5fa",
+            borderRadius:16, padding:"14px 12px 12px",
+            textAlign:"center",
+            animation:"csHeroGlow 3.5s ease-in-out infinite, csIntroIn .45s cubic-bezier(.34,1.2,.64,1) both",
+          }}>
+            <div aria-hidden style={{ position:"absolute",top:-40,left:"50%",transform:"translateX(-50%)",width:260,height:260,borderRadius:"50%",background:"radial-gradient(circle,#60a5fa22 0%,transparent 65%)",pointerEvents:"none" }}/>
+            <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:100,background:"linear-gradient(90deg,transparent,#ffffff12,transparent)",animation:"csShine 4s ease-in-out infinite",pointerEvents:"none" }}/>
+
+            {/* Bandeau DÉFI DU JOUR */}
+            <div style={{
+              position:"relative", display:"inline-flex", alignItems:"center", gap:6,
+              padding:"3px 10px", borderRadius:5,
+              fontSize:9, fontWeight:900, color:"#fbbf24", letterSpacing:2.5,
+              background:"linear-gradient(90deg,transparent,#78350f55,transparent)",
+              border:"1px solid #fbbf2455",
+              textShadow:"0 0 6px #fbbf24aa",
+              marginBottom:8,
+            }}>
+              🏆 DÉFI DU JOUR 🏆
             </div>
-            <div style={{ marginTop:10,fontSize:12,color:"#64748b",lineHeight:1.7 }}>
-              💎 <b style={{ color:C.blue }}>+5 DRIX</b> participation · 🏆 <b style={{ color:C.yellow }}>+20 DRIX</b> vainqueur du jour
+
+            {/* TITRE COMPACT */}
+            <div style={{
+              fontSize:"clamp(22px,6.4vw,30px)", fontWeight:900, lineHeight:1,
+              background:"linear-gradient(135deg,#60a5fa 0%,#93c5fd 50%,#2563eb 100%)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+              fontVariantNumeric:"tabular-nums", letterSpacing:1.5,
+              animation:"csTitlePulse 2.4s ease-in-out infinite",
+              marginBottom:4, whiteSpace:"nowrap",
+            }}>
+              ⚡ SCOREUR SPEEDRUN
             </div>
-            <div style={{ marginTop:10,fontSize:11,color:C.yellow,lineHeight:1.5,padding:"6px 10px",background:"#78350f22",borderRadius:8,border:`1px solid ${C.yellow}33` }}>
-              ⚠ <b>1 seule vie par jour</b> · L'abandon compte comme une tentative · Même série pour tous · ❌ erreur = +3s
+
+            <div style={{ fontSize:11,color:"#94a3b8",lineHeight:1.4,marginBottom:12 }}>
+              <b style={{ color:"#60a5fa" }}>501 → 0</b> · calcul mental · le plus vite
+            </div>
+
+            {/* Badges DRIX */}
+            <div style={{ display:"flex",justifyContent:"center",gap:6,flexWrap:"wrap" }}>
+              <div style={{
+                display:"flex",alignItems:"center",gap:5,
+                padding:"4px 9px", borderRadius:16,
+                background:"linear-gradient(135deg,#0a1a3a,#06122a)",
+                border:"1px solid #60a5fa66",
+                boxShadow:"0 0 8px #60a5fa33",
+                fontSize:10, fontWeight:800,
+              }}>
+                <span>💎</span>
+                <span style={{ color:"#60a5fa",textShadow:"0 0 4px #60a5fa88" }}>+5</span>
+                <span style={{ color:"#94a3b8" }}>participation</span>
+              </div>
+              <div style={{
+                display:"flex",alignItems:"center",gap:5,
+                padding:"4px 9px", borderRadius:16,
+                background:"linear-gradient(135deg,#3a1f00,#1a0f00)",
+                border:"1px solid #fbbf2477",
+                boxShadow:"0 0 10px #fbbf2444",
+                fontSize:10, fontWeight:800,
+              }}>
+                <span>🏆</span>
+                <span style={{ color:"#fbbf24",textShadow:"0 0 4px #fbbf24aa" }}>+20</span>
+                <span style={{ color:"#fcd34d" }}>vainqueur</span>
+              </div>
+            </div>
+
+            <div style={{ marginTop:8, fontSize:9, color:"#475569", lineHeight:1.3 }}>
+              ⚠ <b style={{ color:"#64748b" }}>1 vie/jour</b> · abandon = perdue · erreur = +3s
             </div>
           </div>
 
-          {/* Bouton commencer */}
-          {alreadyPlayed === true ? (
-            <div style={{ background:"linear-gradient(135deg,#1a0a14,#0f0a18)",border:`2px solid ${C.red}66`,borderRadius:16,padding:"14px 16px",textAlign:"center" }}>
-              <div style={{ fontSize:28,marginBottom:4 }}>🔒</div>
-              <div style={{ fontWeight:900,fontSize:14,color:C.red,marginBottom:3 }}>Tu as déjà joué aujourd'hui</div>
-              <div style={{ fontSize:12,color:C.muted }}>Reviens demain pour une nouvelle tentative !</div>
+          {/* ─── BLOC "DÉJÀ JOUÉ" countdown compact ─── */}
+          {alreadyPlayed && (
+            <div className="cs-section" style={{
+              background:"radial-gradient(ellipse at center,#0a1424 0%,#06101c 70%,#03080f 100%)",
+              border:"1px solid #1e3a8a66",
+              borderRadius:12,
+              padding:"10px 14px",
+              display:"flex",alignItems:"center",gap:12,
+            }}>
+              <div style={{ fontSize:22 }}>🔒</div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:9,fontWeight:900,color:"#60a5fa",letterSpacing:1.5,textTransform:"uppercase",marginBottom:1 }}>Reviens dans</div>
+                <div style={{ fontSize:22, fontWeight:900, color:"#60a5fa", fontVariantNumeric:"tabular-nums", textShadow:"0 0 12px #60a5fa88", lineHeight:1 }}>
+                  {fmtCountdown(countdownMs)}
+                </div>
+              </div>
+              <div style={{ fontSize:10,color:"#64748b",textAlign:"right" }}>nouvelle<br/>tentative<br/>à minuit</div>
             </div>
-          ) : null}
+          )}
 
-          <div style={{ display:"flex",gap:10 }}>
+          {/* ─── BLOC RECORD + LIVE compact ─── */}
+          {!loadingScores && (recordMs || totalPlayers > 0) && (
+            <div className="cs-section" style={{ display:"flex",gap:8 }}>
+              {recordMs !== null && (
+                <div style={{
+                  flex:1,
+                  background:"linear-gradient(135deg,#1a0f00,#0a0500)",
+                  border:"1px solid #fbbf2466",
+                  borderRadius:10, padding:"7px 10px",
+                  boxShadow:"0 0 10px #fbbf2422",
+                }}>
+                  <div style={{ fontSize:8,fontWeight:900,color:"#fbbf24",letterSpacing:1.5,marginBottom:2 }}>⚡ RECORD</div>
+                  <div style={{ fontSize:18,fontWeight:900,color:"#fbbf24",fontVariantNumeric:"tabular-nums",lineHeight:1,animation:"csRecordGlow 2.4s ease-in-out infinite" }}>
+                    {formatChrono(recordMs)}
+                  </div>
+                  {recordHolder && <div style={{ fontSize:9,color:"#a16207",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>par {recordHolder}</div>}
+                </div>
+              )}
+              {totalPlayers > 0 && (
+                <div style={{
+                  flex:1,
+                  background:"linear-gradient(135deg,#06140a,#030a06)",
+                  border:"1px solid #22c55e55",
+                  borderRadius:10, padding:"7px 10px",
+                }}>
+                  <div style={{ fontSize:8,fontWeight:900,color:"#22c55e",letterSpacing:1.5,marginBottom:2,display:"flex",alignItems:"center",gap:4 }}>
+                    <span style={{ display:"inline-block",width:5,height:5,borderRadius:"50%",background:"#22c55e",boxShadow:"0 0 5px #22c55e",animation:"csLiveDot 1.6s ease-in-out infinite" }}/>
+                    LIVE
+                  </div>
+                  <div style={{ fontSize:18,fontWeight:900,color:"#22c55e",fontVariantNumeric:"tabular-nums",lineHeight:1 }}>
+                    {totalPlayers}
+                  </div>
+                  <div style={{ fontSize:9,color:"#475569",marginTop:2 }}>{totalPlayers > 1 ? "joueurs" : "joueur"}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── PODIUM compact ─── */}
+          {!loadingScores && podium.length > 0 && (
+            <div className="cs-section" style={{
+              background:"linear-gradient(135deg,#0a1020,#070b16)",
+              border:"1px solid #16294a",
+              borderRadius:12, overflow:"hidden",
+            }}>
+              <div style={{
+                padding:"6px 12px",
+                background:"linear-gradient(90deg,#0f1a30,#16294a,#0f1a30)",
+                backgroundSize:"200% 100%",
+                animation:"csBannerScroll 6s linear infinite",
+                borderBottom:"1px solid #16294a",
+                fontWeight:900, fontSize:9, color:"#fbbf24", letterSpacing:2.5,
+                display:"flex", alignItems:"center", gap:5,
+              }}>
+                <Trophy size={11} color="#fbbf24"/> PODIUM SPEEDRUN
+              </div>
+              {podium.map((s, i) => {
+                const isMe = s.joueur_id === joueur?.id;
+                const colors = [
+                  { bg:"linear-gradient(90deg,#3a2200,#1a0f00)", border:"#fbbf24", text:"#fbbf24", medal:"🥇" },
+                  { bg:"linear-gradient(90deg,#1a1a26,#0f0f18)", border:"#cbd5e1", text:"#cbd5e1", medal:"🥈" },
+                  { bg:"linear-gradient(90deg,#2a1500,#150a00)", border:"#fb923c", text:"#fb923c", medal:"🥉" },
+                ];
+                const col = colors[i];
+                return (
+                  <div key={i} style={{
+                    display:"flex", alignItems:"center",
+                    padding:"7px 12px", gap:8,
+                    background: isMe ? "linear-gradient(90deg,#0a1a3a,#06122a)" : col.bg,
+                    borderBottom: i<podium.length-1 ? "1px solid #16294a44" : "none",
+                  }}>
+                    <div style={{ fontSize:17, lineHeight:1, filter:`drop-shadow(0 0 6px ${col.border}aa)` }}>{col.medal}</div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontWeight:900,fontSize:13,color: isMe?"#60a5fa":col.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                        {s.joueur_pseudo}{isMe ? " (toi)" : ""}
+                      </div>
+                      {s.erreurs > 0 && <div style={{ fontSize:9,color:"#ef4444" }}>{s.erreurs} err.</div>}
+                    </div>
+                    <div style={{ fontWeight:900,fontSize:i===0?17:15,color:col.text,fontVariantNumeric:"tabular-nums",textShadow:`0 0 ${i===0?10:6}px ${col.border}88` }}>
+                      {formatChrono(s.temps_ms)}
+                    </div>
+                  </div>
+                );
+              })}
+              {myRank && myRank > 3 && myScore && (
+                <div style={{
+                  display:"flex",alignItems:"center",padding:"7px 12px",gap:8,
+                  background:"linear-gradient(90deg,#0a1a3a,#06122a)",
+                  borderTop:"1px dashed #60a5fa44",
+                }}>
+                  <div style={{ width:22,textAlign:"center",fontWeight:900,fontSize:12,color:"#60a5fa" }}>#{myRank}</div>
+                  <div style={{ flex:1,fontWeight:900,fontSize:12,color:"#60a5fa" }}>
+                    📍 Toi {myScore.erreurs > 0 && <span style={{ marginLeft:6,fontSize:9,color:"#ef4444" }}>{myScore.erreurs} err.</span>}
+                  </div>
+                  <div style={{ fontWeight:900,fontSize:14,color:"#60a5fa",fontVariantNumeric:"tabular-nums",textShadow:"0 0 6px #60a5fa66" }}>
+                    {formatChrono(myScore.temps_ms)}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {loadingScores && (
+            <div style={{ textAlign:"center",padding:14,color:"#475569",fontSize:11 }}>Chargement…</div>
+          )}
+
+          {!loadingScores && scores.length === 0 && (
+            <div className="cs-section" style={{
+              background:"linear-gradient(135deg,#05101f,#03080f)",
+              border:"1px dashed #16294a",
+              borderRadius:10, padding:"12px 10px", textAlign:"center",
+            }}>
+              <div style={{ fontSize:18,marginBottom:2 }}>🥇</div>
+              <div style={{ fontSize:12,fontWeight:800,color:"#60a5fa" }}>Sois le premier !</div>
+              <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>Pose ton record du jour</div>
+            </div>
+          )}
+
+          {/* ─── CTAs ─── */}
+          <div className="cs-section" style={{ display:"flex",flexDirection:"column",gap:8,marginTop:2 }}>
             <button onClick={commencer}
               disabled={alreadyPlayed || checking}
               style={{
-                flex:1,
-                background: (alreadyPlayed||checking) ? "#1a1a1a" : `linear-gradient(135deg,${C.blue},#3b82f6)`,
-                color: (alreadyPlayed||checking) ? C.muted : "#fff",
-                border: (alreadyPlayed||checking) ? `1px solid ${C.border}` : "none",
-                borderRadius:12, padding:"14px",
-                fontWeight:900, fontSize:16,
+                width:"100%", position:"relative", overflow:"hidden",
+                background: (alreadyPlayed||checking)
+                  ? "linear-gradient(135deg,#16202e,#0d1119)"
+                  : "linear-gradient(135deg,#60a5fa 0%,#3b82f6 50%,#2563eb 100%)",
+                color: (alreadyPlayed||checking) ? "#475569" : "#fff",
+                border:"none", borderRadius:12,
+                padding:"14px 12px",
+                fontWeight:900, fontSize:15, letterSpacing:1.5,
                 cursor: (alreadyPlayed||checking) ? "not-allowed" : "pointer",
                 touchAction:"manipulation",
-                boxShadow: (alreadyPlayed||checking) ? "none" : `0 4px 20px ${C.blue}55`,
-                opacity: (alreadyPlayed||checking) ? .6 : 1,
+                boxShadow: (alreadyPlayed||checking)
+                  ? "inset 0 -2px 0 #00000066"
+                  : "0 0 22px #60a5fa77,inset 0 1px 0 #ffffff44,inset 0 -3px 0 #1e3a8a99",
+                animation: (alreadyPlayed||checking) ? "none" : "csCtaPulse 2.4s ease-in-out infinite",
+                textShadow: (alreadyPlayed||checking) ? "none" : "0 1px 2px #00000077",
               }}>
-              {checking ? "Vérification…" : alreadyPlayed ? "🔒 Bloqué jusqu'à demain" : "⚡ Commencer"}
+              {!alreadyPlayed && !checking && (
+                <span aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:70,background:"linear-gradient(90deg,transparent,#ffffff44,transparent)",animation:"csShine 2.8s ease-in-out infinite",pointerEvents:"none" }}/>
+              )}
+              <span style={{ position:"relative" }}>
+                {checking ? "⏳ VÉRIFICATION…" : alreadyPlayed ? "🔒 BLOQUÉ JUSQU'À DEMAIN" : "⚡ COMMENCER LE RUN"}
+              </span>
             </button>
+
             <button onClick={openLeaderboard}
               style={{
-                background:"#1a1200", color:C.yellow, border:`1px solid ${C.yellow}55`,
-                borderRadius:12, padding:"14px 18px",
-                fontWeight:800, fontSize:14, cursor:"pointer",
-                touchAction:"manipulation",
+                width:"100%",
+                background:"linear-gradient(135deg,#3a2200,#1a0f00)",
+                color:"#fbbf24", border:"1px solid #fbbf2477",
+                borderRadius:10, padding:"9px",
+                fontWeight:900, fontSize:11, letterSpacing:1.5,
+                cursor:"pointer", touchAction:"manipulation",
+                boxShadow:"0 0 10px #fbbf2433",
                 display:"flex", alignItems:"center", justifyContent:"center", gap:6,
-                whiteSpace:"nowrap",
               }}>
-              <Trophy size={16} color={C.yellow}/> Classement
+              <Trophy size={12} color="#fbbf24"/> CLASSEMENT COMPLET
             </button>
           </div>
+
         </div>
       </div>
     );
