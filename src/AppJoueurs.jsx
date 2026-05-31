@@ -218,10 +218,10 @@ const RANGS = [
   { titre:"Confirmé",    min:1100, max:1300,     emoji:"⭐",   color:"#22c55e", icon:Star       },
   { titre:"Expert",      min:1300, max:1500,     emoji:"⭐⭐", color:"#f59e0b", icon:Zap        },
   { titre:"Élite",       min:1500, max:1700,     emoji:"💎",   color:"#a78bfa", icon:Gem        },
-  { titre:"Légende",     min:1700, max:1900,     emoji:"🏆",   color:"#f97316", icon:Trophy     },
-  { titre:"Master Bull", min:1900, max:2100,     emoji:"👑",   color:"#ef4444", icon:Crown      },
-  { titre:"Titan",       min:2100, max:2500,     emoji:"🔥",   color:"#dc2626", icon:Flame      },
-  { titre:"Mythique",    min:2500, max:Infinity, emoji:"✨",   color:"#fbbf24", icon:Sparkles   },
+  { titre:"Légende",     min:1700, max:2500,     emoji:"🏆",   color:"#f97316", icon:Trophy     },
+  { titre:"Master Bull", min:2500, max:3200,     emoji:"👑",   color:"#ef4444", icon:Crown      },
+  { titre:"Titan",       min:3200, max:4000,     emoji:"🔥",   color:"#dc2626", icon:Flame      },
+  { titre:"Mythique",    min:4000, max:Infinity, emoji:"✨",   color:"#fbbf24", icon:Sparkles   },
 ];
 const getDrixTitreLocal = (drix) => {
   for (const r of RANGS) { if (drix < r.max) return r; }
