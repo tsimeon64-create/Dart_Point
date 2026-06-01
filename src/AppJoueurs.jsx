@@ -2373,17 +2373,22 @@ export const AmiSection = ({ joueur, setPage }) => {
 // ── FICHE JOUEUR PUBLIC ───────────────────────────────────────────────────────
 export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage, setBarSlug }) => {
 
+  // Respect du réglage système « réduire les animations »
+  const reduceMotion = typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
   // ── SVG helpers ──────────────────────────────────────────────────────────────
   const CircleGauge = ({ value, max=100, color, size=90, strokeWidth=9 }) => {
     const r = (size - strokeWidth) / 2;
     const circ = 2 * Math.PI * r;
     const fill = Math.min(1, value / max) * circ;
+    const off  = circ - fill;
     return (
       <svg width={size} height={size} style={{ display:"block" }}>
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#ffffff10" strokeWidth={strokeWidth}/>
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={strokeWidth}
-          strokeDasharray={`${fill} ${circ}`} strokeLinecap="round"
-          transform={`rotate(-90 ${size/2} ${size/2})`}/>
+          strokeDasharray={circ} strokeDashoffset={reduceMotion ? off : circ} strokeLinecap="round"
+          transform={`rotate(-90 ${size/2} ${size/2})`}
+          style={reduceMotion ? undefined : { ["--dp-circ"]: circ, ["--dp-off"]: off, animation:"dpDraw 1.1s ease forwards" }}/>
         <text x={size/2} y={size/2+1} textAnchor="middle" dominantBaseline="middle"
           style={{ fill:"#f1f5f9", fontWeight:900, fontSize:size*0.24 }}>{value}</text>
         <text x={size/2} y={size/2+size*0.22} textAnchor="middle" dominantBaseline="middle"
@@ -2713,17 +2718,76 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
     return {label:"Finishes élevés",desc:"Peut rater les grands finishes",emoji:"🎯"};
   })();
 
-  // Résumé scouting — synthèse data-driven sur l'ensemble des manches analysées
-  const resume = [
-    `${dangerLabel} (dangerosité ${dangerScore}/100), ${dangerDriver}.`,
-    A.avgReel!=null ? `Moyenne réelle ${A.avgReel} pts/volée${A.checkoutPct!=null?`, checkout ${A.checkoutPct}%`:""}${A.n180>0?`, ${A.n180}×180`:""}.` : null,
-    A.firstLegPct!=null ? `Entame : ${A.firstLegPct}% de 1ʳᵉˢ manches gagnées.` : null,
-    A.deciderPct!=null ? `Money-time : ${A.deciderPct}% de manches décisives remportées.` : null,
-    `Force principale : ${pointFortObj.k.toLowerCase()} — faiblesse : ${pointFaibleAnalyse.k.toLowerCase()}.`,
-    formePct>=0.6 ? `En forme (${victoires10}/${derniers10.length} récemment), à prendre au sérieux.` : (formePct<0.4&&derniers10.length>=5) ? `Forme en baisse (${victoires10}/${derniers10.length}) — moment idéal pour le défier.` : null,
-    deltaScoring&&Math.abs(deltaScoring)>5 ? `Son scoring est ${deltaScoring>0?"en hausse":"en baisse"} de ${Math.abs(deltaScoring)}% vs son standard.` : null,
-    (moi&&moi.id!==j.id) ? (probaVictoire>=60?`Tu pars favori (~${probaVictoire}% de victoire).`:probaVictoire<=40?`Il reste favori (~${100-probaVictoire}%).`:`Match serré annoncé (~${probaVictoire}% pour toi).`) : null,
-  ].filter(Boolean).join(" ");
+  // ── Analyse adversaire — rapport d'éclaireur en paragraphes courts (2-3 phrases) ──
+  const analyseParas = (() => {
+    const P = [];
+    const nom = j.pseudo;
+
+    // P1 — Niveau & dangerosité
+    const dWord = dangerScore>=70 ? "élevée" : dangerScore>=45 ? "notable" : dangerScore>=25 ? "modérée" : "faible";
+    let appui;
+    if (A.avgReel!=null && (A.checkoutPct==null || A.avgReel>=50)) appui = `qui s'appuie avant tout sur son scoring, avec une moyenne de ${A.avgReel} points par volée`;
+    else if (A.checkoutPct!=null && A.checkoutPct>=42)             appui = `redoutable à la conclusion avec ${A.checkoutPct}% au checkout`;
+    else if (winRate>=55)                                          appui = `porté par un solide taux de victoire de ${winRate}%`;
+    else if (formePct>=0.6)                                        appui = `dangereux surtout par sa dynamique du moment`;
+    else                                                           appui = `encore en construction, mais à ne pas sous-estimer`;
+    const dangerNoun = dangerScore>=75 ? "un joueur dangereux" : dangerScore>=50 ? "un adversaire solide" : dangerScore>=30 ? "un adversaire à surveiller" : "un adversaire accessible";
+    P.push(`Dangerosité ${dWord} (${dangerScore}/100). ${nom} est ${dangerNoun}, ${appui}.`);
+
+    // P2 — Forces
+    if (A.firstLegPct!=null || A.deciderPct!=null) {
+      const bits = [];
+      if (A.firstLegPct!=null) {
+        const w = A.firstLegPct>=55 ? "démarre très fort ses rencontres" : A.firstLegPct>=42 ? "négocie correctement ses entames" : "met du temps à se mettre en route";
+        bits.push(`Il ${w} avec ${A.firstLegPct}% de premières manches remportées`);
+      }
+      if (A.deciderPct!=null) {
+        const w = A.deciderPct>=55 ? `reste particulièrement performant dans les manches décisives (${A.deciderPct}%)` : A.deciderPct>=42 ? `tient correctement le money-time (${A.deciderPct}%)` : `a tendance à lâcher dans les manches décisives (${A.deciderPct}%)`;
+        bits.push((bits.length ? "et " : "Il ")+w);
+      }
+      P.push(bits.join(" ")+".");
+    } else if (A.n180>0 || (A.tonRate!=null && A.tonRate>=15)) {
+      P.push(`Sa force, c'est la puissance de frappe : ${A.n180>0 ? `${A.n180}×180` : `${A.tonRate}% de volées à 100+`} sur les manches analysées.`);
+    } else if (pointFortObj.k!=="En construction") {
+      P.push(`Sa principale force se situe sur ${pointFortObj.k.toLowerCase()} — ${pointFortObj.detail.toLowerCase()}.`);
+    } else {
+      P.push(`${nom} manque encore de matchs pour dégager une tendance nette, mais reste un adversaire à respecter.`);
+    }
+
+    // P3 — Faiblesse
+    if (pointFaibleAnalyse.k==="Peu d'écueils") {
+      P.push(`Difficile de lui trouver une vraie faiblesse : son profil est équilibré, sans point de rupture évident.`);
+    } else {
+      P.push(`Son principal point faible reste ${pointFaibleAnalyse.k.toLowerCase()} : ${pointFaibleAnalyse.detail.toLowerCase()}, ce qui peut lui coûter des manches pourtant bien engagées.`);
+    }
+
+    // P4 — Forme actuelle
+    if (derniers10.length>=3) {
+      const dyn = formePct>=0.7 ? "excellente" : formePct>=0.5 ? "correcte" : formePct>=0.3 ? "en dents de scie" : "compliquée";
+      let f = `La dynamique est ${dyn} : ${victoires10} victoire${victoires10>1?"s":""} sur les ${derniers10.length} derniers matchs`;
+      if (serieActuelle>=2 && serieType==="win")  f += ` et une série active de ${serieActuelle} succès consécutifs`;
+      else if (serieActuelle>=2 && serieType==="loss") f += `, plombée par ${serieActuelle} défaites de rang`;
+      if (deltaScoring && Math.abs(deltaScoring)>5) f += `. Son scoring est d'ailleurs ${deltaScoring>0?"en hausse":"en baisse"} de ${Math.abs(deltaScoring)}% par rapport à son standard`;
+      P.push(f+".");
+    }
+
+    // P5 — Verdict & clés du match
+    if (moi && moi.id!==j.id) {
+      const cle = (A.checkoutPct!=null && A.checkoutPct<38) ? "profiter de ses ratés au checkout"
+                : (A.firstLegPct!=null && A.firstLegPct<45) ? "le bousculer dès l'entame de chaque manche"
+                : (A.deciderPct!=null && A.deciderPct<45)   ? "l'emmener dans des manches décisives où il craque"
+                : (A.dechetRate!=null && A.dechetRate>=12)  ? "rester régulier pour punir ses trous de scoring"
+                :                                             "hausser ton niveau de scoring pour rivaliser";
+      const verdict = probaVictoire>=60 ? `Tu pars favori (~${probaVictoire}% de victoire estimée)`
+                    : probaVictoire<=40 ? `L'IA le considère comme favori avant ce duel (~${100-probaVictoire}% pour lui)`
+                    :                     `L'IA annonce un match très serré (~${probaVictoire}% pour toi)`;
+      P.push(`${verdict}. Pour faire la différence, il faudra ${cle} et ne pas lui laisser l'avantage en début de manche.`);
+    } else {
+      P.push(`Au global, un profil ${dangerScore>=60?"à prendre très au sérieux":"abordable mais sérieux"}, dont toute la mécanique repose sur ${pointFortObj.k.toLowerCase()}.`);
+    }
+
+    return P;
+  })();
 
   // Chart DRIX
   const chartPoints = drixMvts.slice(0,20).reverse().map(m=>m.drix_apres||m.drix_avant||1000);
@@ -2828,75 +2892,133 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const card = {background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:14,padding:14};
   const labelSt = {fontSize:10,color:CJ.muted,fontWeight:700,letterSpacing:1,marginBottom:6,display:"block"};
 
+  // Animation d'apparition échelonnée des cartes (désactivée si reduce-motion)
+  const sec = (i=0) => reduceMotion ? {} : { animation:"dpFade .45s ease both", animationDelay:`${(0.045*i).toFixed(2)}s` };
+
+  // Mise en valeur auto des chiffres clés dans le texte d'analyse (% , /100, pts, ×180, séries…)
+  const HL_RE   = /(\d+\s?\/\s?100|\d+\s?%|\d+\s?(?:pts|points?|victoires?|succès|manches?)|\d+×\d+)/g;
+  const HL_TEST = /^(?:\d+\s?\/\s?100|\d+\s?%|\d+\s?(?:pts|points?|victoires?|succès|manches?)|\d+×\d+)$/;
+  const hlStyle = { color:"#ffffff", fontWeight:800, textShadow:"0 0 9px #a855f7aa" };
+  const renderHL = (text) => String(text).split(HL_RE).map((part,i)=> HL_TEST.test(part) ? <span key={i} style={hlStyle}>{part}</span> : part);
+
+  // Forme résumée (capsule express)
+  const formeShort = formePct>=0.7 ? "En feu" : formePct>=0.5 ? "En forme" : formePct>=0.3 ? "Moyen" : "Froid";
+
+  // Forces / Faiblesses agrégées pour les cartes dédiées
+  const forcesList = [
+    { emoji: pointFortObj.emoji, k: pointFortObj.k, detail: pointFortObj.detail },
+    debutObj.color===CJ.green ? { emoji: debutObj.emoji, k: debutObj.label, detail: debutObj.detail } : null,
+    finObj.color===CJ.green   ? { emoji: finObj.emoji,   k: finObj.label,   detail: finObj.detail }   : null,
+    (A.tonRate!=null && A.tonRate>=25) ? { emoji:"💥", k:"Gros scoring", detail:`${A.tonRate}% de volées à 100+` } : null,
+  ].filter(Boolean).slice(0,4);
+  const faiblessesList = [
+    { emoji: pointFaibleAnalyse.emoji, k: pointFaibleAnalyse.k, detail: pointFaibleAnalyse.detail },
+    debutObj.color===CJ.red ? { emoji: debutObj.emoji, k: debutObj.label, detail: debutObj.detail } : null,
+    finObj.color===CJ.red   ? { emoji: finObj.emoji,   k: finObj.label,   detail: finObj.detail }   : null,
+  ].filter(Boolean).slice(0,3);
+
+  // Exploits — uniquement les vrais hauts faits du joueur
+  const exploitsList = [
+    plusGrosFinish>=60 ? { emoji:"🎯", label:`Finish ${plusGrosFinish}`, sub:"meilleur checkout" } : null,
+    nb180>0 ? { emoji:"💥", label:`${nb180} × 180`, sub:nb180>1?"maximums":"maximum" } : null,
+    (serieType==="win" && serieActuelle>=2) ? { emoji:"🔥", label:`${serieActuelle} de suite`, sub:"série en cours" } : null,
+    var7j>0 ? { emoji:"📈", label:`+${var7j} DRIX`, sub:"cette semaine" } : null,
+    (A.checkoutPct!=null && A.checkoutPct>=45) ? { emoji:"🏹", label:`${A.checkoutPct}% checkout`, sub:"finisseur" } : null,
+    (A.avgReel!=null && A.avgReel>=55) ? { emoji:"⚡", label:`${A.avgReel} moy.`, sub:"scoring lourd" } : null,
+  ].filter(Boolean);
+
   // ── RENDU ─────────────────────────────────────────────────────────────────────
   return (
     <div style={{maxWidth:480,margin:"0 auto",padding:"16px 16px 80px",background:CJ.bg,minHeight:"100vh"}}>
+      <style>{`
+@keyframes dpFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes dpDraw{from{stroke-dashoffset:var(--dp-circ)}to{stroke-dashoffset:var(--dp-off)}}
+`}</style>
 
       {/* ── Retour ── */}
       <button onClick={()=>window.history.back()} style={{background:"none",border:"none",color:CJ.muted,cursor:"pointer",marginBottom:14,fontSize:13,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation"}}>← Retour</button>
 
-      {/* ── HEADER ── */}
-      <div style={{...card,marginBottom:10}}>
-        <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
-          {/* Photo */}
-          <div style={{position:"relative",flexShrink:0}}>
-            <div style={{width:72,height:72,borderRadius:"50%",border:`3px solid ${color}`,overflow:"hidden",background:color+"22",display:"flex",alignItems:"center",justifyContent:"center"}}>
-              {j.photo?<img src={j.photo} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<RankIcon drix={drix} size={28}/>}
+      {/* ════ HERO PREMIUM — bannière dynamique selon le rang ════ */}
+      <div style={{position:"relative",borderRadius:18,overflow:"hidden",marginBottom:10,border:`1px solid ${color}55`,background:"#161616",...sec(0)}}>
+        <div style={{position:"absolute",inset:0,background:`linear-gradient(140deg, ${color}3a 0%, ${color}12 45%, transparent 78%)`}}/>
+        <div style={{position:"absolute",top:-50,right:-40,width:170,height:170,borderRadius:"50%",background:`radial-gradient(circle, ${color}40, transparent 70%)`}}/>
+        <div style={{position:"relative",padding:16}}>
+          {/* Ligne 1 — avatar + identité + ami */}
+          <div style={{display:"flex",gap:14,alignItems:"center"}}>
+            <div style={{position:"relative",flexShrink:0}}>
+              <div style={{width:78,height:78,borderRadius:"50%",border:`3px solid ${color}`,overflow:"hidden",background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 22px ${color}66`}}>
+                {j.photo?<img src={j.photo} alt={`Avatar de ${j.pseudo}`} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<RankIcon drix={drix} size={32}/>}
+              </div>
+              <div style={{position:"absolute",bottom:3,right:3,width:13,height:13,borderRadius:"50%",background:"#22c55e",border:"2px solid #161616"}}/>
             </div>
-            <div style={{position:"absolute",bottom:2,right:2,width:12,height:12,borderRadius:"50%",background:"#22c55e",border:"2px solid #1a1a1a"}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <h1 style={{fontWeight:900,fontSize:21,margin:"0 0 5px",lineHeight:1.05}}>{j.pseudo}</h1>
+              <div style={{display:"inline-flex",alignItems:"center",gap:6,background:color+"22",border:`1px solid ${color}66`,borderRadius:20,padding:"3px 11px",marginBottom:6}}>
+                <RankIcon drix={drix} size={15}/>
+                <span style={{fontWeight:800,fontSize:12.5,color,letterSpacing:.4,textTransform:"uppercase"}}>{titre}</span>
+              </div>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {j.age&&<BadgeJ color={CJ.muted}>🎂 {j.age} ans</BadgeJ>}
+                {j.ville&&<BadgeJ color={CJ.blue}>📍 {j.ville}</BadgeJ>}
+              </div>
+            </div>
+            {moi&&moi.id!==j.id&&(
+              amiStatut===null
+                ?<button onClick={ajouterAmi} disabled={ajoutBusy} aria-label={`Ajouter ${j.pseudo} en ami`} style={{flexShrink:0,background:ajoutBusy?"#1a1a1a":`linear-gradient(135deg,${CJ.accent},#ea580c)`,border:"none",color:ajoutBusy?CJ.muted:"#fff",borderRadius:20,padding:"9px 13px",cursor:ajoutBusy?"not-allowed":"pointer",fontSize:15,fontWeight:800,touchAction:"manipulation",boxShadow:ajoutBusy?"none":`0 4px 16px ${CJ.accent}55`,opacity:ajoutBusy?.6:1}}>{ajoutBusy?"…":"👥"}</button>
+                :amiStatut==="en_attente"
+                  ?<span aria-label="Demande d'ami en attente" style={{flexShrink:0,background:"#78350f33",border:`1px solid ${CJ.yellow}44`,color:CJ.yellow,borderRadius:20,padding:"7px 11px",fontSize:13,fontWeight:700}}>⏳</span>
+                  :<span aria-label="Vous êtes amis" style={{flexShrink:0,background:"#14532d33",border:`1px solid ${CJ.green}44`,color:CJ.green,borderRadius:20,padding:"7px 11px",fontSize:13,fontWeight:700}}>✅</span>
+            )}
           </div>
-          {/* Infos */}
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
-              <h1 style={{fontWeight:900,fontSize:18,margin:0}}>{j.pseudo}</h1>
-              {moi&&moi.id!==j.id&&(
-                amiStatut===null
-                  ?<button onClick={ajouterAmi} disabled={ajoutBusy} style={{background: ajoutBusy ? "#1a1a1a" :`linear-gradient(135deg,${CJ.accent},#ea580c)`,border:"none",color:ajoutBusy?CJ.muted:"#fff",borderRadius:20,padding:"8px 20px",cursor:ajoutBusy?"not-allowed":"pointer",fontSize:14,fontWeight:800,touchAction:"manipulation",boxShadow:ajoutBusy?"none":`0 4px 16px ${CJ.accent}55`,letterSpacing:.3,opacity:ajoutBusy?.6:1}}>{ajoutBusy?"…":"👥 Ajouter"}</button>
-                  :amiStatut==="en_attente"
-                    ?<span style={{background:"#78350f33",border:`1px solid ${CJ.yellow}44`,color:CJ.yellow,borderRadius:20,padding:"6px 14px",fontSize:13,fontWeight:600}}>⏳ En attente</span>
-                    :<span style={{background:"#14532d33",border:`1px solid ${CJ.green}44`,color:CJ.green,borderRadius:20,padding:"6px 14px",fontSize:13,fontWeight:600}}>✅ Ami(e)</span>
-              )}
+
+          {/* Ligne 2 — DRIX géant + classement + écart */}
+          <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginTop:14,gap:10}}>
+            <div style={{minWidth:0}}>
+              <div style={{display:"flex",alignItems:"baseline",gap:7}}>
+                <span style={{fontWeight:900,fontSize:40,color,lineHeight:.9,textShadow:`0 0 18px ${color}55`}}>{drix}</span>
+                <span style={{fontSize:15,fontWeight:700,color:color+"cc"}}>DRIX</span>
+              </div>
+              <div style={{display:"flex",gap:7,marginTop:8,flexWrap:"wrap"}}>
+                {classement?.position&&<span style={{fontSize:12,color:CJ.yellow,fontWeight:800,background:"#f59e0b18",border:"1px solid #f59e0b44",borderRadius:8,padding:"3px 8px"}}>🏆 #{classement.position}{classement.total?` / ${classement.total}`:""}</span>}
+                {serieType==="win"&&serieActuelle>=2&&<span style={{fontSize:12,color:CJ.green,fontWeight:800,background:"#22c55e18",border:"1px solid #22c55e44",borderRadius:8,padding:"3px 8px"}}>🔥 {serieActuelle} de suite</span>}
+              </div>
             </div>
-            {/* Badges infos */}
-            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:6}}>
-              {j.age&&<BadgeJ color={CJ.muted}>🎂 {j.age} ans</BadgeJ>}
-              {j.ville&&<BadgeJ color={CJ.blue}>📍 {j.ville}</BadgeJ>}
-              {bar&&<BadgeJ color={CJ.accent}>🍺 {bar.nom}</BadgeJ>}
-            </div>
-            {asso&&<div style={{marginBottom:6}}><BadgeJ color="#a78bfa">🫂 {asso.nom}</BadgeJ></div>}
-            {/* Rang */}
-            <div style={{display:"inline-flex",alignItems:"center",gap:6,background:color+"18",border:`1px solid ${color}44`,borderRadius:20,padding:"3px 10px"}}>
-              <RankIcon drix={drix} size={14}/>
-              <span style={{fontWeight:700,fontSize:12,color}}>{titre}</span>
-            </div>
+            {moi&&moi.id!==j.id&&(
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{fontSize:10,color:CJ.muted,marginBottom:2}}>Écart</div>
+                <div style={{fontWeight:900,fontSize:21,color:ecartDrix>0?"#ef4444":"#22c55e",lineHeight:1}}>{ecartDrix>0?"+":""}{ecartDrix}</div>
+                <div style={{fontSize:9,color:CJ.muted,marginTop:3}}>{ecartDrix>0?"il vous devance":"vous le dépassez"}</div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ── DRIX + CLASSEMENT + ÉCART ── */}
-      <div style={{...card,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div>
-          <div style={{fontWeight:900,fontSize:36,color,lineHeight:1}}>{drix} <span style={{fontSize:16,fontWeight:600}}>DRIX</span></div>
-          {classement?.position&&<div style={{fontSize:12,color:CJ.muted,marginTop:4}}>Classement régional : <span style={{color:CJ.yellow,fontWeight:700}}>#{classement.position}</span></div>}
-        </div>
-        {moi&&moi.id!==j.id&&(
-          <div style={{textAlign:"right"}}>
-            <div style={{fontSize:11,color:CJ.muted,marginBottom:4}}>Écart avec vous</div>
-            <div style={{fontWeight:900,fontSize:22,color:ecartDrix>0?"#ef4444":"#22c55e"}}>{ecartDrix>0?"+":""}{ecartDrix} <span style={{fontSize:13,fontWeight:600}}>DRIX</span></div>
-            <div style={{fontSize:11,color:CJ.muted,marginTop:2}}>{ecartDrix>0?"Il vous devance":"Vous le dépassez"}</div>
+      {/* ════ RÉSUMÉ EXPRESS (capsules) ════ */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10,...sec(1)}}>
+        {[
+          {emoji:"🔥",val:formeShort,lbl:"Forme",c:formeColor},
+          {emoji:"🏆",val:winRate+"%",lbl:"Win rate",c:CJ.yellow},
+          {emoji:"⚡",val:(var7j>=0?"+":"")+var7j,lbl:"7 jours",c:var7j>=0?CJ.green:CJ.red},
+          {emoji:"🎯",val:(plusGrosFinish||A.bestFinish)||"—",lbl:"Finish",c:CJ.accent},
+        ].map((x,i)=>(
+          <div key={i} style={{background:"#1a1a1a",border:`1px solid ${x.c}33`,borderRadius:12,padding:"10px 4px",textAlign:"center"}}>
+            <div style={{fontSize:16,lineHeight:1}}>{x.emoji}</div>
+            <div style={{fontWeight:900,fontSize:14,color:x.c,marginTop:4,lineHeight:1.1}}>{x.val}</div>
+            <div style={{fontSize:8.5,color:CJ.muted,marginTop:2}}>{x.lbl}</div>
           </div>
-        )}
+        ))}
       </div>
 
-      {/* ── BOUTONS ── */}
+      {/* ════ BOUTONS ════ */}
       {moi&&moi.id!==j.id&&(
-        <div style={{display:"flex",gap:8,marginBottom:10}}>
+        <div style={{display:"flex",gap:8,marginBottom:14}}>
           <button onClick={()=>setPage("messages-"+j.id+"|"+encodeURIComponent(j.pseudo))}
             style={{flex:1,background:"#1d4ed8",border:"none",color:"#fff",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:700,fontSize:14,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
             💬 Message
           </button>
           <button onClick={()=>setShowDefi(true)}
-            style={{flex:1,background:CJ.accent,border:"none",color:"#fff",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:700,fontSize:14,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+            style={{flex:1,background:`linear-gradient(135deg,${CJ.accent},#ea580c)`,border:"none",color:"#fff",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:800,fontSize:14,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",gap:6,boxShadow:`0 4px 16px ${CJ.accent}44`}}>
             ⚔️ Défier
           </button>
         </div>
@@ -3143,34 +3265,6 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
         );
       })()}
 
-      {/* ── STATS RAPIDES ── */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:6}}>
-        {[
-          [stats?.victoires??0,"Victoires",CJ.green],
-          [stats?.defaites??0,"Défaites",CJ.red],
-          [stats?.parties??0,"Parties",CJ.muted],
-          [winRate+"%","Win Rate",CJ.yellow],
-          [moyenneDuels??"—","Moy. pts",CJ.blue],
-        ].map(([v,l,c])=>(
-          <div key={l} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:10,padding:"10px 4px",textAlign:"center"}}>
-            <div style={{fontWeight:900,fontSize:17,color:c,lineHeight:1}}>{v}</div>
-            <div style={{fontSize:9,color:CJ.muted,marginTop:3,lineHeight:1.2}}>{l}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:10}}>
-        {[
-          [nb180>0?nb180:"—","180","#f59e0b"],
-          [plusGrosFinish>0?plusGrosFinish:"—","Meilleur finish",CJ.green],
-          [serieActuelle>0?(serieType==="win"?`🔥×${serieActuelle}`:`💔×${serieActuelle}`):"—","Série",serieType==="win"?CJ.green:CJ.red],
-        ].map(([v,l,c])=>(
-          <div key={l} style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:10,padding:"10px 4px",textAlign:"center"}}>
-            <div style={{fontWeight:900,fontSize:17,color:c,lineHeight:1}}>{v}</div>
-            <div style={{fontSize:9,color:CJ.muted,marginTop:3}}>{l}</div>
-          </div>
-        ))}
-      </div>
-
       {/* ── TABS ── */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,marginBottom:14}}>
         {[["analyse","📊 Analyse"],["historique","📋 Historique"],["badges","🏅 Badges"],["face","🤝 Face-à-face"]].map(([t,l])=>(
@@ -3184,175 +3278,147 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       {/* ══ TAB ANALYSE ══════════════════════════════════════════════════════ */}
       {tab==="analyse"&&(
         <div>
-          {/* Mini Face-à-face + Derniers résultats */}
-          {moi&&moi.id!==j.id&&(
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-              {/* Face à face */}
-              <div style={{...card}}>
-                <span style={labelSt}>Face à face</span>
-                <div style={{fontSize:10,color:CJ.muted,marginBottom:8}}>{faceAFace.length} confrontation{faceAFace.length!==1?"s":""}</div>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <div>
-                    <div style={{fontSize:11,color:CJ.blue,fontWeight:700}}>{moi?.pseudo?.slice(0,8)}</div>
-                    <div style={{fontWeight:900,fontSize:28,color:mesVFF>=sesVFF?CJ.green:CJ.muted,lineHeight:1}}>{mesVFF}</div>
-                  </div>
-                  <div style={{color:CJ.muted,fontSize:14,fontWeight:700}}>vs</div>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:11,color:CJ.accent,fontWeight:700}}>{j.pseudo?.slice(0,8)}</div>
-                    <div style={{fontWeight:900,fontSize:28,color:sesVFF>mesVFF?CJ.green:CJ.muted,lineHeight:1}}>{sesVFF}</div>
-                  </div>
-                </div>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:CJ.muted}}>
-                  <span>Moy. pts</span><span>Moy. pts</span>
-                </div>
-                <div style={{display:"flex",justifyContent:"space-between",fontWeight:700,fontSize:13}}>
-                  <span style={{color:CJ.blue}}>{maMoyFF??"—"}</span>
-                  <span style={{color:CJ.accent}}>{saMoyFF??"—"}</span>
-                </div>
-              </div>
-              {/* Derniers résultats */}
-              <div style={{...card}}>
-                <span style={labelSt}>Derniers résultats</span>
-                {derniers5.length===0
-                  ?<div style={{color:CJ.muted,fontSize:11,textAlign:"center",marginTop:16}}>Aucune partie</div>
-                  :<>
-                    <div style={{display:"flex",gap:4,marginBottom:8,flexWrap:"wrap"}}>
-                      {derniers5.map((d,i)=>{
-                        const gagne = d.gagnant_id===joueurId;
-                        const monMoy = d.challenger_id===joueurId?d.score_challenger:d.score_defie;
-                        return(
-                          <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-                            <VDBadge gagne={gagne} size={28}/>
-                            <div style={{fontSize:8,color:CJ.muted}}>{monMoy?Math.round(parseFloat(monMoy)):"—"}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {duels[0]?.date&&<div style={{fontSize:10,color:CJ.muted}}>Dernière partie {tempsDepuisMatch(duels[0].date)}</div>}
-                  </>
-                }
-              </div>
-            </div>
-          )}
-
-          {/* Évolution DRIX */}
-          {chartPoints.length>=2&&(
-            <div style={{...card,marginBottom:10}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                <span style={labelSt}>Évolution DRIX</span>
-                <span style={{fontWeight:700,fontSize:14,color:var7j>=0?CJ.green:CJ.red}}>{drix} {var7j>=0?"▲":"▼"}</span>
-              </div>
-              <MiniChart points={chartPoints} color={var7j>=0?"#22c55e":"#ef4444"} height={48}/>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:CJ.muted,marginTop:4}}>
-                <span>{drixMvts.length>0?new Date(drixMvts[drixMvts.length-1].date||0).toLocaleDateString("fr-FR",{day:"numeric",month:"short"}):""}</span>
-                <span>Aujourd'hui</span>
-              </div>
-            </div>
-          )}
-
-          {/* Badges preview */}
-          {badgesOk.length>0&&(
-            <div style={{...card,marginBottom:14}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                <span style={labelSt}>Badges</span>
-                <button onClick={()=>setTab("badges")} style={{background:"none",border:"none",color:CJ.blue,cursor:"pointer",fontSize:11,fontWeight:600,touchAction:"manipulation"}}>Voir tous</button>
-              </div>
-              <div style={{display:"flex",gap:12,justifyContent:"center"}}>
-                {badgesOk.slice(0,3).map(b=>(
-                  <div key={b.nom} style={{textAlign:"center"}}>
-                    <div style={{width:52,height:52,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%, ${b.couleur}, ${b.couleur}88)`,border:`2px solid ${b.couleur}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,margin:"0 auto 4px",boxShadow:`0 0 12px ${b.couleur}44`}}>{b.emoji}</div>
-                    <div style={{fontSize:9,color:CJ.muted,fontWeight:600}}>{b.nom}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Affiliations */}
-          {(bar||asso)&&(
-            <div style={{display:"grid",gridTemplateColumns:bar&&asso?"1fr 1fr":"1fr",gap:8,marginBottom:14}}>
-              {bar&&(
-                <div onClick={()=>{setBarSlug(bar.slug);setPage("bar");}} style={{...card,cursor:"pointer"}}>
-                  <div style={{fontSize:10,color:CJ.muted}}>🍺 Bar affilié</div>
-                  <div style={{fontWeight:700,fontSize:13,color:CJ.accent,marginTop:2}}>{bar.nom}</div>
-                  <div style={{fontSize:10,color:CJ.muted}}>📍 {bar.ville}</div>
-                  <div style={{fontSize:10,color:CJ.blue,marginTop:4}}>Voir la fiche →</div>
-                </div>
-              )}
-              {asso&&(
-                <div onClick={()=>setPage("associations")} style={{...card,cursor:"pointer"}}>
-                  <div style={{fontSize:10,color:CJ.muted}}>🎯 Asso affiliée</div>
-                  <div style={{fontWeight:700,fontSize:13,color:"#a78bfa",marginTop:2}}>{asso.nom}</div>
-                  {asso.ville&&<div style={{fontSize:10,color:CJ.muted}}>📍 {asso.ville}</div>}
-                  <div style={{fontSize:10,color:CJ.blue,marginTop:4}}>Voir la fiche →</div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* === ANALYSE JOUEUR === */}
-          <div style={{fontWeight:800,fontSize:14,marginBottom:12,color:CJ.text,letterSpacing:0.5}}>ANALYSE JOUEUR</div>
-
-          {/* Grille 2 colonnes */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-            {/* Forme actuelle */}
-            <div style={{...card}}>
-              <span style={labelSt}>Forme actuelle</span>
-              <div style={{fontWeight:800,fontSize:15,color:formeColor,marginBottom:4}}>{formeLabel}</div>
-              {derniers10.length>0&&<div style={{fontSize:10,color:CJ.muted}}>{victoires10}/{derniers10.length} récents ({Math.round(formePct*100)}%)</div>}
-              {serieActuelle>=2&&serieType==="win"&&<div style={{fontSize:10,color:CJ.green}}>🔥 {serieActuelle} victoires de suite</div>}
-              {serieActuelle>=2&&serieType==="loss"&&<div style={{fontSize:10,color:CJ.red}}>❄️ {serieActuelle} défaites de suite</div>}
-              {deltaScoring&&Math.abs(deltaScoring)>3&&<div style={{fontSize:10,color:deltaScoring>0?CJ.green:CJ.red}}>Scoring {deltaScoring>0?"+":""}{deltaScoring}% vs son standard</div>}
-            </div>
-            {/* Dangerosité */}
-            <div style={{...card,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center"}}>
-              <span style={{...labelSt,textAlign:"center"}}>Dangerosité</span>
-              <CircleGauge value={dangerScore} color={dangerColor} size={78} strokeWidth={8}/>
-              <div style={{fontSize:11,fontWeight:800,color:dangerColor,marginTop:4}}>{dangerLabel}</div>
-              <div style={{fontSize:9,color:CJ.muted,marginTop:2,lineHeight:1.3}}>{dangerDriver}</div>
-            </div>
-            {/* Tendance DRIX 7j */}
-            <div style={{...card}}>
-              <span style={labelSt}>Tendance DRIX (7 jours)</span>
-              <div style={{fontWeight:900,fontSize:22,color:var7j>=0?CJ.green:CJ.red,marginBottom:2}}>{var7j>=0?"+":""}{var7j} DRIX</div>
-              <div style={{fontSize:10,color:CJ.muted,marginBottom:4}}>{var30j>=0?"+":""}{var30j} sur 30 jours</div>
-              {chartPoints.length>=2&&<MiniChart points={chartPoints.slice(-7)} color={var7j>=0?"#22c55e":"#ef4444"} height={32}/>}
-            </div>
-            {/* Point fort */}
-            <div style={{...card}}>
-              <span style={labelSt}>Point fort</span>
-              <div style={{fontWeight:800,fontSize:14,color:CJ.green,marginBottom:4}}>{pointFortObj.emoji} {pointFortObj.k}</div>
-              <div style={{fontSize:10,color:CJ.muted,lineHeight:1.35}}>{pointFortObj.detail}</div>
-            </div>
-            {/* Point faible */}
-            <div style={{...card}}>
-              <span style={labelSt}>Point faible</span>
-              <div style={{fontWeight:800,fontSize:13,color:CJ.red,marginBottom:4}}>{pointFaibleAnalyse.emoji} {pointFaibleAnalyse.k}</div>
-              <div style={{fontSize:10,color:CJ.muted,lineHeight:1.35}}>{pointFaibleAnalyse.detail}</div>
-            </div>
-            {/* Début de match */}
-            <div style={{...card}}>
-              <span style={labelSt}>Début de match</span>
-              <div style={{fontWeight:800,fontSize:13,color:debutObj.color,marginBottom:4}}>{debutObj.emoji} {debutObj.label}</div>
-              <div style={{fontSize:10,color:CJ.muted,lineHeight:1.35}}>{debutObj.detail}</div>
-            </div>
-            {/* Fin de match */}
-            <div style={{...card}}>
-              <span style={labelSt}>Fin de match</span>
-              <div style={{fontWeight:800,fontSize:13,color:finObj.color,marginBottom:4}}>{finObj.emoji} {finObj.label}</div>
-              <div style={{fontSize:10,color:CJ.muted,lineHeight:1.35}}>{finObj.detail}</div>
-            </div>
-            {/* Style de joueur */}
-            <div style={{...card}}>
-              <span style={labelSt}>Style de joueur</span>
-              <div style={{fontWeight:800,fontSize:14,color:CJ.accent,marginBottom:4}}>{styleJoueur.emoji} {styleJoueur.label}</div>
-              <div style={{fontSize:10,color:CJ.muted,lineHeight:1.35}}>{styleJoueur.desc}</div>
+          {/* 1 ── DANGEROSITÉ ── */}
+          <div style={{...card,...sec(0),marginBottom:10,display:"flex",gap:14,alignItems:"center",border:`1px solid ${dangerColor}55`,background:`linear-gradient(135deg, ${dangerColor}18, #1a1a1a 65%)`}}>
+            <CircleGauge value={dangerScore} color={dangerColor} size={96} strokeWidth={10}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:10,color:CJ.muted,fontWeight:700,letterSpacing:1,marginBottom:5}}>⚠️ DANGEROSITÉ</div>
+              <div style={{fontWeight:900,fontSize:19,color:dangerColor,lineHeight:1.1}}>{dangerLabel}</div>
+              <div style={{fontSize:11,color:CJ.muted,lineHeight:1.4,marginTop:4}}>{dangerDriver}</div>
             </div>
           </div>
 
-          {/* === STATS DE JEU RÉELLES (analyse des manches) === */}
-          <div style={{...card,marginBottom:10}}>
-            <span style={labelSt}>Stats de jeu réelles · {A.totalLegs} manche{A.totalLegs>1?"s":""} analysée{A.totalLegs>1?"s":""}</span>
+          {/* 2 ── ANALYSE ADVERSAIRE (rapport d'éclaireur rédigé par l'IA) ── */}
+          <div style={{...sec(1),marginBottom:10,position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#201b3d,#0f0e16)",border:"1px solid #7c3aed66",borderRadius:16,padding:"18px 18px 20px"}}>
+            <div style={{position:"absolute",top:-30,right:-20,width:130,height:130,borderRadius:"50%",background:"radial-gradient(circle,#7c3aed44,transparent 70%)"}}/>
+            <div style={{position:"absolute",bottom:-40,left:-30,width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,#6d28d933,transparent 70%)"}}/>
+            <div style={{position:"relative"}}>
+              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:13}}>
+                <span style={{fontSize:16}}>🎯</span>
+                <span style={{fontSize:13,color:"#c4b5fd",fontWeight:800,letterSpacing:.6}}>Analyse adversaire</span>
+                <span style={{marginLeft:"auto",fontSize:9,color:"#8b7bb8",fontWeight:700,letterSpacing:.5,background:"#7c3aed22",border:"1px solid #7c3aed44",borderRadius:20,padding:"2px 8px"}}>🤖 IA</span>
+              </div>
+              {analyseParas.map((para,i)=>(
+                <p key={i} style={{color:"#d8cffb",fontSize:13,lineHeight:1.72,margin:i===0?0:"13px 0 0"}}>{renderHL(para)}</p>
+              ))}
+            </div>
+          </div>
+
+          {/* 3 ── FORME ACTUELLE ── */}
+          <div style={{...card,...sec(2),marginBottom:10}}>
+            <span style={labelSt}>🔥 FORME ACTUELLE</span>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+              <div style={{fontWeight:900,fontSize:17,color:formeColor}}>{formeLabel}</div>
+              {derniers5.length>0&&(
+                <div style={{display:"flex",gap:4}}>
+                  {derniers5.map((d,i)=><VDBadge key={i} gagne={d.gagnant_id===joueurId} size={24}/>)}
+                </div>
+              )}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:3,marginTop:8}}>
+              {derniers10.length>0&&<div style={{fontSize:11,color:CJ.muted}}>📋 {victoires10}/{derniers10.length} sur les 10 derniers ({Math.round(formePct*100)}%)</div>}
+              {serieActuelle>=2&&serieType==="win"&&<div style={{fontSize:11,color:CJ.green}}>🔥 {serieActuelle} victoires de suite</div>}
+              {serieActuelle>=2&&serieType==="loss"&&<div style={{fontSize:11,color:CJ.red}}>❄️ {serieActuelle} défaites de suite</div>}
+              <div style={{fontSize:11,color:var7j>=0?CJ.green:CJ.red}}>📈 {var7j>=0?"+":""}{var7j} DRIX sur 7 jours</div>
+              {deltaScoring&&Math.abs(deltaScoring)>3&&<div style={{fontSize:11,color:deltaScoring>0?CJ.green:CJ.red}}>🎯 Scoring {deltaScoring>0?"+":""}{deltaScoring}% vs son standard</div>}
+              {duels[0]?.date&&<div style={{fontSize:11,color:CJ.muted}}>🕐 Dernière partie {tempsDepuisMatch(duels[0].date)}</div>}
+            </div>
+          </div>
+
+          {/* 4 ── FORCES / FAIBLESSES ── */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10,...sec(3)}}>
+            <div style={{...card,border:"1px solid #22c55e33",background:"linear-gradient(160deg,#0e1f14,#1a1a1a 70%)"}}>
+              <div style={{fontSize:10,color:CJ.green,fontWeight:800,letterSpacing:1,marginBottom:9}}>🟢 FORCES</div>
+              {forcesList.map((f,i)=>(
+                <div key={i} style={{marginBottom:i<forcesList.length-1?9:0}}>
+                  <div style={{fontWeight:700,fontSize:12,color:CJ.text}}>{f.emoji} {f.k}</div>
+                  <div style={{fontSize:10,color:CJ.muted,lineHeight:1.35,marginTop:1}}>{f.detail}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{...card,border:"1px solid #ef444433",background:"linear-gradient(160deg,#1f1010,#1a1a1a 70%)"}}>
+              <div style={{fontSize:10,color:CJ.red,fontWeight:800,letterSpacing:1,marginBottom:9}}>🔴 FAIBLESSES</div>
+              {faiblessesList.map((f,i)=>(
+                <div key={i} style={{marginBottom:i<faiblessesList.length-1?9:0}}>
+                  <div style={{fontWeight:700,fontSize:12,color:CJ.text}}>{f.emoji} {f.k}</div>
+                  <div style={{fontSize:10,color:CJ.muted,lineHeight:1.35,marginTop:1}}>{f.detail}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ── STYLE DE JEU ── */}
+          <div style={{...card,...sec(4),marginBottom:10,border:`1px solid ${CJ.accent}33`,background:"linear-gradient(135deg,#1f1407,#1a1a1a 65%)"}}>
+            <span style={labelSt}>🎮 STYLE DE JEU</span>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <div style={{fontSize:34,lineHeight:1}}>{styleJoueur.emoji}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:900,fontSize:17,color:CJ.accent,textTransform:"uppercase",letterSpacing:.5}}>{styleJoueur.label}</div>
+                <div style={{fontSize:11,color:CJ.muted,lineHeight:1.4,marginTop:2}}>{styleJoueur.desc}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* 5 ── FACE À FACE ── */}
+          {moi&&moi.id!==j.id&&(
+            <div style={{...card,...sec(5),marginBottom:10}}>
+              <span style={labelSt}>⚔️ FACE À FACE</span>
+              {faceAFace.length===0
+                ? <div style={{fontSize:11,color:CJ.muted,textAlign:"center",padding:"8px 0"}}>Vous n'avez pas encore joué ensemble.</div>
+                : <>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                      <div style={{textAlign:"center",flex:1,minWidth:0}}>
+                        <div style={{fontSize:11,color:CJ.blue,fontWeight:700,marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{moi.pseudo}</div>
+                        <div style={{fontWeight:900,fontSize:34,color:mesVFF>=sesVFF?CJ.green:CJ.muted,lineHeight:1}}>{mesVFF}</div>
+                        <div style={{fontSize:10,color:CJ.muted,marginTop:3}}>moy. {maMoyFF??"—"}</div>
+                      </div>
+                      <div style={{color:CJ.muted,fontSize:13,fontWeight:800}}>VS</div>
+                      <div style={{textAlign:"center",flex:1,minWidth:0}}>
+                        <div style={{fontSize:11,color:CJ.accent,fontWeight:700,marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{j.pseudo}</div>
+                        <div style={{fontWeight:900,fontSize:34,color:sesVFF>mesVFF?CJ.green:CJ.muted,lineHeight:1}}>{sesVFF}</div>
+                        <div style={{fontSize:10,color:CJ.muted,marginTop:3}}>moy. {saMoyFF??"—"}</div>
+                      </div>
+                    </div>
+                    <button onClick={()=>setTab("face")} style={{width:"100%",marginTop:10,background:"#ffffff08",border:`1px solid ${CJ.border}`,color:CJ.blue,borderRadius:9,padding:"7px 0",fontSize:11,fontWeight:600,cursor:"pointer",touchAction:"manipulation"}}>Voir le détail ({faceAFace.length} match{faceAFace.length>1?"s":""}) →</button>
+                  </>
+              }
+            </div>
+          )}
+
+          {/* 6 ── STATISTIQUES ── */}
+          <div style={{...card,...sec(6),marginBottom:10}}>
+            <span style={labelSt}>📊 STATISTIQUES</span>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:6}}>
+              {[
+                [stats?.victoires??0,"Victoires",CJ.green],
+                [stats?.defaites??0,"Défaites",CJ.red],
+                [winRate+"%","Win Rate",CJ.yellow],
+                [moyenneDuels??"—","Moy. pts",CJ.blue],
+                [stats?.parties??0,"Parties",CJ.text],
+              ].map(([v,l,c])=>(
+                <div key={l} style={{background:"#ffffff06",borderRadius:9,padding:"9px 3px",textAlign:"center"}}>
+                  <div style={{fontWeight:900,fontSize:16,color:c,lineHeight:1}}>{v}</div>
+                  <div style={{fontSize:8.5,color:CJ.muted,marginTop:3,lineHeight:1.2}}>{l}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+              {[
+                [nb180>0?nb180:"—","180","#f59e0b"],
+                [plusGrosFinish>0?plusGrosFinish:"—","Meilleur finish",CJ.green],
+                [serieActuelle>0?(serieType==="win"?`🔥×${serieActuelle}`:`💔×${serieActuelle}`):"—","Série",serieType==="win"?CJ.green:CJ.red],
+              ].map(([v,l,c])=>(
+                <div key={l} style={{background:"#ffffff06",borderRadius:9,padding:"9px 3px",textAlign:"center"}}>
+                  <div style={{fontWeight:900,fontSize:16,color:c,lineHeight:1}}>{v}</div>
+                  <div style={{fontSize:8.5,color:CJ.muted,marginTop:3}}>{l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Stats de jeu réelles (analyse des manches) */}
+          <div style={{...card,...sec(7),marginBottom:10}}>
+            <span style={labelSt}>🎲 STATS DE JEU RÉELLES · {A.totalLegs} manche{A.totalLegs>1?"s":""}</span>
             {A.totalLegs===0
               ? <div style={{fontSize:11,color:CJ.muted,marginTop:6}}>Aucune manche détaillée disponible pour ce joueur.</div>
               : <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 14px",marginTop:8}}>
@@ -3376,12 +3442,64 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                 </div>}
           </div>
 
+          {/* 7 ── COURBE DRIX ── */}
+          {chartPoints.length>=2&&(
+            <div style={{...card,...sec(8),marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <span style={labelSt}>📈 ÉVOLUTION DRIX</span>
+                <span style={{fontWeight:800,fontSize:15,color:var7j>=0?CJ.green:CJ.red}}>{var7j>=0?"+":""}{var7j} <span style={{fontSize:10,color:CJ.muted,fontWeight:600}}>7j</span></span>
+              </div>
+              <MiniChart points={chartPoints} color={var7j>=0?"#22c55e":"#ef4444"} height={80}/>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:CJ.muted,marginTop:4}}>
+                <span>{drixMvts.length>0?new Date(drixMvts[drixMvts.length-1].date||0).toLocaleDateString("fr-FR",{day:"numeric",month:"short"}):""}</span>
+                <span>Aujourd'hui</span>
+              </div>
+              <div style={{fontSize:10,color:CJ.muted,marginTop:6,textAlign:"center"}}>{var30j>=0?"+":""}{var30j} DRIX sur 30 jours</div>
+            </div>
+          )}
+
+          {/* 8 ── EXPLOITS ── */}
+          {exploitsList.length>0&&(
+            <div style={{...card,...sec(9),marginBottom:10,border:"1px solid #f59e0b33"}}>
+              <span style={labelSt}>🟡 EXPLOITS</span>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {exploitsList.map((e,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:9,background:"#f59e0b0f",border:"1px solid #f59e0b22",borderRadius:10,padding:"8px 10px"}}>
+                    <span style={{fontSize:20}}>{e.emoji}</span>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontWeight:800,fontSize:13,color:CJ.yellow,lineHeight:1.1}}>{e.label}</div>
+                      <div style={{fontSize:9,color:CJ.muted}}>{e.sub}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 9 ── BADGES (carrousel) ── */}
+          {badgesOk.length>0&&(
+            <div style={{...card,...sec(10),marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <span style={labelSt}>🏅 {totalBadgesOk} BADGE{totalBadgesOk>1?"S":""} OBTENU{totalBadgesOk>1?"S":""}</span>
+                <button onClick={()=>setTab("badges")} style={{background:"none",border:"none",color:CJ.blue,cursor:"pointer",fontSize:11,fontWeight:600,touchAction:"manipulation"}}>Voir tous →</button>
+              </div>
+              <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}>
+                {badgesOk.map(b=>(
+                  <div key={b.nom} style={{textAlign:"center",flexShrink:0,width:60}}>
+                    <div style={{width:54,height:54,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%, ${b.couleur}, ${b.couleur}88)`,border:`2px solid ${b.couleur}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:23,margin:"0 auto 5px",boxShadow:`0 0 14px ${b.couleur}55`}}>{b.emoji}</div>
+                    <div style={{fontSize:9,color:CJ.muted,fontWeight:600,lineHeight:1.2}}>{b.nom}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Comparaison + Probabilité côte à côte */}
           {moi&&moi.id!==j.id&&(
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10,...sec(11)}}>
               {/* Comparaison */}
               <div style={{...card}}>
-                <span style={labelSt}>Comparaison avec vous</span>
+                <span style={labelSt}>⚖️ COMPARAISON</span>
                 {[
                   {l:"Moyenne",mine:maMoy,sienne:moyenneDuels,higher:maMoy&&moyenneDuels&&parseFloat(maMoy)>parseFloat(moyenneDuels)},
                   {l:"Win Rate",mine:monWR+"%",sienne:winRate+"%",higher:monWR>winRate},
@@ -3400,18 +3518,34 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
               </div>
               {/* Probabilité */}
               <div style={{...card,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center"}}>
-                <span style={{...labelSt,textAlign:"center"}}>Probabilité de victoire</span>
+                <span style={{...labelSt,textAlign:"center"}}>⚔️ VOS CHANCES</span>
                 <CircleGauge value={probaVictoire} color={probaVictoire>=50?CJ.green:"#ef4444"} size={84} strokeWidth={9}/>
-                <div style={{fontSize:10,color:CJ.muted,marginTop:6}}>Vous avez {probaVictoire}%<br/>de chance de gagner</div>
+                <div style={{fontSize:10,color:CJ.muted,marginTop:6,fontWeight:700}}>{probaVictoire>=60?"Vous partez favori":probaVictoire<=40?"Vous êtes outsider":"Match serré"}</div>
               </div>
             </div>
           )}
 
-          {/* Résumé IA */}
-          <div style={{background:"linear-gradient(135deg,#1a1a2e,#0f0f0f)",border:`1px solid ${CJ.accent}33`,borderRadius:14,padding:14}}>
-            <div style={{fontSize:10,color:CJ.accent,fontWeight:700,letterSpacing:1,marginBottom:8}}>✨ RÉSUMÉ IA</div>
-            <p style={{color:CJ.text,fontSize:12,lineHeight:1.7,margin:0}}>{resume}</p>
-          </div>
+          {/* 10 ── AFFILIATIONS ── */}
+          {(bar||asso)&&(
+            <div style={{display:"grid",gridTemplateColumns:bar&&asso?"1fr 1fr":"1fr",gap:8,...sec(12)}}>
+              {bar&&(
+                <div onClick={()=>{setBarSlug(bar.slug);setPage("bar");}} style={{...card,cursor:"pointer"}}>
+                  <div style={{fontSize:10,color:CJ.muted}}>🍺 Bar affilié</div>
+                  <div style={{fontWeight:700,fontSize:13,color:CJ.accent,marginTop:2}}>{bar.nom}</div>
+                  <div style={{fontSize:10,color:CJ.muted}}>📍 {bar.ville}</div>
+                  <div style={{fontSize:10,color:CJ.blue,marginTop:4}}>Voir la fiche →</div>
+                </div>
+              )}
+              {asso&&(
+                <div onClick={()=>setPage("associations")} style={{...card,cursor:"pointer"}}>
+                  <div style={{fontSize:10,color:CJ.muted}}>🎯 Asso affiliée</div>
+                  <div style={{fontWeight:700,fontSize:13,color:"#a78bfa",marginTop:2}}>{asso.nom}</div>
+                  {asso.ville&&<div style={{fontSize:10,color:CJ.muted}}>📍 {asso.ville}</div>}
+                  <div style={{fontSize:10,color:CJ.blue,marginTop:4}}>Voir la fiche →</div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
