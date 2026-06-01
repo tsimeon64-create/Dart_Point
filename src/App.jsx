@@ -3686,6 +3686,8 @@ const ChronoFinishPost = ({ p, info, C, cardBase, joueur, likesMap, commentsMap,
 
 // ── ChronoVainqueurPost — Carte CHAMPION or/gold (vainqueur du jour) ──────────
 const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepuis, setPage, FeedAvatar, LikeButton, CommentSection }) => {
+  const jeu = info?.kind === "scoreur" ? "Scoreur Speedrun" : "Finish Speedrun";
+  const jeuEmoji = info?.kind === "scoreur" ? "🔢" : "⏱";
   return (
     <div key={`post-${p.id}`} style={{
       position:"relative", overflow:"hidden",
@@ -3717,6 +3719,9 @@ const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepu
         <div style={{ position:"absolute",top:0,left:0,bottom:0,width:120, background:"linear-gradient(90deg,transparent,#fffacc99,transparent)", animation:"vainqShine 4s ease-in-out infinite", pointerEvents:"none" }}/>
         <div style={{ position:"relative", fontSize:13, fontWeight:900, color:"#3b1f00", letterSpacing:4, textShadow:"0 1px 2px rgba(255,255,255,0.35), 0 -1px 1px rgba(0,0,0,0.5)" }}>
           👑 VAINQUEUR DU JOUR 👑
+        </div>
+        <div style={{ position:"relative", fontSize:10, fontWeight:800, color:"#3b1f00cc", letterSpacing:2, marginTop:1 }}>
+          {jeuEmoji} {jeu.toUpperCase()}
         </div>
       </div>
 
@@ -5159,9 +5164,14 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
 
       const items = [];
 
-      // Posts texte
+      // Posts texte — on masque les temps individuels de speedrun (seuls les vainqueurs du jour restent)
       (posts||[]).forEach(p => {
-        if (p?.date) items.push({ type:"post", date:p.date, data:p });
+        if (!p?.date) return;
+        const ci = parseChronoFinishContent(p.contenu);
+        if (ci && ci.type !== "vainqueur") return;   // temps individuel Finish Speedrun → masqué du comptoir
+        // post Scoreur qui n'est pas un vainqueur (temps individuel / autre) → masqué
+        if (p.contenu?.startsWith("__CHRONO_SCOREUR__|") && !parseChronoScoreurContent(p.contenu)) return;
+        items.push({ type:"post", date:p.date, data:p });
       });
 
       // Map duel_id → { joueur_id: variation } pour afficher DRIX dans les matchs
