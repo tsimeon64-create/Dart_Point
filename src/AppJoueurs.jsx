@@ -3758,19 +3758,19 @@ const dbDrix = {
 // joueursData: [{nom, manchesGagnees, tours:[],...}, ...]  (index 0=challenger, 1=defie)
 // manchesDetail: [{winner, winner_finish,...}, ...]
 export const calculerBonusPerformance = (joueursData = [], manchesDetail = []) => {
-  const BONUS_MANCHE = 7;   // par manche gagnée
-  const BONUS_VOLEE  = 7;   // par volée ≥ 120
+  const BONUS_MANCHE = 5;   // par manche gagnée
   const BONUS_FINISH = 10;  // par finish ≥ 120
-  const PLAFOND      = 80;  // cap anti-abus par joueur par match
+  // Bonus par volée selon le palier : 120–139 → 5, 140–179 → 7, 180 → 15
+  const bonusVolee = (v) => v >= 180 ? 15 : v >= 140 ? 7 : v >= 120 ? 5 : 0;
 
   return joueursData.map(j => {
     const manchesGagnees = j.manchesGagnees || 0;
     const bonusManches   = manchesGagnees * BONUS_MANCHE;
 
-    // Grosses volées ≥ 120 (y compris les finishes)
+    // Grosses volées ≥ 120 (bonus par palier, y compris les finishes)
     const toutes = j.tours || [];
     const grossesVolees = toutes.filter(v => v >= 120);
-    const bonusVolees   = grossesVolees.length * BONUS_VOLEE;
+    const bonusVolees   = toutes.reduce((s, v) => s + bonusVolee(v), 0);
 
     // Gros finishes ≥ 120 (manches gagnées par ce joueur avec finish ≥ 120)
     const grossesFinishes = manchesDetail.filter(
@@ -3778,8 +3778,7 @@ export const calculerBonusPerformance = (joueursData = [], manchesDetail = []) =
     );
     const bonusFinish = grossesFinishes.length * BONUS_FINISH;
 
-    const totalBrut = bonusManches + bonusVolees + bonusFinish;
-    const total     = Math.min(totalBrut, PLAFOND);
+    const total = bonusManches + bonusVolees + bonusFinish;   // plus de plafond
 
     return {
       bonusManches,

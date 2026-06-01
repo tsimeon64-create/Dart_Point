@@ -411,7 +411,7 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
                 <span style={{ fontSize:15 }}>💎</span>
                 <div>
                   <div style={{ fontSize:11, fontWeight:700, color:"#fbbf24", lineHeight:1 }}>+{b.bonusManches} DRIX</div>
-                  <div style={{ fontSize:9, color:"#92400e", marginTop:2 }}>{b.bonusManches/7} manche(s)</div>
+                  <div style={{ fontSize:9, color:"#92400e", marginTop:2 }}>{b.bonusManches/5} manche(s)</div>
                 </div>
               </div>
             )}
@@ -1371,7 +1371,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     pushLiveVolee(actifIdx, val, false, false, updatedN);
     // 🔥 Live bonus notification — grosse volée ≥ 120
     if (val >= 120 && modeDuel && duel?.type !== "amical") {
-      const pts = 7;
+      const pts = val >= 180 ? 15 : val >= 140 ? 7 : 5;   // bonus volée par palier
       bonusAccumRef.current[actifIdx] += pts;
       setBonusAccum([...bonusAccumRef.current]);
       setLiveBonusNotif({ label:`🔥 ${val} pts ! Grosse volée`, points:pts, color:"#f97316" });
@@ -1428,10 +1428,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       if (modeDuel && duel?.type !== "amical") {
         let notifLabel = ""; let notifPts = 0;
         if (val >= 120) {
-          // finish ≥ 120 : +10 bonus finish + +7 bonus volée
-          bonusAccumRef.current[actifIdx] += 17;
+          // finish ≥ 120 : +10 bonus finish + bonus volée par palier (5/7/15)
+          const volBonus = val >= 180 ? 15 : val >= 140 ? 7 : 5;
+          const pts = 10 + volBonus;
+          bonusAccumRef.current[actifIdx] += pts;
           setBonusAccum([...bonusAccumRef.current]);
-          notifLabel = `🏆 Finish ${val} ! Grosse volée + Gros finish`; notifPts = 17;
+          notifLabel = `🏆 Finish ${val} ! Grosse volée + Gros finish`; notifPts = pts;
         }
         if (notifPts > 0) {
           setLiveBonusNotif({ label:notifLabel, points:notifPts, color:"#a78bfa" });
