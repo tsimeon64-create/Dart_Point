@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Crosshair, Star, Zap, Flame, Sparkles, Snowflake, Minus, ArrowUp, ArrowDown, Gamepad2, Dices, Scale, Beer, Cake, HeartCrack, Circle, Bomb, Sprout, List, Cog, Hand, Rocket } from "lucide-react";
+import { EmoIcon } from "./icons";
 
 // ── Modal de crop circulaire (zoom + drag) — réutilisable ─────────────────────
 const CropPhotoModal = ({ imageDataUrl, onSave, onClose, label="Cadrer la photo" }) => {
@@ -854,12 +855,12 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
           position:"relative",
         }}>
           {[
-            { icon:"👥", val:amisCount, label:"amis", col:CJ.green },
-            { icon:"🏅", val:badgeCount, label:"badges", col:"#fbbf24" },
-            { icon:"⚔", val:termines.length, label:"matchs", col:CJ.blue },
+            { icon:Users, val:amisCount, label:"amis", col:CJ.green },
+            { icon:Medal, val:badgeCount, label:"badges", col:"#fbbf24" },
+            { icon:Swords, val:termines.length, label:"matchs", col:CJ.blue },
           ].map((s,i) => (
             <div key={i} style={{ textAlign:"center", borderRight: i<2 ? `1px solid ${color}22` : "none" }}>
-              <div style={{ fontSize:14, marginBottom:1 }}>{s.icon}</div>
+              <div style={{ display:"flex", justifyContent:"center", marginBottom:3 }}><s.icon size={16} color={s.col} strokeWidth={2.5}/></div>
               <div style={{ fontWeight:900, fontSize:16, color:s.col, lineHeight:1, fontVariantNumeric:"tabular-nums" }}>{s.val}</div>
               <div style={{ fontSize:9, color:CJ.muted, letterSpacing:.5, textTransform:"uppercase", marginTop:1 }}>{s.label}</div>
             </div>
@@ -3012,14 +3013,14 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                   {/* Style de jeu */}
                   <div style={{background:"#1a1a1a",borderRadius:10,padding:"10px 8px"}}>
                     <div style={{fontSize:8,color:CJ.muted,fontWeight:700,letterSpacing:.3,marginBottom:6,textTransform:"uppercase"}}>Style de jeu</div>
-                    <div style={{fontSize:18,marginBottom:3}}>{styleJoueur.emoji}</div>
+                    <div style={{marginBottom:3,display:"flex",justifyContent:"center"}}><EmoIcon e={styleJoueur.emoji} size={18} color={CJ.text}/></div>
                     <div style={{fontSize:10,fontWeight:700,color:CJ.text,lineHeight:1.3}}>{styleJoueur.label.replace("Le ","")}</div>
                     <div style={{fontSize:9,color:CJ.muted,marginTop:2,lineHeight:1.3}}>{styleJoueur.desc}</div>
                   </div>
                   {/* Point faible */}
                   <div style={{background:"#1a1a1a",borderRadius:10,padding:"10px 8px"}}>
                     <div style={{fontSize:8,color:CJ.muted,fontWeight:700,letterSpacing:.3,marginBottom:6,textTransform:"uppercase"}}>Point faible</div>
-                    <div style={{fontSize:18,marginBottom:3}}>{pointFaibleObj.emoji}</div>
+                    <div style={{marginBottom:3,display:"flex",justifyContent:"center"}}><EmoIcon e={pointFaibleObj.emoji} size={18} color={CJ.text}/></div>
                     <div style={{fontSize:10,fontWeight:700,color:CJ.text,lineHeight:1.3}}>{pointFaibleObj.label}</div>
                     <div style={{fontSize:9,color:CJ.muted,marginTop:2,lineHeight:1.3}}>{pointFaibleObj.desc}</div>
                   </div>
@@ -3208,7 +3209,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
               <div style={{fontSize:10,color:CJ.green,fontWeight:800,letterSpacing:1,marginBottom:9,display:"flex",alignItems:"center",gap:6}}><TrendingUp size={13} color={CJ.green} strokeWidth={2.5}/>FORCES</div>
               {forcesList.map((f,i)=>(
                 <div key={i} style={{marginBottom:i<forcesList.length-1?9:0}}>
-                  <div style={{fontWeight:700,fontSize:12,color:CJ.text}}>{f.emoji} {f.k}</div>
+                  <div style={{fontWeight:700,fontSize:12,color:CJ.text}}><EmoIcon e={f.emoji} size={12} style={{verticalAlign:"-2px",marginRight:3}}/>{f.k}</div>
                   <div style={{fontSize:10,color:CJ.muted,lineHeight:1.35,marginTop:1}}>{f.detail}</div>
                 </div>
               ))}
@@ -3217,7 +3218,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
               <div style={{fontSize:10,color:CJ.red,fontWeight:800,letterSpacing:1,marginBottom:9,display:"flex",alignItems:"center",gap:6}}><TrendingDown size={13} color={CJ.red} strokeWidth={2.5}/>FAIBLESSES</div>
               {faiblessesList.map((f,i)=>(
                 <div key={i} style={{marginBottom:i<faiblessesList.length-1?9:0}}>
-                  <div style={{fontWeight:700,fontSize:12,color:CJ.text}}>{f.emoji} {f.k}</div>
+                  <div style={{fontWeight:700,fontSize:12,color:CJ.text}}><EmoIcon e={f.emoji} size={12} style={{verticalAlign:"-2px",marginRight:3}}/>{f.k}</div>
                   <div style={{fontSize:10,color:CJ.muted,lineHeight:1.35,marginTop:1}}>{f.detail}</div>
                 </div>
               ))}
@@ -3228,7 +3229,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
           <div style={{...card,...sec(4),marginBottom:10,border:`1px solid ${CJ.accent}33`,background:"linear-gradient(135deg,#1f1407,#1a1a1a 65%)"}}>
             <SecLabel icon={Gamepad2} color={CJ.accent}>STYLE DE JEU</SecLabel>
             <div style={{display:"flex",alignItems:"center",gap:12}}>
-              <div style={{fontSize:34,lineHeight:1}}>{styleJoueur.emoji}</div>
+              <div style={{display:"flex",lineHeight:1}}><EmoIcon e={styleJoueur.emoji} size={30} color={CJ.accent}/></div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontWeight:900,fontSize:17,color:CJ.accent,textTransform:"uppercase",letterSpacing:.5}}>{styleJoueur.label}</div>
                 <div style={{fontSize:11,color:CJ.muted,lineHeight:1.4,marginTop:2}}>{styleJoueur.desc}</div>
@@ -3346,7 +3347,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 {exploitsList.map((e,i)=>(
                   <div key={i} style={{display:"flex",alignItems:"center",gap:9,background:"#f59e0b0f",border:"1px solid #f59e0b22",borderRadius:10,padding:"8px 10px"}}>
-                    <span style={{fontSize:20}}>{e.emoji}</span>
+                    <span style={{display:"flex"}}><EmoIcon e={e.emoji} size={18} color={CJ.yellow}/></span>
                     <div style={{minWidth:0}}>
                       <div style={{fontWeight:800,fontSize:13,color:CJ.yellow,lineHeight:1.1}}>{e.label}</div>
                       <div style={{fontSize:9,color:CJ.muted}}>{e.sub}</div>
@@ -4015,11 +4016,11 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10,...sec(3)}}>
         <div style={{...card,border:"1px solid #22c55e33",background:"linear-gradient(160deg,#0e1f14,#1a1a1a 70%)"}}>
           <div style={{fontSize:10,color:CJ.green,fontWeight:800,letterSpacing:1,marginBottom:9,display:"flex",alignItems:"center",gap:6}}><TrendingUp size={13} color={CJ.green} strokeWidth={2.5}/>TES FORCES</div>
-          {forcesList.map((f,i)=>(<div key={i} style={{marginBottom:i<forcesList.length-1?9:0}}><div style={{fontWeight:700,fontSize:12,color:CJ.text}}>{f.emoji} {f.k}</div><div style={{fontSize:10,color:CJ.muted,lineHeight:1.35,marginTop:1}}>{f.detail}</div></div>))}
+          {forcesList.map((f,i)=>(<div key={i} style={{marginBottom:i<forcesList.length-1?9:0}}><div style={{fontWeight:700,fontSize:12,color:CJ.text}}><EmoIcon e={f.emoji} size={12} style={{verticalAlign:"-2px",marginRight:3}}/>{f.k}</div><div style={{fontSize:10,color:CJ.muted,lineHeight:1.35,marginTop:1}}>{f.detail}</div></div>))}
         </div>
         <div style={{...card,border:"1px solid #ef444433",background:"linear-gradient(160deg,#1f1010,#1a1a1a 70%)"}}>
           <div style={{fontSize:10,color:CJ.red,fontWeight:800,letterSpacing:1,marginBottom:9,display:"flex",alignItems:"center",gap:6}}><TrendingDown size={13} color={CJ.red} strokeWidth={2.5}/>TES FAIBLESSES</div>
-          {faiblessesList.map((f,i)=>(<div key={i} style={{marginBottom:i<faiblessesList.length-1?9:0}}><div style={{fontWeight:700,fontSize:12,color:CJ.text}}>{f.emoji} {f.k}</div><div style={{fontSize:10,color:CJ.muted,lineHeight:1.35,marginTop:1}}>{f.detail}</div></div>))}
+          {faiblessesList.map((f,i)=>(<div key={i} style={{marginBottom:i<faiblessesList.length-1?9:0}}><div style={{fontWeight:700,fontSize:12,color:CJ.text}}><EmoIcon e={f.emoji} size={12} style={{verticalAlign:"-2px",marginRight:3}}/>{f.k}</div><div style={{fontSize:10,color:CJ.muted,lineHeight:1.35,marginTop:1}}>{f.detail}</div></div>))}
         </div>
       </div>
 
@@ -4027,7 +4028,7 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
       <div style={{...card,...sec(4),marginBottom:10,border:`1px solid ${CJ.accent}33`,background:"linear-gradient(135deg,#1f1407,#1a1a1a 65%)"}}>
         <SecLabel icon={Gamepad2} color={CJ.accent}>TON STYLE DE JEU</SecLabel>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <div style={{fontSize:34,lineHeight:1}}>{styleJoueur.emoji}</div>
+          <div style={{display:"flex",lineHeight:1}}><EmoIcon e={styleJoueur.emoji} size={30} color={CJ.accent}/></div>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontWeight:900,fontSize:17,color:CJ.accent,textTransform:"uppercase",letterSpacing:.5}}>{styleJoueur.label}</div>
             <div style={{fontSize:11,color:CJ.muted,lineHeight:1.4,marginTop:2}}>{styleJoueur.desc}</div>
