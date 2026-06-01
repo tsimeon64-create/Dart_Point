@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Crosshair, Star, Zap, Flame, Sparkles, Snowflake, Minus, ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Crosshair, Star, Zap, Flame, Sparkles, Snowflake, Minus, ArrowUp, ArrowDown, Gamepad2, Dices, Scale, Beer, Cake, HeartCrack, Circle, Bomb, Sprout, List, Cog, Hand, Rocket } from "lucide-react";
 
 // ── Modal de crop circulaire (zoom + drag) — réutilisable ─────────────────────
 const CropPhotoModal = ({ imageDataUrl, onSave, onClose, label="Cadrer la photo" }) => {
@@ -947,13 +947,13 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       {/* ── CAPSULES EXPRESS (façon fiche adversaire) ── */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, marginBottom:14 }}>
         {[
-          {emoji:"🔥",val:formeShort,lbl:"Forme",c:formeColorCap},
-          {emoji:"🏆",val:winRate+"%",lbl:"Win rate",c:CJ.yellow},
-          {emoji:"⚡",val:(var7j>=0?"+":"")+var7j,lbl:"7 jours",c:var7j>=0?CJ.green:CJ.red},
-          {emoji:"🎯",val:plusGrosFinish||"—",lbl:"Finish",c:CJ.accent},
+          {icon:Flame,val:formeShort,lbl:"Forme",c:formeColorCap},
+          {icon:Trophy,val:winRate+"%",lbl:"Win rate",c:CJ.yellow},
+          {icon:Zap,val:(var7j>=0?"+":"")+var7j,lbl:"7 jours",c:var7j>=0?CJ.green:CJ.red},
+          {icon:Crosshair,val:plusGrosFinish||"—",lbl:"Finish",c:CJ.accent},
         ].map((x,i)=>(
           <div key={i} style={{ background:CJ.card, border:`1px solid ${x.c}33`, borderRadius:12, padding:"10px 4px", textAlign:"center" }}>
-            <div style={{ fontSize:16, lineHeight:1 }}>{x.emoji}</div>
+            <div style={{ display:"flex", justifyContent:"center" }}><x.icon size={17} color={x.c} strokeWidth={2.5}/></div>
             <div style={{ fontWeight:900, fontSize:14, color:x.c, marginTop:4, lineHeight:1.1 }}>{x.val}</div>
             <div style={{ fontSize:8.5, color:CJ.muted, marginTop:2 }}>{x.lbl}</div>
           </div>
@@ -2163,20 +2163,28 @@ const statColor = (v, good, mid, invert=false) => {
   return invert ? (v<=good ? "#22c55e" : v<=mid ? "#f59e0b" : "#ef4444")
                 : (v>=good ? "#22c55e" : v>=mid ? "#f59e0b" : "#ef4444");
 };
-// Construit les lignes « Stats de jeu réelles » (icône, libellé, valeur, sous-texte, couleur).
+// Construit les lignes « Stats de jeu réelles » (icône Lucide, libellé, valeur, sous-texte, couleur).
 // Partagé entre la fiche adversaire et l'analyse « soi-même » pour rester cohérent.
 export const buildStatsReelles = (A) => [
-  { icon:"🎯", label:"Moyenne réelle",  value:A.avgReel!=null?`${A.avgReel} pts`:"—",      color:statColor(A.avgReel,52,42) },
-  { icon:"🏁", label:"Checkout",        value:A.checkoutPct!=null?`${A.checkoutPct}%`:"—", sub:A.checkoutPct!=null?`${A.coWon} / ${A.coAttempts}`:null, color:statColor(A.checkoutPct,45,30) },
-  { icon:"🔥", label:"Volées 100+",     value:A.tonRate!=null?`${A.tonRate}%`:"—",         color:statColor(A.tonRate,25,12) },
-  { icon:"💥", label:"Maximums (180)",  value:`${A.n180}`, sub:`${A.rate180} / manche`,    color:A.n180>0?"#f59e0b":"#94a3b8" },
-  { icon:"📊", label:"Régularité",      value:A.regularite!=null?`${A.regularite}`:"—", sub:A.regularite!=null?"/ 100":null, color:statColor(A.regularite,60,40) },
-  { icon:"🧱", label:"Déchets (≤26)",   value:A.dechetRate!=null?`${A.dechetRate}%`:"—",   color:statColor(A.dechetRate,8,14,true) },
-  { icon:"🚀", label:"1ʳᵉ manche",      value:A.firstLegPct!=null?`${A.firstLegPct}%`:"—", sub:A.firstLegPct!=null?"gagnées":null, color:statColor(A.firstLegPct,55,42) },
-  { icon:"🏆", label:"Manche décisive", value:A.deciderPct!=null?`${A.deciderPct}%`:"—", sub:A.deciderPct!=null?"gagnées":null, color:statColor(A.deciderPct,55,42) },
-  { icon:"👑", label:"Meilleur finish", value:A.bestFinish>0?`${A.bestFinish}`:"—", sub:A.bestFinish>0?"record":null, color:A.bestFinish>0?"#fbbf24":"#94a3b8", record:A.bestFinish>0 },
-  { icon:"⚔️", label:"Manches gagnées", value:`${A.legsWon}`, sub:`/ ${A.totalLegs}`,      color:"#e2e8f0" },
+  { icon:Target,    label:"Moyenne réelle",  value:A.avgReel!=null?`${A.avgReel} pts`:"—",      color:statColor(A.avgReel,52,42) },
+  { icon:Crosshair, label:"Checkout",        value:A.checkoutPct!=null?`${A.checkoutPct}%`:"—", sub:A.checkoutPct!=null?`${A.coWon} / ${A.coAttempts}`:null, color:statColor(A.checkoutPct,45,30) },
+  { icon:Flame,     label:"Volées 100+",     value:A.tonRate!=null?`${A.tonRate}%`:"—",         color:statColor(A.tonRate,25,12) },
+  { icon:Zap,       label:"Maximums (180)",  value:`${A.n180}`, sub:`${A.rate180} / manche`,    color:A.n180>0?"#f59e0b":"#94a3b8" },
+  { icon:BarChart2, label:"Régularité",      value:A.regularite!=null?`${A.regularite}`:"—", sub:A.regularite!=null?"/ 100":null, color:statColor(A.regularite,60,40) },
+  { icon:Skull,     label:"Déchets (≤26)",   value:A.dechetRate!=null?`${A.dechetRate}%`:"—",   color:statColor(A.dechetRate,8,14,true) },
+  { icon:ArrowUp,   label:"1ʳᵉ manche",      value:A.firstLegPct!=null?`${A.firstLegPct}%`:"—", sub:A.firstLegPct!=null?"gagnées":null, color:statColor(A.firstLegPct,55,42) },
+  { icon:Trophy,    label:"Manche décisive", value:A.deciderPct!=null?`${A.deciderPct}%`:"—", sub:A.deciderPct!=null?"gagnées":null, color:statColor(A.deciderPct,55,42) },
+  { icon:Crown,     label:"Meilleur finish", value:A.bestFinish>0?`${A.bestFinish}`:"—", sub:A.bestFinish>0?"record":null, color:A.bestFinish>0?"#fbbf24":"#94a3b8", record:A.bestFinish>0 },
+  { icon:Swords,    label:"Manches gagnées", value:`${A.legsWon}`, sub:`/ ${A.totalLegs}`,      color:"#e2e8f0" },
 ];
+
+// Titre de section avec icône SVG Lucide (conforme MASTER §11 : pas d'emoji en icône d'UI).
+const SecLabel = ({ icon:Icon, color, children, style }) => (
+  <div style={{ fontSize:10, color:CJ.muted, fontWeight:700, letterSpacing:1, marginBottom:8, display:"flex", alignItems:"center", gap:6, ...style }}>
+    <Icon size={13} color={color||CJ.muted} strokeWidth={2.5}/>
+    <span>{children}</span>
+  </div>
+);
 
 export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage, setBarSlug }) => {
 
@@ -2777,16 +2785,16 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   );
 
   // Cellule de stat — met en avant (glow + contour) les meilleures performances
-  const StatCell = ({ emoji, value, label, color=CJ.text, strong=false, gaugePct, gaugeColor, context, delay=0 }) => (
+  const StatCell = ({ icon:Icon, value, label, color=CJ.text, strong=false, gaugePct, gaugeColor, context, delay=0 }) => (
     <div style={{
       background: strong ? color+"14" : "#ffffff06",
       border: strong ? `1px solid ${color}55` : "1px solid transparent",
       boxShadow: (strong && !reduceMotion) ? `0 0 16px ${color}33` : "none",
       borderRadius:11, padding:"11px 9px", position:"relative", textAlign:"center", ...sec(delay),
     }}>
-      {strong && <span style={{ position:"absolute", top:6, right:7, fontSize:9, opacity:.9 }}>⭐</span>}
-      <div style={{ display:"flex", alignItems:"baseline", justifyContent:"center", gap:5 }}>
-        <span style={{ fontSize:13 }}>{emoji}</span>
+      {strong && <span style={{ position:"absolute", top:6, right:7, display:"flex" }}><Star size={9} color="#fbbf24" fill="#fbbf24"/></span>}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+        {Icon && <Icon size={14} color={color} strokeWidth={2.5}/>}
         <span style={{ fontWeight:900, fontSize:18, color, lineHeight:1 }}>{value}</span>
       </div>
       <div style={{ fontSize:9, color:CJ.muted, fontWeight:600, marginTop:4, lineHeight:1.2 }}>{label}</div>
@@ -2866,13 +2874,13 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       {/* ════ RÉSUMÉ EXPRESS (capsules) ════ */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10,...sec(1)}}>
         {[
-          {emoji:"🔥",val:formeShort,lbl:"Forme",c:formeColor},
-          {emoji:"🏆",val:winRate+"%",lbl:"Win rate",c:CJ.yellow},
-          {emoji:"⚡",val:(var7j>=0?"+":"")+var7j,lbl:"7 jours",c:var7j>=0?CJ.green:CJ.red},
-          {emoji:"🎯",val:(plusGrosFinish||A.bestFinish)||"—",lbl:"Finish",c:CJ.accent},
+          {icon:Flame,val:formeShort,lbl:"Forme",c:formeColor},
+          {icon:Trophy,val:winRate+"%",lbl:"Win rate",c:CJ.yellow},
+          {icon:Zap,val:(var7j>=0?"+":"")+var7j,lbl:"7 jours",c:var7j>=0?CJ.green:CJ.red},
+          {icon:Crosshair,val:(plusGrosFinish||A.bestFinish)||"—",lbl:"Finish",c:CJ.accent},
         ].map((x,i)=>(
           <div key={i} style={{background:"#1a1a1a",border:`1px solid ${x.c}33`,borderRadius:12,padding:"10px 4px",textAlign:"center"}}>
-            <div style={{fontSize:16,lineHeight:1}}>{x.emoji}</div>
+            <div style={{display:"flex",justifyContent:"center"}}><x.icon size={17} color={x.c} strokeWidth={2.5}/></div>
             <div style={{fontWeight:900,fontSize:14,color:x.c,marginTop:4,lineHeight:1.1}}>{x.val}</div>
             <div style={{fontSize:8.5,color:CJ.muted,marginTop:2}}>{x.lbl}</div>
           </div>
@@ -3151,7 +3159,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
           <div style={{...card,...sec(0),marginBottom:10,display:"flex",gap:14,alignItems:"center",border:`1px solid ${dangerColor}55`,background:`linear-gradient(135deg, ${dangerColor}18, #1a1a1a 65%)`}}>
             <CircleGauge value={dangerScore} color={dangerColor} size={96} strokeWidth={10}/>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:10,color:CJ.muted,fontWeight:700,letterSpacing:1,marginBottom:5}}>⚠️ DANGEROSITÉ</div>
+              <div style={{fontSize:10,color:CJ.muted,fontWeight:700,letterSpacing:1,marginBottom:5,display:"flex",alignItems:"center",gap:6}}><Crosshair size={13} color={dangerColor} strokeWidth={2.5}/>DANGEROSITÉ</div>
               <div style={{fontWeight:900,fontSize:19,color:dangerColor,lineHeight:1.1}}>{dangerLabel}</div>
               <div style={{fontSize:11,color:CJ.muted,lineHeight:1.4,marginTop:4}}>{dangerDriver}</div>
             </div>
@@ -3163,9 +3171,9 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
             <div style={{position:"absolute",bottom:-40,left:-30,width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,#6d28d933,transparent 70%)"}}/>
             <div style={{position:"relative"}}>
               <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:13}}>
-                <span style={{fontSize:16}}>🎯</span>
+                <Sparkles size={16} color="#c4b5fd" strokeWidth={2.5}/>
                 <span style={{fontSize:13,color:"#c4b5fd",fontWeight:800,letterSpacing:.6}}>Analyse adversaire</span>
-                <span style={{marginLeft:"auto",fontSize:9,color:"#c4b5fd",fontWeight:800,letterSpacing:.5,background:"#7c3aed22",border:"1px solid #7c3aed44",borderRadius:20,padding:"2px 8px"}}>🤖 DartPoint</span>
+                <span style={{marginLeft:"auto",display:"inline-flex",alignItems:"center",gap:3,fontSize:9,color:"#c4b5fd",fontWeight:800,letterSpacing:.5,background:"#7c3aed22",border:"1px solid #7c3aed44",borderRadius:20,padding:"2px 8px"}}><Sparkles size={9} strokeWidth={2.5}/>DartPoint</span>
               </div>
               {analyseParas.map((para,i)=>(
                 <p key={i} style={{color:"#d8cffb",fontSize:13,lineHeight:1.72,margin:i===0?0:"13px 0 0"}}>{renderHL(para)}</p>
@@ -3175,7 +3183,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
 
           {/* 3 ── FORME ACTUELLE ── */}
           <div style={{...card,...sec(2),marginBottom:10}}>
-            <span style={labelSt}>🔥 FORME ACTUELLE</span>
+            <SecLabel icon={Flame}>FORME ACTUELLE</SecLabel>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
               <div style={{fontWeight:900,fontSize:17,color:formeColor}}>{formeLabel}</div>
               {derniers5.length>0&&(
@@ -3197,7 +3205,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
           {/* 4 ── FORCES / FAIBLESSES ── */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10,...sec(3)}}>
             <div style={{...card,border:"1px solid #22c55e33",background:"linear-gradient(160deg,#0e1f14,#1a1a1a 70%)"}}>
-              <div style={{fontSize:10,color:CJ.green,fontWeight:800,letterSpacing:1,marginBottom:9}}>🟢 FORCES</div>
+              <div style={{fontSize:10,color:CJ.green,fontWeight:800,letterSpacing:1,marginBottom:9,display:"flex",alignItems:"center",gap:6}}><TrendingUp size={13} color={CJ.green} strokeWidth={2.5}/>FORCES</div>
               {forcesList.map((f,i)=>(
                 <div key={i} style={{marginBottom:i<forcesList.length-1?9:0}}>
                   <div style={{fontWeight:700,fontSize:12,color:CJ.text}}>{f.emoji} {f.k}</div>
@@ -3206,7 +3214,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
               ))}
             </div>
             <div style={{...card,border:"1px solid #ef444433",background:"linear-gradient(160deg,#1f1010,#1a1a1a 70%)"}}>
-              <div style={{fontSize:10,color:CJ.red,fontWeight:800,letterSpacing:1,marginBottom:9}}>🔴 FAIBLESSES</div>
+              <div style={{fontSize:10,color:CJ.red,fontWeight:800,letterSpacing:1,marginBottom:9,display:"flex",alignItems:"center",gap:6}}><TrendingDown size={13} color={CJ.red} strokeWidth={2.5}/>FAIBLESSES</div>
               {faiblessesList.map((f,i)=>(
                 <div key={i} style={{marginBottom:i<faiblessesList.length-1?9:0}}>
                   <div style={{fontWeight:700,fontSize:12,color:CJ.text}}>{f.emoji} {f.k}</div>
@@ -3218,7 +3226,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
 
           {/* ── STYLE DE JEU ── */}
           <div style={{...card,...sec(4),marginBottom:10,border:`1px solid ${CJ.accent}33`,background:"linear-gradient(135deg,#1f1407,#1a1a1a 65%)"}}>
-            <span style={labelSt}>🎮 STYLE DE JEU</span>
+            <SecLabel icon={Gamepad2} color={CJ.accent}>STYLE DE JEU</SecLabel>
             <div style={{display:"flex",alignItems:"center",gap:12}}>
               <div style={{fontSize:34,lineHeight:1}}>{styleJoueur.emoji}</div>
               <div style={{flex:1,minWidth:0}}>
@@ -3231,7 +3239,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
           {/* 5 ── FACE À FACE ── */}
           {moi&&moi.id!==j.id&&(
             <div style={{...card,...sec(5),marginBottom:10}}>
-              <span style={labelSt}>⚔️ FACE À FACE</span>
+              <SecLabel icon={Swords}>FACE À FACE</SecLabel>
               {faceAFace.length===0
                 ? <div style={{fontSize:11,color:CJ.muted,textAlign:"center",padding:"8px 0"}}>Vous n'avez pas encore joué ensemble.</div>
                 : <>
@@ -3256,7 +3264,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
 
           {/* 6 ── CARTE DE PERFORMANCE ── */}
           <div style={{...card,...sec(6),marginBottom:10}}>
-            <span style={labelSt}>📊 STATISTIQUES</span>
+            <SecLabel icon={BarChart2}>STATISTIQUES</SecLabel>
 
             {/* Score Joueur — note globale + grade + profil */}
             <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:12,padding:"12px",borderRadius:12,background:`linear-gradient(135deg, ${scoreColor}1f, #ffffff05)`,border:`1px solid ${scoreColor}44`}}>
@@ -3264,7 +3272,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                 <CircleGauge value={scoreJoueur} color={scoreColor} size={74} strokeWidth={8}/>
               </div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:9,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:3}}>🏆 SCORE JOUEUR</div>
+                <div style={{fontSize:9,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:3,display:"flex",alignItems:"center",gap:5}}><Trophy size={11} color={scoreColor} strokeWidth={2.5}/>SCORE JOUEUR</div>
                 <div style={{display:"flex",alignItems:"baseline",gap:8}}>
                   <span style={{fontWeight:900,fontSize:30,color:scoreColor,lineHeight:1,textShadow:reduceMotion?"none":`0 0 14px ${scoreColor}55`}}>{grade}</span>
                   <span style={{fontSize:12,color:CJ.text,fontWeight:700}}>{tierWord}</span>
@@ -3275,35 +3283,35 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
 
             {/* Ligne 1 — Win Rate · Moyenne · Parties */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:6}}>
-              <StatCell emoji="🏆" value={winRate+"%"} label="Win Rate" color={wrColor} strong={winRate>=60} gaugePct={winRate} gaugeColor={wrColor} context={ctxWR} delay={7}/>
-              <StatCell emoji="📊" value={moyDisplay} label="Moyenne / volée" color={moyColor} strong={moyNum!=null&&moyNum>=52} gaugePct={moyNum!=null?moyPct:undefined} gaugeColor={moyColor} context={ctxMoy} delay={7.5}/>
-              <StatCell emoji="⚔️" value={stats?.parties??0} label="Parties jouées" color={CJ.text} context={ctxParties} delay={8}/>
+              <StatCell icon={Trophy} value={winRate+"%"} label="Win Rate" color={wrColor} strong={winRate>=60} gaugePct={winRate} gaugeColor={wrColor} context={ctxWR} delay={7}/>
+              <StatCell icon={BarChart2} value={moyDisplay} label="Moyenne / volée" color={moyColor} strong={moyNum!=null&&moyNum>=52} gaugePct={moyNum!=null?moyPct:undefined} gaugeColor={moyColor} context={ctxMoy} delay={7.5}/>
+              <StatCell icon={Swords} value={stats?.parties??0} label="Parties jouées" color={CJ.text} context={ctxParties} delay={8}/>
             </div>
 
             {/* Ligne 2 — Série · Record finish · 180 */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:6}}>
-              <StatCell emoji={serieType==="loss"?"💔":"🔥"} value={serieActuelle>0?serieActuelle:"—"} label={serieType==="loss"?"Défaites de suite":"Victoires consécutives"} color={serieType==="loss"?CJ.red:CJ.green} strong={serieType==="win"&&serieActuelle>=3} context={serieType==="win"&&serieActuelle>0?"en cours":null} delay={8.5}/>
-              <StatCell emoji="🎯" value={recordFinish>0?recordFinish:"—"} label="Record finish" color={CJ.green} strong={recordFinish>=100} context={ctxFinish} delay={9}/>
-              <StatCell emoji="💥" value={nb180>0?nb180:"—"} label="× 180 réalisés" color="#f59e0b" strong={nb180>=3} delay={9.5}/>
+              <StatCell icon={serieType==="loss"?HeartCrack:Flame} value={serieActuelle>0?serieActuelle:"—"} label={serieType==="loss"?"Défaites de suite":"Victoires consécutives"} color={serieType==="loss"?CJ.red:CJ.green} strong={serieType==="win"&&serieActuelle>=3} context={serieType==="win"&&serieActuelle>0?"en cours":null} delay={8.5}/>
+              <StatCell icon={Crosshair} value={recordFinish>0?recordFinish:"—"} label="Record finish" color={CJ.green} strong={recordFinish>=100} context={ctxFinish} delay={9}/>
+              <StatCell icon={Zap} value={nb180>0?nb180:"—"} label="× 180 réalisés" color="#f59e0b" strong={nb180>=3} delay={9.5}/>
             </div>
 
             {/* Ligne 3 — Victoires · Défaites */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6}}>
-              <StatCell emoji="🟢" value={stats?.victoires??0} label="Victoires" color={CJ.green} delay={10}/>
-              <StatCell emoji="🔴" value={stats?.defaites??0} label="Défaites" color={CJ.red} delay={10.5}/>
+              <StatCell icon={Circle} value={stats?.victoires??0} label="Victoires" color={CJ.green} delay={10}/>
+              <StatCell icon={Circle} value={stats?.defaites??0} label="Défaites" color={CJ.red} delay={10.5}/>
             </div>
           </div>
 
           {/* Stats de jeu réelles (analyse des manches) */}
           <div style={{...card,...sec(7),marginBottom:10}}>
-            <span style={labelSt}>🎲 STATS DE JEU RÉELLES · {A.totalLegs} manche{A.totalLegs>1?"s":""}</span>
+            <SecLabel icon={Dices}>STATS DE JEU RÉELLES · {A.totalLegs} manche{A.totalLegs>1?"s":""}</SecLabel>
             {A.totalLegs===0
               ? <div style={{fontSize:11,color:CJ.muted,marginTop:6}}>Aucune manche détaillée disponible pour ce joueur.</div>
               : <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px",marginTop:8}}>
                   {buildStatsReelles(A).map((s,i)=>(
                     <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"6px 0",borderBottom:"1px solid #ffffff0a"}}>
                       <span style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
-                        <span style={{fontSize:12,flexShrink:0}}>{s.icon}</span>
+                        <span style={{flexShrink:0,display:"flex"}}><s.icon size={13} color="#64748b" strokeWidth={2.5}/></span>
                         <span style={{fontSize:10,color:"#94a3b8",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.label}</span>
                       </span>
                       <span style={{textAlign:"right",flexShrink:0,lineHeight:1.05}}>
@@ -3319,7 +3327,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
           {chartPoints.length>=2&&(
             <div style={{...card,...sec(8),marginBottom:10}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <span style={labelSt}>📈 ÉVOLUTION DRIX</span>
+                <SecLabel icon={TrendingUp} style={{marginBottom:0}}>ÉVOLUTION DRIX</SecLabel>
                 <span style={{fontWeight:800,fontSize:15,color:var7j>=0?CJ.green:CJ.red}}>{var7j>=0?"+":""}{var7j} <span style={{fontSize:10,color:CJ.muted,fontWeight:600}}>7j</span></span>
               </div>
               <MiniChart points={chartPoints} color={var7j>=0?"#22c55e":"#ef4444"} height={80}/>
@@ -3334,7 +3342,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
           {/* 8 ── EXPLOITS ── */}
           {exploitsList.length>0&&(
             <div style={{...card,...sec(9),marginBottom:10,border:"1px solid #f59e0b33"}}>
-              <span style={labelSt}>🟡 EXPLOITS</span>
+              <SecLabel icon={Star} color="#f59e0b">EXPLOITS</SecLabel>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 {exploitsList.map((e,i)=>(
                   <div key={i} style={{display:"flex",alignItems:"center",gap:9,background:"#f59e0b0f",border:"1px solid #f59e0b22",borderRadius:10,padding:"8px 10px"}}>
@@ -3353,7 +3361,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
           {badgesOk.length>0&&(
             <div style={{...card,...sec(10),marginBottom:10}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                <span style={labelSt}>🏅 {totalBadgesOk} BADGE{totalBadgesOk>1?"S":""} OBTENU{totalBadgesOk>1?"S":""}</span>
+                <SecLabel icon={Medal}>{totalBadgesOk} BADGE{totalBadgesOk>1?"S":""} OBTENU{totalBadgesOk>1?"S":""}</SecLabel>
                 <button onClick={()=>setTab("badges")} style={{background:"none",border:"none",color:CJ.blue,cursor:"pointer",fontSize:11,fontWeight:600,touchAction:"manipulation"}}>Voir tous →</button>
               </div>
               <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}>
@@ -3372,7 +3380,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10,...sec(11)}}>
               {/* Comparaison */}
               <div style={{...card}}>
-                <span style={labelSt}>⚖️ COMPARAISON</span>
+                <SecLabel icon={Scale}>COMPARAISON</SecLabel>
                 {[
                   {l:"Moyenne",mine:maMoy,sienne:moyenneDuels,higher:maMoy&&moyenneDuels&&parseFloat(maMoy)>parseFloat(moyenneDuels)},
                   {l:"Win Rate",mine:monWR+"%",sienne:winRate+"%",higher:monWR>winRate},
@@ -3391,7 +3399,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
               </div>
               {/* Probabilité */}
               <div style={{...card,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center"}}>
-                <span style={{...labelSt,textAlign:"center"}}>⚔️ VOS CHANCES</span>
+                <SecLabel icon={Target} style={{justifyContent:"center"}}>VOS CHANCES</SecLabel>
                 <CircleGauge value={probaVictoire} color={probaVictoire>=50?CJ.green:"#ef4444"} size={84} strokeWidth={9}/>
                 <div style={{fontSize:10,color:CJ.muted,marginTop:6,fontWeight:700}}>{probaVictoire>=60?"Vous partez favori":probaVictoire<=40?"Vous êtes outsider":"Match serré"}</div>
               </div>
@@ -3654,11 +3662,11 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
       <div style={{ height:"100%", width:`${Math.max(3,Math.min(100,pct))}%`, background:color, borderRadius:3, transformOrigin:"left", animation:reduceMotion?undefined:"dpBar .9s ease both" }}/>
     </div>
   );
-  const StatCell = ({ emoji, value, label, color="#f1f5f9", strong=false, gaugePct, gaugeColor, context, delay=0 }) => (
+  const StatCell = ({ icon:Icon, value, label, color="#f1f5f9", strong=false, gaugePct, gaugeColor, context, delay=0 }) => (
     <div style={{ background: strong ? color+"14" : "#ffffff06", border: strong ? `1px solid ${color}55` : "1px solid transparent", boxShadow: (strong && !reduceMotion) ? `0 0 16px ${color}33` : "none", borderRadius:11, padding:"11px 9px", position:"relative", textAlign:"center", ...sec(delay) }}>
-      {strong && <span style={{ position:"absolute", top:6, right:7, fontSize:9, opacity:.9 }}>⭐</span>}
-      <div style={{ display:"flex", alignItems:"baseline", justifyContent:"center", gap:5 }}>
-        <span style={{ fontSize:13 }}>{emoji}</span>
+      {strong && <span style={{ position:"absolute", top:6, right:7, display:"flex" }}><Star size={9} color="#fbbf24" fill="#fbbf24"/></span>}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+        {Icon && <Icon size={14} color={color} strokeWidth={2.5}/>}
         <span style={{ fontWeight:900, fontSize:18, color, lineHeight:1 }}>{value}</span>
       </div>
       <div style={{ fontSize:9, color:CJ.muted, fontWeight:600, marginTop:4, lineHeight:1.2 }}>{label}</div>
@@ -3958,13 +3966,13 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
 @keyframes dpBar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 `}</style>
 
-      <div style={{fontWeight:800,fontSize:14,marginBottom:12,color:CJ.text,letterSpacing:0.5,display:"flex",alignItems:"center",gap:7}}>🔬 ANALYSE DE TON JEU</div>
+      <div style={{fontWeight:800,fontSize:14,marginBottom:12,color:CJ.text,letterSpacing:0.5,display:"flex",alignItems:"center",gap:7}}><Sparkles size={15} color={CJ.accent} strokeWidth={2.5}/>ANALYSE DE TON JEU</div>
 
       {/* 1 ── NIVEAU DE MENACE ── */}
       <div style={{...card,...sec(0),marginBottom:10,display:"flex",gap:14,alignItems:"center",border:`1px solid ${dangerColor}55`,background:`linear-gradient(135deg, ${dangerColor}18, #1a1a1a 65%)`}}>
         <CircleGauge value={dangerScore} color={dangerColor} size={96} strokeWidth={10}/>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:10,color:CJ.muted,fontWeight:700,letterSpacing:1,marginBottom:5}}>🎯 TON NIVEAU DE MENACE</div>
+          <div style={{fontSize:10,color:CJ.muted,fontWeight:700,letterSpacing:1,marginBottom:5,display:"flex",alignItems:"center",gap:6}}><Crosshair size={13} color={dangerColor} strokeWidth={2.5}/>TON NIVEAU DE MENACE</div>
           <div style={{fontWeight:900,fontSize:19,color:dangerColor,lineHeight:1.1}}>{dangerLabel}</div>
           <div style={{fontSize:11,color:CJ.muted,lineHeight:1.4,marginTop:4}}>{dangerDriver}</div>
         </div>
@@ -3976,7 +3984,7 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
         <div style={{position:"absolute",bottom:-40,left:-30,width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,#6d28d933,transparent 70%)"}}/>
         <div style={{position:"relative"}}>
           <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:13}}>
-            <span style={{fontSize:16}}>🎯</span>
+            <Sparkles size={16} color="#c4b5fd" strokeWidth={2.5}/>
             <span style={{fontSize:13,color:"#c4b5fd",fontWeight:800,letterSpacing:.6}}>Ton analyse</span>
             <span style={{marginLeft:"auto",fontSize:9,color:"#c4b5fd",fontWeight:800,letterSpacing:.5,background:"#7c3aed22",border:"1px solid #7c3aed44",borderRadius:20,padding:"2px 8px"}}>🤖 DartPoint</span>
           </div>
@@ -3988,7 +3996,7 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
 
       {/* 3 ── FORME ── */}
       <div style={{...card,...sec(2),marginBottom:10}}>
-        <span style={labelSt}>🔥 TA FORME ACTUELLE</span>
+        <SecLabel icon={Flame}>TA FORME ACTUELLE</SecLabel>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
           <div style={{fontWeight:900,fontSize:17,color:formeColor}}>{formeLabel}</div>
           {derniers5.length>0&&(<div style={{display:"flex",gap:4}}>{derniers5.map((d,i)=><VDBadge key={i} gagne={d.gagnant_id===joueurId} size={24}/>)}</div>)}
@@ -4006,18 +4014,18 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
       {/* 4 ── FORCES / FAIBLESSES ── */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10,...sec(3)}}>
         <div style={{...card,border:"1px solid #22c55e33",background:"linear-gradient(160deg,#0e1f14,#1a1a1a 70%)"}}>
-          <div style={{fontSize:10,color:CJ.green,fontWeight:800,letterSpacing:1,marginBottom:9}}>🟢 TES FORCES</div>
+          <div style={{fontSize:10,color:CJ.green,fontWeight:800,letterSpacing:1,marginBottom:9,display:"flex",alignItems:"center",gap:6}}><TrendingUp size={13} color={CJ.green} strokeWidth={2.5}/>TES FORCES</div>
           {forcesList.map((f,i)=>(<div key={i} style={{marginBottom:i<forcesList.length-1?9:0}}><div style={{fontWeight:700,fontSize:12,color:CJ.text}}>{f.emoji} {f.k}</div><div style={{fontSize:10,color:CJ.muted,lineHeight:1.35,marginTop:1}}>{f.detail}</div></div>))}
         </div>
         <div style={{...card,border:"1px solid #ef444433",background:"linear-gradient(160deg,#1f1010,#1a1a1a 70%)"}}>
-          <div style={{fontSize:10,color:CJ.red,fontWeight:800,letterSpacing:1,marginBottom:9}}>🔴 TES FAIBLESSES</div>
+          <div style={{fontSize:10,color:CJ.red,fontWeight:800,letterSpacing:1,marginBottom:9,display:"flex",alignItems:"center",gap:6}}><TrendingDown size={13} color={CJ.red} strokeWidth={2.5}/>TES FAIBLESSES</div>
           {faiblessesList.map((f,i)=>(<div key={i} style={{marginBottom:i<faiblessesList.length-1?9:0}}><div style={{fontWeight:700,fontSize:12,color:CJ.text}}>{f.emoji} {f.k}</div><div style={{fontSize:10,color:CJ.muted,lineHeight:1.35,marginTop:1}}>{f.detail}</div></div>))}
         </div>
       </div>
 
       {/* ── STYLE ── */}
       <div style={{...card,...sec(4),marginBottom:10,border:`1px solid ${CJ.accent}33`,background:"linear-gradient(135deg,#1f1407,#1a1a1a 65%)"}}>
-        <span style={labelSt}>🎮 TON STYLE DE JEU</span>
+        <SecLabel icon={Gamepad2} color={CJ.accent}>TON STYLE DE JEU</SecLabel>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <div style={{fontSize:34,lineHeight:1}}>{styleJoueur.emoji}</div>
           <div style={{flex:1,minWidth:0}}>
@@ -4029,11 +4037,11 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
 
       {/* 6 ── CARTE DE PERFORMANCE ── */}
       <div style={{...card,...sec(6),marginBottom:10}}>
-        <span style={labelSt}>📊 TA CARTE DE PERFORMANCE</span>
+        <SecLabel icon={BarChart2}>TA CARTE DE PERFORMANCE</SecLabel>
         <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:12,padding:"12px",borderRadius:12,background:`linear-gradient(135deg, ${scoreColor}1f, #ffffff05)`,border:`1px solid ${scoreColor}44`}}>
           <div style={{flexShrink:0,filter:reduceMotion?"none":`drop-shadow(0 0 10px ${scoreColor}55)`}}><CircleGauge value={scoreJoueur} color={scoreColor} size={74} strokeWidth={8}/></div>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:9,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:3}}>🏆 TON SCORE JOUEUR</div>
+            <div style={{fontSize:9,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:3,display:"flex",alignItems:"center",gap:5}}><Trophy size={11} color={scoreColor} strokeWidth={2.5}/>TON SCORE JOUEUR</div>
             <div style={{display:"flex",alignItems:"baseline",gap:8}}>
               <span style={{fontWeight:900,fontSize:30,color:scoreColor,lineHeight:1,textShadow:reduceMotion?"none":`0 0 14px ${scoreColor}55`}}>{grade}</span>
               <span style={{fontSize:12,color:CJ.text,fontWeight:700}}>{tierWord}</span>
@@ -4042,31 +4050,31 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:6}}>
-          <StatCell emoji="🏆" value={winRate+"%"} label="Win Rate" color={wrColor} strong={winRate>=60} gaugePct={winRate} gaugeColor={wrColor} context={ctxWR} delay={7}/>
-          <StatCell emoji="📊" value={moyDisplay} label="Moyenne / volée" color={moyColor} strong={moyNum!=null&&moyNum>=52} gaugePct={moyNum!=null?moyPct:undefined} gaugeColor={moyColor} context={ctxMoy} delay={7.5}/>
-          <StatCell emoji="⚔️" value={stats?.parties??0} label="Parties jouées" color={CJ.text} context={ctxParties} delay={8}/>
+          <StatCell icon={Trophy} value={winRate+"%"} label="Win Rate" color={wrColor} strong={winRate>=60} gaugePct={winRate} gaugeColor={wrColor} context={ctxWR} delay={7}/>
+          <StatCell icon={BarChart2} value={moyDisplay} label="Moyenne / volée" color={moyColor} strong={moyNum!=null&&moyNum>=52} gaugePct={moyNum!=null?moyPct:undefined} gaugeColor={moyColor} context={ctxMoy} delay={7.5}/>
+          <StatCell icon={Swords} value={stats?.parties??0} label="Parties jouées" color={CJ.text} context={ctxParties} delay={8}/>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:6}}>
-          <StatCell emoji={serieType==="loss"?"💔":"🔥"} value={serieActuelle>0?serieActuelle:"—"} label={serieType==="loss"?"Défaites de suite":"Victoires consécutives"} color={serieType==="loss"?CJ.red:CJ.green} strong={serieType==="win"&&serieActuelle>=3} context={serieType==="win"&&serieActuelle>0?"en cours":null} delay={8.5}/>
-          <StatCell emoji="🎯" value={recordFinish>0?recordFinish:"—"} label="Record finish" color={CJ.green} strong={recordFinish>=100} context={ctxFinish} delay={9}/>
-          <StatCell emoji="💥" value={nb180>0?nb180:"—"} label="× 180 réalisés" color="#f59e0b" strong={nb180>=3} delay={9.5}/>
+          <StatCell icon={serieType==="loss"?HeartCrack:Flame} value={serieActuelle>0?serieActuelle:"—"} label={serieType==="loss"?"Défaites de suite":"Victoires consécutives"} color={serieType==="loss"?CJ.red:CJ.green} strong={serieType==="win"&&serieActuelle>=3} context={serieType==="win"&&serieActuelle>0?"en cours":null} delay={8.5}/>
+          <StatCell icon={Crosshair} value={recordFinish>0?recordFinish:"—"} label="Record finish" color={CJ.green} strong={recordFinish>=100} context={ctxFinish} delay={9}/>
+          <StatCell icon={Zap} value={nb180>0?nb180:"—"} label="× 180 réalisés" color="#f59e0b" strong={nb180>=3} delay={9.5}/>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6}}>
-          <StatCell emoji="🟢" value={stats?.victoires??0} label="Victoires" color={CJ.green} delay={10}/>
-          <StatCell emoji="🔴" value={stats?.defaites??0} label="Défaites" color={CJ.red} delay={10.5}/>
+          <StatCell icon={Circle} value={stats?.victoires??0} label="Victoires" color={CJ.green} delay={10}/>
+          <StatCell icon={Circle} value={stats?.defaites??0} label="Défaites" color={CJ.red} delay={10.5}/>
         </div>
       </div>
 
       {/* ── STATS DE JEU RÉELLES ── */}
       <div style={{...card,...sec(7),marginBottom:10}}>
-        <span style={labelSt}>🎲 TES STATS DE JEU RÉELLES · {A.totalLegs} manche{A.totalLegs>1?"s":""}</span>
+        <SecLabel icon={Dices}>TES STATS DE JEU RÉELLES · {A.totalLegs} manche{A.totalLegs>1?"s":""}</SecLabel>
         {A.totalLegs===0
           ? <div style={{fontSize:11,color:CJ.muted,marginTop:6}}>Joue quelques duels au scoreur pour générer tes stats détaillées.</div>
           : <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px",marginTop:8}}>
               {buildStatsReelles(A).map((s,i)=>(
                 <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"6px 0",borderBottom:"1px solid #ffffff0a"}}>
                   <span style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
-                    <span style={{fontSize:12,flexShrink:0}}>{s.icon}</span>
+                    <span style={{flexShrink:0,display:"flex"}}><s.icon size={13} color="#64748b" strokeWidth={2.5}/></span>
                     <span style={{fontSize:10,color:"#94a3b8",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.label}</span>
                   </span>
                   <span style={{textAlign:"right",flexShrink:0,lineHeight:1.05}}>
@@ -4082,7 +4090,7 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
       {chartPoints.length>=2&&(
         <div style={{...card,...sec(8),marginBottom:10}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <span style={labelSt}>📈 TON ÉVOLUTION DRIX</span>
+            <SecLabel icon={TrendingUp} style={{marginBottom:0}}>TON ÉVOLUTION DRIX</SecLabel>
             <span style={{fontWeight:800,fontSize:15,color:var7j>=0?CJ.green:CJ.red}}>{var7j>=0?"+":""}{var7j} <span style={{fontSize:10,color:CJ.muted,fontWeight:600}}>7j</span></span>
           </div>
           <MiniChart points={chartPoints} color={var7j>=0?"#22c55e":"#ef4444"} height={80}/>
@@ -4097,7 +4105,7 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
       {/* 8 ── EXPLOITS ── */}
       {exploitsList.length>0&&(
         <div style={{...card,...sec(9),marginBottom:0,border:"1px solid #f59e0b33"}}>
-          <span style={labelSt}>🟡 TES EXPLOITS</span>
+          <SecLabel icon={Star} color="#f59e0b">TES EXPLOITS</SecLabel>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
             {exploitsList.map((e,i)=>(
               <div key={i} style={{display:"flex",alignItems:"center",gap:9,background:"#f59e0b0f",border:"1px solid #f59e0b22",borderRadius:10,padding:"8px 10px"}}>
