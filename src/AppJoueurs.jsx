@@ -2927,12 +2927,74 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
     (A.avgReel!=null && A.avgReel>=55) ? { emoji:"⚡", label:`${A.avgReel} moy.`, sub:"scoring lourd" } : null,
   ].filter(Boolean);
 
+  // ── Carte de performance — Score Joueur (note globale) ──────────────────────────
+  const moyNum     = moyenneDuels!=null ? parseFloat(moyenneDuels) : (A.avgReel ?? null);
+  const moyDisplay = moyenneDuels!=null ? moyenneDuels : (A.avgReel!=null ? A.avgReel : "—");
+  const moyPct     = moyNum!=null ? Math.max(0, Math.min(100, ((moyNum-25)/35)*100)) : 0;
+  const moyColor   = moyNum==null ? CJ.muted : moyNum>=52 ? "#22c55e" : moyNum>=42 ? "#f59e0b" : "#ef4444";
+  const wrColor    = winRate>=60 ? "#22c55e" : winRate>=45 ? "#f59e0b" : "#ef4444";
+  const recordFinish = plusGrosFinish || A.bestFinish || 0;
+
+  const scoreJoueur = (() => {
+    const wrN  = winRate/100;
+    const avgN = moyNum!=null ? Math.max(0, Math.min(1, (moyNum-25)/35)) : 0;
+    const finN = A.checkoutPct!=null ? Math.min(1, A.checkoutPct/55) : (recordFinish>0 ? Math.min(1, recordFinish/130) : 0);
+    const strN = serieType==="win" ? Math.min(1, serieActuelle/8) : 0;
+    const expN = Math.min(1, (stats?.parties||0)/60);
+    return Math.max(1, Math.min(100, Math.round(wrN*35 + avgN*25 + finN*15 + strN*10 + expN*15)));
+  })();
+  const grade      = scoreJoueur>=92?"S":scoreJoueur>=85?"A":scoreJoueur>=78?"A-":scoreJoueur>=70?"B+":scoreJoueur>=62?"B":scoreJoueur>=54?"C+":scoreJoueur>=46?"C":scoreJoueur>=38?"D":"E";
+  const scoreColor = scoreJoueur>=85?"#fbbf24":scoreJoueur>=70?"#22c55e":scoreJoueur>=55?"#84cc16":scoreJoueur>=40?"#f59e0b":"#ef4444";
+  const tierWord   = scoreJoueur>=85?"Élite":scoreJoueur>=70?"Très bon niveau":scoreJoueur>=55?"Bon niveau":scoreJoueur>=40?"Niveau correct":"En développement";
+  const profilJoueur = (() => {
+    if (serieType==="win" && serieActuelle>=4)     return { emoji:"🔥", txt:"Joueur en confiance, sur une série en cours." };
+    if (winRate>=65 && (stats?.parties||0)>=20)    return { emoji:"⚔️", txt:"Gros compétiteur au palmarès solide." };
+    if (moyNum!=null && moyNum>=52)                return { emoji:"🎯", txt:"Scoreur régulier avec une grosse moyenne." };
+    if (A.checkoutPct!=null && A.checkoutPct>=45)  return { emoji:"🏹", txt:"Finisseur clinique, dangereux à l'arrivée." };
+    if (winRate>=55)                               return { emoji:"🏆", txt:"Joueur performant, bon taux de victoire." };
+    if ((stats?.parties||0)<8)                     return { emoji:"🌱", txt:"Profil jeune, encore en rodage." };
+    if (winRate<40 && (stats?.parties||0)>=8)      return { emoji:"📉", txt:"En reconstruction, cherche son rythme." };
+    return { emoji:"⚖️", txt:"Joueur polyvalent et équilibré." };
+  })();
+  // Contextes facultatifs sous les stats
+  const ctxWR      = winRate>=60?"Excellent":winRate>=50?"Au-dessus de la moyenne":winRate>=42?"Dans la moyenne":"À consolider";
+  const ctxMoy     = moyNum==null?null:moyNum>=55?"Très haut niveau":moyNum>=48?"Niveau confirmé":moyNum>=40?"Niveau intermédiaire":"En progression";
+  const ctxParties = (stats?.parties||0)>=50?"Très expérimenté":(stats?.parties||0)>=20?"Expérimenté":(stats?.parties||0)>=8?"Joueur régulier":"Débutant";
+  const ctxFinish  = recordFinish>=120?"Niveau élite":recordFinish>=100?"Gros finish":recordFinish>=60?"Bon finish":recordFinish>0?"À améliorer":null;
+
+  // Mini-jauge horizontale animée (Win Rate, Moyenne)
+  const MiniBar = ({ pct, color }) => (
+    <div style={{ height:5, borderRadius:3, background:"#ffffff14", overflow:"hidden", marginTop:7 }}>
+      <div style={{ height:"100%", width:`${Math.max(3,Math.min(100,pct))}%`, background:color, borderRadius:3, transformOrigin:"left", animation:reduceMotion?undefined:"dpBar .9s ease both" }}/>
+    </div>
+  );
+
+  // Cellule de stat — met en avant (glow + contour) les meilleures performances
+  const StatCell = ({ emoji, value, label, color=CJ.text, strong=false, gaugePct, gaugeColor, context, delay=0 }) => (
+    <div style={{
+      background: strong ? color+"14" : "#ffffff06",
+      border: strong ? `1px solid ${color}55` : "1px solid transparent",
+      boxShadow: (strong && !reduceMotion) ? `0 0 16px ${color}33` : "none",
+      borderRadius:11, padding:"11px 9px", position:"relative", textAlign:"center", ...sec(delay),
+    }}>
+      {strong && <span style={{ position:"absolute", top:6, right:7, fontSize:9, opacity:.9 }}>⭐</span>}
+      <div style={{ display:"flex", alignItems:"baseline", justifyContent:"center", gap:5 }}>
+        <span style={{ fontSize:13 }}>{emoji}</span>
+        <span style={{ fontWeight:900, fontSize:18, color, lineHeight:1 }}>{value}</span>
+      </div>
+      <div style={{ fontSize:9, color:CJ.muted, fontWeight:600, marginTop:4, lineHeight:1.2 }}>{label}</div>
+      {gaugePct!=null && <MiniBar pct={gaugePct} color={gaugeColor||color}/>}
+      {context && <div style={{ fontSize:8.5, color, fontWeight:600, marginTop:5, opacity:.85 }}>{context}</div>}
+    </div>
+  );
+
   // ── RENDU ─────────────────────────────────────────────────────────────────────
   return (
     <div style={{maxWidth:480,margin:"0 auto",padding:"16px 16px 80px",background:CJ.bg,minHeight:"100vh"}}>
       <style>{`
 @keyframes dpFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @keyframes dpDraw{from{stroke-dashoffset:var(--dp-circ)}to{stroke-dashoffset:var(--dp-off)}}
+@keyframes dpBar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 `}</style>
 
       {/* ── Retour ── */}
@@ -3385,34 +3447,43 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
             </div>
           )}
 
-          {/* 6 ── STATISTIQUES ── */}
+          {/* 6 ── CARTE DE PERFORMANCE ── */}
           <div style={{...card,...sec(6),marginBottom:10}}>
             <span style={labelSt}>📊 STATISTIQUES</span>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:6}}>
-              {[
-                [stats?.victoires??0,"Victoires",CJ.green],
-                [stats?.defaites??0,"Défaites",CJ.red],
-                [winRate+"%","Win Rate",CJ.yellow],
-                [moyenneDuels??"—","Moy. pts",CJ.blue],
-                [stats?.parties??0,"Parties",CJ.text],
-              ].map(([v,l,c])=>(
-                <div key={l} style={{background:"#ffffff06",borderRadius:9,padding:"9px 3px",textAlign:"center"}}>
-                  <div style={{fontWeight:900,fontSize:16,color:c,lineHeight:1}}>{v}</div>
-                  <div style={{fontSize:8.5,color:CJ.muted,marginTop:3,lineHeight:1.2}}>{l}</div>
+
+            {/* Score Joueur — note globale + grade + profil */}
+            <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:12,padding:"12px",borderRadius:12,background:`linear-gradient(135deg, ${scoreColor}1f, #ffffff05)`,border:`1px solid ${scoreColor}44`}}>
+              <div style={{flexShrink:0,filter:reduceMotion?"none":`drop-shadow(0 0 10px ${scoreColor}55)`}}>
+                <CircleGauge value={scoreJoueur} color={scoreColor} size={74} strokeWidth={8}/>
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:9,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:3}}>🏆 SCORE JOUEUR</div>
+                <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+                  <span style={{fontWeight:900,fontSize:30,color:scoreColor,lineHeight:1,textShadow:reduceMotion?"none":`0 0 14px ${scoreColor}55`}}>{grade}</span>
+                  <span style={{fontSize:12,color:CJ.text,fontWeight:700}}>{tierWord}</span>
                 </div>
-              ))}
+                <div style={{fontSize:11,color:CJ.muted,marginTop:5,lineHeight:1.35}}>{profilJoueur.emoji} {profilJoueur.txt}</div>
+              </div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
-              {[
-                [nb180>0?nb180:"—","180","#f59e0b"],
-                [plusGrosFinish>0?plusGrosFinish:"—","Meilleur finish",CJ.green],
-                [serieActuelle>0?(serieType==="win"?`🔥×${serieActuelle}`:`💔×${serieActuelle}`):"—","Série",serieType==="win"?CJ.green:CJ.red],
-              ].map(([v,l,c])=>(
-                <div key={l} style={{background:"#ffffff06",borderRadius:9,padding:"9px 3px",textAlign:"center"}}>
-                  <div style={{fontWeight:900,fontSize:16,color:c,lineHeight:1}}>{v}</div>
-                  <div style={{fontSize:8.5,color:CJ.muted,marginTop:3}}>{l}</div>
-                </div>
-              ))}
+
+            {/* Ligne 1 — Win Rate · Moyenne · Parties */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:6}}>
+              <StatCell emoji="🏆" value={winRate+"%"} label="Win Rate" color={wrColor} strong={winRate>=60} gaugePct={winRate} gaugeColor={wrColor} context={ctxWR} delay={7}/>
+              <StatCell emoji="📊" value={moyDisplay} label="Moyenne / volée" color={moyColor} strong={moyNum!=null&&moyNum>=52} gaugePct={moyNum!=null?moyPct:undefined} gaugeColor={moyColor} context={ctxMoy} delay={7.5}/>
+              <StatCell emoji="⚔️" value={stats?.parties??0} label="Parties jouées" color={CJ.text} context={ctxParties} delay={8}/>
+            </div>
+
+            {/* Ligne 2 — Série · Record finish · 180 */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:6}}>
+              <StatCell emoji={serieType==="loss"?"💔":"🔥"} value={serieActuelle>0?serieActuelle:"—"} label={serieType==="loss"?"Défaites de suite":"Victoires consécutives"} color={serieType==="loss"?CJ.red:CJ.green} strong={serieType==="win"&&serieActuelle>=3} context={serieType==="win"&&serieActuelle>0?"en cours":null} delay={8.5}/>
+              <StatCell emoji="🎯" value={recordFinish>0?recordFinish:"—"} label="Record finish" color={CJ.green} strong={recordFinish>=100} context={ctxFinish} delay={9}/>
+              <StatCell emoji="💥" value={nb180>0?nb180:"—"} label="× 180 réalisés" color="#f59e0b" strong={nb180>=3} delay={9.5}/>
+            </div>
+
+            {/* Ligne 3 — Victoires · Défaites */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6}}>
+              <StatCell emoji="🟢" value={stats?.victoires??0} label="Victoires" color={CJ.green} delay={10}/>
+              <StatCell emoji="🔴" value={stats?.defaites??0} label="Défaites" color={CJ.red} delay={10.5}/>
             </div>
           </div>
 
