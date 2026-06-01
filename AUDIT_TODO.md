@@ -56,6 +56,14 @@
 - [ ] **KPIs** : « Nouveaux (7j) » — le détail affiche email/ville non chargés
   (toujours « — ») ; « Joueurs actifs » fait doublon ; « Assos actives » = total.
 
+## 🧱 Dette technique
+- [ ] **Factoriser l'analyse joueur.** La logique d'analyse (objet `A`, dangerosité,
+  style, forces/faiblesses, paragraphes DartPoint, Score Joueur, exploits) existe en
+  double : inline dans `FicheJoueur` (vue adversaire) **et** dans le composant
+  `JoueurAnalyse` (vue « soi-même » de Mon Profil). Toute évolution de l'analyse doit
+  être faite aux 2 endroits → extraire une fonction pure `computeAnalyse()` + un rendu
+  partagé, puis faire pointer `FicheJoueur` dessus.
+
 ## ♿ Accessibilité (Trouve ton spot — reste mineur)
 - [ ] `aria-label` sur les boutons icône restants (🗑 avis/photos, toggle géoloc).
 - [ ] `alt` descriptifs sur les photos de galerie / lightbox.
