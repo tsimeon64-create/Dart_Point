@@ -821,8 +821,8 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             </div>
             {/* Infos persos */}
             <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
-              {joueur.ville && <BadgeJ color={CJ.blue}>📍 {joueur.ville}</BadgeJ>}
-              {joueur.age && <BadgeJ color={CJ.muted}>🎂 {joueur.age} ans</BadgeJ>}
+              {joueur.ville && <BadgeJ color={CJ.blue}><EmoIcon e="📍" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{joueur.ville}</BadgeJ>}
+              {joueur.age && <BadgeJ color={CJ.muted}><EmoIcon e="🎂" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{joueur.age} ans</BadgeJ>}
               {joueur.style_jeu && <BadgeJ color={CJ.accent}>{STYLES.find(s=>s[0]===joueur.style_jeu)?.[1]||joueur.style_jeu}</BadgeJ>}
             </div>
           </div>
@@ -837,10 +837,10 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             </div>
             <div style={{ display:"flex", gap:7, marginTop:8, flexWrap:"wrap" }}>
               {classement?.position && (
-                <span style={{ fontSize:12, color:"#fbbf24", fontWeight:900, background:"#f59e0b18", border:"1px solid #fbbf2466", borderRadius:8, padding:"3px 9px", boxShadow:"0 0 10px #fbbf2433" }}>🏆 #{classement.position} FRANCE</span>
+                <span style={{ fontSize:12, color:"#fbbf24", fontWeight:900, background:"#f59e0b18", border:"1px solid #fbbf2466", borderRadius:8, padding:"3px 9px", boxShadow:"0 0 10px #fbbf2433" }}><EmoIcon e="🏆" size={11} color="#fbbf24" style={{verticalAlign:"-2px",marginRight:3}}/>#{classement.position} FRANCE</span>
               )}
               {serieVictoires>=2 && (
-                <span style={{ fontSize:12, color:CJ.green, fontWeight:800, background:"#22c55e18", border:"1px solid #22c55e44", borderRadius:8, padding:"3px 9px" }}>🔥 {serieVictoires} de suite</span>
+                <span style={{ fontSize:12, color:CJ.green, fontWeight:800, background:"#22c55e18", border:"1px solid #22c55e44", borderRadius:8, padding:"3px 9px" }}><EmoIcon e="🔥" size={11} color={CJ.green} style={{verticalAlign:"-2px",marginRight:3}}/>{serieVictoires} de suite</span>
               )}
             </div>
           </div>
@@ -1069,7 +1069,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
         <div style={{ marginBottom:12 }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:affilBar?10:0 }}>
             <div>
-              <div style={{ fontSize:11, color:CJ.muted }}>🍺 Bar affilié</div>
+              <div style={{ fontSize:11, color:CJ.muted }}><EmoIcon e="🍺" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>Bar affilié</div>
               <div style={{ fontWeight:700, fontSize:14, color: bar ? CJ.accent : CJ.muted }}>
                 {bar ? bar.nom : "Aucun bar sélectionné"}
               </div>
@@ -1109,7 +1109,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
         <div>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:affilAsso?10:0 }}>
             <div>
-              <div style={{ fontSize:11, color:CJ.muted }}>🫂 Association affiliée</div>
+              <div style={{ fontSize:11, color:CJ.muted }}><EmoIcon e="🫂" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>Association affiliée</div>
               <div style={{ fontWeight:700, fontSize:14, color: asso ? "#a78bfa" : CJ.muted }}>
                 {asso ? asso.nom : "Aucune association"}
               </div>
@@ -2836,8 +2836,8 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                 <span style={{fontWeight:800,fontSize:12.5,color,letterSpacing:.4,textTransform:"uppercase"}}>{titre}</span>
               </div>
               <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                {j.age&&<BadgeJ color={CJ.muted}>🎂 {j.age} ans</BadgeJ>}
-                {j.ville&&<BadgeJ color={CJ.blue}>📍 {j.ville}</BadgeJ>}
+                {j.age&&<BadgeJ color={CJ.muted}><EmoIcon e="🎂" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{j.age} ans</BadgeJ>}
+                {j.ville&&<BadgeJ color={CJ.blue}><EmoIcon e="📍" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{j.ville}</BadgeJ>}
               </div>
             </div>
             {moi&&moi.id!==j.id&&(
@@ -2857,8 +2857,8 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                 <span style={{fontSize:15,fontWeight:700,color:color+"cc"}}>DRIX</span>
               </div>
               <div style={{display:"flex",gap:7,marginTop:8,flexWrap:"wrap"}}>
-                {classement?.position&&<span style={{fontSize:12,color:CJ.yellow,fontWeight:800,background:"#f59e0b18",border:"1px solid #f59e0b44",borderRadius:8,padding:"3px 8px"}}>🏆 #{classement.position}{classement.total?` / ${classement.total}`:""}</span>}
-                {serieType==="win"&&serieActuelle>=2&&<span style={{fontSize:12,color:CJ.green,fontWeight:800,background:"#22c55e18",border:"1px solid #22c55e44",borderRadius:8,padding:"3px 8px"}}>🔥 {serieActuelle} de suite</span>}
+                {classement?.position&&<span style={{fontSize:12,color:CJ.yellow,fontWeight:800,background:"#f59e0b18",border:"1px solid #f59e0b44",borderRadius:8,padding:"3px 8px"}}><EmoIcon e="🏆" size={11} color="#fbbf24" style={{verticalAlign:"-2px",marginRight:3}}/>#{classement.position}{classement.total?` / ${classement.total}`:""}</span>}
+                {serieType==="win"&&serieActuelle>=2&&<span style={{fontSize:12,color:CJ.green,fontWeight:800,background:"#22c55e18",border:"1px solid #22c55e44",borderRadius:8,padding:"3px 8px"}}><EmoIcon e="🔥" size={11} color={CJ.green} style={{verticalAlign:"-2px",marginRight:3}}/>{serieActuelle} de suite</span>}
               </div>
             </div>
             {moi&&moi.id!==j.id&&(
@@ -2893,11 +2893,11 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
         <div style={{display:"flex",gap:8,marginBottom:14}}>
           <button onClick={()=>setPage("messages-"+j.id+"|"+encodeURIComponent(j.pseudo))}
             style={{flex:1,background:"#1d4ed8",border:"none",color:"#fff",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:700,fontSize:14,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-            💬 Message
+            <EmoIcon e="💬" size={15} color="#fff"/>Message
           </button>
           <button onClick={()=>setShowDefi(true)}
             style={{flex:1,background:`linear-gradient(135deg,${CJ.accent},#ea580c)`,border:"none",color:"#fff",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:800,fontSize:14,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",gap:6,boxShadow:`0 4px 16px ${CJ.accent}44`}}>
-            ⚔️ Défier
+            <EmoIcon e="⚔️" size={15} color="#fff"/>Défier
           </button>
         </div>
       )}
@@ -3194,12 +3194,12 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
               )}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:3,marginTop:8}}>
-              {derniers10.length>0&&<div style={{fontSize:11,color:CJ.muted}}>📋 {victoires10}/{derniers10.length} sur les 10 derniers ({Math.round(formePct*100)}%)</div>}
-              {serieActuelle>=2&&serieType==="win"&&<div style={{fontSize:11,color:CJ.green}}>🔥 {serieActuelle} victoires de suite</div>}
-              {serieActuelle>=2&&serieType==="loss"&&<div style={{fontSize:11,color:CJ.red}}>❄️ {serieActuelle} défaites de suite</div>}
-              <div style={{fontSize:11,color:var7j>=0?CJ.green:CJ.red}}>📈 {var7j>=0?"+":""}{var7j} DRIX sur 7 jours</div>
-              {deltaScoring&&Math.abs(deltaScoring)>3&&<div style={{fontSize:11,color:deltaScoring>0?CJ.green:CJ.red}}>🎯 Scoring {deltaScoring>0?"+":""}{deltaScoring}% vs son standard</div>}
-              {duels[0]?.date&&<div style={{fontSize:11,color:CJ.muted}}>🕐 Dernière partie {tempsDepuisMatch(duels[0].date)}</div>}
+              {derniers10.length>0&&<div style={{fontSize:11,color:CJ.muted}}><EmoIcon e="📋" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>{victoires10}/{derniers10.length} sur les 10 derniers ({Math.round(formePct*100)}%)</div>}
+              {serieActuelle>=2&&serieType==="win"&&<div style={{fontSize:11,color:CJ.green}}><EmoIcon e="🔥" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>{serieActuelle} victoires de suite</div>}
+              {serieActuelle>=2&&serieType==="loss"&&<div style={{fontSize:11,color:CJ.red}}><EmoIcon e="❄️" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>{serieActuelle} défaites de suite</div>}
+              <div style={{fontSize:11,color:var7j>=0?CJ.green:CJ.red}}><EmoIcon e="📈" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>{var7j>=0?"+":""}{var7j} DRIX sur 7 jours</div>
+              {deltaScoring&&Math.abs(deltaScoring)>3&&<div style={{fontSize:11,color:deltaScoring>0?CJ.green:CJ.red}}><EmoIcon e="🎯" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>Scoring {deltaScoring>0?"+":""}{deltaScoring}% vs son standard</div>}
+              {duels[0]?.date&&<div style={{fontSize:11,color:CJ.muted}}><EmoIcon e="🕐" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>Dernière partie {tempsDepuisMatch(duels[0].date)}</div>}
             </div>
           </div>
 
@@ -3412,7 +3412,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
             <div style={{display:"grid",gridTemplateColumns:bar&&asso?"1fr 1fr":"1fr",gap:8,...sec(12)}}>
               {bar&&(
                 <div onClick={()=>{setBarSlug(bar.slug);setPage("bar");}} style={{...card,cursor:"pointer"}}>
-                  <div style={{fontSize:10,color:CJ.muted}}>🍺 Bar affilié</div>
+                  <div style={{fontSize:10,color:CJ.muted}}><EmoIcon e="🍺" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>Bar affilié</div>
                   <div style={{fontWeight:700,fontSize:13,color:CJ.accent,marginTop:2}}>{bar.nom}</div>
                   <div style={{fontSize:10,color:CJ.muted}}>📍 {bar.ville}</div>
                   <div style={{fontSize:10,color:CJ.blue,marginTop:4}}>Voir la fiche →</div>
@@ -3420,7 +3420,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
               )}
               {asso&&(
                 <div onClick={()=>setPage("associations")} style={{...card,cursor:"pointer"}}>
-                  <div style={{fontSize:10,color:CJ.muted}}>🎯 Asso affiliée</div>
+                  <div style={{fontSize:10,color:CJ.muted}}><EmoIcon e="🎯" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>Asso affiliée</div>
                   <div style={{fontWeight:700,fontSize:13,color:"#a78bfa",marginTop:2}}>{asso.nom}</div>
                   {asso.ville&&<div style={{fontSize:10,color:CJ.muted}}>📍 {asso.ville}</div>}
                   <div style={{fontSize:10,color:CJ.blue,marginTop:4}}>Voir la fiche →</div>
@@ -4003,12 +4003,12 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
           {derniers5.length>0&&(<div style={{display:"flex",gap:4}}>{derniers5.map((d,i)=><VDBadge key={i} gagne={d.gagnant_id===joueurId} size={24}/>)}</div>)}
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:3,marginTop:8}}>
-          {derniers10.length>0&&<div style={{fontSize:11,color:CJ.muted}}>📋 {victoires10}/{derniers10.length} sur tes 10 derniers ({Math.round(formePct*100)}%)</div>}
-          {serieActuelle>=2&&serieType==="win"&&<div style={{fontSize:11,color:CJ.green}}>🔥 {serieActuelle} victoires de suite</div>}
-          {serieActuelle>=2&&serieType==="loss"&&<div style={{fontSize:11,color:CJ.red}}>❄️ {serieActuelle} défaites de suite</div>}
-          <div style={{fontSize:11,color:var7j>=0?CJ.green:CJ.red}}>📈 {var7j>=0?"+":""}{var7j} DRIX sur 7 jours</div>
-          {deltaScoring&&Math.abs(deltaScoring)>3&&<div style={{fontSize:11,color:deltaScoring>0?CJ.green:CJ.red}}>🎯 Scoring {deltaScoring>0?"+":""}{deltaScoring}% vs ton standard</div>}
-          {duels[0]?.date&&<div style={{fontSize:11,color:CJ.muted}}>🕐 Dernière partie {tempsDepuisMatch(duels[0].date)}</div>}
+          {derniers10.length>0&&<div style={{fontSize:11,color:CJ.muted}}><EmoIcon e="📋" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>{victoires10}/{derniers10.length} sur tes 10 derniers ({Math.round(formePct*100)}%)</div>}
+          {serieActuelle>=2&&serieType==="win"&&<div style={{fontSize:11,color:CJ.green}}><EmoIcon e="🔥" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>{serieActuelle} victoires de suite</div>}
+          {serieActuelle>=2&&serieType==="loss"&&<div style={{fontSize:11,color:CJ.red}}><EmoIcon e="❄️" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>{serieActuelle} défaites de suite</div>}
+          <div style={{fontSize:11,color:var7j>=0?CJ.green:CJ.red}}><EmoIcon e="📈" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>{var7j>=0?"+":""}{var7j} DRIX sur 7 jours</div>
+          {deltaScoring&&Math.abs(deltaScoring)>3&&<div style={{fontSize:11,color:deltaScoring>0?CJ.green:CJ.red}}><EmoIcon e="🎯" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>Scoring {deltaScoring>0?"+":""}{deltaScoring}% vs ton standard</div>}
+          {duels[0]?.date&&<div style={{fontSize:11,color:CJ.muted}}><EmoIcon e="🕐" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>Dernière partie {tempsDepuisMatch(duels[0].date)}</div>}
         </div>
       </div>
 
