@@ -78,12 +78,17 @@ const db = {
   getSignalements: () => sb("signalements?order=date.desc&select=*"),
   addSignalement: (d) => sb("signalements", { method:"POST", body:JSON.stringify(d) }),
   updateSignalement: (id, d) => sbAdmin("update", "signalements", { id }, d),
-  getPhotos: (slug) => sb(`photos?bar_slug=eq.${encodeURIComponent(slug)}&order=date.desc&select=*`),
-  addPhoto: (d) => sb("photos", { method:"POST", body:JSON.stringify(d) }),
+  getPhotos: (slug) => sb(`photos?bar_slug=eq.${encodeURIComponent(slug)}&valide=eq.true&order=date.desc&select=*`),
+  addPhoto: (d) => sb("photos", { method:"POST", body:JSON.stringify({ ...d, valide:false }) }),   // en attente de modération
   deletePhoto: (id) => sbAdmin("delete", "photos", { id }),
-  getPhotosAsso: (slug) => sb(`photos_associations?asso_slug=eq.${encodeURIComponent(slug)}&order=date.desc&select=*`),
-  addPhotoAsso: (d) => sb("photos_associations", { method:"POST", body:JSON.stringify(d) }),
+  getPhotosAsso: (slug) => sb(`photos_associations?asso_slug=eq.${encodeURIComponent(slug)}&valide=eq.true&order=date.desc&select=*`),
+  addPhotoAsso: (d) => sb("photos_associations", { method:"POST", body:JSON.stringify({ ...d, valide:false }) }),
   deletePhotoAsso: (id) => sbAdmin("delete", "photos_associations", { id }),
+  // Modération photos (admin)
+  getPendingPhotos: () => sb(`photos?valide=eq.false&order=date.desc&select=*`),
+  getPendingPhotosAsso: () => sb(`photos_associations?valide=eq.false&order=date.desc&select=*`),
+  validatePhoto: (id) => sbAdmin("update", "photos", { id }, { valide:true }),
+  validatePhotoAsso: (id) => sbAdmin("update", "photos_associations", { id }, { valide:true }),
 };
 
 // ── CONSTANTES ────────────────────────────────────────────────────────────────
@@ -966,6 +971,43 @@ const AvisAdminSection = () => {
           </div>
         </div>
       ))}
+    </div>
+  );
+};
+
+// ── MODÉRATION PHOTOS (admin) ─────────────────────────────────────────────────
+const AdminPhotos = () => {
+  const [photos, setPhotos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    Promise.all([ db.getPendingPhotos().catch(()=>[]), db.getPendingPhotosAsso().catch(()=>[]) ])
+      .then(([p, pa]) => {
+        const all = [ ...(p||[]).map(x=>({...x,_kind:"bar"})), ...(pa||[]).map(x=>({...x,_kind:"asso"})) ]
+          .sort((a,b)=>(b.date||0)-(a.date||0));
+        setPhotos(all); setLoading(false);
+      }).catch(()=>setLoading(false));
+  }, []);
+  const drop = (ph) => setPhotos(x => x.filter(y => !(y.id===ph.id && y._kind===ph._kind)));
+  const valider = async (ph) => { try { await (ph._kind==="asso"?db.validatePhotoAsso(ph.id):db.validatePhoto(ph.id)); drop(ph); } catch(e){ alert("Erreur : "+e.message); } };
+  const rejeter = async (ph) => { if(!window.confirm("Rejeter (supprimer) cette photo ?"))return; try { await (ph._kind==="asso"?db.deletePhotoAsso(ph.id):db.deletePhoto(ph.id)); drop(ph); } catch(e){ alert("Erreur : "+e.message); } };
+  return (
+    <div>
+      <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:C.yellow }}>📸 Photos en attente ({photos.length})</h3>
+      {loading ? <Spinner/> : photos.length===0 ? <p style={{ color:C.muted,textAlign:"center",padding:30 }}>✅ Aucune photo en attente.</p>
+      : <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:12 }}>
+          {photos.map(ph=>(
+            <div key={ph._kind+ph.id} style={{ background:C.card,border:`1px solid ${C.yellow}33`,borderRadius:10,overflow:"hidden" }}>
+              <img src={ph.data} alt={`Photo soumise — ${ph._kind==="asso"?ph.asso_slug:ph.bar_slug}`} style={{ width:"100%",height:120,objectFit:"cover",display:"block" }}/>
+              <div style={{ padding:8 }}>
+                <div style={{ fontSize:10,color:C.muted,marginBottom:6,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{ph._kind==="asso"?"🫂 ":"🍺 "}{ph._kind==="asso"?ph.asso_slug:ph.bar_slug} · {ph.pseudo||"?"}</div>
+                <div style={{ display:"flex",gap:6 }}>
+                  <Btn variant="success" onClick={()=>valider(ph)} style={{ fontSize:12,padding:"5px 0",flex:1 }}>✅</Btn>
+                  <Btn variant="danger" onClick={()=>rejeter(ph)} style={{ fontSize:12,padding:"5px 0",flex:1 }}>🗑</Btn>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>}
     </div>
   );
 };
@@ -9029,13 +9071,15 @@ const AdminDuels = ({ addLog }) => {
     if (!note) return;
     setWorking(w=>({...w,[d.id]:true}));
     try {
-      // Récupère les mouvements DRIX liés (par joueur + date proche du duel)
-      const dueltime = new Date(d.date).getTime();
-      const tmin = dueltime - 60*1000;
-      const tmax = dueltime + 30*60*1000;
       const ids = [d.challenger_id, d.defie_id].filter(Boolean);
       if (ids.length === 0) { alert("IDs joueurs manquants"); return; }
-      const mvts = await sb(`drix_mouvements?joueur_id=in.(${ids.join(",")})&date=gte.${tmin}&date=lte.${tmax}&select=*`).catch(()=>[]);
+
+      // Mouvements DRIX du duel : par duel_id (fiable) ; repli fenêtre temporelle pour les anciens duels sans duel_id
+      let mvts = await sb(`drix_mouvements?duel_id=eq.${d.id}&select=*`).catch(()=>[]);
+      if (!mvts || mvts.length === 0) {
+        const dueltime = new Date(d.date).getTime();
+        mvts = await sb(`drix_mouvements?joueur_id=in.(${ids.join(",")})&date=gte.${dueltime-60*1000}&date=lte.${dueltime+30*60*1000}&select=*`).catch(()=>[]);
+      }
 
       // Rollback : pour chaque mouvement trouvé, inverse la variation
       for (const m of (mvts||[])) {
@@ -9051,12 +9095,23 @@ const AdminDuels = ({ addLog }) => {
         })}).catch(()=>{});
       }
 
+      // Correction des stats (victoires/défaites/parties) si le duel était comptabilisé
+      if (d.statut === "termine" && d.gagnant_id) {
+        const perdant_id = d.gagnant_id === d.challenger_id ? d.defie_id : d.challenger_id;
+        for (const [pid, champ] of [[d.gagnant_id,"victoires"],[perdant_id,"defaites"]]) {
+          if (!pid) continue;
+          const s = await sb(`stats_joueurs?joueur_id=eq.${pid}&select=*`).catch(()=>[]).then(r=>r?.[0]);
+          if (!s) continue;
+          await sb(`stats_joueurs?joueur_id=eq.${pid}`, { method:"PATCH", body:JSON.stringify({ [champ]:Math.max(0,(s[champ]||0)-1), parties:Math.max(0,(s.parties||0)-1) }), prefer:"return=minimal" }).catch(()=>{});
+        }
+      }
+
       // PATCH duel
       await sb(`duels?id=eq.${d.id}`, { method:"PATCH", body:JSON.stringify({
         statut:"annule_admin", admin_action:"annule_admin", admin_note: note
       }), prefer:"return=minimal" });
 
-      addLog?.(`Duel annulé (rollback DRIX)`, `${d.challenger_pseudo} vs ${d.defie_pseudo}`, "danger");
+      addLog?.(`Duel annulé (rollback DRIX + stats)`, `${d.challenger_pseudo} vs ${d.defie_pseudo}`, "danger");
       await fetchDuels();
     } catch(e) {
       alert("Erreur annulation : " + e.message);
@@ -9546,9 +9601,51 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
     return () => clearInterval(interval);
   },[]);
 
-  const validerBar=async p=>{const slug=slugify(p.nom+"-"+p.ville);let lat=null,lng=null;try{const q=encodeURIComponent(`${p.adresse||p.nom}, ${p.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const geoData=await geo.json();if(geoData?.[0]){lat=parseFloat(geoData[0].lat);lng=parseFloat(geoData[0].lon);}if(!lat){const q2=encodeURIComponent(`${p.ville}, France`);const geo2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);const geoData2=await geo2.json();if(geoData2?.[0]){lat=parseFloat(geoData2[0].lat);lng=parseFloat(geoData2[0].lon);}}}catch(e){}const nb={slug,nom:p.nom,ville:p.ville,cp:p.cp||"",adresse:p.adresse||"",tel:p.tel||"",type:p.type||"electronique",cibles:parseInt(p.cibles)||1,horaires:"",description:"",tournois:p.tournois==="oui",association:null,source:"user",verifie:true,vues:0,lat,lng};const r=await db.addBar(nb);if(r?.[0])setBars(b=>[...b,r[0]]);await db.updateProposition(p.id,{statut:"publie"});setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));addLog("Bar validé",p.nom,"success");};
-  const validerAsso=async p=>{const slug=slugify(p.nom+"-"+p.ville);let lat=null,lng=null;try{const q=encodeURIComponent(`${p.lieu?p.lieu+", ":""}${p.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const gd=await geo.json();if(gd?.[0]){lat=parseFloat(gd[0].lat);lng=parseFloat(gd[0].lon);}}catch(e){}const nb={slug,nom:p.nom,ville:p.ville,zone:p.zone||"",type:p.type||"electronique",jours:p.jours||"À confirmer",lieu:p.lieu||"",tel:p.tel||"",contact:p.contact||"",president:p.president||"",contact_nom:p.contact_nom||"",description:p.description||"",bars:[],source:"user",verifie:true,lat,lng};const r=await db.addAssociation(nb);if(r?.[0])setAssociations(a=>[...a,r[0]]);await db.updateProposition(p.id,{statut:"publie"});setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));addLog("Association validée",p.nom,"success");};
-  const validerTournoi=async p=>{const slug=slugify(p.nom+"-"+p.ville+"-"+(p.date||""));const nb={slug,nom:p.nom,ville:p.ville,date:p.date||"",bar:p.bar||"",association:p.association||"",type:p.type||"electronique",format:p.format||"individuel",niveau:p.niveau||"tous",prix:p.prix||"",dotations:p.dotations||"",places:p.places||"",description:p.description||"",contact:p.contact||"",lien:p.lien||"",source:"user",statut:"publie",lat:null,lng:null};const r=await db.addTournoi(nb);if(r?.[0])setTournois(t=>[...t,r[0]]);await db.updateProposition(p.id,{statut:"publie"});setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));addLog("Tournoi validé",p.nom,"success");};
+  const validerBar=async p=>{
+    const base=slugify(p.nom+"-"+p.ville); let slug=base,n=2;
+    while(bars.some(b=>b.slug===slug)) slug=`${base}-${n++}`;   // slug unique
+    let lat=null,lng=null;
+    try{const q=encodeURIComponent(`${p.adresse||p.nom}, ${p.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const gd=await geo.json();if(gd?.[0]){lat=parseFloat(gd[0].lat);lng=parseFloat(gd[0].lon);}if(lat==null){const q2=encodeURIComponent(`${p.ville}, France`);const g2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);const d2=await g2.json();if(d2?.[0]){lat=parseFloat(d2[0].lat);lng=parseFloat(d2[0].lon);}}}catch(e){}
+    const nb={slug,nom:p.nom,ville:p.ville,cp:p.cp||"",adresse:p.adresse||"",tel:p.tel||"",type:p.type||"electronique",cibles:parseInt(p.cibles)||1,horaires:p.horaires||"",description:p.commentaire||p.description||"",tournois:p.tournois==="oui",association:null,source:"user",verifie:true,vues:0,lat,lng};
+    try{
+      const r=await db.addBar(nb);
+      if(!r?.[0]) throw new Error("création refusée");
+      setBars(b=>[...b,r[0]]);
+      await db.updateProposition(p.id,{statut:"publie"});
+      setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));
+      addLog("Bar validé",p.nom,"success");
+    }catch(e){ addLog("Échec validation bar",p.nom,"danger"); alert(`❌ Échec de la validation de « ${p.nom} » : ${String(e?.message||e).slice(0,200)}`); }
+  };
+  const validerAsso=async p=>{
+    const base=slugify(p.nom+"-"+p.ville); let slug=base,n=2;
+    while(associations.some(a=>a.slug===slug)) slug=`${base}-${n++}`;   // slug unique
+    let lat=null,lng=null;
+    try{const q=encodeURIComponent(`${p.lieu?p.lieu+", ":""}${p.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const gd=await geo.json();if(gd?.[0]){lat=parseFloat(gd[0].lat);lng=parseFloat(gd[0].lon);}}catch(e){}
+    const nb={slug,nom:p.nom,ville:p.ville,zone:p.zone||"",type:p.type||"electronique",jours:p.jours||"À confirmer",lieu:p.lieu||"",tel:p.tel||"",contact:p.contact||"",president:p.president||"",contact_nom:p.contact_nom||"",description:p.description||"",bars:[],source:"user",verifie:true,lat,lng};
+    try{
+      const r=await db.addAssociation(nb);
+      if(!r?.[0]) throw new Error("création refusée");
+      setAssociations(a=>[...a,r[0]]);
+      await db.updateProposition(p.id,{statut:"publie"});
+      setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));
+      addLog("Association validée",p.nom,"success");
+    }catch(e){ addLog("Échec validation asso",p.nom,"danger"); alert(`❌ Échec de la validation de « ${p.nom} » : ${String(e?.message||e).slice(0,200)}`); }
+  };
+  const validerTournoi=async p=>{
+    const base=slugify(p.nom+"-"+p.ville+"-"+(p.date||"")); let slug=base,n=2;
+    while(tournois.some(t=>t.slug===slug)) slug=`${base}-${n++}`;   // slug unique
+    let lat=null,lng=null;
+    try{const q=encodeURIComponent(`${p.bar?p.bar+", ":""}${p.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const gd=await geo.json();if(gd?.[0]){lat=parseFloat(gd[0].lat);lng=parseFloat(gd[0].lon);}}catch(e){}
+    const nb={slug,nom:p.nom,ville:p.ville,date:p.date||"",bar:p.bar||"",association:p.association||"",type:p.type||"electronique",format:p.format||"individuel",niveau:p.niveau||"tous",prix:p.prix||"",dotations:p.dotations||"",places:p.places||"",description:p.description||"",contact:p.contact||"",lien:p.lien||"",source:"user",statut:"publie",lat,lng};
+    try{
+      const r=await db.addTournoi(nb);
+      if(!r?.[0]) throw new Error("création refusée");
+      setTournois(t=>[...t,r[0]]);
+      await db.updateProposition(p.id,{statut:"publie"});
+      setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));
+      addLog("Tournoi validé",p.nom,"success");
+    }catch(e){ addLog("Échec validation tournoi",p.nom,"danger"); alert(`❌ Échec de la validation de « ${p.nom} » : ${String(e?.message||e).slice(0,200)}`); }
+  };
   const refuser=async(id,nom)=>{await db.updateProposition(id,{statut:"refuse"});setPropositions(x=>x.map(y=>y.id===id?{...y,statut:"refuse"}:y));addLog("Proposition refusée",nom||id,"warning");};
 
   const allPending = propositions.filter(p=>p.statut==="en_attente" && p.type_prop !== "president_club");
@@ -10066,6 +10163,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
     ["demandes-clubs",`👑 Clubs${demandesClubsPending.length>0?` (${demandesClubsPending.length})`:""}`,demandesClubsPending.length>0?"urgent":null],
     ["modifications",`✏️ Modifs${modifications.length>0?` (${modifications.length})`:""}`,modifications.length>0?"important":null],
     ["avismod",`💬 Avis${avisCount>0?` (${avisCount})`:""}`,avisCount>0?"important":null],
+    ["photomod","📸 Photos",null],
     ["allbars",`🎯 Bars (${bars.length})`],
     ["allassos",`🫂 Assos (${associations.length})`],
     ["alltournois",`🏅 Tournois (${tournois.length})`],
@@ -10195,6 +10293,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
             </div>
           )
           : tab==="avismod"         ? <AvisAdminSection/>
+          : tab==="photomod"        ? <AdminPhotos/>
           : tab==="allbars"     ? renderBars()
           : tab==="allassos"    ? renderAssos()
           : tab==="alltournois" ? renderTournois()
