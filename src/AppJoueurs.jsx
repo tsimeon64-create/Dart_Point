@@ -2779,8 +2779,8 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                 : (A.dechetRate!=null && A.dechetRate>=12)  ? "rester régulier pour punir ses trous de scoring"
                 :                                             "hausser ton niveau de scoring pour rivaliser";
       const verdict = probaVictoire>=60 ? `Tu pars favori (~${probaVictoire}% de victoire estimée)`
-                    : probaVictoire<=40 ? `L'IA le considère comme favori avant ce duel (~${100-probaVictoire}% pour lui)`
-                    :                     `L'IA annonce un match très serré (~${probaVictoire}% pour toi)`;
+                    : probaVictoire<=40 ? `DartPoint le considère comme favori avant ce duel (~${100-probaVictoire}% pour lui)`
+                    :                     `DartPoint annonce un match très serré (~${probaVictoire}% pour toi)`;
       P.push(`${verdict}. Pour faire la différence, il faudra ${cle} et ne pas lui laisser l'avantage en début de manche.`);
     } else {
       P.push(`Au global, un profil ${dangerScore>=60?"à prendre très au sérieux":"abordable mais sérieux"}, dont toute la mécanique repose sur ${pointFortObj.k.toLowerCase()}.`);
@@ -3296,7 +3296,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
               <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:13}}>
                 <span style={{fontSize:16}}>🎯</span>
                 <span style={{fontSize:13,color:"#c4b5fd",fontWeight:800,letterSpacing:.6}}>Analyse adversaire</span>
-                <span style={{marginLeft:"auto",fontSize:9,color:"#8b7bb8",fontWeight:700,letterSpacing:.5,background:"#7c3aed22",border:"1px solid #7c3aed44",borderRadius:20,padding:"2px 8px"}}>🤖 IA</span>
+                <span style={{marginLeft:"auto",fontSize:9,color:"#c4b5fd",fontWeight:800,letterSpacing:.5,background:"#7c3aed22",border:"1px solid #7c3aed44",borderRadius:20,padding:"2px 8px"}}>🤖 DartPoint</span>
               </div>
               {analyseParas.map((para,i)=>(
                 <p key={i} style={{color:"#d8cffb",fontSize:13,lineHeight:1.72,margin:i===0?0:"13px 0 0"}}>{renderHL(para)}</p>
