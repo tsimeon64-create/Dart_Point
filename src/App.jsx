@@ -9507,7 +9507,7 @@ const ModalResultats = ({ tournoi, inscrits, onClose, onPublish, working }) => {
   );
 };
 
-const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois, setTournois, setPage, setBarSlug, setAssoSlug, setTournoiSlug }) => {
+const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois, setTournois, setPage, setBarSlug, setAssoSlug, setTournoiSlug, onLogout }) => {
   const [tab, setTab]               = useState("dashboard");
   const [propositions, setPropositions] = useState([]);
   const [signalements, setSignalements] = useState([]);
@@ -10188,7 +10188,8 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
               <h1 style={{fontWeight:900,fontSize:26,margin:0,background:`linear-gradient(90deg,${C.accent},${C.yellow})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>⚙️ Administration</h1>
               <p style={{color:C.muted,fontSize:13,marginTop:4}}>Centre de contrôle Dart Point</p>
             </div>
-            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+              <button onClick={onLogout} title="Déconnexion admin" style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:10,padding:"9px 14px",color:C.red,fontWeight:700,fontSize:12,cursor:"pointer"}}>🔓 Déconnexion</button>
               <div style={{background:`${C.accent}15`,border:`1px solid ${C.accent}33`,borderRadius:10,padding:"8px 14px",textAlign:"center"}}>
                 <div style={{fontSize:11,color:C.muted}}>DATE</div>
                 <div style={{fontWeight:700,fontSize:13,color:C.accent}}>{new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"})}</div>
@@ -11903,7 +11904,7 @@ export default function App() {
       
         {page==="mentions"         && <MentionsLegales/>}
         {page==="adminlogin"       && <AdminLogin onLogin={()=>{setIsAdmin(true);nav("admin");}}/>}
-        {page==="admin"            && (isAdmin?<Admin joueur={joueur} bars={bars} setBars={setBars} associations={associations} setAssociations={setAssociations} tournois={tournois} setTournois={setTournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug}/>:<AdminLogin onLogin={()=>{setIsAdmin(true);nav("admin");}}/>)}
+        {page==="admin"            && (isAdmin?<Admin joueur={joueur} bars={bars} setBars={setBars} associations={associations} setAssociations={setAssociations} tournois={tournois} setTournois={setTournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} onLogout={()=>{try{sessionStorage.removeItem("dp_admin_pw");}catch(e){/*ignore*/}setIsAdmin(false);nav("home");}}/>:<AdminLogin onLogin={()=>{setIsAdmin(true);nav("admin");}}/>)}
       </main>
       <Footer setPage={nav} onOpenHelp={HELP_CONTENT[page] ? ()=>setHelpOpen(true) : null}/>
     </div>
