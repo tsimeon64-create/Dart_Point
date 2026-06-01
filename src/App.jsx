@@ -9522,6 +9522,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
   const [adminLogs, setAdminLogs]   = useState([]);
   const [stats, setStats]           = useState({ matchsDuJour:0, joueursActifs:0, nouveauxJoueurs:0, totalJoueurs:0, connexionsJour:0 });
   const [kpiDetail, setKpiDetail]   = useState(null); // "nouveaux" | "connexions" | null
+  const [valBusy, setValBusy]       = useState({});   // anti-double-clic sur les validations
   const [connexionsDetail, setConnexionsDetail] = useState([]);
 
   // Charge les logs persistés au montage
@@ -9701,7 +9702,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
                 </div>
                 {(p.description||p.commentaire)&&<p style={{color:"#cbd5e1",fontSize:12,fontStyle:"italic",background:"#111",padding:"8px 12px",borderRadius:8,marginBottom:12}}>"{(p.description||p.commentaire||"").slice(0,150)}"</p>}
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  <Btn variant="success" onClick={()=>isAsso?validerAsso(p):isTournoi?validerTournoi(p):validerBar(p)} style={{fontSize:12}}>✅ Valider & Publier</Btn>
+                  <Btn variant="success" disabled={valBusy[p.id]} onClick={async()=>{ if(valBusy[p.id])return; setValBusy(b=>({...b,[p.id]:true})); try{ await (isAsso?validerAsso(p):isTournoi?validerTournoi(p):validerBar(p)); } finally { setValBusy(b=>{ const n={...b}; delete n[p.id]; return n; }); } }} style={{fontSize:12}}>{valBusy[p.id]?"…":"✅ Valider & Publier"}</Btn>
                   <Btn variant="danger" onClick={()=>refuser(p.id,p.nom)} style={{fontSize:12}}>❌ Refuser</Btn>
                 </div>
               </div>
@@ -9784,7 +9785,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
           <AdminKpiCard icon="⚠️" label="Signalements" count={sigPending.length} prio={sigPending.length>0?"urgent":"normal"} onClick={()=>setTab("signalements")}/>
           <AdminKpiCard icon="👥" label="Total joueurs" count={stats.totalJoueurs} prio="normal" onClick={()=>setTab("joueurs")}/>
           <AdminKpiCard icon="🆕" label="Nouveaux (7j)" count={stats.nouveauxJoueurs} prio={stats.nouveauxJoueurs>0?"important":"normal"} onClick={()=>setKpiDetail("nouveaux")}/>
-          <AdminKpiCard icon="📡" label="Connexions aujourd'hui" count={stats.connexionsJour} prio={stats.connexionsJour>0?"important":"normal"} onClick={()=>setKpiDetail("connexions")}/>
+          <AdminKpiCard icon="🍺" label="Présences en bar (jour)" count={stats.connexionsJour} prio={stats.connexionsJour>0?"important":"normal"} onClick={()=>setKpiDetail("connexions")}/>
           <AdminKpiCard icon="🎯" label="Bars référencés" count={bars.length} prio="normal"/>
           <AdminKpiCard icon="🫂" label="Associations" count={associations.length} prio="normal"/>
           <AdminKpiCard icon="🏅" label="Tournois" count={tournois.length} prio="normal"/>
@@ -9933,7 +9934,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
   const renderLogs = () => (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <div style={{fontSize:13,color:C.muted}}>Historique des actions de la session en cours</div>
+        <div style={{fontSize:13,color:C.muted}}>Historique des actions admin</div>
         {adminLogs.length>0&&<button onClick={viderLogs} style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}44`,borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:12}}>🗑 Vider</button>}
       </div>
       {adminLogs.length===0
@@ -9946,8 +9947,8 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
                 <div style={{fontSize:12,color:C.muted}}>Cible : {log.cible}</div>
               </div>
               <div style={{fontSize:11,color:C.muted,textAlign:"right"}}>
-                <div>Admin</div>
-                <div>{log.date}</div>
+                <div>{log.admin_pseudo||"Admin"}</div>
+                <div>{typeof log.date==="number"?new Date(log.date).toLocaleString("fr-FR"):log.date}</div>
               </div>
             </div>
           ))}
