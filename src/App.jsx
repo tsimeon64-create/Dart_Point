@@ -746,7 +746,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
 
           {/* Footer */}
           <div style={{ textAlign:"center",paddingTop:4 }}>
-            <div style={{ fontSize:10,color:"#1e1e28",fontWeight:600,letterSpacing:1 }}>🎯 DARTPOINT</div>
+            <div style={{ fontSize:10,color:"#1e1e28",fontWeight:600,letterSpacing:1 }}><EmoText s="🎯 DARTPOINT" size={10} gap={4}/></div>
           </div>
         </div>
       </div>
@@ -850,7 +850,7 @@ const GalerieSection = ({ slug, type="bar", isAdmin }) => {
         <div style={{ display:"flex",gap:10,flexWrap:"wrap",alignItems:"center" }}>
           <input value={pseudo} onChange={e=>setPseudo(e.target.value)} placeholder="Votre pseudo" style={{ flex:1,minWidth:130,background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:13 }}/>
           <input ref={fileRef} type="file" accept="image/*" multiple style={{ display:"none" }} onChange={handleFile}/>
-          <Btn onClick={()=>fileRef.current?.click()} variant="ghost" style={{ fontSize:13,padding:"8px 16px" }} disabled={uploading||photos.length>=MAX_PHOTOS}>{photos.length>=MAX_PHOTOS?"🚫 Maximum":uploading?"⏳ Envoi…":"📷 Ajouter"}</Btn>
+          <Btn onClick={()=>fileRef.current?.click()} variant="ghost" style={{ fontSize:13,padding:"8px 16px" }} disabled={uploading||photos.length>=MAX_PHOTOS}><EmoText s={photos.length>=MAX_PHOTOS?"🚫 Maximum":uploading?"⏳ Envoi…":"📷 Ajouter"}/></Btn>
         </div>
       </div>
       {loading?<Spinner/>:photos.length===0
@@ -860,7 +860,7 @@ const GalerieSection = ({ slug, type="bar", isAdmin }) => {
             <div key={p.id} style={{ breakInside:"avoid",marginBottom:10,position:"relative",borderRadius:10,overflow:"hidden",cursor:"zoom-in",border:`1px solid ${C.border}` }} onClick={()=>setLightbox(i)}>
               <img src={p.data} alt="" style={{ width:"100%",display:"block" }}/>
               <div style={{ position:"absolute",bottom:0,left:0,right:0,background:"linear-gradient(transparent,#000a)",padding:"14px 8px 5px",fontSize:11,color:"#ccc" }}>📷 {p.pseudo}</div>
-              {isAdmin&&<button onClick={e=>{e.stopPropagation();deletePhoto(p.id);setPhotos(x=>x.filter(y=>y.id!==p.id));}} style={{ position:"absolute",top:5,right:5,background:"#000a",border:"none",color:C.red,cursor:"pointer",borderRadius:5,padding:"2px 6px",fontSize:11 }}>🗑</button>}
+              {isAdmin&&<button onClick={e=>{e.stopPropagation();deletePhoto(p.id);setPhotos(x=>x.filter(y=>y.id!==p.id));}} style={{ position:"absolute",top:5,right:5,background:"#000a",border:"none",color:C.red,cursor:"pointer",borderRadius:5,padding:"2px 6px",fontSize:11 }}><EmoIcon e="🗑" size={12}/></button>}
             </div>
           ))}
         </div>}
@@ -920,7 +920,7 @@ const AvisSection = ({ barSlug, isAdmin }) => {
         <div style={{ fontSize:10, color: form.texte.length > 900 ? C.red : C.muted, textAlign:"right", marginBottom:10 }}>{form.texte.length}/1000</div>
         <div style={{ display:"flex",gap:10,alignItems:"center",flexWrap:"wrap" }}>
           <input value={form.pseudo} onChange={e=>setForm(f=>({...f,pseudo:e.target.value}))} placeholder="Pseudo (optionnel)" style={{ flex:1,minWidth:130,background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:13 }}/>
-          <Btn onClick={submit} style={{ fontSize:13,padding:"8px 18px" }} disabled={!form.texte.trim()&&form.reactions.length===0}>{sent?"✅ Envoyé !":"Publier →"}</Btn>
+          <Btn onClick={submit} style={{ fontSize:13,padding:"8px 18px" }} disabled={!form.texte.trim()&&form.reactions.length===0}><EmoText s={sent?"✅ Envoyé !":"Publier →"}/></Btn>
         </div>
         {sent&&<p style={{ color:C.muted,fontSize:12,marginTop:8 }}>Avis en attente de modération.</p>}
       </div>
@@ -934,7 +934,7 @@ const AvisSection = ({ barSlug, isAdmin }) => {
           {a.reactions?.length>0&&<div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:6 }}>{a.reactions.map(rid=>{const r=REACTIONS_LIST.find(x=>x.id===rid);return r?<span key={rid} style={{ background:C.accent+"22",color:C.accent,borderRadius:20,padding:"2px 9px",fontSize:11 }}><EmoIcon e={r.emoji} size={12} style={{verticalAlign:"-2px",marginRight:4}}/>{r.label}</span>:null;})}</div>}
           {a.texte&&<p style={{ color:"#cbd5e1",fontSize:13,lineHeight:1.6,marginBottom:6 }}>{a.texte}</p>}
           <div style={{ display:"flex",gap:8 }}>
-            {!isAdmin&&<button onClick={()=>{db.updateAvis(a.id,{signale:true});}} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:11,padding:0 }}>⚠️ Signaler</button>}
+            {!isAdmin&&<button onClick={()=>{db.updateAvis(a.id,{signale:true});}} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:11,padding:0 }}><EmoIcon e="⚠️" size={11} style={{verticalAlign:"-2px",marginRight:3}}/>Signaler</button>}
             {isAdmin&&<button onClick={()=>{db.deleteAvis(a.id);setAvis(x=>x.filter(y=>y.id!==a.id));}} style={{ background:"none",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"2px 8px" }}>🗑</button>}
           </div>
         </div>
@@ -967,8 +967,8 @@ const AvisAdminSection = () => {
           </div>
           {a.texte&&<p style={{ color:"#cbd5e1",fontSize:13,background:"#111",padding:"8px 12px",borderRadius:8,marginBottom:8 }}>{a.texte}</p>}
           <div style={{ display:"flex",gap:8 }}>
-            <Btn variant="success" onClick={()=>valider(a.id)} style={{ fontSize:12,padding:"6px 14px" }}>✅ Valider</Btn>
-            <Btn variant="danger" onClick={()=>{db.deleteAvis(a.id);setAvis(x=>x.filter(y=>y.id!==a.id));}} style={{ fontSize:12,padding:"6px 14px" }}>🗑 Supprimer</Btn>
+            <Btn variant="success" onClick={()=>valider(a.id)} style={{ fontSize:12,padding:"6px 14px" }}><EmoText s="✅ Valider"/></Btn>
+            <Btn variant="danger" onClick={()=>{db.deleteAvis(a.id);setAvis(x=>x.filter(y=>y.id!==a.id));}} style={{ fontSize:12,padding:"6px 14px" }}><EmoText s="🗑 Supprimer"/></Btn>
           </div>
         </div>
       ))}
@@ -1002,8 +1002,8 @@ const AdminPhotos = () => {
               <div style={{ padding:8 }}>
                 <div style={{ fontSize:10,color:C.muted,marginBottom:6,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{ph._kind==="asso"?"🫂 ":"🍺 "}{ph._kind==="asso"?ph.asso_slug:ph.bar_slug} · {ph.pseudo||"?"}</div>
                 <div style={{ display:"flex",gap:6 }}>
-                  <Btn variant="success" onClick={()=>valider(ph)} style={{ fontSize:12,padding:"5px 0",flex:1 }}>✅</Btn>
-                  <Btn variant="danger" onClick={()=>rejeter(ph)} style={{ fontSize:12,padding:"5px 0",flex:1 }}>🗑</Btn>
+                  <Btn variant="success" onClick={()=>valider(ph)} style={{ fontSize:12,padding:"5px 0",flex:1 }}><EmoIcon e="✅" size={14}/></Btn>
+                  <Btn variant="danger" onClick={()=>rejeter(ph)} style={{ fontSize:12,padding:"5px 0",flex:1 }}><EmoIcon e="🗑" size={14}/></Btn>
                 </div>
               </div>
             </div>
