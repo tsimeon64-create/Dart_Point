@@ -1443,7 +1443,7 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
                 overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",
                 background:color+"22",fontSize:24,
                 boxShadow:`0 0 16px ${color}66` }}>
-                {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : emoji}
+                {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <EmoIcon e={emoji} size={26} color={color}/>}
               </div>
             </div>
 

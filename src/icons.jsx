@@ -16,7 +16,7 @@ import {
 // Map emoji → composant Lucide. Tout emoji absent de la map reste affiché en emoji (secours).
 export const EMOJI_ICON = {
   // Scoring / cibles
-  "🎯": Target, "🏹": Crosshair, "💥": Zap, "⚡": Zap, "🔥": Flame,
+  "🎯": Target, "🎯🎯": Crosshair, "🏹": Crosshair, "💥": Zap, "⚡": Zap, "⭐⭐": Zap, "🔥": Flame,
   // Trophées / rangs / récompenses
   "🏆": Trophy, "👑": Crown, "🥇": Medal, "🥈": Medal, "🥉": Medal, "🏅": Medal,
   "💎": Gem, "⭐": Star, "🌟": Star, "✨": Sparkles, "🆕": Sparkles,
