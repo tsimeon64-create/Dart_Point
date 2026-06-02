@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { C, Z } from "./theme";
 import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell, Users, RefreshCw, Swords, TrendingUp, TrendingDown, Medal, Check, AlertCircle, ThumbsUp, MessageCircle, MapPin, Flame, Zap, Target, Clock, ChevronRight, ChevronDown, Map, List, Phone, Share2, Eye, Info, Calendar, Home as HomeIcon, Lock, ExternalLink, Crown, Gem, Pencil, Navigation, Camera, Link2, Building2, Skull, Gamepad2, HelpCircle, Brain, Timer } from "lucide-react";
+import { EmoIcon } from "./icons";
 import {
   Connexion, MonProfil, PageJoueurs, FicheJoueur,
   PageProfilStats, PageProfilAmis, PageProfilBadges, PageProfilHistorique,
@@ -905,7 +906,7 @@ const AvisSection = ({ barSlug, isAdmin }) => {
         <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:14 }}>
           {REACTIONS_LIST.filter(r=>reactions[r.id]>0).map(r=>(
             <div key={r.id} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:20,padding:"5px 12px",display:"flex",alignItems:"center",gap:6,fontSize:13 }}>
-              <span>{r.emoji}</span><span style={{ color:C.muted }}>{r.label}</span>
+              <EmoIcon e={r.emoji} size={13} color={C.accent} style={{verticalAlign:"-2px"}}/><span style={{ color:C.muted }}>{r.label}</span>
               <span style={{ background:C.accent+"33",color:C.accent,borderRadius:10,padding:"1px 7px",fontSize:11,fontWeight:700 }}>{reactions[r.id]}</span>
             </div>
           ))}
@@ -913,7 +914,7 @@ const AvisSection = ({ barSlug, isAdmin }) => {
       )}
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18,marginBottom:14 }}>
         <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:10 }}>
-          {REACTIONS_LIST.map(r=><button key={r.id} onClick={()=>toggleR(r.id)} style={{ background:form.reactions.includes(r.id)?C.accent+"33":"#111",border:`1px solid ${form.reactions.includes(r.id)?C.accent:C.border}`,borderRadius:20,padding:"5px 11px",cursor:"pointer",fontSize:12,color:form.reactions.includes(r.id)?C.accent:C.muted,display:"flex",alignItems:"center",gap:5 }}>{r.emoji} {r.label}</button>)}
+          {REACTIONS_LIST.map(r=><button key={r.id} onClick={()=>toggleR(r.id)} style={{ background:form.reactions.includes(r.id)?C.accent+"33":"#111",border:`1px solid ${form.reactions.includes(r.id)?C.accent:C.border}`,borderRadius:20,padding:"5px 11px",cursor:"pointer",fontSize:12,color:form.reactions.includes(r.id)?C.accent:C.muted,display:"flex",alignItems:"center",gap:5 }}><EmoIcon e={r.emoji} size={12} style={{verticalAlign:"-2px",marginRight:4}}/>{r.label}</button>)}
         </div>
         <textarea value={form.texte} onChange={e=>setForm(f=>({...f,texte:e.target.value.slice(0,1000)}))} placeholder="Votre commentaire (max 1000 caractères)…" rows={3} maxLength={1000} style={{ width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,resize:"vertical",marginBottom:4 }}/>
         <div style={{ fontSize:10, color: form.texte.length > 900 ? C.red : C.muted, textAlign:"right", marginBottom:10 }}>{form.texte.length}/1000</div>
@@ -930,7 +931,7 @@ const AvisSection = ({ barSlug, isAdmin }) => {
             <span style={{ fontWeight:600,fontSize:13 }}>👤 {a.pseudo}</span>
             <span style={{ color:C.muted,fontSize:11 }}>{new Date(a.date).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"})}</span>
           </div>
-          {a.reactions?.length>0&&<div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:6 }}>{a.reactions.map(rid=>{const r=REACTIONS_LIST.find(x=>x.id===rid);return r?<span key={rid} style={{ background:C.accent+"22",color:C.accent,borderRadius:20,padding:"2px 9px",fontSize:11 }}>{r.emoji} {r.label}</span>:null;})}</div>}
+          {a.reactions?.length>0&&<div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:6 }}>{a.reactions.map(rid=>{const r=REACTIONS_LIST.find(x=>x.id===rid);return r?<span key={rid} style={{ background:C.accent+"22",color:C.accent,borderRadius:20,padding:"2px 9px",fontSize:11 }}><EmoIcon e={r.emoji} size={12} style={{verticalAlign:"-2px",marginRight:4}}/>{r.label}</span>:null;})}</div>}
           {a.texte&&<p style={{ color:"#cbd5e1",fontSize:13,lineHeight:1.6,marginBottom:6 }}>{a.texte}</p>}
           <div style={{ display:"flex",gap:8 }}>
             {!isAdmin&&<button onClick={()=>{db.updateAvis(a.id,{signale:true});}} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:11,padding:0 }}>⚠️ Signaler</button>}
@@ -3093,13 +3094,13 @@ const PageDefi = ({ joueur, setPage }) => {
                 </div>
                 <div style={{ background:"#111",borderRadius:12,padding:"12px 10px" }}>
                   <div style={{ fontSize:10,color:C.muted,marginBottom:6 }}>STYLE</div>
-                  <div style={{ fontSize:16 }}>{ms.styleObj?.emoji}</div>
+                  <div style={{ display:"flex" }}><EmoIcon e={ms.styleObj?.emoji} size={16} color={C.accent}/></div>
                   <div style={{ fontWeight:700,fontSize:12,marginTop:2 }}>{ms.styleObj?.label}</div>
                   <div style={{ fontSize:10,color:C.muted }}>{ms.styleObj?.desc}</div>
                 </div>
                 <div style={{ background:"#111",borderRadius:12,padding:"12px 10px" }}>
                   <div style={{ fontSize:10,color:C.muted,marginBottom:6 }}>POINT FAIBLE</div>
-                  <div style={{ fontSize:16 }}>{ms.pointFaibleObj?.emoji}</div>
+                  <div style={{ display:"flex" }}><EmoIcon e={ms.pointFaibleObj?.emoji} size={16} color={C.red}/></div>
                   <div style={{ fontWeight:700,fontSize:12,marginTop:2 }}>{ms.pointFaibleObj?.label}</div>
                   <div style={{ fontSize:10,color:C.muted }}>{ms.pointFaibleObj?.desc}</div>
                 </div>
