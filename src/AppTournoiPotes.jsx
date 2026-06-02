@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Scoreur } from "./AppJeux";
+import { EmoIcon, EmoText } from "./icons";
 
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -153,8 +154,8 @@ const MatchModal=({match,joueurs,onSave,onClose})=>{
   return(
     <div style={{position:"fixed",inset:0,background:"#000a",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
       <Card style={{width:"100%",maxWidth:400,position:"relative"}}>
-        <button onClick={onClose} style={{position:"absolute",top:12,right:12,background:"none",border:"none",color:CT.muted,cursor:"pointer",fontSize:18}}>✕</button>
-        <h3 style={{fontWeight:700,fontSize:16,marginBottom:4}}>⚔️ Saisir le score</h3>
+        <button onClick={onClose} style={{position:"absolute",top:12,right:12,background:"none",border:"none",color:CT.muted,cursor:"pointer",display:"inline-flex"}}><EmoIcon e="✕" size={18}/></button>
+        <h3 style={{fontWeight:700,fontSize:16,marginBottom:4}}><EmoText s="⚔️ Saisir le score" size={16}/></h3>
         <p style={{fontSize:12,color:CT.muted,marginBottom:20}}>
           {match.phase==="finale"?"Finale — premier à gagner 5 manches":`Premier à gagner ${win} manche${win>1?"s":""}`}
         </p>
@@ -181,7 +182,7 @@ const MatchModal=({match,joueurs,onSave,onClose})=>{
         </div>
         {!validScore&&<p style={{textAlign:"center",color:CT.muted,fontSize:12,marginBottom:12}}>Un joueur doit atteindre {win} manche{win>1?"s":""}</p>}
         <Btn onClick={handleSave} disabled={!validScore||saving} style={{width:"100%"}}>
-          {saving?"Enregistrement…":"✅ Valider le score"}
+          {saving?"Enregistrement…":<EmoText s="✅ Valider le score" size={14}/>}
         </Btn>
       </Card>
     </div>
@@ -234,12 +235,12 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
       {/* Share link */}
       <Card style={{marginBottom:16}}>
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-          <span style={{fontSize:20}}>🔗</span>
+          <EmoIcon e="🔗" size={20} color={CT.accent}/>
           <div style={{flex:1}}>
             <div style={{fontWeight:600,fontSize:14,marginBottom:4}}>Lien de partage</div>
             <div style={{fontSize:12,color:CT.muted,wordBreak:"break-all",background:"#111",borderRadius:6,padding:"6px 10px",fontFamily:"monospace"}}>{lien}</div>
           </div>
-          <Btn onClick={copyLien} variant="ghost" small>{copied?"✅ Copié !":"📋 Copier"}</Btn>
+          <Btn onClick={copyLien} variant="ghost" small>{copied?<EmoText s="✅ Copié !" size={13}/>:<EmoText s="📋 Copier" size={13}/>}</Btn>
         </div>
         <div style={{marginTop:10,fontSize:12,color:CT.muted}}>Code : <b style={{color:CT.yellow,fontSize:16,letterSpacing:2}}>{tournoi.code}</b></div>
       </Card>
@@ -247,16 +248,16 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
       {/* Inviter mes amis (si créateur connecté) */}
       {isCreateur&&amis.length>0&&(
         <Card style={{marginBottom:16}}>
-          <h3 style={{fontWeight:700,fontSize:14,marginBottom:12,color:CT.blue}}>👥 Inviter mes amis</h3>
+          <h3 style={{fontWeight:700,fontSize:14,marginBottom:12,color:CT.blue}}><EmoText s="👥 Inviter mes amis" size={14}/></h3>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {amis.map(ami=>{
               const deja=amiDejaAjoute(ami.id);
               return(
                 <div key={ami.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#111",borderRadius:8,border:`1px solid ${deja?CT.green+"44":CT.border}`}}>
-                  <span style={{fontSize:18}}>👤</span>
+                  <EmoIcon e="👤" size={18} color={CT.muted}/>
                   <span style={{flex:1,fontWeight:500,fontSize:14}}>{ami.pseudo}</span>
                   {deja
-                    ?<Badge color={CT.green}>✅ Ajouté</Badge>
+                    ?<Badge color={CT.green}><EmoText s="✅ Ajouté" size={11}/></Badge>
                     :<Btn onClick={()=>handleAddAmi(ami)} disabled={addingAmi===ami.id||joueurs.length>=25} small variant="ghost">
                       {addingAmi===ami.id?"…":"+ Inviter"}
                     </Btn>
@@ -271,7 +272,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
       {/* Players list */}
       <Card style={{marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-          <h3 style={{fontWeight:700,fontSize:15}}>🎯 Joueurs inscrits ({joueurs.length}/25)</h3>
+          <h3 style={{fontWeight:700,fontSize:15,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🎯" size={15}/>Joueurs inscrits ({joueurs.length}/25)</h3>
           <Badge color={joueurs.length>=2?CT.green:CT.muted}>{joueurs.length>=2?"Prêt à lancer":"Ajoutez des joueurs"}</Badge>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
@@ -279,8 +280,8 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
             <div key={j.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#111",borderRadius:8,border:`1px solid ${CT.border}`}}>
               <span style={{width:24,height:24,borderRadius:"50%",background:CT.accent+"22",color:CT.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{i+1}</span>
               <span style={{flex:1,fontWeight:500}}>{j.nom}</span>
-              {j.joueur_id&&<Badge color={CT.blue}>Compte 🔗</Badge>}
-              {isCreateur&&<button onClick={()=>onRemoveJoueur(j.id)} style={{background:"none",border:"none",color:CT.muted,cursor:"pointer",fontSize:16,padding:"0 4px"}} title="Retirer">✕</button>}
+              {j.joueur_id&&<Badge color={CT.blue}>Compte <EmoIcon e="🔗" size={10} style={{verticalAlign:"-1px",marginLeft:2}}/></Badge>}
+              {isCreateur&&<button onClick={()=>onRemoveJoueur(j.id)} style={{background:"none",border:"none",color:CT.muted,cursor:"pointer",padding:"0 4px",display:"inline-flex"}} title="Retirer"><EmoIcon e="✕" size={15}/></button>}
             </div>
           ))}
           {joueurs.length===0&&<p style={{color:CT.muted,fontSize:13,textAlign:"center",padding:12}}>Aucun joueur ajouté</p>}
@@ -301,7 +302,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
       {/* Start button */}
       {isCreateur&&(
         <Btn onClick={onStart} disabled={joueurs.length<2} style={{width:"100%",fontSize:16,padding:"14px"}}>
-          🚀 Lancer le tournoi ({joueurs.length} joueurs)
+          <EmoIcon e="🚀" size={16} style={{verticalAlign:"-2px",marginRight:6}}/>Lancer le tournoi ({joueurs.length} joueurs)
         </Btn>
       )}
       {!isCreateur&&<p style={{textAlign:"center",color:CT.muted,fontSize:13}}>En attente du lancement par {tournoi.createur_pseudo}…</p>}
@@ -336,7 +337,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,
         const mG=matchs.filter(m=>m.phase==="poules"&&m.groupe===g);
         return(
           <Card key={g} style={{marginBottom:16}}>
-            <h3 style={{fontWeight:700,fontSize:15,marginBottom:12,color:CT.accent}}>🏷️ Groupe {g}</h3>
+            <h3 style={{fontWeight:700,fontSize:15,marginBottom:12,color:CT.accent,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🏷️" size={14}/>Groupe {g}</h3>
             {/* Classement */}
             <div style={{marginBottom:14}}>
               {jG.map((j,i)=>(
@@ -366,10 +367,10 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,
                     {!done&&(
                       <div style={{display:"flex",gap:6}}>
                         <Btn onClick={()=>onJouerMatch(m)} variant="primary" small>▶ Jouer</Btn>
-                        <Btn onClick={()=>onSaisirScore(m)} variant="dark" small>✏️</Btn>
+                        <Btn onClick={()=>onSaisirScore(m)} variant="dark" small><EmoIcon e="✏️" size={13}/></Btn>
                       </div>
                     )}
-                    {done&&<Badge color={CT.green}>✅</Badge>}
+                    {done&&<Badge color={CT.green}><EmoIcon e="✅" size={12}/></Badge>}
                   </div>
                 );
               })}
@@ -381,7 +382,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,
       {/* Advance to eliminatoires */}
       {allDone&&isCreateur&&(
         <Btn onClick={onLancerEliminatoires} style={{width:"100%",fontSize:15,padding:14}}>
-          🏆 Lancer les éliminatoires
+          <EmoIcon e="🏆" size={15} style={{verticalAlign:"-2px",marginRight:6}}/>Lancer les éliminatoires
         </Btn>
       )}
     </div>
@@ -404,7 +405,7 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch})=>
   return(
     <div style={{background:CT.card,border:`2px solid ${done?CT.green:match.statut==="attente_avancement"?CT.border:CT.accent+"66"}`,borderRadius:10,overflow:"hidden",minWidth:180,maxWidth:220,width:"100%"}}>
       <div style={{background:"#111",padding:"4px 10px",fontSize:10,fontWeight:700,color:CT.muted,textTransform:"uppercase",letterSpacing:1}}>
-        {match.phase==="finale"?"🏆 Finale":match.phase==="demi"?"🥈 Demie":match.phase==="quart"?"⚔️ Quart":"1/8"}
+        {match.phase==="finale"?<EmoText s="🏆 Finale" size={13}/>:match.phase==="demi"?<EmoText s="🥈 Demie" size={13}/>:match.phase==="quart"?<EmoText s="⚔️ Quart" size={13}/>:"1/8"}
       </div>
       <div style={rowStyle(j1,done&&match.gagnant_id===j1?.id)}>
         <span style={{fontSize:13,fontWeight:done&&match.gagnant_id===j1?.id?700:400}}>{j1?.nom||<span style={{color:CT.muted}}>À définir</span>}</span>
@@ -418,7 +419,7 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch})=>
       {!done&&!bye&&j1&&j2&&(
         <div style={{padding:"6px 10px",borderTop:`1px solid ${CT.border}`,display:"flex",gap:6}}>
           <Btn onClick={()=>onJouerMatch(match)} variant="primary" small style={{flex:1,fontSize:11}}>▶ Jouer</Btn>
-          {isCreateur&&<Btn onClick={()=>onSaisirScore(match)} variant="dark" small style={{fontSize:11}}>✏️</Btn>}
+          {isCreateur&&<Btn onClick={()=>onSaisirScore(match)} variant="dark" small style={{fontSize:11}}><EmoIcon e="✏️" size={12}/></Btn>}
         </div>
       )}
       {bye&&<div style={{padding:"4px 10px",fontSize:10,color:CT.muted}}>Bye automatique</div>}
@@ -439,7 +440,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
             return(
               <div key={r} style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
                 <div style={{fontSize:12,fontWeight:700,color:CT.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:4,textAlign:"center"}}>
-                  {phase==="finale"?"🏆 Finale":phase==="demi"?"Demi-finales":phase==="quart"?"Quarts":phase==="huitieme"?"Huitièmes":"Tour "+r}
+                  {phase==="finale"?<EmoText s="🏆 Finale" size={13}/>:phase==="demi"?"Demi-finales":phase==="quart"?"Quarts":phase==="huitieme"?"Huitièmes":"Tour "+r}
                 </div>
                 {rm.map(m=>(
                   <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch}/>
@@ -470,7 +471,7 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer})=>{
       {/* Podium */}
       {gagnant&&(
         <Card style={{textAlign:"center",marginBottom:16,background:"linear-gradient(135deg,#78350f22,#f97316)",border:`1px solid ${CT.yellow}`}}>
-          <div style={{fontSize:60,marginBottom:4}}>🏆</div>
+          <div style={{marginBottom:4,display:"flex",justifyContent:"center"}}><EmoIcon e="🏆" size={60} color="#fbbf24"/></div>
           <div style={{fontWeight:800,fontSize:24,color:CT.yellow}}>{gagnant.nom}</div>
           <div style={{color:CT.muted,fontSize:14}}>Champion du tournoi</div>
           {finale&&<div style={{marginTop:8,fontWeight:700,fontSize:18}}>{finale.gagnant_id===finale.joueur1_id?finale.score1:finale.score2} – {finale.gagnant_id===finale.joueur1_id?finale.score2:finale.score1}</div>}
@@ -480,10 +481,10 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer})=>{
 
       {/* Classement final */}
       <Card style={{marginBottom:16}}>
-        <h3 style={{fontWeight:700,fontSize:15,marginBottom:12}}>📋 Classement final</h3>
+        <h3 style={{fontWeight:700,fontSize:15,marginBottom:12}}><EmoText s="📋 Classement final" size={15}/></h3>
         {rankGroup(joueurs).map((j,i)=>(
           <div key={j.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:i===0?"#f9731614":i===1?"#94a3b814":i===2?"#f59e0b14":"transparent",borderRadius:8,marginBottom:4}}>
-            <span style={{fontSize:18}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":"·"}</span>
+            <span style={{fontSize:18,display:"inline-flex",justifyContent:"center",width:20}}>{i<3?<EmoIcon e={i===0?"🥇":i===1?"🥈":"🥉"} size={18}/>:"·"}</span>
             <span style={{flex:1,fontWeight:i<3?700:400}}>{j.nom}</span>
             <span style={{fontSize:12,color:CT.muted}}>{j.victoires}V {j.defaites}D</span>
             <span style={{fontWeight:700,color:CT.accent}}>{j.points} pts</span>
@@ -495,7 +496,7 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer})=>{
       {mvp&&(
         <Card style={{marginBottom:16,background:"#a78bfa11",border:`1px solid ${CT.purple}44`}}>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <span style={{fontSize:32}}>⭐</span>
+            <EmoIcon e="⭐" size={32} color="#fbbf24" fill="#fbbf24"/>
             <div>
               <div style={{fontWeight:700,fontSize:15,color:CT.purple}}>MVP du tournoi</div>
               <div style={{fontWeight:800,fontSize:18}}>{mvp.nom}</div>
@@ -507,7 +508,7 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer})=>{
 
       {/* Rejouer */}
       <Btn onClick={onRejouer} variant="ghost" style={{width:"100%",marginTop:8}}>
-        🔄 Rejouer avec les mêmes joueurs
+        <EmoIcon e="🔄" size={14} style={{verticalAlign:"-2px",marginRight:6}}/>Rejouer avec les mêmes joueurs
       </Btn>
     </div>
   );
@@ -707,15 +708,15 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <button onClick={()=>window.history.back()} style={{background:"none",border:"none",color:CT.muted,cursor:"pointer",fontSize:13,padding:0}}>← Retour</button>
           {isCreateur&&tournoi.statut!=="termine"&&(
-            <button onClick={supprimerTournoi} style={{background:"none",border:`1px solid ${CT.red}44`,color:CT.red,cursor:"pointer",fontSize:12,padding:"5px 12px",borderRadius:8,fontWeight:600}}>🗑 Supprimer</button>
+            <button onClick={supprimerTournoi} style={{background:"none",border:`1px solid ${CT.red}44`,color:CT.red,cursor:"pointer",fontSize:12,padding:"5px 12px",borderRadius:8,fontWeight:600,display:"inline-flex",alignItems:"center",gap:5}}><EmoIcon e="🗑" size={12}/>Supprimer</button>
           )}
         </div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
           <div>
-            <h1 style={{fontWeight:800,fontSize:22,marginBottom:4}}>🏓 {tournoi.nom}</h1>
+            <h1 style={{fontWeight:800,fontSize:22,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><EmoIcon e="🏓" size={20}/>{tournoi.nom}</h1>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              <Badge color={CT.blue}>{modeLabel}</Badge>
-              <Badge color={tournoi.statut==="termine"?CT.green:CT.yellow}>{statutLabel}</Badge>
+              <Badge color={CT.blue}><EmoText s={modeLabel} size={11}/></Badge>
+              <Badge color={tournoi.statut==="termine"?CT.green:CT.yellow}><EmoText s={statutLabel} size={11}/></Badge>
               <Badge color={CT.muted}>par {tournoi.createur_pseudo}</Badge>
             </div>
           </div>
@@ -763,11 +764,11 @@ const TournoiCard=({t,onOpen})=>{
       onMouseLeave={e=>e.currentTarget.style.borderColor=t.statut!=="termine"?CT.accent+"55":CT.border}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
         <div>
-          <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>🏓 {t.nom}</div>
+          <div style={{fontWeight:700,fontSize:15,marginBottom:4,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🏓" size={14}/>{t.nom}</div>
           <div style={{fontSize:12,color:CT.muted}}>{new Date(t.date).toLocaleDateString("fr-FR")} · {t.mode}</div>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          <Badge color={s}>{sl}</Badge>
+          <Badge color={s}><EmoText s={sl} size={11}/></Badge>
           {t.statut!=="termine"&&<span style={{fontSize:12,color:CT.accent,fontWeight:700}}>Reprendre →</span>}
         </div>
       </div>
@@ -817,14 +818,14 @@ export const TournoiPotesPage=({joueur,setPage})=>{
     <div style={{maxWidth:700,margin:"0 auto",padding:"24px 16px"}}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <div style={{marginBottom:20}}>
-        <h1 style={{fontWeight:800,fontSize:24,marginBottom:6}}>🍺 Tournoi entre potes</h1>
+        <h1 style={{fontWeight:800,fontSize:24,marginBottom:6}}><EmoText s="🍺 Tournoi entre potes" size={22} gap={8}/></h1>
         <p style={{color:CT.muted,fontSize:14}}>Mode local et convivial — sans impact sur les stats DRIX</p>
       </div>
 
       {/* Onglets principaux */}
       <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
         {[["liste","📋 Mes tournois"],["creer","➕ Créer"]].map(([v,l])=>(
-          <button key={v} onClick={()=>setVue(v)} style={{background:vue===v?CT.accent+"22":"transparent",color:vue===v?CT.accent:CT.muted,border:`1px solid ${vue===v?CT.accent:CT.border}`,cursor:"pointer",padding:"8px 16px",borderRadius:8,fontSize:13,fontWeight:600}}>{l}</button>
+          <button key={v} onClick={()=>setVue(v)} style={{background:vue===v?CT.accent+"22":"transparent",color:vue===v?CT.accent:CT.muted,border:`1px solid ${vue===v?CT.accent:CT.border}`,cursor:"pointer",padding:"8px 16px",borderRadius:8,fontSize:13,fontWeight:600}}><EmoText s={l} size={13}/></button>
         ))}
       </div>
 
@@ -838,10 +839,10 @@ export const TournoiPotesPage=({joueur,setPage})=>{
               {/* Sous-onglets En cours / Passés */}
               <div style={{display:"flex",gap:6,marginBottom:16,background:"#111",borderRadius:10,padding:4}}>
                 <button onClick={()=>setFiltre("en_cours")} style={{flex:1,background:filtre==="en_cours"?CT.card:"transparent",color:filtre==="en_cours"?CT.accent:CT.muted,border:"none",cursor:"pointer",padding:"8px 12px",borderRadius:8,fontSize:13,fontWeight:600,transition:"all .15s"}}>
-                  ⚡ En cours {enCours.length>0&&<span style={{background:CT.accent,color:"#fff",borderRadius:20,padding:"1px 7px",fontSize:11,marginLeft:4}}>{enCours.length}</span>}
+                  <EmoIcon e="⚡" size={13} style={{verticalAlign:"-2px",marginRight:4}}/>En cours {enCours.length>0&&<span style={{background:CT.accent,color:"#fff",borderRadius:20,padding:"1px 7px",fontSize:11,marginLeft:4}}>{enCours.length}</span>}
                 </button>
                 <button onClick={()=>setFiltre("passes")} style={{flex:1,background:filtre==="passes"?CT.card:"transparent",color:filtre==="passes"?CT.text:CT.muted,border:"none",cursor:"pointer",padding:"8px 12px",borderRadius:8,fontSize:13,fontWeight:600,transition:"all .15s"}}>
-                  🏆 Passés {passes.length>0&&<span style={{background:CT.border,color:CT.muted,borderRadius:20,padding:"1px 7px",fontSize:11,marginLeft:4}}>{passes.length}</span>}
+                  <EmoIcon e="🏆" size={13} style={{verticalAlign:"-2px",marginRight:4}}/>Passés {passes.length>0&&<span style={{background:CT.border,color:CT.muted,borderRadius:20,padding:"1px 7px",fontSize:11,marginLeft:4}}>{passes.length}</span>}
                 </button>
               </div>
 
@@ -874,12 +875,12 @@ export const TournoiPotesPage=({joueur,setPage})=>{
                 <label style={{fontSize:13,color:CT.muted,fontWeight:500,display:"block",marginBottom:6}}>Mode de jeu</label>
                 <div style={{display:"flex",gap:8}}>
                   {["501","301"].map(m=>(
-                    <button key={m} onClick={()=>setForm(f=>({...f,mode:m}))} style={{flex:1,padding:"10px",borderRadius:8,border:`2px solid ${form.mode===m?CT.accent:CT.border}`,background:form.mode===m?CT.accent+"22":"#111",color:form.mode===m?CT.accent:CT.muted,cursor:"pointer",fontWeight:700,fontSize:15}}>🎯 {m}</button>
+                    <button key={m} onClick={()=>setForm(f=>({...f,mode:m}))} style={{flex:1,padding:"10px",borderRadius:8,border:`2px solid ${form.mode===m?CT.accent:CT.border}`,background:form.mode===m?CT.accent+"22":"#111",color:form.mode===m?CT.accent:CT.muted,cursor:"pointer",fontWeight:700,fontSize:15,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:5}}><EmoIcon e="🎯" size={14}/>{m}</button>
                   ))}
                 </div>
               </div>
               <Btn onClick={creerTournoi} disabled={!form.nom.trim()||creating} style={{marginTop:4}}>
-                {creating?"Création…":"🚀 Créer le tournoi"}
+                {creating?"Création…":<EmoText s="🚀 Créer le tournoi" size={15}/>}
               </Btn>
             </div>
           )}
