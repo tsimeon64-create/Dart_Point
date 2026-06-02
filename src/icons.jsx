@@ -3,14 +3,14 @@
 // Les emojis "fun" sans équivalent Lucide (🍌🤡💩🎪🐟🍀😂🎊…) retombent en emoji.
 import {
   Target, Crosshair, Trophy, Flame, Zap, Swords, Gamepad2, BarChart2, TrendingUp, TrendingDown,
-  Gem, Star, Crown, Sparkles, Medal, Users, User, Beer, MapPin, Cake, Check, X,
+  Gem, Star, Crown, Sparkles, Medal, Users, User, Beer, MapPin, Pin, Cake, Check, X,
   AlertTriangle, Lock, Key, Search, Settings, LogOut, Camera, MessageCircle, Mail, Pencil, Trash2, Plus,
   Save, Hourglass, Clock, ClipboardList, FileText, Home, Brain, Rocket, Link2, RotateCcw, Undo2,
   Play, Pause, Square, Skull, Snowflake, Turtle, Frown, Activity, CircleSlash, Shield, Bomb, Sprout,
   Dices, Scale, Moon, HeartCrack, Circle, HelpCircle, Bug, Calculator, Hash, Lightbulb, Handshake,
   Calendar, Building2, Globe, ArrowLeft, ArrowRight, ArrowLeftRight, ArrowUp, ArrowDown, Palette,
-  Delete, Hand, Ban, Eye, Megaphone, Smile, PartyPopper, Heart, ThumbsUp, Send,
-  Flag, Smartphone, BookOpen,
+  Delete, Hand, Ban, Eye, EyeOff, Megaphone, Smile, PartyPopper, Heart, ThumbsUp, Send,
+  Flag, Smartphone, BookOpen, Phone, Plug, Newspaper, Map, Menu, Timer, ChevronDown, ChevronUp,
 } from "lucide-react";
 
 // Map emoji → composant Lucide. Tout emoji absent de la map reste affiché en emoji (secours).
@@ -28,12 +28,14 @@ export const EMOJI_ICON = {
   // Social / utilisateurs
   "👥": Users, "🫂": Users, "👤": User, "🤝": Handshake, "🧑‍🤝‍🧑": Users, "🧑": User,
   // Lieux
-  "🍺": Beer, "🍻": Beer, "📍": MapPin, "🏠": Home, "🏛️": Building2, "🌍": Globe, "🌐": Globe,
+  "🍺": Beer, "🍻": Beer, "📍": MapPin, "📌": Pin, "🏠": Home, "🏛️": Building2, "🌍": Globe, "🌐": Globe,
+  "📞": Phone, "☎️": Phone, "☎": Phone, "🔌": Plug, "📰": Newspaper, "🗺️": Map, "🗺": Map, "☰": Menu,
   // Statuts / validation
   "✅": Check, "✔️": Check, "✔": Check, "✓": Check, "❌": X, "✕": X, "✖️": X, "❎": X,
   "⚠️": AlertTriangle, "🚫": Ban, "❔": HelpCircle, "❓": HelpCircle,
   // Sécurité / compte
-  "🔒": Lock, "🔐": Lock, "🔑": Key, "🚪": LogOut, "🔍": Search, "⚙️": Settings,
+  "🔒": Lock, "🔐": Lock, "🔑": Key, "🚪": LogOut, "🔍": Search, "🔎": Search, "⚙️": Settings,
+  "🕵️": EyeOff, "🕵": EyeOff, "🕵️‍♂️": EyeOff, "🕵️‍♀️": EyeOff,
   // Actions / édition
   "📸": Camera, "📷": Camera, "💬": MessageCircle, "✉️": Mail, "📧": Mail, "✏️": Pencil, "🗑️": Trash2, "🗑": Trash2,
   "➕": Plus, "💾": Save, "🔗": Link2, "🔄": RotateCcw, "↩️": Undo2, "↩": Undo2,
@@ -41,12 +43,13 @@ export const EMOJI_ICON = {
   "🔁": RotateCcw, "🔃": RotateCcw, "💪": Flame,
   // Temps
   "⏳": Hourglass, "⏰": Clock, "🕐": Clock, "🕑": Clock, "📆": Calendar, "🗓️": Calendar, "📅": Calendar,
+  "⏱": Timer, "⏱️": Timer, "⏲️": Timer, "⏲": Timer, "▼": ChevronDown, "▲": ChevronUp,
   // Listes / docs / aide
   "📋": ClipboardList, "📜": FileText, "📝": FileText, "🧠": Brain, "💡": Lightbulb,
   // Profil / forme / analyse
   "🌱": Sprout, "🧊": Snowflake, "❄️": Snowflake, "🐢": Turtle, "🐌": Turtle,
   "😰": Frown, "😬": Frown, "😴": Moon, "💔": HeartCrack, "🕳️": CircleSlash,
-  "⚖️": Scale, "🟢": Circle, "🔴": Circle, "🟡": Circle, "🚀": Rocket, "🎨": Palette,
+  "⚖️": Scale, "🟢": Circle, "🔴": Circle, "🟡": Circle, "🟠": Circle, "🔵": Circle, "🟣": Circle, "🚀": Rocket, "🎨": Palette, "🏢": Building2,
   // Drapeaux / divers
   "🏳️": Flag, "🏳": Flag, "🏴": Flag, "🏁": Flag, "📱": Smartphone, "📲": Smartphone, "📘": BookOpen, "📖": BookOpen,
   // Maths / chiffres

@@ -247,7 +247,7 @@ const Btn = ({ children, onClick, variant="primary", style={}, disabled=false })
   };
   const variantStyle = variants[variant];
   const disabledStyle = disabled ? { background:"#2a2a2a", color:"#64748b", border:"1px solid #333", opacity:.6 } : {};
-  return <button onClick={disabled?undefined:onClick} style={{ cursor:disabled?"not-allowed":"pointer",borderRadius:8,fontWeight:600,fontSize:14,padding:"10px 20px",transition:"all .15s",touchAction:"manipulation",minHeight:40,...variantStyle,...disabledStyle,...style }}>{children}</button>;
+  return <button onClick={disabled?undefined:onClick} style={{ cursor:disabled?"not-allowed":"pointer",borderRadius:8,fontWeight:600,fontSize:14,padding:"10px 20px",transition:"all .15s",touchAction:"manipulation",minHeight:40,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,...variantStyle,...disabledStyle,...style }}>{typeof children==="string"?<EmoText s={children}/>:children}</button>;
 };
 
 const Field = ({ label, value, onChange, placeholder, type="text", as="input", options }) => (
@@ -465,7 +465,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                     {/* Mini profil top */}
                     <div style={{ padding:"12px 14px 10px", borderBottom:"1px solid #1a1a28", display:"flex", alignItems:"center", gap:10 }}>
                       <div style={{ width:36, height:36, borderRadius:"50%", border:`2px solid ${drixColor}66`, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                        {joueur.photo ? <img src={joueur.photo} style={{ width:"100%",height:"100%",objectFit:"cover" }} alt=""/> : <span style={{ fontSize:18 }}>👤</span>}
+                        {joueur.photo ? <img src={joueur.photo} style={{ width:"100%",height:"100%",objectFit:"cover" }} alt=""/> : <EmoIcon e="👤" size={18}/>}
                       </div>
                       <div style={{ minWidth:0 }}>
                         <div style={{ fontWeight:800, fontSize:13, color:"#f1f5f9", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{joueur.pseudo}</div>
@@ -731,7 +731,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                   const score = (d.score_challenger != null && d.score_defie != null) ? `${d.score_challenger}-${d.score_defie}` : null;
                   return (
                     <div key={i} style={{ display:"flex",alignItems:"center",gap:9,padding:"7px 10px",background:"#0b0b10",borderRadius:10,border:"1px solid #1a1a24" }}>
-                      <span style={{ fontSize:13,flexShrink:0 }}>🏆</span>
+                      <EmoIcon e="🏆" size={13} style={{ flexShrink:0 }}/>
                       <div style={{ flex:1,minWidth:0 }}>
                         <span style={{ fontSize:12,color:"#d1d5db",fontWeight:600 }}>{winner}</span>
                         <span style={{ fontSize:11,color:"#374151" }}> a gagné</span>
@@ -782,7 +782,7 @@ const BarCard = ({ bar, onClick, barsActifs=[], dist }) => {
           {bar.ville}{bar.adresse?` · ${bar.adresse}`:""}
         </div>
         <div style={{ display:"flex",gap:5,flexWrap:"wrap" }}>
-          {bar.cibles != null && <span style={{ background:"#a78bfa18",color:"#a78bfa",border:"1px solid #a78bfa33",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>🎯 {bar.cibles} cible{bar.cibles>1?"s":""}</span>}
+          {bar.cibles != null && <span style={{ background:"#a78bfa18",color:"#a78bfa",border:"1px solid #a78bfa33",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,display:"inline-flex",alignItems:"center",gap:3 }}><EmoIcon e="🎯" size={10}/>{bar.cibles} cible{bar.cibles>1?"s":""}</span>}
           {bar.tournois&&<span style={{ background:C.green+"18",color:C.green,border:`1px solid ${C.green}33`,fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}><EmoText s="🏆 Tournois" size={9} gap={4}/></span>}
           {bar.association&&<span style={{ background:"#7c3aed18",color:"#a78bfa",border:"1px solid #7c3aed33",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}><EmoText s="👥 Asso" size={9} gap={4}/></span>}
           <span style={{ background:ti.color+"18",color:ti.color,border:`1px solid ${ti.color}33`,fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>{ti.l}</span>
@@ -837,7 +837,7 @@ const GalerieSection = ({ slug, type="bar", isAdmin }) => {
         <div onClick={()=>setLightbox(null)} style={{ position:"fixed",inset:0,background:"#000d",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out" }}>
           <div style={{ position:"relative",maxWidth:"90vw" }}>
             <img src={photos[lightbox]?.data} alt="" style={{ maxWidth:"90vw",maxHeight:"85vh",borderRadius:10,objectFit:"contain" }}/>
-            <div style={{ textAlign:"center",color:"#aaa",fontSize:12,marginTop:8 }}>📷 {photos[lightbox]?.pseudo}</div>
+            <div style={{ textAlign:"center",color:"#aaa",fontSize:12,marginTop:8,display:"flex",alignItems:"center",justifyContent:"center",gap:4 }}><EmoIcon e="📷" size={11}/>{photos[lightbox]?.pseudo}</div>
             {photos.length>1&&<>
               <button onClick={e=>{e.stopPropagation();setLightbox((lightbox-1+photos.length)%photos.length);}} style={{ position:"absolute",left:-44,top:"50%",transform:"translateY(-50%)",background:"#fff2",border:"none",color:"#fff",fontSize:24,cursor:"pointer",borderRadius:6,padding:"4px 10px" }}>‹</button>
               <button onClick={e=>{e.stopPropagation();setLightbox((lightbox+1)%photos.length);}} style={{ position:"absolute",right:-44,top:"50%",transform:"translateY(-50%)",background:"#fff2",border:"none",color:"#fff",fontSize:24,cursor:"pointer",borderRadius:6,padding:"4px 10px" }}>›</button>
@@ -854,12 +854,12 @@ const GalerieSection = ({ slug, type="bar", isAdmin }) => {
         </div>
       </div>
       {loading?<Spinner/>:photos.length===0
-        ?<div style={{ textAlign:"center",padding:"28px",background:C.card,border:`1px dashed ${C.border}`,borderRadius:12 }}><div style={{ fontSize:32,marginBottom:8 }}>📷</div><p style={{ color:C.muted,fontSize:13 }}>Aucune photo pour l'instant.</p></div>
+        ?<div style={{ textAlign:"center",padding:"28px",background:C.card,border:`1px dashed ${C.border}`,borderRadius:12 }}><div style={{ marginBottom:8,display:"flex",justifyContent:"center" }}><EmoIcon e="📷" size={32} color={C.muted}/></div><p style={{ color:C.muted,fontSize:13 }}>Aucune photo pour l'instant.</p></div>
         :<div style={{ columns:"repeat(auto-fill, minmax(140px, 1fr))",gap:10 }}>
           {photos.map((p,i)=>(
             <div key={p.id} style={{ breakInside:"avoid",marginBottom:10,position:"relative",borderRadius:10,overflow:"hidden",cursor:"zoom-in",border:`1px solid ${C.border}` }} onClick={()=>setLightbox(i)}>
               <img src={p.data} alt="" style={{ width:"100%",display:"block" }}/>
-              <div style={{ position:"absolute",bottom:0,left:0,right:0,background:"linear-gradient(transparent,#000a)",padding:"14px 8px 5px",fontSize:11,color:"#ccc" }}>📷 {p.pseudo}</div>
+              <div style={{ position:"absolute",bottom:0,left:0,right:0,background:"linear-gradient(transparent,#000a)",padding:"14px 8px 5px",fontSize:11,color:"#ccc",display:"flex",alignItems:"center",gap:4 }}><EmoIcon e="📷" size={11}/>{p.pseudo}</div>
               {isAdmin&&<button onClick={e=>{e.stopPropagation();deletePhoto(p.id);setPhotos(x=>x.filter(y=>y.id!==p.id));}} style={{ position:"absolute",top:5,right:5,background:"#000a",border:"none",color:C.red,cursor:"pointer",borderRadius:5,padding:"2px 6px",fontSize:11 }}><EmoIcon e="🗑" size={12}/></button>}
             </div>
           ))}
@@ -928,14 +928,14 @@ const AvisSection = ({ barSlug, isAdmin }) => {
       :avis.map(a=>(
         <div key={a.id} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:14,marginBottom:10 }}>
           <div style={{ display:"flex",justifyContent:"space-between",marginBottom:6,flexWrap:"wrap",gap:6 }}>
-            <span style={{ fontWeight:600,fontSize:13 }}>👤 {a.pseudo}</span>
+            <span style={{ fontWeight:600,fontSize:13,display:"inline-flex",alignItems:"center",gap:4 }}><EmoIcon e="👤" size={12}/>{a.pseudo}</span>
             <span style={{ color:C.muted,fontSize:11 }}>{new Date(a.date).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"})}</span>
           </div>
           {a.reactions?.length>0&&<div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:6 }}>{a.reactions.map(rid=>{const r=REACTIONS_LIST.find(x=>x.id===rid);return r?<span key={rid} style={{ background:C.accent+"22",color:C.accent,borderRadius:20,padding:"2px 9px",fontSize:11 }}><EmoIcon e={r.emoji} size={12} style={{verticalAlign:"-2px",marginRight:4}}/>{r.label}</span>:null;})}</div>}
           {a.texte&&<p style={{ color:"#cbd5e1",fontSize:13,lineHeight:1.6,marginBottom:6 }}>{a.texte}</p>}
           <div style={{ display:"flex",gap:8 }}>
             {!isAdmin&&<button onClick={()=>{db.updateAvis(a.id,{signale:true});}} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:11,padding:0 }}><EmoIcon e="⚠️" size={11} style={{verticalAlign:"-2px",marginRight:3}}/>Signaler</button>}
-            {isAdmin&&<button onClick={()=>{db.deleteAvis(a.id);setAvis(x=>x.filter(y=>y.id!==a.id));}} style={{ background:"none",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"2px 8px" }}>🗑</button>}
+            {isAdmin&&<button onClick={()=>{db.deleteAvis(a.id);setAvis(x=>x.filter(y=>y.id!==a.id));}} style={{ background:"none",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"2px 8px" }}><EmoIcon e="🗑" size={12}/></button>}
           </div>
         </div>
       ))}
@@ -957,12 +957,12 @@ const AvisAdminSection = () => {
   };
   return (
     <div>
-      <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:C.yellow }}>💬 Avis en attente ({avis.length})</h3>
-      {loading?<Spinner/>:avis.length===0?<p style={{ color:C.muted,textAlign:"center",padding:30 }}>✅ Aucun avis en attente.</p>
+      <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:C.yellow }}><EmoText s="💬 Avis en attente" size={15}/> ({avis.length})</h3>
+      {loading?<Spinner/>:avis.length===0?<p style={{ color:C.muted,textAlign:"center",padding:30 }}><EmoText s="✅ Aucun avis en attente."/></p>
       :avis.map(a=>(
         <div key={a.id} style={{ background:C.card,border:`1px solid ${C.yellow}33`,borderRadius:10,padding:14,marginBottom:10 }}>
           <div style={{ display:"flex",justifyContent:"space-between",marginBottom:6,flexWrap:"wrap" }}>
-            <span style={{ fontWeight:600,fontSize:13 }}>👤 {a.pseudo} — <span style={{ color:C.muted,fontSize:11 }}>{a.bar_slug}</span></span>
+            <span style={{ fontWeight:600,fontSize:13,display:"inline-flex",alignItems:"center",gap:4 }}><EmoIcon e="👤" size={12}/>{a.pseudo} — <span style={{ color:C.muted,fontSize:11 }}>{a.bar_slug}</span></span>
             <span style={{ color:C.muted,fontSize:11 }}>{new Date(a.date).toLocaleDateString("fr-FR")}</span>
           </div>
           {a.texte&&<p style={{ color:"#cbd5e1",fontSize:13,background:"#111",padding:"8px 12px",borderRadius:8,marginBottom:8 }}>{a.texte}</p>}
@@ -993,8 +993,8 @@ const AdminPhotos = () => {
   const rejeter = async (ph) => { if(!window.confirm("Rejeter (supprimer) cette photo ?"))return; try { await (ph._kind==="asso"?db.deletePhotoAsso(ph.id):db.deletePhoto(ph.id)); drop(ph); } catch(e){ alert("Erreur : "+e.message); } };
   return (
     <div>
-      <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:C.yellow }}>📸 Photos en attente ({photos.length})</h3>
-      {loading ? <Spinner/> : photos.length===0 ? <p style={{ color:C.muted,textAlign:"center",padding:30 }}>✅ Aucune photo en attente.</p>
+      <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:C.yellow }}><EmoText s="📸 Photos en attente" size={15}/> ({photos.length})</h3>
+      {loading ? <Spinner/> : photos.length===0 ? <p style={{ color:C.muted,textAlign:"center",padding:30 }}><EmoText s="✅ Aucune photo en attente."/></p>
       : <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:12 }}>
           {photos.map(ph=>(
             <div key={ph._kind+ph.id} style={{ background:C.card,border:`1px solid ${C.yellow}33`,borderRadius:10,overflow:"hidden" }}>
@@ -1020,7 +1020,7 @@ const SignalForm = ({ barSlug, barNom, onClose }) => {
   if (sent) return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"#000a",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:32,maxWidth:420,width:"90%",textAlign:"center" }}>
-        <div style={{ fontSize:44,marginBottom:10 }}>✅</div><h3 style={{ fontWeight:700,marginBottom:8 }}>Signalement envoyé !</h3>
+        <div style={{ marginBottom:10,display:"flex",justifyContent:"center" }}><EmoIcon e="✅" size={44} color={C.accent}/></div><h3 style={{ fontWeight:700,marginBottom:8 }}>Signalement envoyé !</h3>
         <Btn onClick={onClose}>Fermer</Btn>
       </div>
     </div>
@@ -1029,7 +1029,7 @@ const SignalForm = ({ barSlug, barNom, onClose }) => {
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"#000a",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:28,maxWidth:440,width:"90%",position:"relative" }}>
         <button onClick={onClose} aria-label="Fermer" style={{ position:"absolute",top:10,right:10,background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer",lineHeight:1,padding:"4px 8px" }}><X size={18}/></button>
-        <h3 style={{ fontWeight:700,marginBottom:4 }}>⚠️ Signaler une erreur — {barNom}</h3>
+        <h3 style={{ fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:6 }}><EmoIcon e="⚠️" size={16} color={C.yellow}/>Signaler une erreur — {barNom}</h3>
         <div style={{ display:"flex",flexDirection:"column",gap:12,marginTop:14 }}>
           <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>{types.map(([v,l])=><button key={v} onClick={()=>setType(v)} style={{ background:type===v?C.accent+"33":"#111",border:`1px solid ${type===v?C.accent:C.border}`,borderRadius:20,padding:"5px 12px",cursor:"pointer",fontSize:12,color:type===v?C.accent:C.muted }}><EmoText s={l}/></button>)}</div>
           <textarea value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Décrivez l'erreur…" rows={4} style={{ background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:13,resize:"vertical" }}/>
@@ -1200,7 +1200,7 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
                 <label key={b.slug} style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 12px", borderRadius:10, cursor:"pointer", background:checked?`${C.accent}14`:"#ffffff06", border:`1px solid ${checked?C.accent+"55":C.border}`, transition:"all .15s" }}>
                   <input type="checkbox" checked={checked} onChange={()=>toggleBar(b)} style={{ accentColor:C.accent, width:18, height:18, flexShrink:0 }}/>
                   <span style={{ fontWeight:checked?700:400, fontSize:14, flex:1 }}>{b.nom}</span>
-                  <span style={{ fontSize:12, color:C.muted }}>📍 {b.ville}</span>
+                  <span style={{ fontSize:12, color:C.muted,display:"inline-flex",alignItems:"center",gap:3 }}><EmoIcon e="📍" size={11}/>{b.ville}</span>
                 </label>
               );
             })}
@@ -1210,7 +1210,7 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
               {selectedBars.map(ref=>{ const label=allBars.find(x=>x.slug===ref||x.nom===ref)?.nom||ref; return (
                 <span key={ref} style={{ background:`${C.accent}22`, border:`1px solid ${C.accent}44`, borderRadius:20, padding:"4px 12px", fontSize:12, fontWeight:600, color:C.accent, display:"flex", alignItems:"center", gap:6 }}>
                   {label}
-                  <span onClick={()=>toggleBar(ref)} style={{ cursor:"pointer", opacity:.7, fontSize:14 }}>✕</span>
+                  <span onClick={()=>toggleBar(ref)} style={{ cursor:"pointer", opacity:.7, display:"inline-flex" }}><X size={14}/></span>
                 </span>
               );})}
             </div>
@@ -1629,7 +1629,7 @@ const JoueurSelectCard = ({ j, selected, onSelect, disabled }) => {
         <div style={{ fontWeight:700,fontSize:14 }}>{j.pseudo}</div>
         <div style={{ fontSize:11,color,marginTop:1,display:"flex",alignItems:"center",gap:4 }}><RankIcon drix={j.drix||1000} size={11}/>{j.drix||1000} DRIX</div>
       </div>
-      {selected&&<span style={{ color:C.accent,fontSize:20,fontWeight:700 }}>✓</span>}
+      {selected&&<Check size={18} color={C.accent}/>}
     </div>
   );
 };
@@ -2637,7 +2637,7 @@ const PageDefi = ({ joueur, setPage }) => {
             {/* ── Résultats amis ── */}
             {(amis.length === 0 && !q) ? (
               <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"32px 24px",textAlign:"center",marginBottom:16 }}>
-                <div style={{ fontSize:32,marginBottom:10 }}>🎯</div>
+                <div style={{ marginBottom:10,display:"flex",justifyContent:"center" }}><EmoIcon e="🎯" size={32} color={C.accent}/></div>
                 <p style={{ color:C.muted,fontSize:14,marginBottom:8,fontWeight:600 }}>Aucun ami sur DartPoint</p>
                 <p style={{ color:C.muted,fontSize:12 }}>Recherche un joueur ci-dessus pour l'ajouter !</p>
               </div>
@@ -2893,7 +2893,7 @@ const PageDefi = ({ joueur, setPage }) => {
                     </div>
                   </div>
                   <div style={{ marginTop:14,textAlign:"center",padding:"8px 12px",background:"rgba(168,85,247,0.08)",borderRadius:12,border:"1px solid rgba(168,85,247,0.18)" }}>
-                    <span style={{ fontSize:11,color:"#d8b4fe",fontWeight:600 }}>⚡ Aucun risque — tente ta chance !</span>
+                    <span style={{ fontSize:11,color:"#d8b4fe",fontWeight:600 }}><EmoText s="⚡ Aucun risque — tente ta chance !" size={11}/></span>
                   </div>
                 </div>
 
@@ -2924,7 +2924,7 @@ const PageDefi = ({ joueur, setPage }) => {
                       )}
                     </>) : (
                       <div style={{ textAlign:"center",padding:"10px 0" }}>
-                        <div style={{ fontSize:22,marginBottom:6 }}>🎯</div>
+                        <div style={{ marginBottom:6,display:"flex",justifyContent:"center" }}><EmoIcon e="🎯" size={22} color="#64748b"/></div>
                         <div style={{ fontSize:12,color:"#64748b",fontWeight:600 }}>Premier affrontement</div>
                         <div style={{ fontSize:11,color:"#334155",marginTop:2 }}>Écris l'histoire !</div>
                       </div>
@@ -3662,17 +3662,17 @@ const ChronoFinishPost = ({ p, info, C, cardBase, joueur, likesMap, commentsMap,
         {/* Stats compactes — chips horizontales fines */}
         <div style={{ display:"flex", gap:6, marginBottom:8 }}>
           <div style={{ flex:1, background:"#001a14", border:"1px solid #22c55e33", borderRadius:8, padding:"5px 8px", display:"flex", alignItems:"center", gap:5 }}>
-            <span style={{ fontSize:11 }}>🎯</span>
+            <EmoIcon e="🎯" size={11} color="#22c55e"/>
             <span style={{ fontSize:10, fontWeight:900, color:"#22c55e" }}>5/5</span>
             <span style={{ fontSize:9, color:"#16a34a", marginLeft:"auto", opacity:.7 }}>finishes</span>
           </div>
           <div style={{ flex:1, background: info.erreurs===0?"#001a14":info.erreurs<=2?"#1a1200":"#1a0a0a", border:`1px solid ${errCol}33`, borderRadius:8, padding:"5px 8px", display:"flex", alignItems:"center", gap:5 }}>
-            <span style={{ fontSize:11 }}>{errEmoji}</span>
+            <EmoIcon e={errEmoji} size={11} color={errCol}/>
             <span style={{ fontSize:10, fontWeight:900, color:errCol }}>{info.erreurs}</span>
             <span style={{ fontSize:9, color:errCol, marginLeft:"auto", opacity:.7 }}>err.</span>
           </div>
           <div style={{ flex:1, background:"#0a0814", border:"1px solid #60a5fa44", borderRadius:8, padding:"5px 8px", display:"flex", alignItems:"center", gap:5, boxShadow:"0 0 6px rgba(96,165,250,0.15)" }}>
-            <span style={{ fontSize:11 }}>💎</span>
+            <EmoIcon e="💎" size={11} color="#60a5fa"/>
             <span style={{ fontSize:10, fontWeight:900, color:"#60a5fa" }}>+{info.drix}</span>
             <span style={{ fontSize:9, color:"#60a5fa", marginLeft:"auto", opacity:.7 }}>DRIX</span>
           </div>
@@ -3773,7 +3773,7 @@ const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepu
         }}>
           {/* Shine balayage */}
           <div style={{ position:"absolute", top:0, left:0, bottom:0, width:100, background:"linear-gradient(90deg,transparent,#fffacc44,transparent)", animation:"vainqShine 3.5s ease-in-out infinite", pointerEvents:"none" }}/>
-          <div style={{ fontSize:10, fontWeight:900, color:"#fbbf24", letterSpacing:5, marginBottom:8, textTransform:"uppercase" }}>🏆 Temps Champion</div>
+          <div style={{ fontSize:10, fontWeight:900, color:"#fbbf24", letterSpacing:5, marginBottom:8, textTransform:"uppercase" }}><EmoText s="🏆 Temps Champion" size={11} gap={4}/></div>
           <div style={{
             fontSize:54, fontWeight:900, lineHeight:1,
             background:"linear-gradient(135deg,#fde047 0%,#fbbf24 40%,#f97316 100%)",
@@ -3787,10 +3787,10 @@ const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepu
 
         {/* Message de domination */}
         <div style={{ background:"linear-gradient(135deg,#1a1200,#0a0500)", border:"1px solid #fbbf2466", borderRadius:12, padding:"10px 14px", marginBottom:10, display:"flex", alignItems:"center", gap:10 }}>
-          <span style={{ fontSize:22 }}>🔥</span>
+          <EmoIcon e="🔥" size={22} color="#fbbf24"/>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontSize:13, fontWeight:900, color:"#fbbf24" }}>Meilleur temps du jour</div>
-            <div style={{ fontSize:11, color:"#a16207" }}>Personne n'a fait mieux ! 🏆</div>
+            <div style={{ fontSize:11, color:"#a16207",display:"flex",alignItems:"center",gap:4 }}>Personne n'a fait mieux !<EmoIcon e="🏆" size={11}/></div>
           </div>
           <div style={{ background:"linear-gradient(135deg,#fbbf24,#f97316)", color:"#3b1f00", padding:"4px 10px", borderRadius:8, fontSize:11, fontWeight:900, letterSpacing:.5, boxShadow:"0 2px 8px rgba(251,191,36,0.4)", whiteSpace:"nowrap" }}>
             +{info.drix} DRIX
@@ -4012,7 +4012,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
           {/* Timeline manches — intégrée avec label */}
           {totalManches > 0 && manches.length > 0 && (
             <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${themeMain}33` }}>
-              <div style={{ fontSize:9, fontWeight:800, color:"#64748b", letterSpacing:2, marginBottom:8, textAlign:"center", textTransform:"uppercase" }}>🎯 Déroulé du match</div>
+              <div style={{ fontSize:9, fontWeight:800, color:"#64748b", letterSpacing:2, marginBottom:8, textAlign:"center", textTransform:"uppercase", display:"flex", alignItems:"center", justifyContent:"center" }}><EmoText s="🎯 Déroulé du match" size={10} gap={4}/></div>
               <div style={{ display:"flex", justifyContent:"center", gap:6 }}>
                 {manches.map((m, i) => {
                   const won = m.winner === w.nom;
@@ -4061,7 +4061,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
         {/* Indicateur AMICAL — remplace les DRIX */}
         {isAmical && (
           <div style={{ display:"flex", alignItems:"center", gap:12, background:"linear-gradient(135deg,#0a1428,#050b1a)", border:"1px solid #60a5fa44", borderRadius:14, padding:"12px 14px", marginBottom:14 }}>
-            <span style={{ fontSize:22 }}>🤝</span>
+            <EmoIcon e="🤝" size={22} color="#60a5fa"/>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:11, fontWeight:900, color:"#60a5fa", letterSpacing:1.5, marginBottom:2 }}>PARTIE AMICALE</div>
               <div style={{ fontSize:12, color:"#94a3b8" }}>Aucun DRIX en jeu · Match comptabilisé dans les stats</div>
@@ -4081,24 +4081,24 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
             {/* Shine balayage discret */}
             <div style={{ position:"absolute", top:0, left:0, bottom:0, width:80, background:"linear-gradient(90deg,transparent,#a78bfa22,transparent)", animation:"duelShine 5s ease-in-out infinite 1s", pointerEvents:"none" }}/>
             <div style={{ position:"relative", fontSize:10, fontWeight:900, color:"#c4b5fd", letterSpacing:2.5, marginBottom:8, textTransform:"uppercase", display:"flex", alignItems:"center", gap:6 }}>
-              📌 Highlights du match
+              <EmoIcon e="📌" size={11} color="#c4b5fd"/>Highlights du match
             </div>
             <div style={{ position:"relative", display:"flex", gap:8, flexWrap:"wrap" }}>
               {bestFinish > 0 && (
                 <div style={{ display:"flex", alignItems:"center", gap:7, background:"linear-gradient(135deg,#2a0d4a,#1a0030)", border:"1px solid #a78bfa88", borderRadius:10, padding:"6px 11px", fontSize:12, boxShadow:"0 0 14px rgba(168,85,247,0.30), inset 0 1px 0 rgba(168,85,247,0.30)" }}>
-                  <span style={{ fontSize:14 }}>🎯</span>
+                  <EmoIcon e="🎯" size={14} color="#c4b5fd"/>
                   <span style={{ color:"#c4b5fd", fontWeight:900, textShadow:"0 0 6px #a78bfa" }}>Finish {bestFinish}</span>
                 </div>
               )}
               {all180 > 0 && (
                 <div style={{ display:"flex", alignItems:"center", gap:7, background:"linear-gradient(135deg,#451a03,#1a0a00)", border:"1px solid #f9731688", borderRadius:10, padding:"6px 11px", fontSize:12, boxShadow:"0 0 14px rgba(249,115,22,0.28), inset 0 1px 0 rgba(249,115,22,0.30)" }}>
-                  <span style={{ fontSize:14 }}>💥</span>
+                  <EmoIcon e="💥" size={14} color="#fdba74"/>
                   <span style={{ color:"#fdba74", fontWeight:900, textShadow:"0 0 6px #f97316" }}>{all180}×180</span>
                 </div>
               )}
               {bestVolee >= 100 && bestVolee < 180 && (
                 <div style={{ display:"flex", alignItems:"center", gap:7, background:"linear-gradient(135deg,#451a03,#1a1200)", border:"1px solid #fbbf2488", borderRadius:10, padding:"6px 11px", fontSize:12, boxShadow:"0 0 14px rgba(251,191,36,0.28), inset 0 1px 0 rgba(251,191,36,0.30)" }}>
-                  <span style={{ fontSize:14 }}>🔥</span>
+                  <EmoIcon e="🔥" size={14} color="#fde68a"/>
                   <span style={{ color:"#fde68a", fontWeight:900, textShadow:"0 0 6px #fbbf24" }}>Volée {bestVolee}</span>
                 </div>
               )}
@@ -4372,7 +4372,7 @@ const LiveMatchCard = ({ session:s, onClick, setPage }) => {
         <div style={{ textAlign:"center",padding:"0 6px" }}>
           <div style={{ display:"flex",alignItems:"center",gap:6 }}>
             <span style={{ fontWeight:900,fontSize:28,color:leader===1?"#f59e0b":C.text,textShadow:leader===1?"0 0 14px #f59e0b66":"none",lineHeight:1 }}>{sc1}</span>
-            <span style={{ color:"#ef4444",fontSize:14,fontWeight:800 }}>⚔</span>
+            <EmoIcon e="⚔" size={14} color="#ef4444"/>
             <span style={{ fontWeight:900,fontSize:28,color:leader===2?"#f59e0b":C.text,textShadow:leader===2?"0 0 14px #f59e0b66":"none",lineHeight:1 }}>{sc2}</span>
           </div>
           <div style={{ fontSize:9,color:"#ef444466",fontWeight:700,letterSpacing:1,marginTop:2 }}>MANCHES</div>
@@ -8084,20 +8084,20 @@ const Tournois = ({ tournois, setPage, setTournoiSlug }) => {
     <div onClick={()=>{setTournoiSlug(t.slug);setPage("tournoi-detail");}} style={{ background:C.card,border:`1px solid ${isPast?C.border:C.yellow+"44"}`,borderRadius:12,padding:20,cursor:"pointer",opacity:isPast?.7:1 }}
       onMouseEnter={e=>e.currentTarget.style.borderColor=C.yellow} onMouseLeave={e=>e.currentTarget.style.borderColor=isPast?C.border:C.yellow+"44"}>
       <div style={{ display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:10 }}><h3 style={{ fontWeight:700,fontSize:16 }}>{t.nom}</h3><Badge color={isPast?C.muted:C.green}>{isPast?"Passé":"À venir"}</Badge></div>
-      <p style={{ color:C.yellow,fontWeight:600,fontSize:14,marginBottom:6 }}>📅 {d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</p>
-      <p style={{ color:C.muted,fontSize:13 }}>📍 {t.ville}{t.bar?" — "+t.bar:""}</p>
+      <p style={{ color:C.yellow,fontWeight:600,fontSize:14,marginBottom:6 }}><EmoIcon e="📅" size={12} style={{verticalAlign:"-2px",marginRight:5}}/>{d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</p>
+      <p style={{ color:C.muted,fontSize:13 }}><EmoIcon e="📍" size={12} style={{verticalAlign:"-2px",marginRight:5}}/>{t.ville}{t.bar?" — "+t.bar:""}</p>
     </div>
   );};
   return (
     <div style={{ maxWidth:1000,margin:"0 auto",padding:"36px 20px" }}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12,marginBottom:20 }}>
-        <h1 style={{ fontWeight:800,fontSize:26 }}>🏅 Tournois & événements</h1>
+        <h1 style={{ fontWeight:800,fontSize:26 }}><EmoText s="🏅 Tournois & événements" size={24} gap={8}/></h1>
         <div style={{ display:"flex",gap:4 }}>{[["liste","☰"],["carte","🗺️"]].map(([vv,ll])=><button key={vv} onClick={()=>setView(vv)} style={{ background:view===vv?C.yellow:"transparent",color:view===vv?"#000":C.muted,border:`1px solid ${view===vv?C.yellow:C.border}`,borderRadius:8,padding:"9px 14px",cursor:"pointer",fontSize:15 }}><EmoText s={ll} size={15}/></button>)}</div>
       </div>
       {view==="carte"?<LeafletMap tournois={upcoming} onTournoiClick={s=>{setTournoiSlug(s);setPage("tournoi-detail");}} height={450}/>
       :<>
-        {upcoming.length>0&&<><h2 style={{ fontWeight:700,fontSize:18,marginBottom:14,color:C.green }}>📅 À venir</h2><div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:14,marginBottom:32 }}>{upcoming.map(t=><TCard key={t.id} t={t}/>)}</div></>}
-        {past.length>0&&<><h2 style={{ fontWeight:700,fontSize:18,marginBottom:14,color:C.muted }}>📆 Passés</h2><div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:14 }}>{past.map(t=><TCard key={t.id} t={t}/>)}</div></>}
+        {upcoming.length>0&&<><h2 style={{ fontWeight:700,fontSize:18,marginBottom:14,color:C.green }}><EmoText s="📅 À venir" size={16}/></h2><div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:14,marginBottom:32 }}>{upcoming.map(t=><TCard key={t.id} t={t}/>)}</div></>}
+        {past.length>0&&<><h2 style={{ fontWeight:700,fontSize:18,marginBottom:14,color:C.muted }}><EmoText s="📆 Passés" size={16}/></h2><div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:14 }}>{past.map(t=><TCard key={t.id} t={t}/>)}</div></>}
       </>}
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:20,marginTop:28,textAlign:"center" }}>
         <Btn onClick={()=>setPage("proposer-tournoi")} style={{ background:C.yellow,color:"#000",fontSize:13 }}>🏅 Proposer un tournoi</Btn>
@@ -8150,12 +8150,12 @@ const TournoiDetail = ({ slug, tournois, setTournois, bars, setPage, setBarSlug,
         {isCreateur && <Btn onClick={()=>setShowEdit(true)} style={{ fontSize:12,background:"transparent",border:`1px solid ${C.yellow}`,color:C.yellow,padding:"6px 14px" }}>✏️ Modifier le tournoi</Btn>}
       </div>
       <div style={{ display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:6 }}><h1 style={{ fontWeight:800,fontSize:28 }}>{t.nom}</h1><Badge color={isPast?C.muted:C.green}>{isPast?"Passé":"À venir"}</Badge></div>
-      <p style={{ color:C.yellow,fontWeight:600,fontSize:16,marginBottom:20 }}>📅 {d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</p>
-      {t.createur_pseudo && <p style={{ color:C.muted,fontSize:12,marginBottom:16 }}>🎯 Organisé par <strong style={{ color:C.text }}>{t.createur_pseudo}</strong></p>}
+      <p style={{ color:C.yellow,fontWeight:600,fontSize:16,marginBottom:20 }}><EmoIcon e="📅" size={14} style={{verticalAlign:"-2px",marginRight:6}}/>{d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</p>
+      {t.createur_pseudo && <p style={{ color:C.muted,fontSize:12,marginBottom:16 }}><EmoIcon e="🎯" size={12} style={{verticalAlign:"-2px",marginRight:5}}/>Organisé par <strong style={{ color:C.text }}>{t.createur_pseudo}</strong></p>}
       <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:12,marginBottom:16 }}>
         <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18 }}>
           {[["📍","Ville",t.ville],["🍺","Bar",t.bar||"—"],["📞","Contact",t.contact||"—"]].map(([i,l,v])=>(
-            <div key={l} style={{ display:"flex",gap:8,marginBottom:10 }}><span>{i}</span><div><div style={{ fontSize:11,color:C.muted }}>{l}</div><div style={{ fontSize:13 }}>{v}</div></div></div>
+            <div key={l} style={{ display:"flex",gap:8,marginBottom:10 }}><EmoIcon e={i} size={15} color={C.muted}/><div><div style={{ fontSize:11,color:C.muted }}>{l}</div><div style={{ fontSize:13 }}>{v}</div></div></div>
           ))}
         </div>
         <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18 }}>
@@ -8165,7 +8165,7 @@ const TournoiDetail = ({ slug, tournois, setTournois, bars, setPage, setBarSlug,
         </div>
       </div>
       {t.description&&<div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18,marginBottom:12 }}><p style={{ color:C.muted,lineHeight:1.7,fontSize:14 }}>{t.description}</p></div>}
-      {bar&&<div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18,marginBottom:16,cursor:"pointer" }} onClick={()=>{setBarSlug(bar.slug);setPage("bar");}}><p style={{ fontWeight:600 }}>🍺 {bar.nom} — {bar.ville} →</p></div>}
+      {bar&&<div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18,marginBottom:16,cursor:"pointer" }} onClick={()=>{setBarSlug(bar.slug);setPage("bar");}}><p style={{ fontWeight:600 }}><EmoIcon e="🍺" size={13} style={{verticalAlign:"-2px",marginRight:5}}/>{bar.nom} — {bar.ville} →</p></div>}
       {t.lat&&<div style={{ marginBottom:16 }}><LeafletMap tournois={[t]} centerSlug={t.slug} height={200}/></div>}
       {t.lien&&<a href={t.lien} target="_blank" rel="noreferrer"><Btn style={{ marginBottom:16 }}>🔗 Plus d'infos</Btn></a>}
 
@@ -8173,7 +8173,7 @@ const TournoiDetail = ({ slug, tournois, setTournois, bars, setPage, setBarSlug,
       {!isPast && (
         <div style={{ background:C.card,border:`1px solid ${C.yellow}44`,borderRadius:12,padding:20,marginBottom:16 }}>
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:14 }}>
-            <h3 style={{ fontWeight:700,fontSize:15,color:C.yellow }}>🏅 Inscriptions{inscrits.length>0?` (${inscrits.length}${placesMax?" / "+placesMax:""})`:""}</h3>
+            <h3 style={{ fontWeight:700,fontSize:15,color:C.yellow }}><EmoIcon e="🏅" size={14} style={{verticalAlign:"-2px",marginRight:5}}/>Inscriptions{inscrits.length>0?` (${inscrits.length}${placesMax?" / "+placesMax:""})`:""}</h3>
             {joueur
               ? monInscription
                 ? <button onClick={seDesinscrire} disabled={loadingInscription} style={{ background:"#7f1d1d",border:`1px solid #ef444444`,color:"#ef4444",borderRadius:8,padding:"7px 14px",cursor:"pointer",fontWeight:600,fontSize:13 }}>
@@ -8280,12 +8280,12 @@ function MapPicker({ value, onChange, address, ville, cp, height=220 }) {
         </button>
       </div>
       <div style={{ position:"relative", height, borderRadius:12, overflow:"hidden", border:`1px solid ${C.border}` }}>
-        {!ready && <div style={{ position:"absolute", inset:0, background:"#1a1f2e", display:"flex", alignItems:"center", justifyContent:"center", gap:8, zIndex:10, color:C.muted, fontSize:13 }}>🗺️ Chargement de la carte…</div>}
+        {!ready && <div style={{ position:"absolute", inset:0, background:"#1a1f2e", display:"flex", alignItems:"center", justifyContent:"center", gap:8, zIndex:10, color:C.muted, fontSize:13 }}><EmoIcon e="🗺️" size={15}/>Chargement de la carte…</div>}
         <div ref={divRef} style={{ width:"100%", height:"100%" }} />
       </div>
       <div style={{ fontSize:12, color: value && value.lat != null ? C.green : C.muted }}>
         {value && value.lat != null
-          ? <>✅ Position : {(+value.lat).toFixed(5)}, {(+value.lng).toFixed(5)} · <span onClick={clear} style={{ color:C.red, cursor:"pointer", textDecoration:"underline" }}>effacer</span></>
+          ? <><EmoIcon e="✅" size={12} color={C.green} style={{verticalAlign:"-2px",marginRight:4}}/>Position : {(+value.lat).toFixed(5)}, {(+value.lng).toFixed(5)} · <span onClick={clear} style={{ color:C.red, cursor:"pointer", textDecoration:"underline" }}>effacer</span></>
           : "Clique sur la carte (ou « Localiser l'adresse ») pour positionner le bar — tu peux ensuite déplacer le point."}
       </div>
       {msg && <div style={{ fontSize:12, color:C.yellow }}>{msg}</div>}
@@ -8299,13 +8299,13 @@ const Proposer = ({ bars, onSubmit }) => {
   const [sending,setSending]=useState(false); const [err,setErr]=useState("");
   const set=k=>v=>setF(p=>({...p,[k]:v})); const valid=f.nom.trim()&&f.ville.trim()&&!doublon;
   useEffect(()=>{ if(!f.nom.trim()||!f.ville.trim()){setDoublon(null);return;} const norm=s=>(s||"").trim().toLowerCase(); setDoublon(bars.find(b=>norm(b.nom)===norm(f.nom)&&norm(b.ville)===norm(f.ville))||null); },[f.nom,f.ville,bars]);
-  if(sent) return <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}><div style={{ fontSize:50,marginBottom:12 }}>✅</div><h2 style={{ fontWeight:700,marginBottom:8 }}>Bar ajouté !</h2><p style={{ color:C.muted }}>Il est maintenant visible dans la liste des bars.</p></div>;
+  if(sent) return <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}><div style={{ marginBottom:12,display:"flex",justifyContent:"center" }}><EmoIcon e="✅" size={50} color={C.green}/></div><h2 style={{ fontWeight:700,marginBottom:8 }}>Bar ajouté !</h2><p style={{ color:C.muted }}>Il est maintenant visible dans la liste des bars.</p></div>;
   return (
     <div style={{ maxWidth:660,margin:"0 auto",padding:"36px 20px" }}>
-      <h1 style={{ fontWeight:800,fontSize:26,marginBottom:24 }}>➕ Proposer un bar</h1>
+      <h1 style={{ fontWeight:800,fontSize:26,marginBottom:24 }}><EmoText s="➕ Proposer un bar" size={24} gap={8}/></h1>
       <div style={{ display:"flex",flexDirection:"column",gap:13 }}>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Le Central"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/></div>
-        {doublon&&<div style={{ background:"#1a0f00",border:`1px solid ${C.yellow}44`,borderRadius:10,padding:14 }}><p style={{ color:C.yellow,fontSize:13 }}>⚠️ "{doublon.nom}" à {doublon.ville} existe déjà.</p></div>}
+        {doublon&&<div style={{ background:"#1a0f00",border:`1px solid ${C.yellow}44`,borderRadius:10,padding:14 }}><p style={{ color:C.yellow,fontSize:13 }}><EmoIcon e="⚠️" size={13} style={{verticalAlign:"-2px",marginRight:5}}/>"{doublon.nom}" à {doublon.ville} existe déjà.</p></div>}
         <Field label="Adresse" value={f.adresse} onChange={set("adresse")} placeholder="12 rue de la Mairie"/>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Code postal" value={f.cp} onChange={set("cp")} placeholder="64100"/><Field label="Type" as="select" value={f.type} onChange={set("type")} options={TYPES}/></div>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Nb de cibles" value={f.cibles} onChange={set("cibles")} placeholder="2" type="number"/><Field label="Tournois ?" as="select" value={f.tournois} onChange={set("tournois")} options={[{v:"non",l:"Non"},{v:"oui",l:"Oui"},{v:"nsp",l:"Je ne sais pas"}]}/></div>
@@ -8321,10 +8321,10 @@ const Proposer = ({ bars, onSubmit }) => {
 const ProposerAsso = ({ onSubmit }) => {
   const [f,setF]=useState({nom:"",ville:"",zone:"",type:"electronique",jours:"",lieu:"",tel:"",contact:"",president:"",contact_nom:"",description:""});
   const [sent,setSent]=useState(false); const [sending,setSending]=useState(false); const set=k=>v=>setF(p=>({...p,[k]:v})); const valid=f.nom.trim()&&f.ville.trim();
-  if(sent) return <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}><div style={{ fontSize:50 }}>✅</div><h2 style={{ fontWeight:700,marginTop:12 }}>Proposition envoyée !</h2><p style={{ color:C.muted,marginTop:8 }}>Ton association sera visible après validation par un admin.</p></div>;
+  if(sent) return <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}><div style={{ display:"flex",justifyContent:"center" }}><EmoIcon e="✅" size={50} color={C.green}/></div><h2 style={{ fontWeight:700,marginTop:12 }}>Proposition envoyée !</h2><p style={{ color:C.muted,marginTop:8 }}>Ton association sera visible après validation par un admin.</p></div>;
   return (
     <div style={{ maxWidth:660,margin:"0 auto",padding:"36px 20px" }}>
-      <h1 style={{ fontWeight:800,fontSize:26,marginBottom:24 }}>🫂 Proposer une association</h1>
+      <h1 style={{ fontWeight:800,fontSize:26,marginBottom:24 }}><EmoText s="🫂 Proposer une association" size={24} gap={8}/></h1>
       <div style={{ display:"flex",flexDirection:"column",gap:13 }}>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Les Darts du Coin"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/></div>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Zone" value={f.zone} onChange={set("zone")} placeholder="Côte Basque"/><Field label="Type" as="select" value={f.type} onChange={set("type")} options={TYPES.slice(0,3)}/></div>
@@ -8361,7 +8361,7 @@ const ProposerTournoi = ({ onSubmit, joueur, onCreated }) => {
 
   if (sent) return (
     <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}>
-      <div style={{ fontSize:50 }}>✅</div>
+      <div style={{ display:"flex",justifyContent:"center" }}><EmoIcon e="✅" size={50} color={C.green}/></div>
       <h2 style={{ fontWeight:700,marginTop:12 }}>{joueur?"Tournoi créé !":"Merci !"}</h2>
       <p style={{ color:C.muted,marginTop:8 }}>{joueur?"Votre tournoi est en ligne. Vous pouvez le modifier depuis sa page.":"Votre proposition est en attente de validation."}</p>
     </div>
@@ -8369,8 +8369,8 @@ const ProposerTournoi = ({ onSubmit, joueur, onCreated }) => {
 
   return (
     <div style={{ maxWidth:660,margin:"0 auto",padding:"36px 20px" }}>
-      <h1 style={{ fontWeight:800,fontSize:26,marginBottom:joueur?8:24 }}>🏅 {joueur?"Créer un tournoi":"Proposer un tournoi"}</h1>
-      {joueur && <p style={{ color:C.green,fontSize:13,marginBottom:20 }}>✅ Connecté en tant que <strong>{joueur.pseudo}</strong> — le tournoi sera publié directement.</p>}
+      <h1 style={{ fontWeight:800,fontSize:26,marginBottom:joueur?8:24 }}><EmoIcon e="🏅" size={24} style={{verticalAlign:"-2px",marginRight:8}}/>{joueur?"Créer un tournoi":"Proposer un tournoi"}</h1>
+      {joueur && <p style={{ color:C.green,fontSize:13,marginBottom:20 }}><EmoIcon e="✅" size={13} color={C.green} style={{verticalAlign:"-2px",marginRight:5}}/>Connecté en tant que <strong>{joueur.pseudo}</strong> — le tournoi sera publié directement.</p>}
       <div style={{ display:"flex",flexDirection:"column",gap:13 }}>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Open Bayonne 2025"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/></div>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Date *" value={f.date} onChange={set("date")} type="date" placeholder=""/><Field label="Bar organisateur" value={f.bar} onChange={set("bar")} placeholder="Le Central"/></div>
@@ -8407,7 +8407,7 @@ const StatsPreviewBlock = ({ gradientIdSuffix="" }) => {
 
   return (
     <div style={{ marginBottom:16, borderRadius:18, background:"linear-gradient(145deg,#0d0d1e,#080812)", border:"1px solid #a78bfa30", padding:"18px 16px", boxShadow:"0 0 40px #a78bfa0a" }}>
-      <div style={{ fontWeight:800, fontSize:15, color:"#f1f5f9", marginBottom:3 }}>📊 Retrouve tes stats</div>
+      <div style={{ fontWeight:800, fontSize:15, color:"#f1f5f9", marginBottom:3 }}><EmoText s="📊 Retrouve tes stats" size={15}/></div>
       <div style={{ color:"#4b5563", fontSize:12.5, marginBottom:16 }}>Ta progression DRIX, visible en temps réel</div>
 
       {/* Courbe DRIX */}
@@ -8457,13 +8457,13 @@ const StatsPreviewBlock = ({ gradientIdSuffix="" }) => {
           </svg>
         </div>
         <div style={{ flex:1 }}>
-          <div style={{ fontWeight:900, fontSize:16, color:gColor, marginBottom:4, letterSpacing:.3 }}>⚡ Dangerosité</div>
+          <div style={{ fontWeight:900, fontSize:16, color:gColor, marginBottom:4, letterSpacing:.3 }}><EmoText s="⚡ Dangerosité" size={16}/></div>
           <div style={{ fontSize:12.5, color:"#94a3b8", lineHeight:1.65 }}>
             Un score calculé sur tes victoires, ton niveau DRIX et ta régularité. Plus tu joues, plus tu deviens <span style={{ color:gColor, fontWeight:700 }}>redoutable</span>.
           </div>
           <div style={{ marginTop:8, display:"flex", gap:6, flexWrap:"wrap" }}>
-            {[["🟢","0–30"],["🟡","30–60"],["🟠","60–80"],["🔴","80+"]].map(([e,l],i)=>(
-              <div key={i} style={{ fontSize:10, color:i===2?"#f97316":i===3?"#ef4444":"#4b5563", fontWeight:i>=2?700:400 }}>{e} {l}</div>
+            {[["🟢","0–30","#22c55e"],["🟡","30–60","#eab308"],["🟠","60–80","#f97316"],["🔴","80+","#ef4444"]].map(([e,l,col],i)=>(
+              <div key={i} style={{ fontSize:10, color:i===2?"#f97316":i===3?"#ef4444":"#4b5563", fontWeight:i>=2?700:400, display:"flex", alignItems:"center", gap:3 }}><EmoIcon e={e} size={9} color={col} fill={col}/>{l}</div>
             ))}
           </div>
         </div>
@@ -8545,7 +8545,7 @@ const APropos = ({ bars, setPage }) => (
 
 const MentionsLegales = () => (
   <div style={{ maxWidth:760, margin:"0 auto", padding:"36px 20px" }}>
-    <h1 style={{ fontWeight:800, fontSize:28, marginBottom:32 }}>⚖️ Mentions légales</h1>
+    <h1 style={{ fontWeight:800, fontSize:28, marginBottom:32 }}><EmoText s="⚖️ Mentions légales" size={26} gap={9}/></h1>
     {[
       ["🏢 Éditeur du site", `Le site DartPoint (dart-point.vercel.app) est édité par :\n\nThomas Siméon\n32 Eskolako Bidea\n64480 Larressore\nFrance\nContact : t.simeon64(at)gmail.com`],
       ["🎯 Propriété intellectuelle", `L'ensemble du contenu de ce site (textes, structure, logo, code, données) est la propriété exclusive de Thomas Siméon et est protégé par les lois françaises et internationales relatives à la propriété intellectuelle.\n\nToute reproduction, représentation, modification ou exploitation, totale ou partielle, sans autorisation écrite préalable de Thomas Siméon est strictement interdite.`],
@@ -8555,7 +8555,7 @@ const MentionsLegales = () => (
       ["🌐 Hébergement", `Ce site est hébergé par :\nVercel Inc.\n440 N Barranca Ave #4133\nCovina, CA 91723\nÉtats-Unis\nhttps://vercel.com`],
     ].map(([titre, texte]) => (
       <div key={titre} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:22, marginBottom:14 }}>
-        <h2 style={{ fontWeight:700, fontSize:17, marginBottom:12 }}>{titre}</h2>
+        <h2 style={{ fontWeight:700, fontSize:17, marginBottom:12 }}><EmoText s={titre} size={16} gap={8}/></h2>
         <p style={{ color:C.muted, lineHeight:1.8, fontSize:14, whiteSpace:"pre-line" }}>{texte}</p>
       </div>
     ))}
@@ -8592,7 +8592,7 @@ const Contact = () => {
 
   if(sent) return (
     <div style={{ maxWidth:580,margin:"80px auto",padding:"0 20px",textAlign:"center" }}>
-      <div style={{ fontSize:60,marginBottom:16 }}>✉️</div>
+      <div style={{ marginBottom:16,display:"flex",justifyContent:"center" }}><EmoIcon e="✉️" size={60} color={C.accent}/></div>
       <h2 style={{ fontWeight:800,fontSize:22,marginBottom:10 }}>Message envoyé !</h2>
       <p style={{ color:"#94a3b8",fontSize:15 }}>On te répondra dès que possible à <strong>{f.email}</strong>.</p>
     </div>
@@ -8600,7 +8600,7 @@ const Contact = () => {
 
   return (
     <div style={{ maxWidth:580,margin:"0 auto",padding:"36px 20px" }}>
-      <h1 style={{ fontWeight:800,fontSize:26,marginBottom:24 }}>✉️ Contact</h1>
+      <h1 style={{ fontWeight:800,fontSize:26,marginBottom:24 }}><EmoText s="✉️ Contact" size={24} gap={8}/></h1>
       <div style={{ display:"flex",flexDirection:"column",gap:13 }}>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}>
           <Field label="Nom" value={f.nom} onChange={set("nom")} placeholder="Jean Dupont"/>
@@ -8631,7 +8631,7 @@ const AdminLogin = ({ onLogin }) => {
   return (
     <div style={{ maxWidth:380,margin:"80px auto",padding:"0 20px" }}>
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:28,textAlign:"center" }}>
-        <div style={{ fontSize:38,marginBottom:12 }}>🔐</div>
+        <div style={{ marginBottom:12,display:"flex",justifyContent:"center" }}><EmoIcon e="🔐" size={38} color={C.muted}/></div>
         <h2 style={{ fontWeight:700,fontSize:19,marginBottom:18 }}>Administration</h2>
         <input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="Mot de passe" disabled={checking}
           onKeyDown={e=>e.key==="Enter"&&tryLogin()}
@@ -8881,7 +8881,7 @@ const AdminJoueurs = ({ addLog }) => {
                   <div style={{fontWeight:800,fontSize:15}}>{j.pseudo}</div>
                   <div style={{fontSize:11,color:C.muted,marginTop:2}}>
                     {j.date_inscription ? `Inscrit le ${new Date(j.date_inscription).toLocaleDateString("fr-FR")}` : "—"}
-                    {j.bar_slug && <span style={{marginLeft:8}}>🍺 {j.bar_slug}</span>}
+                    {j.bar_slug && <span style={{marginLeft:8,display:"inline-flex",alignItems:"center",gap:3}}><EmoIcon e="🍺" size={11}/>{j.bar_slug}</span>}
                   </div>
                 </div>
               </div>
@@ -8890,7 +8890,7 @@ const AdminJoueurs = ({ addLog }) => {
                   <div style={{fontSize:20,fontWeight:900,color:C.accent}}>{j.drix??1000}</div>
                   <div style={{fontSize:10,color:C.muted,letterSpacing:1}}>DRIX</div>
                 </div>
-                <span style={{color:C.muted,fontSize:16,transform:isOpen?"rotate(180deg)":"",transition:"transform .2s"}}>▼</span>
+                <EmoIcon e="▼" size={15} color={C.muted} style={{transform:isOpen?"rotate(180deg)":"",transition:"transform .2s"}}/>
               </div>
             </div>
 
@@ -8900,7 +8900,7 @@ const AdminJoueurs = ({ addLog }) => {
 
                 {/* ── FICHE CLIENT ── */}
                 <div style={{background:"#0a0f1a",border:`1px solid ${C.blue}22`,borderRadius:12,padding:16}}>
-                  <div style={{fontSize:12,color:C.blue,fontWeight:700,letterSpacing:.5,marginBottom:12}}>👤 FICHE CLIENT</div>
+                  <div style={{fontSize:12,color:C.blue,fontWeight:700,letterSpacing:.5,marginBottom:12}}><EmoText s="👤 FICHE CLIENT" size={12} gap={5}/></div>
                   {ficheLoading[j.id] ? (
                     <div style={{color:C.muted,fontSize:13}}>Chargement...</div>
                   ) : (
@@ -8917,47 +8917,47 @@ const AdminJoueurs = ({ addLog }) => {
                       </div>
                       {/* Email */}
                       <div style={{background:"#ffffff08",borderRadius:8,padding:"8px 12px"}}>
-                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>✉️ EMAIL</div>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}><EmoText s="✉️ EMAIL" size={10} gap={4}/></div>
                         <div style={{fontSize:13,color:C.text,wordBreak:"break-all"}}>{j.email||"—"}</div>
                       </div>
                       {/* Ville */}
                       <div style={{background:"#ffffff08",borderRadius:8,padding:"8px 12px"}}>
-                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>📍 VILLE</div>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}><EmoText s="📍 VILLE" size={10} gap={4}/></div>
                         <div style={{fontSize:13,color:C.text}}>{j.ville||"—"}</div>
                       </div>
                       {/* Inscription */}
                       <div style={{background:"#ffffff08",borderRadius:8,padding:"8px 12px"}}>
-                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>📅 INSCRIPTION</div>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}><EmoText s="📅 INSCRIPTION" size={10} gap={4}/></div>
                         <div style={{fontSize:13,color:C.text}}>{j.date_inscription?new Date(j.date_inscription).toLocaleDateString("fr-FR","long"):"—"}</div>
                       </div>
                       {/* Bar */}
                       <div style={{background:"#ffffff08",borderRadius:8,padding:"8px 12px"}}>
-                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>🍺 BAR</div>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}><EmoText s="🍺 BAR" size={10} gap={4}/></div>
                         <div style={{fontSize:13,color:C.text}}>{j.bar_slug||"—"}</div>
                       </div>
                       {/* Connexions */}
                       <div style={{background:"#ffffff08",borderRadius:8,padding:"8px 12px"}}>
-                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>🔌 CONNEXIONS (jours)</div>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}><EmoText s="🔌 CONNEXIONS (jours)" size={10} gap={4}/></div>
                         <div style={{fontSize:20,fontWeight:900,color:C.blue}}>{fiche[j.id]?.nbPresences??"—"}</div>
                       </div>
                       {/* Dernière activité */}
                       <div style={{background:"#ffffff08",borderRadius:8,padding:"8px 12px"}}>
-                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>⏱ DERNIÈRE PARTIE</div>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}><EmoText s="⏱ DERNIÈRE PARTIE" size={10} gap={4}/></div>
                         <div style={{fontSize:13,color:C.text}}>{fiche[j.id]?.lastDuel ? new Date(fiche[j.id].lastDuel.date).toLocaleDateString("fr-FR") : "—"}</div>
                       </div>
                       {/* Stats */}
                       {fiche[j.id]?.stats && (
                         <div style={{gridColumn:"1/-1",background:"#ffffff08",borderRadius:8,padding:"8px 12px",display:"flex",gap:20}}>
-                          <div><div style={{fontSize:10,color:C.muted}}>🏆 VICTOIRES</div><div style={{fontSize:18,fontWeight:900,color:C.green}}>{fiche[j.id].stats.victoires??0}</div></div>
-                          <div><div style={{fontSize:10,color:C.muted}}>💀 DÉFAITES</div><div style={{fontSize:18,fontWeight:900,color:C.red}}>{fiche[j.id].stats.defaites??0}</div></div>
-                          <div><div style={{fontSize:10,color:C.muted}}>🎯 PARTIES</div><div style={{fontSize:18,fontWeight:900,color:C.text}}>{fiche[j.id].stats.parties??0}</div></div>
-                          <div><div style={{fontSize:10,color:C.muted}}>📊 WR</div><div style={{fontSize:18,fontWeight:900,color:C.yellow}}>{fiche[j.id].stats.parties>0?Math.round((fiche[j.id].stats.victoires/fiche[j.id].stats.parties)*100):0}%</div></div>
+                          <div><div style={{fontSize:10,color:C.muted}}><EmoText s="🏆 VICTOIRES" size={10} gap={4}/></div><div style={{fontSize:18,fontWeight:900,color:C.green}}>{fiche[j.id].stats.victoires??0}</div></div>
+                          <div><div style={{fontSize:10,color:C.muted}}><EmoText s="💀 DÉFAITES" size={10} gap={4}/></div><div style={{fontSize:18,fontWeight:900,color:C.red}}>{fiche[j.id].stats.defaites??0}</div></div>
+                          <div><div style={{fontSize:10,color:C.muted}}><EmoText s="🎯 PARTIES" size={10} gap={4}/></div><div style={{fontSize:18,fontWeight:900,color:C.text}}>{fiche[j.id].stats.parties??0}</div></div>
+                          <div><div style={{fontSize:10,color:C.muted}}><EmoText s="📊 WR" size={10} gap={4}/></div><div style={{fontSize:18,fontWeight:900,color:C.yellow}}>{fiche[j.id].stats.parties>0?Math.round((fiche[j.id].stats.victoires/fiche[j.id].stats.parties)*100):0}%</div></div>
                         </div>
                       )}
                       {/* Derniers mouvements DRIX */}
                       {fiche[j.id]?.mouvements?.length>0 && (
                         <div style={{gridColumn:"1/-1",background:"#ffffff08",borderRadius:8,padding:"8px 12px"}}>
-                          <div style={{fontSize:10,color:C.muted,marginBottom:6}}>💎 DERNIERS MOUVEMENTS DRIX</div>
+                          <div style={{fontSize:10,color:C.muted,marginBottom:6}}><EmoText s="💎 DERNIERS MOUVEMENTS DRIX" size={10} gap={4}/></div>
                           {fiche[j.id].mouvements.map((m,i)=>(
                             <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:m.variation>0?C.green:C.red,padding:"2px 0"}}>
                               <span>{new Date(m.date).toLocaleDateString("fr-FR")}</span>
@@ -8972,7 +8972,7 @@ const AdminJoueurs = ({ addLog }) => {
 
                 {/* Section DRIX */}
                 <div style={{background:"#0a1a0a",border:`1px solid ${C.green}22`,borderRadius:12,padding:16}}>
-                  <div style={{fontSize:12,color:C.green,fontWeight:700,letterSpacing:.5,marginBottom:12}}>💎 GESTION DRIX</div>
+                  <div style={{fontSize:12,color:C.green,fontWeight:700,letterSpacing:.5,marginBottom:12}}><EmoText s="💎 GESTION DRIX" size={12} gap={5}/></div>
 
                   {/* Boutons delta rapides */}
                   <div style={{marginBottom:10}}>
@@ -9025,23 +9025,23 @@ const AdminJoueurs = ({ addLog }) => {
 
                 {/* Section actions */}
                 <div style={{background:"#1a0000",border:`1px solid ${C.red}22`,borderRadius:12,padding:16}}>
-                  <div style={{fontSize:12,color:C.red,fontWeight:700,letterSpacing:.5,marginBottom:12}}>⚠️ ACTIONS ADMINISTRATIVES</div>
+                  <div style={{fontSize:12,color:C.red,fontWeight:700,letterSpacing:.5,marginBottom:12}}><EmoText s="⚠️ ACTIONS ADMINISTRATIVES" size={12} gap={5}/></div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     <button onClick={()=>anonymiserCompte(j)} disabled={saving[j.id]}
                       style={{background:"#1a1a00",color:"#a3a3a3",border:`1px solid #a3a3a355`,borderRadius:8,padding:"9px 16px",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",gap:6}}
                       title="Anonymise le compte selon RGPD Art. 17 — préserve l'intégrité des stats des autres joueurs">
-                      🕵️ Anonymiser (RGPD)
+                      <EmoIcon e="🕵️" size={14}/>Anonymiser (RGPD)
                     </button>
                     <button onClick={()=>supprimerCompte(j)} disabled={saving[j.id]}
                       style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}55`,borderRadius:8,padding:"9px 16px",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",gap:6}}>
-                      🗑 Supprimer le compte
+                      <EmoIcon e="🗑" size={14}/>Supprimer le compte
                     </button>
                     <button onClick={()=>banirJoueur(j)} disabled={saving[j.id]}
                       style={{background:"#1a0014",color:"#f43f5e",border:`1px solid #f43f5e55`,borderRadius:8,padding:"9px 16px",cursor:"pointer",fontWeight:700,fontSize:13,display:"flex",alignItems:"center",gap:6}}>
-                      🚫 Bannir (DRIX 0 + suppression)
+                      <EmoIcon e="🚫" size={14}/>Bannir (DRIX 0 + suppression)
                     </button>
                   </div>
-                  <div style={{marginTop:10,fontSize:11,color:C.muted}}>⚠️ Ces actions sont irréversibles et seront enregistrées dans les logs.<br/>💡 <strong>Anonymisation</strong> = recommandé pour suppression à la demande du joueur (RGPD). <strong>Suppression</strong> = efface définitivement, casse les stats. <strong>Ban</strong> = pour comportement abusif.</div>
+                  <div style={{marginTop:10,fontSize:11,color:C.muted}}><EmoIcon e="⚠️" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>Ces actions sont irréversibles et seront enregistrées dans les logs.<br/><EmoIcon e="💡" size={11} style={{verticalAlign:"-2px",marginRight:4}}/><strong>Anonymisation</strong> = recommandé pour suppression à la demande du joueur (RGPD). <strong>Suppression</strong> = efface définitivement, casse les stats. <strong>Ban</strong> = pour comportement abusif.</div>
                 </div>
 
               </div>
@@ -9407,12 +9407,12 @@ const AdminTournois = ({ tournois, setTournois, setEditTournoi, setTournoiSlug, 
               <div style={{padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,cursor:"pointer"}} onClick={()=>toggleOpen(t)}>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontWeight:700,fontSize:14,marginBottom:3}}>{t.nom}</div>
-                  <div style={{color:C.muted,fontSize:12}}>📍 {t.ville} · 📅 {t.date||"—"} {t.bar && <span>· 🍺 {t.bar}</span>}</div>
+                  <div style={{color:C.muted,fontSize:12}}><EmoIcon e="📍" size={11} style={{verticalAlign:"-2px",marginRight:3}}/>{t.ville} · <EmoIcon e="📅" size={11} style={{verticalAlign:"-2px",marginRight:3}}/>{t.date||"—"} {t.bar && <span>· <EmoIcon e="🍺" size={11} style={{verticalAlign:"-2px",marginRight:3}}/>{t.bar}</span>}</div>
                   {t.resultats && <div style={{color:C.yellow,fontSize:12,marginTop:4,fontWeight:600}}>{t.resultats}</div>}
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <span style={{fontSize:11,color:stColor(t.statut),fontWeight:700,padding:"3px 8px",background:`${stColor(t.statut)}22`,borderRadius:6}}>{stLabel(t.statut)}</span>
-                  <span style={{color:C.muted,fontSize:14,transform:isOpen?"rotate(180deg)":"",transition:"transform .2s"}}>▼</span>
+                  <EmoIcon e="▼" size={13} color={C.muted} style={{transform:isOpen?"rotate(180deg)":"",transition:"transform .2s"}}/>
                 </div>
               </div>
 
@@ -9420,7 +9420,7 @@ const AdminTournois = ({ tournois, setTournois, setEditTournoi, setTournoiSlug, 
                 <div style={{borderTop:`1px solid ${C.border}`,padding:"14px 16px"}}>
                   {/* Inscrits */}
                   <div style={{marginBottom:14}}>
-                    <div style={{fontSize:12,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:8}}>👥 INSCRITS ({lst.length})</div>
+                    <div style={{fontSize:12,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:8}}><EmoIcon e="👥" size={12} style={{verticalAlign:"-2px",marginRight:5}}/>INSCRITS ({lst.length})</div>
                     {lst.length === 0 ? (
                       <div style={{color:C.muted,fontSize:12,fontStyle:"italic"}}>Aucun inscrit.</div>
                     ) : (
@@ -9431,7 +9431,7 @@ const AdminTournois = ({ tournois, setTournois, setEditTournoi, setTournoiSlug, 
                               <span style={{fontWeight:600}}>{i.pseudo||"?"}</span>
                               {i.date && <span style={{color:C.muted,fontSize:11,marginLeft:8}}>{new Date(i.date).toLocaleDateString("fr-FR")}</span>}
                             </div>
-                            <button onClick={()=>retirerJoueur(t, i.joueur_id, i.pseudo)} style={{background:"transparent",border:"none",color:C.red,cursor:"pointer",fontSize:11,padding:"2px 6px"}}>✕ Retirer</button>
+                            <button onClick={()=>retirerJoueur(t, i.joueur_id, i.pseudo)} style={{background:"transparent",border:"none",color:C.red,cursor:"pointer",fontSize:11,padding:"2px 6px"}}><EmoIcon e="✕" size={11} style={{verticalAlign:"-1px",marginRight:3}}/>Retirer</button>
                           </div>
                         ))}
                       </div>
@@ -9440,12 +9440,12 @@ const AdminTournois = ({ tournois, setTournois, setEditTournoi, setTournoiSlug, 
 
                   {/* Actions */}
                   <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                    <button onClick={()=>setEditTournoi(t)} style={{background:"#1a1200",color:C.yellow,border:`1px solid ${C.yellow}44`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12}}>✏️ Éditer</button>
+                    <button onClick={()=>setEditTournoi(t)} style={{background:"#1a1200",color:C.yellow,border:`1px solid ${C.yellow}44`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12}}><EmoIcon e="✏️" size={12} style={{verticalAlign:"-2px",marginRight:4}}/>Éditer</button>
                     {t.statut !== "termine" && t.statut !== "annule" && (
-                      <button onClick={()=>cloturerTournoi(t)} disabled={working[t.id]} style={{background:`${C.green}22`,color:C.green,border:`1px solid ${C.green}55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}>✅ Clôturer</button>
+                      <button onClick={()=>cloturerTournoi(t)} disabled={working[t.id]} style={{background:`${C.green}22`,color:C.green,border:`1px solid ${C.green}55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}><EmoIcon e="✅" size={12} style={{verticalAlign:"-2px",marginRight:4}}/>Clôturer</button>
                     )}
                     {t.statut !== "annule" && (
-                      <button onClick={()=>setShowResultats({...t})} style={{background:`${C.yellow}22`,color:C.yellow,border:`1px solid ${C.yellow}55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}>🏆 Publier résultats</button>
+                      <button onClick={()=>setShowResultats({...t})} style={{background:`${C.yellow}22`,color:C.yellow,border:`1px solid ${C.yellow}55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}><EmoIcon e="🏆" size={12} style={{verticalAlign:"-2px",marginRight:4}}/>Publier résultats</button>
                     )}
                     {t.statut !== "annule" && t.statut !== "termine" && (
                       <button onClick={()=>annulerTournoi(t)} disabled={working[t.id]} style={{background:"#1a0014",color:"#f43f5e",border:`1px solid #f43f5e55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}>⚠️ Annuler</button>

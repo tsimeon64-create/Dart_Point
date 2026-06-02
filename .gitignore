@@ -34,3 +34,6 @@ supabase_cli.tar.gz
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Fichier temporaire de message de commit
+COMMIT_MSG.tmp
