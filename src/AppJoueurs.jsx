@@ -1722,7 +1722,7 @@ export const PageProfilBadges = ({ joueur, setPage }) => {
         textAlign: "center",
       }}>
         {/* Visuel du badge : image /badges/<id>.png (repli emoji si absente) */}
-        <div style={{ marginBottom: 8, lineHeight: 1, display: "flex", justifyContent: "center", height: 48, alignItems: "center" }}><BadgeVisual b={b} size={46} unlocked={unlocked}/></div>
+        <div style={{ marginBottom: 8, lineHeight: 1, display: "flex", justifyContent: "center", height: 92, alignItems: "center" }}><BadgeVisual b={b} size={88} unlocked={unlocked}/></div>
 
         {/* Nom */}
         <div style={{ fontWeight: 700, fontSize: 13, color: unlocked ? b.couleur : "#f1f5f9", marginBottom: 4, lineHeight: 1.3 }}>{b.nom}</div>
@@ -2690,7 +2690,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
         opacity: unlocked ? 1 : 0.5,
         transition:"all .2s"
       }}>
-        <div style={{ marginBottom:6, display:"flex", justifyContent:"center", height:40, alignItems:"center" }}><BadgeVisual b={b} size={38} unlocked={unlocked}/></div>
+        <div style={{ marginBottom:6, display:"flex", justifyContent:"center", height:72, alignItems:"center" }}><BadgeVisual b={b} size={68} unlocked={unlocked}/></div>
         <div style={{ fontWeight:700, fontSize:13, color: unlocked ? b.couleur : CJ.muted, marginBottom:3 }}>{b.nom}</div>
         <div style={{ fontSize:10, color:CJ.muted, marginBottom: isIncremental&&!unlocked ? 8 : 0 }}>{b.desc}</div>
         {isIncremental && !unlocked && (
