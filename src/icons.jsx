@@ -24,7 +24,7 @@ export const EMOJI_ICON = {
   "📊": BarChart2, "📈": TrendingUp, "📉": TrendingDown, "🎢": Activity,
   // Duels / jeux
   "⚔️": Swords, "⚔": Swords, "🛡️": Shield, "🛡": Shield, "🎮": Gamepad2, "🕹️": Gamepad2,
-  "🎲": Dices, "💣": Bomb, "🦗": Bug, "🏓": Target,
+  "🎲": Dices, "💣": Bomb, "🦗": Bug, "🏓": Target, "🏏": Target, "🎳": Target,
   // Social / utilisateurs
   "👥": Users, "🫂": Users, "👤": User, "🤝": Handshake, "🧑‍🤝‍🧑": Users, "🧑": User,
   // Lieux

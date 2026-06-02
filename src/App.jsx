@@ -1188,7 +1188,7 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
         {/* Bars affiliés */}
         <div style={sec}>
           <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}>
-            🍺 BARS AFFILIÉS {selectedBars.length>0&&<span style={{ color:C.text }}>({selectedBars.length})</span>}
+            <EmoIcon e="🍺" size={12} color={C.accent} style={{verticalAlign:"-2px",marginRight:5}}/>BARS AFFILIÉS {selectedBars.length>0&&<span style={{ color:C.text }}>({selectedBars.length})</span>}
           </div>
           <input value={barSearch} onChange={e=>setBarSearch(e.target.value)} placeholder="Rechercher un bar…"
             style={{...inp}}/>
@@ -3719,10 +3719,10 @@ const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepu
         {/* Effet shine */}
         <div style={{ position:"absolute",top:0,left:0,bottom:0,width:120, background:"linear-gradient(90deg,transparent,#fffacc99,transparent)", animation:"vainqShine 4s ease-in-out infinite", pointerEvents:"none" }}/>
         <div style={{ position:"relative", fontSize:13, fontWeight:900, color:"#3b1f00", letterSpacing:4, textShadow:"0 1px 2px rgba(255,255,255,0.35), 0 -1px 1px rgba(0,0,0,0.5)" }}>
-          👑 VAINQUEUR DU JOUR 👑
+          <EmoIcon e="👑" size={12} color="#3b1f00" fill="#3b1f00" style={{verticalAlign:"-1px",marginRight:6}}/>VAINQUEUR DU JOUR <EmoIcon e="👑" size={12} color="#3b1f00" fill="#3b1f00" style={{verticalAlign:"-1px",marginLeft:6}}/>
         </div>
         <div style={{ position:"relative", fontSize:10, fontWeight:800, color:"#3b1f00cc", letterSpacing:2, marginTop:1 }}>
-          {jeuEmoji} {jeu.toUpperCase()}
+          <EmoIcon e={jeuEmoji} size={10} style={{verticalAlign:"-1px",marginRight:4}}/>{jeu.toUpperCase()}
         </div>
       </div>
 
@@ -3902,7 +3902,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
         <div style={{ position:"absolute",top:0,left:0,right:0,height:1, background:`linear-gradient(90deg,transparent,${themeMain}cc,transparent)`, animation:"feedShine 4s linear infinite" }}/>
         <div style={{ position:"relative", display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
           <span style={{ fontSize:11, fontWeight:900, color:themeMain, letterSpacing:2, textShadow:`0 0 8px ${themeMain}88` }}>
-            {headerLabel}
+            <EmoText s={headerLabel} size={11} gap={4}/>
           </span>
           {modeLabel && (
             <span style={{
@@ -3913,7 +3913,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
               borderRadius:6, padding:"2px 7px", letterSpacing:.5,
               boxShadow: isCricket ? "0 0 8px #22c55e33" : "none",
             }}>
-              {isCricket ? "🏏 CRICKET" : `🎯 ${modeLabel}`}
+              {isCricket ? <EmoText s="🏏 CRICKET" size={10} gap={3}/> : <EmoText s={`🎯 ${modeLabel}`} size={10} gap={3}/>}
             </span>
           )}
           {boLabel && (
@@ -4049,7 +4049,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
               <div style={{ fontSize:9, color:"#86efac", marginTop:3, letterSpacing:.5 }}>DRIX gagnés</div>
             </div>
             <div style={{ flex:1, position:"relative", overflow:"hidden", background: isRivalite ? "linear-gradient(135deg,#ffffff08,#000)" : `linear-gradient(135deg,${loseColor}18 0%,${loseColor}05 50%,#000 100%)`, border: `1px solid ${isRivalite?"#ffffff20":loseColor+"66"}`, borderRadius:14, padding:"12px 12px", boxShadow: isRivalite ? "none" : `0 0 18px ${loseColor}22, inset 0 1px 0 ${loseColor}22`, textAlign:"center" }}>
-              <div style={{ fontSize:9, fontWeight:800, color: isRivalite?"#64748b":"#fca5a5", letterSpacing:1, marginBottom:3 }}>{isRivalite?"🛡":"💀"} {l.nom.split(" ")[0].slice(0,12)}</div>
+              <div style={{ fontSize:9, fontWeight:800, color: isRivalite?"#64748b":"#fca5a5", letterSpacing:1, marginBottom:3 }}><EmoIcon e={isRivalite?"🛡":"💀"} size={9} style={{verticalAlign:"-1px",marginRight:3}}/>{l.nom.split(" ")[0].slice(0,12)}</div>
               <div style={{ fontSize:30, fontWeight:900, color: isRivalite?"#334155":loseColor, lineHeight:1, fontVariantNumeric:"tabular-nums", textShadow: isRivalite ? "none" : `0 0 12px ${loseColor}66` }}>
                 {isRivalite?"0":`${l.total>=0?"+":""}${l.total}`}
               </div>
@@ -4149,7 +4149,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
               boxShadow: openManches ? `0 0 14px ${themeMain}33, inset 0 1px 0 ${themeMain}33` : "inset 0 1px 0 #ffffff08",
               transition:"all .15s",
             }}>
-              📊 {openManches?"Masquer":"Voir"} les manches
+              <EmoIcon e="📊" size={13}/>{openManches?"Masquer":"Voir"} les manches
             </button>
           )}
           {!isAmical && (
@@ -4167,7 +4167,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
               boxShadow: openDrix ? `0 0 14px ${winColor}33, inset 0 1px 0 ${winColor}33` : "inset 0 1px 0 #ffffff08",
               transition:"all .15s",
             }}>
-              💎 {openDrix?"Masquer":"Voir"} les gains
+              <EmoIcon e="💎" size={13}/>{openDrix?"Masquer":"Voir"} les gains
             </button>
           )}
         </div>
@@ -4825,7 +4825,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
                   </span>
                   {manche.winner && (
                     <span style={{ fontSize:11,fontWeight:800,color:"#fbbf24",display:"flex",alignItems:"center",gap:4 }}>
-                      🏆 <TruncPseudo pseudo={manche.winner===1?session.joueur1_pseudo:session.joueur2_pseudo} max={11} as="span"/>
+                      <EmoIcon e="🏆" size={11} color="#fbbf24"/><TruncPseudo pseudo={manche.winner===1?session.joueur1_pseudo:session.joueur2_pseudo} max={11} as="span"/>
                     </span>
                   )}
                 </div>
@@ -5871,7 +5871,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
               <img src={photoData} alt="" style={{ width:"100%", maxHeight:220, objectFit:"cover", display:"block" }}/>
               <button onClick={()=>setPhotoData(null)}
                 style={{ position:"absolute", top:6, right:6, background:"#000000bb", border:"none", color:"#fff", borderRadius:"50%", width:26, height:26, cursor:"pointer", fontSize:14, lineHeight:1, fontWeight:900, touchAction:"manipulation" }}>
-                ✕
+                <X size={14}/>
               </button>
             </div>
           )}
@@ -6458,7 +6458,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
 
       {/* ═══ AUTRES JEUX ═══ */}
       <div style={{ fontSize:10,fontWeight:900,color:"#64748b",letterSpacing:2.5,marginBottom:8,paddingLeft:4 }}>
-        🎮 TOUS LES MODES
+        <EmoIcon e="🎮" size={11} color="#64748b" style={{verticalAlign:"-2px",marginRight:5}}/>TOUS LES MODES
       </div>
       <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
         <GameCard icon={Zap} label="Rush Mode" col="#ef4444"
@@ -6751,11 +6751,11 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
               letterSpacing:1, margin:"0 0 10px", position:"relative",
               display:"flex", alignItems:"center", gap:8,
             }}>
-              🍺 BARS À FLÉCHETTES
+              <EmoIcon e="🍺" size={22} color="#f97316"/>BARS À FLÉCHETTES
             </h1>
             <div style={{ display:"flex", gap:6, flexWrap:"wrap", position:"relative" }}>
               <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:14, background:"linear-gradient(135deg,#f9731622,#f9731608)", border:"1px solid #f9731677", fontSize:10, fontWeight:800, color:"#f97316" }}>
-                🎯 {bars.length} référencés
+                <EmoIcon e="🎯" size={10}/>{bars.length} référencés
               </span>
               {barsActifs.length > 0 && (
                 <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:14, background:"linear-gradient(135deg,#22c55e22,#22c55e08)", border:"1px solid #22c55e77", fontSize:10, fontWeight:800, color:"#22c55e" }}>
@@ -6765,12 +6765,12 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
               )}
               {joueursPresentAujourd > 0 && (
                 <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:14, background:"linear-gradient(135deg,#60a5fa22,#60a5fa08)", border:"1px solid #60a5fa77", fontSize:10, fontWeight:800, color:"#60a5fa" }}>
-                  👥 {joueursPresentAujourd} joueurs aujourd'hui
+                  <EmoIcon e="👥" size={10}/>{joueursPresentAujourd} joueurs aujourd'hui
                 </span>
               )}
               {bars.filter(b => b.tournois).length > 0 && (
                 <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:14, background:"linear-gradient(135deg,#fbbf2422,#fbbf2408)", border:"1px solid #fbbf2477", fontSize:10, fontWeight:800, color:"#fbbf24" }}>
-                  🏆 {bars.filter(b => b.tournois).length} tournois
+                  <EmoIcon e="🏆" size={10}/>{bars.filter(b => b.tournois).length} tournois
                 </span>
               )}
             </div>
@@ -6781,7 +6781,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
             <div style={{ marginBottom:14 }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
                 <span style={{ fontSize:11, fontWeight:900, color:"#f97316", letterSpacing:1.5, display:"inline-flex", alignItems:"center", gap:5 }}>
-                  🔥 SPOTS DU MOMENT
+                  <EmoIcon e="🔥" size={11} color="#f97316"/>SPOTS DU MOMENT
                 </span>
                 <span style={{ fontSize:10, color:"#64748b" }}>swipe →</span>
               </div>
@@ -7569,7 +7569,7 @@ const CropLogoModal = ({ imageDataUrl, onSave, onClose, label="Cadrer le logo" }
         <div style={{ display:"flex", gap:8 }}>
           <button onClick={onClose} style={{ flex:1, background:"#1a1a1a", border:`1px solid ${C.border}`, color:C.muted, borderRadius:10, padding:"10px", fontWeight:700, fontSize:13, cursor:"pointer" }}>Annuler</button>
           <button onClick={handleSave} disabled={!imgLoaded} style={{ flex:1, background:"linear-gradient(135deg,#f97316,#ea580c)", border:"none", color:"#fff", borderRadius:10, padding:"10px", fontWeight:900, fontSize:13, cursor: imgLoaded?"pointer":"not-allowed", boxShadow:"0 4px 14px #f9731666" }}>
-            ✓ Sauvegarder
+            <Check size={14} strokeWidth={3} style={{verticalAlign:"-2px",marginRight:5}}/>Sauvegarder
           </button>
         </div>
       </div>
@@ -8011,7 +8011,7 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
           <div style={{ marginTop:20,background:"#7c3aed11",border:"1px solid #7c3aed33",borderRadius:14,padding:16,textAlign:"center" }}>
             <p style={{ color:C.muted,fontSize:13,marginBottom:10 }}>Un tournoi organisé par ce club n'est pas répertorié ?</p>
             <button onClick={()=>setPage("proposer-tournoi")} style={{ background:"#7c3aed",color:"#fff",border:"none",borderRadius:10,padding:"9px 20px",fontSize:13,fontWeight:700,cursor:"pointer" }}>
-              🏅 Proposer un tournoi
+              <EmoIcon e="🏅" size={14} style={{verticalAlign:"-2px",marginRight:5}}/>Proposer un tournoi
             </button>
           </div>
         )}
@@ -9017,7 +9017,7 @@ const AdminJoueurs = ({ addLog }) => {
 
                   <button onClick={()=>resetDrix(j)} disabled={saving[j.id]}
                     style={{background:"#1a1200",color:C.yellow,border:`1px solid ${C.yellow}44`,borderRadius:8,padding:"6px 14px",cursor:"pointer",fontWeight:600,fontSize:12}}>
-                    🔄 Remettre à 1000
+                    <EmoIcon e="🔄" size={12} style={{verticalAlign:"-2px",marginRight:4}}/>Remettre à 1000
                   </button>
 
                   {msg[j.id] && <div style={{marginTop:10,padding:"8px 12px",background:"#10b98118",border:`1px solid #10b98133`,borderRadius:8,fontSize:13,color:"#10b981",fontWeight:600}}>{msg[j.id]}</div>}
@@ -9233,7 +9233,7 @@ const AdminDuels = ({ addLog }) => {
             {/* Trace admin */}
             {d.admin_action && (
               <div style={{background:"#1a0014",border:`1px solid #a78bfa33`,borderRadius:8,padding:"6px 10px",fontSize:11,color:"#a78bfa",marginBottom:8}}>
-                🛡 <strong>{d.admin_action}</strong>
+                <EmoIcon e="🛡" size={11} color="#a78bfa" style={{verticalAlign:"-2px",marginRight:4}}/><strong>{d.admin_action}</strong>
                 {d.admin_note && <div style={{color:C.muted,marginTop:2,fontStyle:"italic"}}>"{d.admin_note}"</div>}
               </div>
             )}
@@ -9243,14 +9243,14 @@ const AdminDuels = ({ addLog }) => {
               {!editing && d.statut !== "annule_admin" && (
                 <button onClick={()=>setEditScore({id:d.id,sc:String(scC),sd:String(scD)})} disabled={working[d.id]}
                   style={{background:"#1a1200",color:C.yellow,border:`1px solid ${C.yellow}44`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}>
-                  ✏️ Corriger score
+                  <EmoIcon e="✏️" size={12} style={{verticalAlign:"-2px",marginRight:4}}/>Corriger score
                 </button>
               )}
               {editing && (
                 <>
                   <button onClick={()=>corrigerScore(d)} disabled={working[d.id]}
                     style={{background:C.green,color:"#fff",border:"none",borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:700}}>
-                    💾 Enregistrer
+                    <EmoIcon e="💾" size={12} style={{verticalAlign:"-2px",marginRight:4}}/>Enregistrer
                   </button>
                   <button onClick={()=>setEditScore(null)}
                     style={{background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12}}>
@@ -9261,7 +9261,7 @@ const AdminDuels = ({ addLog }) => {
               {!editing && d.statut !== "annule_admin" && (
                 <button onClick={()=>annulerDuel(d)} disabled={working[d.id]}
                   style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}>
-                  🛡 Annuler & rollback DRIX
+                  <EmoIcon e="🛡" size={12} style={{verticalAlign:"-2px",marginRight:4}}/>Annuler & rollback DRIX
                 </button>
               )}
             </div>
@@ -9502,7 +9502,7 @@ const ModalResultats = ({ tournoi, inscrits, onClose, onPublish, working }) => {
               </div>
             ))}
             <div style={{fontSize:11,color:C.muted,marginBottom:14,padding:"8px 10px",background:"#0a0a0a",borderRadius:8}}>
-              💡 Les résultats seront publiés sur le Comptoir et le tournoi sera marqué comme terminé.
+              <EmoIcon e="💡" size={12} color={C.yellow} style={{verticalAlign:"-2px",marginRight:5}}/>Les résultats seront publiés sur le Comptoir et le tournoi sera marqué comme terminé.
             </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={onClose} style={{flex:1,background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,borderRadius:10,padding:"11px",cursor:"pointer",fontSize:14}}>Annuler</button>
@@ -10142,7 +10142,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
                   {isNonLu && (
                     <button onClick={()=>markContactLu(p.id)}
                       style={{ background:"#141a14", border:`1px solid ${C.green}44`, borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, color:C.green, cursor:"pointer" }}>
-                      ✅ Marquer comme lu
+                      <EmoIcon e="✅" size={12} style={{verticalAlign:"-2px",marginRight:4}}/>Marquer comme lu
                     </button>
                   )}
                   <button onClick={async()=>{
@@ -10156,7 +10156,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
                     }
                   }}
                     style={{ marginLeft:"auto", background:"#1a0000", border:`1px solid ${C.red}44`, borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, color:C.red, cursor:"pointer" }}>
-                    🗑 Supprimer
+                    <EmoIcon e="🗑" size={12} style={{verticalAlign:"-2px",marginRight:4}}/>Supprimer
                   </button>
                 </div>
               </div>
@@ -11799,7 +11799,7 @@ export default function App() {
               </button>
               <button onClick={()=>{ nav(pendingNav); setPendingNav(null); }}
                 style={{ background:"#7f1d1d",border:"1px solid #ef444444",borderRadius:12,color:"#ef4444",fontSize:14,fontWeight:700,padding:"13px",cursor:"pointer",touchAction:"manipulation" }}>
-                🚪 Quitter
+                <EmoIcon e="🚪" size={14} style={{verticalAlign:"-2px",marginRight:5}}/>Quitter
               </button>
             </div>
           </div>
@@ -11815,7 +11815,7 @@ export default function App() {
           boxShadow:"0 2px 12px #ef444466",
           display:"flex", alignItems:"center", justifyContent:"center", gap:8,
         }}>
-          📡 Hors connexion — certaines actions ne fonctionneront pas
+          <EmoIcon e="📡" size={14} color="#fff"/>Hors connexion — certaines actions ne fonctionneront pas
         </div>
       )}
       {/* ── Toast container ── */}
