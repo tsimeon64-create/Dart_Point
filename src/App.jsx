@@ -548,7 +548,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
           <img src="/logo dart point/logo bandeau.png" alt="" style={{ height:30, objectFit:"contain", filter:"drop-shadow(0 0 12px rgba(249,115,22,0.4))" }}/>
           <button onClick={()=>setOpen(false)} style={{ background:"#12121a", border:"1px solid #252530", color:"#64748b", cursor:"pointer", borderRadius:8, padding:"5px 10px", fontSize:15, fontWeight:700, transition:"all .15s", touchAction:"manipulation" }}
             onMouseEnter={e=>{e.currentTarget.style.borderColor="#f9731644";e.currentTarget.style.color="#f97316";}}
-            onMouseLeave={e=>{e.currentTarget.style.borderColor="#252530";e.currentTarget.style.color="#64748b";}}>✕</button>
+            onMouseLeave={e=>{e.currentTarget.style.borderColor="#252530";e.currentTarget.style.color="#64748b";}}><X size={18}/></button>
         </div>
 
         <div style={{ padding:"14px 14px 24px", flex:1 }}>
@@ -832,7 +832,7 @@ const GalerieSection = ({ slug, type="bar", isAdmin }) => {
   };
   return (
     <div style={{ marginBottom:24 }}>
-      <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:C.accent }}>📸 Photos de la communauté</h3>
+      <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:C.accent }}><EmoText s="📸 Photos de la communauté" size={15}/></h3>
       {lightbox!==null&&(
         <div onClick={()=>setLightbox(null)} style={{ position:"fixed",inset:0,background:"#000d",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out" }}>
           <div style={{ position:"relative",maxWidth:"90vw" }}>
@@ -901,7 +901,7 @@ const AvisSection = ({ barSlug, isAdmin }) => {
   };
   return (
     <div style={{ marginBottom:20 }}>
-      <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:C.accent }}>💬 Avis de la communauté</h3>
+      <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:C.accent }}><EmoText s="💬 Avis de la communauté" size={15}/></h3>
       {Object.values(reactions).some(v=>v>0)&&(
         <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:14 }}>
           {REACTIONS_LIST.filter(r=>reactions[r.id]>0).map(r=>(
@@ -1028,7 +1028,7 @@ const SignalForm = ({ barSlug, barNom, onClose }) => {
   return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"#000a",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:28,maxWidth:440,width:"90%",position:"relative" }}>
-        <button onClick={onClose} aria-label="Fermer" style={{ position:"absolute",top:10,right:10,background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer",lineHeight:1,padding:"4px 8px" }}>✕</button>
+        <button onClick={onClose} aria-label="Fermer" style={{ position:"absolute",top:10,right:10,background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer",lineHeight:1,padding:"4px 8px" }}><X size={18}/></button>
         <h3 style={{ fontWeight:700,marginBottom:4 }}>⚠️ Signaler une erreur — {barNom}</h3>
         <div style={{ display:"flex",flexDirection:"column",gap:12,marginTop:14 }}>
           <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>{types.map(([v,l])=><button key={v} onClick={()=>setType(v)} style={{ background:type===v?C.accent+"33":"#111",border:`1px solid ${type===v?C.accent:C.border}`,borderRadius:20,padding:"5px 12px",cursor:"pointer",fontSize:12,color:type===v?C.accent:C.muted }}><EmoText s={l}/></button>)}</div>
@@ -1148,7 +1148,7 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
 
         {/* Identification */}
         <div style={sec}>
-          <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}>📋 IDENTIFICATION</div>
+          <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}><EmoText s="📋 IDENTIFICATION" size={12}/></div>
           <div><label style={lbl}>Nom du club *</label><input value={f.nom} onChange={e=>set("nom")(e.target.value)} placeholder="Ex : Euskal Dardoa" style={inp}/></div>
           <div><label style={lbl}>Ville *</label><input value={f.ville} onChange={e=>set("ville")(e.target.value)} placeholder="Ex : Bayonne" style={inp}/></div>
           <div><label style={lbl}>Zone / Région</label><input value={f.zone} onChange={e=>set("zone")(e.target.value)} placeholder="Ex : Pays Basque" style={inp}/></div>
@@ -1162,7 +1162,7 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
 
         {/* Contact */}
         <div style={sec}>
-          <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}>👑 CONTACT</div>
+          <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}><EmoText s="👑 CONTACT" size={12}/></div>
           <div><label style={lbl}>Président</label><input value={f.president} onChange={e=>set("president")(e.target.value)} placeholder="Ex : Jean Dupont" style={inp}/></div>
           <div><label style={lbl}>Personne à contacter</label><input value={f.contact_nom} onChange={e=>set("contact_nom")(e.target.value)} placeholder="Ex : Marie Martin" style={inp}/></div>
           <div><label style={lbl}>Téléphone</label><input value={f.tel} onChange={e=>set("tel")(e.target.value)} placeholder="06 XX XX XX XX" style={inp} type="tel"/></div>
@@ -1171,7 +1171,7 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
 
         {/* Entraînements */}
         <div style={sec}>
-          <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}>🎯 ENTRAÎNEMENTS</div>
+          <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}><EmoText s="🎯 ENTRAÎNEMENTS" size={12}/></div>
           <div><label style={lbl}>Jour et heure d'entraînement</label><input value={f.jours} onChange={e=>set("jours")(e.target.value)} placeholder="Ex : Vendredi 20h00" style={inp}/></div>
           <div><label style={lbl}>Lieu d'entraînement</label><input value={f.lieu} onChange={e=>set("lieu")(e.target.value)} placeholder="Ex : Salle des sports, Bar du Centre…" style={inp}/></div>
         </div>
@@ -1219,7 +1219,7 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
 
         {/* Localisation */}
         <div style={sec}>
-          <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}>📍 LOCALISATION</div>
+          <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}><EmoText s="📍 LOCALISATION" size={12}/></div>
           <div><label style={lbl}>Latitude</label><input value={f.lat} onChange={e=>set("lat")(e.target.value)} placeholder="43.49" style={inp} type="number" inputMode="decimal"/></div>
           <div><label style={lbl}>Longitude</label><input value={f.lng} onChange={e=>set("lng")(e.target.value)} placeholder="-1.47" style={inp} type="number" inputMode="decimal"/></div>
         </div>
@@ -1285,7 +1285,7 @@ const HelpModal = ({ emoji="📖", title, items=[], visual=null, onClose }) => (
           <EmoIcon e={emoji} size={22} color="#f97316"/>
           <h2 style={{ fontWeight:900, fontSize:18, color:"#f1f5f9", margin:0 }}>{title}</h2>
         </div>
-        <button onClick={onClose} style={{ background:"none", border:"none", color:"#4b5563", fontSize:22, cursor:"pointer", lineHeight:1 }}>✕</button>
+        <button onClick={onClose} style={{ background:"none", border:"none", color:"#4b5563", fontSize:22, cursor:"pointer", lineHeight:1 }}><X size={18}/></button>
       </div>
       {visual && <div style={{ padding:"0 16px 14px" }}>{visual}</div>}
       <div style={{ padding:"0 16px" }}>
@@ -3185,7 +3185,7 @@ const ReplayConfigModal = ({ title, players, form, setForm, onLancer, onClose, l
           <div style={{ width:40,height:4,borderRadius:2,background:"#2a2a3e",margin:"0 auto 16px" }}/>
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
             <div style={{ fontWeight:900,fontSize:18,color:CX.text }}>🔁 {title}</div>
-            <button onClick={onClose} style={{ background:"#2a2a2a",border:"none",color:CX.text,borderRadius:"50%",width:30,height:30,cursor:"pointer",fontSize:15 }}>✕</button>
+            <button onClick={onClose} style={{ background:"#2a2a2a",border:"none",color:CX.text,borderRadius:"50%",width:30,height:30,cursor:"pointer",fontSize:15 }}><X size={18}/></button>
           </div>
         </div>
         <div style={{ padding:"0 20px" }}>
@@ -7516,7 +7516,7 @@ const CropLogoModal = ({ imageDataUrl, onSave, onClose, label="Cadrer le logo" }
       <div style={{ background:"#0d0d14", border:`1px solid ${C.border}`, borderRadius:18, padding:18, maxWidth:340, width:"100%" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
           <div style={{ fontWeight:900, fontSize:15, color:C.text }}>🎯 {label}</div>
-          <button onClick={onClose} style={{ background:"none", border:"none", color:C.muted, fontSize:20, cursor:"pointer", lineHeight:1 }}>✕</button>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:C.muted, fontSize:20, cursor:"pointer", lineHeight:1 }}><X size={18}/></button>
         </div>
 
         {/* Zone de crop carrée + masque circulaire */}
@@ -8854,7 +8854,7 @@ const AdminJoueurs = ({ addLog }) => {
           placeholder="🔍 Filtrer par pseudo…"
           style={{flex:1,background:"#111",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",color:C.text,fontSize:14}}
         />
-        {recherche&&<button onClick={()=>setRecherche("")} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:18}}>✕</button>}
+        {recherche&&<button onClick={()=>setRecherche("")} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:18}}><X size={18}/></button>}
         <div style={{color:C.muted,fontSize:12,whiteSpace:"nowrap"}}>{joueurs.length} joueur{joueurs.length!==1?"s":""}</div>
       </div>
 
@@ -9807,7 +9807,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
       {kpiDetail && (
         <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setKpiDetail(null)}>
           <div style={{background:"#111",border:`1px solid ${C.border}`,borderRadius:18,padding:24,maxWidth:520,width:"100%",maxHeight:"80vh",overflowY:"auto",position:"relative"}} onClick={e=>e.stopPropagation()}>
-            <button onClick={()=>setKpiDetail(null)} style={{position:"absolute",top:14,right:14,background:"#222",border:`1px solid ${C.border}`,color:C.muted,borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:13}}>✕</button>
+            <button onClick={()=>setKpiDetail(null)} style={{position:"absolute",top:14,right:14,background:"#222",border:`1px solid ${C.border}`,color:C.muted,borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:13}}><X size={18}/></button>
 
             {kpiDetail==="nouveaux" && (<>
               <div style={{fontSize:15,fontWeight:800,marginBottom:16,display:"flex",alignItems:"center",gap:8}}>
@@ -11708,7 +11708,7 @@ export default function App() {
         return (
           <div style={{ position:"fixed",inset:0,background:"#000000cc",zIndex:1500,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:"0 16px 80px" }} onClick={()=>setShowChronoPopup(false)}>
             <div onClick={e=>e.stopPropagation()} style={{ background:"linear-gradient(135deg,#1a1030,#0f0f20)",border:"2px solid #a78bfa",borderRadius:24,padding:"28px 24px 24px",maxWidth:400,width:"100%",textAlign:"center",boxShadow:"0 24px 64px #000000bb,0 0 40px #a78bfa33",position:"relative" }}>
-              <button onClick={()=>setShowChronoPopup(false)} style={{ position:"absolute",top:12,right:14,background:"none",border:"none",color:"#64748b",fontSize:20,cursor:"pointer",lineHeight:1,padding:4,touchAction:"manipulation" }}>✕</button>
+              <button onClick={()=>setShowChronoPopup(false)} style={{ position:"absolute",top:12,right:14,background:"none",border:"none",color:"#64748b",fontSize:20,cursor:"pointer",lineHeight:1,padding:4,touchAction:"manipulation" }}><X size={18}/></button>
               <div style={{ fontSize:48,marginBottom:10 }}>⏱️</div>
               <div style={{ fontWeight:900,fontSize:20,color:"#a78bfa",marginBottom:8,lineHeight:1.25 }}>
                 Tu n'as pas fait<br/>ton défi quotidien !
@@ -11788,7 +11788,7 @@ export default function App() {
       {pendingNav && (
         <div onClick={()=>setPendingNav(null)} style={{ position:"fixed",inset:0,background:"#000000cc",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
           <div onClick={e=>e.stopPropagation()} style={{ position:"relative",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:20,padding:32,maxWidth:320,width:"100%",textAlign:"center",boxShadow:"0 24px 64px #000000aa" }}>
-            <button onClick={()=>setPendingNav(null)} aria-label="Fermer" style={{ position:"absolute",top:10,right:10,background:"none",border:"none",color:C.muted,fontSize:22,cursor:"pointer",lineHeight:1,padding:"4px 8px",touchAction:"manipulation" }}>✕</button>
+            <button onClick={()=>setPendingNav(null)} aria-label="Fermer" style={{ position:"absolute",top:10,right:10,background:"none",border:"none",color:C.muted,fontSize:22,cursor:"pointer",lineHeight:1,padding:"4px 8px",touchAction:"manipulation" }}><X size={18}/></button>
             <div style={{ fontSize:44,marginBottom:12 }}>⚠️</div>
             <h2 style={{ fontWeight:800,fontSize:19,marginBottom:8,color:C.text }}>Quitter la partie ?</h2>
             <p style={{ color:C.muted,fontSize:14,marginBottom:28,lineHeight:1.6 }}>Ta partie en cours sera perdue et les scores ne seront pas sauvegardés.</p>
