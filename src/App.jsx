@@ -343,7 +343,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
   // Sub-components
   const SecTitle = ({ children }) => (
     <div style={{ fontSize:10, fontWeight:700, color:"#3d4758", textTransform:"uppercase", letterSpacing:1.8, marginBottom:6, paddingLeft:4, paddingTop:4, display:"flex", alignItems:"center", gap:6 }}>
-      {children}
+      {typeof children === "string" ? <EmoText s={children} size={12} color="#3d4758" gap={6}/> : children}
     </div>
   );
   const MenuItem = ({ icon, label, target, badge, badgeColor="#ef4444", liveLabel, liveColor="#4ade80", glow=false, accent=false, danger=false }) => {
@@ -560,7 +560,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
               {/* Avatar + pseudo + DRIX */}
               <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:11 }}>
                 <div style={{ width:54,height:54,borderRadius:"50%",background:`linear-gradient(135deg,${drixColor}33,#141428)`,border:`2.5px solid ${drixColor}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0,overflow:"hidden" }}>
-                  {joueur.photo ? <img src={joueur.photo} style={{ width:"100%",height:"100%",objectFit:"cover" }} alt=""/> : "👤"}
+                  {joueur.photo ? <img src={joueur.photo} style={{ width:"100%",height:"100%",objectFit:"cover" }} alt=""/> : <EmoIcon e="👤" size={18}/>}
                 </div>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontWeight:800, fontSize:17, color:"#f1f5f9", marginBottom:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{joueur.pseudo}</div>
@@ -577,9 +577,9 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
               {/* Stats winrate */}
               {joueurStats && (
                 <div style={{ display:"flex",gap:12,marginBottom:11,paddingBottom:11,borderBottom:`1px solid #1e1e28` }}>
-                  <span style={{ fontSize:12,color:"#4ade80",fontWeight:700 }}>🏆 {joueurStats.victoires}V</span>
-                  <span style={{ fontSize:12,color:"#f87171",fontWeight:700 }}>💀 {joueurStats.defaites}D</span>
-                  {wr !== null && <span style={{ fontSize:12,color:"#facc15",fontWeight:700 }}>⚡ {wr}% WR</span>}
+                  <span style={{ fontSize:12,color:"#4ade80",fontWeight:700,display:"inline-flex",alignItems:"center",gap:3 }}><EmoIcon e="🏆" size={11}/>{joueurStats.victoires}V</span>
+                  <span style={{ fontSize:12,color:"#f87171",fontWeight:700,display:"inline-flex",alignItems:"center",gap:3 }}><EmoIcon e="💀" size={11}/>{joueurStats.defaites}D</span>
+                  {wr !== null && <span style={{ fontSize:12,color:"#facc15",fontWeight:700,display:"inline-flex",alignItems:"center",gap:3 }}><EmoIcon e="⚡" size={11}/>{wr}% WR</span>}
                   <span style={{ fontSize:12,color:"#475569" }}>· {joueurStats.parties} matchs</span>
                 </div>
               )}
@@ -598,7 +598,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
               <button onClick={()=>go("mon-profil")} style={{ width:"100%",background:`${drixColor}14`,border:`1px solid ${drixColor}35`,color:drixColor,borderRadius:10,padding:"8px",fontSize:13,fontWeight:700,cursor:"pointer",transition:"all .15s",touchAction:"manipulation" }}
                 onMouseEnter={e=>{e.currentTarget.style.background=`${drixColor}28`;}}
                 onMouseLeave={e=>{e.currentTarget.style.background=`${drixColor}14`;}}>
-                👤 Voir mon profil
+                <EmoIcon e="👤" size={14} style={{verticalAlign:"-2px",marginRight:5}}/>Voir mon profil
               </button>
             </div>
           ) : (
@@ -607,7 +607,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
               <div style={{ fontWeight:700,fontSize:16,color:C.text,marginBottom:5 }}>Rejoins DartPoint</div>
               <div style={{ fontSize:13,color:"#4a5568",marginBottom:14 }}>Défis · DRIX · Tournois · Communauté</div>
               <button onClick={()=>go("connexion")} style={{ background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff",border:"none",borderRadius:12,padding:"11px 24px",fontSize:14,fontWeight:700,cursor:"pointer",width:"100%",boxShadow:"0 4px 18px #f9731440",touchAction:"manipulation" }}>
-                🚀 Connexion / Inscription
+                <EmoIcon e="🚀" size={14} style={{verticalAlign:"-2px",marginRight:5}}/>Connexion / Inscription
               </button>
             </div>
           )}
@@ -626,7 +626,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                 { e:"🏆", v:tournoisDuJour, l:"tournois", c:"#facc15" },
               ].map(({ e, v, l, c }) => (
                 <div key={l} style={{ display:"flex",alignItems:"center",gap:8 }}>
-                  <span style={{ fontSize:18 }}>{e}</span>
+                  <EmoIcon e={e} size={18} color={c}/>
                   <div>
                     <div style={{ fontWeight:800,fontSize:16,color:c,lineHeight:1 }}>{v}</div>
                     <div style={{ fontSize:10,color:"#374151",marginTop:1 }}>{l}</div>
@@ -685,7 +685,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                   style={{ display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 12px",background:"transparent",border:"1px solid transparent",borderRadius:11,cursor:"pointer",color:"#f87171",fontSize:14,fontWeight:500,transition:"all .18s",textAlign:"left",touchAction:"manipulation" }}
                   onMouseEnter={e=>{e.currentTarget.style.background="#ef444410";e.currentTarget.style.borderColor="#ef444430";}}
                   onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.borderColor="transparent";}}>
-                  <span style={{ fontSize:18,width:26,textAlign:"center",flexShrink:0 }}>🚪</span>
+                  <span style={{ width:26,display:"flex",justifyContent:"center",flexShrink:0 }}><EmoIcon e="🚪" size={18}/></span>
                   <span>Déconnexion</span>
                 </button>
               </>
@@ -711,7 +711,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
               }}
                 onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 0 36px #f59e0b35";e.currentTarget.style.borderColor="#f59e0b88";}}
                 onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 0 24px #f59e0b1a";e.currentTarget.style.borderColor="#f59e0b55";}}>
-                <span style={{ fontSize:22,width:26,textAlign:"center",flexShrink:0 }}>⚙️</span>
+                <span style={{ width:26,display:"flex",justifyContent:"center",flexShrink:0 }}><EmoIcon e="⚙️" size={20}/></span>
                 <div style={{ flex:1 }}>
                   <div>Administration</div>
                   <div style={{ fontSize:11,color:"#92400e",fontWeight:400,marginTop:2 }}>Panneau de contrôle</div>
