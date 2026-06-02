@@ -37,7 +37,7 @@ export const EMOJI_ICON = {
   "🔒": Lock, "🔐": Lock, "🔓": LogOut, "🔑": Key, "🚪": LogOut, "🔍": Search, "🔎": Search, "⚙️": Settings, "⚙": Settings, "🕒": Clock, "🕓": Clock,
   "🕵️": EyeOff, "🕵": EyeOff, "🕵️‍♂️": EyeOff, "🕵️‍♀️": EyeOff,
   // Actions / édition
-  "📸": Camera, "📷": Camera, "💬": MessageCircle, "✉️": Mail, "📧": Mail, "✏️": Pencil, "🗑️": Trash2, "🗑": Trash2,
+  "📸": Camera, "📷": Camera, "💬": MessageCircle, "✉️": Mail, "📧": Mail, "✏️": Pencil, "✏": Pencil, "📝": Pencil, "🗑️": Trash2, "🗑": Trash2,
   "➕": Plus, "💾": Save, "🔗": Link2, "🔄": RotateCcw, "↩️": Undo2, "↩": Undo2,
   "▶️": Play, "▶": Play, "⏸️": Pause, "⏹️": Square, "⏹": Square, "👁️": Eye, "👁": Eye, "👀": Eye, "📣": Megaphone, "➤": Send,
   "📭": Inbox, "📬": Inbox, "📥": Inbox, "📪": Inbox,

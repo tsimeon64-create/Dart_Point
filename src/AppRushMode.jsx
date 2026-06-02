@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ArrowLeft, Zap, Flame, Trophy } from "lucide-react";
+import { EmoIcon, EmoText } from "./icons";
 
 // ── Thème ─────────────────────────────────────────────────────────────────────
 const C = {
@@ -263,7 +264,7 @@ const AnswerButtons = ({ q, onAnswer, disabled }) => {
       {["BUST","VALIDE"].map(opt=>(
         <button key={opt} onClick={()=>!disabled&&onAnswer(opt)}
           style={{...btnBase,background:opt==="BUST"?"#1a0000":"#0a1f0a",color:opt==="BUST"?C.red:C.green,border:`2px solid ${opt==="BUST"?C.red:C.green}`,fontSize:20,padding:"18px 8px",opacity:disabled?0.6:1}}>
-          {opt==="BUST"?"💥 BUST":"✅ VALIDE"}
+          {opt==="BUST"?<EmoText s="💥 BUST" size={18} gap={5}/>:<EmoText s="✅ VALIDE" size={18} gap={5}/>}
         </button>
       ))}
     </div>
@@ -286,7 +287,7 @@ const AnswerButtons = ({ q, onAnswer, disabled }) => {
       {q.options.map((opt,i)=>(
         <button key={i} onClick={()=>!disabled&&onAnswer(opt)}
           style={{...btnBase,background:C.card,border:`2px solid ${C.border}`,color:C.text,fontSize:13,padding:"13px 12px",textAlign:"left",letterSpacing:1,opacity:disabled?0.6:1}}>
-          🎯 {opt}
+          <EmoIcon e="🎯" size={13} style={{verticalAlign:"-2px",marginRight:6}}/>{opt}
         </button>
       ))}
     </div>
@@ -305,7 +306,7 @@ const SelectNiveau = ({ onSelect, onBack }) => (
         <div key={n.label} onClick={()=>onSelect(n.label.toLowerCase())}
           style={{background:C.card,border:`2px solid ${n.color}44`,borderRadius:20,padding:"22px 18px",cursor:"pointer"}}>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
-            <div style={{fontSize:44}}>{n.emoji}</div>
+            <div style={{display:"flex"}}><EmoIcon e={n.emoji} size={40} color={n.color} fill={n.color}/></div>
             <div>
               <div style={{fontWeight:900,fontSize:22,color:n.color}}>{n.label}</div>
               <div style={{fontSize:13,color:C.muted,marginTop:2}}>{n.sub}</div>
@@ -401,8 +402,8 @@ const GameRush = ({ niveauId, setPage, joueur, onEnd }) => {
       <div style={{background:C.card,borderBottom:`1px solid ${C.border}`,padding:"7px 12px",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
         <div style={{flex:1,fontWeight:900,fontSize:14,color:niv.color,display:"flex",alignItems:"center",gap:6}}><Zap size={14}/> RUSH — {niv.label.toUpperCase()}</div>
         <div style={{display:"flex",gap:10,fontSize:13,fontWeight:800}}>
-          <span style={{color:C.green}}>✅ {session.correct}</span>
-          <span style={{color:C.red}}>❌ {session.wrong}</span>
+          <span style={{color:C.green,display:"inline-flex",alignItems:"center",gap:3}}><EmoIcon e="✅" size={13}/>{session.correct}</span>
+          <span style={{color:C.red,display:"inline-flex",alignItems:"center",gap:3}}><EmoIcon e="❌" size={13}/>{session.wrong}</span>
         </div>
         <div style={{background:`${timerColor}22`,border:`1px solid ${timerColor}44`,borderRadius:8,padding:"3px 10px",fontWeight:900,fontSize:14,color:timerColor,minWidth:32,textAlign:"center"}}>
           {timer}
@@ -435,8 +436,8 @@ const GameRush = ({ niveauId, setPage, joueur, onEnd }) => {
               display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:4,
               animation:"feedPop .2s ease-out",
             }}>
-              <div style={{fontSize:38}}>{feedback.ok?"🎉":"💥"}</div>
-              <div style={{fontWeight:900,fontSize:18,color:feedback.ok?C.green:C.red}}>{feedback.msg}</div>
+              <EmoIcon e={feedback.ok?"🎉":"💥"} size={38} color={feedback.ok?C.green:C.red}/>
+              <div style={{fontWeight:900,fontSize:18,color:feedback.ok?C.green:C.red}}><EmoText s={feedback.msg} size={17}/></div>
               {!feedback.ok && q.type!=="bust" && q.type!=="score" && (
                 <div style={{fontSize:12,color:C.muted,marginTop:4}}>Bonne réponse : <b style={{color:"#fff"}}>{q.answer}</b></div>
               )}
@@ -480,11 +481,11 @@ const SummaryRush = ({ session, prevStats, newStats, onReplay, onMenu, setPage }
           <div style={{display:"flex",justifyContent:"center",gap:24,marginBottom:12}}>
             <div style={{textAlign:"center"}}>
               <div style={{fontSize:40,fontWeight:900,color:C.green}}>{session.correct}</div>
-              <div style={{fontSize:11,color:C.muted}}>✅ Correctes</div>
+              <div style={{fontSize:11,color:C.muted}}><EmoText s="✅ Correctes" size={11} gap={4}/></div>
             </div>
             <div style={{textAlign:"center"}}>
               <div style={{fontSize:40,fontWeight:900,color:C.red}}>{session.wrong}</div>
-              <div style={{fontSize:11,color:C.muted}}>❌ Erreurs</div>
+              <div style={{fontSize:11,color:C.muted}}><EmoText s="❌ Erreurs" size={11} gap={4}/></div>
             </div>
           </div>
           <div style={{display:"flex",justifyContent:"center",gap:20}}>
@@ -506,10 +507,10 @@ const SummaryRush = ({ session, prevStats, newStats, onReplay, onMenu, setPage }
         {/* Nouveaux badges */}
         {newBadges.length>0 && (
           <div style={{background:"#1a0a2a",border:`1px solid ${C.purple}44`,borderRadius:16,padding:"14px 16px"}}>
-            <div style={{fontWeight:700,fontSize:12,color:C.purple,marginBottom:10,letterSpacing:1}}>🏅 BADGES DÉBLOQUÉS</div>
+            <div style={{fontWeight:700,fontSize:12,color:C.purple,marginBottom:10,letterSpacing:1}}><EmoText s="🏅 BADGES DÉBLOQUÉS" size={12} gap={5}/></div>
             {newBadges.map(b=>(
               <div key={b.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                <div style={{fontSize:28}}>{b.emoji}</div>
+                <EmoIcon e={b.emoji} size={28} color={C.purple}/>
                 <div>
                   <div style={{fontWeight:800,color:C.text,fontSize:14}}>{b.label}</div>
                 </div>
@@ -520,7 +521,7 @@ const SummaryRush = ({ session, prevStats, newStats, onReplay, onMenu, setPage }
 
         {/* Stats globales */}
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 16px"}}>
-          <div style={{fontWeight:700,fontSize:12,color:C.muted,marginBottom:10,letterSpacing:1}}>📊 STATISTIQUES GLOBALES</div>
+          <div style={{fontWeight:700,fontSize:12,color:C.muted,marginBottom:10,letterSpacing:1}}><EmoText s="📊 STATISTIQUES GLOBALES" size={12} gap={5}/></div>
           {[
             ["Sessions jouées",    newStats.totalSessions],
             ["Total bonnes rép.",  newStats.totalCorrect],
@@ -538,11 +539,11 @@ const SummaryRush = ({ session, prevStats, newStats, onReplay, onMenu, setPage }
         {/* Badges déjà gagnés */}
         {newStats.badges.length>0 && (
           <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 16px"}}>
-            <div style={{fontWeight:700,fontSize:12,color:C.muted,marginBottom:10,letterSpacing:1}}>🏅 MES BADGES</div>
+            <div style={{fontWeight:700,fontSize:12,color:C.muted,marginBottom:10,letterSpacing:1}}><EmoText s="🏅 MES BADGES" size={12} gap={5}/></div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               {newStats.badges.map(id=>{
                 const b=BADGES_DEF.find(x=>x.id===id);
-                return b ? <div key={id} title={b.label} style={{fontSize:26}}>{b.emoji}</div> : null;
+                return b ? <div key={id} title={b.label} style={{display:"flex"}}><EmoIcon e={b.emoji} size={26} color={C.accent}/></div> : null;
               })}
             </div>
           </div>
@@ -551,7 +552,7 @@ const SummaryRush = ({ session, prevStats, newStats, onReplay, onMenu, setPage }
         {/* Actions */}
         <button onClick={onReplay}
           style={{background:`linear-gradient(135deg,${C.accent},#ea580c)`,color:"#fff",border:"none",borderRadius:12,padding:"15px",fontWeight:900,fontSize:16,cursor:"pointer"}}>
-          ⚡ Rejouer
+          <EmoIcon e="⚡" size={16} style={{verticalAlign:"-2px",marginRight:6}}/>Rejouer
         </button>
         <button onClick={onMenu}
           style={{background:C.card,color:C.muted,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px",fontWeight:600,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
@@ -583,7 +584,7 @@ const MenuRush = ({ onStart, setPage }) => {
 
         {/* Hero */}
         <div style={{background:"linear-gradient(135deg,#1a0800,#0f0a1a)",border:`2px solid ${C.accent}`,borderRadius:20,padding:"24px 18px",textAlign:"center"}}>
-          <div style={{fontSize:48,marginBottom:8}}>⚡</div>
+          <div style={{marginBottom:8,display:"flex",justifyContent:"center"}}><EmoIcon e="⚡" size={48} color={C.accent}/></div>
           <div style={{fontWeight:900,fontSize:26,color:C.accent,marginBottom:4}}>RUSH MODE</div>
           <div style={{fontSize:13,color:C.muted,lineHeight:1.6}}>
             Calcul mental · Finishes · Bust detection<br/>
@@ -593,7 +594,7 @@ const MenuRush = ({ onStart, setPage }) => {
 
         {/* 4 types de questions */}
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 16px"}}>
-          <div style={{fontWeight:700,fontSize:12,color:C.muted,marginBottom:10,letterSpacing:1}}>📋 4 TYPES DE QUESTIONS</div>
+          <div style={{fontWeight:700,fontSize:12,color:C.muted,marginBottom:10,letterSpacing:1}}><EmoText s="📋 4 TYPES DE QUESTIONS" size={12} gap={5}/></div>
           {[
             {emoji:"🔢",label:"Calcul de score",     desc:"501 − 3 fléchettes = ?",          color:C.blue},
             {emoji:"🎯",label:"Checkout",             desc:"Quelle combinaison pour finir ?",   color:C.green},
@@ -601,7 +602,7 @@ const MenuRush = ({ onStart, setPage }) => {
             {emoji:"🏆",label:"Route optimale",       desc:"Quelle est la meilleure route ?",   color:C.purple},
           ].map(t=>(
             <div key={t.label} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
-              <span style={{fontSize:20}}>{t.emoji}</span>
+              <EmoIcon e={t.emoji} size={20} color={t.color}/>
               <div>
                 <div style={{fontWeight:700,color:t.color,fontSize:13}}>{t.label}</div>
                 <div style={{fontSize:11,color:C.muted}}>{t.desc}</div>
@@ -613,7 +614,7 @@ const MenuRush = ({ onStart, setPage }) => {
         {/* Stats perso */}
         {stats.totalSessions>0 && (
           <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 16px"}}>
-            <div style={{fontWeight:700,fontSize:12,color:C.muted,marginBottom:10,letterSpacing:1}}>📊 MES STATS</div>
+            <div style={{fontWeight:700,fontSize:12,color:C.muted,marginBottom:10,letterSpacing:1}}><EmoText s="📊 MES STATS" size={12} gap={5}/></div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
               {[
                 {label:"Sessions",     val:stats.totalSessions, color:C.accent},
@@ -629,7 +630,7 @@ const MenuRush = ({ onStart, setPage }) => {
             </div>
             {stats.badges.length>0&&(
               <div style={{marginTop:10,display:"flex",gap:6,flexWrap:"wrap"}}>
-                {stats.badges.map(id=>{const b=BADGES_DEF.find(x=>x.id===id);return b?<span key={id} title={b.label} style={{fontSize:22}}>{b.emoji}</span>:null;})}
+                {stats.badges.map(id=>{const b=BADGES_DEF.find(x=>x.id===id);return b?<span key={id} title={b.label} style={{display:"inline-flex"}}><EmoIcon e={b.emoji} size={22} color={C.accent}/></span>:null;})}
               </div>
             )}
           </div>
@@ -638,7 +639,7 @@ const MenuRush = ({ onStart, setPage }) => {
         {/* Bouton start */}
         <button onClick={onStart}
           style={{background:`linear-gradient(135deg,${C.accent},#ea580c)`,color:"#fff",border:"none",borderRadius:14,padding:"18px",fontWeight:900,fontSize:18,cursor:"pointer",boxShadow:`0 4px 20px ${C.accent}55`}}>
-          ⚡ Commencer
+          <EmoIcon e="⚡" size={18} style={{verticalAlign:"-2px",marginRight:6}}/>Commencer
         </button>
       </div>
     </div>

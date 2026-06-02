@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { EmoIcon, EmoText } from "./icons";
 
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -159,7 +160,7 @@ const ConversationView=({joueur,autreId,autrePseudo,onBack})=>{
         <div style={{width:42,height:42,borderRadius:"50%",background:couleur+"22",border:`2px solid ${couleur}`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:15,color:couleur,flexShrink:0}}>{initiales(autrePseudo)}</div>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontWeight:700,fontSize:16,lineHeight:1.2}}>{autrePseudo}</div>
-          <div style={{fontSize:11,color:CM.muted}}>Joueur DartPoint 🎯</div>
+          <div style={{fontSize:11,color:CM.muted,display:"flex",alignItems:"center",gap:3}}>Joueur DartPoint <EmoIcon e="🎯" size={11}/></div>
         </div>
       </div>
 
@@ -168,7 +169,7 @@ const ConversationView=({joueur,autreId,autrePseudo,onBack})=>{
         {loading&&<Spinner/>}
         {!loading&&messages.length===0&&(
           <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flex:1,gap:12,opacity:.6}}>
-            <div style={{fontSize:52}}>💬</div>
+            <EmoIcon e="💬" size={52} color={CM.muted}/>
             <p style={{color:CM.muted,fontSize:14,textAlign:"center"}}>Commencez la conversation<br/>avec <b style={{color:couleur}}>{autrePseudo}</b> !</p>
           </div>
         )}
@@ -239,7 +240,7 @@ const ConversationView=({joueur,autreId,autrePseudo,onBack})=>{
               display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
               color:texte.trim()&&!sending?"#fff":CM.muted,fontSize:16,
             }}>
-            {sending?"⏳":"➤"}
+            {sending?<EmoIcon e="⏳" size={16}/>:<EmoIcon e="➤" size={16}/>}
           </button>
         </div>
         <div style={{fontSize:10,color:CM.muted,textAlign:"center",marginTop:6,opacity:.5}}>Entrée pour envoyer · Shift+Entrée pour saut de ligne</div>
@@ -284,9 +285,9 @@ const ConversationsList=({joueur,onOpen,activeId})=>{
     <div>
       {convs.length===0&&(
         <div style={{textAlign:"center",padding:"60px 20px"}}>
-          <div style={{fontSize:52,marginBottom:14}}>💬</div>
+          <div style={{marginBottom:14,display:"flex",justifyContent:"center"}}><EmoIcon e="💬" size={52} color={CM.muted}/></div>
           <p style={{color:CM.muted,fontSize:15,marginBottom:6,fontWeight:600}}>Aucune conversation</p>
-          <p style={{color:CM.muted,fontSize:13}}>Va sur le profil d'un joueur et clique<br/><b style={{color:CM.text}}>💬 Message</b> pour démarrer.</p>
+          <p style={{color:CM.muted,fontSize:13}}>Va sur le profil d'un joueur et clique<br/><b style={{color:CM.text,display:"inline-flex",alignItems:"center",gap:3}}><EmoIcon e="💬" size={12}/>Message</b> pour démarrer.</p>
         </div>
       )}
       {convs.map(c=>{
@@ -335,7 +336,7 @@ export const MessagesPage=({joueur,setPage,targetId=null,targetPseudo=null})=>{
     return(
       <div style={{maxWidth:500,margin:"0 auto",padding:"60px 20px",textAlign:"center"}}>
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-        <div style={{fontSize:52,marginBottom:14}}>🔒</div>
+        <div style={{marginBottom:14,display:"flex",justifyContent:"center"}}><EmoIcon e="🔒" size={52} color={CM.muted}/></div>
         <p style={{color:CM.muted,fontSize:15,marginBottom:20}}>Connecte-toi pour accéder à ta messagerie.</p>
         <button onClick={()=>setPage("connexion")} style={{background:CM.accent,color:"#fff",border:"none",cursor:"pointer",padding:"12px 28px",borderRadius:10,fontSize:14,fontWeight:700}}>Se connecter</button>
       </div>
@@ -358,7 +359,7 @@ export const MessagesPage=({joueur,setPage,targetId=null,targetPseudo=null})=>{
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       {/* Header liste */}
       <div style={{padding:"20px 18px 14px",borderBottom:`1px solid ${CM.border}`,background:"#161616"}}>
-        <h1 style={{fontWeight:800,fontSize:22,marginBottom:4}}>💬 Messages</h1>
+        <h1 style={{fontWeight:800,fontSize:22,marginBottom:4}}><EmoText s="💬 Messages" size={20}/></h1>
         <p style={{fontSize:13,color:CM.muted}}>Tes conversations avec d'autres joueurs</p>
       </div>
       <div style={{flex:1,overflowY:"auto"}}>
@@ -375,7 +376,7 @@ export const BoutonMessage=({joueur,cible,setPage})=>{
     <button
       onClick={()=>setPage("messages-"+cible.id+"|"+encodeURIComponent(cible.pseudo))}
       style={{background:"#60a5fa22",color:"#60a5fa",border:"1px solid #60a5fa44",cursor:"pointer",padding:"7px 14px",borderRadius:8,fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
-      💬 Message
+      <EmoIcon e="💬" size={14}/>Message
     </button>
   );
 };

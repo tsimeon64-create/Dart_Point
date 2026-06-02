@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Target, Swords, Home } from "lucide-react";
+import { EmoIcon, EmoText } from "./icons";
 
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
@@ -139,7 +140,7 @@ export const ConfigCricket = ({ joueur, setPage }) => {
               <div style={{ fontWeight:800, fontSize:14, color:"#a78bfa", marginBottom:4 }}>Match DRIX Cricket</div>
               <div style={{ fontSize:12, color:C.muted, lineHeight:1.6 }}>
                 Les <strong style={{ color:"#f97316" }}>DRIX sont en jeu</strong> — même formule que le 501.<br/>
-                ⚠️ Ce match <strong>ne compte pas</strong> pour tes stats de fléchettes (moyennes, matchs gagnés, finishes…).
+                <EmoIcon e="⚠️" size={13} color={C.yellow} style={{verticalAlign:"-2px",marginRight:4}}/>Ce match <strong>ne compte pas</strong> pour tes stats de fléchettes (moyennes, matchs gagnés, finishes…).
               </div>
             </div>
           </div>
@@ -223,7 +224,7 @@ export const ConfigCricket = ({ joueur, setPage }) => {
                   style={{ flex:1, background:"#111", border:`1px solid ${defiData?"#333":C.border}`, borderRadius:8, padding:"9px 12px", color: defiData?C.muted:C.text, fontSize:14, cursor:defiData?"default":"text" }} />
                 {!defiData && config.joueurs.length > 2 && (
                   <button onClick={() => removeJoueur(i)}
-                    style={{ background:"none", border:"none", color:C.red, cursor:"pointer", fontSize:18, lineHeight:1, padding:4 }}>✕</button>
+                    style={{ background:"none", border:"none", color:C.red, cursor:"pointer", lineHeight:1, padding:4, display:"inline-flex" }}><EmoIcon e="✕" size={16}/></button>
                 )}
               </div>
             ))}
@@ -470,11 +471,11 @@ export const ScoreurCricket = ({ config, setPage }) => {
   const markEl = (n, col) => {
     if (n === 0) return <span style={{ color:"#2a2a2a", fontSize:20 }}>·</span>;
     if (n === 1) return <span style={{ color:"#555", fontSize:26, fontWeight:200, lineHeight:1 }}>/</span>;
-    if (n === 2) return <span style={{ color:C.text, fontSize:18, fontWeight:700 }}>✕</span>;
+    if (n === 2) return <EmoIcon e="✕" size={18} color={C.text} strokeWidth={3}/>;
     // closed
     return (
       <div style={{ width:28, height:28, borderRadius:"50%", background:`${col}22`, border:`2px solid ${col}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-        <span style={{ color:col, fontSize:12, fontWeight:900 }}>✕</span>
+        <EmoIcon e="✕" size={14} color={col} strokeWidth={3}/>
       </div>
     );
   };
@@ -622,7 +623,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
     return (
       <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:"Inter,sans-serif", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, textAlign:"center" }}>
         <div style={{ background:"linear-gradient(135deg,#14532d,#166534)", borderRadius:24, padding:"40px 32px", maxWidth:380, width:"100%", marginBottom:20 }}>
-          <div style={{ fontSize:72, marginBottom:12 }}>🏆</div>
+          <div style={{ marginBottom:12,display:"flex",justifyContent:"center" }}><EmoIcon e="🏆" size={72} color="#fbbf24"/></div>
           <div style={{ fontWeight:900, fontSize:32, color:C.green }}>VICTOIRE !</div>
           <div style={{ fontSize:24, fontWeight:800, color:"#fff", marginTop:8 }}>{interInfo.winner}</div>
           <div style={{ display:"flex", justifyContent:"center", gap:24, marginTop:16 }}>
@@ -640,7 +641,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
               { id: config.defi.defiId, pseudo: config.defi.defiPseudo, ancien: config.defi.defiDrix, gain: drixInfo.defiGain },
             ].map(p => (
               <div key={p.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:"1px solid #222" }}>
-                <div style={{ flex:1, fontWeight:700, fontSize:14 }}>{p.pseudo}{p.id===drixInfo.winnerId&&" 🏆"}</div>
+                <div style={{ flex:1, fontWeight:700, fontSize:14,display:"flex",alignItems:"center",gap:4 }}>{p.pseudo}{p.id===drixInfo.winnerId&&<EmoIcon e="🏆" size={13} color="#fbbf24"/>}</div>
                 <div style={{ fontWeight:800, fontSize:14, color: p.gain>=0?"#22c55e":"#ef4444" }}>
                   {p.gain>=0?"+":""}{p.gain} DRIX
                 </div>
@@ -664,7 +665,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
           {!config.defi && (
             <button onClick={() => { setJoueurs(initJoueurs(config)); setActifIdx(0); setMult(1); setDarts([]); setLastDarts({}); setHistorique([]); setInterInfo(null); setAdvancing(false); setPhase("jeu"); setDrixPublished(false); setDrixInfo(null); }}
               style={{ flex:1, padding:"16px", borderRadius:12, border:"none", fontWeight:800, fontSize:15, cursor:"pointer", background:`linear-gradient(135deg,${C.accent},#ea580c)`, color:"#fff" }}>
-              🔄 Rejouer
+              <EmoIcon e="🔄" size={15} style={{verticalAlign:"-2px",marginRight:6}}/>Rejouer
             </button>
           )}
           <button onClick={() => setPage(config.defi ? "home" : "jeux-flechettes")}
@@ -682,7 +683,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
     return (
       <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:"Inter,sans-serif", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
         <div style={{ textAlign:"center", maxWidth:360 }}>
-          <div style={{ fontSize:56, marginBottom:12 }}>{interInfo.type==="set"?"🏅":"🎯"}</div>
+          <div style={{ marginBottom:12,display:"flex",justifyContent:"center" }}><EmoIcon e={interInfo.type==="set"?"🏅":"🎯"} size={56} color={interInfo.type==="set"?C.yellow:C.green}/></div>
           <div style={{ fontWeight:900, fontSize:26, color: interInfo.type==="set"?C.yellow:C.green, marginBottom:6 }}>
             {interInfo.type==="set" ? "Set gagné !" : "Leg gagné !"}
           </div>
@@ -718,7 +719,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
       {showQuit && (
         <div style={{ position:"absolute", inset:0, background:"#000c", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
           <div style={{ background:C.card, border:`2px solid ${C.red}`, borderRadius:16, padding:28, maxWidth:300, width:"100%", textAlign:"center" }}>
-            <div style={{ fontSize:40, marginBottom:10 }}>⚠️</div>
+            <div style={{ marginBottom:10,display:"flex",justifyContent:"center" }}><EmoIcon e="⚠️" size={40} color={C.red}/></div>
             <div style={{ fontWeight:800, fontSize:17, marginBottom:8 }}>Abandonner ?</div>
             <p style={{ color:C.muted, fontSize:13, marginBottom:20 }}>La partie en cours sera perdue.</p>
             <div style={{ display:"flex", gap:10 }}>
@@ -738,9 +739,9 @@ export const ScoreurCricket = ({ config, setPage }) => {
       {/* ── Header ── */}
       <div style={{ height:38, background:"#111", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 10px", flexShrink:0 }}>
         <button onClick={() => setShowQuit(true)}
-          style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:18, lineHeight:1, padding:"2px 8px 2px 0", touchAction:"manipulation" }}>✕</button>
+          style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", lineHeight:1, padding:"2px 8px 2px 0", touchAction:"manipulation", display:"inline-flex" }}><EmoIcon e="✕" size={18}/></button>
         <span style={{ flex:1, textAlign:"center", fontSize:12, color:C.muted, fontWeight:600 }}>
-          🦗 Cricket {config.points ? (config.cutThroat ? "· Cut Throat" : "· Normal") : "· Points OFF"}
+          <EmoIcon e="🦗" size={12} style={{verticalAlign:"-2px",marginRight:5}}/>Cricket {config.points ? (config.cutThroat ? "· Cut Throat" : "· Normal") : "· Points OFF"}
         </span>
         <span style={{ fontSize:11, color:C.muted }}>
           {joueurs.map(j => j.setsGagnes).join("-")}
@@ -827,7 +828,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
                 <div style={{ flexShrink:0, height:40, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", borderTop:`1px solid ${C.border}44`, background:"#0d0d0d", gap:2 }}>
                   <span style={{ fontSize:10, color:C.muted }}>Sets {j.setsGagnes} · Legs {j.legsGagnes}</span>
                   <span style={{ fontSize:10, color:C.muted }}>
-                    <span style={{ marginRight:4 }}>✏</span>{totalM}
+                    <EmoIcon e="✏" size={10} color={C.muted} style={{marginRight:4,verticalAlign:"-1px"}}/>{totalM}
                     <span style={{ marginLeft:8 }}>MPR {mpr(j)}</span>
                   </span>
                 </div>

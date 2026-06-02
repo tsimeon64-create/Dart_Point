@@ -230,7 +230,7 @@ export const HorlogeDouble = ({ setPage }) => {
   if (phase === "confirming") return wrap(
     <>
       <div style={{ textAlign:"center", marginBottom:28 }}>
-        <div style={{ fontWeight:900, fontSize:52, color:"#22c55e", marginBottom:4 }}>✓</div>
+        <div style={{ marginBottom:4, display:"flex", justifyContent:"center" }}><CheckCircle size={52} color="#22c55e"/></div>
         <div style={{ fontWeight:800, fontSize:20, marginBottom:4 }}>{target.label} réussi !</div>
         <div style={{ fontSize:28, fontWeight:900, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
           <Timer size={22} color="#a78bfa"/> {fmtMs(savedTime)}
@@ -261,7 +261,7 @@ export const HorlogeDouble = ({ setPage }) => {
         {/* Récap dernière cible */}
         {lastResult && (
           <div style={{ background:"#14532d44", border:"1px solid #22c55e44", borderRadius:14, padding:16, marginBottom:20, display:"flex", alignItems:"center", gap:14 }}>
-            <div style={{ fontSize:28 }}>✓</div>
+            <CheckCircle size={26} color="#22c55e"/>
             <div style={{ flex:1 }}>
               <div style={{ fontWeight:800, fontSize:15, color:"#22c55e" }}>
                 {lastResult.target.label} — réussi en {lastResult.darts} fléchette{lastResult.darts>1?"s":""}
