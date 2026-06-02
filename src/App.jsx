@@ -227,7 +227,7 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
 
   return (
     <div style={{ position:"relative", height, borderRadius:12, overflow:"hidden", border:`1px solid ${C.border}` }}>
-      {!ready && <div style={{ position:"absolute",inset:0,background:"#1a1f2e",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10,zIndex:10 }}><span style={{ fontSize:36 }}>🗺️</span><span style={{ color:C.muted,fontSize:14 }}>Chargement de la carte…</span></div>}
+      {!ready && <div style={{ position:"absolute",inset:0,background:"#1a1f2e",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10,zIndex:10 }}><EmoIcon e="🗺️" size={36} color={C.muted}/><span style={{ color:C.muted,fontSize:14 }}>Chargement de la carte…</span></div>}
       <div ref={divRef} style={{ width:"100%", height:"100%" }} />
     </div>
   );
@@ -603,7 +603,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
             </div>
           ) : (
             <div style={{ background:"linear-gradient(135deg,#0e0900,#10091a)",border:"1px solid #f9731625",borderRadius:18,padding:"18px 16px",marginBottom:14,textAlign:"center" }}>
-              <div style={{ fontSize:40,marginBottom:8 }}>🎯</div>
+              <div style={{ display:"flex",justifyContent:"center",marginBottom:8 }}><EmoIcon e="🎯" size={40} color={C.accent}/></div>
               <div style={{ fontWeight:700,fontSize:16,color:C.text,marginBottom:5 }}>Rejoins DartPoint</div>
               <div style={{ fontSize:13,color:"#4a5568",marginBottom:14 }}>Défis · DRIX · Tournois · Communauté</div>
               <button onClick={()=>go("connexion")} style={{ background:"linear-gradient(135deg,#f97316,#ea580c)",color:"#fff",border:"none",borderRadius:12,padding:"11px 24px",fontSize:14,fontWeight:700,cursor:"pointer",width:"100%",boxShadow:"0 4px 18px #f9731440",touchAction:"manipulation" }}>
@@ -770,21 +770,21 @@ const BarCard = ({ bar, onClick, barsActifs=[], dist }) => {
       onMouseEnter={e=>{ e.currentTarget.style.borderColor=C.accent; e.currentTarget.style.background="#1f1f1f"; }}
       onMouseLeave={e=>{ e.currentTarget.style.borderColor=isActif?C.green:C.border; e.currentTarget.style.background=C.card; }}>
       {/* Icône type */}
-      <div style={{ width:46,height:46,borderRadius:12,background:ti.color+"18",border:`1px solid ${ti.color}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0 }}>🍺</div>
+      <div style={{ width:46,height:46,borderRadius:12,background:ti.color+"18",border:`1px solid ${ti.color}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0 }}><EmoIcon e="🍺" size={22} color={ti.color}/></div>
       {/* Infos */}
       <div style={{ flex:1,minWidth:0 }}>
         <div style={{ display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",marginBottom:3 }}>
           <span style={{ fontWeight:700,fontSize:15,color:C.text }}>{bar.nom}</span>
-          {bar.verifie&&<span style={{ color:C.green,fontSize:11 }}>✅</span>}
-          {isActif&&<span style={{ background:C.green+"22",color:C.green,fontSize:10,padding:"1px 8px",borderRadius:20,fontWeight:700 }}>🟢 Ce soir</span>}
+          {bar.verifie&&<EmoIcon e="✅" size={12} color={C.green}/>}
+          {isActif&&<span style={{ background:C.green+"22",color:C.green,fontSize:10,padding:"1px 8px",borderRadius:20,fontWeight:700 }}><EmoText s="🟢 Ce soir" size={9} gap={4}/></span>}
         </div>
         <div style={{ color:C.muted,fontSize:12,marginBottom:6 }}>
           {bar.ville}{bar.adresse?` · ${bar.adresse}`:""}
         </div>
         <div style={{ display:"flex",gap:5,flexWrap:"wrap" }}>
           {bar.cibles != null && <span style={{ background:"#a78bfa18",color:"#a78bfa",border:"1px solid #a78bfa33",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>🎯 {bar.cibles} cible{bar.cibles>1?"s":""}</span>}
-          {bar.tournois&&<span style={{ background:C.green+"18",color:C.green,border:`1px solid ${C.green}33`,fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>🏆 Tournois</span>}
-          {bar.association&&<span style={{ background:"#7c3aed18",color:"#a78bfa",border:"1px solid #7c3aed33",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>👥 Asso</span>}
+          {bar.tournois&&<span style={{ background:C.green+"18",color:C.green,border:`1px solid ${C.green}33`,fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}><EmoText s="🏆 Tournois" size={9} gap={4}/></span>}
+          {bar.association&&<span style={{ background:"#7c3aed18",color:"#a78bfa",border:"1px solid #7c3aed33",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}><EmoText s="👥 Asso" size={9} gap={4}/></span>}
           <span style={{ background:ti.color+"18",color:ti.color,border:`1px solid ${ti.color}33`,fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600 }}>{ti.l}</span>
         </div>
       </div>
@@ -1531,7 +1531,7 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
         <div style={{ position:"absolute",top:0,left:0,bottom:0,width:80,background:"linear-gradient(90deg,transparent,#ffffff18,transparent)",animation:"fbShine 4.5s ease-in-out infinite",pointerEvents:"none" }}/>
         {/* Icône ampoule animée */}
         <div style={{ position:"relative",width:42,height:42,borderRadius:12,background:"linear-gradient(135deg,#f9731622,#a78bfa22)",border:"1px solid #f9731644",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,zIndex:1 }}>
-          <span style={{ fontSize:22,animation:"fbBulb 2.4s ease-in-out infinite",display:"inline-block" }}>💡</span>
+          <span style={{ animation:"fbBulb 2.4s ease-in-out infinite",display:"inline-flex" }}><EmoIcon e="💡" size={20} color="#fbbf24"/></span>
         </div>
         {/* Texte */}
         <div style={{ position:"relative",zIndex:1,flex:1,minWidth:0 }}>
