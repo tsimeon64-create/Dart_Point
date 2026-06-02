@@ -1444,7 +1444,7 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
               <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:3 }}>
                 <span style={{ background:`${color}22`, border:`1px solid ${color}55`, borderRadius:20,
                   padding:"1px 8px", fontSize:10, fontWeight:800, color,
-                  boxShadow:`0 0 8px ${color}33` }}>{emoji} {titre}</span>
+                  boxShadow:`0 0 8px ${color}33`,display:"inline-flex",alignItems:"center",gap:3 }}><EmoIcon e={emoji} size={10} color={color}/>{titre}</span>
               </div>
               {stats && (
                 <div style={{ display:"flex", gap:5, marginTop:5, flexWrap:"wrap" }}>
@@ -1665,7 +1665,7 @@ const DoubletteFlow = ({ joueur, amis, amisData, setPage }) => {
   // ── Étape 1 : choix équipier ──
   if(step===1) return (
     <div>
-      <h2 style={{ fontWeight:700,fontSize:16,marginBottom:4 }}>👥 Choisis ton équipier</h2>
+      <h2 style={{ fontWeight:700,fontSize:16,marginBottom:4 }}><EmoText s="👥 Choisis ton équipier" size={16}/></h2>
       <p style={{ color:C.muted,fontSize:13,marginBottom:14 }}>Équipe A : toi + 1 équipier</p>
       {friendsList.length===0?noFriends:(
         <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
@@ -3746,7 +3746,7 @@ const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepu
           <div style={{ position:"relative", flexShrink:0 }}>
             <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={50} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
             {/* Couronne flottante */}
-            <div style={{ position:"absolute", top:-14, left:"50%", transform:"translateX(-50%)", fontSize:22, animation:"vainqCrown 2s ease-in-out infinite", filter:"drop-shadow(0 0 8px #fbbf24cc)", pointerEvents:"none" }}>👑</div>
+            <div style={{ position:"absolute", top:-14, left:"50%", transform:"translateX(-50%)", fontSize:22, animation:"vainqCrown 2s ease-in-out infinite", filter:"drop-shadow(0 0 8px #fbbf24cc)", pointerEvents:"none",display:"flex",justifyContent:"center" }}><EmoIcon e="👑" size={22} color="#fbbf24" fill="#fbbf24"/></div>
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:900, fontSize:16, cursor:"pointer", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
@@ -4042,7 +4042,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
         {!isAmical && (
           <div style={{ display:"flex", gap:10, marginBottom:14 }}>
             <div style={{ flex:1, position:"relative", overflow:"hidden", background:`linear-gradient(135deg,${winColor}22 0%,${winColor}0a 50%,#000 100%)`, border:`1px solid ${winColor}77`, borderRadius:14, padding:"12px 12px", boxShadow:`0 0 24px ${winColor}28, inset 0 1px 0 ${winColor}33`, textAlign:"center" }}>
-              <div style={{ fontSize:9, fontWeight:800, color:"#86efac", letterSpacing:1, marginBottom:3 }}>🔥 {w.nom.split(" ")[0].slice(0,12)}</div>
+              <div style={{ fontSize:9, fontWeight:800, color:"#86efac", letterSpacing:1, marginBottom:3,display:"flex",alignItems:"center",gap:4 }}><EmoIcon e="🔥" size={10}/>{w.nom.split(" ")[0].slice(0,12)}</div>
               <div style={{ fontSize:30, fontWeight:900, color:winColor, lineHeight:1, fontVariantNumeric:"tabular-nums", textShadow:`0 0 18px ${winColor}99, 0 0 30px ${winColor}55` }}>
                 {w.total>=0?"+":""}{w.total}
               </div>
@@ -4123,7 +4123,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
           {/* Glow latéral */}
           <div style={{ position:"absolute", left:0, top:0, bottom:0, width:3, background:"linear-gradient(180deg,#60a5fa,#a78bfa)", boxShadow:"0 0 12px #60a5fa88" }}/>
 
-          <span style={{ position:"relative", fontSize:24, lineHeight:1, filter:"drop-shadow(0 0 10px #60a5faaa)" }}>{analyseIA.emoji}</span>
+          <span style={{ position:"relative", lineHeight:1, filter:"drop-shadow(0 0 10px #60a5faaa)",display:"inline-flex" }}><EmoIcon e={analyseIA.emoji} size={24} color="#60a5fa"/></span>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontSize:9, fontWeight:900, color:"#60a5fa", letterSpacing:2, textTransform:"uppercase", marginBottom:3, opacity:.8 }}>Analyse du match</div>
             <div style={{ fontSize:13, color:"#cbd5e1", lineHeight:1.5, fontStyle:"italic", fontWeight:500 }}>
@@ -4398,7 +4398,7 @@ const LiveMatchCard = ({ session:s, onClick, setPage }) => {
           <span>Moy <b style={{ color:"#f97316" }}>{st1.moy||0}</b></span>
           <span>180s <b style={{ color:"#a78bfa" }}>{st1.nb180||0}</b></span>
         </div>
-        <div style={{ fontSize:11,color:"#ef444488",fontWeight:700,letterSpacing:.5 }}>👁 Regarder →</div>
+        <div style={{ fontSize:11,color:"#ef444488",fontWeight:700,letterSpacing:.5,display:"flex",alignItems:"center",gap:4 }}><EmoIcon e="👁" size={11}/>Regarder →</div>
         <div style={{ display:"flex",gap:10,fontSize:10,color:C.muted }}>
           <span>180s <b style={{ color:"#a78bfa" }}>{st2.nb180||0}</b></span>
           <span>Moy <b style={{ color:"#f97316" }}>{st2.moy||0}</b></span>
@@ -4528,7 +4528,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
         <style>{`@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.35)}} @keyframes liveGoldShine{0%,100%{box-shadow:0 0 24px #f59e0b44}50%{box-shadow:0 0 48px #f59e0baa}}`}</style>
         <button onClick={onBack} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:12,fontSize:13 }}>← Retour aux matchs</button>
         <div style={{ background:"linear-gradient(145deg,#12121e,#0d0d18)",border:"1px solid #f59e0b66",borderRadius:20,padding:24,textAlign:"center",animation:"liveGoldShine 2s infinite" }}>
-          <div style={{ fontSize:48,marginBottom:8 }}>🏆</div>
+          <div style={{ marginBottom:8,display:"flex",justifyContent:"center" }}><EmoIcon e="🏆" size={48} color={C.yellow}/></div>
           <div style={{ fontSize:13,color:"#f59e0b",fontWeight:700,letterSpacing:2,marginBottom:4 }}>MATCH TERMINÉ</div>
           {winnerPseudo && <div style={{ fontSize:22,fontWeight:900,color:winnerColor,marginBottom:16 }}>{winnerPseudo} remporte la partie !</div>}
           <div style={{ display:"flex",justifyContent:"center",gap:24,marginBottom:20 }}>
@@ -4642,7 +4642,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
             <FeedAvatar pseudo={session.joueur1_pseudo} size={36} onClick={()=>session.joueur1_id&&setPage("profil-joueur-"+session.joueur1_id)}/>
             <div style={{ minWidth:0 }}>
               <TruncPseudo pseudo={session.joueur1_pseudo} max={12} style={{ fontWeight:900,fontSize:13,color:leader===1?"#fff":C.text,display:"block" }}/>
-              <div style={{ fontSize:9,color:c1,fontWeight:700 }}>{e1} {session.joueur1_drix}</div>
+              <div style={{ fontSize:9,color:c1,fontWeight:700,display:"flex",alignItems:"center",gap:2 }}><EmoIcon e={e1} size={9}/>{session.joueur1_drix}</div>
             </div>
           </div>
 
@@ -4650,7 +4650,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
           <div style={{ textAlign:"center", flexShrink:0, padding:"0 6px" }}>
             <div style={{ display:"flex",alignItems:"baseline",gap:6 }}>
               <span style={{ fontWeight:900,fontSize:42,color:leader===1?"#f59e0b":C.text,textShadow:leader===1?"0 0 16px #f59e0baa":"none",lineHeight:1,fontVariantNumeric:"tabular-nums" }}>{sc1}</span>
-              <span style={{ color:"#ef4444",fontSize:18,fontWeight:900 }}>⚔</span>
+              <EmoIcon e="⚔" size={18} color="#ef4444"/>
               <span style={{ fontWeight:900,fontSize:42,color:leader===2?"#f59e0b":C.text,textShadow:leader===2?"0 0 16px #f59e0baa":"none",lineHeight:1,fontVariantNumeric:"tabular-nums" }}>{sc2}</span>
             </div>
             <div style={{ fontSize:8,color:"#475569",fontWeight:700,letterSpacing:2,marginTop:2 }}>MANCHES</div>
@@ -4660,7 +4660,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
           <div style={{ display:"flex",alignItems:"center",gap:8,minWidth:0,flex:1,justifyContent:"flex-end" }}>
             <div style={{ minWidth:0,textAlign:"right" }}>
               <TruncPseudo pseudo={session.joueur2_pseudo} max={12} style={{ fontWeight:900,fontSize:13,color:leader===2?"#fff":C.text,display:"block" }}/>
-              <div style={{ fontSize:9,color:c2,fontWeight:700 }}>{e2} {session.joueur2_drix}</div>
+              <div style={{ fontSize:9,color:c2,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:2 }}><EmoIcon e={e2} size={9}/>{session.joueur2_drix}</div>
             </div>
             <FeedAvatar pseudo={session.joueur2_pseudo} size={36} onClick={()=>session.joueur2_id&&setPage("profil-joueur-"+session.joueur2_id)}/>
           </div>
@@ -4672,14 +4672,14 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
             <div style={{ fontSize:"clamp(48px,14vw,68px)",fontWeight:900,color:activeJoueurId===session.joueur1_id?"#fff":c1,fontVariantNumeric:"tabular-nums",lineHeight:1,textShadow:`0 0 20px ${activeJoueurId===session.joueur1_id?"#ffffff44":c1+"44"}` }}>
               {s1.reste != null ? s1.reste : "—"}
             </div>
-            <div style={{ fontSize:9,color:C.muted,letterSpacing:1.5,marginTop:2 }}>📊 MOY {typeof s1.moy==="number"?s1.moy.toFixed(1):s1.moy||"—"}</div>
+            <div style={{ fontSize:9,color:C.muted,letterSpacing:1.5,marginTop:2,display:"flex",alignItems:"center",justifyContent:"center",gap:3 }}><EmoIcon e="📊" size={9}/>MOY {typeof s1.moy==="number"?s1.moy.toFixed(1):s1.moy||"—"}</div>
           </div>
           <div style={{ fontSize:14,color:"#334155",fontWeight:900 }}>—</div>
           <div style={{ textAlign:"center" }}>
             <div style={{ fontSize:"clamp(48px,14vw,68px)",fontWeight:900,color:activeJoueurId===session.joueur2_id?"#fff":c2,fontVariantNumeric:"tabular-nums",lineHeight:1,textShadow:`0 0 20px ${activeJoueurId===session.joueur2_id?"#ffffff44":c2+"44"}` }}>
               {s2.reste != null ? s2.reste : "—"}
             </div>
-            <div style={{ fontSize:9,color:C.muted,letterSpacing:1.5,marginTop:2 }}>📊 MOY {typeof s2.moy==="number"?s2.moy.toFixed(1):s2.moy||"—"}</div>
+            <div style={{ fontSize:9,color:C.muted,letterSpacing:1.5,marginTop:2,display:"flex",alignItems:"center",justifyContent:"center",gap:3 }}><EmoIcon e="📊" size={9}/>MOY {typeof s2.moy==="number"?s2.moy.toFixed(1):s2.moy||"—"}</div>
           </div>
         </div>
 
@@ -4708,13 +4708,13 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
           boxShadow:"0 0 16px #f9731633",
           animation:"liveEventSlide .35s ease",
         }}>
-          <div style={{ fontSize:9,fontWeight:900,color:"#f97316",letterSpacing:2,marginBottom:6 }}>🎯 DERNIÈRE VOLÉE</div>
+          <div style={{ fontSize:9,fontWeight:900,color:"#f97316",letterSpacing:2,marginBottom:6,display:"flex",alignItems:"center",gap:4 }}><EmoIcon e="🎯" size={10}/>DERNIÈRE VOLÉE</div>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
             {lastV1 && (
               <div style={{ background:"#000000aa",borderRadius:10,padding:"8px 10px",borderLeft:`3px solid ${c1}` }}>
                 <div style={{ fontSize:10,color:c1,fontWeight:700,marginBottom:2 }}><TruncPseudo pseudo={session.joueur1_pseudo} max={10} as="span"/></div>
                 <div style={{ fontSize:24,fontWeight:900,color:lastV1.score === -1 ? "#ef4444" : "#fff",fontVariantNumeric:"tabular-nums" }}>
-                  {lastV1.score === -1 ? "❌ Bust" : lastV1.score}
+                  {lastV1.score === -1 ? <EmoText s="❌ Bust" size={20}/> : lastV1.score}
                 </div>
               </div>
             )}
@@ -4722,7 +4722,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
               <div style={{ background:"#000000aa",borderRadius:10,padding:"8px 10px",borderLeft:`3px solid ${c2}` }}>
                 <div style={{ fontSize:10,color:c2,fontWeight:700,marginBottom:2 }}><TruncPseudo pseudo={session.joueur2_pseudo} max={10} as="span"/></div>
                 <div style={{ fontSize:24,fontWeight:900,color:lastV2.score === -1 ? "#ef4444" : "#fff",fontVariantNumeric:"tabular-nums" }}>
-                  {lastV2.score === -1 ? "❌ Bust" : lastV2.score}
+                  {lastV2.score === -1 ? <EmoText s="❌ Bust" size={20}/> : lastV2.score}
                 </div>
               </div>
             )}
@@ -4738,14 +4738,14 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
         display:"flex",alignItems:"center",justifyContent:"center",gap:6,
         fontSize:11,fontWeight:800,color:momentum.color,letterSpacing:.5,
       }}>
-        <span style={{ fontSize:14 }}>{momentum.emoji}</span>
+        <EmoIcon e={momentum.emoji} size={14} color={momentum.color}/>
         {momentum.label}
       </div>
 
       {/* ═══ MOMENTS CLÉS (highlights) ═══ */}
       {highlights.length > 0 && (
         <div style={{ marginBottom:10 }}>
-          <div style={{ fontSize:9,fontWeight:900,color:"#94a3b8",letterSpacing:2,marginBottom:6 }}>🏆 MOMENTS CLÉS</div>
+          <div style={{ fontSize:9,fontWeight:900,color:"#94a3b8",letterSpacing:2,marginBottom:6,display:"flex",alignItems:"center",gap:4 }}><EmoIcon e="🏆" size={10}/>MOMENTS CLÉS</div>
           <div style={{ display:"flex",gap:6,overflowX:"auto",paddingBottom:4 }}>
             {highlights.slice(0,8).map((h,i) => (
               <div key={i} style={{
@@ -4755,7 +4755,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
                 display:"flex",alignItems:"center",gap:5,
                 whiteSpace:"nowrap",
               }}>
-                <span style={{ fontSize:14 }}>{h.emoji}</span>
+                <EmoIcon e={h.emoji} size={14} color={h.color}/>
                 <span style={{ fontSize:10,fontWeight:700,color:h.color }}>{h.label}</span>
                 <span style={{ fontSize:9,color:C.muted }}>· {h.pseudo}</span>
               </div>
@@ -4777,7 +4777,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
               cursor:"pointer",transition:"all .15s",
               minHeight:30,touchAction:"manipulation",
             }}>
-              <span style={{ fontSize:13 }}>{r.emoji}</span>
+              <EmoIcon e={r.emoji} size={13} color={count>0?"#f97316":C.muted}/>
               <span style={{ fontSize:10,fontWeight:800,color:count>0?"#f97316":C.muted,fontVariantNumeric:"tabular-nums" }}>{count}</span>
             </button>
           );
@@ -4902,7 +4902,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
           {aiLines.length > 0 && (
             <div style={{ background:"linear-gradient(145deg,#0d0f1a,#14102a)",border:"1px solid #a78bfa33",borderRadius:14,padding:14,marginBottom:12 }}>
               <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:10 }}>
-                <span style={{ fontSize:16 }}>🤖</span>
+                <EmoIcon e="🤖" size={16} color="#a78bfa"/>
                 <span style={{ fontWeight:800,fontSize:13,color:"#a78bfa" }}>Synthèse</span>
               </div>
               {aiLines.map((line,i)=>(
@@ -4914,12 +4914,12 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
           {/* Analyse volée par volée */}
           <div style={{ background:"#0b0b16",border:"1px solid #1e1e30",borderRadius:14,padding:14 }}>
             <div style={{ fontWeight:800,fontSize:13,color:C.text,marginBottom:12,display:"flex",alignItems:"center",gap:6 }}>
-              🎯 <span>Analyse des 3 fléchettes</span>
+              <EmoIcon e="🎯" size={14}/><span>Analyse des 3 fléchettes</span>
               <span style={{ fontSize:10,color:C.muted,fontWeight:400,marginLeft:2 }}>— volée par volée</span>
             </div>
             {volees.length === 0 ? (
               <div style={{ color:C.muted,fontSize:13,textAlign:"center",padding:"20px 0" }}>
-                <div style={{ fontSize:26,marginBottom:6 }}>📡</div>
+                <div style={{ marginBottom:6,display:"flex",justifyContent:"center" }}><EmoIcon e="📡" size={26} color={C.muted}/></div>
                 En attente des premières volées…
               </div>
             ) : (
@@ -4930,7 +4930,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
                   const { emoji, text, color } = commentVolee(v, pseudo, moy);
                   return (
                     <div key={v.id||i} style={{ display:"flex",gap:8,alignItems:"flex-start",padding:"8px 10px",background:"#ffffff05",border:`1px solid ${color}28`,borderRadius:10 }}>
-                      <span style={{ fontSize:16,flexShrink:0 }}>{emoji}</span>
+                      <span style={{ flexShrink:0,display:"inline-flex" }}><EmoIcon e={emoji} size={16} color={color}/></span>
                       <div style={{ flex:1,minWidth:0 }}>
                         <span style={{ fontSize:12,color,lineHeight:1.5 }}>{text}</span>
                         <div style={{ fontSize:9,color:C.muted,marginTop:2 }}>{tempsDepuis(v.date)}</div>
@@ -4950,7 +4950,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
           <div style={{ maxHeight:340,overflowY:"auto",display:"flex",flexDirection:"column",gap:8,paddingRight:4 }}>
             {comments.length===0 ? (
               <div style={{ color:C.muted,fontSize:13,textAlign:"center",padding:"32px 0" }}>
-                <div style={{ fontSize:28,marginBottom:8 }}>💬</div>
+                <div style={{ marginBottom:8,display:"flex",justifyContent:"center" }}><EmoIcon e="💬" size={28} color={C.muted}/></div>
                 Sois le premier à commenter !
               </div>
             ) : comments.map((c,i)=>(
@@ -5056,10 +5056,10 @@ const PageLive = ({ joueur, setPage }) => {
         </select>
       </div>
       {loading ? (
-        <div style={{ textAlign:"center",color:C.muted,padding:48 }}>⏳ Chargement…</div>
+        <div style={{ textAlign:"center",color:C.muted,padding:48,display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}><EmoIcon e="⏳" size={14}/>Chargement…</div>
       ) : filtered.length===0 ? (
         <div style={{ textAlign:"center",padding:"48px 16px" }}>
-          <div style={{ fontSize:48,marginBottom:12 }}>🎯</div>
+          <div style={{ marginBottom:12,display:"flex",justifyContent:"center" }}><EmoIcon e="🎯" size={48} color={C.accent}/></div>
           <div style={{ fontWeight:700,fontSize:18,marginBottom:8 }}>Aucun match en cours</div>
           <div style={{ fontSize:13,color:C.muted,lineHeight:1.6 }}>Les parties de tes amis apparaissent ici en temps réel dès qu'ils lancent le scoreur.</div>
         </div>
@@ -5593,7 +5593,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
           </div>
           {/* Rank badge on right */}
           <div style={{ textAlign:"center",flexShrink:0 }}>
-            <div style={{ fontSize:40,lineHeight:1,animation:"drixPop .5s ease-out both" }}>{emoji}</div>
+            <div style={{ lineHeight:1,animation:"drixPop .5s ease-out both",display:"flex",justifyContent:"center" }}><EmoIcon e={emoji} size={36}/></div>
             <div style={{ fontSize:9,fontWeight:800,color:up?"#22c55e":"#ef4444",marginTop:2 }}>{m.drix_apres} DRIX</div>
           </div>
         </div>
@@ -5922,7 +5922,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         </div>
       ) : feed.length === 0 ? (
         <div style={{ background:"linear-gradient(160deg,#0e0e14,#0b0b10)",border:"1px solid #ffffff08",borderRadius:16,padding:48,textAlign:"center" }}>
-          <div style={{ fontSize:56,marginBottom:14 }}>🎯</div>
+          <div style={{ marginBottom:14,display:"flex",justifyContent:"center" }}><EmoIcon e="🎯" size={56} color={C.accent}/></div>
           <h2 style={{ fontWeight:800,fontSize:18,marginBottom:8,color:"#e2e8f0" }}>Le comptoir est calme…</h2>
           <p style={{ color:C.muted,fontSize:14,lineHeight:1.65,maxWidth:280,margin:"0 auto" }}>
             Ajoute des amis et lancez des duels pour faire vibrer le fil d'actu !
@@ -6076,7 +6076,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
                   background:"#052e1655", border:"1px solid #22c55e88",
                   color:"#22c55e", fontSize:9, fontWeight:900,
                   borderRadius:5, padding:"2px 6px", letterSpacing:.5,
-                }}>✓ FAIT</span>
+                }}><EmoText s="✓ FAIT" size={9} gap={3}/></span>
               )}
             </div>
             <div style={{ fontSize:11,color:"#94a3b8",lineHeight:1.4 }}>{sub}</div>
@@ -6238,7 +6238,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
                 display:"flex",alignItems:"center",justifyContent:"center",
                 boxShadow:"0 0 12px #fbbf2466",
                 animation:"mjPulse 1.8s ease-in-out infinite",
-              }}>🎯</div>
+              }}><EmoIcon e="🎯" size={20} color="#fbbf24"/></div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:9,fontWeight:900,color:"#fbbf24",letterSpacing:2 }}>━ REPRENDRE MA PARTIE ━</div>
                 <div style={{ fontSize:13,fontWeight:900,color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
@@ -6352,9 +6352,9 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
         borderRadius:14, padding:"10px 12px", marginBottom:12,
       }}>
         <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6 }}>
-          <span style={{ fontSize:10,fontWeight:900,color:"#94a3b8",letterSpacing:2 }}>🎯 TES DÉFIS AUJOURD'HUI</span>
+          <span style={{ fontSize:10,fontWeight:900,color:"#94a3b8",letterSpacing:2 }}><EmoText s="🎯 TES DÉFIS AUJOURD'HUI" size={11} gap={4}/></span>
           <span style={{ fontSize:10,fontWeight:900,color:doneCount===dailyChallenges.length?"#22c55e":"#fbbf24",letterSpacing:1 }}>
-            {doneCount}/{dailyChallenges.length} {doneCount===dailyChallenges.length?"✓":""}
+            {doneCount}/{dailyChallenges.length} {doneCount===dailyChallenges.length?<Check size={10} strokeWidth={3} style={{verticalAlign:"-1px"}}/>:""}
           </span>
         </div>
         <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
@@ -6366,7 +6366,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
               background: d.done ? "#052e1633" : "#0f0f18",
               border: d.done ? "1px solid #22c55e55" : `1px solid ${d.col}33`,
             }}>
-              <span style={{ fontSize:14 }}>{d.done ? "✅" : "⏳"}</span>
+              <EmoIcon e={d.done ? "✅" : "⏳"} size={14} color={d.done?"#22c55e":d.col}/>
               <span style={{ fontSize:11,fontWeight:800,color:d.done?"#22c55e":d.col,flex:1 }}>{d.name}</span>
             </div>
           ))}
@@ -6392,9 +6392,9 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
               padding:"3px 10px",borderRadius:5,
               background:"linear-gradient(90deg,#78350f44,#78350f66,#78350f44)",
               border:"1px solid #fbbf2477", textShadow:"0 0 6px #fbbf24aa",
-            }}>🏆 DÉFI DU JOUR</span>
+            }}><EmoText s="🏆 DÉFI DU JOUR" size={9} gap={3}/></span>
             {featured.played && (
-              <span style={{ fontSize:9,fontWeight:900,color:"#22c55e",padding:"3px 8px",borderRadius:5,background:"#052e1655",border:"1px solid #22c55e88" }}>✓ FAIT</span>
+              <span style={{ fontSize:9,fontWeight:900,color:"#22c55e",padding:"3px 8px",borderRadius:5,background:"#052e1655",border:"1px solid #22c55e88" }}><EmoText s="✓ FAIT" size={9} gap={3}/></span>
             )}
           </div>
 
@@ -6422,17 +6422,17 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           {/* Stats row */}
           <div style={{ display:"flex",gap:6,marginBottom:10,flexWrap:"wrap" }}>
             <div style={{ flex:"1 1 0",background:"#0a0a14",border:`1px solid ${featured.col}33`,borderRadius:8,padding:"6px 8px",textAlign:"center",minWidth:80 }}>
-              <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}>⏱ RECORD</div>
+              <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}><EmoText s="⏱ RECORD" size={9} gap={3}/></div>
               <div style={{ fontSize:14,fontWeight:900,color:"#fbbf24",fontVariantNumeric:"tabular-nums" }}>
                 {featured.record ? fmtMs(featured.record.temps_ms) : "—"}
               </div>
             </div>
             <div style={{ flex:"1 1 0",background:"#0a0a14",border:"1px solid #a78bfa33",borderRadius:8,padding:"6px 8px",textAlign:"center",minWidth:80 }}>
-              <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}>💎 DRIX</div>
+              <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}><EmoText s="💎 DRIX" size={9} gap={3}/></div>
               <div style={{ fontSize:14,fontWeight:900,color:"#a78bfa" }}>{featured.drix}</div>
             </div>
             <div style={{ flex:"1 1 0",background:"#0a0a14",border:"1px solid #ef444433",borderRadius:8,padding:"6px 8px",textAlign:"center",minWidth:80 }}>
-              <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}>🔥 JOUEURS</div>
+              <div style={{ fontSize:8,color:"#64748b",letterSpacing:1.5,marginBottom:2 }}><EmoText s="🔥 JOUEURS" size={9} gap={3}/></div>
               <div style={{ fontSize:14,fontWeight:900,color:"#ef4444" }}>{featured.count}</div>
             </div>
           </div>
@@ -6808,13 +6808,13 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
                     </div>
                     <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
                       {b._present > 0 && (
-                        <span style={{ fontSize:9, fontWeight:800, color:"#60a5fa", background:"#60a5fa18", padding:"2px 6px", borderRadius:8 }}>👥 {b._present} joueur{b._present>1?"s":""}</span>
+                        <span style={{ fontSize:9, fontWeight:800, color:"#60a5fa", background:"#60a5fa18", padding:"2px 6px", borderRadius:8,display:"inline-flex",alignItems:"center",gap:3 }}><EmoIcon e="👥" size={9}/>{b._present} joueur{b._present>1?"s":""}</span>
                       )}
                       {b._actif && (
-                        <span style={{ fontSize:9, fontWeight:800, color:"#22c55e", background:"#22c55e18", padding:"2px 6px", borderRadius:8 }}>⚡ Live</span>
+                        <span style={{ fontSize:9, fontWeight:800, color:"#22c55e", background:"#22c55e18", padding:"2px 6px", borderRadius:8 }}><EmoText s="⚡ Live" size={9}/></span>
                       )}
                       {b.tournois && (
-                        <span style={{ fontSize:9, fontWeight:800, color:"#fbbf24", background:"#fbbf2418", padding:"2px 6px", borderRadius:8 }}>🏆</span>
+                        <span style={{ fontSize:9, fontWeight:800, color:"#fbbf24", background:"#fbbf2418", padding:"2px 6px", borderRadius:8,display:"inline-flex",alignItems:"center" }}><EmoIcon e="🏆" size={11} color="#fbbf24"/></span>
                       )}
                     </div>
                   </div>
@@ -6917,7 +6917,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
               <div style={{ borderRadius:16,overflow:"hidden",border:"1px solid #f9731620",boxShadow:"0 0 30px #f9731620" }}>
                 <LeafletMap bars={filteredBars} associations={[]} onBarClick={s=>{setBarSlug(s);setPage("bar");}} centerVille={search||null} height="48vh" barsActifs={barsActifs} userPos={userPos}/>
               </div>
-              {(() => { const sans = filteredBars.filter(b => num(b.lat)==null || num(b.lng)==null).length; return sans>0 ? <div style={{ fontSize:12, color:"#94a3b8", marginTop:8, textAlign:"center" }}>📍 {sans} spot{sans>1?"s":""} sans position — passe en vue Liste pour {sans>1?"les":"le"} voir</div> : null; })()}
+              {(() => { const sans = filteredBars.filter(b => num(b.lat)==null || num(b.lng)==null).length; return sans>0 ? <div style={{ fontSize:12, color:"#94a3b8", marginTop:8, textAlign:"center" }}><EmoIcon e="📍" size={12} style={{verticalAlign:"-2px",marginRight:4}}/>{sans} spot{sans>1?"s":""} sans position — passe en vue Liste pour {sans>1?"les":"le"} voir</div> : null; })()}
             </div>
           )}
 
@@ -7176,11 +7176,11 @@ const BarScoreBlock = ({ barSlug }) => {
   const max=scores[0].count;
   return (
     <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:18,marginBottom:16 }}>
-      <h3 style={{ fontWeight:700,fontSize:16,marginBottom:16,color:C.accent }}>⭐ Score du spot</h3>
+      <h3 style={{ fontWeight:700,fontSize:16,marginBottom:16,color:C.accent }}><EmoText s="⭐ Score du spot" size={16}/></h3>
       <div style={{ display:"flex",flexDirection:"column",gap:11 }}>
         {scores.map(({id,label,emoji,count})=>(
           <div key={id} style={{ display:"flex",alignItems:"center",gap:12 }}>
-            <span style={{ fontSize:17,width:22,flexShrink:0 }}>{emoji}</span>
+            <span style={{ width:22,flexShrink:0,display:"inline-flex",justifyContent:"center" }}><EmoIcon e={emoji} size={17} color={C.accent}/></span>
             <span style={{ fontSize:13,color:C.muted,flexShrink:0,width:84 }}>{label}</span>
             <div style={{ flex:1,height:7,background:"#222",borderRadius:4,overflow:"hidden" }}>
               <div style={{ height:"100%",width:`${Math.round(count/max*100)}%`,background:`linear-gradient(to right,${C.accent},#fbbf24)`,borderRadius:4 }}/>
@@ -7265,7 +7265,7 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
         {cover
           ? <img src={cover} alt={bar.nom} style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
           : <div style={{ width:"100%",height:"100%",background:`linear-gradient(135deg,${ti.color}44 0%,#111 65%)`,display:"flex",alignItems:"center",justifyContent:"center" }}>
-              <span style={{ fontSize:80,opacity:.15 }}>🍺</span>
+              <EmoIcon e="🍺" size={80} color={C.text} style={{ opacity:.15 }}/>
             </div>
         }
         <div style={{ position:"absolute",inset:0,background:"linear-gradient(to bottom,rgba(0,0,0,.5) 0%,transparent 45%,rgba(15,15,15,.97) 100%)" }}/>
@@ -7426,7 +7426,7 @@ const Associations = ({ associations, setPage, setAssoSlug }) => {
   return (
     <div style={{ maxWidth:1100,margin:"0 auto",padding:"36px 20px" }}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12,marginBottom:6 }}>
-        <div><h1 style={{ fontWeight:800,fontSize:26 }}>🫂 Associations & clubs</h1><p style={{ color:C.muted,marginTop:4 }}>{associations.length} associations référencées</p></div>
+        <div><h1 style={{ fontWeight:800,fontSize:26 }}><EmoText s="🫂 Associations & clubs" size={24} gap={8}/></h1><p style={{ color:C.muted,marginTop:4 }}>{associations.length} associations référencées</p></div>
         <div style={{ display:"flex",gap:4 }}>{[["liste","☰"],["carte","🗺️"]].map(([vv,ll])=><button key={vv} onClick={()=>setView(vv)} style={{ background:view===vv?"#7c3aed":"transparent",color:view===vv?"#fff":C.muted,border:`1px solid ${view===vv?"#7c3aed":C.border}`,borderRadius:8,padding:"9px 14px",cursor:"pointer",fontSize:15 }}><EmoText s={ll} size={15}/></button>)}</div>
       </div>
       {view==="carte"?<div style={{ marginBottom:20 }}><LeafletMap associations={associations} onAssoClick={s=>{setAssoSlug(s);setPage("asso");}} height={450}/></div>
@@ -7435,9 +7435,9 @@ const Associations = ({ associations, setPage, setAssoSlug }) => {
           <div key={a.id} onClick={()=>{setAssoSlug(a.slug);setPage("asso");}} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:18,cursor:"pointer" }}
             onMouseEnter={e=>e.currentTarget.style.borderColor="#7c3aed"} onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
             <div style={{ display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:6,marginBottom:8 }}><h3 style={{ fontWeight:700,fontSize:15 }}>{a.nom}</h3><Badge color={typeInfo(a.type).color}>{typeInfo(a.type).l}</Badge></div>
-            <p style={{ color:C.muted,fontSize:12,marginBottom:6 }}>📍 {a.ville}{a.zone?" — "+a.zone:""}</p>
+            <p style={{ color:C.muted,fontSize:12,marginBottom:6 }}><EmoIcon e="📍" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>{a.ville}{a.zone?" — "+a.zone:""}</p>
             <p style={{ color:C.muted,fontSize:12,marginBottom:10 }}>{a.description?.slice(0,100)}…</p>
-            <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}><Badge color={C.purple}>🗓 {a.jours}</Badge></div>
+            <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}><Badge color={C.purple}><EmoIcon e="🗓" size={11} style={{verticalAlign:"-2px",marginRight:3}}/>{a.jours}</Badge></div>
           </div>
         ))}
       </div>}
@@ -7515,7 +7515,7 @@ const CropLogoModal = ({ imageDataUrl, onSave, onClose, label="Cadrer le logo" }
     <div style={{ position:"fixed", inset:0, background:"#000000ee", zIndex:1500, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:16 }}>
       <div style={{ background:"#0d0d14", border:`1px solid ${C.border}`, borderRadius:18, padding:18, maxWidth:340, width:"100%" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
-          <div style={{ fontWeight:900, fontSize:15, color:C.text }}>🎯 {label}</div>
+          <div style={{ fontWeight:900, fontSize:15, color:C.text,display:"flex",alignItems:"center",gap:6 }}><EmoIcon e="🎯" size={15}/>{label}</div>
           <button onClick={onClose} style={{ background:"none", border:"none", color:C.muted, fontSize:20, cursor:"pointer", lineHeight:1 }}><X size={18}/></button>
         </div>
 
@@ -9448,9 +9448,9 @@ const AdminTournois = ({ tournois, setTournois, setEditTournoi, setTournoiSlug, 
                       <button onClick={()=>setShowResultats({...t})} style={{background:`${C.yellow}22`,color:C.yellow,border:`1px solid ${C.yellow}55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}><EmoIcon e="🏆" size={12} style={{verticalAlign:"-2px",marginRight:4}}/>Publier résultats</button>
                     )}
                     {t.statut !== "annule" && t.statut !== "termine" && (
-                      <button onClick={()=>annulerTournoi(t)} disabled={working[t.id]} style={{background:"#1a0014",color:"#f43f5e",border:`1px solid #f43f5e55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}>⚠️ Annuler</button>
+                      <button onClick={()=>annulerTournoi(t)} disabled={working[t.id]} style={{background:"#1a0014",color:"#f43f5e",border:`1px solid #f43f5e55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}><EmoIcon e="⚠️" size={12} style={{verticalAlign:"-2px",marginRight:4}}/>Annuler</button>
                     )}
-                    <button onClick={()=>supprimerTournoi(t)} disabled={working[t.id]} style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}>🗑 Supprimer</button>
+                    <button onClick={()=>supprimerTournoi(t)} disabled={working[t.id]} style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}55`,borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600}}><EmoIcon e="🗑" size={12} style={{verticalAlign:"-2px",marginRight:4}}/>Supprimer</button>
                   </div>
                 </div>
               )}
@@ -9485,7 +9485,7 @@ const ModalResultats = ({ tournoi, inscrits, onClose, onPublish, working }) => {
     <div style={{position:"fixed",inset:0,background:"#000c",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:14}}
       onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:22,maxWidth:480,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
-        <h3 style={{margin:0,fontSize:18,fontWeight:800,marginBottom:6}}>🏆 Publier les résultats</h3>
+        <h3 style={{margin:0,fontSize:18,fontWeight:800,marginBottom:6}}><EmoText s="🏆 Publier les résultats" size={17}/></h3>
         <div style={{color:C.muted,fontSize:13,marginBottom:18}}>{tournoi.nom} · {tournoi.ville}</div>
 
         {inscrits.length === 0 ? (
@@ -9494,7 +9494,7 @@ const ModalResultats = ({ tournoi, inscrits, onClose, onPublish, working }) => {
           <>
             {[["🥇","1ʳᵉ place",first,setFirst],["🥈","2ᵉ place",second,setSecond],["🥉","3ᵉ place",third,setThird]].map(([emoji,label,val,setter])=>(
               <div key={label} style={{marginBottom:14}}>
-                <label style={{fontSize:12,color:C.muted,display:"block",marginBottom:6}}>{emoji} {label}</label>
+                <label style={{fontSize:12,color:C.muted,display:"flex",alignItems:"center",gap:5,marginBottom:6}}><EmoIcon e={emoji} size={14} color={C.yellow}/>{label}</label>
                 <select value={val} onChange={e=>setter(e.target.value)} style={{width:"100%",background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:14}}>
                   <option value="">— Sélectionner —</option>
                   {inscrits.map(i=><option key={i.id||i.joueur_id} value={i.joueur_id}>{i.pseudo}</option>)}
@@ -9698,22 +9698,22 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
   const renderPending = () => (
     <div>
       {allPending.length===0
-        ? <div style={{textAlign:"center",padding:60,color:C.muted}}>📭 Aucune proposition en attente.</div>
+        ? <div style={{textAlign:"center",padding:60,color:C.muted,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><EmoIcon e="📭" size={16}/>Aucune proposition en attente.</div>
         : allPending.map(p=>{
             const isAsso=p.type_prop==="association"; const isTournoi=p.type_prop==="tournoi";
             return (
               <div key={p.id} style={{background:C.card,border:`1px solid ${C.accent}33`,borderRadius:14,padding:20,marginBottom:12}}>
                 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                  <span style={{fontSize:20}}>{isAsso?"🫂":isTournoi?"🏅":"🎯"}</span>
+                  <EmoIcon e={isAsso?"🫂":isTournoi?"🏅":"🎯"} size={20} color={C.accent}/>
                   <div>
                     <div style={{fontWeight:800,fontSize:15}}>{p.nom}</div>
-                    <div style={{color:C.muted,fontSize:12}}>📍 {p.ville}{p.date?" · "+p.date:""} · {isAsso?"Association":isTournoi?"Tournoi":"Bar"}</div>
+                    <div style={{color:C.muted,fontSize:12}}><EmoIcon e="📍" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>{p.ville}{p.date?" · "+p.date:""} · {isAsso?"Association":isTournoi?"Tournoi":"Bar"}</div>
                   </div>
-                  <div style={{marginLeft:"auto",background:PRIO.urgent.bg,border:`1px solid ${PRIO.urgent.border}`,borderRadius:8,padding:"3px 10px",fontSize:11,color:PRIO.urgent.text}}>🔴 Urgent</div>
+                  <div style={{marginLeft:"auto",background:PRIO.urgent.bg,border:`1px solid ${PRIO.urgent.border}`,borderRadius:8,padding:"3px 10px",fontSize:11,color:PRIO.urgent.text,display:"inline-flex",alignItems:"center",gap:4}}><EmoIcon e="🔴" size={8} color={PRIO.urgent.text} fill={PRIO.urgent.text}/>Urgent</div>
                 </div>
                 {(p.description||p.commentaire)&&<p style={{color:"#cbd5e1",fontSize:12,fontStyle:"italic",background:"#111",padding:"8px 12px",borderRadius:8,marginBottom:12}}>"{(p.description||p.commentaire||"").slice(0,150)}"</p>}
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  <Btn variant="success" disabled={valBusy[p.id]} onClick={async()=>{ if(valBusy[p.id])return; setValBusy(b=>({...b,[p.id]:true})); try{ await (isAsso?validerAsso(p):isTournoi?validerTournoi(p):validerBar(p)); } finally { setValBusy(b=>{ const n={...b}; delete n[p.id]; return n; }); } }} style={{fontSize:12}}>{valBusy[p.id]?"…":"✅ Valider & Publier"}</Btn>
+                  <Btn variant="success" disabled={valBusy[p.id]} onClick={async()=>{ if(valBusy[p.id])return; setValBusy(b=>({...b,[p.id]:true})); try{ await (isAsso?validerAsso(p):isTournoi?validerTournoi(p):validerBar(p)); } finally { setValBusy(b=>{ const n={...b}; delete n[p.id]; return n; }); } }} style={{fontSize:12}}>{valBusy[p.id]?"…":<EmoText s="✅ Valider & Publier" size={13}/>}</Btn>
                   <Btn variant="danger" onClick={()=>refuser(p.id,p.nom)} style={{fontSize:12}}>❌ Refuser</Btn>
                 </div>
               </div>
@@ -9727,14 +9727,14 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
       {bars.map(b=>(
         <div key={b.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14}}>
           <div onClick={()=>{setBarSlug(b.slug);setPage("bar");}} style={{cursor:"pointer",marginBottom:10}}>
-            <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:6}}>{b.nom}{b.verifie&&<span style={{color:C.green,fontSize:12}}>✅</span>}</div>
-            <div style={{color:C.muted,fontSize:12}}>📍 {b.ville} · 👁 {b.vues||0} vues</div>
+            <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:6}}>{b.nom}{b.verifie&&<EmoIcon e="✅" size={12} color={C.green}/>}</div>
+            <div style={{color:C.muted,fontSize:12}}><EmoIcon e="📍" size={11} style={{verticalAlign:"-2px",marginRight:3}}/>{b.ville} · <EmoIcon e="👁" size={11} style={{verticalAlign:"-2px",marginRight:3}}/>{b.vues||0} vues</div>
           </div>
           <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            <button onClick={()=>db.toggleVerifie(b.slug,!b.verifie).then(()=>{setBars(x=>x.map(y=>y.slug===b.slug?{...y,verifie:!y.verifie}:y));addLog(b.verifie?"Bar dévérifié":"Bar vérifié",b.nom,"info");})} style={{background:b.verifie?"#14532d":"#111",border:`1px solid ${b.verifie?C.green:C.border}`,borderRadius:6,color:b.verifie?C.green:C.muted,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>{b.verifie?"✅ Vérifié":"Vérifier"}</button>
-            <button onClick={()=>setEditBar(b)} style={{background:"#1a1200",border:`1px solid ${C.yellow}44`,borderRadius:6,color:C.yellow,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>✏️ Éditer</button>
-            <button onClick={async()=>{let lat=null,lng=null;try{const q=encodeURIComponent(`${b.adresse||b.nom}, ${b.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const gd=await geo.json();if(gd?.[0]){lat=parseFloat(gd[0].lat);lng=parseFloat(gd[0].lon);}if(!lat){const q2=encodeURIComponent(`${b.ville}, France`);const geo2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);const gd2=await geo2.json();if(gd2?.[0]){lat=parseFloat(gd2[0].lat);lng=parseFloat(gd2[0].lon);}}}catch(e){}if(lat){await db.updateBar(b.slug,{lat,lng});setBars(x=>x.map(y=>y.slug===b.slug?{...y,lat,lng}:y));alert("✅ GPS mis à jour!");}else{alert("❌ Adresse introuvable");}}} style={{background:"#0f1a0f",border:`1px solid ${C.green}44`,borderRadius:6,color:C.green,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>📍 GPS</button>
-            <button onClick={async()=>{if(!window.confirm("Supprimer ce bar ?"))return;await db.deleteBar(b.slug);setBars(x=>x.filter(y=>y.slug!==b.slug));addLog("Bar supprimé",b.nom,"danger");}} style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>🗑</button>
+            <button onClick={()=>db.toggleVerifie(b.slug,!b.verifie).then(()=>{setBars(x=>x.map(y=>y.slug===b.slug?{...y,verifie:!y.verifie}:y));addLog(b.verifie?"Bar dévérifié":"Bar vérifié",b.nom,"info");})} style={{background:b.verifie?"#14532d":"#111",border:`1px solid ${b.verifie?C.green:C.border}`,borderRadius:6,color:b.verifie?C.green:C.muted,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>{b.verifie?<EmoText s="✅ Vérifié" size={11}/>:"Vérifier"}</button>
+            <button onClick={()=>setEditBar(b)} style={{background:"#1a1200",border:`1px solid ${C.yellow}44`,borderRadius:6,color:C.yellow,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="✏️" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>Éditer</button>
+            <button onClick={async()=>{let lat=null,lng=null;try{const q=encodeURIComponent(`${b.adresse||b.nom}, ${b.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const gd=await geo.json();if(gd?.[0]){lat=parseFloat(gd[0].lat);lng=parseFloat(gd[0].lon);}if(!lat){const q2=encodeURIComponent(`${b.ville}, France`);const geo2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);const gd2=await geo2.json();if(gd2?.[0]){lat=parseFloat(gd2[0].lat);lng=parseFloat(gd2[0].lon);}}}catch(e){}if(lat){await db.updateBar(b.slug,{lat,lng});setBars(x=>x.map(y=>y.slug===b.slug?{...y,lat,lng}:y));alert("✅ GPS mis à jour!");}else{alert("❌ Adresse introuvable");}}} style={{background:"#0f1a0f",border:`1px solid ${C.green}44`,borderRadius:6,color:C.green,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="📍" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>GPS</button>
+            <button onClick={async()=>{if(!window.confirm("Supprimer ce bar ?"))return;await db.deleteBar(b.slug);setBars(x=>x.filter(y=>y.slug!==b.slug));addLog("Bar supprimé",b.nom,"danger");}} style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="🗑" size={12}/></button>
           </div>
         </div>
       ))}
@@ -9747,11 +9747,11 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
         <div key={a.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14}}>
           <div onClick={()=>{setAssoSlug(a.slug);setPage("asso");}} style={{cursor:"pointer",marginBottom:10}}>
             <div style={{fontWeight:700,fontSize:14}}>{a.nom}</div>
-            <div style={{color:C.muted,fontSize:12}}>📍 {a.ville} · {a.type}</div>
+            <div style={{color:C.muted,fontSize:12}}><EmoIcon e="📍" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>{a.ville} · {a.type}</div>
           </div>
           <div style={{display:"flex",gap:5}}>
-            <button onClick={()=>setEditAsso(a)} style={{background:"#1a1200",border:`1px solid ${C.yellow}44`,borderRadius:6,color:C.yellow,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>✏️ Éditer</button>
-            <button onClick={async()=>{if(!window.confirm("Supprimer ?"))return;await db.deleteAssociation(a.slug);setAssociations(x=>x.filter(y=>y.slug!==a.slug));addLog("Asso supprimée",a.nom,"danger");}} style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>🗑</button>
+            <button onClick={()=>setEditAsso(a)} style={{background:"#1a1200",border:`1px solid ${C.yellow}44`,borderRadius:6,color:C.yellow,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="✏️" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>Éditer</button>
+            <button onClick={async()=>{if(!window.confirm("Supprimer ?"))return;await db.deleteAssociation(a.slug);setAssociations(x=>x.filter(y=>y.slug!==a.slug));addLog("Asso supprimée",a.nom,"danger");}} style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="🗑" size={12}/></button>
           </div>
         </div>
       ))}
@@ -9762,15 +9762,15 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
 
   const renderSignalements = () => (
     sigPending.length===0
-      ? <div style={{textAlign:"center",padding:60,color:C.muted}}>✅ Aucun signalement actif.</div>
+      ? <div style={{textAlign:"center",padding:60,color:C.muted,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><EmoIcon e="✅" size={16} color={C.green}/>Aucun signalement actif.</div>
       : sigPending.map(s=>(
           <div key={s.id} style={{background:C.card,border:`1px solid ${C.red}44`,borderRadius:14,padding:18,marginBottom:12}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
               <div>
-                <div style={{fontWeight:800,fontSize:15,color:C.red}}>⚠️ {s.bar_nom}</div>
+                <div style={{fontWeight:800,fontSize:15,color:C.red,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="⚠️" size={14} color={C.red}/>{s.bar_nom}</div>
                 <div style={{color:C.muted,fontSize:12}}>{s.type} · {new Date(s.date).toLocaleDateString("fr-FR")}</div>
               </div>
-              <div style={{background:PRIO.urgent.bg,border:`1px solid ${PRIO.urgent.border}`,borderRadius:8,padding:"3px 10px",fontSize:11,color:PRIO.urgent.text}}>🔴 Urgent</div>
+              <div style={{background:PRIO.urgent.bg,border:`1px solid ${PRIO.urgent.border}`,borderRadius:8,padding:"3px 10px",fontSize:11,color:PRIO.urgent.text,display:"inline-flex",alignItems:"center",gap:4}}><EmoIcon e="🔴" size={8} color={PRIO.urgent.text} fill={PRIO.urgent.text}/>Urgent</div>
             </div>
             <p style={{color:"#cbd5e1",fontSize:13,background:"#111",padding:"10px 14px",borderRadius:10,marginBottom:12}}>{s.message}</p>
             <div style={{display:"flex",gap:8}}>
@@ -9789,7 +9789,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
     <div style={{display:"flex",flexDirection:"column",gap:24}}>
       {/* KPI Cards */}
       <div>
-        <div style={{fontSize:13,color:C.muted,fontWeight:700,letterSpacing:1,marginBottom:12}}>📊 INDICATEURS CLÉS</div>
+        <div style={{fontSize:13,color:C.muted,fontWeight:700,letterSpacing:1,marginBottom:12}}><EmoText s="📊 INDICATEURS CLÉS" size={13} gap={6}/></div>
         <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
           <AdminKpiCard icon="⏳" label="En attente" count={allPending.length} prio={allPending.length>0?"urgent":"normal"} onClick={()=>setTab("pending")}/>
           <AdminKpiCard icon="💬" label="Avis à modérer" count={avisCount} prio={avisCount>0?"important":"normal"} onClick={()=>setTab("avismod")}/>
@@ -9811,7 +9811,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
 
             {kpiDetail==="nouveaux" && (<>
               <div style={{fontSize:15,fontWeight:800,marginBottom:16,display:"flex",alignItems:"center",gap:8}}>
-                🆕 <span>Nouveaux joueurs (7 derniers jours)</span>
+                <EmoIcon e="🆕" size={15} color="#f59e0b"/><span>Nouveaux joueurs (7 derniers jours)</span>
                 <span style={{background:"#f59e0b22",color:"#f59e0b",borderRadius:8,padding:"2px 10px",fontSize:12,fontWeight:700,marginLeft:4}}>{nouveauxJoueurs.length}</span>
               </div>
               {nouveauxJoueurs.length===0 ? (
@@ -9820,14 +9820,14 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
                 <div key={j.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
                   {j.photo
                     ? <img src={j.photo} style={{width:38,height:38,borderRadius:"50%",objectFit:"cover",border:`1px solid ${C.border}`}}/>
-                    : <div style={{width:38,height:38,borderRadius:"50%",background:C.card,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,border:`1px solid ${C.border}`}}>👤</div>
+                    : <div style={{width:38,height:38,borderRadius:"50%",background:C.card,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,border:`1px solid ${C.border}`}}><EmoIcon e="👤" size={18} color={C.muted}/></div>
                   }
                   <div style={{flex:1}}>
                     <div style={{fontWeight:700,fontSize:14}}>{j.pseudo}</div>
                     <div style={{fontSize:11,color:C.muted}}>{j.email||"—"} · {j.ville||"Ville non renseignée"}</div>
                   </div>
                   <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:12,color:"#f59e0b",fontWeight:700}}>💎 {j.drix} DRIX</div>
+                    <div style={{fontSize:12,color:"#f59e0b",fontWeight:700,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:4}}><EmoIcon e="💎" size={11}/>{j.drix} DRIX</div>
                     <div style={{fontSize:10,color:C.muted}}>{j.date_inscription ? new Date(j.date_inscription).toLocaleDateString("fr-FR") : "—"}</div>
                   </div>
                 </div>
@@ -9836,7 +9836,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
 
             {kpiDetail==="connexions" && (<>
               <div style={{fontSize:15,fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
-                📡 <span>Connexions aujourd'hui</span>
+                <EmoIcon e="📡" size={15} color="#f59e0b"/><span>Connexions aujourd'hui</span>
                 <span style={{background:"#f59e0b22",color:"#f59e0b",borderRadius:8,padding:"2px 10px",fontSize:12,fontWeight:700,marginLeft:4}}>{stats.connexionsJour}</span>
               </div>
               <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Joueurs uniques connectés ce jour · Se raffraîchit toutes les 30 sec</div>
@@ -9846,13 +9846,13 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
                 <div key={j.joueur_id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
                   {j.photo
                     ? <img src={j.photo} style={{width:36,height:36,borderRadius:"50%",objectFit:"cover",border:`1px solid ${C.border}`}}/>
-                    : <div style={{width:36,height:36,borderRadius:"50%",background:C.card,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,border:`1px solid ${C.border}`}}>👤</div>
+                    : <div style={{width:36,height:36,borderRadius:"50%",background:C.card,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,border:`1px solid ${C.border}`}}><EmoIcon e="👤" size={16} color={C.muted}/></div>
                   }
                   <div style={{flex:1}}>
                     <div style={{fontWeight:700,fontSize:14}}>{j.pseudo||j.joueur_id}</div>
                     <div style={{fontSize:11,color:C.muted}}>{j.ville||""}</div>
                   </div>
-                  <div style={{fontSize:11,color:"#10b981",fontWeight:600}}>🟢 Aujourd'hui</div>
+                  <div style={{fontSize:11,color:"#10b981",fontWeight:600,display:"flex",alignItems:"center",gap:4}}><EmoIcon e="🟢" size={9} color="#10b981" fill="#10b981"/>Aujourd'hui</div>
                 </div>
               ))}
             </>)}
@@ -9864,7 +9864,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
         {/* Plateforme */}
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20}}>
-          <div style={{fontSize:13,color:C.accent,fontWeight:700,letterSpacing:.5,marginBottom:16}}>📈 ANALYTICS PLATEFORME</div>
+          <div style={{fontSize:13,color:C.accent,fontWeight:700,letterSpacing:.5,marginBottom:16}}><EmoText s="📈 ANALYTICS PLATEFORME" size={13} gap={6}/></div>
           {[
             ["🎯 Bars", bars.length, `${bars.filter(b=>b.verifie).length} vérifiés`],
             ["🫂 Associations", associations.length, `${associations.length} actives`],
@@ -9874,7 +9874,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
           ].map(([label, count, sub])=>(
             <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
               <div>
-                <div style={{fontSize:13,fontWeight:600}}>{label}</div>
+                <div style={{fontSize:13,fontWeight:600}}><EmoText s={label} size={13} gap={6}/></div>
                 <div style={{fontSize:11,color:C.muted}}>{sub}</div>
               </div>
               <div style={{fontSize:22,fontWeight:900,color:C.text}}>{count}</div>
@@ -9884,7 +9884,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
 
         {/* Sécurité */}
         <div style={{background:C.card,border:`1px solid ${C.red}33`,borderRadius:16,padding:20}}>
-          <div style={{fontSize:13,color:C.red,fontWeight:700,letterSpacing:.5,marginBottom:16}}>🔒 SÉCURITÉ</div>
+          <div style={{fontSize:13,color:C.red,fontWeight:700,letterSpacing:.5,marginBottom:16}}><EmoText s="🔒 SÉCURITÉ" size={13} gap={6}/></div>
           {[
             { label:"Signalements actifs", count:sigPending.length, prio:sigPending.length>0?"urgent":"normal" },
             { label:"Avis en attente", count:avisCount, prio:avisCount>3?"important":"normal" },
@@ -9898,14 +9898,14 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
             </div>
           ))}
           <div style={{marginTop:14,padding:12,background:"#0f1a0f",borderRadius:10,border:`1px solid ${C.green}22`}}>
-            <div style={{fontSize:12,color:C.green,fontWeight:600}}>🛡️ Statut global</div>
+            <div style={{fontSize:12,color:C.green,fontWeight:600}}><EmoText s="🛡️ Statut global" size={12}/></div>
             <div style={{fontSize:11,color:C.muted,marginTop:4}}>{totalUrgent===0?"Plateforme saine — aucune urgence.":`${totalUrgent} élément(s) nécessitent attention.`}</div>
           </div>
         </div>
 
         {/* Actions rapides */}
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20}}>
-          <div style={{fontSize:13,color:C.yellow,fontWeight:700,letterSpacing:.5,marginBottom:16}}>⚡ ACTIONS RAPIDES</div>
+          <div style={{fontSize:13,color:C.yellow,fontWeight:700,letterSpacing:.5,marginBottom:16}}><EmoText s="⚡ ACTIONS RAPIDES" size={13} gap={6}/></div>
           {[
             {icon:"➕",label:"Ajouter un bar",color:C.accent,action:()=>setPage("proposer")},
             {icon:"🏅",label:"Ajouter un tournoi",color:C.yellow,action:()=>setPage("proposer-tournoi")},
@@ -9925,12 +9925,12 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
 
       {/* Logs récents */}
       <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20}}>
-        <div style={{fontSize:13,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:14}}>📜 ACTIVITÉ RÉCENTE (session)</div>
+        <div style={{fontSize:13,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:14}}><EmoText s="📜 ACTIVITÉ RÉCENTE (session)" size={13} gap={6}/></div>
         {adminLogs.length===0
           ? <div style={{textAlign:"center",color:C.muted,padding:30,fontSize:13}}>Aucune action effectuée dans cette session.</div>
           : adminLogs.slice(0,10).map(log=>(
               <div key={log.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
-                <span style={{fontSize:16}}>{LOG_ICONS[log.type]||"ℹ️"}</span>
+                <EmoIcon e={LOG_ICONS[log.type]||"ℹ️"} size={16}/>
                 <div style={{flex:1}}>
                   <span style={{fontWeight:600,fontSize:13}}>{log.action}</span>
                   <span style={{color:C.muted,fontSize:12}}> — {log.cible}</span>
@@ -9946,13 +9946,13 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div style={{fontSize:13,color:C.muted}}>Historique des actions admin</div>
-        {adminLogs.length>0&&<button onClick={viderLogs} style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}44`,borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:12}}>🗑 Vider</button>}
+        {adminLogs.length>0&&<button onClick={viderLogs} style={{background:"#1a0000",color:C.red,border:`1px solid ${C.red}44`,borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:12}}><EmoIcon e="🗑" size={12} style={{verticalAlign:"-2px",marginRight:4}}/>Vider</button>}
       </div>
       {adminLogs.length===0
         ? <div style={{textAlign:"center",padding:60,color:C.muted}}>Aucune action enregistrée.</div>
         : adminLogs.map(log=>(
             <div key={log.id} style={{background:C.card,border:`1px solid ${LOG_COLORS[log.type]||C.border}33`,borderRadius:12,padding:"14px 18px",marginBottom:8,display:"flex",alignItems:"center",gap:14}}>
-              <span style={{fontSize:20}}>{LOG_ICONS[log.type]||"ℹ️"}</span>
+              <EmoIcon e={LOG_ICONS[log.type]||"ℹ️"} size={20}/>
               <div style={{flex:1}}>
                 <div style={{fontWeight:700,fontSize:14,color:LOG_COLORS[log.type]||C.text}}>{log.action}</div>
                 <div style={{fontSize:12,color:C.muted}}>Cible : {log.cible}</div>
@@ -9971,23 +9971,23 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
     <div>
       {barsAjoutes.length === 0 ? (
         <div style={{ textAlign:"center", padding:60, color:C.muted }}>
-          <div style={{ fontSize:40, marginBottom:12 }}>🍺</div>
+          <div style={{ marginBottom:12,display:"flex",justifyContent:"center" }}><EmoIcon e="🍺" size={40} color={C.muted}/></div>
           <p>Aucun bar ajouté par des utilisateurs pour l'instant.</p>
         </div>
       ) : (
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
           <div style={{ fontSize:12, color:C.muted, marginBottom:4 }}>
-            {barsAjoutes.length} bar{barsAjoutes.length>1?"s":""} ajouté{barsAjoutes.length>1?"s":""} directement par des utilisateurs — vérification possible via l'onglet 🎯 Bars.
+            {barsAjoutes.length} bar{barsAjoutes.length>1?"s":""} ajouté{barsAjoutes.length>1?"s":""} directement par des utilisateurs — vérification possible via l'onglet <EmoIcon e="🎯" size={11} style={{verticalAlign:"-2px",margin:"0 2px"}}/>Bars.
           </div>
           {barsAjoutes.map(p => (
             <div key={p.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:16 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
                 <div>
-                  <div style={{ fontWeight:700, fontSize:15, marginBottom:4 }}>🍺 {p.nom} <span style={{ color:C.muted, fontWeight:400, fontSize:13 }}>— {p.ville}</span></div>
+                  <div style={{ fontWeight:700, fontSize:15, marginBottom:4 }}><EmoIcon e="🍺" size={14} style={{verticalAlign:"-2px",marginRight:5}}/>{p.nom} <span style={{ color:C.muted, fontWeight:400, fontSize:13 }}>— {p.ville}</span></div>
                   {p.commentaire && <div style={{ fontSize:12, color:C.muted, lineHeight:1.6 }}>{p.commentaire}</div>}
                   <div style={{ fontSize:11, color:"#374151", marginTop:6 }}>{new Date(p.date).toLocaleDateString("fr", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" })}</div>
                 </div>
-                <span style={{ background:"#22c55e18", color:"#22c55e", border:"1px solid #22c55e33", borderRadius:20, padding:"3px 10px", fontSize:11, fontWeight:700, flexShrink:0 }}>✅ Ajouté</span>
+                <span style={{ background:"#22c55e18", color:"#22c55e", border:"1px solid #22c55e33", borderRadius:20, padding:"3px 10px", fontSize:11, fontWeight:700, flexShrink:0 }}><EmoText s="✅ Ajouté" size={10}/></span>
               </div>
             </div>
           ))}
@@ -10000,7 +10000,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
     <div>
       {demandesClubs.length === 0 ? (
         <div style={{ textAlign:"center", padding:60, color:C.muted }}>
-          <div style={{ fontSize:40, marginBottom:12 }}>👑</div>
+          <div style={{ marginBottom:12,display:"flex",justifyContent:"center" }}><EmoIcon e="👑" size={40} color={C.muted}/></div>
           <div>Aucune demande de club reçue.</div>
         </div>
       ) : (
@@ -10009,7 +10009,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
           {demandesClubsPending.length > 0 && (
             <div style={{ marginBottom:24 }}>
               <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}>
-                ⏳ En attente — {demandesClubsPending.length} demande{demandesClubsPending.length>1?"s":""}
+                <EmoIcon e="⏳" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>En attente — {demandesClubsPending.length} demande{demandesClubsPending.length>1?"s":""}
               </div>
               {demandesClubsPending.map(p => {
                 const lines = (p.commentaire||"").split("\n");
@@ -10020,40 +10020,40 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
                 return (
                   <div key={p.id} style={{ background:"linear-gradient(135deg,#7c3aed0a,#f9731608)", border:"1px solid #7c3aed44", borderRadius:16, padding:20, marginBottom:12 }}>
                     <div style={{ display:"flex", alignItems:"flex-start", gap:14, marginBottom:14 }}>
-                      <div style={{ width:46, height:46, borderRadius:12, background:"#7c3aed22", border:"1px solid #7c3aed44", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>👑</div>
+                      <div style={{ width:46, height:46, borderRadius:12, background:"#7c3aed22", border:"1px solid #7c3aed44", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><EmoIcon e="👑" size={22} color="#a78bfa"/></div>
                       <div style={{ flex:1 }}>
                         <div style={{ fontWeight:800, fontSize:16, marginBottom:3 }}>{p.nom}</div>
                         <div style={{ color:"#a78bfa", fontWeight:600, fontSize:13, marginBottom:2 }}>{role}</div>
-                        <div style={{ color:C.muted, fontSize:12 }}>🏛️ {club}</div>
+                        <div style={{ color:C.muted, fontSize:12 }}><EmoIcon e="🏛️" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>{club}</div>
                       </div>
-                      <div style={{ background:"#ef444420", border:"1px solid #ef444440", borderRadius:8, padding:"3px 10px", fontSize:11, color:C.red, fontWeight:700, flexShrink:0 }}>🔴 Nouveau</div>
+                      <div style={{ background:"#ef444420", border:"1px solid #ef444440", borderRadius:8, padding:"3px 10px", fontSize:11, color:C.red, fontWeight:700, flexShrink:0,display:"inline-flex",alignItems:"center",gap:4 }}><EmoIcon e="🔴" size={8} color={C.red} fill={C.red}/>Nouveau</div>
                     </div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
                       {tel && (
                         <div style={{ background:"#ffffff08", borderRadius:10, padding:"10px 12px" }}>
-                          <div style={{ fontSize:10, color:C.muted, marginBottom:3, fontWeight:600, textTransform:"uppercase", letterSpacing:.5 }}>📞 Téléphone</div>
+                          <div style={{ fontSize:10, color:C.muted, marginBottom:3, fontWeight:600, textTransform:"uppercase", letterSpacing:.5 }}><EmoText s="📞 Téléphone" size={10} gap={4}/></div>
                           <div style={{ fontWeight:600, fontSize:13 }}>{tel}</div>
                         </div>
                       )}
                       <div style={{ background:"#ffffff08", borderRadius:10, padding:"10px 12px" }}>
-                        <div style={{ fontSize:10, color:C.muted, marginBottom:3, fontWeight:600, textTransform:"uppercase", letterSpacing:.5 }}>📅 Date</div>
+                        <div style={{ fontSize:10, color:C.muted, marginBottom:3, fontWeight:600, textTransform:"uppercase", letterSpacing:.5 }}><EmoText s="📅 Date" size={10} gap={4}/></div>
                         <div style={{ fontWeight:600, fontSize:13 }}>{p.date ? new Date(p.date).toLocaleDateString("fr-FR") : "—"}</div>
                       </div>
                     </div>
                     {msg && (
                       <div style={{ background:"#111", borderRadius:10, padding:"10px 14px", marginBottom:14, borderLeft:"3px solid #7c3aed" }}>
-                        <div style={{ fontSize:10, color:C.muted, marginBottom:4, fontWeight:600, textTransform:"uppercase", letterSpacing:.5 }}>💬 Message</div>
+                        <div style={{ fontSize:10, color:C.muted, marginBottom:4, fontWeight:600, textTransform:"uppercase", letterSpacing:.5 }}><EmoText s="💬 Message" size={10} gap={4}/></div>
                         <p style={{ color:"#cbd5e1", fontSize:13, lineHeight:1.7, margin:0 }}>{msg}</p>
                       </div>
                     )}
                     <div style={{ display:"flex", gap:8 }}>
                       <button onClick={async()=>{ await db.updateProposition(p.id,{statut:"publie"}); setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y)); addLog("Demande club acceptée",p.nom,"success"); }}
                         style={{ flex:1, background:"#14532d", color:C.green, border:`1px solid ${C.green}44`, borderRadius:10, padding:"11px", fontWeight:700, fontSize:13, cursor:"pointer" }}>
-                        ✅ Accepter
+                        <EmoIcon e="✅" size={13} style={{verticalAlign:"-2px",marginRight:5}}/>Accepter
                       </button>
                       <button onClick={()=>refuser(p.id,p.nom)}
                         style={{ flex:1, background:"#1a0000", color:C.red, border:`1px solid ${C.red}44`, borderRadius:10, padding:"11px", fontWeight:700, fontSize:13, cursor:"pointer" }}>
-                        ❌ Refuser
+                        <EmoIcon e="❌" size={13} style={{verticalAlign:"-2px",marginRight:5}}/>Refuser
                       </button>
                     </div>
                   </div>
@@ -10064,20 +10064,20 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
           {/* Traitées */}
           {demandesClubs.filter(p=>p.statut!=="en_attente").length > 0 && (
             <div>
-              <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}>✅ Traitées</div>
+              <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}><EmoText s="✅ Traitées" size={11} gap={4}/></div>
               {demandesClubs.filter(p=>p.statut!=="en_attente").map(p => {
                 const lines = (p.commentaire||"").split("\n");
                 const club = lines[0]?.replace("Club: ","") || p.ville || "";
                 const role = lines[1]?.replace("Rôle: ","") || "";
                 return (
                   <div key={p.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px", marginBottom:8, display:"flex", alignItems:"center", gap:12, opacity:0.65 }}>
-                    <span style={{ fontSize:20 }}>👑</span>
+                    <EmoIcon e="👑" size={20} color="#a78bfa"/>
                     <div style={{ flex:1 }}>
                       <span style={{ fontWeight:700, fontSize:14 }}>{p.nom}</span>
                       <span style={{ color:C.muted, fontSize:12, marginLeft:8 }}>· {role} · {club}</span>
                     </div>
                     <span style={{ fontSize:11, fontWeight:700, color:p.statut==="publie"?C.green:C.red }}>
-                      {p.statut==="publie"?"✅ Acceptée":"❌ Refusée"}
+                      {p.statut==="publie"?<EmoText s="✅ Acceptée" size={11}/>:<EmoText s="❌ Refusée" size={11}/>}
                     </span>
                   </div>
                 );
@@ -10097,11 +10097,11 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
   const renderContacts = () => (
     <div>
       {contacts.length === 0 ? (
-        <div style={{ textAlign:"center", padding:60, color:C.muted }}>📭 Aucun message reçu.</div>
+        <div style={{ textAlign:"center", padding:60, color:C.muted,display:"flex",alignItems:"center",justifyContent:"center",gap:8 }}><EmoIcon e="📭" size={16}/>Aucun message reçu.</div>
       ) : (
         <>
           <div style={{ marginBottom:16, display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontWeight:800, fontSize:16, color:C.text }}>✉️ Messages reçus</span>
+            <span style={{ fontWeight:800, fontSize:16, color:C.text }}><EmoText s="✉️ Messages reçus" size={16}/></span>
             {contactsNonLus.length > 0 && (
               <span style={{ background:`${C.accent}22`, border:`1px solid ${C.accent}`, borderRadius:8, padding:"2px 10px", fontSize:12, fontWeight:700, color:C.accent }}>
                 {contactsNonLus.length} non lu{contactsNonLus.length>1?"s":""}
@@ -10121,14 +10121,14 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
                 boxShadow: isNonLu ? `0 0 20px ${C.accent}12` : "none",
               }}>
                 <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:10 }}>
-                  <div style={{ width:40, height:40, borderRadius:12, background:`${C.accent}18`, border:`1px solid ${C.accent}33`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>✉️</div>
+                  <div style={{ width:40, height:40, borderRadius:12, background:`${C.accent}18`, border:`1px solid ${C.accent}33`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><EmoIcon e="✉️" size={18} color={C.accent}/></div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:2 }}>
                       <span style={{ fontWeight:800, fontSize:15, color:C.text }}>{p.nom}</span>
                       {isNonLu && <span style={{ background:C.accent, borderRadius:6, padding:"1px 8px", fontSize:10, fontWeight:700, color:"#fff" }}>NOUVEAU</span>}
                     </div>
-                    <div style={{ color:C.muted, fontSize:12 }}>📧 {p.ville} · 🕒 {dateStr}</div>
-                    {sujet && <div style={{ marginTop:4, color:"#60a5fa", fontSize:12, fontWeight:600 }}>📌 {sujet}</div>}
+                    <div style={{ color:C.muted, fontSize:12 }}><EmoIcon e="📧" size={11} style={{verticalAlign:"-2px",marginRight:3}}/>{p.ville} · <EmoIcon e="🕒" size={11} style={{verticalAlign:"-2px",marginRight:3}}/>{dateStr}</div>
+                    {sujet && <div style={{ marginTop:4, color:"#60a5fa", fontSize:12, fontWeight:600 }}><EmoIcon e="📌" size={11} color="#60a5fa" style={{verticalAlign:"-2px",marginRight:4}}/>{sujet}</div>}
                   </div>
                 </div>
                 <div style={{ background:"#0a0a0a", borderRadius:10, padding:"12px 14px", fontSize:13.5, color:"#cbd5e1", lineHeight:1.7, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
@@ -10196,11 +10196,11 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
         <div style={{maxWidth:1060,margin:"0 auto"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12,marginBottom:16}}>
             <div>
-              <h1 style={{fontWeight:900,fontSize:26,margin:0,background:`linear-gradient(90deg,${C.accent},${C.yellow})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>⚙️ Administration</h1>
+              <h1 style={{fontWeight:900,fontSize:26,margin:0,display:"flex",alignItems:"center",gap:8}}><EmoIcon e="⚙️" size={24} color={C.accent}/><span style={{background:`linear-gradient(90deg,${C.accent},${C.yellow})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Administration</span></h1>
               <p style={{color:C.muted,fontSize:13,marginTop:4}}>Centre de contrôle Dart Point</p>
             </div>
             <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
-              <button onClick={onLogout} title="Déconnexion admin" style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:10,padding:"9px 14px",color:C.red,fontWeight:700,fontSize:12,cursor:"pointer"}}>🔓 Déconnexion</button>
+              <button onClick={onLogout} title="Déconnexion admin" style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:10,padding:"9px 14px",color:C.red,fontWeight:700,fontSize:12,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><EmoIcon e="🔓" size={13}/>Déconnexion</button>
               <div style={{background:`${C.accent}15`,border:`1px solid ${C.accent}33`,borderRadius:10,padding:"8px 14px",textAlign:"center"}}>
                 <div style={{fontSize:11,color:C.muted}}>DATE</div>
                 <div style={{fontWeight:700,fontSize:13,color:C.accent}}>{new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"})}</div>
@@ -10243,7 +10243,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
                           onMouseEnter={e=>e.currentTarget.style.background="#2a2a2a"}
                           onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                           <span style={{fontWeight:600}}>{item.nom||item.pseudo}</span>
-                          <span style={{color:C.muted,fontSize:11,marginLeft:8}}>📍 {item.ville||`${item.drix??1000} DRIX`}</span>
+                          <span style={{color:C.muted,fontSize:11,marginLeft:8}}><EmoIcon e="📍" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{item.ville||`${item.drix??1000} DRIX`}</span>
                         </div>
                       ))}
                     </div>
@@ -10278,7 +10278,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
           : tab==="demandes-clubs"  ? renderDemandes()
           : tab==="modifications"    ? (
             <div style={{ padding:"0 20px" }}>
-              <h2 style={{ fontWeight:800, fontSize:18, marginBottom:16, color:C.accent }}>✏️ Historique des modifications</h2>
+              <h2 style={{ fontWeight:800, fontSize:18, marginBottom:16, color:C.accent }}><EmoText s="✏️ Historique des modifications" size={17}/></h2>
               {modifications.length === 0 ? (
                 <div style={{ textAlign:"center", padding:40, color:C.muted }}>Aucune modification enregistrée</div>
               ) : (
@@ -10289,9 +10289,9 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
                     return (
                       <div key={m.id} style={{ background:C.card, border:`1px solid ${isBar?C.accent+"44":"#a78bfa44"}`, borderRadius:12, padding:"14px 16px" }}>
                         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6, flexWrap:"wrap" }}>
-                          <span style={{ fontSize:16 }}>{isBar?"🍺":"🫂"}</span>
+                          <EmoIcon e={isBar?"🍺":"🫂"} size={16} color={isBar?C.accent:"#a78bfa"}/>
                           <span style={{ fontWeight:800, fontSize:14, color:C.text }}>{m.nom}</span>
-                          <span style={{ fontSize:11, color:C.muted }}>📍 {m.ville}</span>
+                          <span style={{ fontSize:11, color:C.muted,display:"inline-flex",alignItems:"center",gap:3 }}><EmoIcon e="📍" size={10}/>{m.ville}</span>
                           <span style={{ marginLeft:"auto", fontSize:11, color:C.muted }}>{date}</span>
                           <span style={{ background:isBar?C.accent+"22":"#a78bfa22", border:`1px solid ${isBar?C.accent+"44":"#a78bfa44"}`, borderRadius:20, padding:"2px 10px", fontSize:10, fontWeight:700, color:isBar?C.accent:"#a78bfa" }}>
                             {isBar?"BAR":"ASSO"}
@@ -10324,7 +10324,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
 const BadgesRecapModal = ({ badges, onClose, setPage }) => (
   <div style={{ position:"fixed",inset:0,background:"#000c",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }} onClick={onClose}>
     <div style={{ background:"#1a1a1a",border:"1px solid #fbbf2466",borderRadius:20,padding:28,maxWidth:380,width:"100%",textAlign:"center" }} onClick={e=>e.stopPropagation()}>
-      <div style={{ fontSize:40, marginBottom:8 }}>🏅</div>
+      <div style={{ marginBottom:8,display:"flex",justifyContent:"center" }}><EmoIcon e="🏅" size={40} color={C.yellow}/></div>
       <h2 style={{ fontWeight:900, fontSize:20, color:"#fbbf24", marginBottom:4 }}>Badge{badges.length>1?"s":""} débloqué{badges.length>1?"s":""}!</h2>
       <p style={{ color:"#94a3b8", fontSize:13, marginBottom:20 }}>Félicitations !</p>
       <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:24 }}>
@@ -10758,17 +10758,17 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
 const Footer = ({ setPage, onOpenHelp }) => (
   <footer style={{ background:"#111",borderTop:`1px solid ${C.border}`,padding:"24px 20px",marginTop:40 }}>
     <div style={{ maxWidth:1100,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12 }}>
-      <div><div style={{ fontWeight:800,fontSize:16,color:C.accent,marginBottom:2 }}>🎯 DartPoint</div><p style={{ color:C.muted,fontSize:12 }}>Le guide des bars à fléchettes en France</p></div>
+      <div><div style={{ fontWeight:800,fontSize:16,color:C.accent,marginBottom:2 }}><EmoText s="🎯 DartPoint" size={16}/></div><p style={{ color:C.muted,fontSize:12 }}>Le guide des bars à fléchettes en France</p></div>
       <div style={{ display:"flex",gap:12,flexWrap:"wrap",alignItems:"center" }}>
       {[["bars","Bars"],["associations","Assos"],["tournois","Tournois"],["joueurs","Joueurs"],["drix","DRIX"],["scoreur","Scoreur"],["jeux","Jeux"],["proposer","Proposer"],["apropos","À propos"],["contact","Contact"],["mentions","Mentions légales"]].map(([p,l])=>(
           <button key={p} onClick={()=>setPage(p)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:12 }}><EmoText s={l}/></button>
         ))}
         {onOpenHelp && (
           <button onClick={onOpenHelp} style={{ background:"none",border:"1px solid #2a2a3a",borderRadius:8,color:"#6b7280",cursor:"pointer",fontSize:12,padding:"3px 10px",display:"flex",alignItems:"center",gap:5,touchAction:"manipulation" }}>
-            <span style={{ fontSize:13 }}>📋</span> Aide
+            <EmoIcon e="📋" size={13}/>Aide
           </button>
         )}
-        <button onClick={()=>setPage("adminlogin")} style={{ background:"none",border:"none",color:"#3a3a3a",cursor:"pointer",fontSize:11 }}>⚙</button>
+        <button onClick={()=>setPage("adminlogin")} aria-label="Admin" style={{ background:"none",border:"none",color:"#3a3a3a",cursor:"pointer",fontSize:11,display:"inline-flex" }}><EmoIcon e="⚙" size={13}/></button>
       </div>
     </div>
   </footer>
@@ -10980,19 +10980,19 @@ const HELP_CONTENT = {
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-around", marginBottom:14 }}>
           {/* Joueur A */}
           <div style={{ textAlign:"center" }}>
-            <div style={{ fontSize:28, marginBottom:4 }}>🎯</div>
+            <div style={{ marginBottom:4,display:"flex",justifyContent:"center" }}><EmoIcon e="🎯" size={28} color={C.accent}/></div>
             <div style={{ fontWeight:800, fontSize:13, color:"#f1f5f9" }}>Toi</div>
             <div style={{ fontSize:12, color:"#a78bfa", fontWeight:700 }}>1 200 pts</div>
             <div style={{ fontSize:10, color:"#94a3b8" }}>Confirmé</div>
           </div>
           {/* Flèches duel */}
           <div style={{ textAlign:"center" }}>
-            <div style={{ fontSize:18 }}>⚔️</div>
+            <div style={{ display:"flex",justifyContent:"center" }}><EmoIcon e="⚔️" size={18} color="#94a3b8"/></div>
             <div style={{ fontSize:9, color:"#4b5572", marginTop:2 }}>DUEL CLASSÉ</div>
           </div>
           {/* Joueur B */}
           <div style={{ textAlign:"center" }}>
-            <div style={{ fontSize:28, marginBottom:4 }}>🎯</div>
+            <div style={{ marginBottom:4,display:"flex",justifyContent:"center" }}><EmoIcon e="🎯" size={28} color={C.accent}/></div>
             <div style={{ fontWeight:800, fontSize:13, color:"#f1f5f9" }}>Adversaire</div>
             <div style={{ fontSize:12, color:"#60a5fa", fontWeight:700 }}>1 450 pts</div>
             <div style={{ fontSize:10, color:"#94a3b8" }}>Expert</div>
@@ -11001,12 +11001,12 @@ const HELP_CONTENT = {
         {/* Résultats possibles */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
           <div style={{ borderRadius:10, background:"#0d1f0d", border:"1px solid #166534", padding:"10px 12px" }}>
-            <div style={{ fontSize:11, fontWeight:700, color:"#22c55e", marginBottom:4 }}>✅ Tu gagnes</div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#22c55e", marginBottom:4 }}><EmoText s="✅ Tu gagnes" size={11}/></div>
             <div style={{ fontSize:13, color:"#f1f5f9", fontWeight:800 }}>+32 pts DRIX</div>
             <div style={{ fontSize:10, color:"#4b7c4b", marginTop:2 }}>Adversaire fort → gros gain</div>
           </div>
           <div style={{ borderRadius:10, background:"#1f0d0d", border:"1px solid #7f1d1d", padding:"10px 12px" }}>
-            <div style={{ fontSize:11, fontWeight:700, color:"#ef4444", marginBottom:4 }}>❌ Tu perds</div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#ef4444", marginBottom:4 }}><EmoText s="❌ Tu perds" size={11}/></div>
             <div style={{ fontSize:13, color:"#f1f5f9", fontWeight:800 }}>−12 pts DRIX</div>
             <div style={{ fontSize:10, color:"#7c4b4b", marginTop:2 }}>Adversaire fort → petite perte</div>
           </div>
@@ -11510,7 +11510,7 @@ export default function App() {
 
   if(loading) return (
     <div style={{ height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:C.bg,flexDirection:"column",gap:16 }}>
-      <span style={{ fontSize:48 }}>🎯</span>
+      <EmoIcon e="🎯" size={48} color={C.accent}/>
       <div style={{ width:32,height:32,border:"3px solid #2a2a2a",borderTop:"3px solid #f97316",borderRadius:"50%",animation:"spin 0.8s linear infinite" }}/>
       <p style={{ color:"#94a3b8",fontSize:14 }}>Chargement de DartPoint…</p>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -11718,11 +11718,11 @@ export default function App() {
               </div>
               {chronoLeader && (
                 <div style={{ background:"#ffffff0d",border:"1px solid #f59e0b55",borderRadius:14,padding:"12px 16px",marginBottom:20 }}>
-                  <div style={{ fontSize:11,color:"#64748b",marginBottom:8,letterSpacing:1 }}>🏆 RECORD À BATTRE</div>
+                  <div style={{ fontSize:11,color:"#64748b",marginBottom:8,letterSpacing:1,display:"flex",alignItems:"center",gap:5 }}><EmoIcon e="🏆" size={12}/>RECORD À BATTRE</div>
                   <div style={{ display:"flex",alignItems:"center",gap:12 }}>
                     {chronoLeader.photo
                       ? <img src={chronoLeader.photo} alt="" style={{ width:44,height:44,borderRadius:"50%",objectFit:"cover",border:"2px solid #f59e0b",flexShrink:0 }}/>
-                      : <div style={{ width:44,height:44,borderRadius:"50%",background:"#1a1a2e",border:"2px solid #f59e0b",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0 }}>🎯</div>
+                      : <div style={{ width:44,height:44,borderRadius:"50%",background:"#1a1a2e",border:"2px solid #f59e0b",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}><EmoIcon e="🎯" size={20} color="#f59e0b"/></div>
                     }
                     <div style={{ flex:1,textAlign:"left" }}>
                       <div style={{ fontWeight:800,fontSize:15,color:"#f1f5f9" }}>{chronoLeader.joueur_pseudo}</div>
@@ -11734,7 +11734,7 @@ export default function App() {
               )}
               <button onClick={()=>{ setShowChronoPopup(false); nav("chrono-finish"); }}
                 style={{ width:"100%",background:"linear-gradient(135deg,#a78bfa,#7c3aed)",color:"#fff",border:"none",borderRadius:14,padding:"16px",fontWeight:900,fontSize:16,cursor:"pointer",touchAction:"manipulation",boxShadow:"0 4px 20px #a78bfa55" }}>
-                🎯 Jouer maintenant
+                <EmoIcon e="🎯" size={16} style={{verticalAlign:"-2px",marginRight:6}}/>Jouer maintenant
               </button>
             </div>
           </div>
@@ -11768,7 +11768,7 @@ export default function App() {
       {installPrompt && !isInstalled && (
         <div style={{ position:"fixed",bottom:64,left:"50%",transform:"translateX(-50%)",zIndex:999,width:"calc(100% - 32px)",maxWidth:420 }}>
           <div style={{ background:"linear-gradient(135deg,#1a1a1a,#111)",border:`1px solid ${C.accent}55`,borderRadius:16,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,boxShadow:"0 8px 32px #00000088" }}>
-            <span style={{ fontSize:28,flexShrink:0 }}>🎯</span>
+            <EmoIcon e="🎯" size={28} color={C.accent} style={{ flexShrink:0 }}/>
             <div style={{ flex:1 }}>
               <div style={{ fontWeight:700,fontSize:14,color:C.text }}>Installer DartPoint</div>
               <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>Accès rapide depuis ton écran d'accueil</div>
@@ -11779,7 +11779,7 @@ export default function App() {
             </button>
             <button onClick={()=>setInstallPrompt(null)}
               style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:18,padding:4,flexShrink:0,lineHeight:1,touchAction:"manipulation" }}>
-              ✕
+              <X size={18}/>
             </button>
           </div>
         </div>
@@ -11789,7 +11789,7 @@ export default function App() {
         <div onClick={()=>setPendingNav(null)} style={{ position:"fixed",inset:0,background:"#000000cc",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
           <div onClick={e=>e.stopPropagation()} style={{ position:"relative",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:20,padding:32,maxWidth:320,width:"100%",textAlign:"center",boxShadow:"0 24px 64px #000000aa" }}>
             <button onClick={()=>setPendingNav(null)} aria-label="Fermer" style={{ position:"absolute",top:10,right:10,background:"none",border:"none",color:C.muted,fontSize:22,cursor:"pointer",lineHeight:1,padding:"4px 8px",touchAction:"manipulation" }}><X size={18}/></button>
-            <div style={{ fontSize:44,marginBottom:12 }}>⚠️</div>
+            <div style={{ marginBottom:12,display:"flex",justifyContent:"center" }}><EmoIcon e="⚠️" size={44} color={C.yellow}/></div>
             <h2 style={{ fontWeight:800,fontSize:19,marginBottom:8,color:C.text }}>Quitter la partie ?</h2>
             <p style={{ color:C.muted,fontSize:14,marginBottom:28,lineHeight:1.6 }}>Ta partie en cours sera perdue et les scores ne seront pas sauvegardés.</p>
             <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>

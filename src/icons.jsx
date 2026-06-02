@@ -9,8 +9,8 @@ import {
   Play, Pause, Square, Skull, Snowflake, Turtle, Frown, Activity, CircleSlash, Shield, Bomb, Sprout,
   Dices, Scale, Moon, HeartCrack, Circle, HelpCircle, Bug, Calculator, Hash, Lightbulb, Handshake,
   Calendar, Building2, Globe, ArrowLeft, ArrowRight, ArrowLeftRight, ArrowUp, ArrowDown, Palette,
-  Delete, Hand, Ban, Eye, EyeOff, Megaphone, Smile, PartyPopper, Heart, ThumbsUp, Send,
-  Flag, Smartphone, BookOpen, Phone, Plug, Newspaper, Map, Menu, Timer, ChevronDown, ChevronUp,
+  Delete, Hand, Ban, Eye, EyeOff, Megaphone, Smile, PartyPopper, Heart, ThumbsUp, Send, Bot, Radio, Info,
+  Flag, Smartphone, BookOpen, Phone, Plug, Newspaper, Map, Menu, Timer, ChevronDown, ChevronUp, Inbox,
 } from "lucide-react";
 
 // Map emoji → composant Lucide. Tout emoji absent de la map reste affiché en emoji (secours).
@@ -19,7 +19,7 @@ export const EMOJI_ICON = {
   "🎯": Target, "🏹": Crosshair, "💥": Zap, "⚡": Zap, "🔥": Flame,
   // Trophées / rangs / récompenses
   "🏆": Trophy, "👑": Crown, "🥇": Medal, "🥈": Medal, "🥉": Medal, "🏅": Medal,
-  "💎": Gem, "⭐": Star, "✨": Sparkles,
+  "💎": Gem, "⭐": Star, "🌟": Star, "✨": Sparkles, "🆕": Sparkles,
   // Données / tendances
   "📊": BarChart2, "📈": TrendingUp, "📉": TrendingDown, "🎢": Activity,
   // Duels / jeux
@@ -32,18 +32,19 @@ export const EMOJI_ICON = {
   "📞": Phone, "☎️": Phone, "☎": Phone, "🔌": Plug, "📰": Newspaper, "🗺️": Map, "🗺": Map, "☰": Menu,
   // Statuts / validation
   "✅": Check, "✔️": Check, "✔": Check, "✓": Check, "❌": X, "✕": X, "✖️": X, "❎": X,
-  "⚠️": AlertTriangle, "🚫": Ban, "❔": HelpCircle, "❓": HelpCircle,
+  "⚠️": AlertTriangle, "🚫": Ban, "❔": HelpCircle, "❓": HelpCircle, "ℹ️": Info, "ℹ": Info, "💡": Lightbulb,
   // Sécurité / compte
-  "🔒": Lock, "🔐": Lock, "🔑": Key, "🚪": LogOut, "🔍": Search, "🔎": Search, "⚙️": Settings,
+  "🔒": Lock, "🔐": Lock, "🔓": LogOut, "🔑": Key, "🚪": LogOut, "🔍": Search, "🔎": Search, "⚙️": Settings, "⚙": Settings, "🕒": Clock, "🕓": Clock,
   "🕵️": EyeOff, "🕵": EyeOff, "🕵️‍♂️": EyeOff, "🕵️‍♀️": EyeOff,
   // Actions / édition
   "📸": Camera, "📷": Camera, "💬": MessageCircle, "✉️": Mail, "📧": Mail, "✏️": Pencil, "🗑️": Trash2, "🗑": Trash2,
   "➕": Plus, "💾": Save, "🔗": Link2, "🔄": RotateCcw, "↩️": Undo2, "↩": Undo2,
-  "▶️": Play, "▶": Play, "⏸️": Pause, "⏹️": Square, "⏹": Square, "👁️": Eye, "📣": Megaphone, "➤": Send,
+  "▶️": Play, "▶": Play, "⏸️": Pause, "⏹️": Square, "⏹": Square, "👁️": Eye, "👁": Eye, "👀": Eye, "📣": Megaphone, "➤": Send,
+  "📭": Inbox, "📬": Inbox, "📥": Inbox, "📪": Inbox,
   "🔁": RotateCcw, "🔃": RotateCcw, "💪": Flame,
   // Temps
   "⏳": Hourglass, "⏰": Clock, "🕐": Clock, "🕑": Clock, "📆": Calendar, "🗓️": Calendar, "📅": Calendar,
-  "⏱": Timer, "⏱️": Timer, "⏲️": Timer, "⏲": Timer, "▼": ChevronDown, "▲": ChevronUp,
+  "⏱": Timer, "⏱️": Timer, "⏲️": Timer, "⏲": Timer, "▼": ChevronDown, "▲": ChevronUp, "🗓": Calendar,
   // Listes / docs / aide
   "📋": ClipboardList, "📜": FileText, "📝": FileText, "🧠": Brain, "💡": Lightbulb,
   // Profil / forme / analyse
@@ -59,6 +60,8 @@ export const EMOJI_ICON = {
   "⬆️": ArrowUp, "⬇️": ArrowDown, "⌫": Delete,
   // Mort / bust
   "💀": Skull, "☠️": Skull,
+  // IA / signal
+  "🤖": Bot, "📡": Radio, "🛰️": Radio, "🛰": Radio,
   // Réactions positives (utilisées comme icônes d'UI)
   "👏": ThumbsUp, "😱": AlertTriangle, "😊": Smile, "🎉": PartyPopper, "❤️": Heart, "👆": Hand,
 };
