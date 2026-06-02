@@ -4,7 +4,7 @@
 import {
   Target, Crosshair, Trophy, Flame, Zap, Swords, Gamepad2, BarChart2, TrendingUp, TrendingDown,
   Gem, Star, Crown, Sparkles, Medal, Users, User, Beer, MapPin, Cake, Check, X,
-  AlertTriangle, Lock, Key, Search, Settings, LogOut, Camera, MessageCircle, Pencil, Trash2, Plus,
+  AlertTriangle, Lock, Key, Search, Settings, LogOut, Camera, MessageCircle, Mail, Pencil, Trash2, Plus,
   Save, Hourglass, Clock, ClipboardList, FileText, Home, Brain, Rocket, Link2, RotateCcw, Undo2,
   Play, Pause, Square, Skull, Snowflake, Turtle, Frown, Activity, CircleSlash, Shield, Bomb, Sprout,
   Dices, Scale, Moon, HeartCrack, Circle, HelpCircle, Bug, Calculator, Hash, Lightbulb, Handshake,
@@ -25,16 +25,16 @@ export const EMOJI_ICON = {
   "⚔️": Swords, "⚔": Swords, "🛡️": Shield, "🛡": Shield, "🎮": Gamepad2, "🕹️": Gamepad2,
   "🎲": Dices, "💣": Bomb, "🦗": Bug, "🏓": Target,
   // Social / utilisateurs
-  "👥": Users, "🫂": Users, "👤": User, "🤝": Handshake,
+  "👥": Users, "🫂": Users, "👤": User, "🤝": Handshake, "🧑‍🤝‍🧑": Users, "🧑": User,
   // Lieux
-  "🍺": Beer, "📍": MapPin, "🏠": Home, "🏛️": Building2, "🌍": Globe, "🌐": Globe,
+  "🍺": Beer, "🍻": Beer, "📍": MapPin, "🏠": Home, "🏛️": Building2, "🌍": Globe, "🌐": Globe,
   // Statuts / validation
   "✅": Check, "✔️": Check, "✔": Check, "✓": Check, "❌": X, "✕": X, "✖️": X, "❎": X,
   "⚠️": AlertTriangle, "🚫": Ban, "❔": HelpCircle, "❓": HelpCircle,
   // Sécurité / compte
   "🔒": Lock, "🔐": Lock, "🔑": Key, "🚪": LogOut, "🔍": Search, "⚙️": Settings,
   // Actions / édition
-  "📸": Camera, "📷": Camera, "💬": MessageCircle, "✏️": Pencil, "🗑️": Trash2, "🗑": Trash2,
+  "📸": Camera, "📷": Camera, "💬": MessageCircle, "✉️": Mail, "📧": Mail, "✏️": Pencil, "🗑️": Trash2, "🗑": Trash2,
   "➕": Plus, "💾": Save, "🔗": Link2, "🔄": RotateCcw, "↩️": Undo2, "↩": Undo2,
   "▶️": Play, "▶": Play, "⏸️": Pause, "⏹️": Square, "⏹": Square, "👁️": Eye, "📣": Megaphone, "➤": Send,
   // Temps

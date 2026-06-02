@@ -363,7 +363,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
       <button style={baseStyle} onClick={() => go(target)}
         onMouseEnter={e=>{e.currentTarget.style.background=accent?"linear-gradient(135deg,#f9731624,#1a0a0044)":"#ffffff0a";e.currentTarget.style.borderColor=accent?"#f9731650":"#ffffff14";}}
         onMouseLeave={e=>{e.currentTarget.style.background=baseStyle.background;e.currentTarget.style.borderColor=baseStyle.border.replace("1px solid ","");}}>
-        <span style={{ fontSize:18, width:26, textAlign:"center", flexShrink:0 }}>{icon}</span>
+        <span style={{ width:26, display:"flex", justifyContent:"center", flexShrink:0 }}><EmoIcon e={icon} size={18} color={danger ? "#f87171" : (isAct || accent ? "#f97316" : "#c8ccd4")}/></span>
         <span style={{ flex:1 }}>{label}</span>
         {liveLabel && (
           <span style={{ fontSize:10, fontWeight:700, color:liveColor, background:liveColor+"15", border:`1px solid ${liveColor}30`, borderRadius:20, padding:"1px 8px", flexShrink:0 }}>{liveLabel}</span>
@@ -493,7 +493,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                         style={{ display:"flex", alignItems:"center", gap:10, width:"100%", padding:"10px 14px", background:"transparent", border:"none", cursor:"pointer", color:"#c8ccd4", fontSize:13, fontWeight:500, textAlign:"left", transition:"background .15s", touchAction:"manipulation" }}
                         onMouseEnter={e=>{e.currentTarget.style.background="#f9731610";}}
                         onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
-                        <span style={{ width:20, display:"flex", alignItems:"center", justifyContent:"center", color:"#94a3b8" }}>{icon}</span>
+                        <span style={{ width:20, display:"flex", alignItems:"center", justifyContent:"center", color:"#94a3b8" }}><EmoIcon e={icon} size={14} color="#94a3b8"/></span>
                         <span style={{ flex:1 }}>{label}</span>
                         {badge>0 && (
                           <span style={{ background:badgeColor, color:"#fff", borderRadius:99, minWidth:16, height:16, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, padding:"0 3px", boxShadow:`0 0 6px ${badgeColor}88` }} title={badgeTitle||""}>
@@ -1282,7 +1282,7 @@ const HelpModal = ({ emoji="📖", title, items=[], visual=null, onClose }) => (
       </div>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 20px 16px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <span style={{ fontSize:24 }}>{emoji}</span>
+          <EmoIcon e={emoji} size={22} color="#f97316"/>
           <h2 style={{ fontWeight:900, fontSize:18, color:"#f1f5f9", margin:0 }}>{title}</h2>
         </div>
         <button onClick={onClose} style={{ background:"none", border:"none", color:"#4b5563", fontSize:22, cursor:"pointer", lineHeight:1 }}>✕</button>
@@ -1292,7 +1292,7 @@ const HelpModal = ({ emoji="📖", title, items=[], visual=null, onClose }) => (
         {items.map((it,i)=>(
           <div key={i} style={{ marginBottom:10, borderRadius:14, background:"linear-gradient(135deg,#111120,#0c0c18)", border:"1px solid #1e1e2e", padding:"14px 16px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-              <span style={{ fontSize:18 }}>{it.icon}</span>
+              <span style={{ display:"flex" }}><EmoIcon e={it.icon} size={18}/></span>
               <span style={{ fontWeight:800, fontSize:14, color:"#f97316" }}>{it.label}</span>
             </div>
             <p style={{ color:"#94a3b8", fontSize:13, lineHeight:1.75, margin:0 }}>{it.text}</p>
@@ -1899,7 +1899,7 @@ const FaceAFaceCard = ({ joueur, rival, myColor, rColor, myEmoji, rEmoji, myTitr
           <span style={{ fontSize:12,fontWeight:800,color:myColor }}>{probMoi}%</span>
           <div style={{ textAlign:"center" }}>
             <span style={{ fontSize:9,color:analyse.color,fontWeight:700,background:`${analyse.color}18`,padding:"3px 8px",borderRadius:20,border:`1px solid ${analyse.color}44` }}>
-              {analyse.emoji} {analyse.label}
+              <EmoIcon e={analyse.emoji} size={14} style={{verticalAlign:"-2px",marginRight:4}}/>{analyse.label}
             </span>
           </div>
           <span style={{ fontSize:12,fontWeight:800,color:rColor }}>{probRival}%</span>
@@ -2941,7 +2941,7 @@ const PageDefi = ({ joueur, setPage }) => {
                     { icon:"❌", text:"Aucune perte de DRIX en cas de défaite — tente ta chance !" },
                   ].map((r,i) => (
                     <div key={i} style={{ display:"flex",gap:10,alignItems:"flex-start",marginBottom:i<2?8:0 }}>
-                      <span style={{ fontSize:13,flexShrink:0,marginTop:1 }}>{r.icon}</span>
+                      <span style={{ flexShrink:0,marginTop:1,display:"flex" }}><EmoIcon e={r.icon} size={13}/></span>
                       <span style={{ fontSize:12,color:"#cbd5e1",lineHeight:1.55 }}>{r.text}</span>
                     </div>
                   ))}
@@ -4214,7 +4214,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
 // Petit helper réutilisable pour les lignes de breakdown DRIX
 const DrixLine = ({ icon, label, val, color }) => (
   <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, padding:"3px 0", borderBottom:"1px solid #ffffff06" }}>
-    <span style={{ color:"#64748b" }}>{icon} {label}</span>
+    <span style={{ color:"#64748b" }}><EmoIcon e={icon} size={12} style={{verticalAlign:"-2px",marginRight:4}}/>{label}</span>
     <span style={{ fontWeight:800, color, fontVariantNumeric:"tabular-nums" }}>{val > 0 ? "+" : ""}{val} DRIX</span>
   </div>
 );
@@ -6014,7 +6014,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
       boxShadow:`0 0 8px ${col}22`,
       whiteSpace:"nowrap",
     }}>
-      <span style={{ fontSize:12 }}>{icon}</span>{label}
+      <EmoIcon e={icon} size={12} style={{verticalAlign:"-2px",marginRight:4}}/>{label}
     </div>
   );
 
@@ -8491,7 +8491,7 @@ const APropos = ({ bars, setPage }) => (
       }}>
         <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:10 }}>
           <div style={{ width:44,height:44,borderRadius:13,background:`${s.accent}18`,border:`1px solid ${s.accent}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,flexShrink:0 }}>
-            {s.emoji}
+            <EmoIcon e={s.emoji} size={22} color={s.accent}/>
           </div>
           <h2 style={{ fontWeight:800,fontSize:16,color:"#f1f5f9",margin:0,lineHeight:1.3 }}>{s.title}</h2>
         </div>
@@ -8519,7 +8519,7 @@ const APropos = ({ bars, setPage }) => (
       }}>
         <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:10 }}>
           <div style={{ width:44,height:44,borderRadius:13,background:`${s.accent}18`,border:`1px solid ${s.accent}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,flexShrink:0 }}>
-            {s.emoji}
+            <EmoIcon e={s.emoji} size={22} color={s.accent}/>
           </div>
           <h2 style={{ fontWeight:800,fontSize:16,color:"#f1f5f9",margin:0,lineHeight:1.3 }}>{s.title}</h2>
         </div>
@@ -8658,7 +8658,7 @@ const AdminKpiCard = ({ icon, label, count, prio="normal", onClick }) => {
     <div onClick={onClick} style={{ background:`linear-gradient(135deg,${p.bg},#1a1a1a)`, border:`1px solid ${p.border}44`, borderRadius:14, padding:"18px 20px", cursor:onClick?"pointer":"default", transition:"transform .15s, box-shadow .15s", display:"flex", flexDirection:"column", gap:6, minWidth:140 }}
       onMouseEnter={e=>{ if(onClick){e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow=`0 8px 24px ${p.border}22`;}}}
       onMouseLeave={e=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
-      <div style={{ fontSize:22 }}>{icon}</div>
+      <div style={{ display:"flex" }}><EmoIcon e={icon} size={22}/></div>
       <div style={{ fontSize:28, fontWeight:900, color:p.text, lineHeight:1 }}>{count ?? "—"}</div>
       <div style={{ fontSize:11, color:C.muted, fontWeight:600, letterSpacing:.5 }}>{label}</div>
       {prio !== "normal" && <div style={{ fontSize:10, color:p.text, marginTop:2 }}>{p.label}</div>}
@@ -9917,7 +9917,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
             <button key={a.label} onClick={a.action} style={{width:"100%",background:"#0f0f0f",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,marginBottom:8,color:a.color,fontWeight:600,fontSize:13,textAlign:"left",transition:"background .15s"}}
               onMouseEnter={e=>e.currentTarget.style.background="#1a1a1a"}
               onMouseLeave={e=>e.currentTarget.style.background="#0f0f0f"}>
-              <span style={{fontSize:18}}>{a.icon}</span>{a.label}
+              <EmoIcon e={a.icon} size={16} style={{verticalAlign:"-2px",marginRight:5}}/>{a.label}
             </button>
           ))}
         </div>
@@ -10856,7 +10856,7 @@ const Onboarding = ({ onDone }) => {
     }}>
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:10 }}>
         <div style={{ width:44, height:44, borderRadius:13, background:`${s.accent}18`, border:`1px solid ${s.accent}33`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:21, flexShrink:0 }}>
-          {s.emoji}
+          <EmoIcon e={s.emoji} size={22} color={s.accent}/>
         </div>
         <h2 style={{ fontWeight:800, fontSize:16, color:"#f1f5f9", margin:0, lineHeight:1.3 }}>{s.title}</h2>
       </div>
@@ -11844,7 +11844,7 @@ export default function App() {
                 minWidth: 240, maxWidth: 400,
                 animation: "toastIn .3s cubic-bezier(.4,1.4,.6,1) both",
               }}>
-                <span style={{ fontSize: 16, fontWeight: 900, color: c.border }}>{c.icon}</span>
+                <span style={{ display:"flex", color: c.border }}><EmoIcon e={c.icon} size={15} color={c.border}/></span>
                 <span style={{ flex: 1 }}>{t.message}</span>
               </div>
             );
