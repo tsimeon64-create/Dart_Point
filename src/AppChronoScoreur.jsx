@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { ArrowLeft, Timer, Trophy, Zap, Target } from "lucide-react";
+import { EmoIcon, EmoText } from "./icons";
 
 const C = {
   bg:"#0f0f0f", card:"#1a1a1a", card2:"#141414", border:"#2a2a2a",
@@ -554,7 +555,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
               textShadow:"0 0 6px #fbbf24aa",
               marginBottom:8,
             }}>
-              🏆 DÉFI DU JOUR 🏆
+              <EmoIcon e="🏆" size={13} color="#fbbf24" style={{verticalAlign:"-1px",marginRight:6}}/>DÉFI DU JOUR <EmoIcon e="🏆" size={13} color="#fbbf24" style={{verticalAlign:"-1px",marginLeft:6}}/>
             </div>
 
             {/* TITRE COMPACT */}
@@ -566,7 +567,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
               animation:"csTitlePulse 2.4s ease-in-out infinite",
               marginBottom:4, whiteSpace:"nowrap",
             }}>
-              ⚡ SCOREUR SPEEDRUN
+              <EmoIcon e="⚡" size={24} color="#60a5fa" style={{verticalAlign:"-3px",marginRight:6}}/>SCOREUR SPEEDRUN
             </div>
 
             <div style={{ fontSize:11,color:"#94a3b8",lineHeight:1.4,marginBottom:12 }}>
@@ -583,7 +584,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
                 boxShadow:"0 0 8px #60a5fa33",
                 fontSize:10, fontWeight:800,
               }}>
-                <span>💎</span>
+                <EmoIcon e="💎" size={11} color="#60a5fa"/>
                 <span style={{ color:"#60a5fa",textShadow:"0 0 4px #60a5fa88" }}>+5</span>
                 <span style={{ color:"#94a3b8" }}>participation</span>
               </div>
@@ -595,14 +596,14 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
                 boxShadow:"0 0 10px #fbbf2444",
                 fontSize:10, fontWeight:800,
               }}>
-                <span>🏆</span>
+                <EmoIcon e="🏆" size={11} color="#fbbf24"/>
                 <span style={{ color:"#fbbf24",textShadow:"0 0 4px #fbbf24aa" }}>+20</span>
                 <span style={{ color:"#fcd34d" }}>vainqueur</span>
               </div>
             </div>
 
             <div style={{ marginTop:8, fontSize:9, color:"#475569", lineHeight:1.3 }}>
-              ⚠ <b style={{ color:"#64748b" }}>1 vie/jour</b> · abandon = perdue · erreur = +3s
+              <EmoIcon e="⚠" size={9} color="#475569" style={{verticalAlign:"-1px",marginRight:4}}/><b style={{ color:"#64748b" }}>1 vie/jour</b> · abandon = perdue · erreur = +3s
             </div>
           </div>
 
@@ -615,7 +616,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
               padding:"10px 14px",
               display:"flex",alignItems:"center",gap:12,
             }}>
-              <div style={{ fontSize:22 }}>🔒</div>
+              <div style={{ display:"flex" }}><EmoIcon e="🔒" size={22} color="#60a5fa"/></div>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:9,fontWeight:900,color:"#60a5fa",letterSpacing:1.5,textTransform:"uppercase",marginBottom:1 }}>Reviens dans</div>
                 <div style={{ fontSize:22, fontWeight:900, color:"#60a5fa", fontVariantNumeric:"tabular-nums", textShadow:"0 0 12px #60a5fa88", lineHeight:1 }}>
@@ -637,7 +638,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
                   borderRadius:10, padding:"7px 10px",
                   boxShadow:"0 0 10px #fbbf2422",
                 }}>
-                  <div style={{ fontSize:8,fontWeight:900,color:"#fbbf24",letterSpacing:1.5,marginBottom:2 }}>⚡ RECORD</div>
+                  <div style={{ fontSize:8,fontWeight:900,color:"#fbbf24",letterSpacing:1.5,marginBottom:2 }}><EmoText s="⚡ RECORD" size={9} gap={3}/></div>
                   <div style={{ fontSize:18,fontWeight:900,color:"#fbbf24",fontVariantNumeric:"tabular-nums",lineHeight:1,animation:"csRecordGlow 2.4s ease-in-out infinite" }}>
                     {formatChrono(recordMs)}
                   </div>
@@ -697,7 +698,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
                     background: isMe ? "linear-gradient(90deg,#0a1a3a,#06122a)" : col.bg,
                     borderBottom: i<podium.length-1 ? "1px solid #16294a44" : "none",
                   }}>
-                    <div style={{ fontSize:17, lineHeight:1, filter:`drop-shadow(0 0 6px ${col.border}aa)` }}>{col.medal}</div>
+                    <div style={{ lineHeight:1, filter:`drop-shadow(0 0 6px ${col.border}aa)`, display:"flex" }}><EmoIcon e={col.medal} size={17} color={col.border}/></div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontWeight:900,fontSize:13,color: isMe?"#60a5fa":col.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
                         {s.joueur_pseudo}{isMe ? " (toi)" : ""}
@@ -718,7 +719,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
                 }}>
                   <div style={{ width:22,textAlign:"center",fontWeight:900,fontSize:12,color:"#60a5fa" }}>#{myRank}</div>
                   <div style={{ flex:1,fontWeight:900,fontSize:12,color:"#60a5fa" }}>
-                    📍 Toi {myScore.erreurs > 0 && <span style={{ marginLeft:6,fontSize:9,color:"#ef4444" }}>{myScore.erreurs} err.</span>}
+                    <EmoIcon e="📍" size={12} color="#60a5fa" style={{verticalAlign:"-2px",marginRight:3}}/>Toi {myScore.erreurs > 0 && <span style={{ marginLeft:6,fontSize:9,color:"#ef4444" }}>{myScore.erreurs} err.</span>}
                   </div>
                   <div style={{ fontWeight:900,fontSize:14,color:"#60a5fa",fontVariantNumeric:"tabular-nums",textShadow:"0 0 6px #60a5fa66" }}>
                     {formatChrono(myScore.temps_ms)}
@@ -738,7 +739,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
               border:"1px dashed #16294a",
               borderRadius:10, padding:"12px 10px", textAlign:"center",
             }}>
-              <div style={{ fontSize:18,marginBottom:2 }}>🥇</div>
+              <div style={{ marginBottom:2,display:"flex",justifyContent:"center" }}><EmoIcon e="🥇" size={18} color="#fbbf24"/></div>
               <div style={{ fontSize:12,fontWeight:800,color:"#60a5fa" }}>Sois le premier !</div>
               <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>Pose ton record du jour</div>
             </div>
@@ -769,7 +770,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
                 <span aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:70,background:"linear-gradient(90deg,transparent,#ffffff44,transparent)",animation:"csShine 2.8s ease-in-out infinite",pointerEvents:"none" }}/>
               )}
               <span style={{ position:"relative" }}>
-                {checking ? "⏳ VÉRIFICATION…" : alreadyPlayed ? "🔒 BLOQUÉ JUSQU'À DEMAIN" : "⚡ COMMENCER LE RUN"}
+                {checking ? <EmoText s="⏳ VÉRIFICATION…" size={15} gap={6}/> : alreadyPlayed ? <EmoText s="🔒 BLOQUÉ JUSQU'À DEMAIN" size={15} gap={6}/> : <EmoText s="⚡ COMMENCER LE RUN" size={15} gap={6}/>}
               </span>
             </button>
 
@@ -880,7 +881,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
             animation:"scoreurPenaltyPop .9s cubic-bezier(.22,1.2,.36,1) both",
             fontVariantNumeric:"tabular-nums",
           }}>
-            +3s ❌
+            +3s <EmoIcon e="❌" size={30} style={{verticalAlign:"-5px",marginLeft:6}}/>
           </div>
         )}
 
@@ -900,7 +901,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
               fontSize:9, fontWeight:700, padding:"3px 8px", borderRadius:6,
               letterSpacing:1, opacity:.7,
             }}>
-              ⚠ ABANDON
+              <EmoIcon e="⚠" size={10} style={{verticalAlign:"-1px",marginRight:4}}/>ABANDON
             </button>
             <div style={{
               fontSize:10, fontWeight:800,
@@ -910,7 +911,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
               background: errors>0 ? "#3a0a0a55" : "transparent",
               border: errors>0 ? "1px solid #ef444466" : "1px solid transparent",
             }}>
-              {errors > 0 ? `❌ ${errors} ERREUR${errors>1?"S":""}` : "✓ ZÉRO ERREUR"}
+              {errors > 0 ? <EmoText s={`❌ ${errors} ERREUR${errors>1?"S":""}`} size={10} gap={4}/> : <EmoText s="✓ ZÉRO ERREUR" size={10} gap={4}/>}
             </div>
           </div>
 
@@ -928,14 +929,14 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
             transition:"color .4s, text-shadow .4s",
             padding:"4px 0 2px",
           }}>
-            ⏱ {formatChrono(elapsed)}
+            <EmoIcon e="⏱" size={48} color={chronoColor} style={{verticalAlign:"-6px",marginRight:8}}/>{formatChrono(elapsed)}
           </div>
 
           {/* Volée X/N + barre de progression */}
           <div style={{ marginTop:8 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
               <span style={{ fontSize:10, fontWeight:900, color:"#a78bfa", letterSpacing:2.5 }}>
-                ⚡ VOLÉE {currentIdx + 1} / {volees.length}
+                <EmoIcon e="⚡" size={10} color="#a78bfa" style={{verticalAlign:"-1px",marginRight:4}}/>VOLÉE {currentIdx + 1} / {volees.length}
               </span>
               <span style={{ fontSize:9, color:"#475569", letterSpacing:1, fontWeight:700 }}>
                 {Math.round(progress)}%
@@ -988,7 +989,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
               color:"#60a5fa", marginBottom:10, textTransform:"uppercase",
               textShadow:"0 0 8px #60a5fa88",
             }}>
-              🎯 Volée à calculer
+              <EmoIcon e="🎯" size={9} color="#60a5fa" style={{verticalAlign:"-1px",marginRight:4}}/>Volée à calculer
             </div>
             {/* Segments fléchettes colorés */}
             <div style={{
@@ -1085,7 +1086,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
                   textShadow: input ? "0 1px 2px #00000055" : "none",
                   transition:"all .15s",
                 }}>
-                ✓ GO
+                <EmoIcon e="✓" size={15} strokeWidth={3} style={{verticalAlign:"-2px",marginRight:5}}/>GO
               </button>
             </div>
 
@@ -1151,7 +1152,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
                   padding:"14px 0",
                   textShadow: input ? "0 1px 2px #00000055" : "none",
                 }}>
-                ✓
+                <EmoIcon e="✓" size={18} strokeWidth={3}/>
               </button>
             </div>
           </div>
@@ -1176,7 +1177,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
         <div style={{ flex:1,overflowY:"auto",padding:"12px 14px 40px" }}>
           <div style={{ background:`${C.blue}15`,border:`1px solid ${C.blue}44`,borderRadius:14,padding:"12px 16px",marginBottom:14,textAlign:"center" }}>
             <div style={{ fontSize:11,color:C.muted,letterSpacing:1,marginBottom:4 }}>CLASSEMENT DU SCOREUR SPEEDRUN</div>
-            <div style={{ fontSize:11,color:C.muted }}>🥇 Le vainqueur reçoit <b style={{ color:C.yellow }}>+20 DRIX</b> · 💎 <b style={{ color:C.blue }}>+5 DRIX</b> participation · publication à 00:01</div>
+            <div style={{ fontSize:11,color:C.muted }}><EmoIcon e="🥇" size={11} color="#fbbf24" style={{verticalAlign:"-2px",marginRight:4}}/>Le vainqueur reçoit <b style={{ color:C.yellow }}>+20 DRIX</b> · <EmoIcon e="💎" size={11} color={C.blue} style={{verticalAlign:"-2px",margin:"0 3px"}}/><b style={{ color:C.blue }}>+5 DRIX</b> participation · publication à 00:01</div>
           </div>
 
           {loadingScores ? (
@@ -1200,7 +1201,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
                     opacity: isAbandon ? .8 : 1,
                   }}>
                     <div style={{ width:28,textAlign:"center",fontWeight:900,fontSize:rankIdx<3 && !isAbandon ?18:13, color: isAbandon ? C.red : (rankIdx<3 ? C.yellow : C.muted), flexShrink:0 }}>
-                      {isAbandon ? "✗" : (rankIdx < 3 ? medals[rankIdx] : rankIdx+1)}
+                      {isAbandon ? <EmoIcon e="✗" size={16} strokeWidth={3}/> : (rankIdx < 3 ? <EmoIcon e={medals[rankIdx]} size={18}/> : rankIdx+1)}
                     </div>
                     <div style={{ flex:1,fontWeight:isMe?800:600,fontSize:14,color: isAbandon ? "#94a3b8" : (isMe?C.blue:C.text),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
                       {s.joueur_pseudo}{isMe?" (toi)":""}
@@ -1240,10 +1241,10 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
         <div style={{ flex:1,overflowY:"auto",padding:"16px 14px 40px",display:"flex",flexDirection:"column",gap:12 }}>
           {/* Hero temps */}
           <div style={{ background:"linear-gradient(135deg,#0a1428,#0f1f32)",border:`2px solid ${C.blue}`,borderRadius:20,padding:"24px 16px",textAlign:"center",boxShadow:`0 0 40px ${C.blue}33` }}>
-            <div style={{ fontSize:48,marginBottom:6 }}>🏆</div>
+            <div style={{ marginBottom:6,display:"flex",justifyContent:"center" }}><EmoIcon e="🏆" size={48} color="#fbbf24"/></div>
             <div style={{ fontSize:10,letterSpacing:3,color:C.blue,fontWeight:900,marginBottom:6,textTransform:"uppercase" }}>Temps final</div>
             <div style={{ fontSize:46,fontWeight:900,color:C.blue,lineHeight:1,fontVariantNumeric:"tabular-nums",textShadow:`0 0 24px ${C.blue}88` }}>
-              ⏱ {formatChrono(tempsMs)}
+              <EmoIcon e="⏱" size={40} color={C.blue} style={{verticalAlign:"-5px",marginRight:8}}/>{formatChrono(tempsMs)}
             </div>
             {errs > 0 && <div style={{ marginTop:8,fontSize:11,color:C.red }}>(pénalités +{errs*3}s pour {errs} erreur{errs>1?"s":""})</div>}
           </div>
@@ -1251,11 +1252,11 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
           {/* Stats */}
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
             <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"12px",textAlign:"center" }}>
-              <div style={{ fontSize:11,color:C.muted,marginBottom:3 }}>🎯 Volées</div>
+              <div style={{ fontSize:11,color:C.muted,marginBottom:3 }}><EmoText s="🎯 Volées" size={11} gap={4}/></div>
               <div style={{ fontSize:24,fontWeight:900,color:C.text }}>{nbVolees}</div>
             </div>
             <div style={{ background:C.card,border:`1px solid ${errs===0?C.green:C.red}33`,borderRadius:14,padding:"12px",textAlign:"center" }}>
-              <div style={{ fontSize:11,color:C.muted,marginBottom:3 }}>{errs===0?"✅":"❌"} Erreurs</div>
+              <div style={{ fontSize:11,color:C.muted,marginBottom:3,display:"flex",alignItems:"center",justifyContent:"center",gap:4 }}><EmoIcon e={errs===0?"✅":"❌"} size={11} color={errs===0?C.green:C.red}/>Erreurs</div>
               <div style={{ fontSize:24,fontWeight:900,color:errs===0?C.green:C.red }}>{errs}</div>
             </div>
           </div>
@@ -1265,7 +1266,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
             <Trophy size={16}/> Voir le classement
           </button>
           <button onClick={()=>setPage("jeux-sans")} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"12px",color:C.muted,fontWeight:700,fontSize:14,cursor:"pointer" }}>
-            🏠 Retour aux mini-jeux
+            <EmoIcon e="🏠" size={14} style={{verticalAlign:"-2px",marginRight:6}}/>Retour aux mini-jeux
           </button>
 
           {/* La publication sur le Comptoir se fait automatiquement à 00:01 (uniquement le vainqueur) */}

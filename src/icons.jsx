@@ -10,7 +10,7 @@ import {
   Dices, Scale, Moon, HeartCrack, Circle, HelpCircle, Bug, Calculator, Hash, Lightbulb, Handshake,
   Calendar, Building2, Globe, ArrowLeft, ArrowRight, ArrowLeftRight, ArrowUp, ArrowDown, Palette,
   Delete, Hand, Ban, Eye, EyeOff, Megaphone, Smile, PartyPopper, Heart, ThumbsUp, Send, Bot, Radio, Info,
-  Flag, Smartphone, BookOpen, Phone, Plug, Newspaper, Map, Menu, Timer, ChevronDown, ChevronUp, Inbox,
+  Flag, Smartphone, BookOpen, Phone, Plug, Newspaper, Map, Menu, Timer, ChevronDown, ChevronUp, Inbox, Coins,
 } from "lucide-react";
 
 // Map emoji → composant Lucide. Tout emoji absent de la map reste affiché en emoji (secours).
@@ -24,15 +24,15 @@ export const EMOJI_ICON = {
   "📊": BarChart2, "📈": TrendingUp, "📉": TrendingDown, "🎢": Activity,
   // Duels / jeux
   "⚔️": Swords, "⚔": Swords, "🛡️": Shield, "🛡": Shield, "🎮": Gamepad2, "🕹️": Gamepad2,
-  "🎲": Dices, "💣": Bomb, "🦗": Bug, "🏓": Target, "🏏": Target, "🎳": Target,
+  "🎲": Dices, "💣": Bomb, "🦗": Bug, "🏓": Target, "🏏": Target, "🎳": Target, "🎱": Circle, "💰": Coins, "✌️": Hand, "✌": Hand,
   // Social / utilisateurs
   "👥": Users, "🫂": Users, "👤": User, "🤝": Handshake, "🧑‍🤝‍🧑": Users, "🧑": User,
   // Lieux
   "🍺": Beer, "🍻": Beer, "📍": MapPin, "📌": Pin, "🏠": Home, "🏛️": Building2, "🌍": Globe, "🌐": Globe,
   "📞": Phone, "☎️": Phone, "☎": Phone, "🔌": Plug, "📰": Newspaper, "🗺️": Map, "🗺": Map, "☰": Menu,
   // Statuts / validation
-  "✅": Check, "✔️": Check, "✔": Check, "✓": Check, "❌": X, "✕": X, "✖️": X, "❎": X,
-  "⚠️": AlertTriangle, "🚫": Ban, "❔": HelpCircle, "❓": HelpCircle, "ℹ️": Info, "ℹ": Info, "💡": Lightbulb,
+  "✅": Check, "✔️": Check, "✔": Check, "✓": Check, "❌": X, "✕": X, "✗": X, "✖️": X, "✖": X, "❎": X,
+  "⚠️": AlertTriangle, "⚠": AlertTriangle, "🚫": Ban, "❔": HelpCircle, "❓": HelpCircle, "ℹ️": Info, "ℹ": Info, "💡": Lightbulb,
   // Sécurité / compte
   "🔒": Lock, "🔐": Lock, "🔓": LogOut, "🔑": Key, "🚪": LogOut, "🔍": Search, "🔎": Search, "⚙️": Settings, "⚙": Settings, "🕒": Clock, "🕓": Clock,
   "🕵️": EyeOff, "🕵": EyeOff, "🕵️‍♂️": EyeOff, "🕵️‍♀️": EyeOff,

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { EmoIcon, EmoText } from "./icons";
 
 const C = {
   bg:"#0f0f0f", card:"#1a1a1a", border:"#2a2a2a",
@@ -53,12 +54,12 @@ function Setup({ onStart }) {
   return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"40px 20px" }}>
       <div style={{ textAlign:"center", marginBottom:32 }}>
-        <div style={{ fontSize:48, marginBottom:8 }}>🎯</div>
+        <div style={{ marginBottom:8, display:"flex", justifyContent:"center" }}><EmoIcon e="🎯" size={48} color={C.accent}/></div>
         <h1 style={{ fontWeight:800, fontSize:26, color:C.accent }}>Le Capital</h1>
         <p style={{ color:C.muted, fontSize:14, marginTop:6 }}>15 objectifs · une volée chacun · meilleur score gagne</p>
       </div>
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:24, marginBottom:20 }}>
-        <h2 style={{ fontWeight:700, fontSize:16, marginBottom:16 }}>👥 Joueurs</h2>
+        <h2 style={{ fontWeight:700, fontSize:16, marginBottom:16 }}><EmoText s="👥 Joueurs" size={16}/></h2>
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           {joueurs.map((nom, i) => (
             <div key={i} style={{ display:"flex", gap:8, alignItems:"center" }}>
@@ -70,7 +71,7 @@ function Setup({ onStart }) {
               />
               {joueurs.length > 1 && (
                 <button onClick={() => setJoueurs(j => j.filter((_,idx) => idx!==i))}
-                  style={{ background:"#1a0000", border:`1px solid ${C.red}44`, borderRadius:8, color:C.red, cursor:"pointer", fontSize:16, padding:"8px 12px" }}>✕</button>
+                  style={{ background:"#1a0000", border:`1px solid ${C.red}44`, borderRadius:8, color:C.red, cursor:"pointer", padding:"8px 12px", display:"inline-flex" }}><EmoIcon e="✕" size={16}/></button>
               )}
             </div>
           ))}
@@ -84,7 +85,7 @@ function Setup({ onStart }) {
       </div>
       <button onClick={() => valid && onStart(joueurs.map(j => j.trim()))} disabled={!valid}
         style={{ width:"100%", background:valid?C.accent:"#333", color:"#fff", border:"none", borderRadius:12, padding:"16px", fontSize:16, fontWeight:700, cursor:valid?"pointer":"not-allowed", opacity:valid?1:0.5 }}>
-        🎮 Lancer la partie
+        <EmoIcon e="🎮" size={16} style={{verticalAlign:"-2px",marginRight:6}}/>Lancer la partie
       </button>
     </div>
   );
@@ -104,7 +105,7 @@ function Pad({ joueur, objectif, scoreActuel, onValider, onDiviser, onFermer }) 
       <div onClick={e => e.stopPropagation()} style={{ background:"#1a1a1a", border:`1px solid ${C.border}`, borderRadius:"20px 20px 0 0", padding:24, width:"100%", maxWidth:480 }}>
         <div style={{ textAlign:"center", marginBottom:16 }}>
           <div style={{ fontWeight:700, fontSize:16, color:C.accent }}>{joueur}</div>
-          <div style={{ color:C.muted, fontSize:13, marginTop:2 }}>{objectif.nom}</div>
+          <div style={{ color:C.muted, fontSize:13, marginTop:2 }}><EmoText s={objectif.nom} size={13}/></div>
           <div style={{ color:"#555", fontSize:11, marginTop:2 }}>
             {estModif ? `Score actuel : ${scoreActuel === -1 ? "÷2" : "+"+scoreActuel} — modifier ?` : objectif.desc}
           </div>
@@ -128,7 +129,7 @@ function Pad({ joueur, objectif, scoreActuel, onValider, onDiviser, onFermer }) 
           </button>
           <button onClick={() => { onValider(parseInt(saisie) || 0); onFermer(); }}
             style={{ background:C.accent, border:"none", borderRadius:10, color:"#fff", fontSize:15, fontWeight:700, padding:"14px", cursor:"pointer" }}>
-            ✅ Valider
+            <EmoIcon e="✅" size={15} style={{verticalAlign:"-2px",marginRight:6}}/>Valider
           </button>
         </div>
       </div>
@@ -141,12 +142,12 @@ function ModalQuitter({ onRester, onQuitter }) {
   return (
     <div style={{ position:"fixed", inset:0, background:"#000c", zIndex:600, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:28, maxWidth:340, width:"100%", textAlign:"center" }}>
-        <div style={{ fontSize:40, marginBottom:12 }}>⚠️</div>
+        <div style={{ marginBottom:12, display:"flex", justifyContent:"center" }}><EmoIcon e="⚠️" size={40} color={C.red}/></div>
         <h2 style={{ fontWeight:700, fontSize:18, marginBottom:8 }}>Quitter la partie ?</h2>
         <p style={{ color:C.muted, fontSize:14, marginBottom:24 }}>Les scores en cours seront perdus.</p>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           <button onClick={onRester} style={{ background:"#14532d", border:`1px solid ${C.green}44`, borderRadius:10, color:C.green, fontSize:14, fontWeight:700, padding:"12px", cursor:"pointer" }}>▶ Continuer</button>
-          <button onClick={onQuitter} style={{ background:"#7f1d1d", border:`1px solid ${C.red}44`, borderRadius:10, color:C.red, fontSize:14, fontWeight:700, padding:"12px", cursor:"pointer" }}>🚪 Quitter</button>
+          <button onClick={onQuitter} style={{ background:"#7f1d1d", border:`1px solid ${C.red}44`, borderRadius:10, color:C.red, fontSize:14, fontWeight:700, padding:"12px", cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6 }}><EmoIcon e="🚪" size={14}/>Quitter</button>
         </div>
       </div>
     </div>
@@ -270,20 +271,20 @@ function Capital({ joueurs, onFin }) {
   if (fini) return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"40px 20px" }}>
       <div style={{ textAlign:"center", marginBottom:28 }}>
-        <div style={{ fontSize:50, marginBottom:8 }}>🏆</div>
+        <div style={{ marginBottom:8, display:"flex", justifyContent:"center" }}><EmoIcon e="🏆" size={50} color="#fbbf24"/></div>
         <h1 style={{ fontWeight:800, fontSize:24 }}>Partie terminée !</h1>
       </div>
       {classement.map((j, i) => (
         <div key={j.nom} style={{ background:C.card, border:`1px solid ${i===0?C.yellow:C.border}`, borderRadius:12, padding:"16px 20px", marginBottom:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <span style={{ fontSize:22 }}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":"👤"}</span>
+            <EmoIcon e={i===0?"🥇":i===1?"🥈":i===2?"🥉":"👤"} size={22} color={i===0?"#fbbf24":i===1?"#cbd5e1":i===2?"#d97706":C.muted}/>
             <span style={{ fontWeight:700, fontSize:16 }}>{j.nom}</span>
           </div>
           <span style={{ fontWeight:800, fontSize:20, color:i===0?C.yellow:C.text }}>{j.total} pts</span>
         </div>
       ))}
       <button onClick={onFin} style={{ marginTop:20, width:"100%", background:C.accent, color:"#fff", border:"none", borderRadius:12, padding:"16px", fontSize:15, fontWeight:700, cursor:"pointer" }}>
-        🔄 Nouvelle partie
+        <EmoIcon e="🔄" size={15} style={{verticalAlign:"-2px",marginRight:6}}/>Nouvelle partie
       </button>
     </div>
   );
@@ -297,7 +298,7 @@ function Capital({ joueurs, onFin }) {
       {/* HEADER */}
       <div style={{ background:"#111", borderBottom:`1px solid ${C.border}`, padding:"10px 16px", flexShrink:0, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div>
-          <h2 style={{ fontWeight:800, fontSize:15, color:C.accent }}>🎯 Le Capital</h2>
+          <h2 style={{ fontWeight:800, fontSize:15, color:C.accent }}><EmoText s="🎯 Le Capital" size={15}/></h2>
           <p style={{ color:C.muted, fontSize:11, marginTop:1 }}>
             Obj. {objIdx+1}/{OBJECTIFS.length} — <span style={{ color:C.text, fontWeight:600 }}>{joueurs[joueurIdx]}</span> joue
           </p>
@@ -309,7 +310,7 @@ function Capital({ joueurs, onFin }) {
           </button>
           <button onClick={() => setModalQuitter(true)}
             style={{ background:"#1a0000", border:`1px solid ${C.red}33`, borderRadius:6, color:C.red, fontSize:11, cursor:"pointer", padding:"4px 10px" }}>
-            ⚠️ Quitter
+            <EmoIcon e="⚠️" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>Quitter
           </button>
         </div>
       </div>
@@ -336,7 +337,7 @@ function Capital({ joueurs, onFin }) {
               {/* Cellule gauche — sticky left */}
               <div style={{ width:130, flexShrink:0, borderRight:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 10px", background:oi===objIdx?"#1a1a1a":"#111", position:"sticky", left:0, zIndex:10 }}>
                 <span style={{ fontSize:14, fontWeight:oi===objIdx?700:500, color:oi===objIdx?C.accent:oi<objIdx?"#444":C.text, lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", display:"block" }}>
-                  {obj.nom}
+                  <EmoText s={obj.nom} size={14}/>
                 </span>
               </div>
               {/* Cellules joueurs */}
@@ -356,7 +357,7 @@ function Capital({ joueurs, onFin }) {
                     outline:actif?`2px solid ${C.accent}`:"none",
                     outlineOffset:"-2px",
                   }}>
-                    {actif && !joue && <span style={{ fontSize:18, animation:"pulse 1s infinite" }}>👆</span>}
+                    {actif && !joue && <EmoIcon e="👆" size={18} style={{ animation:"pulse 1s infinite" }}/>}
                     {joue && !rate && <span style={{ fontWeight:700, fontSize:14, color:C.green }}>+{score}</span>}
                     {rate && <span style={{ fontWeight:700, fontSize:12, color:C.red }}>÷2</span>}
                     {!joue && !actif && <span style={{ color:"#333" }}>—</span>}
