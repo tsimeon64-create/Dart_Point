@@ -1545,7 +1545,7 @@ export const ALL_BADGES = [
   { id:"p_100",     cat:"parties",   emoji:"🎲",  nom:"Marathonien",           desc:"100 parties jouées",           seuil:100, couleur:"#a78bfa", val:d=>d.parties },
   { id:"p_500",     cat:"parties",   emoji:"🏆",  nom:"Pilier du bar",         desc:"500 parties jouées",           seuil:500, couleur:"#fbbf24", val:d=>d.parties },
   // Anti-26
-  { id:"a26_10",    cat:"anti26",    emoji:"🍌",  nom:"Le 26 classique",       desc:"10 fois 26",                   seuil:10,  couleur:"#f59e0b", val:d=>d.nb26 },
+  { id:"a26_10",    cat:"anti26",    emoji:"🍌",  nom:"As du 26",              desc:"10 fois 26",                   seuil:10,  couleur:"#f59e0b", val:d=>d.nb26 },
   { id:"a26_50",    cat:"anti26",    emoji:"🤡",  nom:"Abonné au 26",          desc:"50 fois 26",                   seuil:50,  couleur:"#f59e0b", val:d=>d.nb26 },
   { id:"a26_100",   cat:"anti26",    emoji:"💩",  nom:"Roi du 26",             desc:"100 fois 26",                  seuil:100, couleur:"#f59e0b", val:d=>d.nb26 },
   { id:"a26_500",   cat:"anti26",    emoji:"🎪",  nom:"Légende du 26",         desc:"500 fois 26",                  seuil:500, couleur:"#f59e0b", val:d=>d.nb26 },
@@ -1654,13 +1654,16 @@ export const storeBadgesSet = (joueurId, badgeSet) => {
 // Visuel d'un badge : image personnalisée /badges/<id>.png si présente,
 // sinon repli automatique sur l'emoji du badge (les barres de progression
 // et le check sont gérés à part par les cartes, on ne touche qu'au visuel).
-export const BadgeVisual = ({ b, size = 42, unlocked = true }) => {
+export const BadgeVisual = ({ b, size = 42, fill = false, unlocked = true }) => {
   const [imgErr, setImgErr] = useState(false);
   const fil = unlocked ? "none" : "grayscale(1)";
-  return imgErr
-    ? <span style={{ fontSize: Math.round(size * 0.72), lineHeight: 1, filter: fil }}>{b.emoji}</span>
-    : <img src={`/badges/${encodeURIComponent(b.id)}.png`} alt="" loading="lazy" decoding="async" onError={() => setImgErr(true)}
-        style={{ width: size, height: size, objectFit: "contain", display: "block", filter: fil }}/>;
+  if (imgErr) {
+    return <span style={{ fontSize: fill ? 76 : Math.round(size * 0.72), lineHeight: 1, filter: fil }}>{b.emoji}</span>;
+  }
+  return <img src={`/badges/${encodeURIComponent(b.id)}.png`} alt="" loading="lazy" decoding="async" onError={() => setImgErr(true)}
+    style={fill
+      ? { width: "100%", height: "auto", objectFit: "contain", display: "block", filter: fil }
+      : { width: size, height: size, objectFit: "contain", display: "block", filter: fil }}/>;
 };
 
 export const PageProfilBadges = ({ joueur, setPage }) => {
@@ -1722,7 +1725,7 @@ export const PageProfilBadges = ({ joueur, setPage }) => {
         textAlign: "center",
       }}>
         {/* Visuel du badge : image /badges/<id>.png (repli emoji si absente) */}
-        <div style={{ marginBottom: 8, lineHeight: 1, display: "flex", justifyContent: "center", height: 92, alignItems: "center" }}><BadgeVisual b={b} size={88} unlocked={unlocked}/></div>
+        <div style={{ marginBottom: 10, width: "100%", display: "flex", justifyContent: "center" }}><BadgeVisual b={b} fill unlocked={unlocked}/></div>
 
         {/* Nom */}
         <div style={{ fontWeight: 700, fontSize: 13, color: unlocked ? b.couleur : "#f1f5f9", marginBottom: 4, lineHeight: 1.3 }}>{b.nom}</div>
