@@ -229,7 +229,7 @@ const getDrixTitreLocal = (drix) => {
   return RANGS[RANGS.length - 1];
 };
 // Helper : icône Lucide du rang — remplace {emoji} dans toute l'UI
-const RankIcon = ({ drix, size=16, color:colorOverride }) => {
+export const RankIcon = ({ drix, size=16, color:colorOverride }) => {
   const { icon:I, color } = getDrixTitreLocal(drix ?? 1000);
   return <I size={size} color={colorOverride ?? color}/>;
 };
