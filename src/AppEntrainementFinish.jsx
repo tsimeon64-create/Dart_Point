@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { ArrowLeft, Target, Zap, Flame, Gem, X, Timer } from "lucide-react";
+import { EmoIcon, EmoText } from "./icons";
 
 const C = {
   bg:"#0f0f0f", card:"#1a1a1a", card2:"#141414", border:"#2a2a2a",
@@ -116,7 +117,7 @@ const SelectionMode = ({ onSelect, setPage, joueur }) => {
       <div onClick={()=>onSelect("paisible")}
         style={{ background:"linear-gradient(135deg,#1a2a1a,#141414)", border:`2px solid ${C.green}44`, borderRadius:20, padding:"22px 18px", cursor:"pointer", transition:"all .15s" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12 }}>
-          <div style={{ fontSize:40 }}>😌</div>
+          <div style={{ display:"flex" }}><EmoIcon e="😌" size={40} color={C.green}/></div>
           <div style={{ flex:1 }}>
             <div style={{ fontWeight:900, fontSize:20, color:C.green }}>Mode Paisible</div>
             <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>Entraînement sans enjeu</div>
@@ -135,7 +136,7 @@ const SelectionMode = ({ onSelect, setPage, joueur }) => {
       <div onClick={()=>joueur ? onSelect("drix") : null}
         style={{ background:"linear-gradient(135deg,#1a0a00,#1a1a00)", border:`2px solid ${C.accent}`, borderRadius:20, padding:"22px 18px", cursor:"pointer", transition:"all .15s" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:6 }}>
-          <div style={{ fontSize:40 }}>⚡</div>
+          <div style={{ display:"flex" }}><EmoIcon e="⚡" size={40} color={C.accent}/></div>
           <div>
             <div style={{ fontWeight:900, fontSize:20, color:C.accent }}>Chasse aux DRIX</div>
             <div style={{ fontSize:12, color:C.yellow, marginTop:2, fontWeight:700 }}>Prouve que tu connais tes finishes !</div>
@@ -144,7 +145,7 @@ const SelectionMode = ({ onSelect, setPage, joueur }) => {
 
         {/* Règles */}
         <div style={{ background:"#00000033", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
-          <div style={{ fontWeight:800, fontSize:12, color:C.accent, marginBottom:8, letterSpacing:1 }}>📋 RÈGLES</div>
+          <div style={{ fontWeight:800, fontSize:12, color:C.accent, marginBottom:8, letterSpacing:1 }}><EmoText s="📋 RÈGLES" size={12} gap={5}/></div>
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
             <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
               <span style={{ flexShrink:0, display:"flex", alignItems:"center", paddingTop:2 }}><Flame size={18} color={C.accent}/></span>
@@ -181,10 +182,10 @@ const SelectionMode = ({ onSelect, setPage, joueur }) => {
 
         {!joueur
           ? <div style={{ marginTop:4, background:"#1a1a1a", border:`1px solid ${C.border}`, borderRadius:10, padding:"11px", textAlign:"center", fontSize:13, color:C.muted }}>
-              🔒 Connecte-toi pour jouer ce mode
+              <EmoIcon e="🔒" size={13} style={{verticalAlign:"-2px",marginRight:5}}/>Connecte-toi pour jouer ce mode
             </div>
           : <div style={{ marginTop:4, background:`linear-gradient(135deg,${C.accent},#ea580c)`, borderRadius:10, padding:"11px", textAlign:"center", fontWeight:800, fontSize:15, color:"#fff" }}>
-              ⚡ Jouer pour les DRIX →
+              <EmoIcon e="⚡" size={15} style={{verticalAlign:"-2px",marginRight:5}}/>Jouer pour les DRIX →
             </div>
         }
       </div>
@@ -390,7 +391,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
       <div style={{ background:C.card, borderBottom:`1px solid ${C.border}`, padding:"8px 12px", display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
         <button onClick={()=>setPage("entrainement-finish")} style={{ display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:0,whiteSpace:"nowrap" }}><ArrowLeft size={16}/> Modes</button>
         <div style={{ flex:1, fontWeight:800, fontSize:14, color: isDrix ? C.accent : C.green }}>
-          {isDrix ? <span style={{ display:"flex",alignItems:"center",gap:6 }}><Zap size={14}/> Chasse aux DRIX</span> : "😌 Mode Paisible"}
+          {isDrix ? <span style={{ display:"flex",alignItems:"center",gap:6 }}><Zap size={14}/> Chasse aux DRIX</span> : <EmoText s="😌 Mode Paisible" size={14}/>}
         </div>
         {/* Indicateur de niveau */}
         {(() => {
@@ -403,18 +404,18 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
           const n = NIVEAUX[niv];
           return (
             <div style={{ background:n.color+"22", border:`1px solid ${n.color}44`, borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:800, color:n.color, whiteSpace:"nowrap" }}>
-              {n.emoji} {n.label}
+              <EmoIcon e={n.emoji} size={11} color={n.color} style={{verticalAlign:"-1px",marginRight:3}}/>{n.label}
             </div>
           );
         })()}
         {isDrix && joueur && (
           <div style={{ background:C.card2, border:`1px solid ${C.purple}44`, borderRadius:8, padding:"3px 9px", fontSize:12, fontWeight:800, color:C.purple }}>
-            💎 {drixLocal}
+            <EmoIcon e="💎" size={12} color={C.purple} style={{verticalAlign:"-2px",marginRight:4}}/>{drixLocal}
           </div>
         )}
         {!isDrix && (
           <button onClick={()=>setShowDiff(d=>!d)} style={{ background:C.card2,border:`1px solid ${C.border}`,borderRadius:8,padding:"4px 10px",color:C.muted,cursor:"pointer",fontSize:12,fontWeight:600,whiteSpace:"nowrap" }}>
-            {diffCurrent.emoji} {diffCurrent.label}
+            <EmoIcon e={diffCurrent.emoji} size={12} style={{verticalAlign:"-1px",marginRight:4}}/>{diffCurrent.label}
           </button>
         )}
       </div>
@@ -425,7 +426,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
           {DIFFICULTES.map(d => (
             <div key={d.id} onClick={()=>{ setDiffId(d.id); setShowDiff(false); nouveauFinish(d.id); }}
               style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,cursor:"pointer",background:diffId===d.id?C.accent+"22":"transparent" }}>
-              <span style={{ fontSize:16 }}>{d.emoji}</span>
+              <EmoIcon e={d.emoji} size={16}/>
               <div>
                 <div style={{ fontWeight:700,color:diffId===d.id?C.accent:C.text,fontSize:13 }}>{d.label}</div>
                 <div style={{ fontSize:10,color:C.muted }}>{d.desc}</div>
@@ -439,7 +440,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
       {isDrix && (
         <div style={{ background:"#0f0a00", borderBottom:`1px solid ${C.accent}33`, padding:"6px 12px", flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-            <span style={{ fontSize:11, color:C.accent, fontWeight:700 }}>🔥 SÉRIE</span>
+            <span style={{ fontSize:11, color:C.accent, fontWeight:700 }}><EmoText s="🔥 SÉRIE" size={11} gap={4}/></span>
             <span style={{ fontSize:13, fontWeight:900, color: drixSerie >= 7 ? C.yellow : C.text }}>{drixSerie}/10</span>
             <span style={{ fontSize:10, color:C.muted, marginLeft:"auto" }}>
               {drixSerie === 0 ? "Lance-toi !" : drixSerie < 5 ? "Continue !" : drixSerie < 8 ? "Bien joué 🔥" : drixSerie < 10 ? "Incroyable 🚀" : ""}
@@ -469,7 +470,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
           ].map((s,i) => (
             <div key={i} style={{ flex:1,textAlign:"center",padding:"5px 2px",borderRight:i<4?`1px solid ${C.border}`:"none" }}>
               <div style={{ fontSize:14,fontWeight:800,color:s.color }}>{s.val}</div>
-              <div style={{ fontSize:8,color:C.muted }}>{s.label}</div>
+              <div style={{ fontSize:8,color:C.muted,display:"flex",justifyContent:"center" }}><EmoIcon e={s.label} size={11} color={s.color}/></div>
             </div>
           ))}
         </div>
@@ -506,7 +507,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
         <div style={{ background: isDrix ? "linear-gradient(135deg,#1a0800,#0f0a00)" : "linear-gradient(135deg,#1a0800,#1a1a2e)", border:`2px solid ${isDrix ? C.accent : C.accent+"44"}`, borderRadius:12, padding:"6px 12px", textAlign:"center", flexShrink:0 }}>
           <div style={{ fontSize:9, color:C.muted, letterSpacing:2 }}>FINISH À RÉALISER</div>
           <div style={{ fontSize:58, fontWeight:900, color:C.accent, lineHeight:1.05 }}>{finish ?? "—"}</div>
-          {isDrix && <div style={{ fontSize:9, color:C.muted }}>🚫 Aucune aide — calcule !</div>}
+          {isDrix && <div style={{ fontSize:9, color:C.muted }}><EmoIcon e="🚫" size={9} style={{verticalAlign:"-1px",marginRight:3}}/>Aucune aide — calcule !</div>}
         </div>
 
         {/* Fléchettes */}
@@ -518,7 +519,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
                 {d?(<>
                   <div style={{ fontSize:16,fontWeight:800,color:phase==="correct"?C.green:phase==="incorrect"?C.red:C.accent }}>{d.label}</div>
                   <div style={{ fontSize:9,color:C.muted }}>{d.value}pts</div>
-                </>):(<div style={{ fontSize:18,color:C.border }}>🎯</div>)}
+                </>):(<div style={{ display:"flex" }}><EmoIcon e="🎯" size={18} color={C.border}/></div>)}
               </div>
             );
           })}
@@ -543,26 +544,26 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
 
         {/* Erreur */}
         {errMsg && (
-          <div style={{ background:C.redBg,borderRadius:8,padding:"5px 10px",fontSize:11,color:C.red,textAlign:"center",flexShrink:0 }}>⚠️ {errMsg}</div>
+          <div style={{ background:C.redBg,borderRadius:8,padding:"5px 10px",fontSize:11,color:C.red,textAlign:"center",flexShrink:0 }}><EmoIcon e="⚠️" size={11} color={C.red} style={{verticalAlign:"-2px",marginRight:4}}/>{errMsg}</div>
         )}
 
         {/* ── Résultat CORRECT ── */}
         {phase === "correct" && (
           <div style={{ flex:1,background:C.greenBg,border:`1px solid ${C.green}`,borderRadius:12,padding:"12px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,minHeight:0 }}>
-            <div style={{ fontSize:28 }}>🎉</div>
+            <div style={{ display:"flex" }}><EmoIcon e="🎉" size={28} color={C.green}/></div>
             <div style={{ fontWeight:800,fontSize:16,color:C.green }}>Bonne combinaison !</div>
             {isDrix && (
               <>
                 <div style={{ background:"#052e16",borderRadius:10,padding:"6px 14px",textAlign:"center" }}>
                   <span style={{ fontSize:13,color:"#86efac",fontWeight:700 }}>
                     Série : <b style={{ color: drixSerie >= 7 ? C.yellow : C.green }}>{drixSerie}/10</b>
-                    {drixSerie === 0 && " 🎊 +5 DRIX remportés !"}
+                    {drixSerie === 0 && <span style={{display:"inline-flex",alignItems:"center",gap:3,marginLeft:4}}><EmoIcon e="🎊" size={13}/>+5 DRIX remportés !</span>}
                   </span>
                 </div>
                 <div style={{ background:"#052e16",borderRadius:10,padding:"8px 12px",textAlign:"center",width:"100%" }}>
                   {!isOptimal && (
                     <>
-                      <div style={{ fontSize:10,color:C.muted,marginBottom:3 }}>💡 Une des solutions optimales :</div>
+                      <div style={{ fontSize:10,color:C.muted,marginBottom:3 }}><EmoIcon e="💡" size={10} style={{verticalAlign:"-1px",marginRight:4}}/>Une des solutions optimales :</div>
                       <div style={{ fontWeight:800,color:C.green,fontSize:16,letterSpacing:1,marginBottom:4 }}>{optSol}</div>
                     </>
                   )}
@@ -594,17 +595,17 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
         {/* ── Résultat INCORRECT ── */}
         {phase === "incorrect" && (
           <div style={{ flex:1,background:C.redBg,border:`1px solid ${C.red}`,borderRadius:12,padding:"12px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,minHeight:0 }}>
-            <div style={{ fontSize:28 }}>😬</div>
+            <div style={{ display:"flex" }}><EmoIcon e="😬" size={28} color={C.red}/></div>
             <div style={{ fontWeight:800,fontSize:16,color:C.red }}>Mauvaise combinaison</div>
             {isDrix && (
               <div style={{ background:"#450a0a",borderRadius:10,padding:"6px 14px",textAlign:"center" }}>
                 <span style={{ fontSize:13,color:"#fca5a5",fontWeight:700 }}>
-                  {drixSerie > 0 ? `Série brisée à ${drixSerie} — ` : ""}💥 −5 DRIX perdus
+                  {drixSerie > 0 ? `Série brisée à ${drixSerie} — ` : ""}<EmoIcon e="💥" size={13} style={{verticalAlign:"-1px",marginRight:3}}/>−5 DRIX perdus
                 </span>
               </div>
             )}
             <div style={{ background:"#450a0a",borderRadius:10,padding:"8px 12px",textAlign:"center",width:"100%" }}>
-              <div style={{ fontSize:10,color:C.muted,marginBottom:3 }}>💡 La bonne combinaison est :</div>
+              <div style={{ fontSize:10,color:C.muted,marginBottom:3 }}><EmoIcon e="💡" size={10} style={{verticalAlign:"-1px",marginRight:4}}/>La bonne combinaison est :</div>
               <div style={{ fontWeight:800,color:"#fca5a5",fontSize:16,letterSpacing:1 }}>{optSol}</div>
             </div>
             <div style={{ display:"flex",gap:8,width:"100%" }}>
@@ -628,7 +629,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
           const medal   = erreurs === 0 ? "🏆" : erreurs <= 3 ? "🥇" : erreurs <= 6 ? "🥈" : "🥉";
           return (
             <div style={{ flex:1,background:"linear-gradient(135deg,#14532d,#1a0800)",border:`2px solid ${C.green}`,borderRadius:12,padding:"16px 12px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,minHeight:0,overflow:"auto" }}>
-              <div style={{ fontSize:48 }}>{medal}</div>
+              <div style={{ display:"flex" }}><EmoIcon e={medal} size={48} color="#fbbf24"/></div>
               <div style={{ fontWeight:900,fontSize:20,color:C.green,textAlign:"center" }}>Parcours terminé !</div>
               <div style={{ fontSize:13,color:"#86efac",textAlign:"center",fontStyle:"italic" }}>
                 chacun ses triples, chacun ses doubles.<br/>chacun sa route, chacun son chemin
@@ -642,7 +643,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
                   { e:"🔥", l:"Meilleure série", v:stats.best, c:C.yellow },
                 ].map(s => (
                   <div key={s.l} style={{ background:"#ffffff0a",borderRadius:10,padding:"10px 8px",textAlign:"center" }}>
-                    <div style={{ fontSize:18,marginBottom:2 }}>{s.e}</div>
+                    <div style={{ marginBottom:2,display:"flex",justifyContent:"center" }}><EmoIcon e={s.e} size={18} color={s.c}/></div>
                     <div style={{ fontWeight:900,fontSize:22,color:s.c }}>{s.v}</div>
                     <div style={{ fontSize:10,color:C.muted }}>{s.l}</div>
                   </div>
@@ -656,7 +657,7 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
                 </button>
                 <button onClick={rejouer}
                   style={{ flex:1,background:`linear-gradient(135deg,${C.accent},#ea580c)`,color:"#fff",border:"none",borderRadius:10,padding:"12px",fontWeight:800,fontSize:14,cursor:"pointer" }}>
-                  🔄 Rejouer
+                  <EmoIcon e="🔄" size={14} style={{verticalAlign:"-2px",marginRight:6}}/>Rejouer
                 </button>
               </div>
             </div>
@@ -666,19 +667,19 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
         {/* ── Temps écoulé ── */}
         {phase === "timeout" && (
           <div style={{ flex:1,background:"#1a0a1a",border:`2px solid ${C.purple}`,borderRadius:12,padding:"14px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,minHeight:0 }}>
-            <div style={{ fontSize:36 }}>⏰</div>
+            <div style={{ display:"flex" }}><EmoIcon e="⏰" size={36} color={C.purple}/></div>
             <div style={{ fontWeight:900,fontSize:18,color:C.purple }}>Temps écoulé !</div>
             <div style={{ background:"#0f0a1a",borderRadius:10,padding:"8px 14px",textAlign:"center",width:"100%" }}>
               <div style={{ fontSize:12,color:C.muted,marginBottom:3 }}>Temps écoulé en 12 secondes !</div>
               {drixSerieRef.current > 0
-                ? <div style={{ fontWeight:800,color:"#fca5a5",fontSize:14 }}>💥 Série brisée — −5 DRIX</div>
+                ? <div style={{ fontWeight:800,color:"#fca5a5",fontSize:14 }}><EmoIcon e="💥" size={13} style={{verticalAlign:"-1px",marginRight:4}}/>Série brisée — −5 DRIX</div>
                 : <div style={{ fontWeight:700,color:C.muted,fontSize:13 }}>Série à zéro — aucun DRIX perdu</div>
               }
-              <div style={{ fontSize:11,color:C.muted,marginTop:4 }}>💡 La bonne combinaison était : <b style={{ color:C.purple }}>{optSol}</b></div>
+              <div style={{ fontSize:11,color:C.muted,marginTop:4 }}><EmoIcon e="💡" size={11} style={{verticalAlign:"-1px",marginRight:4}}/>La bonne combinaison était : <b style={{ color:C.purple }}>{optSol}</b></div>
             </div>
             <button onClick={()=>nouveauFinish()}
               style={{ width:"100%",background:`linear-gradient(135deg,${C.accent},#ea580c)`,color:"#fff",border:"none",borderRadius:10,padding:"13px",fontWeight:900,fontSize:15,cursor:"pointer" }}>
-              🔄 Rejouer
+              <EmoIcon e="🔄" size={15} style={{verticalAlign:"-2px",marginRight:6}}/>Rejouer
             </button>
             <button onClick={()=>setPage("entrainement-finish")}
               style={{ width:"100%",background:"#1a1a1a",color:C.muted,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px",fontWeight:600,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
@@ -723,14 +724,14 @@ const Jeu = ({ mode, diffId: initDiff, setPage, joueur }) => {
 
               {/* ── Annuler / Réinitialiser (dernière ligne grille) ── */}
               <button onClick={annulerDernier} disabled={!darts.length}
-                style={{ gridColumn:"span 2",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:darts.length?C.text:C.muted,fontWeight:700,fontSize:15,cursor:darts.length?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center" }}>↩</button>
+                style={{ gridColumn:"span 2",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:darts.length?C.text:C.muted,fontWeight:700,fontSize:15,cursor:darts.length?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center" }}><EmoIcon e="↩" size={16}/></button>
               <button onClick={reinitialiser} disabled={!darts.length}
-                style={{ gridColumn:"span 2",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:darts.length?C.text:C.muted,fontWeight:700,fontSize:15,cursor:darts.length?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center" }}>🔄</button>
+                style={{ gridColumn:"span 2",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:darts.length?C.text:C.muted,fontWeight:700,fontSize:15,cursor:darts.length?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center" }}><EmoIcon e="🔄" size={16}/></button>
             </div>
 
             {/* Valider */}
             <button onClick={valider} disabled={!darts.length} style={{ flexShrink:0,padding:"10px",borderRadius:9,border:"none",background:darts.length?C.accent:"#222",color:darts.length?"#fff":C.muted,fontWeight:900,fontSize:14,cursor:darts.length?"pointer":"default",boxShadow:darts.length?`0 3px 14px ${C.accent}55`:"none" }}>
-              ✅ Valider
+              <EmoIcon e="✅" size={14} style={{verticalAlign:"-2px",marginRight:6}}/>Valider
             </button>
           </div>
         )}

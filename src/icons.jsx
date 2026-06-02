@@ -63,7 +63,7 @@ export const EMOJI_ICON = {
   // IA / signal
   "🤖": Bot, "📡": Radio, "🛰️": Radio, "🛰": Radio,
   // Réactions positives (utilisées comme icônes d'UI)
-  "👏": ThumbsUp, "😱": AlertTriangle, "😊": Smile, "🎉": PartyPopper, "❤️": Heart, "👆": Hand,
+  "👏": ThumbsUp, "😱": AlertTriangle, "😊": Smile, "😌": Smile, "🙂": Smile, "😄": Smile, "🎉": PartyPopper, "🎊": PartyPopper, "❤️": Heart, "👆": Hand,
 };
 
 // Composant : rend l'icône SVG si connue, sinon l'emoji d'origine (secours pour les emojis "fun").
