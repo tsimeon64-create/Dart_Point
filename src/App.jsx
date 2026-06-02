@@ -105,6 +105,17 @@ const verifyAdminPassword = async (pw) => {
 const slugify = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
 // \u00c9chappe le HTML \u2014 pour tout contenu utilisateur inject\u00e9 en innerHTML (popups Leaflet)
 const escHtml = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+// Marqueurs Leaflet : icônes Lucide rendues en SVG inline (chaîne HTML, hors React).
+const LM_PATHS = {
+  beer: '<path d="M17 11h1a3 3 0 0 1 0 6h-1"/><path d="M9 12v6"/><path d="M13 12v6"/><path d="M14 7.5c-1 0-1.44.5-3 .5s-2-.5-3-.5-1.72.5-2.5.5a2.5 2.5 0 0 1 0-5c.78 0 1.57.5 2.5.5S9.44 2 11 2s2 1.5 3 1.5 1.72-.5 2.5-.5a2.5 2.5 0 0 1 0 5c-.78 0-1.5-.5-2.5-.5Z"/><path d="M5 8v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  trophy: '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
+  pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  circle: '<circle cx="12" cy="12" r="10"/>',
+};
+const lmSvg = (name, { size = 18, color = "#fff", fill = "none", sw = 2.4, va } = {}) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"${va != null ? ` style="vertical-align:${va}px"` : ""}>${LM_PATHS[name]}</svg>`;
 // Parse un nombre fini ou null (n'\u00e9crase PAS une coordonn\u00e9e l\u00e9gitime de 0 comme `||null`)
 const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
 
@@ -166,7 +177,7 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
     if (!ready || !mapRef.current) return;
     const L = window.L; const map = mapRef.current;
     markersRef.current.forEach(m => m.remove()); markersRef.current = [];
-    const mkIcon = (emoji, bg, size=30, badge=false) => L.divIcon({ className:"", html:`<div style="width:${size}px;height:${size}px;background:${bg};border:3px solid rgba(255,255,255,0.4);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:${size*0.5}px;box-shadow:0 2px 8px rgba(0,0,0,0.5);cursor:pointer;position:relative">${emoji}${badge?`<span style="position:absolute;top:-4px;right:-4px;background:#22c55e;border-radius:50%;width:12px;height:12px;border:2px solid #0f0f0f"></span>`:""}</div>`, iconSize:[size,size], iconAnchor:[size/2,size/2] });
+    const mkIcon = (iconHtml, bg, size=30, badge=false) => L.divIcon({ className:"", html:`<div style="width:${size}px;height:${size}px;background:${bg};border:3px solid rgba(255,255,255,0.4);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.5);cursor:pointer;position:relative">${iconHtml}${badge?`<span style="position:absolute;top:-4px;right:-4px;background:#22c55e;border-radius:50%;width:12px;height:12px;border:2px solid #0f0f0f"></span>`:""}</div>`, iconSize:[size,size], iconAnchor:[size/2,size/2] });
     const popup = (html) => `<div style="font-family:Inter,sans-serif;min-width:160px;color:#111111;background:#ffffff">${html}</div>`;
     // Boutons de popup liés via popupopen (plus d'onclick inline ni de global window.__dp*)
     const mkBtn = (color) => `<button data-dpgo="1" style="margin-top:8px;background:${color};color:#fff;border:none;border-radius:6px;padding:9px 14px;cursor:pointer;font-size:12px;font-weight:600">Voir →</button>`;
@@ -174,22 +185,22 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
     bars.forEach(bar => {
       if (bar.lat == null || bar.lng == null) return;
       const isHL = bar.slug===centerSlug; const isActif = barsActifs.includes(bar.slug);
-      const m = L.marker([bar.lat,bar.lng], { icon:mkIcon("🍺", isHL?"#fff":C.accent, isHL?40:32, isActif) }).addTo(map);
-      m.bindPopup(popup(`<strong>${escHtml(bar.nom)}</strong><br><span style="color:#555;font-size:12px">📍 ${escHtml(bar.ville)}</span>${isActif?'<br><span style="color:#16a34a;font-size:11px">🟢 Joueurs ce soir</span>':""}<br>${mkBtn("#f97316")}`));
+      const m = L.marker([bar.lat,bar.lng], { icon:mkIcon(lmSvg("beer",{size:(isHL?40:32)*0.5,color:isHL?C.accent:"#fff"}), isHL?"#fff":C.accent, isHL?40:32, isActif) }).addTo(map);
+      m.bindPopup(popup(`<strong>${escHtml(bar.nom)}</strong><br><span style="color:#555;font-size:12px">${lmSvg("pin",{size:11,color:"#555",va:-2})} ${escHtml(bar.ville)}</span>${isActif?`<br><span style="color:#16a34a;font-size:11px">${lmSvg("circle",{size:9,color:"#16a34a",fill:"#16a34a",va:-1})} Joueurs ce soir</span>`:""}<br>${mkBtn("#f97316")}`));
       bindGo(m, onBarClick, bar.slug);
       markersRef.current.push(m);
     });
     associations.forEach(asso => {
       if (asso.lat == null || asso.lng == null) return;
-      const m = L.marker([asso.lat,asso.lng], { icon:mkIcon("👥","#7c3aed", asso.slug===centerSlug?38:28) }).addTo(map);
-      m.bindPopup(popup(`<strong>${escHtml(asso.nom)}</strong><br><span style="color:#555;font-size:12px">📍 ${escHtml(asso.ville)}</span>${onAssoClick?"<br>"+mkBtn("#7c3aed"):""}`));
+      const m = L.marker([asso.lat,asso.lng], { icon:mkIcon(lmSvg("users",{size:(asso.slug===centerSlug?38:28)*0.5}),"#7c3aed", asso.slug===centerSlug?38:28) }).addTo(map);
+      m.bindPopup(popup(`<strong>${escHtml(asso.nom)}</strong><br><span style="color:#555;font-size:12px">${lmSvg("pin",{size:11,color:"#555",va:-2})} ${escHtml(asso.ville)}</span>${onAssoClick?"<br>"+mkBtn("#7c3aed"):""}`));
       bindGo(m, onAssoClick, asso.slug);
       markersRef.current.push(m);
     });
     tournois.forEach(t => {
       if (t.lat == null || t.lng == null) return;
-      const m = L.marker([t.lat,t.lng], { icon:mkIcon("🏆",C.yellow,30) }).addTo(map);
-      m.bindPopup(popup(`<strong>${escHtml(t.nom)}</strong><br><span style="color:#555;font-size:12px">📍 ${escHtml(t.ville)}</span>${onTournoiClick?"<br>"+mkBtn("#f59e0b"):""}`));
+      const m = L.marker([t.lat,t.lng], { icon:mkIcon(lmSvg("trophy",{size:15,color:"#3b1f00"}),C.yellow,30) }).addTo(map);
+      m.bindPopup(popup(`<strong>${escHtml(t.nom)}</strong><br><span style="color:#555;font-size:12px">${lmSvg("pin",{size:11,color:"#555",va:-2})} ${escHtml(t.ville)}</span>${onTournoiClick?"<br>"+mkBtn("#f59e0b"):""}`));
       bindGo(m, onTournoiClick, t.slug);
       markersRef.current.push(m);
     });
@@ -218,7 +229,7 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
     if (!userPos) return;
     const icon = L.divIcon({ className:"", html:`<div style="width:22px;height:22px;background:#60a5fa;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.5);position:relative"><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:8px;height:8px;background:#fff;border-radius:50%"></div></div>`, iconSize:[22,22], iconAnchor:[11,11] });
     const m = L.marker([userPos.lat,userPos.lng],{icon,zIndexOffset:1000}).addTo(map);
-    m.bindPopup(`<div style="font-family:Inter,sans-serif;color:#111;font-size:12px;font-weight:600">📍 Vous êtes ici</div>`);
+    m.bindPopup(`<div style="font-family:Inter,sans-serif;color:#111;font-size:12px;font-weight:600">${lmSvg("pin",{size:11,color:"#111",va:-2})} Vous êtes ici</div>`);
     userMarkerRef.current = m;
     map.flyTo([userPos.lat,userPos.lng],13,{duration:0.8});
   }, [ready, userPos]);
@@ -8221,7 +8232,7 @@ function MapPicker({ value, onChange, address, ville, cp, height=220 }) {
     if (markerRef.current) {
       markerRef.current.setLatLng([lat, lng]);
     } else {
-      const icon = L.divIcon({ className:"", html:`<div style="width:38px;height:38px;background:${C.accent};border:3px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 10px rgba(0,0,0,0.6);cursor:grab">🍺</div>`, iconSize:[38,38], iconAnchor:[19,19] });
+      const icon = L.divIcon({ className:"", html:`<div style="width:38px;height:38px;background:${C.accent};border:3px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.6);cursor:grab">${lmSvg("beer",{size:18,color:"#fff"})}</div>`, iconSize:[38,38], iconAnchor:[19,19] });
       const m = L.marker([lat, lng], { icon, draggable:true }).addTo(map);
       m.on("dragend", () => { const p = m.getLatLng(); cbRef.current({ lat:+p.lat.toFixed(6), lng:+p.lng.toFixed(6) }); });
       markerRef.current = m;
