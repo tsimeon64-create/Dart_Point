@@ -38,6 +38,7 @@ export const EMOJI_ICON = {
   "📸": Camera, "📷": Camera, "💬": MessageCircle, "✉️": Mail, "📧": Mail, "✏️": Pencil, "🗑️": Trash2, "🗑": Trash2,
   "➕": Plus, "💾": Save, "🔗": Link2, "🔄": RotateCcw, "↩️": Undo2, "↩": Undo2,
   "▶️": Play, "▶": Play, "⏸️": Pause, "⏹️": Square, "⏹": Square, "👁️": Eye, "📣": Megaphone, "➤": Send,
+  "🔁": RotateCcw, "🔃": RotateCcw, "💪": Flame,
   // Temps
   "⏳": Hourglass, "⏰": Clock, "🕐": Clock, "🕑": Clock, "📆": Calendar, "🗓️": Calendar, "📅": Calendar,
   // Listes / docs / aide

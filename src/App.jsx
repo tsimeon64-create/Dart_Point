@@ -2254,7 +2254,7 @@ const PageDefi = ({ joueur, setPage }) => {
           <div style={{ flex:1 }}>
             <h1 style={{ fontWeight:900,fontSize:24,margin:0,letterSpacing:-.3 }}>Défis</h1>
             <p style={{ color:C.muted,fontSize:12,margin:"4px 0 0",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
-              {rivaliteHebdo && <span style={{ background:"#a78bfa22",color:"#d8b4fe",padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:700 }}>⚔️ Rivalité active</span>}
+              {rivaliteHebdo && <span style={{ background:"#a78bfa22",color:"#d8b4fe",padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:700 }}><EmoText s="⚔️ Rivalité active" size={10} gap={4}/></span>}
               <span>{amis.length} ami{amis.length!==1?"s":""}</span>
             </p>
           </div>
@@ -2407,7 +2407,7 @@ const PageDefi = ({ joueur, setPage }) => {
               {/* Icône hero */}
               <div style={{ textAlign:"center", marginBottom:14 }}>
                 <div style={{ display:"inline-flex", width:84, height:84, borderRadius:"50%", background:`radial-gradient(circle,${mainColor}33,${mainColor}11)`, border:`3px solid ${mainColor}`, alignItems:"center", justifyContent:"center", boxShadow:`0 0 30px ${mainColor}66, inset 0 0 20px ${mainColor}33`, marginBottom:10 }}>
-                  <span style={{ fontSize:42, filter:`drop-shadow(0 0 8px ${mainColor})` }}>{won ? "🏆" : "🤝"}</span>
+                  <span style={{ filter:`drop-shadow(0 0 8px ${mainColor})`,display:"flex" }}><EmoIcon e={won ? "🏆" : "🤝"} size={42} color={mainColor}/></span>
                 </div>
                 <div style={{ fontSize:22, fontWeight:900,
                   background:`linear-gradient(135deg,${mainColor},${mainColor2})`,
@@ -2540,17 +2540,17 @@ const PageDefi = ({ joueur, setPage }) => {
               {/* Récompenses */}
               <div style={{ display:"flex",gap:8,marginBottom:16 }}>
                 <div style={{ flex:1,background:"#22c55e14",border:"1px solid #22c55e30",borderRadius:12,padding:"11px 8px",textAlign:"center" }}>
-                  <div style={{ fontSize:10,color:"#4ade80",fontWeight:700,marginBottom:4 }}>🏆 VICTOIRE</div>
+                  <div style={{ fontSize:10,color:"#4ade80",fontWeight:700,marginBottom:4 }}><EmoText s="🏆 VICTOIRE" size={10} gap={4}/></div>
                   <div style={{ fontSize:26,fontWeight:900,color:"#22c55e",lineHeight:1 }}>+50</div>
                   <div style={{ fontSize:9,color:"#4ade80",marginTop:2 }}>DRIX</div>
                 </div>
                 <div style={{ flex:1,background:"#ffffff06",border:"1px solid #ffffff0d",borderRadius:12,padding:"11px 8px",textAlign:"center" }}>
-                  <div style={{ fontSize:10,color:"#475569",fontWeight:700,marginBottom:4 }}>❌ DÉFAITE</div>
+                  <div style={{ fontSize:10,color:"#475569",fontWeight:700,marginBottom:4 }}><EmoText s="❌ DÉFAITE" size={10} gap={4}/></div>
                   <div style={{ fontSize:26,fontWeight:900,color:"#334155",lineHeight:1 }}>0</div>
                   <div style={{ fontSize:9,color:"#475569",marginTop:2 }}>perte</div>
                 </div>
                 <div style={{ flex:1.4,background:"rgba(168,85,247,0.07)",border:"1px solid rgba(168,85,247,0.18)",borderRadius:12,padding:"11px 8px",textAlign:"center" }}>
-                  <div style={{ fontSize:10,color:"#d8b4fe",fontWeight:700,marginBottom:4 }}>⚡ CHANCES</div>
+                  <div style={{ fontSize:10,color:"#d8b4fe",fontWeight:700,marginBottom:4 }}><EmoText s="⚡ CHANCES" size={10} gap={4}/></div>
                   <div style={{ fontSize:26,fontWeight:900,color:"#a78bfa",lineHeight:1 }}>{probMoi}%</div>
                   <div style={{ fontSize:9,color:"#d8b4fe",marginTop:2 }}>victoire</div>
                 </div>
@@ -2877,7 +2877,7 @@ const PageDefi = ({ joueur, setPage }) => {
                   <div style={{ display:"flex",gap:0,alignItems:"stretch" }}>
                     {/* Victoire */}
                     <div style={{ flex:1,textAlign:"center",padding:"4px 8px" }}>
-                      <div style={{ fontSize:11,color:"#4ade80",fontWeight:700,marginBottom:10 }}>🏆 SI VICTOIRE</div>
+                      <div style={{ fontSize:11,color:"#4ade80",fontWeight:700,marginBottom:10 }}><EmoText s="🏆 SI VICTOIRE" size={11} gap={4}/></div>
                       <div style={{ fontSize:38,fontWeight:900,background:"linear-gradient(135deg,#22c55e,#86efac)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:4 }}>+50</div>
                       <div style={{ fontSize:13,fontWeight:800,color:"#22c55e",marginBottom:6 }}>DRIX GARANTI</div>
                       <div style={{ fontSize:9,color:"#4ade80",background:"#22c55e14",padding:"4px 8px",borderRadius:8,border:"1px solid #22c55e22" }}>+ bonus performance</div>
@@ -2886,7 +2886,7 @@ const PageDefi = ({ joueur, setPage }) => {
                     <div style={{ width:1,background:"linear-gradient(180deg,transparent,rgba(255,255,255,0.08),transparent)",flexShrink:0,margin:"0 4px" }}/>
                     {/* Défaite */}
                     <div style={{ flex:1,textAlign:"center",padding:"4px 8px" }}>
-                      <div style={{ fontSize:11,color:"#475569",fontWeight:700,marginBottom:10 }}>❌ SI DÉFAITE</div>
+                      <div style={{ fontSize:11,color:"#475569",fontWeight:700,marginBottom:10 }}><EmoText s="❌ SI DÉFAITE" size={11} gap={4}/></div>
                       <div style={{ fontSize:38,fontWeight:900,color:"#334155",lineHeight:1,marginBottom:4 }}>0</div>
                       <div style={{ fontSize:13,fontWeight:800,color:"#475569",marginBottom:6 }}>AUCUNE PERTE</div>
                       <div style={{ fontSize:9,color:"#64748b",background:"#ffffff06",padding:"4px 8px",borderRadius:8,border:"1px solid #ffffff10" }}>aucune pénalité</div>
@@ -2900,7 +2900,7 @@ const PageDefi = ({ joueur, setPage }) => {
                 {/* ── 4. HISTORIQUE ── */}
                 {rivaliteHistory !== null && (
                   <div style={{ background:"#ffffff04",border:"1px solid #ffffff0f",borderRadius:18,padding:"14px 16px",marginBottom:12 }}>
-                    <div style={{ fontSize:9,color:"#475569",fontWeight:700,letterSpacing:2,marginBottom:12 }}>📜 HISTORIQUE DES AFFRONTEMENTS</div>
+                    <div style={{ fontSize:9,color:"#475569",fontWeight:700,letterSpacing:2,marginBottom:12 }}><EmoText s="📜 HISTORIQUE DES AFFRONTEMENTS" size={10} gap={4}/></div>
                     {hist.length > 0 ? (<>
                       <div style={{ display:"flex",alignItems:"center",marginBottom:12 }}>
                         <div style={{ flex:1,textAlign:"center" }}>
@@ -2934,7 +2934,7 @@ const PageDefi = ({ joueur, setPage }) => {
 
                 {/* ── 5. RÈGLES ── */}
                 <div style={{ background:"rgba(168,85,247,0.05)",border:"1px solid rgba(168,85,247,0.14)",borderRadius:18,padding:"14px 16px",marginBottom:20 }}>
-                  <div style={{ fontSize:9,color:"#64748b",fontWeight:700,letterSpacing:2,marginBottom:10 }}>📋 RÈGLES HEBDO</div>
+                  <div style={{ fontSize:9,color:"#64748b",fontWeight:700,letterSpacing:2,marginBottom:10 }}><EmoText s="📋 RÈGLES HEBDO" size={10} gap={4}/></div>
                   {[
                     { icon:"⚔️", text:"Les rivalités sont générées chaque lundi parmi les membres de ton association." },
                     { icon:"🏆", text:"Remporte le duel avant dimanche minuit pour gagner tes +50 DRIX." },
@@ -3145,7 +3145,7 @@ const PageDefi = ({ joueur, setPage }) => {
             <div style={{ margin:"12px 16px 0",background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:16 }}>
               <button onClick={envoyerDefi} disabled={sending}
                 style={{ width:"100%",padding:"14px 0",borderRadius:12,border:"none",fontWeight:900,fontSize:16,cursor:sending?"not-allowed":"pointer",background:"linear-gradient(135deg,#f97316,#7c3aed)",color:"#fff",opacity:sending?0.6:1,transition:"all .15s",letterSpacing:0.5 }}>
-                {sending?"Lancement du match…":`⚔️ DÉFIER ${modalAmi.amiPseudo.toUpperCase()}`}
+                <EmoText s={sending?"Lancement du match…":`⚔️ DÉFIER ${modalAmi.amiPseudo.toUpperCase()}`}/>
               </button>
             </div>
 
@@ -3184,7 +3184,7 @@ const ReplayConfigModal = ({ title, players, form, setForm, onLancer, onClose, l
         <div style={{ padding:"14px 20px 0" }}>
           <div style={{ width:40,height:4,borderRadius:2,background:"#2a2a3e",margin:"0 auto 16px" }}/>
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
-            <div style={{ fontWeight:900,fontSize:18,color:CX.text }}>🔁 {title}</div>
+            <div style={{ fontWeight:900,fontSize:18,color:CX.text }}><EmoIcon e="🔁" size={16} style={{verticalAlign:"-2px",marginRight:5}}/>{title}</div>
             <button onClick={onClose} style={{ background:"#2a2a2a",border:"none",color:CX.text,borderRadius:"50%",width:30,height:30,cursor:"pointer",fontSize:15 }}><X size={18}/></button>
           </div>
         </div>
@@ -3229,7 +3229,7 @@ const ReplayConfigModal = ({ title, players, form, setForm, onLancer, onClose, l
             boxShadow:loading?"none":"0 6px 24px #f9731644",
             transition:"all .2s",
           }}>
-            {loading ? "⏳ Création..." : "🎯 Lancer la partie"}
+            <EmoText s={loading ? "⏳ Création..." : "🎯 Lancer la partie"}/>
           </button>
         </div>
       </div>
