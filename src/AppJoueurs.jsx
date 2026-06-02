@@ -1659,7 +1659,7 @@ export const BadgeVisual = ({ b, size = 42, unlocked = true }) => {
   const fil = unlocked ? "none" : "grayscale(1)";
   return imgErr
     ? <span style={{ fontSize: Math.round(size * 0.72), lineHeight: 1, filter: fil }}>{b.emoji}</span>
-    : <img src={`/badges/${encodeURIComponent(b.id)}.png`} alt="" onError={() => setImgErr(true)}
+    : <img src={`/badges/${encodeURIComponent(b.id)}.png`} alt="" loading="lazy" decoding="async" onError={() => setImgErr(true)}
         style={{ width: size, height: size, objectFit: "contain", display: "block", filter: fil }}/>;
 };
 
