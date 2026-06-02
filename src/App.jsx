@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { C, Z } from "./theme";
 import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell, Users, RefreshCw, Swords, TrendingUp, TrendingDown, Medal, Check, AlertCircle, ThumbsUp, MessageCircle, MapPin, Flame, Zap, Target, Clock, ChevronRight, ChevronDown, Map, List, Phone, Share2, Eye, Info, Calendar, Home as HomeIcon, Lock, ExternalLink, Crown, Gem, Pencil, Navigation, Camera, Link2, Building2, Skull, Gamepad2, HelpCircle, Brain, Timer } from "lucide-react";
-import { EmoIcon } from "./icons";
+import { EmoIcon, EmoText } from "./icons";
 import {
   Connexion, MonProfil, PageJoueurs, FicheJoueur, RankIcon,
   PageProfilStats, PageProfilAmis, PageProfilBadges, PageProfilHistorique,
@@ -1031,7 +1031,7 @@ const SignalForm = ({ barSlug, barNom, onClose }) => {
         <button onClick={onClose} aria-label="Fermer" style={{ position:"absolute",top:10,right:10,background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer",lineHeight:1,padding:"4px 8px" }}>✕</button>
         <h3 style={{ fontWeight:700,marginBottom:4 }}>⚠️ Signaler une erreur — {barNom}</h3>
         <div style={{ display:"flex",flexDirection:"column",gap:12,marginTop:14 }}>
-          <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>{types.map(([v,l])=><button key={v} onClick={()=>setType(v)} style={{ background:type===v?C.accent+"33":"#111",border:`1px solid ${type===v?C.accent:C.border}`,borderRadius:20,padding:"5px 12px",cursor:"pointer",fontSize:12,color:type===v?C.accent:C.muted }}>{l}</button>)}</div>
+          <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>{types.map(([v,l])=><button key={v} onClick={()=>setType(v)} style={{ background:type===v?C.accent+"33":"#111",border:`1px solid ${type===v?C.accent:C.border}`,borderRadius:20,padding:"5px 12px",cursor:"pointer",fontSize:12,color:type===v?C.accent:C.muted }}><EmoText s={l}/></button>)}</div>
           <textarea value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Décrivez l'erreur…" rows={4} style={{ background:"#111",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:13,resize:"vertical" }}/>
           <div style={{ display:"flex",gap:10 }}>
             <Btn onClick={async()=>{if(!msg.trim())return;await db.addSignalement({bar_slug:barSlug,bar_nom:barNom,type,message:msg,date:Date.now()});setSent(true);}} disabled={!msg.trim()} style={{ flex:1 }}>Envoyer</Btn>
@@ -7427,7 +7427,7 @@ const Associations = ({ associations, setPage, setAssoSlug }) => {
     <div style={{ maxWidth:1100,margin:"0 auto",padding:"36px 20px" }}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12,marginBottom:6 }}>
         <div><h1 style={{ fontWeight:800,fontSize:26 }}>🫂 Associations & clubs</h1><p style={{ color:C.muted,marginTop:4 }}>{associations.length} associations référencées</p></div>
-        <div style={{ display:"flex",gap:4 }}>{[["liste","☰"],["carte","🗺️"]].map(([vv,ll])=><button key={vv} onClick={()=>setView(vv)} style={{ background:view===vv?"#7c3aed":"transparent",color:view===vv?"#fff":C.muted,border:`1px solid ${view===vv?"#7c3aed":C.border}`,borderRadius:8,padding:"9px 14px",cursor:"pointer",fontSize:15 }}>{ll}</button>)}</div>
+        <div style={{ display:"flex",gap:4 }}>{[["liste","☰"],["carte","🗺️"]].map(([vv,ll])=><button key={vv} onClick={()=>setView(vv)} style={{ background:view===vv?"#7c3aed":"transparent",color:view===vv?"#fff":C.muted,border:`1px solid ${view===vv?"#7c3aed":C.border}`,borderRadius:8,padding:"9px 14px",cursor:"pointer",fontSize:15 }}><EmoText s={ll} size={15}/></button>)}</div>
       </div>
       {view==="carte"?<div style={{ marginBottom:20 }}><LeafletMap associations={associations} onAssoClick={s=>{setAssoSlug(s);setPage("asso");}} height={450}/></div>
       :<div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12,marginBottom:20 }}>
@@ -8092,7 +8092,7 @@ const Tournois = ({ tournois, setPage, setTournoiSlug }) => {
     <div style={{ maxWidth:1000,margin:"0 auto",padding:"36px 20px" }}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12,marginBottom:20 }}>
         <h1 style={{ fontWeight:800,fontSize:26 }}>🏅 Tournois & événements</h1>
-        <div style={{ display:"flex",gap:4 }}>{[["liste","☰"],["carte","🗺️"]].map(([vv,ll])=><button key={vv} onClick={()=>setView(vv)} style={{ background:view===vv?C.yellow:"transparent",color:view===vv?"#000":C.muted,border:`1px solid ${view===vv?C.yellow:C.border}`,borderRadius:8,padding:"9px 14px",cursor:"pointer",fontSize:15 }}>{ll}</button>)}</div>
+        <div style={{ display:"flex",gap:4 }}>{[["liste","☰"],["carte","🗺️"]].map(([vv,ll])=><button key={vv} onClick={()=>setView(vv)} style={{ background:view===vv?C.yellow:"transparent",color:view===vv?"#000":C.muted,border:`1px solid ${view===vv?C.yellow:C.border}`,borderRadius:8,padding:"9px 14px",cursor:"pointer",fontSize:15 }}><EmoText s={ll} size={15}/></button>)}</div>
       </div>
       {view==="carte"?<LeafletMap tournois={upcoming} onTournoiClick={s=>{setTournoiSlug(s);setPage("tournoi-detail");}} height={450}/>
       :<>
@@ -9179,7 +9179,7 @@ const AdminDuels = ({ addLog }) => {
             color: filtre===k ? col : C.muted,
             borderRadius: 10, padding: "8px 14px", cursor:"pointer",
             fontWeight: filtre===k?700:500, fontSize:12,
-          }}>{l}</button>
+          }}><EmoText s={l}/></button>
         ))}
       </div>
 
@@ -9389,7 +9389,7 @@ const AdminTournois = ({ tournois, setTournois, setEditTournoi, setTournoiSlug, 
             color: filtreStatut===k ? C.accent : C.muted,
             borderRadius: 10, padding: "8px 14px", cursor:"pointer",
             fontWeight: filtreStatut===k?700:500, fontSize:12,
-          }}>{l}</button>
+          }}><EmoText s={l}/></button>
         ))}
         <div style={{marginLeft:"auto",color:C.muted,fontSize:12,alignSelf:"center"}}>{tournoisFiltres.length} tournoi{tournoisFiltres.length!==1?"s":""}</div>
       </div>
@@ -10261,7 +10261,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
         <div style={{maxWidth:1060,margin:"0 auto",padding:"0 20px",overflowX:"auto",display:"flex",gap:4,paddingTop:8,paddingBottom:8}}>
           {TABS.map(([t,l,prio])=>(
             <button key={t} onClick={()=>setTab(t)} style={{...tabBtn(t),position:"relative",flexShrink:0}}>
-              {l}
+              <EmoText s={l}/>
               {prio&&<span style={{position:"absolute",top:-4,right:-4,width:8,height:8,borderRadius:"50%",background:PRIO[prio].border,display:"block"}}/>}
             </button>
           ))}
@@ -10761,7 +10761,7 @@ const Footer = ({ setPage, onOpenHelp }) => (
       <div><div style={{ fontWeight:800,fontSize:16,color:C.accent,marginBottom:2 }}>🎯 DartPoint</div><p style={{ color:C.muted,fontSize:12 }}>Le guide des bars à fléchettes en France</p></div>
       <div style={{ display:"flex",gap:12,flexWrap:"wrap",alignItems:"center" }}>
       {[["bars","Bars"],["associations","Assos"],["tournois","Tournois"],["joueurs","Joueurs"],["drix","DRIX"],["scoreur","Scoreur"],["jeux","Jeux"],["proposer","Proposer"],["apropos","À propos"],["contact","Contact"],["mentions","Mentions légales"]].map(([p,l])=>(
-          <button key={p} onClick={()=>setPage(p)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:12 }}>{l}</button>
+          <button key={p} onClick={()=>setPage(p)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:12 }}><EmoText s={l}/></button>
         ))}
         {onOpenHelp && (
           <button onClick={onOpenHelp} style={{ background:"none",border:"1px solid #2a2a3a",borderRadius:8,color:"#6b7280",cursor:"pointer",fontSize:12,padding:"3px 10px",display:"flex",alignItems:"center",gap:5,touchAction:"manipulation" }}>

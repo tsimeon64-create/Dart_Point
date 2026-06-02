@@ -62,3 +62,21 @@ export const EmoIcon = ({ e, size = 14, color = "currentColor", strokeWidth = 2.
   if (I) return <I size={size} color={color} strokeWidth={strokeWidth} style={style} fill={fill} />;
   return <span style={{ fontSize: size, lineHeight: 1, ...style }}>{e}</span>;
 };
+
+// Détecte un emoji en tête de chaîne (incl. séquences ZWJ + sélecteur de variante).
+const LEAD_EMOJI = /^(\p{Extended_Pictographic}(?:‍\p{Extended_Pictographic})*️?)\s*/u;
+
+// Rend une chaîne du type "🎯 Mon label" comme <icône SVG/> + "Mon label".
+// Sans emoji en tête → rend le texte tel quel. Pratique pour les libellés d'onglets/boutons.
+export const EmoText = ({ s, size = 14, color = "currentColor", gap = 6, style, strokeWidth = 2.5 }) => {
+  if (typeof s !== "string") return s ?? null;
+  const m = s.match(LEAD_EMOJI);
+  if (!m) return s;
+  const rest = s.slice(m[0].length);
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap, ...style }}>
+      <EmoIcon e={m[1]} size={size} color={color} strokeWidth={strokeWidth} />
+      {rest}
+    </span>
+  );
+};
