@@ -10,6 +10,7 @@ import {
   Dices, Scale, Moon, HeartCrack, Circle, HelpCircle, Bug, Calculator, Hash, Lightbulb, Handshake,
   Calendar, Building2, Globe, ArrowLeft, ArrowRight, ArrowLeftRight, ArrowUp, ArrowDown, Palette,
   Delete, Hand, Ban, Eye, Megaphone, Smile, PartyPopper, Heart, ThumbsUp, Send,
+  Flag, Smartphone, BookOpen,
 } from "lucide-react";
 
 // Map emoji → composant Lucide. Tout emoji absent de la map reste affiché en emoji (secours).
@@ -45,6 +46,8 @@ export const EMOJI_ICON = {
   "🌱": Sprout, "🧊": Snowflake, "❄️": Snowflake, "🐢": Turtle, "🐌": Turtle,
   "😰": Frown, "😬": Frown, "😴": Moon, "💔": HeartCrack, "🕳️": CircleSlash,
   "⚖️": Scale, "🟢": Circle, "🔴": Circle, "🟡": Circle, "🚀": Rocket, "🎨": Palette,
+  // Drapeaux / divers
+  "🏳️": Flag, "🏳": Flag, "🏴": Flag, "🏁": Flag, "📱": Smartphone, "📲": Smartphone, "📘": BookOpen, "📖": BookOpen,
   // Maths / chiffres
   "🧮": Calculator, "🔢": Hash,
   // Flèches

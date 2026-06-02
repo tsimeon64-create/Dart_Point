@@ -1049,9 +1049,9 @@ const ShareBar = ({ bar }) => {
   const url=`${window.location.origin}/bars/${bar.slug}`;
   return (
     <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:20 }}>
-      <a href={`https://wa.me/?text=${encodeURIComponent("🎯 "+bar.nom+" — "+bar.ville+" sur DartPoint "+url)}`} target="_blank" rel="noreferrer"><Btn variant="dark" style={{ fontSize:12,padding:"7px 14px" }}>📱 WhatsApp</Btn></a>
-      <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`} target="_blank" rel="noreferrer"><Btn variant="dark" style={{ fontSize:12,padding:"7px 14px" }}>📘 Facebook</Btn></a>
-      <Btn onClick={()=>{try{navigator.clipboard.writeText(url);}catch{}setCopied(true);setTimeout(()=>setCopied(false),2000);}} variant="dark" style={{ fontSize:12,padding:"7px 14px" }}>{copied?"✅ Copié !":"🔗 Lien"}</Btn>
+      <a href={`https://wa.me/?text=${encodeURIComponent("🎯 "+bar.nom+" — "+bar.ville+" sur DartPoint "+url)}`} target="_blank" rel="noreferrer"><Btn variant="dark" style={{ fontSize:12,padding:"7px 14px" }}><EmoText s="📱 WhatsApp"/></Btn></a>
+      <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`} target="_blank" rel="noreferrer"><Btn variant="dark" style={{ fontSize:12,padding:"7px 14px" }}><EmoText s="📘 Facebook"/></Btn></a>
+      <Btn onClick={()=>{try{navigator.clipboard.writeText(url);}catch{}setCopied(true);setTimeout(()=>setCopied(false),2000);}} variant="dark" style={{ fontSize:12,padding:"7px 14px" }}><EmoText s={copied?"✅ Copié !":"🔗 Lien"}/></Btn>
     </div>
   );
 };
@@ -1074,7 +1074,7 @@ const EditBarModal = ({ bar, onSave, onClose, joueur=null }) => {
   return (
     <div style={{ position:"fixed",inset:0,background:"#000c",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}>
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,maxWidth:600,width:"100%",maxHeight:"90vh",overflowY:"auto" }}>
-        <h3 style={{ fontWeight:700,fontSize:18,marginBottom:20 }}>✏️ Modifier — {bar.nom}</h3>
+        <h3 style={{ fontWeight:700,fontSize:18,marginBottom:20 }}><EmoIcon e="✏️" size={16} style={{verticalAlign:"-2px",marginRight:5}}/>Modifier — {bar.nom}</h3>
         <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Le Central"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/></div>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Code postal" value={f.cp} onChange={set("cp")} placeholder="64100"/><Field label="Adresse" value={f.adresse} onChange={set("adresse")} placeholder="12 rue..."/></div>
@@ -1091,7 +1091,7 @@ const EditBarModal = ({ bar, onSave, onClose, joueur=null }) => {
             onChange={c => setF(p => ({ ...p, lat: c ? String(c.lat) : "", lng: c ? String(c.lng) : "" }))}
             address={f.adresse} ville={f.ville} cp={f.cp}
           />
-          <div style={{ display:"flex",gap:10 }}><Btn onClick={save} disabled={saving||!f.nom||!f.ville} style={{ flex:1 }}>{saving?"…":"💾 Sauvegarder"}</Btn><Btn onClick={onClose} variant="dark" style={{ flex:1 }}>Annuler</Btn></div>
+          <div style={{ display:"flex",gap:10 }}><Btn onClick={save} disabled={saving||!f.nom||!f.ville} style={{ flex:1 }}><EmoText s={saving?"…":"💾 Sauvegarder"}/></Btn><Btn onClick={onClose} variant="dark" style={{ flex:1 }}>Annuler</Btn></div>
         </div>
       </div>
     </div>
@@ -1136,11 +1136,11 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
       <div style={{ position:"sticky", top:0, zIndex:10, background:C.bg, borderBottom:`1px solid ${C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
         <button onClick={onClose} style={{ background:"none", border:"none", color:C.muted, fontSize:22, cursor:"pointer", lineHeight:1, padding:"0 4px" }}>‹</button>
         <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontWeight:800, fontSize:16, color:C.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>✏️ {asso.nom}</div>
+          <div style={{ fontWeight:800, fontSize:16, color:C.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}><EmoIcon e="✏️" size={14} style={{verticalAlign:"-2px",marginRight:4}}/>{asso.nom}</div>
         </div>
         <button onClick={save} disabled={saving||!f.nom||!f.ville}
           style={{ background:saving||!f.nom||!f.ville?C.border:`linear-gradient(135deg,${C.accent},#ea580c)`, color:"#fff", border:"none", borderRadius:10, padding:"9px 18px", fontWeight:700, fontSize:14, cursor:"pointer", flexShrink:0, touchAction:"manipulation" }}>
-          {saving?"⏳…":"💾 Sauvegarder"}
+          <EmoText s={saving?"⏳…":"💾 Sauvegarder"}/>
         </button>
       </div>
 
@@ -1231,7 +1231,7 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
           <button onClick={onClose} style={{ flex:1, background:C.card, color:C.muted, border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 0", fontWeight:600, fontSize:15, cursor:"pointer", touchAction:"manipulation" }}>Annuler</button>
           <button onClick={save} disabled={saving||!f.nom||!f.ville}
             style={{ flex:2, background:saving||!f.nom||!f.ville?C.border:`linear-gradient(135deg,${C.accent},#ea580c)`, color:"#fff", border:"none", borderRadius:12, padding:"14px 0", fontWeight:700, fontSize:15, cursor:"pointer", touchAction:"manipulation" }}>
-            {saving?"⏳ Sauvegarde…":"💾 Sauvegarder"}
+            <EmoText s={saving?"⏳ Sauvegarde…":"💾 Sauvegarder"}/>
           </button>
         </div>
 
@@ -1248,7 +1248,7 @@ const EditTournoiModal = ({ tournoi, onSave, onClose }) => {
   return (
     <div style={{ position:"fixed",inset:0,background:"#000c",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}>
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,maxWidth:620,width:"100%",maxHeight:"90vh",overflowY:"auto" }}>
-        <h3 style={{ fontWeight:700,fontSize:18,marginBottom:20 }}>✏️ Modifier — {tournoi.nom}</h3>
+        <h3 style={{ fontWeight:700,fontSize:18,marginBottom:20 }}><EmoIcon e="✏️" size={16} style={{verticalAlign:"-2px",marginRight:5}}/>Modifier — {tournoi.nom}</h3>
         <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Open"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/></div>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Date" value={f.date} onChange={set("date")} type="date" placeholder=""/><Field label="Bar" value={f.bar} onChange={set("bar")} placeholder="Le Central"/></div>
@@ -1261,7 +1261,7 @@ const EditTournoiModal = ({ tournoi, onSave, onClose }) => {
           <Field label="Description" value={f.description} onChange={set("description")} placeholder="Description…" as="textarea"/>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Contact" value={f.contact} onChange={set("contact")} placeholder="email ou tél"/><Field label="Lien" value={f.lien} onChange={set("lien")} placeholder="https://..."/></div>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Latitude" value={f.lat} onChange={set("lat")} placeholder="43.49" type="number"/><Field label="Longitude" value={f.lng} onChange={set("lng")} placeholder="-1.47" type="number"/></div>
-          <div style={{ display:"flex",gap:10 }}><Btn onClick={save} disabled={saving||!f.nom||!f.ville} style={{ flex:1 }}>{saving?"…":"💾 Sauvegarder"}</Btn><Btn onClick={onClose} variant="dark" style={{ flex:1 }}>Annuler</Btn></div>
+          <div style={{ display:"flex",gap:10 }}><Btn onClick={save} disabled={saving||!f.nom||!f.ville} style={{ flex:1 }}><EmoText s={saving?"…":"💾 Sauvegarder"}/></Btn><Btn onClick={onClose} variant="dark" style={{ flex:1 }}>Annuler</Btn></div>
         </div>
       </div>
     </div>
@@ -1319,7 +1319,7 @@ const HomeMap = ({ bars, associations, tournois, setPage, setBarSlug, setAssoSlu
   const upcomingT = useMemo(()=>tournois.filter(t=>new Date(t.date)>=new Date()),[tournois]);
   const FBtn = ({ active, onClick, color, emoji, label, count }) => (
     <button onClick={onClick} style={{ display:"flex",alignItems:"center",gap:6,background:active?color+"22":"#111",border:`1px solid ${active?color:C.border}`,borderRadius:20,padding:"6px 14px",cursor:"pointer",fontSize:13,color:active?color:C.muted,fontWeight:active?600:400 }}>
-      <span style={{ width:20,height:20,background:active?color:"#333",borderRadius:"50%",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10 }}>{emoji}</span>
+      <span style={{ width:20,height:20,background:active?color:"#333",borderRadius:"50%",display:"inline-flex",alignItems:"center",justifyContent:"center" }}><EmoIcon e={emoji} size={11} color="#fff"/></span>
       {label} <span style={{ background:active?color+"33":"#222",color:active?color:C.muted,borderRadius:10,padding:"0 7px",fontSize:11,fontWeight:700 }}>{count}</span>
     </button>
   );
@@ -1585,15 +1585,15 @@ const MatchActifCard = ({ d, joueur, setPage, onAbandon }) => {
     <div style={{ background:C.card,border:`2px solid ${confirmAbandon?C.red:C.green}`,borderRadius:12,padding:16,marginBottom:10,transition:"border-color .2s" }}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:confirmAbandon?12:0 }}>
         <div>
-          <div style={{ fontWeight:700,fontSize:15 }}>⚔️ vs {adversaire}</div>
+          <div style={{ fontWeight:700,fontSize:15 }}><EmoIcon e="⚔️" size={14} style={{verticalAlign:"-2px",marginRight:5}}/>vs {adversaire}</div>
           <div style={{ color:C.muted,fontSize:12,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
             <span>{d.mode} · {d.manches} manche{d.manches>1?"s":""}</span>
-            <span style={{ background:"#1a0030",color:"#a78bfa",borderRadius:20,padding:"1px 8px",fontSize:11,fontWeight:700,border:"1px solid #a78bfa33" }}>💎 DRIX</span>
+            <span style={{ background:"#1a0030",color:"#a78bfa",borderRadius:20,padding:"1px 8px",fontSize:11,fontWeight:700,border:"1px solid #a78bfa33" }}><EmoText s="💎 DRIX" size={10} gap={3}/></span>
           </div>
         </div>
         <div style={{ display:"flex",gap:8 }}>
-          <Btn onClick={()=>setPage("scoreur-duel-"+d.id)} style={{ fontSize:13 }}>🎯 Reprendre</Btn>
-          {!confirmAbandon && <Btn onClick={()=>setConfirmAbandon(true)} variant="danger" style={{ fontSize:13 }}>🏳 Abandonner</Btn>}
+          <Btn onClick={()=>setPage("scoreur-duel-"+d.id)} style={{ fontSize:13 }}><EmoText s="🎯 Reprendre"/></Btn>
+          {!confirmAbandon && <Btn onClick={()=>setConfirmAbandon(true)} variant="danger" style={{ fontSize:13 }}><EmoText s="🏳 Abandonner"/></Btn>}
         </div>
       </div>
       {confirmAbandon && (
@@ -1602,7 +1602,7 @@ const MatchActifCard = ({ d, joueur, setPage, onAbandon }) => {
             Confirmer l'abandon ? Le match sera annulé sans attribution de DRIX.
           </p>
           <div style={{ display:"flex",gap:8 }}>
-            <Btn onClick={abandonner} variant="danger" style={{ flex:1,fontSize:13 }}>✅ Confirmer</Btn>
+            <Btn onClick={abandonner} variant="danger" style={{ flex:1,fontSize:13 }}><EmoText s="✅ Confirmer"/></Btn>
             <Btn onClick={()=>setConfirmAbandon(false)} variant="dark" style={{ fontSize:13 }}>← Annuler</Btn>
           </div>
         </div>
@@ -1660,7 +1660,7 @@ const DoubletteFlow = ({ joueur, amis, amisData, setPage }) => {
     setPage("scoreur-doublette");
   };
 
-  const noFriends=<div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:24,textAlign:"center" }}><p style={{ color:C.muted,marginBottom:12 }}>Tu n'as pas encore d'amis sur DartPoint.</p><Btn onClick={()=>setPage("joueurs")} style={{ fontSize:13 }}>👥 Trouver des joueurs</Btn></div>;
+  const noFriends=<div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:24,textAlign:"center" }}><p style={{ color:C.muted,marginBottom:12 }}>Tu n'as pas encore d'amis sur DartPoint.</p><Btn onClick={()=>setPage("joueurs")} style={{ fontSize:13 }}><EmoText s="👥 Trouver des joueurs"/></Btn></div>;
 
   // ── Étape 1 : choix équipier ──
   if(step===1) return (
@@ -1689,7 +1689,7 @@ const DoubletteFlow = ({ joueur, amis, amisData, setPage }) => {
     return (
       <div>
         <button onClick={()=>setStep(1)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,marginBottom:12 }}>← Retour</button>
-        <h2 style={{ fontWeight:700,fontSize:16,marginBottom:4 }}>⚔️ Choisis vos adversaires</h2>
+        <h2 style={{ fontWeight:700,fontSize:16,marginBottom:4 }}><EmoIcon e="⚔️" size={15} style={{verticalAlign:"-2px",marginRight:5}}/>Choisis vos adversaires</h2>
         <p style={{ color:C.muted,fontSize:13,marginBottom:14 }}>Équipe B : 2 joueurs ({(adv1?1:0)+(adv2?1:0)}/2 sélectionnés)</p>
         {available.length<2?<p style={{ color:C.muted,fontSize:13 }}>Il te faut au moins 3 amis pour jouer en doublette.</p>:(
           <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:16 }}>
@@ -1732,7 +1732,7 @@ const DoubletteFlow = ({ joueur, amis, amisData, setPage }) => {
         <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:16 }}>
           <TeamPreview label="ÉQUIPE A" players={[me,partner]} drix={teamADrix} col="#60a5fa"/>
           <div style={{ textAlign:"center",flexShrink:0 }}>
-            <div style={{ fontSize:20,color:C.muted }}>⚔️</div>
+            <div style={{ color:C.muted,display:"flex" }}><EmoIcon e="⚔️" size={20}/></div>
             <div style={{ fontSize:10,color:C.muted }}>VS</div>
           </div>
           <TeamPreview label="ÉQUIPE B" players={[adv1,adv2]} drix={teamBDrix} col="#f87171"/>
@@ -1763,7 +1763,7 @@ const DoubletteFlow = ({ joueur, amis, amisData, setPage }) => {
       </div>
 
       <Btn onClick={launch} disabled={launching} style={{ width:"100%",fontSize:15,padding:"14px 0" }}>
-        {launching?"Lancement…":"🎯 Lancer la Doublette !"}
+        <EmoText s={launching?"Lancement…":"🎯 Lancer la Doublette !"}/>
       </Btn>
     </div>
   );
