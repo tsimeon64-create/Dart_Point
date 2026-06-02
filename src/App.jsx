@@ -4,7 +4,7 @@ import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell,
 import { EmoIcon, EmoText } from "./icons";
 import {
   Connexion, MonProfil, PageJoueurs, FicheJoueur, RankIcon,
-  PageProfilStats, PageProfilAmis, PageProfilBadges, PageProfilHistorique,
+  PageProfilStats, PageProfilAmis, PageProfilBadges, PageProfilHistorique, BadgeVisual,
   PresenceSection, MembresBarSection,
   PageDrix, DrixBadge, HistoriqueDrix,
   AmiSection,
@@ -5414,13 +5414,13 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
                 )}
                 {isEpicPlus ? (
                   <>
-                    <div style={{ fontSize:56,filter:`drop-shadow(0 0 16px ${badge.couleur||rc.color})`,marginBottom:10,animation:"drixPop .5s ease-out both" }}>{badge.emoji}</div>
+                    <div style={{ filter:`drop-shadow(0 0 16px ${badge.couleur||rc.color})`,marginBottom:10,animation:"drixPop .5s ease-out both",display:"flex",justifyContent:"center" }}><BadgeVisual b={badge} size={56}/></div>
                     <div style={{ fontWeight:900,fontSize:18,color:badge.couleur||rc.color,marginBottom:4 }}>{badge.nom}</div>
                     <div style={{ fontSize:12,color:C.muted,lineHeight:1.5 }}>{badge.desc}</div>
                   </>
                 ) : (
                   <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-                    <span style={{ fontSize:36,filter:`drop-shadow(0 0 8px ${badge.couleur||rc.color})` }}>{badge.emoji}</span>
+                    <span style={{ filter:`drop-shadow(0 0 8px ${badge.couleur||rc.color})`,display:"inline-flex" }}><BadgeVisual b={badge} size={40}/></span>
                     <div>
                       <div style={{ fontWeight:800,fontSize:16,color:badge.couleur||rc.color }}>{badge.nom}</div>
                       <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>{badge.desc}</div>

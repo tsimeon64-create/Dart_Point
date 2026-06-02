@@ -1651,6 +1651,18 @@ export const storeBadgesSet = (joueurId, badgeSet) => {
 };
 
 // ── PAGE BADGES ───────────────────────────────────────────────────────────────
+// Visuel d'un badge : image personnalisée /badges/<id>.png si présente,
+// sinon repli automatique sur l'emoji du badge (les barres de progression
+// et le check sont gérés à part par les cartes, on ne touche qu'au visuel).
+export const BadgeVisual = ({ b, size = 42, unlocked = true }) => {
+  const [imgErr, setImgErr] = useState(false);
+  const fil = unlocked ? "none" : "grayscale(1)";
+  return imgErr
+    ? <span style={{ fontSize: Math.round(size * 0.72), lineHeight: 1, filter: fil }}>{b.emoji}</span>
+    : <img src={`/badges/${encodeURIComponent(b.id)}.png`} alt="" onError={() => setImgErr(true)}
+        style={{ width: size, height: size, objectFit: "contain", display: "block", filter: fil }}/>;
+};
+
 export const PageProfilBadges = ({ joueur, setPage }) => {
   const [stats, setStats]   = useState(null);
   const [duels, setDuels]   = useState([]);
@@ -1709,8 +1721,8 @@ export const PageProfilBadges = ({ joueur, setPage }) => {
         alignItems: "center",
         textAlign: "center",
       }}>
-        {/* Emoji du badge — contenu, pas icône UI */}
-        <div style={{ fontSize: 30, marginBottom: 8, lineHeight: 1, filter: unlocked ? "none" : "grayscale(1)" }}>{b.emoji}</div>
+        {/* Visuel du badge : image /badges/<id>.png (repli emoji si absente) */}
+        <div style={{ marginBottom: 8, lineHeight: 1, display: "flex", justifyContent: "center", height: 48, alignItems: "center" }}><BadgeVisual b={b} size={46} unlocked={unlocked}/></div>
 
         {/* Nom */}
         <div style={{ fontWeight: 700, fontSize: 13, color: unlocked ? b.couleur : "#f1f5f9", marginBottom: 4, lineHeight: 1.3 }}>{b.nom}</div>
@@ -2678,7 +2690,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
         opacity: unlocked ? 1 : 0.5,
         transition:"all .2s"
       }}>
-        <div style={{ fontSize:28, marginBottom:6 }}>{b.emoji}</div>
+        <div style={{ marginBottom:6, display:"flex", justifyContent:"center", height:40, alignItems:"center" }}><BadgeVisual b={b} size={38} unlocked={unlocked}/></div>
         <div style={{ fontWeight:700, fontSize:13, color: unlocked ? b.couleur : CJ.muted, marginBottom:3 }}>{b.nom}</div>
         <div style={{ fontSize:10, color:CJ.muted, marginBottom: isIncremental&&!unlocked ? 8 : 0 }}>{b.desc}</div>
         {isIncremental && !unlocked && (
@@ -2689,7 +2701,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
             <div style={{ fontSize:10, color:CJ.muted, marginTop:4 }}>{current} / {b.seuil}</div>
           </>
         )}
-        {unlocked && <div style={{ position:"absolute", top:8, right:8, fontSize:14 }}>✅</div>}
+        {unlocked && <div style={{ position:"absolute", top:8, right:8, width:20, height:20, borderRadius:"50%", background:b.couleur, display:"flex", alignItems:"center", justifyContent:"center" }}><Check size={12} color="#fff" strokeWidth={3}/></div>}
       </div>
     );
   };
