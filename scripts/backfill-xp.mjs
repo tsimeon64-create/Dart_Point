@@ -148,7 +148,9 @@ const compteBadges = (v) => BADGES.filter(([k, s]) => badgeVal(k, v) >= s).lengt
     for (const r of rows) {
       if (r.skip) continue;
       try {
-        await sb(`joueurs?id=eq.${r.id}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ xp: r.xp, niveau: r.niveau, xp_badges_credited: r.badges }) });
+        // NB : on n'écrit PAS `niveau` (= niveau de jeu auto-déclaré à l'inscription).
+        // Le niveau XP est dérivé de `xp` à l'affichage (getNiveauXP), jamais stocké.
+        await sb(`joueurs?id=eq.${r.id}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ xp: r.xp, xp_badges_credited: r.badges }) });
         ok++;
       } catch (e) { console.error(`  ✗ ${r.pseudo}: ${e.message}`); }
     }

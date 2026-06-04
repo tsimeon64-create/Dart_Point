@@ -603,10 +603,10 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
         let newXp = fresh.xp || 0;
         if (unlocked > cred) {
           newXp += (unlocked - cred) * 100;
-          sbJ(`joueurs?id=eq.${joueur.id}`, { method:"PATCH", prefer:"return=minimal", body: JSON.stringify({ xp:newXp, niveau:getNiveauXP(newXp).niveau, xp_badges_credited:unlocked }) }).catch(()=>{});
+          sbJ(`joueurs?id=eq.${joueur.id}`, { method:"PATCH", prefer:"return=minimal", body: JSON.stringify({ xp:newXp, xp_badges_credited:unlocked }) }).catch(()=>{});
         }
         const credFinal = unlocked > cred ? unlocked : cred;
-        if (setJoueur) setJoueur(p => ({ ...p, xp:newXp, niveau:getNiveauXP(newXp).niveau, xp_badges_credited:credFinal }));
+        if (setJoueur) setJoueur(p => ({ ...p, xp:newXp, xp_badges_credited:credFinal }));
       }).catch(()=>{});
       // Initialise le compteur "vus" si jamais défini (première connexion)
       if (!localStorage.getItem(`dp_badges_seen_${joueur.id}`)) {
@@ -4310,7 +4310,7 @@ const LADDER_CSS = `
 
 const dbDrix = {
   updateDrix: (id, drix) => sbJ(`joueurs?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ drix }), prefer:"return=minimal" }),
-  updateXP: (id, xp, niveau) => sbJ(`joueurs?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ xp, niveau }), prefer:"return=minimal" }),
+  updateXP: (id, xp) => sbJ(`joueurs?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ xp }), prefer:"return=minimal" }),
   addMouvement: (d) => sbJ("drix_mouvements", { method:"POST", body:JSON.stringify(d) }),
   getClassement: () => sbJ("joueurs?order=drix.desc&select=id,pseudo,drix,bar_slug,asso_slug,photo"),
   getClassementBar: (slug) => sbJ(`joueurs?bar_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo`),
@@ -4358,26 +4358,41 @@ export const calculerBonusPerformance = (joueursData = [], manchesDetail = []) =
 
 // ════ SYSTÈME XP ════════════════════════════════════════════════════════════
 // XP = expérience (parallèle au DRIX qui, lui, est l'ELO pur du niveau réel).
-export const NIVEAUX_XP = [
-  { niveau: 1,  xp: 0,     titre: "Rookie" },
-  { niveau: 5,  xp: 500,   titre: "Régulier" },
-  { niveau: 10, xp: 2000,  titre: "Habitué" },
-  { niveau: 20, xp: 8000,  titre: "Vétéran" },
-  { niveau: 50, xp: 50000, titre: "Légende" },
-];
+// Niveaux CONTINUS 1 → 100. Coût d'XP pour passer du niveau L au niveau L+1 :
+//   niv 1→10  : 100,150,…,500   (+50/niv)
+//   niv 10→20 : 600,700,…,1500  (+100/niv)
+//   niv 20→30 : 1650,…,3000     (+150/niv)
+//   niv 30→50 : 3200,…,7000     (+200/niv)
+//   niv 50→100: 7500,…,32000    (+500/niv)
+export const NIVEAU_MAX = 100;
+const coutNiveau = (L) =>
+  L <= 9  ? 100  + 50  * (L - 1)  :
+  L <= 19 ? 600  + 100 * (L - 10) :
+  L <= 29 ? 1650 + 150 * (L - 20) :
+  L <= 49 ? 3200 + 200 * (L - 30) :
+            7500 + 500 * (L - 50);
+// SEUILS_XP[n] = XP cumulé requis pour ATTEINDRE le niveau n (niveau 1 = 0 XP).
+export const SEUILS_XP = (() => {
+  const s = [0, 0]; // index 0 inutilisé ; s[1] = niveau 1 = 0 XP
+  for (let L = 1; L < NIVEAU_MAX; L++) s[L + 1] = s[L] + coutNiveau(L);
+  return s;
+})();
+// Titres conservés, attribués par tranche de niveau (continuité avec l'ancien système).
+export const titreNiveau = (n) =>
+  n >= 50 ? "Légende" : n >= 20 ? "Vétéran" : n >= 10 ? "Habitué" : n >= 5 ? "Régulier" : "Rookie";
 
-// Niveau + titre + progression vers le palier suivant à partir d'un total d'XP.
+// Niveau (1-100) + titre + progression vers le niveau suivant, à partir d'un total d'XP.
 export const getNiveauXP = (xp = 0) => {
   const x = Math.max(0, Math.floor(xp || 0));
-  let cur = NIVEAUX_XP[0], next = null;
-  for (let i = 0; i < NIVEAUX_XP.length; i++) {
-    if (x >= NIVEAUX_XP[i].xp) { cur = NIVEAUX_XP[i]; next = NIVEAUX_XP[i + 1] || null; }
-  }
-  const progres = next ? Math.min(100, Math.max(0, Math.round(((x - cur.xp) / (next.xp - cur.xp)) * 100))) : 100;
+  let niveau = 1;
+  for (let L = 2; L <= NIVEAU_MAX; L++) { if (x >= SEUILS_XP[L]) niveau = L; else break; }
+  const base = SEUILS_XP[niveau];
+  const next = niveau < NIVEAU_MAX ? SEUILS_XP[niveau + 1] : null;
+  const progres = next != null ? Math.min(100, Math.max(0, Math.round(((x - base) / (next - base)) * 100))) : 100;
   return {
-    niveau: cur.niveau, titre: cur.titre, xp: x,
-    palierProchain: next ? next.xp : null, prochainTitre: next ? next.titre : null,
-    restant: next ? Math.max(0, next.xp - x) : 0, progres,
+    niveau, titre: titreNiveau(niveau), xp: x,
+    palierProchain: next, prochainTitre: next != null ? titreNiveau(niveau + 1) : null,
+    restant: next != null ? Math.max(0, next - x) : 0, progres,
   };
 };
 
@@ -4432,7 +4447,7 @@ export const XpBlock = ({ xp = 0 }) => {
         <div style={{ width: `${n.progres}%`, height: "100%", borderRadius: 99, background: "linear-gradient(90deg,#fbbf24,#f59e0b)", boxShadow: "0 0 10px #fbbf2466", transition: "width .6s ease" }} />
       </div>
       <div style={{ fontSize: 10, color: CJ.muted, marginTop: 4, textAlign: "right" }}>
-        {n.palierProchain ? `Plus que ${n.restant.toLocaleString("fr-FR")} XP → ${n.prochainTitre}` : "Niveau max atteint 🏆"}
+        {n.palierProchain != null ? `Plus que ${n.restant.toLocaleString("fr-FR")} XP → Niveau ${n.niveau + 1}${n.prochainTitre !== n.titre ? ` (${n.prochainTitre})` : ""}` : "Niveau max atteint 🏆"}
       </div>
     </div>
   );
@@ -4443,7 +4458,7 @@ export const ajouterXP = async (joueurId, delta, joueurConnu = null) => {
   if (!delta || delta <= 0) return null;
   const j = joueurConnu || await dbJ.getJoueur(joueurId);
   const newXp = (j?.xp || 0) + delta;
-  await dbDrix.updateXP(joueurId, newXp, getNiveauXP(newXp).niveau).catch(() => {});
+  await dbDrix.updateXP(joueurId, newXp).catch(() => {});
   return newXp;
 };
 
