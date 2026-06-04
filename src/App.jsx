@@ -5126,6 +5126,52 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
   };
   const [liveCount, setLiveCount] = useState(0);
 
+  // ── Joueur de la semaine de l'asso affiliée (moyenne + ratio V/D) ───────────
+  // Fenêtre 7 jours ; repli sur la saison si personne n'a assez joué cette semaine.
+  const [assoMvp, setAssoMvp] = useState(null);
+  useEffect(() => {
+    const slug = joueur?.asso_slug;
+    if (!slug) { setAssoMvp(null); return; }
+    let alive = true;
+    (async () => {
+      const [membres, assoRows] = await Promise.all([
+        sb(`joueurs?asso_slug=eq.${encodeURIComponent(slug)}&select=id,pseudo,drix,photo`).catch(() => []),
+        sb(`associations?slug=eq.${encodeURIComponent(slug)}&select=nom`).catch(() => []),
+      ]);
+      if (!alive || !membres?.length) return;
+      const ids = membres.map((m) => m.id);
+      const duels = await sb(
+        `duels?or=(challenger_id.in.(${ids.join(",")}),defie_id.in.(${ids.join(",")}))&statut=eq.termine&select=challenger_id,defie_id,gagnant_id,score_challenger,score_defie,date&limit=3000`
+      ).catch(() => []);
+      if (!alive) return;
+      const weekTs = Date.now() - 7 * 86400000;
+      // score_challenger / score_defie = moyenne du joueur dans ce duel
+      const calc = (list, id) => {
+        let wins = 0, losses = 0, sumMoy = 0, nMoy = 0;
+        for (const d of list) {
+          if (d.gagnant_id === id) wins++; else losses++;
+          const sc = parseFloat(d.challenger_id === id ? d.score_challenger : d.score_defie);
+          if (!isNaN(sc) && sc > 0) { sumMoy += sc; nMoy++; }
+        }
+        const games = wins + losses;
+        return { games, wins, losses, moyenne: nMoy ? sumMoy / nMoy : 0, winRate: games ? wins / games : 0 };
+      };
+      const per = membres.map((m) => {
+        const mine = (duels || []).filter((d) => d.challenger_id === m.id || d.defie_id === m.id);
+        return { m, week: calc(mine.filter((d) => (d.date || 0) >= weekTs), m.id), all: calc(mine, m.id) };
+      });
+      const qWeek = per.filter((p) => p.week.games >= 2);
+      const useWeek = qWeek.length > 0;
+      const pool = useWeek ? qWeek : per.filter((p) => p.all.games >= 3);
+      if (!pool.length) { setAssoMvp(null); return; }
+      const score = (st) => st.moyenne + st.winRate * 40; // moyenne dominante + bonus ratio
+      const best = pool.map((p) => ({ m: p.m, st: useWeek ? p.week : p.all }))
+        .sort((a, b) => score(b.st) - score(a.st))[0];
+      setAssoMvp({ ...best.m, ...best.st, periode: useWeek ? "semaine" : "saison", assoNom: assoRows?.[0]?.nom || null });
+    })();
+    return () => { alive = false; };
+  }, [joueur?.asso_slug, joueur?.id, refreshTick]);
+
   const chargerFeed = useCallback(async () => {
     if (!joueur?.id) return;
     setErreur(null);
@@ -5711,65 +5757,60 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     </div>
   );
 
-  // ── Trending spotlight (derived from feed) ─────────────────────────────────
-  const renderTrending = () => {
-    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-    const todayTs = todayStart.getTime();
-    const todayItems = feed.filter(i => i.date >= todayTs);
-
-    // Top DRIX gainer today
-    const drixByPlayer = {};
-    todayItems.forEach(i => {
-      if (i.type === "training_drix" || i.type === "drix_milestone") {
-        const m = i.data;
-        const key = m.joueur_pseudo;
-        drixByPlayer[key] = (drixByPlayer[key]||0) + (m.variation||0);
-      }
-    });
-    const topPlayer = Object.entries(drixByPlayer).sort((a,b)=>b[1]-a[1])[0];
-
-    // Best training finish today
-    const bestFinish = todayItems
-      .filter(i => i.type==="training_drix" && i.data.variation > 0)
-      .sort((a,b) => b.data.variation - a.data.variation)[0];
-
-    // Hot rivalité from entire feed
-    let hotRivalCard = null;
-    for (const i of feed) {
-      if (i.type !== "post") continue;
-      if (!i.data.contenu?.startsWith("__DUEL__|")) continue;
-      try {
-        const d = JSON.parse(i.data.contenu.slice(9));
-        if (d.isRivalite) { hotRivalCard = d; break; }
-      } catch {}
-    }
-
-    const cards = [];
-    if (topPlayer && topPlayer[1] > 0)
-      cards.push({ Icon:Crown, color:"#f59e0b", label:"JOUEUR DU JOUR", name:topPlayer[0], val:`+${topPlayer[1]} DRIX` });
-    if (bestFinish)
-      cards.push({ Icon:Target, color:"#f97316", label:"MEILLEUR FINISH", name:bestFinish.data.joueur_pseudo, val:`+${bestFinish.data.variation} DRIX` });
-    if (hotRivalCard)
-      cards.push({ Icon:Swords, color:"#a78bfa", label:"RIVALITÉ ACTIVE", name:`${hotRivalCard.winner?.nom?.split(" ")[0]||"?"} vs ${hotRivalCard.loser?.nom?.split(" ")[0]||"?"}`, val:"Rivalité hebdo ⚔" });
-
-    if (cards.length === 0) return null;
+  // ── Joueur de la semaine de l'asso — carte esport "platine" ────────────────
+  const renderAssoMvp = () => {
+    if (!assoMvp) return null;
+    const { pseudo, photo, drix, moyenne, wins, losses, winRate, periode, assoNom, id } = assoMvp;
+    const PLAT = "#cbd5e1";
+    const MvpStat = ({ label, value, color }) => (
+      <div style={{ flex:"1 1 0", minWidth:64, background:"#ffffff0a", border:"1px solid #ffffff14", borderRadius:10, padding:"7px 8px", textAlign:"center" }}>
+        <div style={{ fontSize:8.5, fontWeight:900, color:"#94a3b8", letterSpacing:1.2, marginBottom:3 }}>{label}</div>
+        <div style={{ fontSize:16, fontWeight:900, color, lineHeight:1, fontVariantNumeric:"tabular-nums" }}>{value}</div>
+      </div>
+    );
     return (
       <div style={{ marginBottom:20 }}>
-        <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:10 }}>
-          <Flame size={13} color="#f97316"/>
-          <span style={{ fontSize:11,fontWeight:900,color:"#f97316",letterSpacing:1.5 }}>TENDANCES DU JOUR</span>
+        <style>{`
+          @keyframes mvpShine { 0%{transform:translateX(-130%) skewX(-18deg)} 60%,100%{transform:translateX(360%) skewX(-18deg)} }
+          @keyframes mvpRing  { to { transform:rotate(360deg) } }
+        `}</style>
+        <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
+          <Crown size={13} color={PLAT}/>
+          <span style={{ fontSize:11, fontWeight:900, color:PLAT, letterSpacing:1.5 }}>
+            JOUEUR DE {periode === "semaine" ? "LA SEMAINE" : "LA SAISON"}{assoNom ? ` · ${assoNom.toUpperCase()}` : ""}
+          </span>
         </div>
-        <div style={{ display:"flex",gap:8,overflowX:"auto",paddingBottom:4,scrollbarWidth:"none",msOverflowStyle:"none" }}>
-          {cards.map(({ Icon, color, label, name, val }, i) => (
-            <div key={i} style={{ flexShrink:0,background:`linear-gradient(135deg,${color}14,#0e0e14)`,border:`1px solid ${color}2a`,borderRadius:14,padding:"12px 14px",minWidth:145,maxWidth:165,cursor:"default" }}>
-              <div style={{ display:"flex",alignItems:"center",gap:5,marginBottom:8 }}>
-                <Icon size={11} color={color}/>
-                <span style={{ fontSize:9,fontWeight:900,color,letterSpacing:1 }}>{label}</span>
+        <div onClick={() => id && setPage("profil-joueur-" + id)}
+          style={{ position:"relative", overflow:"hidden", borderRadius:18, padding:"16px",
+            background:"linear-gradient(135deg,#1b2230 0%,#0d1017 55%,#10141c 100%)",
+            border:"1.5px solid #b9c4d6aa", cursor:"pointer",
+            boxShadow:"0 0 30px #cbd5e122, 0 4px 18px #00000066, inset 0 1px 0 #ffffff22" }}>
+          {/* halo platine + balayage */}
+          <div aria-hidden style={{ position:"absolute", top:-40, right:-30, width:160, height:160, borderRadius:"50%", background:"radial-gradient(circle,#cbd5e122 0%,transparent 70%)", pointerEvents:"none" }}/>
+          <div aria-hidden style={{ position:"absolute", top:0, left:0, bottom:0, width:80, background:"linear-gradient(90deg,transparent,#ffffff26,transparent)", animation:"mvpShine 3.6s ease-in-out infinite", pointerEvents:"none" }}/>
+          <div style={{ position:"relative", display:"flex", alignItems:"center", gap:14 }}>
+            {/* Photo + anneau platine animé */}
+            <div style={{ position:"relative", flexShrink:0, width:76, height:76 }}>
+              <div style={{ position:"absolute", inset:-3, borderRadius:"50%", background:"conic-gradient(#f8fafc,#94a3b8,#e5e7eb,#64748b,#f8fafc)", animation:"mvpRing 6s linear infinite", filter:"drop-shadow(0 0 6px #cbd5e166)" }}/>
+              <div style={{ position:"absolute", inset:0, borderRadius:"50%", overflow:"hidden", border:"2px solid #0d1017", background:"#0d1017", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                {photo
+                  ? <img src={photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                  : <span style={{ fontWeight:900, fontSize:28, color:PLAT }}>{(pseudo || "?")[0].toUpperCase()}</span>}
               </div>
-              <div style={{ fontSize:13,fontWeight:800,color:"#e2e8f0",marginBottom:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{name}</div>
-              <div style={{ fontSize:11,fontWeight:700,color }}>{val}</div>
             </div>
-          ))}
+            {/* Infos + stats */}
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontWeight:900, fontSize:19, color:"#f1f5f9", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textShadow:"0 0 14px #cbd5e144" }}>{pseudo}</div>
+              <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", marginTop:1, marginBottom:8, display:"flex", alignItems:"center", gap:4 }}>
+                <Gem size={11} color={PLAT}/> {drix ?? 1000} DRIX
+              </div>
+              <div style={{ display:"flex", gap:6 }}>
+                <MvpStat label="MOYENNE" value={moyenne ? moyenne.toFixed(1) : "—"} color="#e5e7eb"/>
+                <MvpStat label="V / D" value={`${wins}-${losses}`} color="#22c55e"/>
+                <MvpStat label="WIN" value={`${Math.round(winRate * 100)}%`} color="#60a5fa"/>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -5941,7 +5982,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         </div>
       ) : (
         <div>
-          {renderTrending()}
+          {renderAssoMvp()}
           {renderFeedWithSeparators()}
         </div>
       )}
