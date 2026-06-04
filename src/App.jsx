@@ -76,6 +76,10 @@ const db = {
   getReactions: (slug) => sb(`reactions?bar_slug=eq.${encodeURIComponent(slug)}&select=*`).then(r => r?.[0]),
   getCibleReports: (slug) => sb(`bar_cible_reports?bar_slug=eq.${encodeURIComponent(slug)}&select=joueur_id`),
   addCibleReport: (d) => sb("bar_cible_reports", { method:"POST", body:JSON.stringify(d), prefer:"return=minimal" }),
+  // Recommandations « Je recommande ce bar » — 1 par (bar, joueur), réversible (cf. bar_recommandations).
+  getRecommandations: (slug) => sb(`bar_recommandations?bar_slug=eq.${encodeURIComponent(slug)}&select=joueur_id`).catch(()=>[]),
+  addRecommandation: (d) => sb("bar_recommandations", { method:"POST", body:JSON.stringify(d), prefer:"return=minimal" }),
+  removeRecommandation: (slug, jid) => sb(`bar_recommandations?bar_slug=eq.${encodeURIComponent(slug)}&joueur_id=eq.${jid}`, { method:"DELETE", prefer:"return=minimal" }),
   getSignalements: () => sb("signalements?order=date.desc&select=*"),
   addSignalement: (d) => sb("signalements", { method:"POST", body:JSON.stringify(d) }),
   updateSignalement: (id, d) => sbAdmin("update", "signalements", { id }, d),
@@ -7257,6 +7261,7 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
   const [copied,setCopied]=useState(false);
   const [cibleReports,setCibleReports]=useState([]);
   const [cibleSending,setCibleSending]=useState(false);
+  const [recos,setRecos]=useState([]); const [recoBusy,setRecoBusy]=useState(false);
   const presenceRef=useRef(null);
 
   useEffect(()=>{
@@ -7272,6 +7277,7 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
     }).catch(()=>setLoading(false));
     db.getPhotos(slug).then(p=>{ if(p?.[0]) setCover(p[0].data); }).catch(()=>{});
     db.getCibleReports(slug).then(r=>setCibleReports(r||[])).catch(()=>{});
+    db.getRecommandations(slug).then(r=>setRecos(r||[])).catch(()=>setRecos([]));
   },[slug]);
 
   useEffect(()=>{
@@ -7298,6 +7304,26 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
       // le signalement est enregistré et revu par un admin.
     } catch(e) { /* conflit UNIQUE = déjà voté */ }
     setCibleSending(false);
+  };
+
+  const recoCount = recos.length;
+  const hasRecommended = !!joueur && recos.some(r => String(r.joueur_id) === String(joueur.id));
+  const handleReco = async () => {
+    if (!joueur) { setPage("connexion"); return; }
+    if (recoBusy) return;
+    setRecoBusy(true);
+    const jid = joueur.id;
+    const wasReco = recos.some(r => String(r.joueur_id) === String(jid));
+    // MAJ optimiste immédiate
+    setRecos(prev => wasReco ? prev.filter(r => String(r.joueur_id) !== String(jid)) : [...prev, { joueur_id: jid }]);
+    try {
+      if (wasReco) await db.removeRecommandation(bar.slug, jid);
+      else         await db.addRecommandation({ bar_slug: bar.slug, joueur_id: jid });
+    } catch(e) {
+      // Échec (table absente / réseau / conflit) → on resynchronise depuis la base
+      db.getRecommandations(bar.slug).then(r => setRecos(r||[])).catch(()=>{});
+    }
+    setRecoBusy(false);
   };
 
   const asso=associations.find(a=>a.nom===bar.association);
@@ -7344,6 +7370,32 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
           </div>
           <p style={{ color:C.muted,fontSize:12,marginTop:10,display:"flex",alignItems:"center",gap:5 }}><MapPin size={13}/> {bar.adresse}{bar.adresse?", ":""}{bar.cp} {bar.ville}</p>
         </div>
+
+        {/* ── JE RECOMMANDE CE BAR (néon orange) ── */}
+        <button
+          onClick={handleReco}
+          disabled={recoBusy}
+          aria-pressed={hasRecommended}
+          style={{
+            width:"100%", marginBottom:14, padding:"13px 16px", borderRadius:14,
+            cursor:recoBusy?"default":"pointer", touchAction:"manipulation",
+            display:"flex", alignItems:"center", justifyContent:"center", gap:9,
+            fontWeight:800, fontSize:15, letterSpacing:.2,
+            border:`1px solid ${hasRecommended?C.accent:"transparent"}`,
+            background:hasRecommended?C.accentTint:"linear-gradient(135deg,#f97316,#ea580c)",
+            color:hasRecommended?C.accent:"#fff",
+            boxShadow:hasRecommended?"none":"0 0 18px #f9731266, 0 0 40px #f9731233",
+            transition:"box-shadow .15s, transform .1s",
+          }}
+          onMouseEnter={e=>{ if(!hasRecommended && !recoBusy) e.currentTarget.style.boxShadow="0 0 26px #f97316aa, 0 0 60px #f9731244"; }}
+          onMouseLeave={e=>{ if(!hasRecommended) e.currentTarget.style.boxShadow="0 0 18px #f9731266, 0 0 40px #f9731233"; }}
+        >
+          <ThumbsUp size={18} fill={hasRecommended?C.accent:"none"} color={hasRecommended?C.accent:"#fff"}/>
+          {hasRecommended?"Tu recommandes ce spot":"Je recommande ce bar"}
+          {recoCount>0 && (
+            <span style={{ background:hasRecommended?C.accent:"rgba(0,0,0,.24)", color:"#fff", borderRadius:20, padding:"1px 9px", fontSize:12.5, fontWeight:800, marginLeft:1 }}>{recoCount}</span>
+          )}
+        </button>
 
         {/* ── ACTIONS RAPIDES ── */}
         <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:20 }}>
