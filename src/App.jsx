@@ -5774,8 +5774,8 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
           @keyframes mvpShine { 0%{transform:translateX(-130%) skewX(-18deg)} 60%,100%{transform:translateX(360%) skewX(-18deg)} }
           @keyframes mvpRing  { to { transform:rotate(360deg) } }
         `}</style>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, marginBottom:10 }}>
-          <Crown size={13} color={PLAT}/>
+        <div style={{ textAlign:"center", marginBottom:10, lineHeight:1.45 }}>
+          <Crown size={13} color={PLAT} style={{ verticalAlign:"-2px", marginRight:6 }}/>
           <span style={{ fontSize:11, fontWeight:900, color:PLAT, letterSpacing:1.5 }}>
             JOUEUR DE {periode === "semaine" ? "LA SEMAINE" : "LA SAISON"}{assoNom ? ` · ${assoNom.toUpperCase()}` : ""}
           </span>
