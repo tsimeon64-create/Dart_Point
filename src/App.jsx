@@ -5027,10 +5027,9 @@ const PageLive = ({ joueur, setPage }) => {
         const fresh = (data||[]).filter(s => (now - (s.debut||now)) < STALE_MS);
         const stale = (data||[]).filter(s => (now - (s.debut||now)) >= STALE_MS);
 
-        // Auto-cleanup des sessions zombies de l'utilisateur courant (et de ses amis qui sont participants)
-        const myId = String(joueur?.id||"");
-        const myStale = stale.filter(s => String(s.joueur1_id||"") === myId || String(s.joueur2_id||"") === myId);
-        for (const z of myStale) {
+        // Auto-cleanup : toute session en_cours depuis +2h est une zombie → on la passe en "abandonne".
+        // N'importe quel client qui la voit la nettoie (plus seulement son propriétaire), pour purger la base.
+        for (const z of stale) {
           sb(`live_sessions?id=eq.${z.id}`, { method:"PATCH", body:JSON.stringify({ statut:"abandonne" }), prefer:"return=minimal" }).catch(()=>{});
         }
 
@@ -5338,10 +5337,12 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
   useEffect(() => { chargerFeed(); }, [chargerFeed]);
 
   // Live match count badge (refreshes every 30s)
+  // Exclut les sessions zombies (>2h sans clôture) — même seuil que la liste Live.
   useEffect(() => {
     if (!joueur?.id) return;
+    const STALE_MS = 2 * 60 * 60 * 1000;
     const fetchLive = () =>
-      sb(`live_sessions?statut=eq.en_cours&select=id`).catch(()=>[])
+      sb(`live_sessions?statut=eq.en_cours&debut=gt.${Date.now() - STALE_MS}&select=id`).catch(()=>[])
         .then(r => setLiveCount((r||[]).length));
     fetchLive();
     const iv = setInterval(fetchLive, 30000);
