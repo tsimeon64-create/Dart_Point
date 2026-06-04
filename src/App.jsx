@@ -6626,9 +6626,19 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
   const [chipFilter, setChipFilter] = useState("tous");
   const [joueursPresentAujourd, setJoueursPresentAujourd] = useState(0);
   const [presencesParBar, setPresencesParBar] = useState({}); // {bar_slug: count}
+  const [recosParBar, setRecosParBar] = useState({}); // {bar_slug: nb de recommandations}
   const [liveActivity, setLiveActivity] = useState([]); // récent : presences + duels
 
   useEffect(() => { if (villeFilter) { setSearch(villeFilter); setVilleFilter(null); } }, [villeFilter]);
+
+  // Nombre de recommandations par bar (table optionnelle → dégrade en {} si absente)
+  useEffect(() => {
+    sb(`bar_recommandations?select=bar_slug`).then(rows => {
+      const counts = {};
+      for (const r of (rows||[])) if (r.bar_slug) counts[r.bar_slug] = (counts[r.bar_slug]||0) + 1;
+      setRecosParBar(counts);
+    }).catch(() => setRecosParBar({}));
+  }, []);
 
   // Stats live : nb joueurs actifs aujourd'hui + breakdown par bar + activité récente
   useEffect(() => {
@@ -7006,6 +7016,9 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
                             <span style={{ background:"#f9731618",color:"#f97316",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,display:"inline-flex",alignItems:"center",gap:3 }}>
                               {b.type==="traditionnel" ? <><Target size={10}/> Traditionnel</> : b.type==="electronique" ? <><Zap size={10}/> Électronique</> : <><Building2 size={10}/> Bar</>}
                             </span>
+                            {(recosParBar[b.slug]||0) > 0 && (
+                              <span style={{ background:"#f97316",color:"#fff",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:800,display:"inline-flex",alignItems:"center",gap:3 }}><ThumbsUp size={10}/> {recosParBar[b.slug]}</span>
+                            )}
                           </div>
                         </div>
                         <div style={{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,flexShrink:0 }}>
@@ -7202,6 +7215,9 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
                             <span style={{ background:"#fbbf2420",color:"#fbbf24",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3 }}><Trophy size={10}/> Tournois</span>
                             {barsActifs.includes(b.slug)&&<span style={{ background:"#22c55e20",color:"#22c55e",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3 }}><div style={{ width:6,height:6,borderRadius:"50%",background:"#22c55e",animation:"pulse-dot 2s infinite" }}/> Actif ce soir</span>}
                             <span style={{ background:"#f9731618",color:"#f97316",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,display:"inline-flex",alignItems:"center",gap:3 }}><Target size={10}/> {b.cibles} cible{b.cibles>1?"s":""}</span>
+                            {(recosParBar[b.slug]||0) > 0 && (
+                              <span style={{ background:"#f97316",color:"#fff",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:800,display:"inline-flex",alignItems:"center",gap:3 }}><ThumbsUp size={10}/> {recosParBar[b.slug]}</span>
+                            )}
                           </div>
                         </div>
                         <span style={{ background:"linear-gradient(135deg,#dc2626,#991b1b)",color:"#fff",padding:"7px 13px",borderRadius:8,fontSize:12,fontWeight:700,flexShrink:0 }}>Voir →</span>
@@ -7391,9 +7407,9 @@ const BarDetail = ({ slug, allBars, associations, setBars, setPage, setAssoSlug,
           onMouseLeave={e=>{ if(!hasRecommended) e.currentTarget.style.boxShadow="0 0 18px #f9731266, 0 0 40px #f9731233"; }}
         >
           <ThumbsUp size={18} fill={hasRecommended?C.accent:"none"} color={hasRecommended?C.accent:"#fff"}/>
-          {hasRecommended?"Tu recommandes ce spot":"Je recommande ce bar"}
+          {hasRecommended?"Recommandé":"Je recommande ce bar"}
           {recoCount>0 && (
-            <span style={{ background:hasRecommended?C.accent:"rgba(0,0,0,.24)", color:"#fff", borderRadius:20, padding:"1px 9px", fontSize:12.5, fontWeight:800, marginLeft:1 }}>{recoCount}</span>
+            <span style={{ background:hasRecommended?C.accent:"rgba(0,0,0,.24)", color:"#fff", borderRadius:999, padding:"1px 7px", fontSize:11.5, fontWeight:800, marginLeft:1, lineHeight:1.55, minWidth:15, textAlign:"center" }}>{recoCount}</span>
           )}
         </button>
 
