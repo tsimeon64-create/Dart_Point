@@ -141,20 +141,18 @@ export const checkYesterdayReward = async (joueur, onWin) => {
   localStorage.setItem("dp_chrono_last_check", today);
 
   const yesterday = getYesterday();
-  // ⚠ Filtre statut=termine pour exclure les abandons (temps_ms=0)
-  // Sans ce filtre, un joueur qui a abandonné serait déclaré vainqueur en 0.0s
-  const scores = await sb(
-    `chrono_finish_scores?date_jour=eq.${yesterday}&rewarded=eq.false&statut=eq.termine&temps_ms=gt.0&order=temps_ms.asc&limit=1`
+  // CLAIM ATOMIQUE de toute la journée : un seul PATCH flippe rewarded false→true pour
+  // tous les scores TERMINÉS d'hier (temps>0, exclut les abandons) et nous renvoie les
+  // lignes réellement verrouillées (return=representation). Si vide → un autre client a
+  // déjà distribué → on s'arrête. Le vainqueur = meilleur temps PARMI ces lignes : un
+  // double crédit devient impossible, même avec deux navigateurs ouverts en parallèle.
+  const claimed = await sb(
+    `chrono_finish_scores?date_jour=eq.${yesterday}&rewarded=eq.false&statut=eq.termine&temps_ms=gt.0`,
+    { method: "PATCH", body: JSON.stringify({ rewarded: true }), prefer: "return=representation" }
   );
-  if (!scores || scores.length === 0) return;
-
-  const winner = scores[0];
-  // Marquer tous les scores d'hier comme rewarded (évite les doubles attributions)
-  await sb(`chrono_finish_scores?date_jour=eq.${yesterday}`, {
-    method: "PATCH",
-    body: JSON.stringify({ rewarded: true }),
-    prefer: "return=minimal",
-  });
+  if (!Array.isArray(claimed) || claimed.length === 0) return;
+  const winner = claimed.reduce((best, s) => (best == null || s.temps_ms < best.temps_ms ? s : best), null);
+  if (!winner) return;
 
   // Récupérer le DRIX actuel du vainqueur
   const jArr = await sb(`joueurs?id=eq.${winner.joueur_id}&select=id,drix`);

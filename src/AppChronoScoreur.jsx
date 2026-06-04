@@ -1288,6 +1288,14 @@ export const checkYesterdayScoreurReward = async (joueur) => {
   if (!myRow || !myRow[0]) return;
   const me = myRow[0];
 
+  // CLAIM ATOMIQUE de ma propre ligne : flippe rewarded false→true et ne continue QUE
+  // si on a vraiment verrouillé (return=representation non vide). Évite tout double
+  // crédit si l'app s'ouvre/relance deux fois en parallèle pour le même joueur.
+  const claimed = await sb(`chrono_scoreur_scores?id=eq.${me.id}&rewarded=eq.false`, {
+    method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ rewarded: true }),
+  });
+  if (!Array.isArray(claimed) || claimed.length === 0) return;
+
   // Classement d'hier
   const ranking = await sb(`chrono_scoreur_scores?date_jour=eq.${yest}&statut=eq.termine&order=temps_ms.asc&limit=50&select=joueur_id,temps_ms`);
   if (!ranking) return;
@@ -1299,7 +1307,7 @@ export const checkYesterdayScoreurReward = async (joueur) => {
   const newDrix = (joueur.drix || 1000) + drix;
   await Promise.all([
     sb(`joueurs?id=eq.${joueur.id}`, { method:"PATCH", headers:{ Prefer:"return=minimal" }, body: JSON.stringify({ drix: newDrix }) }),
-    sb(`chrono_scoreur_scores?id=eq.${me.id}`, { method:"PATCH", headers:{ Prefer:"return=minimal" }, body: JSON.stringify({ rewarded: true }) }),
+    // (rewarded déjà posé atomiquement plus haut)
     sb("drix_mouvements", { method:"POST", headers:{ Prefer:"return=minimal" }, body: JSON.stringify({
       joueur_id: joueur.id, joueur_pseudo: joueur.pseudo,
       adversaire_pseudo: `⏱ Scoreur Speedrun — ${label}`,
