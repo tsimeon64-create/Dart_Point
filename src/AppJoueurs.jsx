@@ -594,6 +594,20 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       const unlocked = ALL_BADGES.filter(b=>b.val(vals)>=b.seuil).length;
       setBadgeCount(unlocked);
       storeBadgesSet(joueur.id, new Set(ALL_BADGES.filter(b=>b.val(vals)>=b.seuil).map(b=>b.id)));
+      // ── XP : resynchronise l'XP réel (gagné en duel/présence) + crédite les badges (+100, 1 fois) ──
+      // On relit l'XP FRAIS en base avant d'écrire, sinon le crédit badge écraserait l'XP
+      // gagné en duel depuis le dernier chargement du prop `joueur`.
+      dbJ.getJoueur(joueur.id).then(fresh => {
+        if (!fresh) return;
+        const cred = fresh.xp_badges_credited || 0;
+        let newXp = fresh.xp || 0;
+        if (unlocked > cred) {
+          newXp += (unlocked - cred) * 100;
+          sbJ(`joueurs?id=eq.${joueur.id}`, { method:"PATCH", prefer:"return=minimal", body: JSON.stringify({ xp:newXp, niveau:getNiveauXP(newXp).niveau, xp_badges_credited:unlocked }) }).catch(()=>{});
+        }
+        const credFinal = unlocked > cred ? unlocked : cred;
+        if (setJoueur) setJoueur(p => ({ ...p, xp:newXp, niveau:getNiveauXP(newXp).niveau, xp_badges_credited:credFinal }));
+      }).catch(()=>{});
       // Initialise le compteur "vus" si jamais défini (première connexion)
       if (!localStorage.getItem(`dp_badges_seen_${joueur.id}`)) {
         localStorage.setItem(`dp_badges_seen_${joueur.id}`, String(unlocked));
@@ -845,6 +859,9 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             </div>
           </div>
         </div>
+
+        {/* ⭐ Niveau XP + barre de progression (sous le DRIX) */}
+        <XpBlock xp={joueur.xp || 0} />
 
         {/* Quick stats row (amis · badges · matchs) */}
         <div style={{
@@ -2887,6 +2904,9 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
         </div>
       </div>
 
+      {/* ⭐ Niveau XP + barre de progression (sous le DRIX) */}
+      <div style={{ marginBottom: 10 }}><XpBlock xp={j.xp || 0} /></div>
+
       {/* ════ RÉSUMÉ EXPRESS (capsules) ════ */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10,...sec(1)}}>
         {[
@@ -4164,7 +4184,7 @@ export const PresenceSection = ({ barSlug, joueur }) => {
       setPresences(x => x.filter(p => p.id !== maPresence.id));
     } else {
       const r = await dbJ.addPresence({ joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, bar_slug:barSlug, date_jour:todayStr(), heure:Date.now() });
-      if (r?.[0]) { setMaPresence(r[0]); setPresences(x => [...x, r[0]]); }
+      if (r?.[0]) { setMaPresence(r[0]); setPresences(x => [...x, r[0]]); ajouterXP(joueur.id, 5).catch(()=>{}); } // +5 XP présence
     }
   };
 
@@ -4290,6 +4310,7 @@ const LADDER_CSS = `
 
 const dbDrix = {
   updateDrix: (id, drix) => sbJ(`joueurs?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ drix }), prefer:"return=minimal" }),
+  updateXP: (id, xp, niveau) => sbJ(`joueurs?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ xp, niveau }), prefer:"return=minimal" }),
   addMouvement: (d) => sbJ("drix_mouvements", { method:"POST", body:JSON.stringify(d) }),
   getClassement: () => sbJ("joueurs?order=drix.desc&select=id,pseudo,drix,bar_slug,asso_slug,photo"),
   getClassementBar: (slug) => sbJ(`joueurs?bar_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo`),
@@ -4333,6 +4354,97 @@ export const calculerBonusPerformance = (joueursData = [], manchesDetail = []) =
       total,
     };
   });
+};
+
+// ════ SYSTÈME XP ════════════════════════════════════════════════════════════
+// XP = expérience (parallèle au DRIX qui, lui, est l'ELO pur du niveau réel).
+export const NIVEAUX_XP = [
+  { niveau: 1,  xp: 0,     titre: "Rookie" },
+  { niveau: 5,  xp: 500,   titre: "Régulier" },
+  { niveau: 10, xp: 2000,  titre: "Habitué" },
+  { niveau: 20, xp: 8000,  titre: "Vétéran" },
+  { niveau: 50, xp: 50000, titre: "Légende" },
+];
+
+// Niveau + titre + progression vers le palier suivant à partir d'un total d'XP.
+export const getNiveauXP = (xp = 0) => {
+  const x = Math.max(0, Math.floor(xp || 0));
+  let cur = NIVEAUX_XP[0], next = null;
+  for (let i = 0; i < NIVEAUX_XP.length; i++) {
+    if (x >= NIVEAUX_XP[i].xp) { cur = NIVEAUX_XP[i]; next = NIVEAUX_XP[i + 1] || null; }
+  }
+  const progres = next ? Math.min(100, Math.max(0, Math.round(((x - cur.xp) / (next.xp - cur.xp)) * 100))) : 100;
+  return {
+    niveau: cur.niveau, titre: cur.titre, xp: x,
+    palierProchain: next ? next.xp : null, prochainTitre: next ? next.titre : null,
+    restant: next ? Math.max(0, next.xp - x) : 0, progres,
+  };
+};
+
+// XP gagné par un duel terminé. Retourne [{total,lines}, {total,lines}] = [challenger, défié].
+// joueursData[i] = { nom, manchesGagnees, tours:[volées] } ; moyennes[i] = moyenne pts/volée du match.
+export const calculerXP = (joueursData = [], manchesDetail = [], duel = {}, moyennes = []) => {
+  const ids = [duel.challenger_id, duel.defie_id];
+  return joueursData.slice(0, 2).map((j, i) => {
+    const lines = [];
+    const add = (xp, label) => { if (xp > 0) lines.push({ label, xp }); };
+    const won = ids[i] === duel.gagnant_id;
+    const monManches = j.manchesGagnees || 0;
+    const advManches = joueursData[1 - i]?.manchesGagnees || 0;
+    const tours = j.tours || [];
+    const moyenne = moyennes[i] != null ? Number(moyennes[i]) : (tours.length ? tours.reduce((a, b) => a + b, 0) / tours.length : 0);
+
+    add(25, "Match joué");
+    add(15, "Défi accepté");
+    if (won) add(50, "Match gagné");
+    if (won && monManches >= 3 && advManches === 0) add(100, "Victoire 3-0");
+    add(monManches * 10, `${monManches} manche(s) gagnée(s)`);
+
+    let v180 = 0, v140 = 0, v120 = 0;
+    for (const v of tours) { if (v >= 180) v180++; else if (v >= 140) v140++; else if (v >= 120) v120++; }
+    add(v180 * 50, `${v180} × 180`);
+    add(v140 * 20, `${v140} × 140-179`);
+    add(v120 * 10, `${v120} × 120-139`);
+
+    const finishes = manchesDetail.filter(m => m.winner === j.nom && (m.winner_finish || 0) >= 120).length;
+    add(finishes * 30, `${finishes} finish ≥ 120`);
+
+    if (moyenne >= 90) add(75, "Moyenne ≥ 90");
+    else if (moyenne >= 70) add(40, "Moyenne ≥ 70");
+    else if (moyenne >= 50) add(20, "Moyenne ≥ 50");
+
+    return { total: lines.reduce((s, l) => s + l.xp, 0), lines };
+  });
+};
+
+// Bloc d'affichage XP : ⭐ Niveau + titre + barre de progression vers le palier suivant.
+export const XpBlock = ({ xp = 0 }) => {
+  const n = getNiveauXP(xp);
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5, gap: 8 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 800, color: "#fbbf24" }}>
+          <Star size={14} color="#fbbf24" fill="#fbbf24" /> Niveau {n.niveau} · {n.titre}
+        </span>
+        <span style={{ fontSize: 11, color: CJ.muted, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{n.xp.toLocaleString("fr-FR")} XP</span>
+      </div>
+      <div style={{ height: 9, borderRadius: 99, background: "#15151f", border: "1px solid #2a2a2a", overflow: "hidden" }}>
+        <div style={{ width: `${n.progres}%`, height: "100%", borderRadius: 99, background: "linear-gradient(90deg,#fbbf24,#f59e0b)", boxShadow: "0 0 10px #fbbf2466", transition: "width .6s ease" }} />
+      </div>
+      <div style={{ fontSize: 10, color: CJ.muted, marginTop: 4, textAlign: "right" }}>
+        {n.palierProchain ? `Plus que ${n.restant.toLocaleString("fr-FR")} XP → ${n.prochainTitre}` : "Niveau max atteint 🏆"}
+      </div>
+    </div>
+  );
+};
+
+// Ajoute du XP à un joueur (lecture-écriture ; échelle de l'app, cf. updateBarVues).
+export const ajouterXP = async (joueurId, delta, joueurConnu = null) => {
+  if (!delta || delta <= 0) return null;
+  const j = joueurConnu || await dbJ.getJoueur(joueurId);
+  const newXp = (j?.xp || 0) + delta;
+  await dbDrix.updateXP(joueurId, newXp, getNiveauXP(newXp).niveau).catch(() => {});
+  return newXp;
 };
 
 // Vérifie si les deux joueurs sont rivaux cette semaine (rivalité hebdo localStorage)
@@ -4444,14 +4556,27 @@ const upsertStatsRow = async (statsRow, joueurId, isWinner) => {
   });
 };
 
-export const finaliserDuel = async (duel, perfBonus = null) => {
-  const breakdown = await appliquerDrixDuel(duel, perfBonus);
+export const finaliserDuel = async (duel, matchData = null) => {
+  // DRIX = ELO pur (perfBonus toujours null désormais).
+  const breakdown = await appliquerDrixDuel(duel, null);
   const gagnantId = duel.gagnant_id;
   const [sC, sD] = await Promise.all([dbJ.getStats(duel.challenger_id), dbJ.getStats(duel.defie_id)]);
   await Promise.all([
     upsertStatsRow(sC, duel.challenger_id, gagnantId === duel.challenger_id).catch(()=>{}),
     upsertStatsRow(sD, duel.defie_id,      gagnantId === duel.defie_id).catch(()=>{}),
   ]);
+  // ── XP du duel (volées, finishes, moyenne… calculés depuis les données du match) ──
+  if (matchData?.joueursData?.length >= 2) {
+    try {
+      const xps = calculerXP(matchData.joueursData, matchData.manchesDetail || [], duel, matchData.moyennes || []);
+      const [jCx, jDx] = await Promise.all([dbJ.getJoueur(duel.challenger_id), dbJ.getJoueur(duel.defie_id)]);
+      await Promise.all([
+        ajouterXP(duel.challenger_id, xps[0].total, jCx).catch(()=>{}),
+        ajouterXP(duel.defie_id,      xps[1].total, jDx).catch(()=>{}),
+      ]);
+      if (breakdown) { breakdown.challenger.xp = xps[0]; breakdown.defie.xp = xps[1]; }
+    } catch(e) { /* XP best-effort : n'empêche jamais la finalisation du duel */ }
+  }
   return breakdown;
 };
 

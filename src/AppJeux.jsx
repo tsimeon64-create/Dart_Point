@@ -1169,13 +1169,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         })
       });
 
-      // ⛔ Bonus de performance DÉSACTIVÉ — DRIX = ELO pur (victoire/défaite uniquement).
-      // On ne calcule ni n'applique plus de bonus volées / finishes / manches.
-      // (Le DRIX actuel de chacun est gelé tel quel ; seul l'ELO pur évolue désormais.)
-      // Pour le réactiver un jour : repasser calculerBonusPerformance(joueursData, manchesDetail).
-      const perfBonus = null;
-
-      const breakdown = await finaliserDuel({ ...duel, gagnant_id: gagnantId }, perfBonus);
+      // DRIX = ELO pur (bonus de performance désactivé). Le 2e argument porte les
+      // données du match → attribution d'XP (match, manches, volées, finishes, moyenne).
+      const breakdown = await finaliserDuel(
+        { ...duel, gagnant_id: gagnantId },
+        { joueursData, manchesDetail, moyennes: [moyC, moyD] }
+      );
       if (breakdown) setDrixBreakdown(breakdown);
 
       // ── Post Comptoir (TOUS les duels — y compris amicaux) ──
