@@ -5762,6 +5762,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     if (!assoMvp) return null;
     const { pseudo, photo, drix, moyenne, wins, losses, winRate, periode, assoNom, id } = assoMvp;
     const PLAT = "#cbd5e1";
+    const assoLabel = ((assoNom || "").split(/\s[–—-]\s/)[0] || "").trim(); // retire le suffixe " – Fléchettes"
     const MvpStat = ({ label, value, color }) => (
       <div style={{ flex:"1 1 0", minWidth:64, background:"#ffffff0a", border:"1px solid #ffffff14", borderRadius:10, padding:"7px 8px", textAlign:"center" }}>
         <div style={{ fontSize:8.5, fontWeight:900, color:"#94a3b8", letterSpacing:1.2, marginBottom:3 }}>{label}</div>
@@ -5777,7 +5778,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         <div style={{ textAlign:"center", marginBottom:10, lineHeight:1.45 }}>
           <Crown size={13} color={PLAT} style={{ verticalAlign:"-2px", marginRight:6 }}/>
           <span style={{ fontSize:11, fontWeight:900, color:PLAT, letterSpacing:1.5 }}>
-            JOUEUR DE {periode === "semaine" ? "LA SEMAINE" : "LA SAISON"}{assoNom ? ` · ${assoNom.toUpperCase()}` : ""}
+            JOUEUR DE {periode === "semaine" ? "LA SEMAINE" : "LA SAISON"}{assoLabel ? ` · ${assoLabel.toUpperCase()}` : ""}
           </span>
         </div>
         <div onClick={() => id && setPage("profil-joueur-" + id)}
