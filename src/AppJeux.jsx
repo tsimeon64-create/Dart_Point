@@ -665,7 +665,7 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
     </div>
   );
 };
-import { finaliserDuel, calculerBonusPerformance } from "./AppJoueurs";
+import { finaliserDuel } from "./AppJoueurs";
 
 // ── AppJeux.jsx ───────────────────────────────────────────────────────────────
 // Table de checkout exacte — source : darts501.com
@@ -1169,10 +1169,11 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         })
       });
 
-      // ── Calcul bonus de performance ──
-      const perfBonus = duel.type !== "amical" && joueursData.length >= 2
-        ? calculerBonusPerformance(joueursData, manchesDetail)
-        : null;
+      // ⛔ Bonus de performance DÉSACTIVÉ — DRIX = ELO pur (victoire/défaite uniquement).
+      // On ne calcule ni n'applique plus de bonus volées / finishes / manches.
+      // (Le DRIX actuel de chacun est gelé tel quel ; seul l'ELO pur évolue désormais.)
+      // Pour le réactiver un jour : repasser calculerBonusPerformance(joueursData, manchesDetail).
+      const perfBonus = null;
 
       const breakdown = await finaliserDuel({ ...duel, gagnant_id: gagnantId }, perfBonus);
       if (breakdown) setDrixBreakdown(breakdown);

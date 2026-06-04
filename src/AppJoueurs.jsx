@@ -4393,7 +4393,8 @@ export const appliquerDrixDuel = async (duel, perfBonus = null) => {
       eloD = challengerGagne ? -perteD   : gainBaseD;
     }
 
-    // Bonus performance (volées, finishes…) — conservés pour les deux modes
+    // Bonus de performance : DÉSACTIVÉ — l'appelant (AppJeux) passe désormais perfBonus=null,
+    // donc bonus = 0 → DRIX = ELO pur (victoire/défaite). Code conservé pour réactivation éventuelle.
     const bonusC = perfBonus?.[0]?.total || 0;
     const bonusD = perfBonus?.[1]?.total || 0;
 
