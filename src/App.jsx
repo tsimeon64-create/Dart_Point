@@ -147,7 +147,7 @@ const VILLES_FR = {
 // C importé depuis src/theme.js
 
 // ── LEAFLET ───────────────────────────────────────────────────────────────────
-function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoClick, onTournoiClick, centerSlug=null, centerVille=null, height=400, barsActifs=[], userPos=null }) {
+function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoClick, onTournoiClick, centerSlug=null, centerVille=null, height=400, barsActifs=[], userPos=null, recosParBar={} }) {
   const divRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
@@ -181,7 +181,11 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
     if (!ready || !mapRef.current) return;
     const L = window.L; const map = mapRef.current;
     markersRef.current.forEach(m => m.remove()); markersRef.current = [];
-    const mkIcon = (iconHtml, bg, size=30, badge=false) => L.divIcon({ className:"", html:`<div style="width:${size}px;height:${size}px;background:${bg};border:3px solid rgba(255,255,255,0.4);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.5);cursor:pointer;position:relative">${iconHtml}${badge?`<span style="position:absolute;top:-4px;right:-4px;background:#22c55e;border-radius:50%;width:12px;height:12px;border:2px solid #0f0f0f"></span>`:""}</div>`, iconSize:[size,size], iconAnchor:[size/2,size/2] });
+    const mkIcon = (iconHtml, bg, size=30, badge=false, recoCount=0) => {
+      const activeDot = badge ? `<span style="position:absolute;top:-3px;left:-3px;background:#22c55e;border-radius:50%;width:12px;height:12px;border:2px solid #0f0f0f"></span>` : "";
+      const recoBadge = recoCount > 0 ? `<span style="position:absolute;top:-7px;right:-7px;min-width:18px;height:18px;padding:0 4px;box-sizing:border-box;background:#f97316;color:#fff;border:2px solid #fff;border-radius:9px;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 1px 5px rgba(0,0,0,0.55)">${recoCount}</span>` : "";
+      return L.divIcon({ className:"", html:`<div style="width:${size}px;height:${size}px;background:${bg};border:3px solid rgba(255,255,255,0.4);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.5);cursor:pointer;position:relative">${iconHtml}${activeDot}${recoBadge}</div>`, iconSize:[size,size], iconAnchor:[size/2,size/2] });
+    };
     const popup = (html) => `<div style="font-family:Inter,sans-serif;min-width:160px;color:#111111;background:#ffffff">${html}</div>`;
     // Boutons de popup liés via popupopen (plus d'onclick inline ni de global window.__dp*)
     const mkBtn = (color) => `<button data-dpgo="1" style="margin-top:8px;background:${color};color:#fff;border:none;border-radius:6px;padding:9px 14px;cursor:pointer;font-size:12px;font-weight:600">Voir →</button>`;
@@ -189,7 +193,7 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
     bars.forEach(bar => {
       if (bar.lat == null || bar.lng == null) return;
       const isHL = bar.slug===centerSlug; const isActif = barsActifs.includes(bar.slug);
-      const m = L.marker([bar.lat,bar.lng], { icon:mkIcon(lmSvg("beer",{size:(isHL?40:32)*0.5,color:isHL?C.accent:"#fff"}), isHL?"#fff":C.accent, isHL?40:32, isActif) }).addTo(map);
+      const m = L.marker([bar.lat,bar.lng], { icon:mkIcon(lmSvg("beer",{size:(isHL?40:32)*0.5,color:isHL?C.accent:"#fff"}), isHL?"#fff":C.accent, isHL?40:32, isActif, recosParBar[bar.slug]||0) }).addTo(map);
       m.bindPopup(popup(`<strong>${escHtml(bar.nom)}</strong><br><span style="color:#555;font-size:12px">${lmSvg("pin",{size:11,color:"#555",va:-2})} ${escHtml(bar.ville)}</span>${isActif?`<br><span style="color:#16a34a;font-size:11px">${lmSvg("circle",{size:9,color:"#16a34a",fill:"#16a34a",va:-1})} Joueurs ce soir</span>`:""}<br>${mkBtn("#f97316")}`));
       bindGo(m, onBarClick, bar.slug);
       markersRef.current.push(m);
@@ -209,7 +213,7 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
       markersRef.current.push(m);
     });
     if (centerSlug) { const all=[...bars,...associations,...tournois].find(x=>x.slug===centerSlug); if(all?.lat) map.flyTo([all.lat,all.lng],15,{duration:0.8}); }
-  }, [ready, bars, associations, tournois, centerSlug, barsActifs]);
+  }, [ready, bars, associations, tournois, centerSlug, barsActifs, recosParBar]);
 
   useEffect(() => {
     if (!ready || !mapRef.current || !centerVille || centerVille.trim().length < 2) return;
@@ -6983,7 +6987,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
           {view==="carte"&&(
             <div style={{ marginBottom:16 }}>
               <div style={{ borderRadius:16,overflow:"hidden",border:"1px solid #f9731620",boxShadow:"0 0 30px #f9731620" }}>
-                <LeafletMap bars={filteredBars} associations={[]} onBarClick={s=>{setBarSlug(s);setPage("bar");}} centerVille={search||null} height="48vh" barsActifs={barsActifs} userPos={userPos}/>
+                <LeafletMap bars={filteredBars} associations={[]} onBarClick={s=>{setBarSlug(s);setPage("bar");}} centerVille={search||null} height="48vh" barsActifs={barsActifs} userPos={userPos} recosParBar={recosParBar}/>
               </div>
               {(() => { const sans = filteredBars.filter(b => num(b.lat)==null || num(b.lng)==null).length; return sans>0 ? <div style={{ fontSize:12, color:"#94a3b8", marginTop:8, textAlign:"center" }}><EmoIcon e="📍" size={12} style={{verticalAlign:"-2px",marginRight:4}}/>{sans} spot{sans>1?"s":""} sans position — passe en vue Liste pour {sans>1?"les":"le"} voir</div> : null; })()}
             </div>
@@ -7192,7 +7196,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
           {/* Carte */}
           {view==="carte"&&(
             <div style={{ marginBottom:16,borderRadius:16,overflow:"hidden",border:"1px solid #dc262620",boxShadow:"0 0 30px #dc262615" }}>
-              <LeafletMap bars={filteredBars} associations={[]} onBarClick={s=>{setBarSlug(s);setPage("bar");}} centerVille={search||null} height="48vh" barsActifs={barsActifs} userPos={userPos}/>
+              <LeafletMap bars={filteredBars} associations={[]} onBarClick={s=>{setBarSlug(s);setPage("bar");}} centerVille={search||null} height="48vh" barsActifs={barsActifs} userPos={userPos} recosParBar={recosParBar}/>
             </div>
           )}
 
