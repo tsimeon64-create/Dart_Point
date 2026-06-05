@@ -110,6 +110,9 @@ const slugify = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g
 // \u00c9chappe le HTML \u2014 pour tout contenu utilisateur inject\u00e9 en innerHTML (popups Leaflet)
 const escHtml = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 
+// Comptes de test à exclure du « Joueur de la semaine » (et réutilisable ailleurs). Par pseudo.
+const COMPTES_TEST = new Set(["Thomas", "Toto"]);
+
 // Marqueurs Leaflet : icônes Lucide rendues en SVG inline (chaîne HTML, hors React).
 const LM_PATHS = {
   beer: '<path d="M17 11h1a3 3 0 0 1 0 6h-1"/><path d="M9 12v6"/><path d="M13 12v6"/><path d="M14 7.5c-1 0-1.44.5-3 .5s-2-.5-3-.5-1.72.5-2.5.5a2.5 2.5 0 0 1 0-5c.78 0 1.57.5 2.5.5S9.44 2 11 2s2 1.5 3 1.5 1.72-.5 2.5-.5a2.5 2.5 0 0 1 0 5c-.78 0-1.5-.5-2.5-.5Z"/><path d="M5 8v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8"/>',
@@ -5167,7 +5170,10 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         sb(`associations?slug=eq.${encodeURIComponent(slug)}&select=nom`).catch(() => []),
       ]);
       if (!alive || !membres?.length) return;
-      const ids = membres.map((m) => m.id);
+      // Comptes de test exclus du « Joueur de la semaine »
+      const membresOk = membres.filter((m) => !COMPTES_TEST.has((m.pseudo || "").trim()));
+      if (!membresOk.length) { setAssoMvp(null); return; }
+      const ids = membresOk.map((m) => m.id);
       const duels = await sb(
         `duels?or=(challenger_id.in.(${ids.join(",")}),defie_id.in.(${ids.join(",")}))&statut=eq.termine&select=challenger_id,defie_id,gagnant_id,score_challenger,score_defie,date&limit=3000`
       ).catch(() => []);
@@ -5184,7 +5190,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         const games = wins + losses;
         return { games, wins, losses, moyenne: nMoy ? sumMoy / nMoy : 0, winRate: games ? wins / games : 0 };
       };
-      const per = membres.map((m) => {
+      const per = membresOk.map((m) => {
         const mine = (duels || []).filter((d) => d.challenger_id === m.id || d.defie_id === m.id);
         return { m, week: calc(mine.filter((d) => (d.date || 0) >= weekTs), m.id), all: calc(mine, m.id) };
       });
