@@ -195,6 +195,9 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
   const hasAnyBonus = (b) => b && ((b.bonusManches||0)>0 || (b.nbGrossesVolees||0)>0 || (b.nbGrosFinish||0)>0);
   const winnerHasBonus = hasAnyBonus(winnerBonuses);
   const loserHasBonus  = hasAnyBonus(loserBonuses);
+  // XP gagné par le match (les performances 180/finish/moyenne sont désormais versées en XP, pas en DRIX)
+  const winnerXp = drixBreakdown ? (gagnantIsChallenger ? drixBreakdown.challenger.xp : drixBreakdown.defie.xp) : null;
+  const loserXp  = drixBreakdown ? (gagnantIsChallenger ? drixBreakdown.defie.xp      : drixBreakdown.challenger.xp) : null;
 
   // Partage WhatsApp — ouvre WhatsApp avec un résumé du match
   const partagerWhatsApp = () => {
@@ -463,6 +466,35 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
                 <BonusChips b={loserBonuses} delay={0.9}/>
               </div>
             )}
+          </div>
+        );
+      })()}
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* 5bis. XP GAGNÉ — total + détail (180, finishes, moyenne, manches…) */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {modeDuel && ((winnerXp?.total || 0) > 0 || (loserXp?.total || 0) > 0) && (() => {
+        const XpCard = ({ nom, xp, sub }) => (
+          <div style={{ background:`${sub}0d`, border:`1px solid ${sub}33`, borderRadius:12, padding:"10px 9px" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:6, marginBottom:6 }}>
+              <span style={{ fontSize:10, fontWeight:800, color:sub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{nom}</span>
+              <span style={{ fontSize:14, fontWeight:900, color:"#fbbf24", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>+{xp?.total||0} XP</span>
+            </div>
+            {(xp?.lines||[]).map((ln,i)=>(
+              <div key={i} style={{ display:"flex", justifyContent:"space-between", fontSize:9.5, padding:"1.5px 0", color:"#94a3b8", gap:6 }}>
+                <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ln.label}</span>
+                <span style={{ fontWeight:700, color:"#fbbf24", flexShrink:0 }}>+{ln.xp}</span>
+              </div>
+            ))}
+          </div>
+        );
+        return (
+          <div style={{ marginBottom:14, animation:"finCardIn .5s .85s both" }}>
+            <div style={{ fontSize:10, fontWeight:800, color:"#fbbf24", letterSpacing:2, marginBottom:8, textTransform:"uppercase", textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}><EmoIcon e="⭐" size={11}/>XP gagné</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              <XpCard nom={gagnant?.nom} xp={winnerXp} sub="#22c55e"/>
+              <XpCard nom={perdantNom} xp={loserXp} sub="#ef4444"/>
+            </div>
           </div>
         );
       })()}
@@ -1212,6 +1244,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             bonusFinish: bkW?.bonus?.bonusFinish || 0,
             nbFinish: bkW?.bonus?.nbGrosFinish || 0,
             total: bkW?.totalVariation || 0,
+            xp: bkW?.xp?.total || 0,
+            xpLines: bkW?.xp?.lines || [],
           },
           loser: {
             nom: perdantNom,
@@ -1223,6 +1257,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             bonusFinish: bkL?.bonus?.bonusFinish || 0,
             nbFinish: bkL?.bonus?.nbGrosFinish || 0,
             total: bkL?.totalVariation || 0,
+            xp: bkL?.xp?.total || 0,
+            xpLines: bkL?.xp?.lines || [],
           },
           manches: manchesDetail || [],
         };

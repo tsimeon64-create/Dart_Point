@@ -4207,6 +4207,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
               {w.bonusManches>0 && <DrixLine icon="💎" label={`${w.nbManches} manche(s)`} val={w.bonusManches} color="#f59e0b"/>}
               {w.bonusVolees>0 && <DrixLine icon="🔥" label={`${w.nbVolees} grosse(s) volée(s)`} val={w.bonusVolees} color="#f97316"/>}
               {w.bonusFinish>0 && <DrixLine icon="🏆" label={`${w.nbFinish} gros finish`} val={w.bonusFinish} color="#a78bfa"/>}
+              <XpGains data={w}/>
             </div>
             <div style={{ flex:1, background:"#1a0a0a", border:`1px solid ${loseColor}33`, borderRadius:10, padding:"9px 11px" }}>
               <div style={{ fontSize:11, color:"#fca5a5", fontWeight:800, marginBottom:6, display:"flex", alignItems:"center", gap:4 }}>
@@ -4216,6 +4217,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
               {l.bonusManches>0 && <DrixLine icon="💎" label={`${l.nbManches} manche(s)`} val={l.bonusManches} color="#f59e0b"/>}
               {l.bonusVolees>0 && <DrixLine icon="🔥" label={`${l.nbVolees} grosse(s) volée(s)`} val={l.bonusVolees} color="#f97316"/>}
               {l.bonusFinish>0 && <DrixLine icon="🏆" label={`${l.nbFinish} gros finish`} val={l.bonusFinish} color="#a78bfa"/>}
+              <XpGains data={l}/>
             </div>
           </div>
         )}
@@ -4237,6 +4239,25 @@ const DrixLine = ({ icon, label, val, color }) => (
     <span style={{ fontWeight:800, color, fontVariantNumeric:"tabular-nums" }}>{val > 0 ? "+" : ""}{val} DRIX</span>
   </div>
 );
+
+// Gains d'XP du match (total + détail des performances : 180, finishes, moyenne…)
+const XpGains = ({ data }) => {
+  if (!(data?.xp > 0)) return null;
+  return (
+    <div style={{ marginTop:6, paddingTop:6, borderTop:"1px solid #ffffff12" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, fontWeight:900, color:"#fbbf24", marginBottom:3 }}>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><EmoIcon e="⭐" size={11}/>XP gagné</span>
+        <span style={{ fontVariantNumeric:"tabular-nums" }}>+{data.xp} XP</span>
+      </div>
+      {(data.xpLines||[]).map((ln,i)=>(
+        <div key={i} style={{ display:"flex", justifyContent:"space-between", fontSize:10, padding:"1.5px 0", color:"#94a3b8", gap:6 }}>
+          <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ln.label}</span>
+          <span style={{ fontWeight:700, color:"#fbbf24", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>+{ln.xp}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 // ── LIVE ──────────────────────────────────────────────────────────────────────
 
