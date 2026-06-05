@@ -861,8 +861,46 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
           </div>
         </div>
 
-        {/* ⭐ Niveau XP + barre de progression (sous le DRIX) */}
-        <XpBlock xp={joueur.xp || 0} />
+        {/* ── Progression de rang DRIX (échangée avec le bloc XP) ── */}
+        <div style={{
+          background:`linear-gradient(135deg,${color}0f,#0d0d14)`,
+          border:`1px solid ${color}55`,
+          borderRadius:14, padding:14, marginBottom:14,
+          boxShadow:`0 0 16px ${color}11`,
+        }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <RankIcon drix={joueur.drix||1000} size={18}/>
+              <span style={{ fontWeight:900, fontSize:13, color, letterSpacing:.5 }}>{titre}</span>
+            </div>
+            {prog.prochain ? (
+              <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                <ChevronRight size={12} color={CJ.muted}/>
+                <RankIcon drix={prog.prochain.min} size={14}/>
+                <span style={{ fontWeight:700, fontSize:11, color:prog.prochain.color }}>{prog.prochain.titre}</span>
+              </div>
+            ) : (
+              <span style={{ fontSize:11, color:CJ.yellow, fontWeight:700 }}>🏆 Rang max</span>
+            )}
+          </div>
+          <div style={{ background:"#00000055", borderRadius:8, height:12, overflow:"hidden", marginBottom:6, border:`1px solid ${color}22`, position:"relative" }}>
+            <div style={{
+              height:"100%", borderRadius:8,
+              background:`linear-gradient(90deg, ${color}aa, ${color}, ${color}cc)`,
+              width:`${prog.pct}%`,
+              transition:"width 1s cubic-bezier(.34,1.56,.64,1)",
+              boxShadow:`0 0 12px ${color}aa, inset 0 1px 0 #ffffff33`,
+              animation:"monBar 1s cubic-bezier(.34,1.56,.64,1) both",
+            }}/>
+          </div>
+          <div style={{ textAlign:"center", fontSize:11, color:CJ.muted }}>
+            {prog.prochain ? (
+              <span>Plus que <strong style={{ color:prog.prochain.color, fontSize:13 }}>{prog.restant} DRIX</strong> pour <strong style={{ color:prog.prochain.color }}>{prog.prochain.titre}</strong> {prog.prochain.emoji}</span>
+            ) : (
+              <span style={{ color:CJ.yellow }}>🏆 Niveau maximal atteint</span>
+            )}
+          </div>
+        </div>
 
         {/* Quick stats row (amis · badges · matchs) */}
         <div style={{
@@ -979,49 +1017,8 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
         ))}
       </div>
 
-      {/* ── 2. PROGRESSION DE RANG ─────────────────────────────────────────── */}
-      <div style={{
-        background:`linear-gradient(135deg,${color}0f,#0d0d14)`,
-        border:`1px solid ${color}55`,
-        borderRadius:14, padding:14, marginBottom:14,
-        boxShadow:`0 0 16px ${color}11`,
-      }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <RankIcon drix={joueur.drix||1000} size={18}/>
-            <span style={{ fontWeight:900, fontSize:13, color, letterSpacing:.5 }}>{titre}</span>
-          </div>
-          {prog.prochain ? (
-            <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-              <ChevronRight size={12} color={CJ.muted}/>
-              <RankIcon drix={prog.prochain.min} size={14}/>
-              <span style={{ fontWeight:700, fontSize:11, color:prog.prochain.color }}>{prog.prochain.titre}</span>
-            </div>
-          ) : (
-            <span style={{ fontSize:11, color:CJ.yellow, fontWeight:700 }}>🏆 Rang max</span>
-          )}
-        </div>
-
-        {/* Barre de progression animée */}
-        <div style={{ background:"#00000055", borderRadius:8, height:12, overflow:"hidden", marginBottom:6, border:`1px solid ${color}22`, position:"relative" }}>
-          <div style={{
-            height:"100%", borderRadius:8,
-            background:`linear-gradient(90deg, ${color}aa, ${color}, ${color}cc)`,
-            width:`${prog.pct}%`,
-            transition:"width 1s cubic-bezier(.34,1.56,.64,1)",
-            boxShadow:`0 0 12px ${color}aa, inset 0 1px 0 #ffffff33`,
-            animation:"monBar 1s cubic-bezier(.34,1.56,.64,1) both",
-          }}/>
-        </div>
-
-        <div style={{ textAlign:"center", fontSize:11, color:CJ.muted }}>
-          {prog.prochain ? (
-            <span>Plus que <strong style={{ color:prog.prochain.color, fontSize:13 }}>{prog.restant} DRIX</strong> pour <strong style={{ color:prog.prochain.color }}>{prog.prochain.titre}</strong> {prog.prochain.emoji}</span>
-          ) : (
-            <span style={{ color:CJ.yellow }}>🏆 Niveau maximal atteint</span>
-          )}
-        </div>
-      </div>
+      {/* ⭐ Niveau XP + barre (échangé avec la progression de rang) */}
+      <XpBlock xp={joueur.xp || 0} />
 
       {/* ── NAV RAPIDE : Stats · Amis · Badges · Historique ── */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, marginBottom:14 }}>
