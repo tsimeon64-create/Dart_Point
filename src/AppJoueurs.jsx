@@ -810,6 +810,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
                 ? <img src={joueur.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
                 : <RankIcon drix={joueur.drix||1000} size={32}/>}
             </div>
+            <NiveauBulle xp={joueur.xp || 0} size={26} corner="top-right"/>
             <div onClick={()=>photoRef.current?.click()}
               style={{ position:"absolute",bottom:-2,right:-2,zIndex:2, background:"#f97316", borderRadius:"50%", width:24, height:24,
                 display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:`2px solid #0a0a14`, boxShadow:"0 0 8px #f9731688" }}>
@@ -2859,6 +2860,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
               <div style={{width:78,height:78,borderRadius:"50%",border:`3px solid ${color}`,overflow:"hidden",background:color+"22",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 22px ${color}66`}}>
                 {j.photo?<img src={j.photo} alt={`Avatar de ${j.pseudo}`} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<RankIcon drix={drix} size={32}/>}
               </div>
+              <NiveauBulle xp={j.xp || 0} size={26} corner="top-right"/>
               <div style={{position:"absolute",bottom:3,right:3,width:13,height:13,borderRadius:"50%",background:"#22c55e",border:"2px solid #161616"}}/>
             </div>
             <div style={{flex:1,minWidth:0}}>
@@ -4312,9 +4314,9 @@ const dbDrix = {
   updateDrix: (id, drix) => sbJ(`joueurs?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ drix }), prefer:"return=minimal" }),
   updateXP: (id, xp) => sbJ(`joueurs?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ xp }), prefer:"return=minimal" }),
   addMouvement: (d) => sbJ("drix_mouvements", { method:"POST", body:JSON.stringify(d) }),
-  getClassement: () => sbJ("joueurs?order=drix.desc&select=id,pseudo,drix,bar_slug,asso_slug,photo"),
-  getClassementBar: (slug) => sbJ(`joueurs?bar_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo`),
-  getClassementAsso: (slug) => sbJ(`joueurs?asso_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo`),
+  getClassement: () => sbJ("joueurs?order=drix.desc&select=id,pseudo,drix,bar_slug,asso_slug,photo,xp"),
+  getClassementBar: (slug) => sbJ(`joueurs?bar_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo,xp`),
+  getClassementAsso: (slug) => sbJ(`joueurs?asso_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo,xp`),
   getHistorique: (joueur_id) => sbJ(`drix_mouvements?joueur_id=eq.${joueur_id}&order=date.desc&limit=10&select=*`),
   getHallOfFame: () => sbJ("drix_historique?order=saison.desc,classement.asc&select=*"),
 };
@@ -4450,6 +4452,24 @@ export const XpBlock = ({ xp = 0 }) => {
         {n.palierProchain != null ? `Plus que ${n.restant.toLocaleString("fr-FR")} XP → Niveau ${n.niveau + 1}${n.prochainTitre !== n.titre ? ` (${n.prochainTitre})` : ""}` : "Niveau max atteint 🏆"}
       </div>
     </div>
+  );
+};
+
+// Bulle de niveau XP à superposer sur une photo de profil (le conteneur doit être position:relative).
+export const NiveauBulle = ({ xp = 0, size = 22, corner = "bottom-right", style = {} }) => {
+  const niveau = getNiveauXP(xp).niveau;
+  const pos = corner === "top-right" ? { top: -3, right: -3 } : corner === "top-left" ? { top: -3, left: -3 } : { bottom: -3, right: -3 };
+  return (
+    <div title={`Niveau ${niveau}`} aria-label={`Niveau ${niveau}`} style={{
+      position: "absolute", ...pos,
+      minWidth: size, height: size, padding: "0 3px", boxSizing: "border-box",
+      background: "linear-gradient(135deg,#fbbf24,#f59e0b)", color: "#1a1200",
+      border: "2px solid #0f0f0f", borderRadius: 99,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: Math.max(9, Math.round(size * 0.48)), fontWeight: 900, lineHeight: 1,
+      boxShadow: "0 1px 5px rgba(0,0,0,.55)", fontVariantNumeric: "tabular-nums",
+      zIndex: 3, pointerEvents: "none", ...style,
+    }}>{niveau}</div>
   );
 };
 
@@ -5240,6 +5260,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
                         <div style={{ width:46, height:46, borderRadius:"50%", background:`${color}22`, border:`2px solid ${isMe?CJ.yellow:color+"55"}`, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
                           {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <RankIcon drix={j.drix||1000} size={20}/>}
                         </div>
+                        <NiveauBulle xp={j.xp || 0} size={18} corner="top-right"/>
                         <div style={{ position:"absolute", bottom:-3, right:-4, background:color, borderRadius:"50%", width:17, height:17, display:"flex", alignItems:"center", justifyContent:"center", border:"2px solid #1a1a1a" }}><RankIcon drix={j.drix||1000} size={10} color="#fff"/></div>
                       </div>
                       {/* Name + badges + ligue + progress */}

@@ -11,6 +11,7 @@ import {
   appliquerDrixDuel, getDrixTitre, getDrixProgression, calculerDrix,
   dbJoueurs, todayStr, hashPwd,
   ALL_BADGES, computeBadgeValues, getBadgesStored, storeBadgesSet,
+  NiveauBulle,
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
 import { ConfigCricket } from "./AppCricket";
@@ -1456,6 +1457,7 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
                 boxShadow:`0 0 16px ${color}66` }}>
                 {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <EmoIcon e={emoji} size={26} color={color}/>}
               </div>
+              <NiveauBulle xp={j.xp || 0} size={24}/>
             </div>
 
             {/* Infos */}
