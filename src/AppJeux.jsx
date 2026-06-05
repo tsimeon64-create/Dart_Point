@@ -1406,7 +1406,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     pushLiveVolee(actifIdx, val, false, false, updatedN);
     // ⭐ Célébration XP live — grosse volée ≥ 120 (180 → +50, 140-179 → +20, 120-139 → +10)
     if (val >= 120 && modeDuel) {
-      const xp = val >= 180 ? 50 : val >= 140 ? 20 : 10;
+      const xp = val >= 180 ? 180 : val >= 140 ? 20 : 10;
       setLiveXpNotif({ label:`🔥 ${val} pts ! Grosse volée`, xp });
       setTimeout(() => setLiveXpNotif(null), 2500);
     }
@@ -1459,7 +1459,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       pushLiveVolee(actifIdx, val, false, true, updated);
       // ⭐ Célébration XP live — gros finish ≥ 120 (XP de la volée + 30 du finish)
       if (val >= 120 && modeDuel) {
-        const volXp = val >= 180 ? 50 : val >= 140 ? 20 : 10;
+        const volXp = val >= 180 ? 180 : val >= 140 ? 20 : 10;
         setLiveXpNotif({ label:`🏆 Finish ${val} !`, xp: volXp + 30 });
         setTimeout(() => setLiveXpNotif(null), 2800);
       }

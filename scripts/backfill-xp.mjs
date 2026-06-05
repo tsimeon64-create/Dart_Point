@@ -81,9 +81,9 @@ const compteBadges = (v) => BADGES.filter(([k, s]) => badgeVal(k, v) >= s).lengt
       const advManches = (isCh ? d.score_manches_defie : d.score_manches_challenger) || 0;
       const won = d.gagnant_id === pid;
       duelXP += 25 + 15;                       // match joué + défi accepté
-      if (won) duelXP += 50;                   // gagné
+      if (won) duelXP += 100;                  // gagné
       if (won && myManches >= 3 && advManches === 0) duelXP += 100; // 3-0
-      duelXP += myManches * 10;                // manches gagnées
+      duelXP += myManches * 25;                // manches gagnées
       const moy = parseFloat(isCh ? d.score_challenger : d.score_defie);
       if (!isNaN(moy)) duelXP += moyXP(moy);   // moyenne (palier max)
       // volées/finishes + agrégats badges depuis manches_detail
@@ -92,7 +92,7 @@ const compteBadges = (v) => BADGES.filter(([k, s]) => badgeVal(k, v) >= s).lengt
         const isW = m.winner === myPseudo || m.winner === j.pseudo;
         const n180 = isW ? (m.winner_180 || 0) : (m.loser_180 || 0);
         const n140 = isW ? (m.winner_140plus || 0) : (m.loser_140plus || 0);
-        duelXP += n180 * 50 + n140 * 20;       // 180 +50, 140-179 +20 (120-139 ignoré)
+        duelXP += n180 * 180 + n140 * 20;      // 180 +180, 140-179 +20 (120-139 ignoré)
         nb180 += n180; nb140 += n140;
         nb100 += isW ? (m.winner_100plus || 0) : (m.loser_100plus || 0);
         nb26 += isW ? (m.winner_26 || 0) : (m.loser_26 || 0);

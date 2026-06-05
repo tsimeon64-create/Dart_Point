@@ -4411,13 +4411,13 @@ export const calculerXP = (joueursData = [], manchesDetail = [], duel = {}, moye
 
     add(25, "Match joué");
     add(15, "Défi accepté");
-    if (won) add(50, "Match gagné");
+    if (won) add(100, "Match gagné");
     if (won && monManches >= 3 && advManches === 0) add(100, "Victoire 3-0");
-    add(monManches * 10, `${monManches} manche(s) gagnée(s)`);
+    add(monManches * 25, `${monManches} manche(s) gagnée(s)`);
 
     let v180 = 0, v140 = 0, v120 = 0;
     for (const v of tours) { if (v >= 180) v180++; else if (v >= 140) v140++; else if (v >= 120) v120++; }
-    add(v180 * 50, `${v180} × 180`);
+    add(v180 * 180, `${v180} × 180`);
     add(v140 * 20, `${v140} × 140-179`);
     add(v120 * 10, `${v120} × 120-139`);
 
