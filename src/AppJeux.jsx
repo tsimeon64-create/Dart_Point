@@ -944,10 +944,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [mancheStart, setMancheStart] = useState({ vol:[0,0], pts:[0,0], nbtours:[0,0], flechettes:[0,0] }); // redimensionné au démarrage
   const [pendingVolee, setPendingVolee] = useState(null); // { val, type:"finish"|"zero" }
   const [drixBreakdown, setDrixBreakdown] = useState(null); // breakdown détaillé post-match
-  const [liveBonusNotif, setLiveBonusNotif] = useState(null); // { label, color, points }
   const [liveBadgeNotif, setLiveBadgeNotif] = useState(null); // { emoji, nom, desc, couleur }
-  const bonusAccumRef = useRef([0, 0]); // bonus cumulés en live [j0, j1]
-  const [bonusAccum, setBonusAccum] = useState([0, 0]);
 
   // ── Live session tracking ──
   const liveIdRef = useRef(null);
@@ -1406,14 +1403,6 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     setJoueurs(updatedN);
     setActifIdx((actifIdx + 1) % joueurs.length); setInput("");
     pushLiveVolee(actifIdx, val, false, false, updatedN);
-    // 🔥 Live bonus notification — grosse volée ≥ 120
-    if (val >= 120 && modeDuel && duel?.type !== "amical") {
-      const pts = val >= 180 ? 15 : val >= 140 ? 7 : 5;   // bonus volée par palier
-      bonusAccumRef.current[actifIdx] += pts;
-      setBonusAccum([...bonusAccumRef.current]);
-      setLiveBonusNotif({ label:`🔥 ${val} pts ! Grosse volée`, points:pts, color:"#f97316" });
-      setTimeout(() => setLiveBonusNotif(null), 2500);
-    }
   };
 
   // Appelé après sélection du nb de fléchettes dans la popup
@@ -1461,22 +1450,6 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       setMancheEnCours(nextManche);
       setJoueurs(updated.map(j => ({ ...j, score: modeDuel ? parseInt(duel?.mode||"501") : startVal, scorePrecedent: null })));
       pushLiveVolee(actifIdx, val, false, true, updated);
-      // 🏆 Live bonus — gros finish ≥ 120 + grosse volée ≥ 120
-      if (modeDuel && duel?.type !== "amical") {
-        let notifLabel = ""; let notifPts = 0;
-        if (val >= 120) {
-          // finish ≥ 120 : +10 bonus finish + bonus volée par palier (5/7/15)
-          const volBonus = val >= 180 ? 15 : val >= 140 ? 7 : 5;
-          const pts = 10 + volBonus;
-          bonusAccumRef.current[actifIdx] += pts;
-          setBonusAccum([...bonusAccumRef.current]);
-          notifLabel = `🏆 Finish ${val} ! Grosse volée + Gros finish`; notifPts = pts;
-        }
-        if (notifPts > 0) {
-          setLiveBonusNotif({ label:notifLabel, points:notifPts, color:"#a78bfa" });
-          setTimeout(() => setLiveBonusNotif(null), 2800);
-        }
-      }
       setActifIdx(nextStart); return;
     }
 
@@ -1646,18 +1619,6 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       <style>{`.scoreur-wrap button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; } .scoreur-wrap button:active { opacity: 0.7; transform: scale(0.95); }`}</style>
       {showConfirmQuitter && <ModalConfirmQuitter/>}
 
-      {/* ── LIVE BONUS NOTIFICATION — positionné sous les cartes joueurs ── */}
-      {liveBonusNotif && (
-        <div style={{ position:"fixed",top:260,left:"50%",transform:"translateX(-50%)",zIndex:10001,
-          background:"linear-gradient(135deg,#1a0a2e,#2d1458)",border:`1px solid ${liveBonusNotif.color}66`,
-          borderRadius:14,padding:"10px 18px",textAlign:"center",boxShadow:`0 4px 30px ${liveBonusNotif.color}44`,
-          pointerEvents:"none",minWidth:200, animation:"sbonusIn .3s ease-out both" }}>
-          <style>{`@keyframes sbonusIn{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}`}</style>
-          <div style={{ fontSize:12,color:"#e2e8f0",fontWeight:700,marginBottom:2 }}><EmoText s={liveBonusNotif.label} size={12}/></div>
-          <div style={{ fontSize:19,fontWeight:900,color:liveBonusNotif.color,display:"flex",alignItems:"center",justifyContent:"center",gap:5 }}>+{liveBonusNotif.points} DRIX <EmoIcon e="💎" size={16}/></div>
-        </div>
-      )}
-
       {/* ── BADGE DÉBLOQUÉ EN LIVE ── */}
       {liveBadgeNotif && (
         <div style={{ position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:10002,
@@ -1822,12 +1783,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
               {/* DRIX live compact */}
               {modeDuel && drixData && (() => {
                 const d = realIdx === 0 ? drixData.challenger : drixData.defie;
-                const bAcc = bonusAccum[realIdx] || 0;
                 return (
                   <div style={{ display:"flex", gap:3, justifyContent:"center", flexWrap:"wrap" }}>
                     <span style={{ background:"#14532d", color:"#4ade80", borderRadius:5, padding:"1px 5px", fontWeight:800, fontSize:10, opacity: isActif?1:.7 }}>+{d.gain}</span>
                     <span style={{ background:"#7f1d1d", color:"#f87171", borderRadius:5, padding:"1px 5px", fontWeight:800, fontSize:10, opacity: isActif?1:.7 }}>−{d.perte}</span>
-                    {bAcc > 0 && <span style={{ background:"#3b1d6e", color:"#c4b5fd", borderRadius:5, padding:"1px 5px", fontWeight:800, fontSize:10,display:"inline-flex",alignItems:"center",gap:1 }}><EmoIcon e="🔥" size={9}/>+{bAcc}</span>}
                   </div>
                 );
               })()}
