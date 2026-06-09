@@ -273,6 +273,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
   const penaltyMsRef = useRef(0);
   const rafRef = useRef(null);
   const runIdRef = useRef(null);
+  const finalizedRef = useRef(false); // anti double-crédit du +5 participation
   const today = todayLocal();
 
   // Séquence de volées du jour (même pour tous les joueurs)
@@ -448,25 +449,48 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
 
   // ─── Finaliser le run
   const terminerRun = async (nbVolees, nbErrors) => {
+    if (finalizedRef.current) return;   // anti double-crédit (double-tap / re-appel)
+    finalizedRef.current = true;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     const finalMs = Math.round(performance.now() - startTimeRef.current + penaltyMsRef.current);
     setElapsed(finalMs);
 
-    const payload = {
-      statut: "termine",
-      temps_ms: finalMs,
-      nb_volees: nbVolees,
-      erreurs: nbErrors,
-      volees: volees.slice(0, nbVolees).map(v => v.score),
-    };
+    let participDrix = 0;
     if (runIdRef.current) {
       await sb(`chrono_scoreur_scores?id=eq.${runIdRef.current}`, {
         method: "PATCH",
         headers: { Prefer: "return=minimal" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          statut: "termine",
+          temps_ms: finalMs,
+          nb_volees: nbVolees,
+          erreurs: nbErrors,
+          volees: volees.slice(0, nbVolees).map(v => v.score),
+        }),
       });
+
+      // 💎 +5 DRIX de participation versés IMMÉDIATEMENT (comme le Finish Speedrun).
+      // Le +20 vainqueur est attribué le lendemain via checkYesterdayScoreurReward.
+      // On lit le solde frais, mais on RETOMBE sur joueur.drix (prop) si le GET échoue,
+      // pour ne JAMAIS perdre le +5 à cause d'une lecture ratée (le run est déjà "termine").
+      if (joueur?.id) {
+        try {
+          const jArr = await sb(`joueurs?id=eq.${joueur.id}&select=drix`);
+          const drixAvant = (jArr?.[0]?.drix != null) ? jArr[0].drix : (joueur.drix || 1000);
+          const newDrix = drixAvant + 5;
+          await sb(`joueurs?id=eq.${joueur.id}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ drix: newDrix }) });
+          await sb("drix_mouvements", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({
+            joueur_id: joueur.id, joueur_pseudo: joueur.pseudo,
+            adversaire_pseudo: "⏱ Scoreur Speedrun — 🎯 Participation",
+            variation: 5, drix_avant: drixAvant, drix_apres: newDrix,
+            resultat: "victoire", date: Date.now(),
+          }) });
+          participDrix = 5;
+        } catch { /* best-effort : ne bloque jamais l'écran de résultats */ }
+      }
     }
-    setFinalResults({ tempsMs: finalMs, nbVolees, errors: nbErrors });
+
+    setFinalResults({ tempsMs: finalMs, nbVolees, errors: nbErrors, participDrix });
     setLocalLock(today);
     setAlreadyPlayed(true);
     setScreen("results");
@@ -1230,7 +1254,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
   // ÉCRAN : RÉSULTATS
   // ═══════════════════════════════════════════════════════════════════════
   if (screen === "results" && finalResults) {
-    const { tempsMs, nbVolees, errors: errs } = finalResults;
+    const { tempsMs, nbVolees, errors: errs, participDrix } = finalResults;
     return (
       <div style={{ position:"fixed",inset:0,zIndex:200,background:C.bg,display:"flex",flexDirection:"column",overflow:"hidden" }}>
         <div style={{ background:C.card,borderBottom:`1px solid ${C.border}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,flexShrink:0 }}>
@@ -1261,6 +1285,15 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
             </div>
           </div>
 
+          {/* 💎 +5 DRIX participation (versés immédiatement) */}
+          {participDrix > 0 && (
+            <div style={{ background:"linear-gradient(135deg,#14532d33,#0d0d14)", border:`1px solid ${C.green}55`, borderRadius:14, padding:"12px", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+              <EmoIcon e="💎" size={18} color={C.green}/>
+              <span style={{ fontSize:16, fontWeight:900, color:C.green }}>+{participDrix} DRIX</span>
+              <span style={{ fontSize:12, color:C.muted }}>participation</span>
+            </div>
+          )}
+
           {/* Boutons */}
           <button onClick={openLeaderboard} style={{ background:`linear-gradient(135deg,${C.yellow},#d97706)`,border:"none",borderRadius:14,padding:"14px",color:"#3b1f00",fontWeight:900,fontSize:15,cursor:"pointer",boxShadow:`0 4px 20px ${C.yellow}55`,display:"flex",alignItems:"center",justifyContent:"center",gap:8 }}>
             <Trophy size={16}/> Voir le classement
@@ -1278,62 +1311,57 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
   return null;
 };
 
-// ─── Récompense quotidienne à minuit (appelée au démarrage de l'app)
-// Distribue les DRIX du jour précédent (vainqueur +20, participation +5, abandon 0)
-export const checkYesterdayScoreurReward = async (joueur) => {
-  if (!joueur?.id) return;
+// ─── Récompense quotidienne du Scoreur Speedrun (appelée au démarrage + à minuit).
+// La PARTICIPATION (+5) est versée immédiatement en fin de partie (terminerRun). Ici on ne
+// distribue QUE le +20 du VAINQUEUR d'hier, via un claim atomique GLOBAL (calque du Finish
+// Speedrun) : robuste même si le vainqueur ne rouvre pas l'app lui-même.
+export const checkYesterdayScoreurReward = async (joueur, onWin) => {
+  // Garde anti-rejouée : une seule distribution par jour (peu importe qui ouvre l'app).
+  const today = todayLocal();
+  if (localStorage.getItem("dp_scoreur_last_check") === today) return null;
+  localStorage.setItem("dp_scoreur_last_check", today);
+
   const yest = yesterdayLocal();
-  // Mon run d'hier — uniquement les runs terminés (les abandons ne reçoivent rien)
-  const myRow = await sb(`chrono_scoreur_scores?joueur_id=eq.${joueur.id}&date_jour=eq.${yest}&statut=eq.termine&rewarded=eq.false&select=*`);
-  if (!myRow || !myRow[0]) return;
-  const me = myRow[0];
+  // CLAIM ATOMIQUE de toute la journée d'hier (runs terminés, temps>0) : un seul PATCH flippe
+  // rewarded false→true et renvoie les lignes verrouillées. Vide → déjà distribué → stop.
+  // Vainqueur = meilleur temps PARMI ces lignes → double crédit impossible (même multi-onglets).
+  const claimed = await sb(
+    `chrono_scoreur_scores?date_jour=eq.${yest}&rewarded=eq.false&statut=eq.termine&temps_ms=gt.0`,
+    { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ rewarded: true }) }
+  );
+  if (!Array.isArray(claimed) || claimed.length === 0) return null;
+  const winner = claimed.reduce((best, s) => (best == null || s.temps_ms < best.temps_ms ? s : best), null);
+  if (!winner) return null;
 
-  // CLAIM ATOMIQUE de ma propre ligne : flippe rewarded false→true et ne continue QUE
-  // si on a vraiment verrouillé (return=representation non vide). Évite tout double
-  // crédit si l'app s'ouvre/relance deux fois en parallèle pour le même joueur.
-  const claimed = await sb(`chrono_scoreur_scores?id=eq.${me.id}&rewarded=eq.false`, {
-    method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ rewarded: true }),
-  });
-  if (!Array.isArray(claimed) || claimed.length === 0) return;
+  // +20 DRIX au vainqueur (la participation +5 a déjà été versée en fin de partie).
+  const jArr = await sb(`joueurs?id=eq.${winner.joueur_id}&select=id,drix,photo`);
+  const j = jArr?.[0];
+  if (!j) return null;
+  const newDrix = (j.drix || 1000) + 20;
+  await sb(`joueurs?id=eq.${j.id}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ drix: newDrix }) });
+  await sb("drix_mouvements", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({
+    joueur_id: j.id, joueur_pseudo: winner.joueur_pseudo,
+    adversaire_pseudo: "⏱ Scoreur Speedrun — 🥇 Vainqueur du jour",
+    variation: 20, drix_avant: j.drix || 1000, drix_apres: newDrix,
+    resultat: "victoire", date: Date.now(),
+  }) });
 
-  // Classement d'hier
-  const ranking = await sb(`chrono_scoreur_scores?date_jour=eq.${yest}&statut=eq.termine&order=temps_ms.asc&limit=50&select=joueur_id,temps_ms`);
-  if (!ranking) return;
-  const myPos = ranking.findIndex(r => r.joueur_id === joueur.id);
-  let drix = 5;
-  let label = "🎯 Participation";
-  if (myPos === 0) { drix = 20; label = "🥇 Vainqueur du jour"; }
+  // Post Comptoir — félicitation vainqueur (format spécial __CHRONO_SCOREUR__)
+  const dateFr = yest.split("-").reverse().join("/");
+  const payload = { type: "chrono_scoreur_vainqueur", temps_ms: winner.temps_ms, drix: 20, date_jour: yest };
+  const contenu = `__CHRONO_SCOREUR__|${JSON.stringify(payload)}\n\n` +
+    `🏆 Scoreur Speedrun — Vainqueur du ${dateFr}\n` +
+    `👑 ${winner.joueur_pseudo} remporte le défi en ${formatChrono(winner.temps_ms)} !\n` +
+    `🥇 +20 DRIX`;
+  sb("wall_posts", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({
+    joueur_id: winner.joueur_id, joueur_pseudo: winner.joueur_pseudo, joueur_photo: j.photo || null,
+    contenu, date: Date.now(),
+  }) }).catch(() => {});
 
-  const newDrix = (joueur.drix || 1000) + drix;
-  await Promise.all([
-    sb(`joueurs?id=eq.${joueur.id}`, { method:"PATCH", headers:{ Prefer:"return=minimal" }, body: JSON.stringify({ drix: newDrix }) }),
-    // (rewarded déjà posé atomiquement plus haut)
-    sb("drix_mouvements", { method:"POST", headers:{ Prefer:"return=minimal" }, body: JSON.stringify({
-      joueur_id: joueur.id, joueur_pseudo: joueur.pseudo,
-      adversaire_pseudo: `⏱ Scoreur Speedrun — ${label}`,
-      variation: drix, drix_avant: joueur.drix || 1000, drix_apres: newDrix,
-      resultat: "victoire", date: Date.now(),
-    })}),
-  ]);
-
-  // Post Vainqueur (uniquement top 1)
-  if (myPos === 0) {
-    const dateFr = yest.split("-").reverse().join("/");
-    const payload = {
-      type: "chrono_scoreur_vainqueur",
-      temps_ms: me.temps_ms,
-      drix: 20,
-      date_jour: yest,
-    };
-    const contenu = `__CHRONO_SCOREUR__|${JSON.stringify(payload)}\n\n` +
-      `🏆 Scoreur Speedrun — Vainqueur du ${dateFr}\n` +
-      `👑 ${joueur.pseudo} remporte le défi en ${formatChrono(me.temps_ms)} !\n` +
-      `🥇 +20 DRIX`;
-    sb("wall_posts", { method:"POST", headers:{ Prefer:"return=minimal" }, body: JSON.stringify({
-      joueur_id: joueur.id, joueur_pseudo: joueur.pseudo, joueur_photo: joueur.photo || null,
-      contenu, date: Date.now(),
-    })});
+  // Notifier / retourner si le joueur courant est le vainqueur (maj DRIX locale côté App).
+  if (joueur?.id && joueur.id === winner.joueur_id) {
+    if (onWin) onWin({ pseudo: winner.joueur_pseudo, drix: 20 });
+    return { drix: 20, label: "🥇 Vainqueur du jour" };
   }
-
-  return { drix, label };
+  return null;
 };

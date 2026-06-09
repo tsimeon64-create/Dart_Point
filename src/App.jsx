@@ -11337,12 +11337,14 @@ export default function App() {
 
     // Check immédiat (idempotent — tourne une fois par jour max grâce au verrou DB)
     checkYesterdayReward(null, () => {});
+    checkYesterdayScoreurReward(null, () => {});
 
     // Timer récursif qui tire à 00h01 chaque nuit
     let timer;
     const planifier = () => {
       timer = setTimeout(() => {
         checkYesterdayReward(null, () => {});
+        checkYesterdayScoreurReward(null, () => {});
         planifier(); // reprogram le lendemain
       }, msUntilMidnight());
     };
@@ -11351,16 +11353,8 @@ export default function App() {
     return () => clearTimeout(timer);
   },[]); // eslint-disable-line
 
-  // ── Récompense Chrono Scoreur : check au chargement quand joueur connecté ───
-  useEffect(()=>{
-    if (!joueur?.id) return;
-    checkYesterdayScoreurReward(joueur).then(r => {
-      if (r?.drix) {
-        // Met à jour le DRIX local
-        setJoueur(prev => prev ? { ...prev, drix: (prev.drix||1000) + r.drix } : prev);
-      }
-    }).catch(()=>{});
-  },[joueur?.id]); // eslint-disable-line
+  // (La récompense Chrono Scoreur est désormais distribuée au boot + à minuit, comme le
+  //  Finish, via checkYesterdayScoreurReward(null) dans l'effet ci-dessus.)
 
   // Vérification de version — mise à jour automatique sans bandeau
   useEffect(()=>{
