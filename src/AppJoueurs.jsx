@@ -4620,7 +4620,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
   const [amis, setAmis]               = useState([]);
   const [monHistorique, setMonHistorique] = useState([]);
   const [loading, setLoading]         = useState(true);
-  const [filtre, setFiltre]           = useState("national"); // national|amis|bar|asso|feu|chasseurs
+  const [filtre, setFiltre]           = useState(joueur?.asso_slug ? "asso" : "national"); // défaut : mon asso (repli national si aucune asso)
   const [view, setView]               = useState("classement"); // classement|evolution
   const [showVoisinage, setShowVoisinage] = useState(false);
   const [showNonClasses, setShowNonClasses] = useState(false);
