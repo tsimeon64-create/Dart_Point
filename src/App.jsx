@@ -11335,16 +11335,23 @@ export default function App() {
       return Math.max(5000, minuit.getTime() - now.getTime());
     };
 
+    // Récompenses des défis du jour. SÉQUENTIEL (await) : si un même joueur gagne les DEUX
+    // speedruns, les deux +20 ciblent joueurs.drix. Lancées en parallèle, le 2e PATCH lit le
+    // même DRIX de départ et ÉCRASE le 1er (read-modify-write) → +20 au lieu de +40. En série,
+    // le Scoreur lit le DRIX déjà crédité par le Finish, puis ajoute son +20 → +40.
+    const distribuerDefisJour = async () => {
+      await checkYesterdayReward(null, () => {});
+      await checkYesterdayScoreurReward(null, () => {});
+    };
+
     // Check immédiat (idempotent — tourne une fois par jour max grâce au verrou DB)
-    checkYesterdayReward(null, () => {});
-    checkYesterdayScoreurReward(null, () => {});
+    distribuerDefisJour();
 
     // Timer récursif qui tire à 00h01 chaque nuit
     let timer;
     const planifier = () => {
       timer = setTimeout(() => {
-        checkYesterdayReward(null, () => {});
-        checkYesterdayScoreurReward(null, () => {});
+        distribuerDefisJour();
         planifier(); // reprogram le lendemain
       }, msUntilMidnight());
     };
