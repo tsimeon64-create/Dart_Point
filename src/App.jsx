@@ -2239,8 +2239,8 @@ const PageDefi = ({ joueur, setPage }) => {
     const EA = 1/(1+Math.pow(10,(hisDrix-myDrix)/400));
     const probaVictoire = Math.round(EA*100);
     const K = 32 * Math.max(1, defiForm.manches);
-    const gainElo = Math.round(K*(1-EA));
-    const perteElo = Math.round(K*EA);
+    const gainElo = Math.max(7, Math.round(K*(1-EA)));   // plancher 7
+    const perteElo = Math.max(7, Math.round(K*EA));      // plancher 7
     const posAdv = allJoueurs.findIndex(x=>x.id===amiId);
     const classAdv = posAdv>=0 ? posAdv+1 : null;
     const pointFaibleObj = (() => {
