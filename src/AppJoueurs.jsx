@@ -2550,10 +2550,11 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const formeDefiColor = wins5>=4?"#22c55e":wins5>=3?"#60a5fa":wins5>=2?"#f59e0b":"#ef4444";
 
   // ELO gain/perte ajusté selon le nombre de manches
-  const K_ELO = 32 * Math.max(1, defiForm.manches);
+  const nbManchesF = Math.max(1, defiForm.manches);
+  const K_ELO = 32 * nbManchesF;
   const EA_ELO = 1/(1+Math.pow(10,(drix-monDrix)/400));
-  const gainElo = Math.max(7, Math.round(K_ELO*(1-EA_ELO)));   // plancher 7
-  const perteElo = Math.max(7, Math.round(K_ELO*EA_ELO));      // plancher 7
+  const gainElo = Math.max(7 * nbManchesF, Math.round(K_ELO*(1-EA_ELO)));   // plancher 7/manche
+  const perteElo = Math.max(7 * nbManchesF, Math.round(K_ELO*EA_ELO));      // plancher 7/manche
 
   // Point faible structuré
   const pointFaibleObj = (() => {
@@ -4534,11 +4535,12 @@ export const appliquerDrixDuel = async (duel, perfBonus = null) => {
     const EA = 1 / (1 + Math.pow(10, (drixD - drixC) / 400));
     const EB = 1 - EA;
 
-    // Plancher : un gain / une perte ne descend jamais sous 7 DRIX (jamais 0).
-    const gainBaseC = Math.max(7, Math.round(K * EB));
-    const gainBaseD = Math.max(7, Math.round(K * EA));
-    const perteC    = Math.max(7, Math.round(K * EA));
-    const perteD    = Math.max(7, Math.round(K * EB));
+    // Plancher : un gain / une perte ne descend jamais sous 7 DRIX PAR MANCHE.
+    const plancher  = 7 * manches;
+    const gainBaseC = Math.max(plancher, Math.round(K * EB));
+    const gainBaseD = Math.max(plancher, Math.round(K * EA));
+    const perteC    = Math.max(plancher, Math.round(K * EA));
+    const perteD    = Math.max(plancher, Math.round(K * EB));
 
     // ── Calcul ELO / Rivalité ────────────────────────────────────────────────────
     // Rivalité hebdo : vainqueur +50 plat, perdant 0 (pas de perte ELO)

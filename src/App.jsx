@@ -2238,9 +2238,10 @@ const PageDefi = ({ joueur, setPage }) => {
     const dangerColor = dangerositeScore>=80?"#ef4444":dangerositeScore>=60?"#f97316":dangerositeScore>=40?"#f59e0b":"#22c55e";
     const EA = 1/(1+Math.pow(10,(hisDrix-myDrix)/400));
     const probaVictoire = Math.round(EA*100);
-    const K = 32 * Math.max(1, defiForm.manches);
-    const gainElo = Math.max(7, Math.round(K*(1-EA)));   // plancher 7
-    const perteElo = Math.max(7, Math.round(K*EA));      // plancher 7
+    const nbManches = Math.max(1, defiForm.manches);
+    const K = 32 * nbManches;
+    const gainElo = Math.max(7 * nbManches, Math.round(K*(1-EA)));   // plancher 7/manche
+    const perteElo = Math.max(7 * nbManches, Math.round(K*EA));      // plancher 7/manche
     const posAdv = allJoueurs.findIndex(x=>x.id===amiId);
     const classAdv = posAdv>=0 ? posAdv+1 : null;
     const pointFaibleObj = (() => {
