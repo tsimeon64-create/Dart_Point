@@ -6,26 +6,64 @@
 
 ---
 
-## 🔒 Sécurité — le vrai chantier restant
-- [ ] **Auth par utilisateur (Supabase Auth).** Aujourd'hui l'app n'a pas de vraie
-  auth : `joueur` vient du `localStorage` (falsifiable). Conséquence : les `UPDATE`
-  **partagés** entre admin et communauté restent sur la clé anon et **ne peuvent pas
-  être verrouillés** sans casser des fonctions publiques :
-  - édition communautaire d'un bar / d'une asso (`db.updateBar`, `db.updateAssociation`)
-  - DRIX des duels (`joueurs.drix` via résolution de duel)
-  → Migrer vers Supabase Auth + RLS basées sur `auth.uid()` (propriétaire) / rôle admin.
-  C'est **le** point de fond ; tout le reste de la sécurité (DELETE, validations,
-  journal) est déjà routé via l'Edge Function `admin-ops`.
-- [ ] **Ne pas garder le mot de passe admin en clair en session.** Le bouton de
-  déconnexion existe + `sessionStorage` se vide à la fermeture de l'onglet, mais
-  l'idéal = l'Edge Function renvoie un **token de session court** au login, stocké
-  à la place du mot de passe. (Option simple en plus : effacer `dp_admin_pw` au
-  montage de l'app.)
-- [ ] **Router aussi `propositions_delete` / `signalements_delete`** (suppression de
-  message de contact) via `admin-ops`, puis retirer ces policies DELETE anon.
-- [ ] **Rate-limit / anti-spam** côté serveur sur `addAvis`, `addPhoto`,
-  `addSignalement`, `addProposition` (clé anon, aucune limite) — éviter le flood de
-  la file de modération.
+## 🔒 Sécurité — AUDIT CONFIRMÉ le 16/06/2026 (multi-agents + sonde live)
+
+> **Cause racine UNIQUE** : pas d'auth serveur. L'identité `joueur` vient du
+> `localStorage` (falsifiable) et le client tape PostgREST avec la clé **anon**. Les
+> tables `joueurs`, `messages`, `duels`, `presences`, `amis`, `drix_mouvements`,
+> `stats_joueurs`, `chrono_*_scores` n'ont **aucune RLS restrictive** (policies
+> `USING(true)` ou absentes). `admin-ops` protège bien bars/avis/photos mais **n'inclut
+> pas** joueurs/messages/duels. → Tant que l'identité est fabriquée côté client, aucune
+> RLS par appelant ne marche : il FAUT une vraie identité serveur. Tout le reste découle
+> de ça. (Confirmé en live : HTTP 200/204.)
+
+### 🔴 CRITIQUE
+- [ ] **Prise de contrôle de n'importe quel compte.** (A) `GET joueurs?select=pseudo,password_hash`
+  → les 32 hash (SHA-256 **non salé**), crackables hors-ligne ; (B) `PATCH joueurs?id=eq.<victime>`
+  `{password_hash:…}` → 204, on impose un mot de passe et on se connecte. Le code admin de reset
+  n'est qu'un contrôle UI, jamais exigé par la base.
+- [ ] **Classement entièrement truquable / sabotable.** `PATCH joueurs?id=eq.<moi> {drix:99999,xp:9999999}`
+  → n°1 ; `{drix:100}` sur un rival → sabotage. + faux duels (K=32×manches calculé dans le navigateur) ;
+  rejouer la récompense Speedrun (`rewarded:false`, policy `scoreur_update_public USING(true)`) pour
+  re-créditer +20 DRIX en boucle. Crédit +20/+5 distribué côté client.
+
+### 🟠 MAJEUR
+- [ ] **Messagerie privée** : `GET messages?select=*` (sans filtre) lit TOUS les messages ;
+  `POST messages {from_id:…}` usurpe l'expéditeur. (RGPD — public potentiellement mineur.)
+- [ ] **PII énumérable** : `GET joueurs?select=email,ville,…` = annuaire email/ville/pseudo des comptes.
+- [ ] **Graphe social + historique** : `amis`, `duels`, `drix_mouvements`, `stats_joueurs`, `presences`
+  lisibles sans filtre (le filtre n'est que dans l'URL client).
+- [ ] **IDOR profil/social** : `PATCH joueurs?id=eq.<victime>` défigure/usurpe un profil et contourne
+  les limites métier (toutes côté client) ; DELETE/PATCH libres sur `duels` / `presences` / `amis`.
+
+### 🟡 MINEUR
+- [ ] Présences falsifiables/supprimables pour autrui (`presences` : pas de RLS ni `UNIQUE`).
+- [ ] `bar_recommandations` : policy DELETE `USING(true)` → effacer les reco d'autrui.
+- [ ] Mot de passe admin en clair en `sessionStorage` (idéal : token de session court au login + effacer au montage).
+- [ ] Rate-limit / anti-spam serveur sur `addAvis`/`addPhoto`/`addSignalement`/`addProposition` (clé anon, aucune limite).
+- [ ] Router `propositions_delete` / `signalements_delete` via `admin-ops`, puis retirer ces policies DELETE anon.
+
+### 🗺️ Feuille de route (du plus urgent au moins urgent)
+1. **P0 — Pare-feu (jour 0)** : `REVOKE SELECT (password_hash,email,nom,prenom,ville) ON public.joueurs FROM anon`
+   (masque hash + PII en gardant pseudo/drix/xp). ⚠️ casse le login actuel → coupler avec l'étape 2 dans la même session.
+2. **P0 — Login/register/reset côté serveur** : Edge Function service-role (modèle `admin-ops`) qui compare
+   le mot de passe en base (bcrypt salé) et renvoie un **token de session**, jamais le hash. Reset par jeton
+   e-mail à usage unique/expirable. Min 8 caractères. Migrer les hash → bcrypt + reset général.
+3. **P0 — Verrouiller les écritures `joueurs`** : `ENABLE RLS`, retirer UPDATE/INSERT/DELETE anon ; drix/xp
+   recalculés **côté serveur** (RPC `SECURITY DEFINER` / Edge Function). → tue le takeover ET la triche d'un coup.
+4. **P1 — Messagerie** : RLS sur `messages` + lecture/envoi via Edge Function (token de session).
+5. **P1 — Duels & récompenses recalculés serveur** : retirer `scoreur_update_public`/`scoreur_insert_public`
+   et tout UPDATE anon sur `chrono_*_scores`/`duels`/`drix_mouvements`/`stats_joueurs` ; scores immuables ;
+   calcul gagnant/points/flag `rewarded` dans l'Edge Function ; exiger la double validation réelle des 2 joueurs.
+6. **P2 — Cloisonner le social + PII** : vue `joueurs_public` (id, pseudo, photo, drix, xp, slugs) exposée à anon ;
+   RLS d'appartenance sur `amis`/`presences` + SELECT de `duels`/`drix_mouvements`/`stats` via RPC ; `UNIQUE` sur presences.
+7. **P3 — Nettoyage** : `bar_reco_delete` filtré au propriétaire ; remplacer les `select=*` (AppJoueurs.jsx:159-161,
+   AppMessages.jsx) par des colonnes explicites ; appliquer la §4 RLS commentée de `20260531_audit_trouve_ton_spot.sql` ;
+   à terme bascule complète vers **Supabase Auth** (JWT `auth.uid()`).
+
+✅ **Déjà bon (Fable 5 / sessions précédentes)** : `admin-ops` (auth + whitelist `ALLOWED` + filtre match
+obligatoire) couvre bars/avis/photos ; RLS DELETE de l'audit « Trouve ton spot » ; déconnexion admin ;
+`email` déjà non exposé en lecture anon.
 
 ## 🛠 Fiabilité (admin)
 - [ ] **`corrigerScore`** (AdminDuels) : recalculer DRIX **et** stats quand on corrige
