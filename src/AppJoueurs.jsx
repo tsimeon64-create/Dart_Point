@@ -3095,17 +3095,31 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                       {classement?.position&&<div style={{fontSize:10,color:CJ.muted}}>Rang #{classement.position}</div>}
                     </div>
                   </div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-                    <div style={{background:"#14532d",border:"1px solid #22c55e33",borderRadius:10,padding:"10px 12px"}}>
-                      <div style={{fontWeight:900,fontSize:20,color:"#22c55e"}}>+{gainElo} DRIX</div>
-                      <div style={{fontSize:11,color:"#86efac"}}>si victoire</div>
-                    </div>
-                    <div style={{background:"#7f1d1d",border:"1px solid #ef444433",borderRadius:10,padding:"10px 12px"}}>
-                      <div style={{fontWeight:900,fontSize:20,color:"#ef4444"}}>-{perteElo} DRIX</div>
-                      <div style={{fontSize:11,color:"#fca5a5"}}>si défaite</div>
-                    </div>
-                  </div>
-                  <div style={{fontSize:10,color:CJ.muted,textAlign:"center"}}>ⓘ Gain / perte de DRIX calculé par notre algorithme (type ELO)</div>
+                  {(() => {
+                    // Projection pour les DEUX joueurs (ELO : ce que l'un gagne, l'autre le perd)
+                    const lignes = [
+                      { pseudo: (moi?.pseudo) || "Toi", vic: gainElo,  def: perteElo },
+                      { pseudo: j.pseudo,               vic: perteElo, def: gainElo  },
+                    ];
+                    return (
+                      <>
+                        {lignes.map((p, i) => (
+                          <div key={i} style={{display:"flex",alignItems:"center",gap:8,background:"#111",borderRadius:10,padding:"9px 10px",marginBottom:i===0?8:0}}>
+                            <div style={{flex:1,minWidth:0,fontWeight:800,fontSize:13,color:CJ.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.pseudo}</div>
+                            <div style={{background:"#14532d",borderRadius:8,padding:"5px 9px",textAlign:"center",minWidth:56}}>
+                              <div style={{fontSize:8,color:"#4ade80",letterSpacing:.3}}>SI VICTOIRE</div>
+                              <div style={{fontWeight:900,fontSize:15,color:"#22c55e"}}>{p.vic === 0 ? "0" : `+${p.vic}`}</div>
+                            </div>
+                            <div style={{background:"#1e1e2e",borderRadius:8,padding:"5px 9px",textAlign:"center",minWidth:56}}>
+                              <div style={{fontSize:8,color:"#fca5a5",letterSpacing:.3}}>SI DÉFAITE</div>
+                              <div style={{fontWeight:900,fontSize:15,color:"#ef4444"}}>{p.def === 0 ? "0" : `-${p.def}`}</div>
+                            </div>
+                          </div>
+                        ))}
+                        <div style={{fontSize:10,color:CJ.muted,textAlign:"center",marginTop:8}}>ⓘ Gain / perte de DRIX calculé par notre algorithme (type ELO)</div>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* ── Bloc configuration ── */}
