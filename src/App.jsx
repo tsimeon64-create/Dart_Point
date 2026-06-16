@@ -3057,8 +3057,8 @@ const PageDefi = ({ joueur, setPage }) => {
               // le bouton 'Défier mon rival'. Sinon (chemin classique 'Défier un ami'),
               // c'est de l'ELO standard, même si l'adversaire est notre rival du moment.
               const isRival = modalFromRivalite;
-              const gainAffiche  = isRival ? 50          : (ms.gainElo||"?");
-              const perteAffiche = isRival ? 0           : (ms.perteElo||"?");
+              const gainAffiche  = isRival ? 50          : (ms.gainElo ?? "?");
+              const perteAffiche = isRival ? 0           : (ms.perteElo ?? "?");
               return (
                 <div style={{ margin:"12px 16px 0",background:C.card,border:`1px solid ${isRival?"#a78bfa":C.border}`,borderRadius:16,padding:16 }}>
                   {isRival && (
@@ -3084,25 +3084,37 @@ const PageDefi = ({ joueur, setPage }) => {
                       <div style={{ fontSize:10,color:C.muted }}>DRIX</div>
                     </div>
                   </div>
-                  <div style={{ display:"flex",gap:8,marginTop:10 }}>
-                    <div style={{ flex:1,background:"#14532d",borderRadius:10,padding:"10px 8px",textAlign:"center",position:"relative" }}>
-                      {isRival && <div style={{ position:"absolute",top:-6,right:6,background:"#a78bfa",color:"#fff",fontSize:8,fontWeight:800,padding:"1px 5px",borderRadius:20 }}>+50</div>}
-                      <div style={{ fontSize:10,color:"#4ade80",marginBottom:2 }}>SI VICTOIRE</div>
-                      <div style={{ fontWeight:900,fontSize:18,color:"#22c55e" }}>+{gainAffiche}</div>
-                      <div style={{ fontSize:9,color:"#4ade80" }}>DRIX</div>
-                    </div>
-                    <div style={{ flex:1,background:"#1e1e2e",borderRadius:10,padding:"10px 8px",textAlign:"center",position:"relative",border:isRival?"1px solid #a78bfa44":"none" }}>
-                      {isRival && <div style={{ position:"absolute",top:-6,right:6,background:"#6b7280",color:"#fff",fontSize:8,fontWeight:800,padding:"1px 5px",borderRadius:20 }}>0</div>}
-                      <div style={{ fontSize:10,color:isRival?"#d8b4fe":"#fca5a5",marginBottom:2 }}>SI DÉFAITE</div>
-                      <div style={{ fontWeight:900,fontSize:18,color:isRival?"#a78bfa":"#ef4444" }}>{isRival ? "0" : `-${perteAffiche}`}</div>
-                      <div style={{ fontSize:9,color:isRival?"#d8b4fe":"#fca5a5" }}>DRIX</div>
-                    </div>
-                  </div>
-                  {isRival && (
-                    <div style={{ marginTop:8,textAlign:"center",fontSize:10,color:"#a78bfa" }}>
-                      Bonus performance conservés des deux côtés
-                    </div>
-                  )}
+                  {/* Projection pour les DEUX joueurs (ELO : ce que l'un gagne, l'autre le perd) */}
+                  {(() => {
+                    const advVic = isRival ? 50 : (ms.perteElo ?? "?");
+                    const advDef = isRival ? 0  : (ms.gainElo ?? "?");
+                    const lignes = [
+                      { pseudo: joueur.pseudo || "Toi", vic: gainAffiche, def: perteAffiche },
+                      { pseudo: modalAmi.amiPseudo,     vic: advVic,      def: advDef },
+                    ];
+                    return (
+                      <div style={{ marginTop:10 }}>
+                        {lignes.map((p, i) => (
+                          <div key={i} style={{ display:"flex",alignItems:"center",gap:8,background:"#111",borderRadius:10,padding:"9px 10px",marginTop:i===0?0:8 }}>
+                            <div style={{ flex:1,minWidth:0,fontWeight:800,fontSize:13,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{p.pseudo}</div>
+                            <div style={{ background:"#14532d",borderRadius:8,padding:"5px 9px",textAlign:"center",minWidth:56 }}>
+                              <div style={{ fontSize:8,color:"#4ade80",letterSpacing:.3 }}>SI VICTOIRE</div>
+                              <div style={{ fontWeight:900,fontSize:15,color:"#22c55e" }}>{p.vic === "?" ? "…" : p.vic === 0 ? "0" : `+${p.vic}`}</div>
+                            </div>
+                            <div style={{ background:"#1e1e2e",borderRadius:8,padding:"5px 9px",textAlign:"center",minWidth:56,border:isRival?"1px solid #a78bfa44":"none" }}>
+                              <div style={{ fontSize:8,color:isRival?"#d8b4fe":"#fca5a5",letterSpacing:.3 }}>SI DÉFAITE</div>
+                              <div style={{ fontWeight:900,fontSize:15,color:isRival?"#a78bfa":"#ef4444" }}>{p.def === "?" ? "…" : p.def === 0 ? "0" : `-${p.def}`}</div>
+                            </div>
+                          </div>
+                        ))}
+                        {isRival && (
+                          <div style={{ marginTop:8,textAlign:"center",fontSize:10,color:"#a78bfa" }}>
+                            Bonus performance conservés des deux côtés
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })()}
