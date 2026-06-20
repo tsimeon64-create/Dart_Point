@@ -347,6 +347,19 @@ export const MessagesPage=({joueur,setPage,targetId=null,targetPseudo=null})=>{
     );
   }
 
+  // Ancienne session (avant la mise à jour sécurité) : pas de jeton → reconnexion nécessaire.
+  const hasToken = typeof localStorage !== "undefined" && !!localStorage.getItem("dp_token");
+  if(!hasToken){
+    return(
+      <div style={{maxWidth:500,margin:"0 auto",padding:"60px 20px",textAlign:"center"}}>
+        <div style={{marginBottom:14,display:"flex",justifyContent:"center"}}><EmoIcon e="🔒" size={52} color={CM.muted}/></div>
+        <p style={{color:CM.text,fontSize:16,fontWeight:700,marginBottom:8}}>Reconnecte-toi pour accéder à tes messages</p>
+        <p style={{color:CM.muted,fontSize:14,marginBottom:20,lineHeight:1.5}}>On a renforcé la sécurité de la messagerie.<br/>Déconnecte-toi puis reconnecte-toi <b>une seule fois</b> pour réactiver tes conversations.</p>
+        <button onClick={()=>{ try{ localStorage.removeItem("dp_joueur"); localStorage.removeItem("dp_token"); }catch(e){/*ignore*/} window.location.reload(); }} style={{background:CM.accent,color:"#fff",border:"none",cursor:"pointer",padding:"12px 28px",borderRadius:10,fontSize:14,fontWeight:700}}>Me reconnecter</button>
+      </div>
+    );
+  }
+
   if(convId){
     return(
       <ConversationView
