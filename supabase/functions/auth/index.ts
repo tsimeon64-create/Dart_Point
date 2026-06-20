@@ -86,13 +86,38 @@ async function makeToken(jid: string): Promise<string> {
   const payload = b64url(enc(JSON.stringify({ jid, exp: Date.now() + TOKEN_TTL_MS })));
   return `${payload}.${await hmacSign(payload)}`;
 }
+// Vérifie un jeton de session (HMAC + expiration) et renvoie l'id du joueur, sinon null.
+async function verifyToken(token: unknown): Promise<string | null> {
+  try {
+    const [p, sig] = String(token || "").split(".");
+    if (!p || !sig) return null;
+    if ((await hmacSign(p)) !== sig) return null;
+    const pad = (s: string) => s + "===".slice((s.length + 3) % 4);
+    const obj = JSON.parse(atob(pad(p.replace(/-/g, "+").replace(/_/g, "/"))));
+    if (!obj?.jid || !obj?.exp || Date.now() > obj.exp) return null;
+    return String(obj.jid);
+  } catch { return null; }
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST")    return json({ error: "method not allowed" }, 405);
 
   try {
-    const { action, pseudo, password, profil, resetCode, newPassword } = await req.json();
+    const { action, pseudo, password, profil, resetCode, newPassword, token } = await req.json();
+
+    // ───────────────────────── SESSION ─────────────────────────
+    // Rafraîchir MON profil complet (email/nom/prénom inclus) en prouvant mon identité
+    // par le jeton de session — sans mot de passe. Sert à réparer un cache local qui aurait
+    // perdu l'email (les lectures publiques n'ont plus le droit de renvoyer la PII).
+    if (action === "session") {
+      const jid = await verifyToken(token);
+      if (!jid) return json({ error: "Session invalide ou expirée" }, 401);
+      const rows = await api(`joueurs?id=eq.${jid}&select=${PUBLIC_COLS}`).then((r) => r.json());
+      const u = Array.isArray(rows) ? rows[0] : null;
+      if (!u) return json({ error: "Joueur introuvable" }, 404);
+      return json({ ok: true, joueur: u });
+    }
 
     // ───────────────────────── LOGIN ─────────────────────────
     if (action === "login") {

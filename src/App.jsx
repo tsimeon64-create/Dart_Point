@@ -9,7 +9,7 @@ import {
   PageDrix, DrixBadge, HistoriqueDrix,
   AmiSection,
   appliquerDrixDuel, getDrixTitre, getDrixProgression, calculerDrix,
-  dbJoueurs, todayStr, hashPwd,
+  dbJoueurs, todayStr, hashPwd, callAuth,
   ALL_BADGES, computeBadgeValues, getBadgesStored, storeBadgesSet,
   NiveauBulle,
 } from "./AppJoueurs";
@@ -11330,6 +11330,9 @@ export default function App() {
   const [showChronoPopup,setShowChronoPopup]=useState(false);
   const [chronoLeader,setChronoLeader]=useState(null);
   const [showEmailRequired,setShowEmailRequired]=useState(false);
+  // Tant que la vérif/réparation de session du boot n'est pas finie, on n'affiche pas la
+  // popup email (évite de la montrer à tort à un joueur dont le cache a perdu l'email).
+  const [emailCheckDone,setEmailCheckDone]=useState(false);
   const [emailReqValue,setEmailReqValue]=useState("");
   const [emailReqCgu,setEmailReqCgu]=useState(false);
   const [emailReqLoading,setEmailReqLoading]=useState(false);
@@ -11421,11 +11424,40 @@ export default function App() {
     if (outcome === "accepted") { setInstallPrompt(null); setIsInstalled(true); }
   };
 
-  useEffect(()=>{ try{ const j=localStorage.getItem("dp_joueur"); if(j) setJoueur(JSON.parse(j)); }catch{} },[]);
-
-  // Popup email obligatoire pour les comptes sans email
+  // Boot : on recharge la session du cache. Si le cache n'a pas d'email mais qu'on a un
+  // jeton, on re-tire le profil complet via la fonction `auth` (action "session") et on
+  // fusionne — répare un cache qui aurait perdu l'email (les lectures publiques ne renvoient
+  // plus la PII). emailCheckDone passe à true dans tous les cas → la popup peut alors décider.
   useEffect(()=>{
-    if (joueur?.id && !joueur?.email) {
+    let cancelled=false;
+    try{
+      const j=localStorage.getItem("dp_joueur");
+      if(!j){ setEmailCheckDone(true); return; }
+      const parsed=JSON.parse(j);
+      setJoueur(parsed);
+      const tok=localStorage.getItem("dp_token");
+      if(tok && parsed?.id && !parsed?.email){
+        callAuth("session",{ token:tok })
+          .then(r=>{
+            if(cancelled) return;
+            if(r?.ok && r.joueur?.email){
+              const merged={ ...parsed, ...r.joueur };
+              setJoueur(merged);
+              localStorage.setItem("dp_joueur", JSON.stringify(merged));
+            }
+            setEmailCheckDone(true);
+          })
+          .catch(()=>{ if(!cancelled) setEmailCheckDone(true); });
+      } else {
+        setEmailCheckDone(true);
+      }
+    }catch{ setEmailCheckDone(true); }
+    return ()=>{ cancelled=true; };
+  },[]);
+
+  // Popup email obligatoire pour les comptes sans email (après la vérif de session du boot)
+  useEffect(()=>{
+    if (emailCheckDone && joueur?.id && !joueur?.email) {
       setShowEmailRequired(true);
       setEmailReqValue("");
       setEmailReqCgu(false);
@@ -11433,7 +11465,7 @@ export default function App() {
     } else {
       setShowEmailRequired(false);
     }
-  },[joueur?.id, joueur?.email]);
+  },[joueur?.id, joueur?.email, emailCheckDone]);
 
   // ── Notification déblocage Défi de la Semaine (1 fois, dès 10 amis) ──────────
   useEffect(() => {
