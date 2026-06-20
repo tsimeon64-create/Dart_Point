@@ -16,8 +16,6 @@
 // SECRETS REQUIS (déjà fournis par Supabase pour SUPABASE_*, à vérifier) :
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
 const SB_URL       = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -52,7 +50,7 @@ const api = (path: string, opts: RequestInit = {}) => {
   });
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST")    return json({ error: "method not allowed" }, 405);
 
