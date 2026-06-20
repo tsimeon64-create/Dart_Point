@@ -18,10 +18,12 @@
 > de ça. (Confirmé en live : HTTP 200/204.)
 
 ### 🔴 CRITIQUE
-- [ ] **Prise de contrôle de n'importe quel compte.** (A) `GET joueurs?select=pseudo,password_hash`
-  → les 32 hash (SHA-256 **non salé**), crackables hors-ligne ; (B) `PATCH joueurs?id=eq.<victime>`
-  `{password_hash:…}` → 204, on impose un mot de passe et on se connecte. Le code admin de reset
-  n'est qu'un contrôle UI, jamais exigé par la base.
+- [x] ~~**Prise de contrôle de n'importe quel compte.**~~ ✅ **FERMÉ le 16/06/2026 (Phase 1).**
+  Edge Function `auth` (login/register/reset côté serveur, le hash ne transite plus) +
+  `REVOKE SELECT/UPDATE(password_hash) ON joueurs FROM anon` (vérifié live : 401 sur lecture ET
+  réécriture du hash). Mots de passe migrés en **PBKDF2 salé** (150k itérations), migration douce
+  SHA-256→PBKDF2 au login (transparente). Reset par code admin conservé mais désormais exécuté
+  côté serveur. *(Reste plus tard : reset par jeton e-mail, et bascule éventuelle vers Supabase Auth.)*
 - [ ] **Classement entièrement truquable / sabotable.** `PATCH joueurs?id=eq.<moi> {drix:99999,xp:9999999}`
   → n°1 ; `{drix:100}` sur un rival → sabotage. + faux duels (K=32×manches calculé dans le navigateur) ;
   rejouer la récompense Speedrun (`rewarded:false`, policy `scoreur_update_public USING(true)`) pour
