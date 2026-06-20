@@ -3859,6 +3859,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
   const w = d.winner; const l = d.loser;
   const isRivalite = !!d.isRivalite;
   const isAmical   = !!d.isAmical;
+  const isBot      = !!d.bot; // match contre un bot (le « fantôme » d'un ami) — pas de DRIX
 
   // Fetch photos des 2 joueurs (gagnant + perdant) en une seule requête
   useEffect(() => {
@@ -3908,7 +3909,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
   const themeSecond = isRivalite ? "#7c3aed" : isAmical ? "#3b82f6" : "#ea580c";
   const winColor    = "#22c55e";
   const loseColor   = "#ef4444";
-  const headerLabel = isRivalite ? "⚔ RIVALITÉ HEBDO" : isAmical ? "🤝 PARTIE AMICALE" : "⚔ DUEL";
+  const headerLabel = isBot ? "🤖 DUEL BOT" : isRivalite ? "⚔ RIVALITÉ HEBDO" : isAmical ? "🤝 PARTIE AMICALE" : "⚔ DUEL";
 
   return (
     <div key={`post-${p.id}`} style={{
@@ -4006,6 +4007,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
               <div title={w.nom} style={{ fontWeight:900, fontSize:12, color:winColor, marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textShadow:`0 0 10px ${winColor}66` }}>
                 {w.nom}
               </div>
+              {isBot && d.botNom===w.nom && <div style={{ display:"inline-block", fontSize:8.5, fontWeight:800, color:"#c4b5fd", background:"#a78bfa1f", border:"1px solid #a78bfa44", borderRadius:5, padding:"0 5px", letterSpacing:.5, marginBottom:2 }}>🤖 BOT</div>}
               <div style={{
                 fontSize:72, fontWeight:900, lineHeight:.9, color:winColor,
                 fontVariantNumeric:"tabular-nums",
@@ -4044,6 +4046,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
               <div title={l.nom} style={{ fontWeight:900, fontSize:12, color:"#94a3b8", marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                 {l.nom}
               </div>
+              {isBot && d.botNom===l.nom && <div style={{ display:"inline-block", fontSize:8.5, fontWeight:800, color:"#c4b5fd", background:"#a78bfa1f", border:"1px solid #a78bfa44", borderRadius:5, padding:"0 5px", letterSpacing:.5, marginBottom:2 }}>🤖 BOT</div>}
               <div style={{
                 fontSize:72, fontWeight:900, lineHeight:.9, color:loseColor,
                 fontVariantNumeric:"tabular-nums", opacity:.65, filter:"grayscale(.2)",
@@ -4085,8 +4088,8 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
           )}
         </div>
 
-        {/* DRIX vivants — masqués pour les amicales (pas de DRIX en jeu) */}
-        {!isAmical && (
+        {/* DRIX vivants — masqués pour les amicales et les duels bot (pas de DRIX en jeu) */}
+        {!isAmical && !isBot && (
           <div style={{ display:"flex", gap:10, marginBottom:14 }}>
             <div style={{ flex:1, position:"relative", overflow:"hidden", background:`linear-gradient(135deg,${winColor}22 0%,${winColor}0a 50%,#000 100%)`, border:`1px solid ${winColor}77`, borderRadius:14, padding:"12px 12px", boxShadow:`0 0 24px ${winColor}28, inset 0 1px 0 ${winColor}33`, textAlign:"center" }}>
               <div style={{ fontSize:9, fontWeight:800, color:"#86efac", letterSpacing:1, marginBottom:3,display:"flex",alignItems:"center",gap:4 }}><EmoIcon e="🔥" size={10}/>{w.nom.split(" ")[0].slice(0,12)}</div>
@@ -4112,6 +4115,17 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:11, fontWeight:900, color:"#60a5fa", letterSpacing:1.5, marginBottom:2 }}>PARTIE AMICALE</div>
               <div style={{ fontSize:12, color:"#94a3b8" }}>Aucun DRIX en jeu · Match comptabilisé dans les stats</div>
+            </div>
+          </div>
+        )}
+
+        {/* DUEL BOT — pas de DRIX (entraînement) */}
+        {isBot && (
+          <div style={{ display:"flex", alignItems:"center", gap:12, background:"linear-gradient(135deg,#15001f,#0a0014)", border:"1px solid #a78bfa44", borderRadius:14, padding:"12px 14px", marginBottom:14 }}>
+            <span style={{ fontSize:22 }}>🤖</span>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:11, fontWeight:900, color:"#c4b5fd", letterSpacing:1.5, marginBottom:2 }}>DUEL CONTRE UN BOT</div>
+              <div style={{ fontSize:12, color:"#94a3b8" }}>{d.botNom} est simulé d'après son vrai niveau · aucun DRIX en jeu</div>
             </div>
           </div>
         )}
@@ -4199,7 +4213,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
               <EmoIcon e="📊" size={13}/>{openManches?"Masquer":"Voir"} les manches
             </button>
           )}
-          {!isAmical && (
+          {!isAmical && !isBot && (
             <button onClick={()=>setOpenDrix(o=>!o)} style={{
               flex:1,
               background: openDrix

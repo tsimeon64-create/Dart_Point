@@ -1588,6 +1588,27 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       dbJ.updateJoueur(joueur.id, { xp: newXp }).catch(() => {});
       if (setJoueur) setJoueur((p) => ({ ...p, xp: newXp }));
       window.dpToast?.(`+${delta} XP ${humainGagne ? "— victoire contre le bot 🎯" : "— bien joué 👍"}`, "success");
+
+      // Poster le résultat dans le fil du Comptoir, étiqueté « duel bot » (jamais de DRIX).
+      if (joueurs?.length >= 2) {
+        const botJ = joueurs.find((j) => j.nom === botPseudo);
+        const humJ = joueurs.find((j) => j.nom !== botPseudo);
+        const winnerJ = humainGagne ? humJ : botJ;
+        const loserJ  = humainGagne ? botJ : humJ;
+        const moyOf = (j) => (j && j.flechettes > 0) ? Math.round(j.totalPoints / j.flechettes * 3) : 0;
+        const duelPost = {
+          bot: true, botNom: botPseudo, mode: config.mode,
+          headline: `🤖 ${winnerJ?.nom} bat ${loserJ?.nom} ${winnerJ?.manchesGagnees || 0}-${loserJ?.manchesGagnees || 0}`,
+          winner: { nom: winnerJ?.nom, nbManches: winnerJ?.manchesGagnees || 0, total: 0, elo: 0, xp: humainGagne ? delta : 0, xpLines: [], moy: moyOf(winnerJ) },
+          loser:  { nom: loserJ?.nom,  nbManches: loserJ?.manchesGagnees || 0,  total: 0, elo: 0, xp: humainGagne ? 0 : delta, xpLines: [], moy: moyOf(loserJ) },
+          manches: [],
+        };
+        fetch(`${SB_URL}/rest/v1/wall_posts`, {
+          method: "POST",
+          headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({ joueur_id: joueur.id, joueur_pseudo: joueur.pseudo, joueur_photo: joueur.photo || null, contenu: `__DUEL__|${JSON.stringify(duelPost)}`, date: Date.now() }),
+        }).catch(() => {});
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [etape, botPseudo, gagnant]);
