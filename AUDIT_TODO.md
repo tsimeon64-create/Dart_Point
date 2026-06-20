@@ -30,8 +30,11 @@
   re-créditer +20 DRIX en boucle. Crédit +20/+5 distribué côté client.
 
 ### 🟠 MAJEUR
-- [ ] **Messagerie privée** : `GET messages?select=*` (sans filtre) lit TOUS les messages ;
-  `POST messages {from_id:…}` usurpe l'expéditeur. (RGPD — public potentiellement mineur.)
+- [x] ~~**Messagerie privée**~~ ✅ **FERMÉ le 20/06/2026.** Jeton de session signé (HMAC) délivré au
+  login par la fonction `auth` ; Edge Function `messages` (list/conversation/send/markRead/unread) qui
+  ne renvoie que SES conversations et force `from_id` à l'identité du jeton ; `REVOKE SELECT,INSERT,UPDATE
+  ON messages FROM anon` (vérifié live : 401 sur lecture ET insertion directes). Écran « reconnecte-toi »
+  pour les anciennes sessions. *(Reste : router le DELETE admin des messages via admin-ops.)*
 - [ ] **PII énumérable** : `GET joueurs?select=email,ville,…` = annuaire email/ville/pseudo des comptes.
 - [ ] **Graphe social + historique** : `amis`, `duels`, `drix_mouvements`, `stats_joueurs`, `presences`
   lisibles sans filtre (le filtre n'est que dans l'URL client).
