@@ -943,6 +943,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [loadingAmis, setLoadingAmis] = useState(false);
   const [loadingBot, setLoadingBot]   = useState(null); // id de l'ami en cours de préparation
   const botXpRef = useRef(false);                       // évite de créditer l'XP deux fois
+  const botPostRef = useRef(false);                     // évite de poster le match bot deux fois sur le Comptoir
   const [mancheEnCours, setMancheEnCours] = useState(0); // 0-based
   const [gagnant, setGagnant] = useState(null);
   const [resultEnregistre, setResultEnregistre] = useState(false);
@@ -962,6 +963,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const liveVoleeNumRef = useRef([0, 0]);
   const liveMaxFinishRef = useRef([0, 0]);
   const liveBustsRef = useRef([0, 0]);
+  // Ids des deux joueurs cote serveur (pour les inserts live_volees) — fonctionne en duel ET en bot
+  const liveJoueurIdsRef = useRef([null, null]);
 
   // ── Scroll auto vers le joueur actif (déclaré ici pour respecter les Rules of Hooks) ──
   const scoresGridRef = useRef(null);
@@ -996,10 +999,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     };
   }, [etape]);
 
-  // ── Live session : démarre quand etape passe à "jeu" ──
+  // ── Live session : démarre quand etape passe à "jeu" (duel classe OU mode bot) ──
   useEffect(() => {
-    if (etape === "jeu" && modeDuel && duel?.id && !liveIdRef.current) {
-      createLiveSession();
+    if (etape === "jeu" && !liveIdRef.current) {
+      const canDuel = modeDuel && duel?.id;
+      const canBot  = !modeDuel && !!botPseudo && !!botAmi && !!joueur?.id;
+      if (canDuel || canBot) createLiveSession();
     }
     if (etape === "fin" || etape === "config") {
       closeLiveSession();
@@ -1156,6 +1161,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       const duels = await dbJ.getDuels(ami.id).catch(() => []);
       const profil = calculerProfilBot({ drix: ami.drix, duels, amiPseudo: ami.pseudo });
       botXpRef.current = false;
+      botPostRef.current = false;
       setBotPseudo(ami.pseudo);
       setBotProfil(profil);
       setBotAmi(ami);
@@ -1348,20 +1354,31 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Suivi live session ────────────────────────────────────────────────────
   const createLiveSession = async () => {
-    if (!modeDuel || !duel?.id) return;
+    // Live possible : (1) duel classe — challenger vs defie OU (2) mode bot — joueur vs ami simule
+    const isBotLive = !modeDuel && !!botPseudo && !!botAmi && !!joueur?.id;
+    if (!isBotLive && (!modeDuel || !duel?.id)) return;
     try {
-      const mode = duel.mode || "501";
-      const manches = duel.manches || 1;
+      const mode = isBotLive ? config.mode : (duel.mode || "501");
+      const manches = isBotLive ? (config.manches || 1) : (duel.manches || 1);
       const format = manches === 1 ? "Bo1" : `Bo${manches * 2 - 1}`;
       const sv = parseInt(mode) || 501;
       const initSt = { moy:0, volees:0, total_pts:0, nb180:0, reste:sv, max_finish:0, busts:0 };
-      const body = {
-        mode, format,
-        joueur1_id:String(duel.challenger_id), joueur1_pseudo:duel.challenger_pseudo, joueur1_drix:duel.challenger_drix||1000,
-        joueur2_id:String(duel.defie_id), joueur2_pseudo:duel.defie_pseudo, joueur2_drix:duel.defie_drix||1000,
-        debut:Date.now(), statut:"en_cours",
-        score1:0, score2:0, stats_j1:initSt, stats_j2:initSt,
-      };
+      // Mode bot : on prefixe le pseudo bot avec 🤖 pour que les amis identifient un match contre le fantome
+      const body = isBotLive
+        ? {
+            mode, format,
+            joueur1_id:String(joueur.id), joueur1_pseudo:joueur.pseudo, joueur1_drix:joueur.drix||1000,
+            joueur2_id:String(botAmi.id), joueur2_pseudo:`🤖 ${botAmi.pseudo}`, joueur2_drix:botAmi.drix||1000,
+            debut:Date.now(), statut:"en_cours",
+            score1:0, score2:0, stats_j1:initSt, stats_j2:initSt,
+          }
+        : {
+            mode, format,
+            joueur1_id:String(duel.challenger_id), joueur1_pseudo:duel.challenger_pseudo, joueur1_drix:duel.challenger_drix||1000,
+            joueur2_id:String(duel.defie_id), joueur2_pseudo:duel.defie_pseudo, joueur2_drix:duel.defie_drix||1000,
+            debut:Date.now(), statut:"en_cours",
+            score1:0, score2:0, stats_j1:initSt, stats_j2:initSt,
+          };
       const r = await fetch(`${SB_URL}/rest/v1/live_sessions`, {
         method:"POST",
         headers:{ "apikey":SB_KEY, "Authorization":`Bearer ${SB_KEY}`, "Content-Type":"application/json", "Prefer":"return=representation" },
@@ -1376,7 +1393,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         liveVoleeNumRef.current = [0,0];
         liveMaxFinishRef.current = [0,0];
         liveBustsRef.current = [0,0];
-        console.log("✅ Live session créée:", row.id);
+        liveJoueurIdsRef.current = isBotLive
+          ? [String(joueur.id), String(botAmi.id)]
+          : [String(duel.challenger_id), String(duel.defie_id)];
+        console.log("✅ Live session créée:", row.id, isBotLive ? "(bot)" : "(duel)");
       } else {
         console.error("createLiveSession: pas d'id dans la réponse", d);
       }
@@ -1405,7 +1425,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         fetch(`${SB_URL}/rest/v1/live_volees`, {
           method:"POST",
           headers:{ apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, "Content-Type":"application/json", Prefer:"return=minimal" },
-          body: JSON.stringify({ session_id:liveIdRef.current, joueur_id:joueurIdx===0?duel.challenger_id:duel.defie_id, numero_volee:liveVoleeNumRef.current[joueurIdx], score:isBust?-1:score, reste, date:Date.now() }),
+          body: JSON.stringify({ session_id:liveIdRef.current, joueur_id:liveJoueurIdsRef.current[joueurIdx], numero_volee:liveVoleeNumRef.current[joueurIdx], score:isBust?-1:score, reste, date:Date.now() }),
         }),
       ]);
     } catch(e) { console.warn("pushLiveVolee:", e); }
@@ -1498,8 +1518,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       );
       const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
       const startScore = modeDuel ? parseInt(duel?.mode || "501") : startVal;
-      // buildMancheDetail uniquement en mode duel (2 joueurs)
-      const mancheDetail = modeDuel ? buildMancheDetail(updated, actifIdx, mancheStart, startScore) : null;
+      // buildMancheDetail en duel ET en mode bot (les deux ont exactement 2 joueurs)
+      const mancheDetail = (modeDuel || botPseudo) ? buildMancheDetail(updated, actifIdx, mancheStart, startScore) : null;
       if (newManches >= manchesTotal) {
         const allManches = mancheDetail ? [...manchesHistory, mancheDetail] : manchesHistory;
         setJoueurs(updated);
@@ -1546,16 +1566,24 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Mode bot : quand c'est au tour du bot, il joue tout seul (petit délai « suspense ») ──
   useEffect(() => {
-    if (!botPseudo || etape !== "jeu" || gagnant || !joueurs) return;
+    if (!botPseudo || etape !== "jeu" || gagnant || !joueurs || joueurs.length === 0) return;
     const botIdx = joueurs.findIndex((j) => j.nom === botPseudo);
     if (botIdx < 0 || actifIdx !== botIdx) return;
+    // Filet de sécurité : si le pseudo humain est identique à celui du bot (collision rare),
+    // on n'auto-confirme pas et on ne joue pas — l'humain reste maître de la saisie.
+    const humainPseudo = joueur?.pseudo;
+    if (humainPseudo && humainPseudo === botPseudo) return;
+    const botJoueur = joueurs[botIdx];
+    if (!botJoueur || typeof botJoueur.score !== "number") return;
     const t = setTimeout(() => {
-      if (pendingVolee) {
-        // Le bot confirme sa volée tout seul (finish : 2-3 fléchettes, sinon 3).
-        confirmerVolee(pendingVolee.type === "finish" ? (Math.random() < 0.5 ? 2 : 3) : 3);
-      } else {
-        envoyer(genererScoreBot(joueurs[botIdx].score, botProfil));
-      }
+      try {
+        if (pendingVolee) {
+          // Le bot confirme sa volée tout seul (finish : 2-3 fléchettes, sinon 3).
+          confirmerVolee(pendingVolee.type === "finish" ? (Math.random() < 0.5 ? 2 : 3) : 3);
+        } else {
+          envoyer(genererScoreBot(botJoueur.score, botProfil));
+        }
+      } catch (e) { console.error("Bot tour erreur:", e); }
     }, pendingVolee ? 650 : 900 + Math.floor(Math.random() * 600));
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1573,6 +1601,80 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       if (setJoueur) setJoueur((p) => ({ ...p, xp: newXp }));
       window.dpToast?.(`+${delta} XP ${humainGagne ? "— victoire contre le bot 🎯" : "— bien joué 👍"}`, "success");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [etape, botPseudo, gagnant]);
+
+  // ── Mode bot : a la fin du match, publier le resultat sur le Comptoir (format DuelPost, marque isBot) ──
+  useEffect(() => {
+    if (etape !== "fin" || !botPseudo || !botAmi || !joueur?.id || !gagnant || botPostRef.current) {
+      if (etape === "fin" && botPseudo && !botPostRef.current) {
+        console.log("📌 Post bot SKIP:", { hasBotAmi:!!botAmi, hasJoueurId:!!joueur?.id, hasGagnant:!!gagnant });
+      }
+      return;
+    }
+    botPostRef.current = true;
+    (async () => {
+      try {
+        const humainGagne = gagnant.nom !== botPseudo;
+        const idxBot = joueurs.findIndex(j => j.nom === botPseudo);
+        const jHumain = joueurs[1 - idxBot];
+        const jBot    = joueurs[idxBot];
+        if (!jHumain || !jBot) { console.warn("📌 Post bot abort: joueurs introuvables"); return; }
+
+        const botDisplayPseudo = `🤖 ${botAmi.pseudo}`;
+        const winnerNom  = humainGagne ? jHumain.nom : botDisplayPseudo;
+        const loserNom   = humainGagne ? botDisplayPseudo : jHumain.nom;
+        const winnerObj  = humainGagne ? jHumain : jBot;
+        const loserObj   = humainGagne ? jBot : jHumain;
+        const moyHumain  = parseFloat(moyenneCalc(jHumain));
+        const moyBot     = parseFloat(moyenneCalc(jBot));
+
+        const all180 = [...(jHumain.tours||[]),...(jBot.tours||[])].filter(v=>v===180).length;
+        const highlights = [
+          all180 > 0 ? `💥 ${all180}×180 dans ce match` : "",
+          (manchesHistory||[]).some(m=>(m.winner_finish||0)>=160) ? `🐟 Big Fish ≥ 160 !` : "",
+        ].filter(Boolean).join("  ");
+
+        const duelPost = {
+          isAmical: true, isBot: true, isRivalite: false,
+          mode: config.mode || "501",
+          headline: `🤖 ${winnerNom} bat ${loserNom} ${winnerObj.manchesGagnees}-${loserObj.manchesGagnees}`,
+          highlights: highlights || null,
+          winner: { nom: winnerNom, nbManches: winnerObj.manchesGagnees,
+            elo:0, bonusManches:0, bonusVolees:0, nbVolees:0, bonusFinish:0, nbFinish:0, total:0, xp:0, xpLines:[] },
+          loser:  { nom: loserNom,  nbManches: loserObj.manchesGagnees,
+            elo:0, bonusManches:0, bonusVolees:0, nbVolees:0, bonusFinish:0, nbFinish:0, total:0, xp:0, xpLines:[] },
+          manches: manchesHistory || [],
+          moyHumain, moyBot,
+        };
+        const contenu = `__DUEL__|${JSON.stringify(duelPost)}`;
+        console.log("📌 Post bot ENVOI:", { joueur_id:joueur.id, headline:duelPost.headline });
+        const r = await fetch(`${SB_URL}/rest/v1/wall_posts`, {
+          method:"POST",
+          headers:{ "apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`,"Content-Type":"application/json","Prefer":"return=minimal" },
+          body: JSON.stringify({
+            joueur_id: joueur.id,
+            joueur_pseudo: joueur.pseudo,
+            joueur_photo: joueur.photo || null,
+            contenu,
+            date: Date.now(),
+          }),
+        });
+        if (!r.ok) {
+          const t = await r.text().catch(()=> "");
+          console.error("📌 Post bot HTTP", r.status, t);
+          window.dpToast?.(`Comptoir : echec publication (${r.status})`, "error");
+          botPostRef.current = false; // permet une nouvelle tentative en retour 'Rejouer'
+          return;
+        }
+        console.log("📌 Post bot OK");
+        window.dpToast?.("📌 Match publie sur le Comptoir", "success");
+      } catch(e) {
+        console.error("📌 Post bot exception:", e);
+        window.dpToast?.("Comptoir : erreur reseau", "error");
+        botPostRef.current = false;
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [etape, botPseudo, gagnant]);
 
@@ -1836,10 +1938,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   );
 
   // ── ÉCRAN JEU — position fixed, plein écran, zero scroll ─────────────────
-  if (!joueurs) return null;
+  if (!joueurs || joueurs.length === 0) return null;
   // Le joueur qui a gagné la bulle est TOUJOURS affiché en premier
   const displayOrder = Array.from({ length: joueurs.length }, (_, i) => (bulleStartIdx + i) % joueurs.length);
-  const actif = joueurs[actifIdx];
+  const safeActifIdx = Math.max(0, Math.min(actifIdx, joueurs.length - 1));
+  const actif = joueurs[safeActifIdx] || joueurs[0];
+  if (!actif) return null;
   const botIdxJeu = botPseudo ? joueurs.findIndex((j) => j.nom === botPseudo) : -1;
   const botJoue = botIdxJeu >= 0 && actifIdx === botIdxJeu && !gagnant; // c'est au bot de jouer
   const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;

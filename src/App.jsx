@@ -3859,6 +3859,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
   const w = d.winner; const l = d.loser;
   const isRivalite = !!d.isRivalite;
   const isAmical   = !!d.isAmical;
+  const isBot      = !!d.isBot;
 
   // Fetch photos des 2 joueurs (gagnant + perdant) en une seule requête
   useEffect(() => {
@@ -3908,7 +3909,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
   const themeSecond = isRivalite ? "#7c3aed" : isAmical ? "#3b82f6" : "#ea580c";
   const winColor    = "#22c55e";
   const loseColor   = "#ef4444";
-  const headerLabel = isRivalite ? "⚔ RIVALITÉ HEBDO" : isAmical ? "🤝 PARTIE AMICALE" : "⚔ DUEL";
+  const headerLabel = isBot ? "🤖 MATCH BOT" : isRivalite ? "⚔ RIVALITÉ HEBDO" : isAmical ? "🤝 PARTIE AMICALE" : "⚔ DUEL";
 
   return (
     <div key={`post-${p.id}`} style={{
