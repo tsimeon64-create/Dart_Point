@@ -73,6 +73,20 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
 }
 const isPbkdf2 = (h: unknown) => typeof h === "string" && h.startsWith("pbkdf2$");
 
+// ── Jeton de session (HMAC-SHA256 signé avec la SERVICE KEY, donc infalsifiable) ──
+// Format : base64url(JSON{jid,exp}) + "." + base64url(HMAC). Sert à prouver l'identité
+// du joueur aux autres fonctions (messages, etc.) sans renvoyer le mot de passe.
+const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 jours
+const b64url = (u8: Uint8Array) => btoa(String.fromCharCode(...u8)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function hmacSign(data: string): Promise<string> {
+  const key = await crypto.subtle.importKey("raw", enc(SERVICE_KEY), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return b64url(new Uint8Array(await crypto.subtle.sign("HMAC", key, enc(data))));
+}
+async function makeToken(jid: string): Promise<string> {
+  const payload = b64url(enc(JSON.stringify({ jid, exp: Date.now() + TOKEN_TTL_MS })));
+  return `${payload}.${await hmacSign(payload)}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST")    return json({ error: "method not allowed" }, 405);
@@ -101,7 +115,7 @@ Deno.serve(async (req) => {
       if (!ok) return json({ error: "Pseudo ou mot de passe incorrect" }, 401);
 
       delete u.password_hash;
-      return json({ ok: true, joueur: u });
+      return json({ ok: true, joueur: u, token: await makeToken(u.id) });
     }
 
     // ───────────────────────── REGISTER ─────────────────────────
@@ -131,7 +145,7 @@ Deno.serve(async (req) => {
       }).then((r) => r.json());
       const joueur = Array.isArray(created) ? created[0] : created;
       if (!joueur?.id) return json({ error: "Erreur lors de la création du compte" }, 500);
-      return json({ ok: true, joueur });
+      return json({ ok: true, joueur, token: await makeToken(joueur.id) });
     }
 
     // ───────────────────────── RESET ─────────────────────────
