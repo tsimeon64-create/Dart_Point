@@ -4,19 +4,16 @@
 // POURQUOI : aujourd'hui le client lit le hash du mot de passe et le compare dans le
 // navigateur → le hash est servi à quiconque a la clé anon (cf. audit, faille critique).
 // Ici, la vérification se fait avec la SERVICE ROLE KEY : le hash ne sort JAMAIS au client.
-// → Une fois cette fonction en place, on peut REVOKE SELECT/UPDATE(password_hash) FROM anon
+// → Permet ensuite de REVOKE SELECT/UPDATE(password_hash) FROM anon
 //   (fin de l'exposition des mots de passe ET du takeover par réécriture du hash).
 //
-// MOTS DE PASSE : bcrypt salé. Migration douce — un ancien hash SHA-256 (non salé) est
-// re-haché en bcrypt au 1er login réussi, de façon transparente pour le joueur.
+// MOTS DE PASSE : PBKDF2-SHA256 salé (Web Crypto intégré à Deno — AUCUNE dépendance externe).
+// Migration douce : un ancien hash SHA-256 (non salé) est re-haché en PBKDF2 au 1er login
+// réussi, de façon transparente pour le joueur.
+//   Format stocké : "pbkdf2$<iterations>$<sel_base64>$<hash_base64>"
 //
-// DÉPLOIEMENT (dashboard Supabase → Edge Functions → Deploy a new function → nom "auth") :
-//   • coller ce fichier, puis Deploy.
-//   • IMPORTANT : désactiver "Verify JWT" (la fonction doit être appelable sans être déjà connecté).
-//   • (CLI équivalent : supabase functions deploy auth --no-verify-jwt)
+// DÉPLOIEMENT (dashboard Supabase → Edge Functions → coller → Deploy ; nom "auth").
 // SECRETS : SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont fournis automatiquement par Supabase.
-
-import bcrypt from "https://esm.sh/bcryptjs@2.4.3";
 
 const SB_URL      = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -40,16 +37,37 @@ const PUBLIC_COLS =
   "id,pseudo,bar_slug,asso_slug,date_inscription,actif,drix,photo,age,ville,style_jeu," +
   "bull_balance,last_daily_reward,bull_reserved,nom,prenom,email,niveau,cgu_accepte,cgu_date," +
   "anonymise,anonymise_date,xp,xp_badges_credited";
-
 // Champs de profil que l'inscription a le droit de fixer (jamais drix/xp/is_admin/etc.).
 const PROFIL_WHITELIST = ["nom", "prenom", "email", "ville", "asso_slug", "niveau", "age", "style_jeu", "bar_slug"];
 
-// SHA-256 hex — sert UNIQUEMENT à vérifier les anciens mots de passe (avant migration bcrypt).
+const ITERATIONS = 150000;
+const b64 = (u8: Uint8Array) => btoa(String.fromCharCode(...u8));
+const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const enc = (s: string) => new TextEncoder().encode(s);
+
+// SHA-256 hex — sert UNIQUEMENT à vérifier les anciens mots de passe (avant migration).
 async function sha256(s: string): Promise<string> {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  const buf = await crypto.subtle.digest("SHA-256", enc(s));
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
-const isBcrypt = (h: unknown) => typeof h === "string" && /^\$2[aby]\$/.test(h);
+async function pbkdf2(password: string, salt: Uint8Array, iterations: number): Promise<string> {
+  const key = await crypto.subtle.importKey("raw", enc(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations, hash: "SHA-256" }, key, 256);
+  return b64(new Uint8Array(bits));
+}
+async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const h = await pbkdf2(password, salt, ITERATIONS);
+  return `pbkdf2$${ITERATIONS}$${b64(salt)}$${h}`;
+}
+async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  const parts = String(stored).split("$");
+  if (parts[0] !== "pbkdf2" || parts.length !== 4) return false;
+  const iterations = parseInt(parts[1], 10);
+  const h = await pbkdf2(password, unb64(parts[2]), iterations);
+  return h === parts[3];
+}
+const isPbkdf2 = (h: unknown) => typeof h === "string" && h.startsWith("pbkdf2$");
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -66,13 +84,13 @@ Deno.serve(async (req) => {
       if (!u) return json({ error: "Pseudo ou mot de passe incorrect" }, 401);
 
       let ok = false;
-      if (isBcrypt(u.password_hash)) {
-        ok = bcrypt.compareSync(String(password), u.password_hash);
+      if (isPbkdf2(u.password_hash)) {
+        ok = await verifyPassword(String(password), u.password_hash);
       } else {
-        // ancien hash SHA-256 → on vérifie, et si OK on migre vers bcrypt (transparent)
+        // ancien hash SHA-256 → on vérifie, et si OK on migre vers PBKDF2 (transparent)
         ok = (await sha256(String(password))) === u.password_hash;
         if (ok) {
-          const nh = bcrypt.hashSync(String(password), 10);
+          const nh = await hashPassword(String(password));
           await api(`joueurs?id=eq.${u.id}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ password_hash: nh }) });
         }
       }
@@ -88,7 +106,6 @@ Deno.serve(async (req) => {
       if (!ps || !password) return json({ error: "Pseudo et mot de passe requis" }, 400);
       if (String(password).length < 4) return json({ error: "Mot de passe trop court (min 4 caractères)" }, 400);
 
-      // unicité du pseudo (insensible à la casse)
       const exists = await api(`joueurs?pseudo=ilike.${encodeURIComponent(ps)}&select=id,pseudo`).then((r) => r.json());
       if (Array.isArray(exists) && exists.length) {
         const taken = exists[0]?.pseudo;
@@ -100,7 +117,7 @@ Deno.serve(async (req) => {
       const row = {
         ...safeProfil,
         pseudo: ps,
-        password_hash: bcrypt.hashSync(String(password), 10),
+        password_hash: await hashPassword(String(password)),
         date_inscription: Date.now(),
         cgu_accepte: true,
         cgu_date: Date.now(),
@@ -119,7 +136,6 @@ Deno.serve(async (req) => {
       if (!ps || !resetCode || !newPassword) return json({ error: "Champs manquants" }, 400);
       if (String(newPassword).length < 4) return json({ error: "Nouveau mot de passe trop court (min 4)" }, 400);
 
-      // vérifie le code admin via la RPC existante (hash bcrypt côté serveur)
       const okCode = await api("rpc/verify_reset_code", { method: "POST", body: JSON.stringify({ code: resetCode }) })
         .then((r) => r.json()).catch(() => false);
       if (okCode !== true) return json({ error: "Code administrateur incorrect" }, 401);
@@ -130,7 +146,7 @@ Deno.serve(async (req) => {
 
       await api(`joueurs?id=eq.${u.id}`, {
         method: "PATCH", headers: { Prefer: "return=minimal" },
-        body: JSON.stringify({ password_hash: bcrypt.hashSync(String(newPassword), 10) }),
+        body: JSON.stringify({ password_hash: await hashPassword(String(newPassword)) }),
       });
       return json({ ok: true });
     }
