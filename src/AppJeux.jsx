@@ -938,6 +938,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // ── Mode bot (mode libre) : affronter le « fantôme » d'un ami ──────────────────
   const [botPseudo, setBotPseudo] = useState(null); // pseudo de l'ami simulé (identifie le bot dans `joueurs`)
   const [botProfil, setBotProfil] = useState(null); // { moyenne, source, volees }
+  const [botAnnonce, setBotAnnonce] = useState(null); // pop-up « le bot a fait X » (2s)
   const [botAmi, setBotAmi]       = useState(null); // { id, pseudo, photo, drix } pour l'affichage
   const [amisListe, setAmisListe] = useState([]);   // liste d'amis pour le sélecteur
   const [loadingAmis, setLoadingAmis] = useState(false);
@@ -1562,7 +1563,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Mode bot : quand c'est au tour du bot, il joue tout seul (petit délai « suspense ») ──
   useEffect(() => {
-    if (!botPseudo || etape !== "jeu" || gagnant || !joueurs) return;
+    if (!botPseudo || etape !== "jeu" || gagnant || !joueurs || botAnnonce) return; // pause pendant l'annonce
     const botIdx = joueurs.findIndex((j) => j.nom === botPseudo);
     if (botIdx < 0 || actifIdx !== botIdx) return;
     const t = setTimeout(() => {
@@ -1570,12 +1571,18 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         // Le bot confirme sa volée tout seul (finish : 2-3 fléchettes, sinon 3).
         confirmerVolee(pendingVolee.type === "finish" ? (Math.random() < 0.5 ? 2 : 3) : 3);
       } else {
-        envoyer(genererScoreBot(joueurs[botIdx].score, botProfil));
+        const reste = joueurs[botIdx].score;
+        const score = genererScoreBot(reste, botProfil);
+        const bust = score > reste || (reste - score) === 1;
+        // Pop-up « le bot a fait X » pendant 2 s, puis on enchaîne.
+        setBotAnnonce({ nom: botPseudo, score, bust, finish: score === reste });
+        setTimeout(() => setBotAnnonce(null), 2000);
+        envoyer(score);
       }
-    }, pendingVolee ? 650 : 900 + Math.floor(Math.random() * 600));
+    }, pendingVolee ? 650 : 850 + Math.floor(Math.random() * 450));
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [botPseudo, etape, gagnant, joueurs, actifIdx, pendingVolee, botProfil]);
+  }, [botPseudo, etape, gagnant, joueurs, actifIdx, pendingVolee, botProfil, botAnnonce]);
 
   // ── Mode bot : à la fin de la partie, créditer un peu d'XP au joueur (jamais de DRIX) ──
   useEffect(() => {
@@ -1934,8 +1941,27 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         </div>
       )}
 
+      {/* ── POPUP ANNONCE BOT — « X a fait Y » pendant 2 s ── */}
+      {botAnnonce && (
+        <div style={{ position:"fixed",inset:0,background:"#000000cc",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:24 }}>
+          <style>{`@keyframes botPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}`}</style>
+          <div style={{ background:"linear-gradient(160deg,#15001f,#0a0014)",border:"2px solid #a78bfa77",borderRadius:24,padding:"30px 36px",textAlign:"center",boxShadow:"0 0 50px #a78bfa55",minWidth:240,animation:"botPop .25s cubic-bezier(.34,1.56,.64,1) both" }}>
+            <div style={{ fontSize:13,fontWeight:800,color:"#c4b5fd",letterSpacing:1,marginBottom:8 }}>🤖 {botAnnonce.nom}</div>
+            {botAnnonce.bust ? (
+              <div style={{ fontSize:46,fontWeight:900,color:"#ef4444",lineHeight:1 }}>BUST !</div>
+            ) : (
+              <>
+                <div style={{ fontSize:13,color:"#94a3b8",marginBottom:4 }}>a fait</div>
+                <div style={{ fontSize:68,fontWeight:900,color:"#fff",lineHeight:1,textShadow:"0 0 28px #a78bfaaa" }}>{botAnnonce.score}</div>
+                {botAnnonce.finish && <div style={{ marginTop:8,fontSize:13,fontWeight:900,color:"#fbbf24",letterSpacing:1 }}>🏆 FINISH !</div>}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── POPUP FLÉCHETTES — uniquement NO SCORE / FINISH ── */}
-      {pendingVolee && (
+      {pendingVolee && !botJoue && (
         <div style={{ position:"fixed",inset:0,background:"#000000dd",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24 }}>
           <div style={{ background:"#1a1a1a",border:`2px solid ${pendingVolee.type==="finish"?"#22c55e":"#f59e0b"}`,borderRadius:20,padding:28,maxWidth:340,width:"100%",textAlign:"center" }}>
             <div style={{ marginBottom:10,display:"flex",justifyContent:"center" }}><EmoIcon e={pendingVolee.type==="finish"?"🏆":"🎯"} size={48} color={pendingVolee.type==="finish"?"#fbbf24":"#f97316"}/></div>
