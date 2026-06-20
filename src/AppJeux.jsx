@@ -1606,59 +1606,75 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Mode bot : a la fin du match, publier le resultat sur le Comptoir (format DuelPost, marque isBot) ──
   useEffect(() => {
-    if (etape !== "fin" || !botPseudo || !botAmi || !joueur?.id || !gagnant || botPostRef.current) return;
+    if (etape !== "fin" || !botPseudo || !botAmi || !joueur?.id || !gagnant || botPostRef.current) {
+      if (etape === "fin" && botPseudo && !botPostRef.current) {
+        console.log("📌 Post bot SKIP:", { hasBotAmi:!!botAmi, hasJoueurId:!!joueur?.id, hasGagnant:!!gagnant });
+      }
+      return;
+    }
     botPostRef.current = true;
-    try {
-      const humainGagne = gagnant.nom !== botPseudo;
-      // Identifier les deux joueurs dans le tableau
-      const idxBot = joueurs.findIndex(j => j.nom === botPseudo);
-      const jHumain = joueurs[1 - idxBot];
-      const jBot    = joueurs[idxBot];
-      if (!jHumain || !jBot) return;
+    (async () => {
+      try {
+        const humainGagne = gagnant.nom !== botPseudo;
+        const idxBot = joueurs.findIndex(j => j.nom === botPseudo);
+        const jHumain = joueurs[1 - idxBot];
+        const jBot    = joueurs[idxBot];
+        if (!jHumain || !jBot) { console.warn("📌 Post bot abort: joueurs introuvables"); return; }
 
-      // Pseudo bot prefixe '🤖' pour DuelPost (coherent avec le live)
-      const botDisplayPseudo = `🤖 ${botAmi.pseudo}`;
-      const winnerNom  = humainGagne ? jHumain.nom : botDisplayPseudo;
-      const loserNom   = humainGagne ? botDisplayPseudo : jHumain.nom;
-      const winnerObj  = humainGagne ? jHumain : jBot;
-      const loserObj   = humainGagne ? jBot : jHumain;
-      const moyHumain  = parseFloat(moyenneCalc(jHumain));
-      const moyBot     = parseFloat(moyenneCalc(jBot));
+        const botDisplayPseudo = `🤖 ${botAmi.pseudo}`;
+        const winnerNom  = humainGagne ? jHumain.nom : botDisplayPseudo;
+        const loserNom   = humainGagne ? botDisplayPseudo : jHumain.nom;
+        const winnerObj  = humainGagne ? jHumain : jBot;
+        const loserObj   = humainGagne ? jBot : jHumain;
+        const moyHumain  = parseFloat(moyenneCalc(jHumain));
+        const moyBot     = parseFloat(moyenneCalc(jBot));
 
-      const all180 = [...(jHumain.tours||[]),...(jBot.tours||[])].filter(v=>v===180).length;
-      const highlights = [
-        all180 > 0 ? `💥 ${all180}×180 dans ce match` : "",
-        (manchesHistory||[]).some(m=>(m.winner_finish||0)>=160) ? `🐟 Big Fish ≥ 160 !` : "",
-      ].filter(Boolean).join("  ");
+        const all180 = [...(jHumain.tours||[]),...(jBot.tours||[])].filter(v=>v===180).length;
+        const highlights = [
+          all180 > 0 ? `💥 ${all180}×180 dans ce match` : "",
+          (manchesHistory||[]).some(m=>(m.winner_finish||0)>=160) ? `🐟 Big Fish ≥ 160 !` : "",
+        ].filter(Boolean).join("  ");
 
-      const duelPost = {
-        isAmical: true,      // pas de section DRIX
-        isBot: true,         // header dedie '🤖 MATCH BOT'
-        isRivalite: false,
-        mode: config.mode || "501",
-        headline: `🤖 ${winnerNom} bat ${loserNom} ${winnerObj.manchesGagnees}-${loserObj.manchesGagnees}`,
-        highlights: highlights || null,
-        winner: { nom: winnerNom, nbManches: winnerObj.manchesGagnees,
-          elo:0, bonusManches:0, bonusVolees:0, nbVolees:0, bonusFinish:0, nbFinish:0, total:0, xp:0, xpLines:[] },
-        loser:  { nom: loserNom,  nbManches: loserObj.manchesGagnees,
-          elo:0, bonusManches:0, bonusVolees:0, nbVolees:0, bonusFinish:0, nbFinish:0, total:0, xp:0, xpLines:[] },
-        manches: manchesHistory || [],
-        // info brute pour eventuels futurs affichages
-        moyHumain, moyBot,
-      };
-      const contenu = `__DUEL__|${JSON.stringify(duelPost)}`;
-      fetch(`${SB_URL}/rest/v1/wall_posts`, {
-        method:"POST",
-        headers:{ "apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`,"Content-Type":"application/json","Prefer":"return=minimal" },
-        body: JSON.stringify({
-          joueur_id: joueur.id,
-          joueur_pseudo: joueur.pseudo,
-          joueur_photo: joueur.photo || null,
-          contenu,
-          date: Date.now(),
-        }),
-      }).catch(()=>{});
-    } catch(e) { console.error("Post Comptoir bot erreur:", e); }
+        const duelPost = {
+          isAmical: true, isBot: true, isRivalite: false,
+          mode: config.mode || "501",
+          headline: `🤖 ${winnerNom} bat ${loserNom} ${winnerObj.manchesGagnees}-${loserObj.manchesGagnees}`,
+          highlights: highlights || null,
+          winner: { nom: winnerNom, nbManches: winnerObj.manchesGagnees,
+            elo:0, bonusManches:0, bonusVolees:0, nbVolees:0, bonusFinish:0, nbFinish:0, total:0, xp:0, xpLines:[] },
+          loser:  { nom: loserNom,  nbManches: loserObj.manchesGagnees,
+            elo:0, bonusManches:0, bonusVolees:0, nbVolees:0, bonusFinish:0, nbFinish:0, total:0, xp:0, xpLines:[] },
+          manches: manchesHistory || [],
+          moyHumain, moyBot,
+        };
+        const contenu = `__DUEL__|${JSON.stringify(duelPost)}`;
+        console.log("📌 Post bot ENVOI:", { joueur_id:joueur.id, headline:duelPost.headline });
+        const r = await fetch(`${SB_URL}/rest/v1/wall_posts`, {
+          method:"POST",
+          headers:{ "apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`,"Content-Type":"application/json","Prefer":"return=minimal" },
+          body: JSON.stringify({
+            joueur_id: joueur.id,
+            joueur_pseudo: joueur.pseudo,
+            joueur_photo: joueur.photo || null,
+            contenu,
+            date: Date.now(),
+          }),
+        });
+        if (!r.ok) {
+          const t = await r.text().catch(()=> "");
+          console.error("📌 Post bot HTTP", r.status, t);
+          window.dpToast?.(`Comptoir : echec publication (${r.status})`, "error");
+          botPostRef.current = false; // permet une nouvelle tentative en retour 'Rejouer'
+          return;
+        }
+        console.log("📌 Post bot OK");
+        window.dpToast?.("📌 Match publie sur le Comptoir", "success");
+      } catch(e) {
+        console.error("📌 Post bot exception:", e);
+        window.dpToast?.("Comptoir : erreur reseau", "error");
+        botPostRef.current = false;
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [etape, botPseudo, gagnant]);
 
