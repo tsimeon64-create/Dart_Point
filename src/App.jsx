@@ -4431,6 +4431,7 @@ const LiveMatchCard = ({ session:s, onClick, setPage }) => {
           </div>
           <div style={{ minWidth:0 }}>
             <TruncPseudo pseudo={s.joueur1_pseudo} max={10} style={{ fontWeight:800,fontSize:13,color:leader===1?"#fff":C.muted,display:"block" }}/>
+            {s.bot_side===1 && <span style={{ display:"inline-block",marginTop:1,fontSize:8.5,fontWeight:800,color:"#c4b5fd",background:"#a78bfa1f",border:"1px solid #a78bfa44",borderRadius:5,padding:"0 5px",letterSpacing:.5 }}>🤖 BOT</span>}
             <div style={{ fontSize:10,color:c1,marginTop:1 }}>{e1} {s.joueur1_drix}</div>
             <div style={{ fontSize:10,color:C.muted,marginTop:2 }}>Reste <b style={{ color:leader===1?C.accent:C.muted }}>{st1.reste!=null?st1.reste:"—"}</b></div>
           </div>
@@ -4450,6 +4451,7 @@ const LiveMatchCard = ({ session:s, onClick, setPage }) => {
         <div style={{ display:"flex",alignItems:"center",gap:8,justifyContent:"flex-end" }}>
           <div style={{ minWidth:0,textAlign:"right" }}>
             <TruncPseudo pseudo={s.joueur2_pseudo} max={10} style={{ fontWeight:800,fontSize:13,color:leader===2?"#fff":C.muted,display:"block" }}/>
+            {s.bot_side===2 && <span style={{ display:"inline-block",marginTop:1,fontSize:8.5,fontWeight:800,color:"#c4b5fd",background:"#a78bfa1f",border:"1px solid #a78bfa44",borderRadius:5,padding:"0 5px",letterSpacing:.5 }}>🤖 BOT</span>}
             <div style={{ fontSize:10,color:c2,marginTop:1 }}>{e2} {s.joueur2_drix}</div>
             <div style={{ fontSize:10,color:C.muted,marginTop:2 }}>Reste <b style={{ color:leader===2?C.accent:C.muted }}>{st2.reste!=null?st2.reste:"—"}</b></div>
           </div>
@@ -4712,6 +4714,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
             <FeedAvatar pseudo={session.joueur1_pseudo} size={36} onClick={()=>session.joueur1_id&&setPage("profil-joueur-"+session.joueur1_id)}/>
             <div style={{ minWidth:0 }}>
               <TruncPseudo pseudo={session.joueur1_pseudo} max={12} style={{ fontWeight:900,fontSize:13,color:leader===1?"#fff":C.text,display:"block" }}/>
+              {session.bot_side===1 && <span style={{ display:"inline-block",fontSize:8.5,fontWeight:800,color:"#c4b5fd",background:"#a78bfa1f",border:"1px solid #a78bfa44",borderRadius:5,padding:"0 5px",letterSpacing:.5 }}>🤖 BOT</span>}
               <div style={{ fontSize:9,color:c1,fontWeight:700,display:"flex",alignItems:"center",gap:2 }}><EmoIcon e={e1} size={9}/>{session.joueur1_drix}</div>
             </div>
           </div>
@@ -4730,6 +4733,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
           <div style={{ display:"flex",alignItems:"center",gap:8,minWidth:0,flex:1,justifyContent:"flex-end" }}>
             <div style={{ minWidth:0,textAlign:"right" }}>
               <TruncPseudo pseudo={session.joueur2_pseudo} max={12} style={{ fontWeight:900,fontSize:13,color:leader===2?"#fff":C.text,display:"block" }}/>
+              {session.bot_side===2 && <span style={{ display:"inline-block",fontSize:8.5,fontWeight:800,color:"#c4b5fd",background:"#a78bfa1f",border:"1px solid #a78bfa44",borderRadius:5,padding:"0 5px",letterSpacing:.5 }}>🤖 BOT</span>}
               <div style={{ fontSize:9,color:c2,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:2 }}><EmoIcon e={e2} size={9}/>{session.joueur2_drix}</div>
             </div>
             <FeedAvatar pseudo={session.joueur2_pseudo} size={36} onClick={()=>session.joueur2_id&&setPage("profil-joueur-"+session.joueur2_id)}/>

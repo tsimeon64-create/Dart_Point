@@ -959,6 +959,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Live session tracking ──
   const liveIdRef = useRef(null);
+  const liveIdsRef = useRef([null, null]); // ids des 2 joueurs de la session live (duel OU bot)
   const liveVoleeNumRef = useRef([0, 0]);
   const liveMaxFinishRef = useRef([0, 0]);
   const liveBustsRef = useRef([0, 0]);
@@ -998,7 +999,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Live session : démarre quand etape passe à "jeu" ──
   useEffect(() => {
-    if (etape === "jeu" && modeDuel && duel?.id && !liveIdRef.current) {
+    if (etape === "jeu" && !liveIdRef.current && ((modeDuel && duel?.id) || botPseudo)) {
       createLiveSession();
     }
     if (etape === "fin" || etape === "config") {
@@ -1348,19 +1349,33 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Suivi live session ────────────────────────────────────────────────────
   const createLiveSession = async () => {
-    if (!modeDuel || !duel?.id) return;
+    // Détermine les 2 joueurs : vrai duel OU partie bot (toi vs le « fantôme » d'un ami).
+    let p1, p2, botSide = 0, mode, manches;
+    if (modeDuel && duel?.id) {
+      mode = duel.mode || "501"; manches = duel.manches || 1;
+      p1 = { id:String(duel.challenger_id), pseudo:duel.challenger_pseudo, drix:duel.challenger_drix||1000 };
+      p2 = { id:String(duel.defie_id), pseudo:duel.defie_pseudo, drix:duel.defie_drix||1000 };
+    } else if (botPseudo && joueurs?.length >= 2) {
+      mode = config.mode; manches = config.manches;
+      const slot = (j) => j.nom === botPseudo
+        ? { id:String(botAmi?.id || ""), pseudo:botPseudo, drix:botAmi?.drix || 1000, bot:true }
+        : { id:String(joueur?.id || ""), pseudo:joueur?.pseudo || j.nom, drix:joueur?.drix || 1000, bot:false };
+      p1 = slot(joueurs[0]); p2 = slot(joueurs[1]);
+      botSide = p1.bot ? 1 : 2; // quel côté est le bot (pour la mention « bot »)
+    } else {
+      return;
+    }
     try {
-      const mode = duel.mode || "501";
-      const manches = duel.manches || 1;
       const format = manches === 1 ? "Bo1" : `Bo${manches * 2 - 1}`;
       const sv = parseInt(mode) || 501;
       const initSt = { moy:0, volees:0, total_pts:0, nb180:0, reste:sv, max_finish:0, busts:0 };
       const body = {
         mode, format,
-        joueur1_id:String(duel.challenger_id), joueur1_pseudo:duel.challenger_pseudo, joueur1_drix:duel.challenger_drix||1000,
-        joueur2_id:String(duel.defie_id), joueur2_pseudo:duel.defie_pseudo, joueur2_drix:duel.defie_drix||1000,
+        joueur1_id:p1.id, joueur1_pseudo:p1.pseudo, joueur1_drix:p1.drix,
+        joueur2_id:p2.id, joueur2_pseudo:p2.pseudo, joueur2_drix:p2.drix,
         debut:Date.now(), statut:"en_cours",
         score1:0, score2:0, stats_j1:initSt, stats_j2:initSt,
+        ...(botSide ? { bot_side: botSide } : {}), // colonne ajoutée par migration ; seulement en mode bot
       };
       const r = await fetch(`${SB_URL}/rest/v1/live_sessions`, {
         method:"POST",
@@ -1373,6 +1388,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       const row = Array.isArray(d) ? d[0] : d;
       if (row?.id) {
         liveIdRef.current = row.id;
+        liveIdsRef.current = [p1.id, p2.id];
         liveVoleeNumRef.current = [0,0];
         liveMaxFinishRef.current = [0,0];
         liveBustsRef.current = [0,0];
@@ -1405,7 +1421,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         fetch(`${SB_URL}/rest/v1/live_volees`, {
           method:"POST",
           headers:{ apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, "Content-Type":"application/json", Prefer:"return=minimal" },
-          body: JSON.stringify({ session_id:liveIdRef.current, joueur_id:joueurIdx===0?duel.challenger_id:duel.defie_id, numero_volee:liveVoleeNumRef.current[joueurIdx], score:isBust?-1:score, reste, date:Date.now() }),
+          body: JSON.stringify({ session_id:liveIdRef.current, joueur_id:liveIdsRef.current[joueurIdx], numero_volee:liveVoleeNumRef.current[joueurIdx], score:isBust?-1:score, reste, date:Date.now() }),
         }),
       ]);
     } catch(e) { console.warn("pushLiveVolee:", e); }
