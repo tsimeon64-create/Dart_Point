@@ -1546,16 +1546,24 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Mode bot : quand c'est au tour du bot, il joue tout seul (petit délai « suspense ») ──
   useEffect(() => {
-    if (!botPseudo || etape !== "jeu" || gagnant || !joueurs) return;
+    if (!botPseudo || etape !== "jeu" || gagnant || !joueurs || joueurs.length === 0) return;
     const botIdx = joueurs.findIndex((j) => j.nom === botPseudo);
     if (botIdx < 0 || actifIdx !== botIdx) return;
+    // Filet de sécurité : si le pseudo humain est identique à celui du bot (collision rare),
+    // on n'auto-confirme pas et on ne joue pas — l'humain reste maître de la saisie.
+    const humainPseudo = joueur?.pseudo;
+    if (humainPseudo && humainPseudo === botPseudo) return;
+    const botJoueur = joueurs[botIdx];
+    if (!botJoueur || typeof botJoueur.score !== "number") return;
     const t = setTimeout(() => {
-      if (pendingVolee) {
-        // Le bot confirme sa volée tout seul (finish : 2-3 fléchettes, sinon 3).
-        confirmerVolee(pendingVolee.type === "finish" ? (Math.random() < 0.5 ? 2 : 3) : 3);
-      } else {
-        envoyer(genererScoreBot(joueurs[botIdx].score, botProfil));
-      }
+      try {
+        if (pendingVolee) {
+          // Le bot confirme sa volée tout seul (finish : 2-3 fléchettes, sinon 3).
+          confirmerVolee(pendingVolee.type === "finish" ? (Math.random() < 0.5 ? 2 : 3) : 3);
+        } else {
+          envoyer(genererScoreBot(botJoueur.score, botProfil));
+        }
+      } catch (e) { console.error("Bot tour erreur:", e); }
     }, pendingVolee ? 650 : 900 + Math.floor(Math.random() * 600));
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1836,10 +1844,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   );
 
   // ── ÉCRAN JEU — position fixed, plein écran, zero scroll ─────────────────
-  if (!joueurs) return null;
+  if (!joueurs || joueurs.length === 0) return null;
   // Le joueur qui a gagné la bulle est TOUJOURS affiché en premier
   const displayOrder = Array.from({ length: joueurs.length }, (_, i) => (bulleStartIdx + i) % joueurs.length);
-  const actif = joueurs[actifIdx];
+  const safeActifIdx = Math.max(0, Math.min(actifIdx, joueurs.length - 1));
+  const actif = joueurs[safeActifIdx] || joueurs[0];
+  if (!actif) return null;
   const botIdxJeu = botPseudo ? joueurs.findIndex((j) => j.nom === botPseudo) : -1;
   const botJoue = botIdxJeu >= 0 && actifIdx === botIdxJeu && !gagnant; // c'est au bot de jouer
   const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
