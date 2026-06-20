@@ -100,8 +100,8 @@ Deno.serve(async (req) => {
       }
       if (!ok) return json({ error: "Pseudo ou mot de passe incorrect" }, 401);
 
-      const { password_hash: _omit, ...pub } = u;
-      return json({ ok: true, joueur: pub });
+      delete u.password_hash;
+      return json({ ok: true, joueur: u });
     }
 
     // ───────────────────────── REGISTER ─────────────────────────

@@ -127,6 +127,22 @@ const sbJ = async (path, opts = {}) => {
   return text ? JSON.parse(text) : null;
 };
 
+// Appel de l'Edge Function `auth` (login / register / reset). Le mot de passe est vérifié
+// CÔTÉ SERVEUR (PBKDF2) ; le hash ne transite jamais au client. Retourne { ok, error?, joueur? }.
+export const callAuth = async (action, payload = {}) => {
+  try {
+    const res = await fetch(`${SB_URL}/functions/v1/auth`, {
+      method: "POST",
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...payload }),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok && data?.ok === true, ...data };
+  } catch {
+    return { ok: false, error: "Connexion au serveur impossible" };
+  }
+};
+
 // Corrige les scores de manches corrompus (ancien bug : loser score = winner score)
 const fixManches = (d) => {
   let sc = d.score_manches_challenger ?? 0;
@@ -242,14 +258,6 @@ const getProgression = (drix) => {
   return { pct, restant: cur.max - drix, prochain };
 };
 
-// Vérification du code de reset admin via RPC Supabase — le code n'est plus
-// en clair dans le code. Hash bcrypt stocké côté serveur dans admin_credentials.
-const verifyResetCode = async (code) => {
-  try {
-    const r = await sbJ("rpc/verify_reset_code", { method:"POST", body:JSON.stringify({ code }) });
-    return r === true;
-  } catch { return false; }
-};
 
 // ── CONNEXION / INSCRIPTION ───────────────────────────────────────────────────
 export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" }) => {
@@ -283,10 +291,9 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
     if (!pseudo.trim() || !pwd) return;
     setLoading(true); setErr("");
     try {
-      const hash = await hashPwd(pwd);
-      const j = await dbJ.getJoueurByPseudo(pseudo.trim());
-      if (!j || j.password_hash !== hash) { setErr("Pseudo ou mot de passe incorrect"); setLoading(false); return; }
-      onLogin(j);
+      const r = await callAuth("login", { pseudo: pseudo.trim(), password: pwd });
+      if (!r.ok || !r.joueur) { setErr(r.error || "Pseudo ou mot de passe incorrect"); setLoading(false); return; }
+      onLogin(r.joueur);
     } catch { setErr("Erreur de connexion"); }
     setLoading(false);
   };
@@ -301,27 +308,21 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
     if (!acceptCgu) { setErr("Tu dois accepter les Conditions d'utilisation et la Politique de confidentialité"); return; }
     setLoading(true); setErr("");
     try {
-      const exist = await dbJ.getJoueurByPseudoIlike(pseudo.trim());
-      if (exist) { setErr(`Ce pseudo est déjà pris${exist.pseudo !== pseudo.trim() ? ` (par "${exist.pseudo}")` : ""}`); setLoading(false); return; }
-      const hash = await hashPwd(pwd);
-      const payload = {
+      const r = await callAuth("register", {
         pseudo: pseudo.trim(),
-        password_hash: hash,
-        date_inscription: Date.now(),
-        nom: nom.trim(),
-        prenom: prenom.trim(),
-        email: email.trim().toLowerCase(),
-        ville: ville.trim() || null,
-        asso_slug: selectedAsso?.slug || null,
-        niveau: niveau || null,
-        cgu_accepte: true,
-        cgu_date: Date.now(),
-      };
-      const r = await dbJ.addJoueur(payload);
-      if (r?.[0]) {
-        await dbJ.addStats({ joueur_id: r[0].id, saison: "2025", victoires: 0, defaites: 0, parties: 0 });
-        onLogin(r[0]);
-      }
+        password: pwd,
+        profil: {
+          nom: nom.trim(),
+          prenom: prenom.trim(),
+          email: email.trim().toLowerCase(),
+          ville: ville.trim() || null,
+          asso_slug: selectedAsso?.slug || null,
+          niveau: niveau || null,
+        },
+      });
+      if (!r.ok || !r.joueur) { setErr(r.error || "Erreur lors de l'inscription"); setLoading(false); return; }
+      await dbJ.addStats({ joueur_id: r.joueur.id, saison: "2025", victoires: 0, defaites: 0, parties: 0 }).catch(() => {});
+      onLogin(r.joueur);
     } catch { setErr("Erreur lors de l'inscription"); }
     setLoading(false);
   };
@@ -332,15 +333,10 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
     if (!adminCode) { setErr("Code administrateur requis"); return; }
     if (!pwd || pwd.length < 4) { setErr("Nouveau mot de passe trop court (min 4 caractères)"); return; }
     if (pwd !== pwd2) { setErr("Les mots de passe ne correspondent pas"); return; }
-    setLoading(true);
-    // Vérification serveur du code admin (bcrypt)
-    const codeOk = await verifyResetCode(adminCode);
-    if (!codeOk) { setErr("Code administrateur incorrect"); setLoading(false); return; }
+    setLoading(true); setErr("");
     try {
-      const j = await dbJ.getJoueurByPseudo(pseudo.trim());
-      if (!j) { setErr("Pseudo introuvable"); setLoading(false); return; }
-      const hash = await hashPwd(pwd);
-      await sbJ(`joueurs?id=eq.${j.id}`, { method:"PATCH", body:JSON.stringify({ password_hash: hash }), prefer:"return=minimal" });
+      const r = await callAuth("reset", { pseudo: pseudo.trim(), resetCode: adminCode, newPassword: pwd });
+      if (!r.ok) { setErr(r.error || "Erreur lors de la réinitialisation"); setLoading(false); return; }
       setSuccess("✅ Mot de passe réinitialisé ! Tu peux te connecter.");
       setPwd(""); setPwd2(""); setAdminCode("");
     } catch { setErr("Erreur lors de la réinitialisation"); }
