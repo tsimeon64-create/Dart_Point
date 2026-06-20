@@ -26,11 +26,15 @@ const cors = {
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-const api = (path: string, opts: RequestInit = {}) =>
-  fetch(`${SB_URL}/rest/v1/${path}`, {
-    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json", ...(opts.headers || {}) },
-    ...opts,
+const api = (path: string, opts: RequestInit = {}) => {
+  // ⚠️ Destructure `headers` hors de opts : sinon `...rest` réécraserait les en-têtes
+  // fusionnés et on perdrait apikey/Authorization sur les écritures (insert/patch).
+  const { headers, ...rest } = opts;
+  return fetch(`${SB_URL}/rest/v1/${path}`, {
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json", ...((headers as Record<string, string>) || {}) },
+    ...rest,
   });
+};
 
 // Toutes les colonnes de `joueurs` SAUF password_hash (ce qu'on renvoie au client).
 const PUBLIC_COLS =
