@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { SCORER } from "./theme";
 import { Search, Swords, Check, X } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
+import { calculerProfilBot, genererScoreBot } from "./botFleche";
 
 // ── Confetti ──────────────────────────────────────────────────────────────────
 const Confetti = () => {
@@ -697,7 +698,7 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
     </div>
   );
 };
-import { finaliserDuel } from "./AppJoueurs";
+import { finaliserDuel, dbJ } from "./AppJoueurs";
 
 // ── AppJeux.jsx ───────────────────────────────────────────────────────────────
 // Table de checkout exacte — source : darts501.com
@@ -919,7 +920,7 @@ const JoueursConfigSection = ({ config, setConfig, modeDuel }) => {
   );
 };
 
-export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, setPage = null, onResultat = null, onRejouer = null }) => {
+export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, setPage = null, onResultat = null, onRejouer = null, joueur = null, setJoueur = null }) => {
   const modeDuel = !!duel;
 
   const [etape, setEtape] = useState(modeDuel ? "bulle" : "config");
@@ -934,6 +935,14 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [actifIdx, setActifIdx] = useState(0);
   const [bulleStartIdx, setBulleStartIdx] = useState(0); // qui commence la manche 1
   const [ordreBulle, setOrdreBulle] = useState([]); // mode libre : ordre de passage choisi à la bulle (indices de config.noms)
+  // ── Mode bot (mode libre) : affronter le « fantôme » d'un ami ──────────────────
+  const [botPseudo, setBotPseudo] = useState(null); // pseudo de l'ami simulé (identifie le bot dans `joueurs`)
+  const [botProfil, setBotProfil] = useState(null); // { moyenne, source, volees }
+  const [botAmi, setBotAmi]       = useState(null); // { id, pseudo, photo, drix } pour l'affichage
+  const [amisListe, setAmisListe] = useState([]);   // liste d'amis pour le sélecteur
+  const [loadingAmis, setLoadingAmis] = useState(false);
+  const [loadingBot, setLoadingBot]   = useState(null); // id de l'ami en cours de préparation
+  const botXpRef = useRef(false);                       // évite de créditer l'XP deux fois
   const [mancheEnCours, setMancheEnCours] = useState(0); // 0-based
   const [gagnant, setGagnant] = useState(null);
   const [resultEnregistre, setResultEnregistre] = useState(false);
@@ -1111,8 +1120,49 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     };
   };
 
-  // Mode libre : DÉMARRER ouvre l'écran « bulle » pour choisir l'ordre de passage.
-  const demarrer = () => { setOrdreBulle([]); setEtape("bulle"); };
+  // Mode libre : DÉMARRER ouvre l'écran « bulle » (partie normale, sans bot).
+  const demarrer = () => { setBotPseudo(null); setBotAmi(null); setOrdreBulle([]); setEtape("bulle"); };
+
+  // ── Mode bot : ouvrir le sélecteur d'amis ──────────────────────────────────
+  const ouvrirAmis = async () => {
+    if (!joueur?.id) { window.dpToast?.("Connecte-toi pour jouer contre un ami", "error"); return; }
+    setEtape("amis"); setLoadingAmis(true); setAmisListe([]);
+    try {
+      const liens = (await dbJ.getAmis(joueur.id)) || [];
+      const pseudoMap = {};
+      const ids = liens.map((l) => {
+        const fid = l.joueur_id === joueur.id ? l.ami_id : l.joueur_id;
+        pseudoMap[fid] = l.joueur_id === joueur.id ? l.ami_pseudo : l.joueur_pseudo;
+        return fid;
+      });
+      const profils = (await dbJ.getJoueursByIds(ids)) || [];
+      const liste = profils
+        .map((p) => ({ id: p.id, pseudo: p.pseudo || pseudoMap[p.id] || "Ami", photo: p.photo || null, drix: p.drix ?? 1000 }))
+        .sort((a, b) => (b.drix || 0) - (a.drix || 0));
+      setAmisListe(liste);
+    } catch { setAmisListe([]); }
+    setLoadingAmis(false);
+  };
+
+  // Choisir un ami → calculer le profil du bot (stats réelles ou DRIX) → écran bulle.
+  const choisirAmiBot = async (ami) => {
+    setLoadingBot(ami.id);
+    try {
+      const duels = await dbJ.getDuels(ami.id).catch(() => []);
+      const profil = calculerProfilBot({ drix: ami.drix, duels, amiPseudo: ami.pseudo });
+      botXpRef.current = false;
+      setBotPseudo(ami.pseudo);
+      setBotProfil(profil);
+      setBotAmi(ami);
+      setConfig((c) => ({ ...c, noms: [joueur?.pseudo || "Moi", ami.pseudo] }));
+      setOrdreBulle([]);
+      setEtape("bulle");
+    } catch { window.dpToast?.("Impossible de charger cet ami", "error"); }
+    setLoadingBot(null);
+  };
+
+  // C'est au tour du bot de jouer ? (utilisé pour bloquer la saisie humaine)
+  const estTourBot = () => !!(botPseudo && joueurs && !gagnant && actifIdx === joueurs.findIndex((j) => j.nom === botPseudo));
 
   // Clic sur un joueur pendant la bulle (mode libre) : on l'ajoute à l'ordre de passage.
   // Quand il ne reste qu'un seul joueur, il est placé automatiquement (ordre déterminé).
@@ -1150,6 +1200,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   };
 
   const appuyer = (val) => {
+    if (estTourBot()) return; // saisie bloquée pendant le tour du bot
     if (val === "del") { setInput(p => p.slice(0, -1)); return; }
     if (input.length >= 3) return;
     const next = input + val;
@@ -1488,6 +1539,38 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     pushLiveVolee(actifIdx, 0, false, false, updatedZ);
   };
 
+  // ── Mode bot : quand c'est au tour du bot, il joue tout seul (petit délai « suspense ») ──
+  useEffect(() => {
+    if (!botPseudo || etape !== "jeu" || gagnant || !joueurs) return;
+    const botIdx = joueurs.findIndex((j) => j.nom === botPseudo);
+    if (botIdx < 0 || actifIdx !== botIdx) return;
+    const t = setTimeout(() => {
+      if (pendingVolee) {
+        // Le bot confirme sa volée tout seul (finish : 2-3 fléchettes, sinon 3).
+        confirmerVolee(pendingVolee.type === "finish" ? (Math.random() < 0.5 ? 2 : 3) : 3);
+      } else {
+        envoyer(genererScoreBot(joueurs[botIdx].score, botProfil));
+      }
+    }, pendingVolee ? 650 : 900 + Math.floor(Math.random() * 600));
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [botPseudo, etape, gagnant, joueurs, actifIdx, pendingVolee, botProfil]);
+
+  // ── Mode bot : à la fin de la partie, créditer un peu d'XP au joueur (jamais de DRIX) ──
+  useEffect(() => {
+    if (etape !== "fin" || !botPseudo || botXpRef.current) return;
+    botXpRef.current = true;
+    const humainGagne = !!(gagnant && gagnant.nom !== botPseudo);
+    const delta = 15 + (humainGagne ? 15 : 0);
+    if (joueur?.id) {
+      const newXp = (joueur.xp || 0) + delta;
+      dbJ.updateJoueur(joueur.id, { xp: newXp }).catch(() => {});
+      if (setJoueur) setJoueur((p) => ({ ...p, xp: newXp }));
+      window.dpToast?.(`+${delta} XP ${humainGagne ? "— victoire contre le bot 🎯" : "— bien joué 👍"}`, "success");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [etape, botPseudo, gagnant]);
+
   // Moyenne globale (pour écran fin)
   const moyenneCalc = (j) => {
     if (!j || j.flechettes === 0) return "0.00";
@@ -1613,6 +1696,49 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     );
   }
 
+  // ── ÉCRAN SÉLECTION D'UN AMI (mode bot) ────────────────────────────────────
+  if (etape === "amis") return (
+    <div style={{ maxWidth:480, margin:"0 auto", padding:"24px 16px", fontFamily:"Inter,sans-serif" }}>
+      <h1 style={{ fontWeight:900, fontSize:24, marginBottom:4, color:"#f1f5f9", textAlign:"center" }}>🤖 Affronter un ami</h1>
+      <p style={{ color:"#94a3b8", fontSize:13, marginBottom:22, textAlign:"center", lineHeight:1.5 }}>
+        Choisis un ami : le bot jouera à son niveau, d'après ses vraies stats (ou son DRIX s'il a peu joué).
+      </p>
+      {loadingAmis ? (
+        <p style={{ color:"#64748b", textAlign:"center", padding:"30px 0" }}>Chargement de tes amis…</p>
+      ) : amisListe.length === 0 ? (
+        <div style={{ textAlign:"center", padding:"24px 16px", color:"#94a3b8" }}>
+          <div style={{ fontSize:42, marginBottom:10 }}>🫂</div>
+          <p style={{ fontSize:14, lineHeight:1.6 }}>Tu n'as pas encore d'amis dans l'app.<br/>Ajoutes-en pour pouvoir les affronter en bot !</p>
+        </div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {amisListe.map((ami) => {
+            const couleur = ami.drix>=1800?"#fbbf24":ami.drix>=1400?"#a78bfa":ami.drix>=1100?"#60a5fa":"#94a3b8";
+            const enCours = loadingBot===ami.id;
+            return (
+              <button key={ami.id} onClick={()=>choisirAmiBot(ami)} disabled={!!loadingBot}
+                style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderRadius:14, border:"1px solid #2a2a2a", background:"#1a1a1a",
+                  cursor: loadingBot?"default":"pointer", textAlign:"left", opacity: loadingBot && !enCours ? 0.5 : 1 }}>
+                {ami.photo
+                  ? <img src={ami.photo} alt="" style={{ width:46, height:46, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
+                  : <div style={{ width:46, height:46, borderRadius:"50%", background:"#f9731633", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><EmoIcon e="🎯" size={20} color="#f97316"/></div>}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:800, fontSize:16, color:"#f1f5f9", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{ami.pseudo}</div>
+                  <div style={{ fontSize:12, color:couleur, fontWeight:700 }}>{ami.drix} DRIX</div>
+                </div>
+                <span style={{ color:"#a78bfa", fontWeight:900, fontSize:18 }}>{enCours ? "…" : "→"}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <button onClick={()=>setEtape("config")}
+        style={{ marginTop:18, width:"100%", background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13, padding:8 }}>
+        ← Retour
+      </button>
+    </div>
+  );
+
   // ── ÉCRAN CONFIG ──────────────────────────────────────────────────────────
   if (etape === "config") return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"24px 16px", fontFamily:"Inter,sans-serif" }}>
@@ -1649,6 +1775,13 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", marginTop:4 }}>
           <EmoIcon e="🎯" size={18} style={{verticalAlign:"-3px",marginRight:8}}/>DÉMARRER LA PARTIE
         </button>
+        {joueur?.id && (
+          <button onClick={ouvrirAmis}
+            style={{ width:"100%", padding:"14px", borderRadius:14, border:"1px solid #a78bfa55", fontWeight:800, fontSize:15, cursor:"pointer",
+              background:"#a78bfa14", color:"#c4b5fd", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+            🤖 Affronter un ami (bot)
+          </button>
+        )}
       </div>
       <div style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:12, padding:18, marginTop:20 }}>
         <h3 style={{ fontWeight:700, fontSize:14, marginBottom:10, color:"#f97316" }}><EmoText s="📋 Règles rapides" size={14}/></h3>
@@ -1682,6 +1815,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // Le joueur qui a gagné la bulle est TOUJOURS affiché en premier
   const displayOrder = Array.from({ length: joueurs.length }, (_, i) => (bulleStartIdx + i) % joueurs.length);
   const actif = joueurs[actifIdx];
+  const botIdxJeu = botPseudo ? joueurs.findIndex((j) => j.nom === botPseudo) : -1;
+  const botJoue = botIdxJeu >= 0 && actifIdx === botIdxJeu && !gagnant; // c'est au bot de jouer
   const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
 
   return (
@@ -1920,7 +2055,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       <div style={{ display:"flex", gap:5, padding:"6px 10px", background:"#0a0a0a", overflowX:"auto", flexShrink:0, borderBottom:"1px solid #1a1a1a" }}>
         {[26, 45, 60, 81, 100, 121, 140, 180].map(qs => (
           <button key={qs}
-            onPointerDown={e=>{ e.preventDefault(); envoyer(qs); }}
+            onPointerDown={e=>{ e.preventDefault(); if(botJoue) return; envoyer(qs); }}
             style={{
               minWidth:50, flexShrink:0, padding:"6px 10px",
               borderRadius:10, border:"1px solid #2a2a2a",
@@ -1947,13 +2082,13 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             boxShadow: input ? "inset 0 0 20px #f9731622, 0 0 0 1px #f9731644" : "inset 0 1px 3px #00000088",
             transition:"all .2s",
           }}>
-            <span style={{ fontSize:14, color: input ? "#f97316" : "#475569" }}>⌨️</span>
-            <span style={{ fontSize:22, fontWeight:900, color: input ? "#fff" : "#475569", flex:1, fontVariantNumeric:"tabular-nums", letterSpacing:1 }}>
-              {input || "Tape un score…"}
+            <span style={{ fontSize:14, color: botJoue ? "#a78bfa" : input ? "#f97316" : "#475569" }}>{botJoue ? "🤖" : "⌨️"}</span>
+            <span style={{ fontSize: botJoue ? 16 : 22, fontWeight:900, color: botJoue ? "#a78bfa" : input ? "#fff" : "#475569", flex:1, fontVariantNumeric:"tabular-nums", letterSpacing:1 }}>
+              {botJoue ? `${botPseudo} joue…` : (input || "Tape un score…")}
             </span>
           </div>
           <button
-            onPointerDown={e=>{ e.preventDefault(); input ? envoyer() : envoyer(0); }}
+            onPointerDown={e=>{ e.preventDefault(); if(botJoue) return; input ? envoyer() : envoyer(0); }}
             style={{
               minWidth: input ? 96 : 92,
               background: input
@@ -1993,7 +2128,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           ))}
           {/* DEL */}
           <button
-            onPointerDown={e=>{ e.preventDefault(); historique.length>0 && !input ? annulerDernierCoup() : appuyer("del"); }}
+            onPointerDown={e=>{ e.preventDefault(); if(botJoue) return; historique.length>0 && !input ? annulerDernierCoup() : appuyer("del"); }}
             style={{
               borderRadius:14, border:"1px solid #7f1d1d44",
               background:"linear-gradient(135deg,#2a0a0a,#1a0608)",
@@ -2019,7 +2154,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           </button>
           {/* VALIDATE (gros bouton glow) */}
           <button
-            onPointerDown={e=>{ e.preventDefault(); input ? envoyer() : envoyer(0); }}
+            onPointerDown={e=>{ e.preventDefault(); if(botJoue) return; input ? envoyer() : envoyer(0); }}
             style={{
               borderRadius:14, border:"none",
               background: input

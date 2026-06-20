@@ -12081,7 +12081,7 @@ export default function App() {
         {page==="profil-historique" && joueur && <PageProfilHistorique joueur={joueur} setPage={nav}/>}
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav} associations={associations}/>}
         {page==="inscription"      && <Connexion onLogin={handleLogin} setPage={nav} associations={associations} initMode="register"/>}
-        {page==="scoreur"          && <Scoreur setPage={nav}/>}
+        {page==="scoreur"          && <Scoreur setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="scoreur-libre"    && <ScoreurLibre setPage={nav}/>}
         {page==="jeux"             && <PageModeJeu joueur={joueur} setPage={nav}/>}
         {page==="jeux-flechettes"       && <PageModeJeu joueur={joueur} setPage={nav} initCat="fleche"/>}
