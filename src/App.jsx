@@ -2353,6 +2353,13 @@ const PageDefi = ({ joueur, setPage }) => {
         }}><Users size={14}/>Doublette 2v2</button>
       </div>
 
+      {/* ── Affronter un bot : entraînement contre le « fantôme » d'un ami (sans DRIX) ── */}
+      <button onClick={()=>setPage("scoreur-bot")} style={{
+        width:"100%", padding:"13px 0", marginBottom:20, border:"1px solid #a78bfa55", cursor:"pointer",
+        fontWeight:800, fontSize:14, borderRadius:12, background:"#a78bfa14", color:"#c4b5fd",
+        display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+      }}>🤖 Affronter un bot</button>
+
       {tab==="doublette" && <DoubletteFlow joueur={joueur} amis={amis} amisData={amisData} setPage={setPage}/>}
 
       {tab==="1v1" && <>
@@ -12082,6 +12089,7 @@ export default function App() {
         {page==="connexion"        && <Connexion onLogin={handleLogin} setPage={nav} associations={associations}/>}
         {page==="inscription"      && <Connexion onLogin={handleLogin} setPage={nav} associations={associations} initMode="register"/>}
         {page==="scoreur"          && <Scoreur setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
+        {page==="scoreur-bot"      && joueur && <Scoreur setPage={nav} joueur={joueur} setJoueur={setJoueur} botStart/>}
         {page==="scoreur-libre"    && <ScoreurLibre setPage={nav}/>}
         {page==="jeux"             && <PageModeJeu joueur={joueur} setPage={nav}/>}
         {page==="jeux-flechettes"       && <PageModeJeu joueur={joueur} setPage={nav} initCat="fleche"/>}

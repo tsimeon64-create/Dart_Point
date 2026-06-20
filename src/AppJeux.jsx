@@ -920,10 +920,10 @@ const JoueursConfigSection = ({ config, setConfig, modeDuel }) => {
   );
 };
 
-export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, setPage = null, onResultat = null, onRejouer = null, joueur = null, setJoueur = null }) => {
+export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, setPage = null, onResultat = null, onRejouer = null, joueur = null, setJoueur = null, botStart = false }) => {
   const modeDuel = !!duel;
 
-  const [etape, setEtape] = useState(modeDuel ? "bulle" : "config");
+  const [etape, setEtape] = useState(modeDuel ? "bulle" : botStart ? "amis" : "config");
   const [config, setConfig] = useState({
     mode: duel?.mode || "501",
     manches: duel?.manches || 1,
@@ -1123,10 +1123,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // Mode libre : DÉMARRER ouvre l'écran « bulle » (partie normale, sans bot).
   const demarrer = () => { setBotPseudo(null); setBotAmi(null); setOrdreBulle([]); setEtape("bulle"); };
 
-  // ── Mode bot : ouvrir le sélecteur d'amis ──────────────────────────────────
-  const ouvrirAmis = async () => {
-    if (!joueur?.id) { window.dpToast?.("Connecte-toi pour jouer contre un ami", "error"); return; }
-    setEtape("amis"); setLoadingAmis(true); setAmisListe([]);
+  // ── Mode bot : charger la liste d'amis (le bot s'ouvre depuis la page Défis) ──
+  const chargerAmis = async () => {
+    if (!joueur?.id) { setAmisListe([]); setLoadingAmis(false); return; }
+    setLoadingAmis(true); setAmisListe([]);
     try {
       const liens = (await dbJ.getAmis(joueur.id)) || [];
       const pseudoMap = {};
@@ -1143,8 +1143,13 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     } catch { setAmisListe([]); }
     setLoadingAmis(false);
   };
+  // Au montage en mode bot (entrée depuis la page Défis), on charge directement les amis.
+  useEffect(() => {
+    if (botStart) chargerAmis();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Choisir un ami → calculer le profil du bot (stats réelles ou DRIX) → écran bulle.
+  // Choisir un ami → calculer le profil du bot (stats réelles ou DRIX) → écran réglages.
   const choisirAmiBot = async (ami) => {
     setLoadingBot(ami.id);
     try {
@@ -1156,7 +1161,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       setBotAmi(ami);
       setConfig((c) => ({ ...c, noms: [joueur?.pseudo || "Moi", ami.pseudo] }));
       setOrdreBulle([]);
-      setEtape("bulle");
+      setEtape("config"); // écran de réglages (mode + manches) avant la bulle
     } catch { window.dpToast?.("Impossible de charger cet ami", "error"); }
     setLoadingBot(null);
   };
@@ -1732,7 +1737,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           })}
         </div>
       )}
-      <button onClick={()=>setEtape("config")}
+      <button onClick={()=>{ if (botStart) setPage?.("defi"); else setEtape("config"); }}
         style={{ marginTop:18, width:"100%", background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13, padding:8 }}>
         ← Retour
       </button>
@@ -1743,7 +1748,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   if (etape === "config") return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"24px 16px", fontFamily:"Inter,sans-serif" }}>
       <h1 style={{ fontWeight:900, fontSize:26, marginBottom:4, color:"#f1f5f9", textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}><EmoIcon e="🎯" size={24} color="#f97316"/>Scoreur</h1>
-      <p style={{ color:"#94a3b8", fontSize:14, marginBottom:28, textAlign:"center" }}>Mode libre</p>
+      <p style={{ color:"#94a3b8", fontSize:14, marginBottom:28, textAlign:"center" }}>{botPseudo ? "Mode bot · réglages" : "Mode libre"}</p>
       <div style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:14, padding:24, display:"flex", flexDirection:"column", gap:14 }}>
         <div>
           <label style={{ fontSize:13, fontWeight:600, color:"#94a3b8", display:"block", marginBottom:10 }}>MODE DE JEU</label>
@@ -1769,18 +1774,38 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             ))}
           </div>
         </div>
-        <JoueursConfigSection config={config} setConfig={setConfig} modeDuel={modeDuel} />
-        <button onClick={demarrer}
-          style={{ width:"100%", padding:"18px", borderRadius:14, border:"none", fontWeight:900, fontSize:18, cursor:"pointer",
-            background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", marginTop:4 }}>
-          <EmoIcon e="🎯" size={18} style={{verticalAlign:"-3px",marginRight:8}}/>DÉMARRER LA PARTIE
-        </button>
-        {joueur?.id && (
-          <button onClick={ouvrirAmis}
-            style={{ width:"100%", padding:"14px", borderRadius:14, border:"1px solid #a78bfa55", fontWeight:800, fontSize:15, cursor:"pointer",
-              background:"#a78bfa14", color:"#c4b5fd", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-            🤖 Affronter un ami (bot)
-          </button>
+        {botPseudo ? (
+          <>
+            {/* Adversaire bot choisi */}
+            <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderRadius:12, background:"#a78bfa10", border:"1px solid #a78bfa33" }}>
+              {botAmi?.photo
+                ? <img src={botAmi.photo} alt="" style={{ width:48, height:48, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
+                : <div style={{ width:48, height:48, borderRadius:"50%", background:"#a78bfa33", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><EmoIcon e="🎯" size={22} color="#a78bfa"/></div>}
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:11, color:"#a78bfa", fontWeight:800, letterSpacing:.5 }}>🤖 ADVERSAIRE (BOT)</div>
+                <div style={{ fontWeight:800, fontSize:17, color:"#f1f5f9", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{botPseudo}</div>
+                <div style={{ fontSize:12, color:"#94a3b8" }}>{botAmi?.drix} DRIX · {botProfil?.source==="stats" ? "joue à son vrai niveau" : "niveau estimé (DRIX)"}</div>
+              </div>
+            </div>
+            <button onClick={()=>{ setOrdreBulle([]); setEtape("bulle"); }}
+              style={{ width:"100%", padding:"18px", borderRadius:14, border:"none", fontWeight:900, fontSize:18, cursor:"pointer",
+                background:"linear-gradient(135deg,#a78bfa,#7c3aed)", color:"#fff", marginTop:4 }}>
+              <EmoIcon e="🎯" size={18} style={{verticalAlign:"-3px",marginRight:8}}/>Choisir qui commence →
+            </button>
+            <button onClick={()=>setEtape("amis")}
+              style={{ width:"100%", background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13, padding:6 }}>
+              ← Changer d'adversaire
+            </button>
+          </>
+        ) : (
+          <>
+            <JoueursConfigSection config={config} setConfig={setConfig} modeDuel={modeDuel} />
+            <button onClick={demarrer}
+              style={{ width:"100%", padding:"18px", borderRadius:14, border:"none", fontWeight:900, fontSize:18, cursor:"pointer",
+                background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", marginTop:4 }}>
+              <EmoIcon e="🎯" size={18} style={{verticalAlign:"-3px",marginRight:8}}/>DÉMARRER LA PARTIE
+            </button>
+          </>
         )}
       </div>
       <div style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:12, padding:18, marginTop:20 }}>
