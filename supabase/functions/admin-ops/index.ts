@@ -34,17 +34,23 @@ const ALLOWED = new Set([
   "bars", "associations", "tournois", "avis", "photos", "photos_associations",
   "propositions", "signalements", "admin_logs",
 ]);
+// Tables que l'admin peut LIRE en entier via service-role (PII : email/nom/prénom non exposés à anon).
+const ALLOWED_READ = new Set(["joueurs"]);
 
-const api = (path: string, opts: RequestInit = {}) =>
-  fetch(`${SB_URL}/rest/v1/${path}`, {
+const api = (path: string, opts: RequestInit = {}) => {
+  // ⚠️ Destructure `headers` hors de opts : sinon `...rest` réécraserait les en-têtes
+  // fusionnés et on perdrait apikey/Authorization sur les écritures (insert/patch).
+  const { headers, ...rest } = opts;
+  return fetch(`${SB_URL}/rest/v1/${path}`, {
     headers: {
       apikey: SERVICE_KEY,
       Authorization: `Bearer ${SERVICE_KEY}`,
       "Content-Type": "application/json",
-      ...(opts.headers || {}),
+      ...((headers as Record<string, string>) || {}),
     },
-    ...opts,
+    ...rest,
   });
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -57,6 +63,19 @@ serve(async (req) => {
     const vr = await api("rpc/verify_admin_password", { method: "POST", body: JSON.stringify({ pw }) });
     const okAuth = await vr.json().catch(() => false);
     if (okAuth !== true) return json({ error: "unauthorized" }, 401);
+
+    // LECTURE admin (service-role) — ex. liste joueurs avec PII (email/nom/prénom).
+    // `match` porte les paramètres de requête : { select, order, limit }.
+    if (op === "select") {
+      if (!ALLOWED_READ.has(table)) return json({ error: "table non autorisée en lecture" }, 400);
+      const parts: string[] = [];
+      if (match?.select) parts.push(`select=${match.select}`);
+      if (match?.order)  parts.push(`order=${match.order}`);
+      if (match?.limit)  parts.push(`limit=${match.limit}`);
+      const r = await api(`${table}?${parts.join("&")}`);
+      const data = r.status === 204 ? [] : await r.json().catch(() => null);
+      return json({ ok: r.ok, status: r.status, data });
+    }
 
     // 2) Garde-fous
     if (!ALLOWED.has(table)) return json({ error: "table non autorisée" }, 400);

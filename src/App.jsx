@@ -8849,7 +8849,7 @@ const AdminJoueurs = ({ addLog }) => {
 
   // Chargement initial — tous les joueurs
   useEffect(()=>{
-    sb(`joueurs?order=drix.desc&select=id,pseudo,nom,prenom,email,ville,drix,date_inscription,photo,bar_slug,asso_slug&limit=500`)
+    sbAdmin("select", "joueurs", { select: "id,pseudo,nom,prenom,email,ville,drix,date_inscription,photo,bar_slug,asso_slug", order: "drix.desc", limit: 500 })
       .then(r=>{ setTous(r||[]); setLoading(false); })
       .catch(()=>setLoading(false));
   },[]);

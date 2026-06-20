@@ -173,7 +173,9 @@ export const validerPseudo = (pseudo) => {
 
 // Colonnes publiques de `joueurs` (TOUT sauf password_hash) — pour ne jamais demander le hash
 // au client (permet de le verrouiller côté base sans casser ces requêtes).
-const JOUEUR_COLS = "id,pseudo,bar_slug,asso_slug,date_inscription,actif,drix,photo,age,ville,style_jeu,bull_balance,last_daily_reward,bull_reserved,nom,prenom,email,niveau,cgu_accepte,cgu_date,anonymise,anonymise_date,xp,xp_badges_credited";
+// NB : email/nom/prénom volontairement EXCLUS (PII non exposée à la clé publique). Le joueur
+// récupère SES propres infos au login (fonction `auth`) ; l'admin les lit via `admin-ops`.
+const JOUEUR_COLS = "id,pseudo,bar_slug,asso_slug,date_inscription,actif,drix,photo,age,ville,style_jeu,bull_balance,last_daily_reward,bull_reserved,niveau,cgu_accepte,cgu_date,anonymise,anonymise_date,xp,xp_badges_credited";
 
 export const dbJ = {
   getJoueurs: () => sbJ(`joueurs?order=pseudo.asc&select=${JOUEUR_COLS}`),
