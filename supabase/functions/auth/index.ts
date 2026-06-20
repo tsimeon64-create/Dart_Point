@@ -16,7 +16,6 @@
 //   • (CLI équivalent : supabase functions deploy auth --no-verify-jwt)
 // SECRETS : SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont fournis automatiquement par Supabase.
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import bcrypt from "https://esm.sh/bcryptjs@2.4.3";
 
 const SB_URL      = Deno.env.get("SUPABASE_URL")!;
@@ -52,7 +51,7 @@ async function sha256(s: string): Promise<string> {
 }
 const isBcrypt = (h: unknown) => typeof h === "string" && /^\$2[aby]\$/.test(h);
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST")    return json({ error: "method not allowed" }, 405);
 
