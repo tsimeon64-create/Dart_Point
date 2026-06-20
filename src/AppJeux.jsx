@@ -933,6 +933,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [joueurs, setJoueurs] = useState(null);
   const [actifIdx, setActifIdx] = useState(0);
   const [bulleStartIdx, setBulleStartIdx] = useState(0); // qui commence la manche 1
+  const [ordreBulle, setOrdreBulle] = useState([]); // mode libre : ordre de passage choisi à la bulle (indices de config.noms)
   const [mancheEnCours, setMancheEnCours] = useState(0); // 0-based
   const [gagnant, setGagnant] = useState(null);
   const [resultEnregistre, setResultEnregistre] = useState(false);
@@ -1034,11 +1035,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     score: startVal, manchesGagnees: 0, tours: [], flechettes: 0, totalPoints: 0, scorePrecedent: null,
   }));
 
-  const demarrerAvecBulle = (startIdx) => {
+  // nomsOverride : en mode libre, ordre de passage choisi à la bulle (sinon ordre de config).
+  const demarrerAvecBulle = (startIdx, nomsOverride = null) => {
     const sv = modeDuel ? parseInt(duel?.mode || "501") : startVal;
-    const noms = modeDuel
+    const noms = nomsOverride || (modeDuel
       ? [duel?.challenger_pseudo || "Joueur 1", duel?.defie_pseudo || "Joueur 2"]
-      : config.noms;
+      : config.noms);
     const n = noms.length;
     setJoueurs(noms.map((nom, i) => ({
       nom: nom || `Joueur ${i + 1}`,
@@ -1109,7 +1111,18 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     };
   };
 
-  const demarrer = () => demarrerAvecBulle(0);
+  // Mode libre : DÉMARRER ouvre l'écran « bulle » pour choisir l'ordre de passage.
+  const demarrer = () => { setOrdreBulle([]); setEtape("bulle"); };
+
+  // Clic sur un joueur pendant la bulle (mode libre) : on l'ajoute à l'ordre de passage.
+  // Quand il ne reste qu'un seul joueur, il est placé automatiquement (ordre déterminé).
+  const clicBulleJoueur = (idx) => {
+    if (ordreBulle.includes(idx)) return;
+    let next = [...ordreBulle, idx];
+    const restants = config.noms.map((_, i) => i).filter((i) => !next.includes(i));
+    if (restants.length === 1) next = [...next, restants[0]];
+    setOrdreBulle(next);
+  };
 
   const quitterPartie = async () => {
     setShowConfirmQuitter(false);
@@ -1514,7 +1527,61 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     </div>
   );
 
-  // ── ÉCRAN BULLE (duel uniquement) ─────────────────────────────────────────────
+  // ── ÉCRAN BULLE — MODE LIBRE : choisir l'ordre de passage en cliquant ──────────
+  if (etape === "bulle" && !modeDuel) {
+    const complet = ordreBulle.length === config.noms.length;
+    return (
+      <div style={{ maxWidth:480, margin:"0 auto", padding:"40px 20px", fontFamily:"Inter,sans-serif", textAlign:"center" }}>
+        <div style={{ marginBottom:16, display:"flex", justifyContent:"center" }}><EmoIcon e="🎯" size={60} color="#f97316"/></div>
+        <h2 style={{ fontWeight:900, fontSize:24, color:"#f1f5f9", marginBottom:8 }}>La bulle</h2>
+        <p style={{ color:"#94a3b8", fontSize:14, marginBottom:8, lineHeight:1.6 }}>
+          Faites la bulle, puis cliquez sur les joueurs <strong style={{ color:"#f1f5f9" }}>dans l'ordre de passage</strong> :
+          d'abord celui qui commence, puis le suivant…
+        </p>
+        <p style={{ color:"#f97316", fontSize:13, fontWeight:700, marginBottom:24 }}>
+          {complet ? "✅ Ordre défini — clique sur « C'est parti »"
+            : ordreBulle.length === 0 ? "👉 Clique sur le joueur qui commence"
+            : `${ordreBulle.length} / ${config.noms.length} placés`}
+        </p>
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          {config.noms.map((nom, idx) => {
+            const pos = ordreBulle.indexOf(idx);
+            const place = pos >= 0;
+            return (
+              <button key={idx} onClick={() => clicBulleJoueur(idx)} disabled={place}
+                style={{ padding:"18px 20px", borderRadius:16, border:`2px solid ${place ? "#22c55e" : "#f97316"}`, background: place ? "#22c55e18" : "#f9731622", color:"#f1f5f9", fontWeight:800, fontSize:18, cursor: place ? "default" : "pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:12, opacity: place ? 0.85 : 1, transition:"all .15s" }}>
+                <span style={{ width:30, height:30, borderRadius:"50%", background: place ? "#22c55e" : "#3a3a3a", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:15, flexShrink:0 }}>
+                  {place ? pos + 1 : "?"}
+                </span>
+                {nom || `Joueur ${idx + 1}`}
+                {pos === 0 && <span style={{ fontSize:13, color:"#94a3b8", fontWeight:500 }}>commence</span>}
+              </button>
+            );
+          })}
+        </div>
+        {complet && (
+          <button onClick={() => demarrerAvecBulle(0, ordreBulle.map((i) => config.noms[i] || `Joueur ${i + 1}`))}
+            style={{ width:"100%", marginTop:22, padding:"18px", borderRadius:14, border:"none", fontWeight:900, fontSize:18, cursor:"pointer", background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff" }}>
+            <EmoIcon e="🎯" size={18} style={{ verticalAlign:"-3px", marginRight:8 }}/>C'est parti
+          </button>
+        )}
+        {ordreBulle.length > 0 && (
+          <button onClick={() => setOrdreBulle([])}
+            style={{ marginTop:14, background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13 }}>
+            ↺ Recommencer l'ordre
+          </button>
+        )}
+        <div>
+          <button onClick={() => setEtape("config")}
+            style={{ marginTop:8, background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13 }}>
+            ← Retour aux réglages
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── ÉCRAN BULLE (duel) ─────────────────────────────────────────────────────────
   if (etape === "bulle") {
     const n0 = duel?.challenger_pseudo || "Joueur 1";
     const n1 = duel?.defie_pseudo || "Joueur 2";
