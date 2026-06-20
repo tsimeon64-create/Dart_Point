@@ -171,14 +171,18 @@ export const validerPseudo = (pseudo) => {
   return null; // ok
 };
 
+// Colonnes publiques de `joueurs` (TOUT sauf password_hash) — pour ne jamais demander le hash
+// au client (permet de le verrouiller côté base sans casser ces requêtes).
+const JOUEUR_COLS = "id,pseudo,bar_slug,asso_slug,date_inscription,actif,drix,photo,age,ville,style_jeu,bull_balance,last_daily_reward,bull_reserved,nom,prenom,email,niveau,cgu_accepte,cgu_date,anonymise,anonymise_date,xp,xp_badges_credited";
+
 export const dbJ = {
-  getJoueurs: () => sbJ("joueurs?order=pseudo.asc&select=*"),
-  getJoueur: (id) => sbJ(`joueurs?id=eq.${id}&select=*`).then(r => r?.[0]),
-  getJoueurByPseudo: (pseudo) => sbJ(`joueurs?pseudo=eq.${encodeURIComponent(pseudo)}&select=*`).then(r => r?.[0]),
+  getJoueurs: () => sbJ(`joueurs?order=pseudo.asc&select=${JOUEUR_COLS}`),
+  getJoueur: (id) => sbJ(`joueurs?id=eq.${id}&select=${JOUEUR_COLS}`).then(r => r?.[0]),
+  getJoueurByPseudo: (pseudo) => sbJ(`joueurs?pseudo=eq.${encodeURIComponent(pseudo)}&select=${JOUEUR_COLS}`).then(r => r?.[0]),
   getJoueurByPseudoIlike: (pseudo) => sbJ(`joueurs?pseudo=ilike.${encodeURIComponent(pseudo)}&select=id,pseudo`).then(r => r?.[0]),
   addJoueur: (d) => sbJ("joueurs", { method: "POST", body: JSON.stringify(d) }),
   updateJoueur: (id, d) => sbJ(`joueurs?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(d), prefer: "return=minimal" }),
-  getJoueursByBar: (slug) => sbJ(`joueurs?bar_slug=eq.${encodeURIComponent(slug)}&select=*`),
+  getJoueursByBar: (slug) => sbJ(`joueurs?bar_slug=eq.${encodeURIComponent(slug)}&select=${JOUEUR_COLS}`),
   getStats: (joueur_id) => sbJ(`stats_joueurs?joueur_id=eq.${joueur_id}&select=*`).then(r => r?.[0]),
   addStats: (d) => sbJ("stats_joueurs", { method: "POST", body: JSON.stringify(d) }),
   updateStats: (id, d) => sbJ(`stats_joueurs?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(d), prefer: "return=minimal" }),
