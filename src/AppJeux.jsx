@@ -962,6 +962,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const liveVoleeNumRef = useRef([0, 0]);
   const liveMaxFinishRef = useRef([0, 0]);
   const liveBustsRef = useRef([0, 0]);
+  // Ids des deux joueurs cote serveur (pour les inserts live_volees) — fonctionne en duel ET en bot
+  const liveJoueurIdsRef = useRef([null, null]);
 
   // ── Scroll auto vers le joueur actif (déclaré ici pour respecter les Rules of Hooks) ──
   const scoresGridRef = useRef(null);
@@ -996,10 +998,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     };
   }, [etape]);
 
-  // ── Live session : démarre quand etape passe à "jeu" ──
+  // ── Live session : démarre quand etape passe à "jeu" (duel classe OU mode bot) ──
   useEffect(() => {
-    if (etape === "jeu" && modeDuel && duel?.id && !liveIdRef.current) {
-      createLiveSession();
+    if (etape === "jeu" && !liveIdRef.current) {
+      const canDuel = modeDuel && duel?.id;
+      const canBot  = !modeDuel && !!botPseudo && !!botAmi && !!joueur?.id;
+      if (canDuel || canBot) createLiveSession();
     }
     if (etape === "fin" || etape === "config") {
       closeLiveSession();
@@ -1348,20 +1352,31 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Suivi live session ────────────────────────────────────────────────────
   const createLiveSession = async () => {
-    if (!modeDuel || !duel?.id) return;
+    // Live possible : (1) duel classe — challenger vs defie OU (2) mode bot — joueur vs ami simule
+    const isBotLive = !modeDuel && !!botPseudo && !!botAmi && !!joueur?.id;
+    if (!isBotLive && (!modeDuel || !duel?.id)) return;
     try {
-      const mode = duel.mode || "501";
-      const manches = duel.manches || 1;
+      const mode = isBotLive ? config.mode : (duel.mode || "501");
+      const manches = isBotLive ? (config.manches || 1) : (duel.manches || 1);
       const format = manches === 1 ? "Bo1" : `Bo${manches * 2 - 1}`;
       const sv = parseInt(mode) || 501;
       const initSt = { moy:0, volees:0, total_pts:0, nb180:0, reste:sv, max_finish:0, busts:0 };
-      const body = {
-        mode, format,
-        joueur1_id:String(duel.challenger_id), joueur1_pseudo:duel.challenger_pseudo, joueur1_drix:duel.challenger_drix||1000,
-        joueur2_id:String(duel.defie_id), joueur2_pseudo:duel.defie_pseudo, joueur2_drix:duel.defie_drix||1000,
-        debut:Date.now(), statut:"en_cours",
-        score1:0, score2:0, stats_j1:initSt, stats_j2:initSt,
-      };
+      // Mode bot : on prefixe le pseudo bot avec 🤖 pour que les amis identifient un match contre le fantome
+      const body = isBotLive
+        ? {
+            mode, format,
+            joueur1_id:String(joueur.id), joueur1_pseudo:joueur.pseudo, joueur1_drix:joueur.drix||1000,
+            joueur2_id:String(botAmi.id), joueur2_pseudo:`🤖 ${botAmi.pseudo}`, joueur2_drix:botAmi.drix||1000,
+            debut:Date.now(), statut:"en_cours",
+            score1:0, score2:0, stats_j1:initSt, stats_j2:initSt,
+          }
+        : {
+            mode, format,
+            joueur1_id:String(duel.challenger_id), joueur1_pseudo:duel.challenger_pseudo, joueur1_drix:duel.challenger_drix||1000,
+            joueur2_id:String(duel.defie_id), joueur2_pseudo:duel.defie_pseudo, joueur2_drix:duel.defie_drix||1000,
+            debut:Date.now(), statut:"en_cours",
+            score1:0, score2:0, stats_j1:initSt, stats_j2:initSt,
+          };
       const r = await fetch(`${SB_URL}/rest/v1/live_sessions`, {
         method:"POST",
         headers:{ "apikey":SB_KEY, "Authorization":`Bearer ${SB_KEY}`, "Content-Type":"application/json", "Prefer":"return=representation" },
@@ -1376,7 +1391,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         liveVoleeNumRef.current = [0,0];
         liveMaxFinishRef.current = [0,0];
         liveBustsRef.current = [0,0];
-        console.log("✅ Live session créée:", row.id);
+        liveJoueurIdsRef.current = isBotLive
+          ? [String(joueur.id), String(botAmi.id)]
+          : [String(duel.challenger_id), String(duel.defie_id)];
+        console.log("✅ Live session créée:", row.id, isBotLive ? "(bot)" : "(duel)");
       } else {
         console.error("createLiveSession: pas d'id dans la réponse", d);
       }
@@ -1405,7 +1423,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         fetch(`${SB_URL}/rest/v1/live_volees`, {
           method:"POST",
           headers:{ apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, "Content-Type":"application/json", Prefer:"return=minimal" },
-          body: JSON.stringify({ session_id:liveIdRef.current, joueur_id:joueurIdx===0?duel.challenger_id:duel.defie_id, numero_volee:liveVoleeNumRef.current[joueurIdx], score:isBust?-1:score, reste, date:Date.now() }),
+          body: JSON.stringify({ session_id:liveIdRef.current, joueur_id:liveJoueurIdsRef.current[joueurIdx], numero_volee:liveVoleeNumRef.current[joueurIdx], score:isBust?-1:score, reste, date:Date.now() }),
         }),
       ]);
     } catch(e) { console.warn("pushLiveVolee:", e); }
