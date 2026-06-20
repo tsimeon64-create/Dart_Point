@@ -35,7 +35,10 @@
   ne renvoie que SES conversations et force `from_id` à l'identité du jeton ; `REVOKE SELECT,INSERT,UPDATE
   ON messages FROM anon` (vérifié live : 401 sur lecture ET insertion directes). Écran « reconnecte-toi »
   pour les anciennes sessions. *(Reste : router le DELETE admin des messages via admin-ops.)*
-- [ ] **PII énumérable** : `GET joueurs?select=email,ville,…` = annuaire email/ville/pseudo des comptes.
+- [x] ~~**PII énumérable** (email/nom/prénom)~~ ✅ **FERMÉ le 20/06/2026.** `REVOKE SELECT (email,nom,prenom)
+  ON joueurs FROM anon` (vérifié live : 401). Le joueur récupère SES infos au login (`auth`) ; l'admin les
+  lit via `admin-ops` (nouvelle op `select` service-role, + bug `api()` corrigé). `JOUEUR_COLS` nettoyé.
+  *(`ville` laissée lisible car affichée publiquement ; à revoir si besoin.)*
 - [ ] **Graphe social + historique** : `amis`, `duels`, `drix_mouvements`, `stats_joueurs`, `presences`
   lisibles sans filtre (le filtre n'est que dans l'URL client).
 - [ ] **IDOR profil/social** : `PATCH joueurs?id=eq.<victime>` défigure/usurpe un profil et contourne
