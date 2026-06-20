@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { SCORER } from "./theme";
-import { Search, Swords, Check } from "lucide-react";
+import { Search, Swords, Check, X } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
 
 // ── Confetti ──────────────────────────────────────────────────────────────────
