@@ -4541,6 +4541,12 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
   const lastEvent = getLastEvent(volees, session.joueur1_pseudo, session.joueur2_pseudo, session.joueur1_id);
   const manches = groupVoleesByManche(volees, session.joueur1_id, session.joueur2_id);
 
+  // Manches state : ouvert / fermé (par défaut seulement la manche en cours ouverte).
+  // ⚠️ Doit rester AVANT le return conditionnel plus bas, sinon le nombre de hooks
+  // varie d'un rendu à l'autre → crash React « rendered fewer hooks than expected ».
+  const [openManches, setOpenManches] = useState(new Set([manches.length - 1]));
+  useEffect(() => { setOpenManches(new Set([manches.length - 1])); }, [manches.length]);
+
   /* ── helpers ── */
   const volee_color = (v) => {
     if (v.score === -1) return "#ef4444";
@@ -4665,10 +4671,6 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
     })
     .filter(Boolean)
     .reverse();
-
-  // Manches state : ouvert / fermé (par défaut seulement la manche en cours ouverte)
-  const [openManches, setOpenManches] = useState(new Set([manches.length - 1]));
-  useEffect(() => { setOpenManches(new Set([manches.length - 1])); }, [manches.length]);
 
   return (
     <div style={{ maxWidth:700,margin:"0 auto",padding:"10px 14px 24px" }}>
@@ -8282,19 +8284,22 @@ const TournoiDetail = ({ slug, tournois, setTournois, bars, setPage, setBarSlug,
   const [monInscription, setMonInscription] = useState(null);
   const [loadingInscription, setLoadingInscription] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
-  const t = tournois.find(x=>x.slug===slug);
-  if (!t) return null;
-  const d = new Date(t.date); const isPast = d < new Date(); const bar = bars.find(b=>b.nom===t.bar);
-  const isCreateur = joueur && t.createur_id && joueur.id === t.createur_id;
-  const placesMax = parseInt(t.places) || null;
-  const complet = placesMax && inscrits.length >= placesMax;
 
+  // ⚠️ Hooks AVANT tout return conditionnel : ce useEffect doit rester au-dessus du
+  // `if (!t) return null` (sinon nombre de hooks variable → crash « rendered fewer hooks »).
   useEffect(() => {
     db.getInscrits(slug).then(r => {
       setInscrits(r||[]);
       if (joueur) setMonInscription((r||[]).find(i => i.joueur_id === joueur.id) || null);
     }).catch(()=>{});
   }, [slug, joueur?.id]);
+
+  const t = tournois.find(x=>x.slug===slug);
+  if (!t) return null;
+  const d = new Date(t.date); const isPast = d < new Date(); const bar = bars.find(b=>b.nom===t.bar);
+  const isCreateur = joueur && t.createur_id && joueur.id === t.createur_id;
+  const placesMax = parseInt(t.places) || null;
+  const complet = placesMax && inscrits.length >= placesMax;
 
   const sInscrire = async () => {
     if (!joueur || loadingInscription) return;
