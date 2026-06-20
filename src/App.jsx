@@ -526,7 +526,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                       </button>
                     ))}
                     <div style={{ borderTop:"1px solid #1a1a28" }}>
-                      <button onClick={()=>{ setJoueur(null); localStorage.removeItem("dp_joueur"); go("home"); }}
+                      <button onClick={()=>{ setJoueur(null); localStorage.removeItem("dp_joueur"); localStorage.removeItem("dp_token"); go("home"); }}
                         style={{ display:"flex", alignItems:"center", gap:10, width:"100%", padding:"10px 14px", background:"transparent", border:"none", cursor:"pointer", color:"#f87171", fontSize:13, fontWeight:500, textAlign:"left", touchAction:"manipulation", transition:"background .15s" }}
                         onMouseEnter={e=>{e.currentTarget.style.background="#ef444410";}}
                         onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
@@ -704,7 +704,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
             {joueur ? (
               <>
                 <MenuItem icon="👤" label="Mon profil" target="mon-profil" />
-                <button onClick={()=>{ setJoueur(null); localStorage.removeItem("dp_joueur"); setOpen(false); setPage("home"); }}
+                <button onClick={()=>{ setJoueur(null); localStorage.removeItem("dp_joueur"); localStorage.removeItem("dp_token"); setOpen(false); setPage("home"); }}
                   style={{ display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 12px",background:"transparent",border:"1px solid transparent",borderRadius:11,cursor:"pointer",color:"#f87171",fontSize:14,fontWeight:500,transition:"all .18s",textAlign:"left",touchAction:"manipulation" }}
                   onMouseEnter={e=>{e.currentTarget.style.background="#ef444410";e.currentTarget.style.borderColor="#ef444430";}}
                   onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.borderColor="transparent";}}>

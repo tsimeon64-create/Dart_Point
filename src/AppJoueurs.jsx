@@ -297,6 +297,7 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
     try {
       const r = await callAuth("login", { pseudo: pseudo.trim(), password: pwd });
       if (!r.ok || !r.joueur) { setErr(r.error || "Pseudo ou mot de passe incorrect"); setLoading(false); return; }
+      if (r.token) localStorage.setItem("dp_token", r.token);
       onLogin(r.joueur);
     } catch { setErr("Erreur de connexion"); }
     setLoading(false);
@@ -325,6 +326,7 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
         },
       });
       if (!r.ok || !r.joueur) { setErr(r.error || "Erreur lors de l'inscription"); setLoading(false); return; }
+      if (r.token) localStorage.setItem("dp_token", r.token);
       await dbJ.addStats({ joueur_id: r.joueur.id, saison: "2025", victoires: 0, defaites: 0, parties: 0 }).catch(() => {});
       onLogin(r.joueur);
     } catch { setErr("Erreur lors de l'inscription"); }

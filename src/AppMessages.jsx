@@ -4,22 +4,26 @@ import { EmoIcon, EmoText } from "./icons";
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
-const sbM = async (path, opts={}) => {
-  const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
-    headers:{"apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`,"Content-Type":"application/json","Prefer":opts.prefer||"return=representation",...opts.headers},
-    ...opts,
-  });
-  if (!res.ok){const e=await res.text();throw new Error(e);}
-  const text=await res.text();
-  return text?JSON.parse(text):null;
+// Messagerie : tout passe par l'Edge Function `messages`, sécurisée par le JETON DE SESSION
+// (stocké au login dans localStorage['dp_token']). Plus d'accès direct à la table `messages`.
+const callMessages = async (action, payload = {}) => {
+  const token = (typeof localStorage !== "undefined" && localStorage.getItem("dp_token")) || "";
+  try {
+    const res = await fetch(`${SB_URL}/functions/v1/messages`, {
+      method: "POST",
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ action, token, ...payload }),
+    });
+    return await res.json().catch(() => ({}));
+  } catch { return {}; }
 };
 
 export const dbM = {
-  getAllMessages:(id)=>sbM(`messages?or=(from_id.eq.${id},to_id.eq.${id})&order=date.desc&select=*`),
-  getConversation:(myId,otherId)=>sbM(`messages?or=(and(from_id.eq.${myId},to_id.eq.${otherId}),and(from_id.eq.${otherId},to_id.eq.${myId}))&order=date.asc&select=*`),
-  sendMessage:(d)=>sbM("messages",{method:"POST",body:JSON.stringify(d)}).then(r=>r?.[0]),
-  markRead:(toId,fromId)=>sbM(`messages?to_id=eq.${toId}&from_id=eq.${fromId}&lu=eq.false`,{method:"PATCH",body:JSON.stringify({lu:true}),prefer:"return=minimal"}),
-  getUnreadCount:(toId)=>sbM(`messages?to_id=eq.${toId}&lu=eq.false&select=id,from_id`),
+  getAllMessages: () => callMessages("list").then(r => r.messages || []),
+  getConversation: (myId, otherId) => callMessages("conversation", { otherId }).then(r => r.messages || []),
+  sendMessage: (d) => callMessages("send", { toId: d.to_id, toPseudo: d.to_pseudo, contenu: d.contenu }).then(r => r.message || null),
+  markRead: (toId, fromId) => callMessages("markRead", { fromId }),
+  getUnreadCount: () => callMessages("unread").then(r => r.unread || []),
 };
 
 // ── COULEURS ─────────────────────────────────────────────────────────────────
