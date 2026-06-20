@@ -1374,8 +1374,11 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
       if (j) {
         setJoueurFrais(j);
         if (setJoueur) {
-          setJoueur(j);
-          localStorage.setItem("dp_joueur", JSON.stringify(j));
+          // ⚠️ MERGE (pas d'écrasement) : on conserve email/nom/prénom (venus du login, pas
+          // renvoyés par les lectures publiques), on rafraîchit juste drix/xp/photo/etc.
+          const merged = { ...joueur, ...j };
+          setJoueur(merged);
+          localStorage.setItem("dp_joueur", JSON.stringify(merged));
         }
       }
       if (s) setStats(s);
