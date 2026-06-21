@@ -1945,8 +1945,11 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       {botAnnonce && (
         <div style={{ position:"fixed",inset:0,background:"#000000cc",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:24 }}>
           <style>{`@keyframes botPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}`}</style>
-          <div style={{ background:"linear-gradient(160deg,#15001f,#0a0014)",border:"2px solid #a78bfa77",borderRadius:24,padding:"30px 36px",textAlign:"center",boxShadow:"0 0 50px #a78bfa55",minWidth:240,animation:"botPop .25s cubic-bezier(.34,1.56,.64,1) both" }}>
-            <div style={{ fontSize:13,fontWeight:800,color:"#c4b5fd",letterSpacing:1,marginBottom:8 }}>🤖 {botAnnonce.nom}</div>
+          <div style={{ background:"linear-gradient(160deg,#15001f,#0a0014)",border:"2px solid #a78bfa77",borderRadius:24,padding:"26px 36px 30px",textAlign:"center",boxShadow:"0 0 50px #a78bfa55",minWidth:240,animation:"botPop .25s cubic-bezier(.34,1.56,.64,1) both" }}>
+            {botAmi?.photo
+              ? <img src={botAmi.photo} alt="" style={{ width:72,height:72,borderRadius:"50%",objectFit:"cover",border:"2px solid #a78bfa",boxShadow:"0 0 20px #a78bfa66",margin:"0 auto 10px",display:"block" }}/>
+              : <div style={{ width:72,height:72,borderRadius:"50%",background:"#a78bfa33",border:"2px solid #a78bfa",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px" }}><EmoIcon e="🎯" size={30} color="#a78bfa"/></div>}
+            <div style={{ fontSize:14,fontWeight:800,color:"#c4b5fd",letterSpacing:.5,marginBottom:8 }}>🤖 {botAnnonce.nom}</div>
             {botAnnonce.bust ? (
               <div style={{ fontSize:46,fontWeight:900,color:"#ef4444",lineHeight:1 }}>BUST !</div>
             ) : (
