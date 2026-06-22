@@ -937,6 +937,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [ordreBulle, setOrdreBulle] = useState([]); // mode libre : ordre de passage choisi à la bulle (indices de config.noms)
   // ── Mode bot (mode libre) : affronter le « fantôme » d'un ami ──────────────────
   const [botPseudo, setBotPseudo] = useState(null); // pseudo de l'ami simulé (identifie le bot dans `joueurs`)
+  const [botSelf, setBotSelf] = useState(false);    // « contre soi-même » : pas de diffusion live/fil
   const [botProfil, setBotProfil] = useState(null); // { moyenne, source, volees }
   const [botAnnonce, setBotAnnonce] = useState(null); // pop-up « le bot a fait X » (2s)
   const [botAmi, setBotAmi]       = useState(null); // { id, pseudo, photo, drix } pour l'affichage
@@ -1000,7 +1001,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Live session : démarre quand etape passe à "jeu" ──
   useEffect(() => {
-    if (etape === "jeu" && !liveIdRef.current && ((modeDuel && duel?.id) || botPseudo)) {
+    if (etape === "jeu" && !liveIdRef.current && ((modeDuel && duel?.id) || (botPseudo && !botSelf))) {
       createLiveSession();
     }
     if (etape === "fin" || etape === "config") {
@@ -1123,7 +1124,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   };
 
   // Mode libre : DÉMARRER ouvre l'écran « bulle » (partie normale, sans bot).
-  const demarrer = () => { setBotPseudo(null); setBotAmi(null); setOrdreBulle([]); setEtape("bulle"); };
+  const demarrer = () => { setBotPseudo(null); setBotSelf(false); setBotAmi(null); setOrdreBulle([]); setEtape("bulle"); };
 
   // ── Mode bot : charger la liste d'amis (le bot s'ouvre depuis la page Défis) ──
   const chargerAmis = async () => {
@@ -1138,10 +1139,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         return fid;
       });
       const profils = (await dbJ.getJoueursByIds(ids)) || [];
-      const liste = profils
+      const amis = profils
         .map((p) => ({ id: p.id, pseudo: p.pseudo || pseudoMap[p.id] || "Ami", photo: p.photo || null, drix: p.drix ?? 1000 }))
-        .sort((a, b) => (b.drix || 0) - (a.drix || 0));
-      setAmisListe(liste);
+        .sort((a, b) => (b.drix || 0) - (a.drix || 0)); // amis triés par DRIX décroissant
+      // « Toi-même » toujours en tête : jouer contre ton propre bot.
+      const moi = { id: joueur.id, pseudo: joueur.pseudo, photo: joueur.photo || null, drix: joueur.drix ?? 1000, self: true };
+      setAmisListe([moi, ...amis]);
     } catch { setAmisListe([]); }
     setLoadingAmis(false);
   };
@@ -1157,11 +1160,13 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     try {
       const duels = await dbJ.getDuels(ami.id).catch(() => []);
       const profil = calculerProfilBot({ drix: ami.drix, duels, amiPseudo: ami.pseudo });
+      const botNom = ami.self ? `${ami.pseudo} (bot)` : ami.pseudo; // « contre soi-même » : nom distinct pour ne pas confondre les 2 joueurs
       botXpRef.current = false;
-      setBotPseudo(ami.pseudo);
+      setBotSelf(!!ami.self);
+      setBotPseudo(botNom);
       setBotProfil(profil);
       setBotAmi(ami);
-      setConfig((c) => ({ ...c, noms: [joueur?.pseudo || "Moi", ami.pseudo] }));
+      setConfig((c) => ({ ...c, noms: [joueur?.pseudo || "Moi", botNom] }));
       setOrdreBulle([]);
       setEtape("config"); // écran de réglages (mode + manches) avant la bulle
     } catch { window.dpToast?.("Impossible de charger cet ami", "error"); }
@@ -1597,7 +1602,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       window.dpToast?.(`+${delta} XP ${humainGagne ? "— victoire contre le bot 🎯" : "— bien joué 👍"}`, "success");
 
       // Poster le résultat dans le fil du Comptoir, étiqueté « duel bot » (jamais de DRIX).
-      if (joueurs?.length >= 2) {
+      // (Pas de publication quand on joue contre soi-même : c'est de l'entraînement privé.)
+      if (!botSelf && joueurs?.length >= 2) {
         const botJ = joueurs.find((j) => j.nom === botPseudo);
         const humJ = joueurs.find((j) => j.nom !== botPseudo);
         const winnerJ = humainGagne ? humJ : botJ;
@@ -1765,15 +1771,19 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             const couleur = ami.drix>=1800?"#fbbf24":ami.drix>=1400?"#a78bfa":ami.drix>=1100?"#60a5fa":"#94a3b8";
             const enCours = loadingBot===ami.id;
             return (
-              <button key={ami.id} onClick={()=>choisirAmiBot(ami)} disabled={!!loadingBot}
-                style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderRadius:14, border:"1px solid #2a2a2a", background:"#1a1a1a",
+              <button key={ami.self ? "self" : ami.id} onClick={()=>choisirAmiBot(ami)} disabled={!!loadingBot}
+                style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderRadius:14,
+                  border: ami.self ? "1px solid #f9731566" : "1px solid #2a2a2a", background: ami.self ? "#f9731610" : "#1a1a1a",
                   cursor: loadingBot?"default":"pointer", textAlign:"left", opacity: loadingBot && !enCours ? 0.5 : 1 }}>
                 {ami.photo
                   ? <img src={ami.photo} alt="" style={{ width:46, height:46, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
                   : <div style={{ width:46, height:46, borderRadius:"50%", background:"#f9731633", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><EmoIcon e="🎯" size={20} color="#f97316"/></div>}
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontWeight:800, fontSize:16, color:"#f1f5f9", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{ami.pseudo}</div>
-                  <div style={{ fontSize:12, color:couleur, fontWeight:700 }}>{ami.drix} DRIX</div>
+                  <div style={{ fontWeight:800, fontSize:16, color:"#f1f5f9", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", display:"flex", alignItems:"center", gap:6 }}>
+                    {ami.self ? "Toi-même" : ami.pseudo}
+                    {ami.self && <span style={{ fontSize:9, fontWeight:900, color:"#f97316", background:"#f9731622", border:"1px solid #f9731566", borderRadius:5, padding:"1px 5px", letterSpacing:.5, flexShrink:0 }}>TON BOT</span>}
+                  </div>
+                  <div style={{ fontSize:12, color:couleur, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{ami.self ? `${ami.drix} DRIX · affronte ton propre niveau` : `${ami.drix} DRIX`}</div>
                 </div>
                 <span style={{ color:"#a78bfa", fontWeight:900, fontSize:18 }}>{enCours ? "…" : "→"}</span>
               </button>
