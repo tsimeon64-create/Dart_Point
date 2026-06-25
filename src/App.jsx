@@ -5101,7 +5101,15 @@ const PageLive = ({ joueur, setPage }) => {
         const inList = amiIds.join(",");
         const data = await sb(`live_sessions?statut=eq.en_cours&or=(joueur1_id.in.(${inList}),joueur2_id.in.(${inList}))&order=debut.desc`).catch(()=>[]);
         const now = Date.now();
-        const fresh = (data||[]).filter(s => (now - (s.debut||now)) < STALE_MS);
+        const fresh = (data||[])
+          .filter(s => (now - (s.debut||now)) < STALE_MS)
+          // Un match contre un BOT ne doit s'afficher en live QUE pour le vrai joueur humain
+          // (sinon l'ami simulé — et tout son réseau — verrait un faux "live" à son nom).
+          .filter(s => {
+            if (!s.bot_side) return true;
+            const humainId = String(s.bot_side === 1 ? s.joueur2_id : s.joueur1_id);
+            return humainId === String(joueur?.id);
+          });
         const stale = (data||[]).filter(s => (now - (s.debut||now)) >= STALE_MS);
 
         // Auto-cleanup : toute session en_cours depuis +2h est une zombie → on la passe en "abandonne".

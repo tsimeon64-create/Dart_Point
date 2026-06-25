@@ -1067,6 +1067,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     setHistorique([]);
     setManchesHistory([]);
     setMancheStart({ vol:Array(n).fill(0), pts:Array(n).fill(0), nbtours:Array(n).fill(0), flechettes:Array(n).fill(0) });
+    botXpRef.current = false; // chaque nouvelle partie bot peut re-créditer l'XP (rejeu contre le même bot)
     setEtape("jeu");
   };
 
@@ -1125,6 +1126,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // Mode libre : DÉMARRER ouvre l'écran « bulle » (partie normale, sans bot).
   const demarrer = () => { setBotPseudo(null); setBotSelf(false); setBotAmi(null); setOrdreBulle([]); setEtape("bulle"); };
+
+  // Revanche en mode bot : relance proprement le MÊME adversaire (recharge profil + réglages).
+  const rejouerBot = () => { if (botAmi) choisirAmiBot(botAmi); else setEtape("config"); };
 
   // ── Mode bot : charger la liste d'amis (le bot s'ouvre depuis la page Défis) ──
   const chargerAmis = async () => {
@@ -1386,12 +1390,20 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         score1:0, score2:0, stats_j1:initSt, stats_j2:initSt,
         ...(botSide ? { bot_side: botSide } : {}), // colonne ajoutée par migration ; seulement en mode bot
       };
-      const r = await fetch(`${SB_URL}/rest/v1/live_sessions`, {
+      const postLive = (b) => fetch(`${SB_URL}/rest/v1/live_sessions`, {
         method:"POST",
         headers:{ "apikey":SB_KEY, "Authorization":`Bearer ${SB_KEY}`, "Content-Type":"application/json", "Prefer":"return=representation" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(b),
       });
-      const text = await r.text();
+      let r = await postLive(body);
+      let text = await r.text();
+      // Filet : si la colonne bot_side n'existe pas encore en base, on réessaie sans elle
+      // (la diffusion live marche, seul le petit badge BOT manquera tant que la migration n'est pas passée).
+      if (!r.ok && botSide && /bot_side/.test(text)) {
+        const { bot_side, ...sansBot } = body; // eslint-disable-line no-unused-vars
+        r = await postLive(sansBot);
+        text = await r.text();
+      }
       if (!r.ok) { console.error("createLiveSession HTTP error:", r.status, text); return; }
       const d = text ? JSON.parse(text) : null;
       const row = Array.isArray(d) ? d[0] : d;
@@ -1594,7 +1606,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Mode bot : à la fin de la partie, créditer un peu d'XP au joueur (jamais de DRIX) ──
   useEffect(() => {
-    if (etape !== "fin" || !botPseudo || botXpRef.current) return;
+    if (etape !== "fin" || !botPseudo || botSelf || botXpRef.current) return; // pas d'XP contre soi-même (anti-farm)
     botXpRef.current = true;
     const humainGagne = !!(gagnant && gagnant.nom !== botPseudo);
     const delta = 15 + (humainGagne ? 15 : 0);
@@ -1890,7 +1902,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       moyenne={moyenne}
       demarrer={demarrer}
       quitterPartie={quitterPartie}
-      onRejouer={onRejouer}
+      onRejouer={botPseudo ? rejouerBot : onRejouer}
       joueurs={joueurs}
       manchesDetail={manchesHistory}
     />

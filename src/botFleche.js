@@ -58,6 +58,7 @@ function tauxCheckoutReel(volees) {
   let attempts = 0, conv = 0, prev = Infinity, session = null;
   for (const v of volees) {
     if (v.session_id !== session) { session = v.session_id; prev = Infinity; } // nouvelle session → reset
+    if (v.score === -1) continue; // BUST : reste inchangé → ne compte pas comme tentative et ne touche pas `prev`
     const start = (prev === Infinity || v.reste > prev) ? null : prev; // reste au DÉBUT de la volée (null = début de leg)
     if (start != null && start > 0 && start <= 100 && estFinissable(start)) {
       attempts++;
@@ -143,7 +144,7 @@ function genererScoreReplay(remaining, profil) {
 
   // 1) Zone DOUBLE (≤ 50) : on tente le double au TAUX RÉEL. Raté = souvent 0 (on reste sur
   //    le même nombre → nouvelle tentative la fois d'après), parfois un simple touché.
-  if (remaining <= 50 && estFinissable(remaining)) {
+  if (remaining <= 50 && estFinissable(remaining) && remaining <= maxFinish) {
     if (Math.random() < rate) return remaining;                  // double réussi 🎯
     if (Math.random() < 0.6) return 0;                            // raté → reste sur le nombre
     const laisse = DOUBLES.find((d) => d <= remaining - 2);       // sinon simple touché → laisse un plus petit double
