@@ -192,6 +192,14 @@ export const dbJ = {
   // Amis acceptés d'un joueur (pour le mode bot) + profils par lot (pseudo/photo/drix).
   getAmis: (id) => sbJ(`amis?or=(joueur_id.eq.${id},ami_id.eq.${id})&statut=eq.accepte&select=*`),
   getJoueursByIds: (ids) => (ids && ids.length ? sbJ(`joueurs?id=in.(${ids.join(",")})&select=${JOUEUR_COLS}`) : Promise.resolve([])),
+  // Vraies volées d'un joueur sur ses 10 dernières parties live (pour le bot « replay »).
+  getVoleesReelles: async (joueur_id) => {
+    const sessions = await sbJ(`live_sessions?or=(joueur1_id.eq.${joueur_id},joueur2_id.eq.${joueur_id})&order=debut.desc&limit=10&select=id`).catch(() => []);
+    if (!Array.isArray(sessions) || !sessions.length) return [];
+    const ids = sessions.map((s) => s.id).join(",");
+    const vol = await sbJ(`live_volees?session_id=in.(${ids})&joueur_id=eq.${joueur_id}&select=score,reste&order=numero_volee.asc`).catch(() => []);
+    return Array.isArray(vol) ? vol : [];
+  },
   addDuel: (d) => sbJ("duels", { method: "POST", body: JSON.stringify(d) }),
   updateDuel: (id, d) => sbJ(`duels?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(d), prefer: "return=minimal" }),
   getDuelsEnAttente: (joueur_id) => sbJ(`duels?defie_id=eq.${joueur_id}&statut=eq.en_attente&select=*`),

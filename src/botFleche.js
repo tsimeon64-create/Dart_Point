@@ -52,9 +52,28 @@ export function statsReelles(duels, amiPseudo) {
   return { moyenne: vol > 0 ? pts / vol : 0, volees: vol, maxFinish, maxVisit, n180 };
 }
 
-// Construit le profil du bot. Plafonds = ce que l'ami a RÉELLEMENT fait (petite marge),
-// pour ne jamais dépasser son niveau. À défaut de données : estimation depuis le DRIX.
-export function calculerProfilBot({ drix, duels, amiPseudo }) {
+// Construit le profil du bot. 3 niveaux de réalisme, du meilleur au plus prudent :
+//  1) REPLAY : si on a ses VRAIES volées (live_volees), le bot rejoue ses lancers exacts.
+//  2) STATS  : sinon, modèle statistique calé sur ses 10 derniers matchs (manches_detail).
+//  3) DRIX   : sinon, estimation depuis son classement.
+export function calculerProfilBot({ drix, duels, amiPseudo, volees }) {
+  // ── 1) MODE REPLAY (le plus réaliste) ──
+  if (Array.isArray(volees) && volees.length >= 25) {
+    const scoring = volees.filter((v) => v.reste !== 0 && v.score >= 0).map((v) => v.score); // lancers de scoring (hors finish, hors bust)
+    const finishes = volees.filter((v) => v.reste === 0 && v.score > 0).map((v) => v.score); // finishes réels
+    const valides = volees.map((v) => v.score).filter((s) => s >= 0);
+    if (scoring.length >= 15) {
+      const moy = Math.round(valides.reduce((a, b) => a + b, 0) / (valides.length || 1));
+      return {
+        mode: "replay",
+        moyenne: moy,
+        scoringVolleys: scoring,
+        maxFinish: finishes.length ? Math.max(...finishes) : Math.max(60, moy),
+        source: "volees", volees: volees.length,
+      };
+    }
+  }
+
   const s = statsReelles(duels, amiPseudo);
   if (s.volees >= 9) {
     const moy = Math.round(s.moyenne);
@@ -98,9 +117,30 @@ function tirerVolee(moy, plafond, rate180) {
   return clamp(Math.round(g), 1, Math.max(20, plafond));
 }
 
+// MODE REPLAY : le bot rejoue les VRAIES volées de l'ami (échantillonnées dans son historique),
+// avec un checkout plafonné à son meilleur finish réel. C'est le plus humain possible.
+function genererScoreReplay(remaining, profil) {
+  const scoring = profil.scoringVolleys || [];
+  const maxFinish = profil.maxFinish || 100;
+  const moy = profil.moyenne || 45;
+
+  // 1) Checkout : seulement si finissable ET ≤ son meilleur finish réel.
+  if (estFinissable(remaining) && remaining <= maxFinish && Math.random() < probaCheckout(remaining, moy)) {
+    return remaining;
+  }
+  // 2) Volée normale : tirer une VRAIE volée de son historique qui ne buste pas.
+  const safe = scoring.filter((s) => s <= remaining - 2);
+  if (safe.length) return safe[(Math.random() * safe.length) | 0];
+  // 3) Fin de leg sans volée « safe » : poser pour laisser un double (anti bust-loop).
+  const laisse = DOUBLES.find((d) => d <= remaining - 2);
+  if (laisse == null) return remaining <= maxFinish ? remaining : 1;
+  return remaining - laisse;
+}
+
 // Génère le score d'une volée du bot pour un score restant donné.
 // Retourne un nombre 1..180+ ; si === remaining → finish ; si > remaining → bust.
 export function genererScoreBot(remaining, profil) {
+  if (profil?.mode === "replay") return genererScoreReplay(remaining, profil); // rejoue les vraies volées
   const moy = clamp(profil?.moyenne ?? 45, 18, 130);
   const plafondFinish = profil?.plafondFinish ?? 100;
   const plafondVolee  = profil?.plafondVolee ?? 140;

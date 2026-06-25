@@ -1158,8 +1158,11 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const choisirAmiBot = async (ami) => {
     setLoadingBot(ami.id);
     try {
-      const duels = await dbJ.getDuels(ami.id).catch(() => []);
-      const profil = calculerProfilBot({ drix: ami.drix, duels, amiPseudo: ami.pseudo });
+      const [duels, volees] = await Promise.all([
+        dbJ.getDuels(ami.id).catch(() => []),
+        dbJ.getVoleesReelles(ami.id).catch(() => []),
+      ]);
+      const profil = calculerProfilBot({ drix: ami.drix, duels, amiPseudo: ami.pseudo, volees });
       const botNom = ami.self ? `${ami.pseudo} (bot)` : ami.pseudo; // « contre soi-même » : nom distinct pour ne pas confondre les 2 joueurs
       botXpRef.current = false;
       setBotSelf(!!ami.self);
