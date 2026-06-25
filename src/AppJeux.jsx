@@ -1756,7 +1756,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── ÉCRAN SÉLECTION D'UN AMI (mode bot) ────────────────────────────────────
   if (etape === "amis") return (
-    <div style={{ maxWidth:480, margin:"0 auto", padding:"24px 16px", fontFamily:"Inter,sans-serif" }}>
+    <div style={{ maxWidth:480, margin:"0 auto", padding:"16px 16px 24px", fontFamily:"Inter,sans-serif" }}>
+      <button onClick={()=>{ if (botStart) setPage?.("defi"); else setEtape("config"); }}
+        style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, color:"#cbd5e1", cursor:"pointer", fontSize:14, fontWeight:700, padding:"9px 14px", marginBottom:14, display:"inline-flex", alignItems:"center", gap:6 }}>← Retour</button>
       <h1 style={{ fontWeight:900, fontSize:24, marginBottom:4, color:"#f1f5f9", textAlign:"center" }}>🤖 Affronter un ami</h1>
       <p style={{ color:"#94a3b8", fontSize:13, marginBottom:22, textAlign:"center", lineHeight:1.5 }}>
         Choisis un ami : le bot jouera à son niveau, d'après ses vraies stats (ou son DRIX s'il a peu joué).
@@ -1803,7 +1805,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── ÉCRAN CONFIG ──────────────────────────────────────────────────────────
   if (etape === "config") return (
-    <div style={{ maxWidth:480, margin:"0 auto", padding:"24px 16px", fontFamily:"Inter,sans-serif" }}>
+    <div style={{ maxWidth:480, margin:"0 auto", padding:"16px 16px 24px", fontFamily:"Inter,sans-serif" }}>
+      <button onClick={()=>{ if (botPseudo) setEtape("amis"); else setPage?.("home"); }}
+        style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, color:"#cbd5e1", cursor:"pointer", fontSize:14, fontWeight:700, padding:"9px 14px", marginBottom:14, display:"inline-flex", alignItems:"center", gap:6 }}>← Retour</button>
       <h1 style={{ fontWeight:900, fontSize:26, marginBottom:4, color:"#f1f5f9", textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}><EmoIcon e="🎯" size={24} color="#f97316"/>Scoreur</h1>
       <p style={{ color:"#94a3b8", fontSize:14, marginBottom:28, textAlign:"center" }}>{botPseudo ? "Mode bot · réglages" : "Mode libre"}</p>
       <div style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:14, padding:24, display:"flex", flexDirection:"column", gap:14 }}>
