@@ -1965,6 +1965,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             <div style={{ fontSize:14,fontWeight:800,color:"#c4b5fd",letterSpacing:.5,marginBottom:8 }}>🤖 {botAnnonce.nom}</div>
             {botAnnonce.bust ? (
               <div style={{ fontSize:46,fontWeight:900,color:"#ef4444",lineHeight:1 }}>BUST !</div>
+            ) : botAnnonce.score === 0 ? (
+              <div style={{ fontSize:30,fontWeight:900,color:"#f59e0b",lineHeight:1.1 }}>raté le double 😤</div>
             ) : (
               <>
                 <div style={{ fontSize:13,color:"#94a3b8",marginBottom:4 }}>a fait</div>

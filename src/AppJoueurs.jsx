@@ -197,7 +197,7 @@ export const dbJ = {
     const sessions = await sbJ(`live_sessions?or=(joueur1_id.eq.${joueur_id},joueur2_id.eq.${joueur_id})&order=debut.desc&limit=10&select=id`).catch(() => []);
     if (!Array.isArray(sessions) || !sessions.length) return [];
     const ids = sessions.map((s) => s.id).join(",");
-    const vol = await sbJ(`live_volees?session_id=in.(${ids})&joueur_id=eq.${joueur_id}&select=score,reste&order=numero_volee.asc`).catch(() => []);
+    const vol = await sbJ(`live_volees?session_id=in.(${ids})&joueur_id=eq.${joueur_id}&select=score,reste,session_id&order=session_id.asc,numero_volee.asc`).catch(() => []);
     return Array.isArray(vol) ? vol : [];
   },
   addDuel: (d) => sbJ("duels", { method: "POST", body: JSON.stringify(d) }),

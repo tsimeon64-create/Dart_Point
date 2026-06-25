@@ -52,6 +52,22 @@ export function statsReelles(duels, amiPseudo) {
   return { moyenne: vol > 0 ? pts / vol : 0, volees: vol, maxFinish, maxVisit, n180 };
 }
 
+// Taux de réussite RÉEL du checkout : sur les volées qui PARTENT d'un score finissable ≤ 100,
+// combien finissent (reste = 0). Capture le fait qu'on rate souvent le double plusieurs fois.
+function tauxCheckoutReel(volees) {
+  let attempts = 0, conv = 0, prev = Infinity, session = null;
+  for (const v of volees) {
+    if (v.session_id !== session) { session = v.session_id; prev = Infinity; } // nouvelle session → reset
+    const start = (prev === Infinity || v.reste > prev) ? null : prev; // reste au DÉBUT de la volée (null = début de leg)
+    if (start != null && start > 0 && start <= 100 && estFinissable(start)) {
+      attempts++;
+      if (v.reste === 0) conv++;
+    }
+    prev = v.reste;
+  }
+  return attempts >= 8 ? clamp(conv / attempts, 0.08, 0.85) : null; // null si trop peu de données
+}
+
 // Construit le profil du bot. 3 niveaux de réalisme, du meilleur au plus prudent :
 //  1) REPLAY : si on a ses VRAIES volées (live_volees), le bot rejoue ses lancers exacts.
 //  2) STATS  : sinon, modèle statistique calé sur ses 10 derniers matchs (manches_detail).
@@ -69,6 +85,7 @@ export function calculerProfilBot({ drix, duels, amiPseudo, volees }) {
         moyenne: moy,
         scoringVolleys: scoring,
         maxFinish: finishes.length ? Math.max(...finishes) : Math.max(60, moy),
+        checkoutRate: tauxCheckoutReel(volees) ?? 0.30, // taux réel de réussite du double (sinon défaut prudent)
         source: "volees", volees: volees.length,
       };
     }
@@ -122,16 +139,32 @@ function tirerVolee(moy, plafond, rate180) {
 function genererScoreReplay(remaining, profil) {
   const scoring = profil.scoringVolleys || [];
   const maxFinish = profil.maxFinish || 100;
-  const moy = profil.moyenne || 45;
+  const rate = profil.checkoutRate ?? 0.28; // taux réel de réussite du double
 
-  // 1) Checkout : seulement si finissable ET ≤ son meilleur finish réel.
-  if (estFinissable(remaining) && remaining <= maxFinish && Math.random() < probaCheckout(remaining, moy)) {
+  // 1) Zone DOUBLE (≤ 50) : on tente le double au TAUX RÉEL. Raté = souvent 0 (on reste sur
+  //    le même nombre → nouvelle tentative la fois d'après), parfois un simple touché.
+  if (remaining <= 50 && estFinissable(remaining)) {
+    if (Math.random() < rate) return remaining;                  // double réussi 🎯
+    if (Math.random() < 0.6) return 0;                            // raté → reste sur le nombre
+    const laisse = DOUBLES.find((d) => d <= remaining - 2);       // sinon simple touché → laisse un plus petit double
+    return laisse == null ? 0 : remaining - laisse;
+  }
+
+  // 2) Finish à 2 fléchettes (51–100) : rare en une visite ; sinon on POSE pour laisser un double.
+  if (remaining <= 100 && estFinissable(remaining) && remaining <= maxFinish) {
+    if (Math.random() < rate * 0.3) return remaining;             // beau finish d'un coup (rare)
+    const laisse = DOUBLES.find((d) => d <= remaining - 2);
+    if (laisse != null) return remaining - laisse;
+  }
+
+  // 3) Gros checkout (101 – meilleur finish réel) : très rare en une visite.
+  if (estFinissable(remaining) && remaining <= maxFinish && Math.random() < rate * 0.15) {
     return remaining;
   }
-  // 2) Volée normale : tirer une VRAIE volée de son historique qui ne buste pas.
+
+  // 4) Volée normale : rejouer une VRAIE volée de son historique qui ne buste pas.
   const safe = scoring.filter((s) => s <= remaining - 2);
   if (safe.length) return safe[(Math.random() * safe.length) | 0];
-  // 3) Fin de leg sans volée « safe » : poser pour laisser un double (anti bust-loop).
   const laisse = DOUBLES.find((d) => d <= remaining - 2);
   if (laisse == null) return remaining <= maxFinish ? remaining : 1;
   return remaining - laisse;
