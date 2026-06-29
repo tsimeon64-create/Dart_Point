@@ -11690,9 +11690,9 @@ export default function App() {
 
   const [pendingNav, setPendingNav] = useState(null);
   const isGamePage = (p) =>
-    p === "jeux-capital" || p === "scoreur" || p === "scoreur-doublette" ||
+    p === "jeux-capital" || p === "scoreur" || p === "scoreur-bot" || p === "scoreur-libre" || p === "scoreur-doublette" ||
     p === "cricket-config" || p === "rush-mode" || p === "chrono-finish" ||
-    p === "chrono-scoreur" ||
+    p === "chrono-scoreur" || p === "horloge-double" ||
     p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-");
 
   const navSafe = (targetPage) => {
@@ -12163,6 +12163,39 @@ export default function App() {
         {page==="admin"            && (isAdmin?<Admin joueur={joueur} bars={bars} setBars={setBars} associations={associations} setAssociations={setAssociations} tournois={tournois} setTournois={setTournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} onLogout={()=>{try{sessionStorage.removeItem("dp_admin_pw");}catch(e){/*ignore*/}setIsAdmin(false);nav("home");}}/>:<AdminLogin onLogin={()=>{setIsAdmin(true);nav("admin");}}/>)}
       </main>
       <Footer setPage={nav} onOpenHelp={HELP_CONTENT[page] ? ()=>setHelpOpen(true) : null}/>
+
+      {/* ── Barre de navigation fixe (mobile), style Dart Point ── */}
+      {joueur && !isGamePage(page) && (<>
+        <div style={{ height:"calc(58px + env(safe-area-inset-bottom))" }} aria-hidden="true"/>
+        <nav style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:300,
+          background:"rgba(8,8,13,0.97)", borderTop:"1px solid #1a1a26",
+          backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
+          display:"flex", paddingBottom:"env(safe-area-inset-bottom)", boxShadow:"0 -4px 22px rgba(0,0,0,0.5)" }}>
+          {[
+            { key:"home",         label:"Accueil",    icon:<HomeIcon size={20}/>,   badge:0 },
+            { key:"defi",         label:"Défi",       icon:<Swords size={20}/>,     badge:notifCount },
+            { key:"profil-amis",  label:"Amis",       icon:<Users size={20}/>,      badge:demandesAmisCount },
+            { key:"profil-stats", label:"Stats",      icon:<TrendingUp size={20}/>, badge:0 },
+            { key:"drix",         label:"Classement", icon:<Trophy size={20}/>,     badge:0 },
+            { key:"mon-profil",   label:"Profil",     icon:<User size={20}/>,       badge:0 },
+          ].map(t => {
+            const actif = page === t.key;
+            return (
+              <button key={t.key} onClick={()=>navSafe(t.key)} aria-label={t.label}
+                style={{ flex:1, background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column",
+                  alignItems:"center", justifyContent:"center", gap:3, padding:"8px 2px 9px",
+                  color: actif ? "#f97316" : "#64748b", position:"relative", touchAction:"manipulation", minHeight:54, transition:"color .15s" }}>
+                {actif && <div style={{ position:"absolute", top:0, left:"50%", transform:"translateX(-50%)", width:26, height:3, borderRadius:"0 0 4px 4px", background:"#f97316", boxShadow:"0 0 10px #f97316" }}/>}
+                <div style={{ position:"relative", display:"flex" }}>
+                  {t.icon}
+                  {t.badge > 0 && <span style={{ position:"absolute", top:-5, right:-8, minWidth:15, height:15, padding:"0 3px", borderRadius:8, background:"#ef4444", color:"#fff", fontSize:9, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 0 6px #ef444488" }}>{t.badge > 9 ? "9+" : t.badge}</span>}
+                </div>
+                <span style={{ fontSize:10, fontWeight: actif ? 800 : 600, letterSpacing:.2 }}>{t.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </>)}
     </div>
   );
 }
