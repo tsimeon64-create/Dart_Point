@@ -99,12 +99,83 @@ async function verifyToken(token: unknown): Promise<string | null> {
   } catch { return null; }
 }
 
+// ── Récupération de mot de passe par e-mail ──────────────────────────────────
+// Code à 6 chiffres cryptographiquement aléatoire.
+function genCode(): string {
+  return String(100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000));
+}
+// Envoi d'e-mail via Brevo (secrets : BREVO_API_KEY = clé API, RESET_FROM_EMAIL = expéditeur vérifié).
+async function sendResetEmail(toEmail: string, pseudo: string, code: string) {
+  const apiKey = Deno.env.get("BREVO_API_KEY");
+  const fromEmail = Deno.env.get("RESET_FROM_EMAIL");
+  if (!apiKey || !fromEmail) throw new Error("email-not-configured");
+  const r = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: { "api-key": apiKey, "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({
+      sender: { name: "Dart Point", email: fromEmail },
+      to: [{ email: toEmail, name: pseudo || "" }],
+      subject: "🎯 Ton code Dart Point",
+      htmlContent:
+        `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#0f172a">` +
+        `<h2 style="color:#f97316;margin:0 0 12px">Dart Point — Mot de passe oublié</h2>` +
+        `<p>Salut ${pseudo || ""} 👋</p>` +
+        `<p>Voici ton code pour réinitialiser ton mot de passe :</p>` +
+        `<div style="font-size:34px;font-weight:900;letter-spacing:8px;background:#f1f5f9;border-radius:12px;padding:16px;text-align:center;color:#0f172a;margin:14px 0">${code}</div>` +
+        `<p style="color:#64748b;font-size:13px">Ce code est valable <b>15 minutes</b>. Si tu n'es pas à l'origine de cette demande, ignore simplement ce message.</p>` +
+        `</div>`,
+    }),
+  });
+  if (!r.ok) { const t = await r.text(); throw new Error("brevo-" + r.status + ":" + t.slice(0, 150)); }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST")    return json({ error: "method not allowed" }, 405);
 
   try {
-    const { action, pseudo, password, profil, resetCode, newPassword, token } = await req.json();
+    const { action, pseudo, password, profil, resetCode, newPassword, token, email } = await req.json();
+
+    // ───────── MOT DE PASSE OUBLIÉ — étape 1 : envoyer un code par e-mail ─────────
+    if (action === "requestReset") {
+      const em = String(email || "").trim();
+      if (!em || !em.includes("@")) return json({ error: "E-mail invalide" }, 400);
+      const rows = await api(`joueurs?email=ilike.${encodeURIComponent(em)}&select=id,pseudo,email`).then((r) => r.json());
+      const u = Array.isArray(rows) ? rows[0] : null;
+      if (u?.id && u.email) {
+        const code = genCode();
+        await api(`joueurs?id=eq.${u.id}`, {
+          method: "PATCH", headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({ reset_code: await sha256(code), reset_expiry: Date.now() + 15 * 60 * 1000, reset_attempts: 0 }),
+        });
+        try { await sendResetEmail(u.email, u.pseudo, code); }
+        catch (e) { return json({ error: "Envoi de l'e-mail impossible", detail: String(e) }, 500); }
+      }
+      // Réponse toujours « ok » : on ne révèle pas si l'e-mail existe (anti-énumération).
+      return json({ ok: true });
+    }
+
+    // ───────── MOT DE PASSE OUBLIÉ — étape 2 : vérifier le code + nouveau mot de passe ─────────
+    if (action === "confirmReset") {
+      const em = String(email || "").trim();
+      const code = String(resetCode || "").trim();
+      if (!em || !code || !newPassword) return json({ error: "Champs manquants" }, 400);
+      if (String(newPassword).length < 4) return json({ error: "Nouveau mot de passe trop court (min 4)" }, 400);
+      const rows = await api(`joueurs?email=ilike.${encodeURIComponent(em)}&select=id,reset_code,reset_expiry,reset_attempts`).then((r) => r.json());
+      const u = Array.isArray(rows) ? rows[0] : null;
+      if (!u?.reset_code || !u?.reset_expiry) return json({ error: "Aucune demande en cours. Refais « mot de passe oublié »." }, 400);
+      if (Date.now() > Number(u.reset_expiry)) return json({ error: "Code expiré, refais une demande." }, 400);
+      if ((u.reset_attempts || 0) >= 5) return json({ error: "Trop d'essais. Refais une demande." }, 429);
+      if ((await sha256(code)) !== u.reset_code) {
+        await api(`joueurs?id=eq.${u.id}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ reset_attempts: (u.reset_attempts || 0) + 1 }) });
+        return json({ error: "Code incorrect" }, 401);
+      }
+      await api(`joueurs?id=eq.${u.id}`, {
+        method: "PATCH", headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ password_hash: await hashPassword(String(newPassword)), reset_code: null, reset_expiry: null, reset_attempts: 0 }),
+      });
+      return json({ ok: true });
+    }
 
     // ───────────────────────── SESSION ─────────────────────────
     // Rafraîchir MON profil complet (email/nom/prénom inclus) en prouvant mon identité

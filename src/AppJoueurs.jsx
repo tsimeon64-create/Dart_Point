@@ -283,6 +283,8 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
   const [pwd, setPwd] = useState("");
   const [pwd2, setPwd2] = useState("");
   const [adminCode, setAdminCode] = useState("");
+  const [resetStep, setResetStep] = useState("request"); // "request" (e-mail) | "confirm" (code + nouveau mdp)
+  const [codeRecu, setCodeRecu] = useState("");          // code à 6 chiffres reçu par mail
   const [err, setErr] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
@@ -302,7 +304,7 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
     ? associations.filter(a => a.nom.toLowerCase().includes(assoQuery.toLowerCase()) || (a.ville||"").toLowerCase().includes(assoQuery.toLowerCase())).slice(0, 6)
     : [];
 
-  const resetFields = () => { setErr(""); setSuccess(""); setPseudo(""); setPwd(""); setPwd2(""); setAdminCode(""); setNom(""); setPrenom(""); setEmail(""); setVille(""); setAssoQuery(""); setSelectedAsso(null); setNiveau(""); setAcceptCgu(false); setAcceptAge(false); };
+  const resetFields = () => { setErr(""); setSuccess(""); setPseudo(""); setPwd(""); setPwd2(""); setAdminCode(""); setResetStep("request"); setCodeRecu(""); setNom(""); setPrenom(""); setEmail(""); setVille(""); setAssoQuery(""); setSelectedAsso(null); setNiveau(""); setAcceptCgu(false); setAcceptAge(false); };
 
   const login = async () => {
     if (!pseudo.trim() || !pwd) return;
@@ -346,19 +348,33 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
     setLoading(false);
   };
 
-  const resetPwd = async () => {
+  // Étape 1 : demander un code de réinitialisation par e-mail.
+  const demanderCode = async () => {
     setErr(""); setSuccess("");
-    if (!pseudo.trim()) { setErr("Entre ton pseudo"); return; }
-    if (!adminCode) { setErr("Code administrateur requis"); return; }
+    if (!email.trim() || !email.includes("@")) { setErr("Entre ton adresse e-mail"); return; }
+    setLoading(true);
+    try {
+      const r = await callAuth("requestReset", { email: email.trim().toLowerCase() });
+      if (!r.ok) { setErr(r.error || "Impossible d'envoyer le code"); setLoading(false); return; }
+      setResetStep("confirm");
+      setSuccess("📩 Si un compte existe avec cet e-mail, un code vient d'être envoyé. Regarde ta boîte mail (et tes spams).");
+    } catch { setErr("Erreur réseau"); }
+    setLoading(false);
+  };
+
+  // Étape 2 : vérifier le code reçu et définir le nouveau mot de passe.
+  const confirmerReset = async () => {
+    setErr(""); setSuccess("");
+    if (!codeRecu.trim()) { setErr("Entre le code reçu par mail"); return; }
     if (!pwd || pwd.length < 4) { setErr("Nouveau mot de passe trop court (min 4 caractères)"); return; }
     if (pwd !== pwd2) { setErr("Les mots de passe ne correspondent pas"); return; }
-    setLoading(true); setErr("");
+    setLoading(true);
     try {
-      const r = await callAuth("reset", { pseudo: pseudo.trim(), resetCode: adminCode, newPassword: pwd });
-      if (!r.ok) { setErr(r.error || "Erreur lors de la réinitialisation"); setLoading(false); return; }
-      setSuccess("✅ Mot de passe réinitialisé ! Tu peux te connecter.");
-      setPwd(""); setPwd2(""); setAdminCode("");
-    } catch { setErr("Erreur lors de la réinitialisation"); }
+      const r = await callAuth("confirmReset", { email: email.trim().toLowerCase(), resetCode: codeRecu.trim(), newPassword: pwd });
+      if (!r.ok) { setErr(r.error || "Code incorrect"); setLoading(false); return; }
+      setSuccess("✅ Mot de passe réinitialisé ! Redirection vers la connexion…");
+      setTimeout(() => { setMode("login"); resetFields(); }, 1600);
+    } catch { setErr("Erreur réseau"); }
     setLoading(false);
   };
 
@@ -508,19 +524,34 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
           )}
         </>) : (<>
           <div style={{ marginBottom:20 }}>
-            <div style={{ fontWeight:700,fontSize:16,marginBottom:4 }}>🔑 Réinitialiser le mot de passe</div>
-            <div style={{ fontSize:12,color:CJ.muted }}>Demande le code admin à l'organisateur du bar.</div>
+            <div style={{ fontWeight:700,fontSize:16,marginBottom:4 }}>🔑 Mot de passe oublié</div>
+            <div style={{ fontSize:12,color:CJ.muted }}>
+              {resetStep === "request"
+                ? "Entre ton e-mail : on t'envoie un code pour réinitialiser ton mot de passe."
+                : "Entre le code reçu par mail, puis choisis un nouveau mot de passe."}
+            </div>
           </div>
           <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
-            <FieldJ label="Pseudo" value={pseudo} onChange={setPseudo} placeholder="Ton pseudo"/>
-            <FieldJ label="Code administrateur" value={adminCode} onChange={setAdminCode} placeholder="Code fourni par l'admin" type="password"/>
-            <FieldJ label="Nouveau mot de passe" value={pwd} onChange={setPwd} placeholder="••••••••" type="password"/>
-            <FieldJ label="Confirmer le nouveau mot de passe" value={pwd2} onChange={setPwd2} placeholder="••••••••" type="password"/>
-            {err && <p style={{ color:CJ.red, fontSize:13 }}>⚠️ {err}</p>}
-            {success && <p style={{ color:"#22c55e", fontSize:13 }}>{success}</p>}
-            <BtnJ onClick={resetPwd} disabled={loading} style={{ marginTop:4 }}>
-              {loading ? "Réinitialisation…" : "Réinitialiser le mot de passe"}
-            </BtnJ>
+            {resetStep === "request" ? (<>
+              <FieldJ label="E-mail" value={email} onChange={setEmail} placeholder="ton@email.fr" type="email"/>
+              {err && <p style={{ color:CJ.red, fontSize:13 }}>⚠️ {err}</p>}
+              {success && <p style={{ color:"#22c55e", fontSize:13 }}>{success}</p>}
+              <BtnJ onClick={demanderCode} disabled={loading} style={{ marginTop:4 }}>
+                {loading ? "Envoi…" : "Envoyer le code →"}
+              </BtnJ>
+            </>) : (<>
+              <FieldJ label="Code reçu par mail" value={codeRecu} onChange={setCodeRecu} placeholder="6 chiffres"/>
+              <FieldJ label="Nouveau mot de passe" value={pwd} onChange={setPwd} placeholder="••••••••" type="password"/>
+              <FieldJ label="Confirmer le mot de passe" value={pwd2} onChange={setPwd2} placeholder="••••••••" type="password"/>
+              {err && <p style={{ color:CJ.red, fontSize:13 }}>⚠️ {err}</p>}
+              {success && <p style={{ color:"#22c55e", fontSize:13 }}>{success}</p>}
+              <BtnJ onClick={confirmerReset} disabled={loading} style={{ marginTop:4 }}>
+                {loading ? "Validation…" : "Réinitialiser le mot de passe"}
+              </BtnJ>
+              <button onClick={()=>{ setResetStep("request"); setErr(""); setSuccess(""); }} style={{ background:"none",border:"none",color:CJ.muted,fontSize:12,cursor:"pointer",textAlign:"center" }}>
+                ↩ Je n'ai pas reçu le code
+              </button>
+            </>)}
             <button onClick={()=>{setMode("login");resetFields();}} style={{ background:"none",border:"none",color:CJ.muted,fontSize:12,cursor:"pointer",textAlign:"center" }}>
               ← Retour à la connexion
             </button>
