@@ -3854,8 +3854,10 @@ const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepu
 const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepuis, setPage }) => {
   const [openManches, setOpenManches] = useState(false);
   const [openDrix, setOpenDrix]       = useState(false);
-  const [winnerPhoto, setWinnerPhoto] = useState(p.joueur_photo || null);
-  const [loserPhoto, setLoserPhoto]   = useState(null);
+  // Pour un duel bot, l'auteur du post (humain) n'est pas forcément le gagnant : on prend les
+  // photos stockées dans le post (celle du bot peut être null → avatar par défaut), pas celle de l'auteur.
+  const [winnerPhoto, setWinnerPhoto] = useState(d.bot ? (d.winner?.photo || null) : (p.joueur_photo || null));
+  const [loserPhoto, setLoserPhoto]   = useState(d.bot ? (d.loser?.photo || null) : null);
   const w = d.winner; const l = d.loser;
   const isRivalite = !!d.isRivalite;
   const isAmical   = !!d.isAmical;

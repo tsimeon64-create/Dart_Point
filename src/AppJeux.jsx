@@ -1624,11 +1624,13 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         const winnerJ = humainGagne ? humJ : botJ;
         const loserJ  = humainGagne ? botJ : humJ;
         const moyOf = (j) => (j && j.flechettes > 0) ? Math.round(j.totalPoints / j.flechettes * 3) : 0;
+        // Photo de chaque côté : le bot = la photo de l'ami simulé (botAmi), l'humain = la sienne.
+        const photoDe = (j) => j?.nom === botPseudo ? (botAmi?.photo || null) : (joueur.photo || null);
         const duelPost = {
           bot: true, botNom: botPseudo, mode: config.mode,
           headline: `🤖 ${winnerJ?.nom} bat ${loserJ?.nom} ${winnerJ?.manchesGagnees || 0}-${loserJ?.manchesGagnees || 0}`,
-          winner: { nom: winnerJ?.nom, nbManches: winnerJ?.manchesGagnees || 0, total: 0, elo: 0, xp: humainGagne ? delta : 0, xpLines: [], moy: moyOf(winnerJ) },
-          loser:  { nom: loserJ?.nom,  nbManches: loserJ?.manchesGagnees || 0,  total: 0, elo: 0, xp: humainGagne ? 0 : delta, xpLines: [], moy: moyOf(loserJ) },
+          winner: { nom: winnerJ?.nom, nbManches: winnerJ?.manchesGagnees || 0, total: 0, elo: 0, xp: humainGagne ? delta : 0, xpLines: [], moy: moyOf(winnerJ), photo: photoDe(winnerJ) },
+          loser:  { nom: loserJ?.nom,  nbManches: loserJ?.manchesGagnees || 0,  total: 0, elo: 0, xp: humainGagne ? 0 : delta, xpLines: [], moy: moyOf(loserJ), photo: photoDe(loserJ) },
           manches: [],
         };
         fetch(`${SB_URL}/rest/v1/wall_posts`, {
