@@ -91,11 +91,11 @@ const phaseName=(round,totalRounds)=>{
 };
 
 // Generate all poule matches (round-robin)
-const genPouleMatchs=(joueurs,groupe,tournoi_id)=>{
+const genPouleMatchs=(joueurs,groupe,tournoi_id,manches=2)=>{
   const matchs=[];
   for(let i=0;i<joueurs.length;i++){
     for(let j=i+1;j<joueurs.length;j++){
-      matchs.push({tournoi_id,joueur1_id:joueurs[i].id,joueur2_id:joueurs[j].id,score1:0,score2:0,phase:"poules",groupe,statut:"en_attente",round_bracket:0,position_bracket:i*100+j,manches_max:2});
+      matchs.push({tournoi_id,joueur1_id:joueurs[i].id,joueur2_id:joueurs[j].id,score1:0,score2:0,phase:"poules",groupe,statut:"en_attente",round_bracket:0,position_bracket:i*100+j,manches_max:manches});
     }
   }
   return matchs;
@@ -228,6 +228,34 @@ const QRScanModal=({onAdd,dejaIds,onClose})=>{
           : <div id="qr-reader" style={{width:"100%",borderRadius:12,overflow:"hidden"}}/>}
         {feedback&&<div style={{marginTop:12,fontWeight:700,fontSize:14,color:feedback.startsWith("✅")?CT.green:CT.yellow}}>{feedback}</div>}
         <button onClick={onClose} style={{marginTop:14,width:"100%",background:CT.accent,color:"#fff",border:"none",borderRadius:10,padding:"12px",fontWeight:800,fontSize:15,cursor:"pointer",touchAction:"manipulation"}}>Terminer</button>
+      </div>
+    </div>
+  );
+};
+
+// ── Réglages des poules (avant lancement) ──
+const PoolConfigModal=({nbJoueurs,onValider,onClose,saving})=>{
+  const reco=4;
+  const [taille,setTaille]=useState(reco);
+  const [manches,setManches]=useState(2);
+  const nbPoules=Math.max(1,Math.round(nbJoueurs/taille));
+  const base=Math.floor(nbJoueurs/nbPoules), reste=nbJoueurs%nbPoules;
+  const apercu=reste===0?`${nbPoules} poule${nbPoules>1?"s":""} de ${base} joueurs`:`${nbPoules} poules de ${base} à ${base+1} joueurs`;
+  const opt=(val,sel,onPick)=>(
+    <button key={val} onClick={()=>onPick(val)} style={{flex:1,padding:"10px 4px",borderRadius:10,border:`1px solid ${sel?CT.accent:CT.border}`,background:sel?CT.accent+"22":CT.card,color:sel?CT.accent:CT.text,fontWeight:sel?800:600,fontSize:15,cursor:"pointer",touchAction:"manipulation"}}>{val}</button>
+  );
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000000e6",zIndex:99999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#15151c",border:`1px solid ${CT.border}`,borderRadius:18,padding:22,maxWidth:400,width:"100%"}}>
+        <h3 style={{fontWeight:800,fontSize:18,marginBottom:4,color:"#fff",textAlign:"center"}}><EmoText s="⚙️ Réglages des poules" size={17}/></h3>
+        <p style={{color:CT.muted,fontSize:12,textAlign:"center",marginBottom:18}}>{nbJoueurs} joueurs inscrits</p>
+        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Joueurs par poule <span style={{color:CT.muted,fontWeight:500}}>(conseillé : {reco})</span></div>
+        <div style={{display:"flex",gap:8,marginBottom:8}}>{[3,4,5].map(t=>opt(t,taille===t,setTaille))}</div>
+        <div style={{background:CT.accent+"15",border:`1px solid ${CT.accent}44`,borderRadius:10,padding:"10px 12px",fontSize:13,color:CT.accent,fontWeight:700,textAlign:"center",marginBottom:18}}>→ {apercu}</div>
+        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Manches par match <span style={{color:CT.muted,fontWeight:500}}>(premier à…)</span></div>
+        <div style={{display:"flex",gap:6,marginBottom:22}}>{[1,2,3,4,5].map(m=>opt(m,manches===m,setManches))}</div>
+        <Btn onClick={()=>onValider(taille,manches)} disabled={saving} style={{width:"100%",fontSize:15,padding:"13px"}}>{saving?"Lancement…":"✅ Valider et lancer les poules"}</Btn>
+        <button onClick={onClose} style={{width:"100%",marginTop:8,background:"none",border:"none",color:CT.muted,fontSize:13,cursor:"pointer",padding:8}}>Annuler</button>
       </div>
     </div>
   );
@@ -571,6 +599,7 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer})=>{
 export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   const [tournoi,setTournoi]=useState(null);
   const [joueurs,setJoueurs]=useState([]);
+  const [showPoolConfig,setShowPoolConfig]=useState(false);
   const [matchs,setMatchs]=useState([]);
   const [loading,setLoading]=useState(true);
   const [matchModal,setMatchModal]=useState(null);
@@ -597,26 +626,26 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   const isCreateur=joueurConnecte&&tournoi&&tournoi.createur_id===joueurConnecte.id;
 
   // ── Lancer le tournoi (phase poules)
-  const lancerTournoi=async()=>{
+  const lancerTournoi=async(poolSize=4,poolManches=2)=>{
     if(joueurs.length<2)return;
     setSaving(true);
     try{
-      const config=getTournoiConfig(joueurs.length);
-      const nb=config.nbGroupes;
-      // Assign groups (shuffle then round-robin)
+      const nb=Math.max(1,Math.round(joueurs.length/poolSize)); // nb de poules d'après la taille choisie
+      // Assign groups (shuffle then round-robin → poules équilibrées)
       const shuffled=[...joueurs].sort(()=>Math.random()-.5);
       for(let i=0;i<shuffled.length;i++){
         await dbTP.updateJoueur(shuffled[i].id,{groupe:(i%nb)+1,ordre:i});
       }
-      // Generate matches per group
+      // Generate matches per group (avec les manches choisies)
       const joueursUpd=await dbTP.getJoueurs(tournoiId);
       const allMatchs=[];
       for(let g=1;g<=nb;g++){
         const jG=joueursUpd.filter(j=>j.groupe===g);
-        allMatchs.push(...genPouleMatchs(jG,g,tournoiId));
+        allMatchs.push(...genPouleMatchs(jG,g,tournoiId,poolManches));
       }
       if(allMatchs.length>0)await dbTP.addMatchs(allMatchs);
       await dbTP.updateTournoi(tournoiId,{statut:"poules"});
+      setShowPoolConfig(false);
       await reload();
     }catch(e){alert("Erreur : "+e.message);}
     setSaving(false);
@@ -779,9 +808,10 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       {/* Content by statut */}
       {tournoi.statut==="attente"&&(
         <LobbyView tournoi={tournoi} joueurs={joueurs} isCreateur={isCreateur}
-          onStart={lancerTournoi} onAddJoueur={addJoueur} onRemoveJoueur={removeJoueur}
+          onStart={()=>setShowPoolConfig(true)} onAddJoueur={addJoueur} onRemoveJoueur={removeJoueur}
           joueurConnecte={joueurConnecte}/>
       )}
+      {showPoolConfig&&<PoolConfigModal nbJoueurs={joueurs.length} saving={saving} onValider={lancerTournoi} onClose={()=>setShowPoolConfig(false)}/>}
       {tournoi.statut==="poules"&&(
         <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} isCreateur={isCreateur}
           onSaisirScore={m=>setMatchModal(m)}
