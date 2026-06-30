@@ -81,6 +81,28 @@ const seedBracket=(ranked,size)=>{
   return build(padded);
 };
 
+// Tirage tenant compte des poules : les 1ers de poule = têtes de série (affrontent des 2es
+// d'une AUTRE poule, fort vs faible), et on évite que 2 joueurs d'une même poule se croisent
+// au 1er tour. Les exempts (byes) vont aux mieux classés.
+const seedPoolAware=(qualifiers,size)=>{
+  const byRank=(a,b)=>(b.points-a.points)||((b.manches_pour-b.manches_contre)-(a.manches_pour-a.manches_contre));
+  const firsts=qualifiers.filter(q=>q.poolRank===1).sort(byRank);
+  const seconds=qualifiers.filter(q=>q.poolRank!==1).sort(byRank);
+  const seeded=seedBracket([...firsts,...seconds],size); // têtes de série en haut
+  for(let i=0;i<seeded.length;i+=2){
+    const a=seeded[i],b=seeded[i+1];
+    if(a&&b&&a.groupe===b.groupe){ // derby de poule → on échange
+      for(let j=0;j<seeded.length;j+=2){
+        if(j===i)continue;
+        const c=seeded[j],d=seeded[j+1];
+        if(d&&d.groupe!==a.groupe&&c&&c.groupe!==b.groupe){ seeded[i+1]=d; seeded[j+1]=b; break; }
+        if(c&&c.groupe!==a.groupe&&d&&d.groupe!==b.groupe){ seeded[i+1]=c; seeded[j]=b; break; }
+      }
+    }
+  }
+  return seeded;
+};
+
 // Phase name from round and total rounds
 const phaseName=(round,totalRounds)=>{
   const fromFinal=totalRounds-round;
@@ -761,16 +783,15 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     setSaving(true);
     try{
       const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
-      // Qualifiés : les N premiers de chaque poule (N réglable par l'orga)
+      // Qualifiés : les N premiers de chaque poule (N réglable), taggés par rang de poule
       const topParGroupe=[];
       for(let g=1;g<=nbGroupes;g++){
         const jG=rankGroup(joueurs.filter(j=>j.groupe===g));
-        topParGroupe.push(...jG.slice(0,nbQual));
+        jG.slice(0,nbQual).forEach((j,idx)=>topParGroupe.push({...j,poolRank:idx+1}));
       }
-      const qualifies=rankGroup(topParGroupe);
       const sizes=[2,4,8,16,32];
-      const bracketSize=bsChoisi||sizes.find(s=>s>=qualifies.length)||32;
-      const seededFlat=seedBracket(qualifies,bracketSize);
+      const bracketSize=bsChoisi||sizes.find(s=>s>=topParGroupe.length)||32;
+      const seededFlat=seedPoolAware(topParGroupe,bracketSize);
       const bracketMatchs=genBracketMatchs(seededFlat,tournoiId,manchesMap);
       if(bracketMatchs.length>0)await dbTP.addMatchs(bracketMatchs);
       await dbTP.updateTournoi(tournoiId,{statut:"eliminatoires"});
