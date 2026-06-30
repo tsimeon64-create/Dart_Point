@@ -29,6 +29,7 @@ export const dbTP = {
   getMatchs:(tid)=>sbTP(`tournois_potes_matchs?tournoi_id=eq.${tid}&order=round_bracket.asc,position_bracket.asc&select=*`),
   addMatchs:(arr)=>sbTP("tournois_potes_matchs",{method:"POST",body:JSON.stringify(arr)}),
   updateMatch:(id,d)=>sbTP(`tournois_potes_matchs?id=eq.${id}`,{method:"PATCH",body:JSON.stringify(d),prefer:"return=minimal"}),
+  deleteMatchsTableau:(tid)=>sbTP(`tournois_potes_matchs?tournoi_id=eq.${tid}&phase=neq.poules`,{method:"DELETE",prefer:"return=minimal"}),
   getAmis:(id)=>sbTP(`amis?or=(joueur_id.eq.${id},ami_id.eq.${id})&statut=eq.accepte&select=*`),
   deleteTournoi:(id)=>sbTP(`tournois_potes?id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
 };
@@ -577,11 +578,14 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch})=>
   );
 };
 
-const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch})=>{
+const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,onRetourPoules})=>{
   const rounds=[...new Set(matchs.filter(m=>m.phase!=="poules").map(m=>m.round_bracket))].sort((a,b)=>a-b);
 
   return(
     <div>
+      {isCreateur&&(
+        <button onClick={onRetourPoules} style={{background:"none",border:`1px solid ${CT.border}`,color:CT.muted,cursor:"pointer",fontSize:12,padding:"6px 12px",borderRadius:8,marginBottom:14,display:"inline-flex",alignItems:"center",gap:6,touchAction:"manipulation"}}>← Retour aux poules</button>
+      )}
       <div style={{overflowX:"auto",paddingBottom:16}}>
         <div style={{display:"flex",gap:24,alignItems:"flex-start",minWidth:"max-content",padding:"8px 0"}}>
           {rounds.map(r=>{
@@ -590,7 +594,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
             return(
               <div key={r} style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
                 <div style={{fontSize:12,fontWeight:700,color:CT.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:4,textAlign:"center"}}>
-                  {phase==="finale"?<EmoText s="🏆 Finale" size={13}/>:phase==="demi"?"Demi-finales":phase==="quart"?"Quarts":phase==="huitieme"?"Huitièmes":"Tour "+r}
+                  {phase==="finale"?<EmoText s="🏆 Finale" size={13}/>:phase==="demi"?"Demi-finales":phase==="quart"?"Quarts":phase==="huitieme"?"Huitièmes":phase==="seizieme"?"Seizièmes":"Tour "+r}
                 </div>
                 {rm.map(m=>(
                   <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch}/>
@@ -801,6 +805,28 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     setSaving(false);
   };
 
+  // ── Retour aux poules (annule le tableau, en cas d'erreur de réglage)
+  const retourPoules=async()=>{
+    if(!window.confirm("Revenir à la phase de poules ?\n\nLe tableau actuel sera supprimé. Les poules et leurs résultats sont conservés."))return;
+    setSaving(true);
+    try{
+      await dbTP.deleteMatchsTableau(tournoiId);
+      // Recalcule le classement depuis les matchs de poules (au cas où des matchs du tableau auraient été joués)
+      const st={}; joueurs.forEach(j=>{ st[j.id]={victoires:0,defaites:0,points:0,manches_pour:0,manches_contre:0}; });
+      matchs.filter(m=>m.phase==="poules"&&m.statut==="termine"&&m.gagnant_id).forEach(m=>{
+        const lose=Math.min(m.score1,m.score2);
+        const w=m.gagnant_id, l=m.gagnant_id===m.joueur1_id?m.joueur2_id:m.joueur1_id;
+        const ws=m.gagnant_id===m.joueur1_id?m.score1:m.score2, ls=m.gagnant_id===m.joueur1_id?m.score2:m.score1;
+        if(st[w]){ st[w].victoires++; st[w].points+=2; st[w].manches_pour+=ws; st[w].manches_contre+=ls; }
+        if(st[l]){ st[l].defaites++; st[l].points+=(lose>0?1:0); st[l].manches_pour+=ls; st[l].manches_contre+=ws; }
+      });
+      await Promise.all(joueurs.map(j=>dbTP.updateJoueur(j.id,st[j.id])));
+      await dbTP.updateTournoi(tournoiId,{statut:"poules"});
+      await reload();
+    }catch(e){alert("Erreur : "+e.message);}
+    setSaving(false);
+  };
+
   // ── Rejouer
   const rejouer=async()=>{
     setSaving(true);
@@ -892,7 +918,8 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         <EliminatoiresView tournoi={tournoi} joueurs={joueurs}
           matchs={matchs.filter(m=>m.phase!=="poules")} isCreateur={isCreateur}
           onSaisirScore={m=>setMatchModal(m)}
-          onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}/>
+          onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
+          onRetourPoules={retourPoules}/>
       )}
       {tournoi.statut==="termine"&&(
         <ResultatsView tournoi={tournoi} joueurs={joueurs} matchs={matchs} onRejouer={rejouer}/>
