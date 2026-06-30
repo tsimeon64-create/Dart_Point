@@ -627,13 +627,28 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch})=>
   );
 };
 
-const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,onRetourPoules})=>{
-  const rounds=[...new Set(matchs.filter(m=>m.phase!=="poules").map(m=>m.round_bracket))].sort((a,b)=>a-b);
+const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,onRetourPoules,onTerminer})=>{
+  const bracketM=matchs.filter(m=>m.phase!=="poules");
+  const rounds=[...new Set(bracketM.map(m=>m.round_bracket))].sort((a,b)=>a-b);
+  // Tournoi prêt à clôturer : tous les matchs du tableau sont réglés (joués, exempts, ou vides)
+  const allDone=bracketM.length>0&&bracketM.every(m=>m.statut==="termine"||m.statut.startsWith("bye")||m.statut==="vide");
+  const finale=bracketM.find(m=>m.phase==="finale");
+  const champion=finale&&finale.statut==="termine"&&finale.gagnant_id?joueurs.find(j=>j.id===finale.gagnant_id):null;
 
   return(
     <div>
-      {isCreateur&&(
-        <button onClick={onRetourPoules} style={{background:"none",border:`1px solid ${CT.border}`,color:CT.muted,cursor:"pointer",fontSize:12,padding:"6px 12px",borderRadius:8,marginBottom:14,display:"inline-flex",alignItems:"center",gap:6,touchAction:"manipulation"}}>← Retour aux poules</button>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+        {isCreateur
+          ? <button onClick={onRetourPoules} style={{background:"none",border:`1px solid ${CT.border}`,color:CT.muted,cursor:"pointer",fontSize:12,padding:"6px 12px",borderRadius:8,display:"inline-flex",alignItems:"center",gap:6,touchAction:"manipulation"}}>← Retour aux poules</button>
+          : <span/>}
+        {isCreateur&&<Btn onClick={()=>onTerminer(allDone)} variant={allDone?"primary":"dark"} small style={{fontSize:12}}>🏆 Terminer le tournoi</Btn>}
+      </div>
+      {champion&&(
+        <Card style={{textAlign:"center",marginBottom:16,background:"linear-gradient(135deg,#78350f22,#f97316)",border:`1px solid ${CT.yellow}`}}>
+          <div style={{display:"flex",justifyContent:"center",marginBottom:2}}><EmoIcon e="🏆" size={42} color="#fbbf24"/></div>
+          <div style={{fontWeight:800,fontSize:19,color:CT.yellow}}>{champion.nom} remporte le tournoi !</div>
+          {isCreateur&&<Btn onClick={()=>onTerminer(true)} variant="primary" style={{marginTop:12}}>🏁 Clôturer et voir le classement final</Btn>}
+        </Card>
       )}
       <div style={{overflowX:"auto",paddingBottom:16}}>
         <div style={{display:"flex",gap:24,alignItems:"flex-start",minWidth:"max-content",padding:"8px 0"}}>
@@ -876,6 +891,20 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     setSaving(false);
   };
 
+  // ── Terminer le tournoi (clôture manuelle → écran champion + classement final)
+  const terminerTournoi=async(allDone=true)=>{
+    const msg=allDone
+      ? "Terminer le tournoi ?\n\nTu verras le champion et le classement final."
+      : "⚠️ Tous les matchs ne sont pas encore terminés.\n\nTerminer le tournoi quand même maintenant ?";
+    if(!window.confirm(msg))return;
+    setSaving(true);
+    try{
+      await dbTP.updateTournoi(tournoiId,{statut:"termine"});
+      await reload();
+    }catch(e){alert("Erreur : "+e.message);}
+    setSaving(false);
+  };
+
   // ── Rejouer
   const rejouer=async()=>{
     setSaving(true);
@@ -968,7 +997,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           matchs={matchs.filter(m=>m.phase!=="poules")} isCreateur={isCreateur}
           onSaisirScore={m=>setMatchModal(m)}
           onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
-          onRetourPoules={retourPoules}/>
+          onRetourPoules={retourPoules} onTerminer={terminerTournoi}/>
       )}
       {tournoi.statut==="termine"&&(
         <ResultatsView tournoi={tournoi} joueurs={joueurs} matchs={matchs} onRejouer={rejouer}/>
