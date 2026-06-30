@@ -261,13 +261,24 @@ const QRScanModal=({onAdd,dejaIds,onClose})=>{
 };
 
 // ── Réglages des poules (avant lancement) ──
+// Plus petite puissance de 2 ≥ x (taille de tableau)
+const nextPow2=(x)=>Math.max(2,Math.pow(2,Math.ceil(Math.log2(Math.max(2,x)))));
+// Évalue une taille de poule : nb de poules, qualifiés (les 2 premiers), tableau, exempts
+const evalTaillePoule=(nbJoueurs,t)=>{
+  const np=Math.max(1,Math.round(nbJoueurs/t));
+  const q=Math.min(nbJoueurs,np*2);
+  const bs=nextPow2(q);
+  return{np,q,bs,exempts:bs-q};
+};
 const PoolConfigModal=({nbJoueurs,onValider,onClose,saving})=>{
-  const reco=4;
+  // Réglage conseillé = celui qui ne laisse AUCUN exempt (sinon le moins d'exempts), en privilégiant le plus de qualifiés
+  const reco=[3,4,5].map(t=>({t,...evalTaillePoule(nbJoueurs,t)})).sort((a,b)=>(a.exempts-b.exempts)||(b.q-a.q))[0].t;
   const [taille,setTaille]=useState(reco);
   const [manches,setManches]=useState(2);
-  const nbPoules=Math.max(1,Math.round(nbJoueurs/taille));
-  const base=Math.floor(nbJoueurs/nbPoules), reste=nbJoueurs%nbPoules;
-  const apercu=reste===0?`${nbPoules} poule${nbPoules>1?"s":""} de ${base} joueurs`:`${nbPoules} poules de ${base} à ${base+1} joueurs`;
+  const ev=evalTaillePoule(nbJoueurs,taille);
+  const base=Math.floor(nbJoueurs/ev.np), reste=nbJoueurs%ev.np;
+  const apercu=reste===0?`${ev.np} poule${ev.np>1?"s":""} de ${base} joueurs`:`${ev.np} poules de ${base} à ${base+1} joueurs`;
+  const clean=ev.exempts===0;
   const opt=(val,sel,onPick)=>(
     <button key={val} onClick={()=>onPick(val)} style={{flex:1,padding:"10px 4px",borderRadius:10,border:`1px solid ${sel?CT.accent:CT.border}`,background:sel?CT.accent+"22":CT.card,color:sel?CT.accent:CT.text,fontWeight:sel?800:600,fontSize:15,cursor:"pointer",touchAction:"manipulation"}}>{val}</button>
   );
@@ -276,9 +287,23 @@ const PoolConfigModal=({nbJoueurs,onValider,onClose,saving})=>{
       <div onClick={e=>e.stopPropagation()} style={{background:"#15151c",border:`1px solid ${CT.border}`,borderRadius:18,padding:22,maxWidth:400,width:"100%"}}>
         <h3 style={{fontWeight:800,fontSize:18,marginBottom:4,color:"#fff",textAlign:"center"}}><EmoText s="⚙️ Réglages des poules" size={17}/></h3>
         <p style={{color:CT.muted,fontSize:12,textAlign:"center",marginBottom:18}}>{nbJoueurs} joueurs inscrits</p>
-        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Joueurs par poule <span style={{color:CT.muted,fontWeight:500}}>(conseillé : {reco})</span></div>
-        <div style={{display:"flex",gap:8,marginBottom:8}}>{[3,4,5].map(t=>opt(t,taille===t,setTaille))}</div>
-        <div style={{background:CT.accent+"15",border:`1px solid ${CT.accent}44`,borderRadius:10,padding:"10px 12px",fontSize:13,color:CT.accent,fontWeight:700,textAlign:"center",marginBottom:18}}>→ {apercu}</div>
+        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Joueurs par poule <span style={{color:CT.muted,fontWeight:500}}>(conseillé : {reco} — sans exempt)</span></div>
+        <div style={{display:"flex",gap:8,marginBottom:10}}>{[3,4,5].map(t=>{
+          const e=evalTaillePoule(nbJoueurs,t), sel=taille===t;
+          return(
+            <button key={t} onClick={()=>setTaille(t)} style={{flex:1,padding:"8px 4px",borderRadius:10,border:`1px solid ${sel?CT.accent:CT.border}`,background:sel?CT.accent+"22":CT.card,cursor:"pointer",touchAction:"manipulation",display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+              <span style={{fontWeight:800,fontSize:16,color:sel?CT.accent:CT.text}}>{t}</span>
+              <span style={{fontSize:9.5,color:CT.muted,fontWeight:600}}>{e.np} poule{e.np>1?"s":""}</span>
+              <span style={{fontSize:11}}>{e.exempts===0?"✅":"⚠️"}</span>
+            </button>
+          );
+        })}</div>
+        <div style={{background:(clean?CT.green:"#eab308")+"15",border:`1px solid ${(clean?CT.green:"#eab308")}55`,borderRadius:10,padding:"10px 12px",fontSize:12.5,color:clean?CT.green:"#eab308",fontWeight:700,textAlign:"center",marginBottom:6,lineHeight:1.45}}>
+          → {apercu}<br/>{ev.q} qualifiés (les 2 premiers) → tableau de {ev.bs}
+        </div>
+        <div style={{fontSize:11.5,color:clean?CT.green:"#eab308",textAlign:"center",fontWeight:700,marginBottom:18}}>
+          {clean?"✅ Tout le monde joue son 1er match (aucun exempt)":`⚠️ ${ev.exempts} joueur(s) exempté(s) — choisis un réglage ✅ pour que tout le monde joue`}
+        </div>
         <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Manches par match <span style={{color:CT.muted,fontWeight:500}}>(premier à…)</span></div>
         <div style={{display:"flex",gap:6,marginBottom:22}}>{[1,2,3,4,5].map(m=>opt(m,manches===m,setManches))}</div>
         <Btn onClick={()=>onValider(taille,manches)} disabled={saving} style={{width:"100%",fontSize:15,padding:"13px"}}>{saving?"Lancement…":"✅ Valider et lancer les poules"}</Btn>
@@ -423,7 +448,7 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
   const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
   const [nbQual,setNbQual]=useState(2);
   const totalQual=Math.min(joueurs.length,nbQual*nbGroupes);
-  const minSize=Math.max(2,Math.pow(2,Math.ceil(Math.log2(Math.max(2,totalQual)))));
+  const minSize=nextPow2(totalQual);
   const sizeOptions=[...new Set([minSize,Math.min(32,minSize*2)])];
   const [bracketSize,setBracketSize]=useState(minSize);
   useEffect(()=>{ setBracketSize(s=>sizeOptions.includes(s)?s:minSize); },[nbQual]); // eslint-disable-line
