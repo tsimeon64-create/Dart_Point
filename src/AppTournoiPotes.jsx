@@ -455,21 +455,34 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
   const rounds=roundsForBracket(bracketSize);
   const [manchesMap,setManchesMap]=useState({seizieme:2,huitieme:2,quart:2,demi:3,finale:5});
   const exempts=bracketSize-totalQual;
-  const chip=(val,sel,onPick,label)=>(
-    <button key={String(val)} onClick={()=>onPick(val)} style={{flex:1,padding:"9px 4px",borderRadius:10,border:`1px solid ${sel?CT.accent:CT.border}`,background:sel?CT.accent+"22":CT.card,color:sel?CT.accent:CT.text,fontWeight:sel?800:600,fontSize:13,cursor:"pointer",touchAction:"manipulation"}}>{label}</button>
-  );
   return(
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000000e6",zIndex:99999,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:16,overflowY:"auto"}}>
       <div onClick={e=>e.stopPropagation()} style={{background:"#15151c",border:`1px solid ${CT.border}`,borderRadius:18,padding:22,maxWidth:420,width:"100%",margin:"auto"}}>
         <h3 style={{fontWeight:800,fontSize:18,marginBottom:4,color:"#fff",textAlign:"center"}}><EmoText s="🏆 Réglages du tableau" size={17}/></h3>
         <p style={{color:CT.muted,fontSize:12,textAlign:"center",marginBottom:18}}>{nbGroupes} poule{nbGroupes>1?"s":""}</p>
         <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Qualifiés par poule</div>
-        <div style={{display:"flex",gap:8,marginBottom:16}}>{[1,2].map(q=>chip(q,nbQual===q,setNbQual,q>1?"Les 2 premiers":"Le 1er"))}</div>
+        <div style={{display:"flex",gap:8,marginBottom:16}}>{[1,2].map(q=>{
+          const tq=Math.min(joueurs.length,q*nbGroupes), ex=nextPow2(tq)-tq, sel=nbQual===q;
+          return(
+            <button key={q} onClick={()=>setNbQual(q)} style={{flex:1,padding:"9px 6px",borderRadius:10,border:`1px solid ${sel?CT.accent:CT.border}`,background:sel?CT.accent+"22":CT.card,cursor:"pointer",touchAction:"manipulation",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+              <span style={{fontWeight:sel?800:600,fontSize:13,color:sel?CT.accent:CT.text}}>{q>1?"Les 2 premiers":"Le 1er"}</span>
+              <span style={{fontSize:10,color:CT.muted,fontWeight:600}}>{tq} qualifiés {ex===0?"✅":"⚠️"}</span>
+            </button>
+          );
+        })}</div>
         <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Départ du tableau <span style={{color:CT.muted,fontWeight:500}}>({totalQual} qualifiés)</span></div>
-        <div style={{display:"flex",gap:8,marginBottom:exempts>0?6:18}}>{sizeOptions.map(s=>chip(s,bracketSize===s,setBracketSize,ROUND_LABEL[roundsForBracket(s)[0]]))}</div>
-        {exempts>0&&<div style={{fontSize:11,color:CT.yellow,marginBottom:18}}>ℹ️ {exempts} exempt{exempts>1?"s":""} (qualifié{exempts>1?"s":""} passe{exempts>1?"nt":""} directement le 1er tour)</div>}
+        <div style={{display:"flex",gap:8,marginBottom:exempts>0?8:18}}>{sizeOptions.map(s=>{
+          const ex=s-totalQual, sel=bracketSize===s;
+          return(
+            <button key={s} onClick={()=>setBracketSize(s)} style={{flex:1,padding:"9px 6px",borderRadius:10,border:`1px solid ${sel?CT.accent:CT.border}`,background:sel?CT.accent+"22":CT.card,cursor:"pointer",touchAction:"manipulation",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+              <span style={{fontWeight:sel?800:600,fontSize:13,color:sel?CT.accent:CT.text}}>{ROUND_LABEL[roundsForBracket(s)[0]]}</span>
+              <span style={{fontSize:10,fontWeight:700,color:ex===0?CT.green:CT.yellow}}>{ex===0?"✅ sans exempt":`⚠️ ${ex} exempt${ex>1?"s":""}`}</span>
+            </button>
+          );
+        })}</div>
+        {exempts>0&&<div style={{fontSize:11,color:CT.yellow,marginBottom:18,lineHeight:1.4}}>ℹ️ {exempts} joueur{exempts>1?"s":""} exempté{exempts>1?"s":""} : ils passent directement le 1er tour. Choisis « {ROUND_LABEL[roundsForBracket(minSize)[0]]} » pour que <b>tout le monde joue</b>.</div>}
         <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Manches par tour <span style={{color:CT.muted,fontWeight:500}}>(premier à…)</span></div>
-        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:22}}>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:8}}>
           {rounds.map(ph=>(
             <div key={ph} style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{flex:1,fontSize:13,color:CT.text}}>{ROUND_LABEL[ph]}</span>
@@ -478,6 +491,10 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
               ))}</div>
             </div>
           ))}
+        </div>
+        <div style={{fontSize:11,color:CT.muted,marginBottom:18,lineHeight:1.4}}>💡 Conseillé : des matchs plus longs vers la fin (ex. 2 → 3 → 5). Plus c'est long, plus le résultat est juste.</div>
+        <div style={{background:(exempts===0?CT.green:CT.yellow)+"18",border:`1px solid ${(exempts===0?CT.green:CT.yellow)}55`,borderRadius:10,padding:"10px 12px",fontSize:12.5,fontWeight:700,color:exempts===0?CT.green:CT.yellow,textAlign:"center",marginBottom:14,lineHeight:1.5}}>
+          🏆 Tableau de {bracketSize} → {totalQual} qualifiés<br/>{exempts===0?"✅ Tout le monde joue son 1er match":`⚠️ ${exempts} exempté${exempts>1?"s":""} (passe${exempts>1?"nt":""} le 1er tour)`}
         </div>
         <Btn onClick={()=>onValider({nbQual,bracketSize,manchesMap})} disabled={saving} style={{width:"100%",fontSize:15,padding:"13px"}}>{saving?"Lancement…":"✅ Valider et lancer le tableau"}</Btn>
         <button onClick={onClose} style={{width:"100%",marginTop:8,background:"none",border:"none",color:CT.muted,fontSize:13,cursor:"pointer",padding:8}}>Annuler</button>
