@@ -53,9 +53,28 @@ const sbAdmin = async (op, table, match, body) => {
 // Au lieu de planter toute l'appli sans message, on affiche l'erreur + un bouton de
 // récupération. La clé `key={page}` remonte le boundary à chaque changement de page.
 class ErrorBoundary extends Component {
-  constructor(props) { super(props); this.state = { error: null }; }
+  constructor(props) { super(props); this.state = { error: null, sending: false, sent: false }; }
   static getDerivedStateFromError(error) { return { error }; }
   componentDidCatch(error, info) { try { console.error("ErrorBoundary:", error, info?.componentStack); } catch(e){ /* ignore */ } }
+  envoyerAdmin = async () => {
+    if (this.state.sending || this.state.sent) return;
+    this.setState({ sending: true });
+    let pseudo = "?";
+    try { pseudo = JSON.parse(localStorage.getItem("dp_joueur") || "{}").pseudo || "?"; } catch(e){ /* ignore */ }
+    const message =
+      "🐛 BUG signalé par " + pseudo + "\n" +
+      "Erreur : " + String(this.state.error?.message || this.state.error || "inconnue") + "\n" +
+      "Page : " + (this.props.page || "?") + "\n" +
+      "Appareil : " + String(navigator.userAgent || "?").slice(0, 200);
+    try {
+      await fetch(`${SB_URL}/rest/v1/signalements`, {
+        method: "POST",
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ type: "bug", message: message.slice(0, 1000), date: Date.now() }),
+      });
+    } catch(e){ /* envoi best-effort */ }
+    this.setState({ sending: false, sent: true });
+  };
   render() {
     if (this.state.error) {
       return (
@@ -72,8 +91,18 @@ class ErrorBoundary extends Component {
             style={{ background:"#f97316", color:"#fff", border:"none", borderRadius:10, padding:"12px 26px", fontWeight:800, fontSize:15, cursor:"pointer", touchAction:"manipulation" }}>
             🔄 Recharger l'appli
           </button>
-          <div style={{ marginTop:14, fontSize:12, color:"#64748b" }}>
-            Si ça se reproduit, fais une <b>capture de ce message</b> et envoie-la — ça aide à corriger 🙏
+          <div style={{ marginTop:14 }}>
+            {this.state.sent ? (
+              <div style={{ color:"#86efac", fontSize:14, fontWeight:700 }}>✅ Bug envoyé à l'admin, merci !</div>
+            ) : (
+              <button onClick={this.envoyerAdmin} disabled={this.state.sending}
+                style={{ background:"transparent", border:"1px solid #475569", color:"#cbd5e1", borderRadius:10, padding:"10px 22px", fontWeight:700, fontSize:14, cursor:"pointer", touchAction:"manipulation", opacity:this.state.sending?0.6:1 }}>
+                {this.state.sending ? "Envoi…" : "📨 Envoyer le bug à l'admin"}
+              </button>
+            )}
+          </div>
+          <div style={{ marginTop:12, fontSize:11, color:"#64748b" }}>
+            Ça transmet l'erreur à l'admin (visible dans Signalements) pour qu'on la corrige 🙏
           </div>
         </div>
       );
@@ -9971,14 +10000,14 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
           <div key={s.id} style={{background:C.card,border:`1px solid ${C.red}44`,borderRadius:14,padding:18,marginBottom:12}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
               <div>
-                <div style={{fontWeight:800,fontSize:15,color:C.red,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="⚠️" size={14} color={C.red}/>{s.bar_nom}</div>
+                <div style={{fontWeight:800,fontSize:15,color:C.red,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="⚠️" size={14} color={C.red}/>{s.type==="bug" ? "🐛 Bug signalé" : s.bar_nom}</div>
                 <div style={{color:C.muted,fontSize:12}}>{s.type} · {new Date(s.date).toLocaleDateString("fr-FR")}</div>
               </div>
               <div style={{background:PRIO.urgent.bg,border:`1px solid ${PRIO.urgent.border}`,borderRadius:8,padding:"3px 10px",fontSize:11,color:PRIO.urgent.text,display:"inline-flex",alignItems:"center",gap:4}}><EmoIcon e="🔴" size={8} color={PRIO.urgent.text} fill={PRIO.urgent.text}/>Urgent</div>
             </div>
             <p style={{color:"#cbd5e1",fontSize:13,background:"#111",padding:"10px 14px",borderRadius:10,marginBottom:12}}>{s.message}</p>
             <div style={{display:"flex",gap:8}}>
-              <Btn variant="ghost" onClick={()=>{setBarSlug(s.bar_slug);setPage("bar");}} style={{fontSize:12}}>👁 Voir le bar</Btn>
+              {s.type!=="bug" && <Btn variant="ghost" onClick={()=>{setBarSlug(s.bar_slug);setPage("bar");}} style={{fontSize:12}}>👁 Voir le bar</Btn>}
               <Btn variant="success" onClick={async()=>{await db.updateSignalement(s.id,{traite:true});setSignalements(x=>x.map(y=>y.id===s.id?{...y,traite:true}:y));addLog("Signalement traité",s.bar_nom,"success");}} style={{fontSize:12}}>✅ Marquer traité</Btn>
             </div>
           </div>
@@ -12126,7 +12155,7 @@ export default function App() {
         </div>
       )}
       <main style={{ flex:1 }}>
-        <ErrorBoundary key={page}>
+        <ErrorBoundary key={page} page={page}>
         {page==="home"             && <Home joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="defi"             && joueur && <PageDefi joueur={joueur} setPage={nav}/>}
         {page==="communaute"       && <PageCommunaute joueur={joueur} setPage={nav} bars={bars}/>}
