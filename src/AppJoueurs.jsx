@@ -502,7 +502,7 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
                       Conditions d'utilisation
                     </a>
                     {" "}et la{" "}
-                    <a href="#" onClick={e=>{e.preventDefault(); if(window.setPageGlobal) window.setPageGlobal("mentions");}}
+                    <a href="/confidentialite.html" target="_blank" rel="noopener noreferrer"
                       style={{ color:CJ.accent,textDecoration:"underline" }}>
                       Politique de confidentialité
                     </a>
@@ -1202,6 +1202,31 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             </div>
           )}
         </div>
+      </div>
+
+      {/* ── ZONE DE DANGER : suppression du compte par le joueur (RGPD art.17 / exigence Google Play) ── */}
+      <div style={{ marginTop:22, padding:16, background:"#180a0a", border:"1px solid #7f1d1d", borderRadius:14 }}>
+        <div style={{ fontWeight:800, color:"#fca5a5", fontSize:13, marginBottom:6 }}>⚠️ Supprimer mon compte</div>
+        <p style={{ fontSize:12, color:"#94a3b8", lineHeight:1.6, margin:"0 0 12px" }}>
+          Cela efface définitivement ton profil (pseudo, e-mail, photo, ville), tes amis et tes messages privés. Ton historique de matchs est <strong style={{ color:"#cbd5e1" }}>conservé de façon anonyme</strong> pour ne pas fausser les stats des autres joueurs. <strong style={{ color:"#fca5a5" }}>Action irréversible.</strong>
+        </p>
+        <button
+          onClick={async()=>{
+            if(!window.confirm("⚠️ Supprimer DÉFINITIVEMENT ton compte DartPoint ?\n\nTon profil, tes amis et tes messages seront effacés.\nC'est IRRÉVERSIBLE.")) return;
+            const tape = window.prompt("Pour confirmer, écris SUPPRIMER (en majuscules) :");
+            if((tape||"").trim().toUpperCase() !== "SUPPRIMER"){ window.dpToast?.("Suppression annulée","info"); return; }
+            try {
+              const token = localStorage.getItem("dp_token");
+              const r = await callAuth("deleteAccount", { token });
+              if(!r.ok){ window.dpToast?.(r.error || "Suppression impossible. Reconnecte-toi puis réessaie.","error"); return; }
+              localStorage.removeItem("dp_joueur"); localStorage.removeItem("dp_token");
+              window.dpToast?.("Ton compte a été supprimé. À bientôt 👋","success");
+              setJoueur(null); setPage("home");
+            } catch { window.dpToast?.("Erreur réseau, réessaie.","error"); }
+          }}
+          style={{ width:"100%", background:"transparent", border:"1px solid #7f1d1d", color:"#fca5a5", borderRadius:10, padding:"11px", fontWeight:700, fontSize:14, cursor:"pointer", touchAction:"manipulation" }}>
+          🗑️ Supprimer mon compte
+        </button>
       </div>
 
     </div>

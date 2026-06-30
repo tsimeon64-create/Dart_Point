@@ -190,6 +190,36 @@ Deno.serve(async (req) => {
       return json({ ok: true, joueur: u });
     }
 
+    // ───────── SUPPRESSION DE COMPTE (RGPD art.17 / exigence Google Play) ─────────
+    // Le joueur supprime SON propre compte, prouvé par son jeton de session.
+    // Anonymisation : on efface la PII + le mot de passe (impossible côté client car
+    // REVOKE), mais on garde l'historique des matchs (pseudo anonymisé) pour ne pas
+    // fausser les stats/DRIX des autres joueurs.
+    if (action === "deleteAccount") {
+      const jid = await verifyToken(token);
+      if (!jid) return json({ error: "Session invalide ou expirée. Reconnecte-toi puis réessaie." }, 401);
+      const anonPseudo = `Joueur supprimé #${String(jid).slice(0, 8)}`;
+      await api(`joueurs?id=eq.${jid}`, {
+        method: "PATCH", headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({
+          pseudo: anonPseudo, email: null, nom: null, prenom: null, photo: null,
+          ville: null, password_hash: null, bar_slug: null, asso_slug: null,
+          anonymise: true, anonymise_date: Date.now(),
+        }),
+      });
+      // Efface les données personnelles liées + masque le pseudo dans les flux publics.
+      await Promise.allSettled([
+        api(`amis?joueur_id=eq.${jid}`,            { method: "DELETE", headers: { Prefer: "return=minimal" } }),
+        api(`amis?ami_id=eq.${jid}`,               { method: "DELETE", headers: { Prefer: "return=minimal" } }),
+        api(`presences?joueur_id=eq.${jid}`,       { method: "DELETE", headers: { Prefer: "return=minimal" } }),
+        api(`presence_joueurs?joueur_id=eq.${jid}`,{ method: "DELETE", headers: { Prefer: "return=minimal" } }),
+        api(`messages?or=(from_id.eq.${jid},to_id.eq.${jid})`, { method: "DELETE", headers: { Prefer: "return=minimal" } }),
+        api(`wall_posts?joueur_id=eq.${jid}`,      { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ joueur_pseudo: anonPseudo }) }),
+        api(`wall_comments?joueur_id=eq.${jid}`,   { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ joueur_pseudo: anonPseudo }) }),
+      ]);
+      return json({ ok: true });
+    }
+
     // ───────────────────────── LOGIN ─────────────────────────
     if (action === "login") {
       if (!pseudo || !password) return json({ error: "Pseudo et mot de passe requis" }, 400);

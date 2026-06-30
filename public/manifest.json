@@ -2,23 +2,32 @@
   "name": "DartPoint",
   "short_name": "DartPoint",
   "description": "Trouvez où jouer aux fléchettes, défiez vos amis, suivez vos stats DRIX",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0f0f0f",
   "theme_color": "#f97316",
   "orientation": "portrait",
+  "lang": "fr",
   "icons": [
     {
-      "src": "/logo dart point/logo 2 accueil.png",
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/logo dart point/logo 2 accueil.png",
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
