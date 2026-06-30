@@ -113,7 +113,8 @@ const phaseName=(round,totalRounds)=>{
   if(fromFinal===3)return"huitieme";
   return"seizieme";
 };
-const ROUND_LABEL={seizieme:"16es de finale",huitieme:"8es de finale",quart:"Quarts de finale",demi:"Demi-finales",finale:"Finale"};
+const ROUND_LABEL={seizieme:"16es de finale",huitieme:"8es de finale",quart:"Quarts de finale",demi:"Demi-finales",finale:"Finale",petite_finale:"Petite finale (3e place)",consolante:"Consolante"};
+const MAIN_PHASES=["seizieme","huitieme","quart","demi","finale"];
 const roundsForBracket=(size)=>{ const tr=Math.log2(size); const a=[]; for(let r=1;r<=tr;r++)a.push(phaseName(r,tr)); return a; };
 
 // Generate all poule matches (round-robin)
@@ -128,7 +129,8 @@ const genPouleMatchs=(joueurs,groupe,tournoi_id,manches=2)=>{
 };
 
 // Generate bracket matches from ordered seeded list
-const genBracketMatchs=(seeded,tournoi_id,manchesMap={})=>{
+// opts : { consolante:bool (repêchage des perdants du 1er tour), petiteFinale:bool (3e place) }
+const genBracketMatchs=(seeded,tournoi_id,manchesMap={},opts={})=>{
   const n=seeded.length; // power of 2
   const totalRounds=Math.log2(n);
   const mm=(phase)=>manchesMap[phase]||(phase==="finale"?5:2);
@@ -149,7 +151,57 @@ const genBracketMatchs=(seeded,tournoi_id,manchesMap={})=>{
       matchs.push({tournoi_id,joueur1_id:null,joueur2_id:null,score1:0,score2:0,gagnant_id:null,phase,groupe:0,statut:"attente_avancement",round_bracket:r,position_bracket:pos,manches_max:mm(phase)});
     }
   }
+  // Petite finale (3e place) : remplie par les 2 perdants des demies. Même colonne que la finale (position 1).
+  if(opts.petiteFinale&&totalRounds>=2){
+    matchs.push({tournoi_id,joueur1_id:null,joueur2_id:null,score1:0,score2:0,gagnant_id:null,phase:"petite_finale",groupe:0,statut:"attente_avancement",round_bracket:totalRounds,position_bracket:1,manches_max:mm("petite_finale")});
+  }
+  // Consolante : tableau séparé (vide) pour les perdants du 1er tour. Taille = n/2.
+  if(opts.consolante&&totalRounds>=3){
+    const cSize=n/2, cRounds=Math.log2(cSize);
+    for(let cr=1;cr<=cRounds;cr++){
+      const nb=cSize/Math.pow(2,cr);
+      for(let pos=0;pos<nb;pos++){
+        matchs.push({tournoi_id,joueur1_id:null,joueur2_id:null,score1:0,score2:0,gagnant_id:null,phase:"consolante",groupe:0,statut:"attente_avancement",round_bracket:cr,position_bracket:pos,manches_max:mm("consolante")});
+      }
+    }
+  }
   return matchs;
+};
+
+// Après un match de tableau : avance le vainqueur ET route le perdant
+// (perdant du 1er tour → consolante ; perdant de demie → petite finale).
+const avancerApresMatch=async(match,gagnant_id,allMatchs)=>{
+  const perdant_id=match.joueur1_id===gagnant_id?match.joueur2_id:match.joueur1_id;
+  const r=match.round_bracket, nextPos=Math.floor(match.position_bracket/2), slotIsJ1=match.position_bracket%2===0;
+  const placer=async(target,asJ1,joueur_id)=>{
+    if(!target||!joueur_id)return;
+    const patch=asJ1?{joueur1_id:joueur_id}:{joueur2_id:joueur_id};
+    const otherFilled=asJ1?target.joueur2_id:target.joueur1_id;
+    await dbTP.updateMatch(target.id,{...patch,statut:otherFilled?"en_attente":"attente_avancement"});
+  };
+  // Consolante : avance le vainqueur dans la consolante (perdant éliminé)
+  if(match.phase==="consolante"){
+    await placer(allMatchs.find(m=>m.phase==="consolante"&&m.round_bracket===r+1&&m.position_bracket===nextPos),slotIsJ1,gagnant_id);
+    return;
+  }
+  if(match.phase==="petite_finale")return; // terminal (3e place)
+  // Tableau principal
+  if(match.phase==="finale"){
+    await dbTP.updateTournoi(match.tournoi_id,{statut:"termine"});
+  }else{
+    await placer(allMatchs.find(m=>MAIN_PHASES.includes(m.phase)&&m.round_bracket===r+1&&m.position_bracket===nextPos),slotIsJ1,gagnant_id);
+  }
+  // Routage du perdant
+  const finaleMatch=allMatchs.find(m=>m.phase==="finale");
+  const finaleRound=finaleMatch?finaleMatch.round_bracket:r;
+  if(r===1){
+    const conso=allMatchs.find(m=>m.phase==="consolante"&&m.round_bracket===1&&m.position_bracket===nextPos);
+    if(conso){ await placer(conso,slotIsJ1,perdant_id); return; }
+  }
+  if(r===finaleRound-1){
+    const petite=allMatchs.find(m=>m.phase==="petite_finale");
+    if(petite){ await placer(petite,slotIsJ1,perdant_id); }
+  }
 };
 
 // Sort joueurs by ranking in a group
@@ -453,8 +505,22 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
   const [bracketSize,setBracketSize]=useState(minSize);
   useEffect(()=>{ setBracketSize(s=>sizeOptions.includes(s)?s:minSize); },[nbQual]); // eslint-disable-line
   const rounds=roundsForBracket(bracketSize);
-  const [manchesMap,setManchesMap]=useState({seizieme:2,huitieme:2,quart:2,demi:3,finale:5});
+  const [manchesMap,setManchesMap]=useState({seizieme:2,huitieme:2,quart:2,demi:3,finale:5,petite_finale:2,consolante:2});
   const exempts=bracketSize-totalQual;
+  // Options : petite finale (3e place) dès qu'il y a des demies ; consolante (repêchage 1er tour) dès 8, sans exempt
+  const peutPetite=bracketSize>=4;
+  const peutConso=bracketSize>=8&&exempts===0;
+  const [consolante,setConsolante]=useState(true);
+  const [petiteFinale,setPetiteFinale]=useState(true);
+  useEffect(()=>{ if(!peutPetite&&petiteFinale)setPetiteFinale(false); },[peutPetite,petiteFinale]);
+  useEffect(()=>{ if(!peutConso&&consolante)setConsolante(false); },[peutConso,consolante]);
+  const manchePhases=[...rounds,...(petiteFinale&&peutPetite?["petite_finale"]:[]),...(consolante&&peutConso?["consolante"]:[])];
+  const toggleRow=(on,setOn,can,label,sub,offReason)=>(
+    <button onClick={can?()=>setOn(v=>!v):undefined} disabled={!can} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,border:`1px solid ${on&&can?CT.accent:CT.border}`,background:on&&can?CT.accent+"18":CT.card,cursor:can?"pointer":"not-allowed",opacity:can?1:0.55,touchAction:"manipulation",textAlign:"left",marginBottom:8}}>
+      <div style={{width:38,height:22,borderRadius:11,background:on&&can?CT.accent:CT.border,position:"relative",flexShrink:0,transition:"background .2s"}}><div style={{width:18,height:18,borderRadius:9,background:"#fff",position:"absolute",top:2,left:on&&can?18:2,transition:"left .2s"}}/></div>
+      <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:CT.text}}>{label}</div><div style={{fontSize:11,color:CT.muted,lineHeight:1.3}}>{can?sub:offReason}</div></div>
+    </button>
+  );
   return(
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000000e6",zIndex:99999,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:16,overflowY:"auto"}}>
       <div onClick={e=>e.stopPropagation()} style={{background:"#15151c",border:`1px solid ${CT.border}`,borderRadius:18,padding:22,maxWidth:420,width:"100%",margin:"auto"}}>
@@ -481,9 +547,12 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
           );
         })}</div>
         {exempts>0&&<div style={{fontSize:11,color:CT.yellow,marginBottom:18,lineHeight:1.4}}>ℹ️ {exempts} joueur{exempts>1?"s":""} exempté{exempts>1?"s":""} : ils passent directement le 1er tour. Choisis « {ROUND_LABEL[roundsForBracket(minSize)[0]]} » pour que <b>tout le monde joue</b>.</div>}
-        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Manches par tour <span style={{color:CT.muted,fontWeight:500}}>(premier à…)</span></div>
+        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Options</div>
+        {toggleRow(petiteFinale,setPetiteFinale,peutPetite,"🥉 Petite finale (3e place)","Les 2 perdants des demies jouent pour la 3e place.","Dispo dès 4 qualifiés (il faut des demies).")}
+        {toggleRow(consolante,setConsolante,peutConso,"🎖️ Consolante (repêchage)","Les perdants du 1er tour ont un 2e tableau pour se rattraper.","Dispo dès 8 qualifiés, sans exempt.")}
+        <div style={{fontSize:13,fontWeight:700,color:CT.text,margin:"6px 0 8px"}}>Manches par tour <span style={{color:CT.muted,fontWeight:500}}>(premier à…)</span></div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:8}}>
-          {rounds.map(ph=>(
+          {manchePhases.map(ph=>(
             <div key={ph} style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{flex:1,fontSize:13,color:CT.text}}>{ROUND_LABEL[ph]}</span>
               <div style={{display:"flex",gap:4}}>{[1,2,3,4,5].map(m=>(
@@ -496,7 +565,7 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
         <div style={{background:(exempts===0?CT.green:CT.yellow)+"18",border:`1px solid ${(exempts===0?CT.green:CT.yellow)}55`,borderRadius:10,padding:"10px 12px",fontSize:12.5,fontWeight:700,color:exempts===0?CT.green:CT.yellow,textAlign:"center",marginBottom:14,lineHeight:1.5}}>
           🏆 Tableau de {bracketSize} → {totalQual} qualifiés<br/>{exempts===0?"✅ Tout le monde joue son 1er match":`⚠️ ${exempts} exempté${exempts>1?"s":""} (passe${exempts>1?"nt":""} le 1er tour)`}
         </div>
-        <Btn onClick={()=>onValider({nbQual,bracketSize,manchesMap})} disabled={saving} style={{width:"100%",fontSize:15,padding:"13px"}}>{saving?"Lancement…":"✅ Valider et lancer le tableau"}</Btn>
+        <Btn onClick={()=>onValider({nbQual,bracketSize,manchesMap,consolante:consolante&&peutConso,petiteFinale:petiteFinale&&peutPetite})} disabled={saving} style={{width:"100%",fontSize:15,padding:"13px"}}>{saving?"Lancement…":"✅ Valider et lancer le tableau"}</Btn>
         <button onClick={onClose} style={{width:"100%",marginTop:8,background:"none",border:"none",color:CT.muted,fontSize:13,cursor:"pointer",padding:8}}>Annuler</button>
       </div>
     </div>
@@ -598,7 +667,7 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch})=>
   return(
     <div style={{background:CT.card,border:`2px solid ${done?CT.green:match.statut==="attente_avancement"?CT.border:CT.accent+"66"}`,borderRadius:10,overflow:"hidden",minWidth:180,maxWidth:220,width:"100%"}}>
       <div style={{background:"#111",padding:"4px 10px",fontSize:10,fontWeight:700,color:CT.muted,textTransform:"uppercase",letterSpacing:1}}>
-        {match.phase==="finale"?<EmoText s="🏆 Finale" size={13}/>:match.phase==="demi"?<EmoText s="🥈 Demie" size={13}/>:match.phase==="quart"?<EmoText s="⚔️ Quart" size={13}/>:"1/8"}
+        {match.phase==="finale"?<EmoText s="🏆 Finale" size={13}/>:match.phase==="petite_finale"?<EmoText s="🥉 3e place" size={13}/>:match.phase==="consolante"?<EmoText s="🎖️ Consolante" size={13}/>:match.phase==="demi"?<EmoText s="🥈 Demie" size={13}/>:match.phase==="quart"?<EmoText s="⚔️ Quart" size={13}/>:match.phase==="huitieme"?"1/8":"1/16"}
       </div>
       <div style={rowStyle(j1,done&&match.gagnant_id===j1?.id)}>
         <span style={{fontSize:13,fontWeight:done&&match.gagnant_id===j1?.id?700:400,color:j1?CT.text:CT.muted}}>
@@ -629,11 +698,16 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch})=>
 
 const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,onRetourPoules,onTerminer})=>{
   const bracketM=matchs.filter(m=>m.phase!=="poules");
-  const rounds=[...new Set(bracketM.map(m=>m.round_bracket))].sort((a,b)=>a-b);
+  const mainM=bracketM.filter(m=>MAIN_PHASES.includes(m.phase));
+  const petiteM=bracketM.find(m=>m.phase==="petite_finale");
+  const consoM=bracketM.filter(m=>m.phase==="consolante");
+  const rounds=[...new Set(mainM.map(m=>m.round_bracket))].sort((a,b)=>a-b);
+  const consoRounds=[...new Set(consoM.map(m=>m.round_bracket))].sort((a,b)=>a-b);
   // Tournoi prêt à clôturer : tous les matchs du tableau sont réglés (joués, exempts, ou vides)
   const allDone=bracketM.length>0&&bracketM.every(m=>m.statut==="termine"||m.statut.startsWith("bye")||m.statut==="vide");
-  const finale=bracketM.find(m=>m.phase==="finale");
+  const finale=mainM.find(m=>m.phase==="finale");
   const champion=finale&&finale.statut==="termine"&&finale.gagnant_id?joueurs.find(j=>j.id===finale.gagnant_id):null;
+  const colLabel={fontSize:12,fontWeight:700,color:CT.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:4,textAlign:"center"};
 
   return(
     <div>
@@ -650,14 +724,15 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
           {isCreateur&&<Btn onClick={()=>onTerminer(true)} variant="primary" style={{marginTop:12}}>🏁 Clôturer et voir le classement final</Btn>}
         </Card>
       )}
+      {/* Tableau principal */}
       <div style={{overflowX:"auto",paddingBottom:16}}>
         <div style={{display:"flex",gap:24,alignItems:"flex-start",minWidth:"max-content",padding:"8px 0"}}>
           {rounds.map(r=>{
-            const rm=matchs.filter(m=>m.round_bracket===r&&m.phase!=="poules").sort((a,b)=>a.position_bracket-b.position_bracket);
+            const rm=mainM.filter(m=>m.round_bracket===r).sort((a,b)=>a.position_bracket-b.position_bracket);
             const phase=rm[0]?.phase||"";
             return(
               <div key={r} style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
-                <div style={{fontSize:12,fontWeight:700,color:CT.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:4,textAlign:"center"}}>
+                <div style={colLabel}>
                   {phase==="finale"?<EmoText s="🏆 Finale" size={13}/>:phase==="demi"?"Demi-finales":phase==="quart"?"Quarts":phase==="huitieme"?"Huitièmes":phase==="seizieme"?"Seizièmes":"Tour "+r}
                 </div>
                 {rm.map(m=>(
@@ -666,8 +741,37 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
               </div>
             );
           })}
+          {petiteM&&(
+            <div style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
+              <div style={colLabel}><EmoText s="🥉 3e place" size={13}/></div>
+              <BracketMatchCard match={petiteM} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch}/>
+            </div>
+          )}
         </div>
       </div>
+      {/* Consolante (repêchage des perdants du 1er tour) */}
+      {consoM.length>0&&(
+        <div style={{marginTop:10,borderTop:`1px solid ${CT.border}`,paddingTop:14}}>
+          <div style={{fontWeight:800,fontSize:15,color:CT.accent,marginBottom:2,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🎖️" size={15}/>Consolante</div>
+          <div style={{fontSize:11.5,color:CT.muted,marginBottom:10}}>Repêchage : les perdants du 1er tour rejouent ici pour le lot de consolation.</div>
+          <div style={{overflowX:"auto",paddingBottom:16}}>
+            <div style={{display:"flex",gap:24,alignItems:"flex-start",minWidth:"max-content",padding:"8px 0"}}>
+              {consoRounds.map(r=>{
+                const rm=consoM.filter(m=>m.round_bracket===r).sort((a,b)=>a.position_bracket-b.position_bracket);
+                const isLast=r===consoRounds[consoRounds.length-1];
+                return(
+                  <div key={r} style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
+                    <div style={colLabel}>{isLast?<EmoText s="🎖️ Finale consolante" size={12}/>:"Tour "+r}</div>
+                    {rm.map(m=>(
+                      <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch}/>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -677,6 +781,12 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer})=>{
   const finale=matchs.find(m=>m.phase==="finale"&&m.statut==="termine");
   const gagnant=finale?joueurs.find(j=>j.id===finale.gagnant_id):null;
   const perdant=finale?joueurs.find(j=>j.id===(finale.joueur1_id===finale.gagnant_id?finale.joueur2_id:finale.joueur1_id)):null;
+  // 3e place (petite finale)
+  const petite=matchs.find(m=>m.phase==="petite_finale"&&m.statut==="termine"&&m.gagnant_id);
+  const troisieme=petite?joueurs.find(j=>j.id===petite.gagnant_id):null;
+  // Vainqueur de la consolante (dernier tour joué)
+  const consoFinale=matchs.filter(m=>m.phase==="consolante"&&m.statut==="termine"&&m.gagnant_id).sort((a,b)=>b.round_bracket-a.round_bracket)[0];
+  const consoWinner=consoFinale?joueurs.find(j=>j.id===consoFinale.gagnant_id):null;
 
   // MVP = joueur avec le plus de victoires
   const mvp=[...joueurs].sort((a,b)=>b.victoires-a.victoires)[0];
@@ -697,9 +807,39 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer})=>{
         </Card>
       )}
 
-      {/* Classement final */}
+      {/* Podium du tableau (1er / 2e / 3e) */}
+      {gagnant&&(
+        <Card style={{marginBottom:16}}>
+          <h3 style={{fontWeight:700,fontSize:15,marginBottom:12}}><EmoText s="🏅 Podium" size={15}/></h3>
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#f9731614",borderRadius:8,marginBottom:6}}>
+            <EmoIcon e="🥇" size={20}/><span style={{flex:1,fontWeight:800}}>{gagnant.nom}</span><span style={{fontSize:12,color:CT.muted}}>Champion</span>
+          </div>
+          {perdant&&(
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#94a3b814",borderRadius:8,marginBottom:troisieme?6:0}}>
+              <EmoIcon e="🥈" size={20}/><span style={{flex:1,fontWeight:700}}>{perdant.nom}</span><span style={{fontSize:12,color:CT.muted}}>Finaliste</span>
+            </div>
+          )}
+          {troisieme&&(
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#f59e0b14",borderRadius:8}}>
+              <EmoIcon e="🥉" size={20}/><span style={{flex:1,fontWeight:700}}>{troisieme.nom}</span><span style={{fontSize:12,color:CT.muted}}>3e place</span>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Vainqueur de la consolante */}
+      {consoWinner&&(
+        <Card style={{marginBottom:16,background:CT.accent+"11",border:`1px solid ${CT.accent}44`}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <EmoIcon e="🎖️" size={30}/>
+            <div><div style={{fontWeight:700,fontSize:14,color:CT.accent}}>Vainqueur de la consolante</div><div style={{fontWeight:800,fontSize:17}}>{consoWinner.nom}</div></div>
+          </div>
+        </Card>
+      )}
+
+      {/* Classement par points (poules + tableau) */}
       <Card style={{marginBottom:16}}>
-        <h3 style={{fontWeight:700,fontSize:15,marginBottom:12}}><EmoText s="📋 Classement final" size={15}/></h3>
+        <h3 style={{fontWeight:700,fontSize:15,marginBottom:12}}><EmoText s="📋 Classement par points" size={15}/></h3>
         {rankGroup(joueurs).map((j,i)=>(
           <div key={j.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:i===0?"#f9731614":i===1?"#94a3b814":i===2?"#f59e0b14":"transparent",borderRadius:8,marginBottom:4}}>
             <span style={{fontSize:18,display:"inline-flex",justifyContent:"center",width:20}}>{i<3?<EmoIcon e={i===0?"🥇":i===1?"🥈":"🥉"} size={18}/>:"·"}</span>
@@ -823,31 +963,15 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     }catch(e){alert("Erreur : "+e.message);}
   };
 
-  // Advance winner to next bracket round
+  // Advance winner + route loser (consolante / petite finale)
   const advancerBracket=async(match,gagnant_id)=>{
     const freshMatchs=await dbTP.getMatchs(tournoiId);
-    const nextRound=match.round_bracket+1;
-    const nextPos=Math.floor(match.position_bracket/2);
-    const isJ1Slot=match.position_bracket%2===0;
-
-    const nextMatch=freshMatchs.find(m=>m.round_bracket===nextRound&&m.position_bracket===nextPos&&m.phase!=="poules");
-    if(!nextMatch)return;
-
-    const patch=isJ1Slot?{joueur1_id:gagnant_id}:{joueur2_id:gagnant_id};
-    // Check if the other slot is already filled
-    const otherFilled=isJ1Slot?nextMatch.joueur2_id:nextMatch.joueur1_id;
-    const newStatut=otherFilled?"en_attente":"attente_avancement";
-    await dbTP.updateMatch(nextMatch.id,{...patch,statut:newStatut});
-
-    // Check if finale is done → tournoi terminé
-    if(match.phase==="finale"){
-      await dbTP.updateTournoi(tournoiId,{statut:"termine"});
-    }
+    await avancerApresMatch(match,gagnant_id,freshMatchs);
   };
 
   // ── Lancer les éliminatoires
   const lancerEliminatoires=async(config={})=>{
-    const {nbQual=2,bracketSize:bsChoisi,manchesMap={}}=config;
+    const {nbQual=2,bracketSize:bsChoisi,manchesMap={},consolante=false,petiteFinale=false}=config;
     setSaving(true);
     try{
       const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
@@ -860,7 +984,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       const sizes=[2,4,8,16,32];
       const bracketSize=bsChoisi||sizes.find(s=>s>=topParGroupe.length)||32;
       const seededFlat=seedPoolAware(topParGroupe,bracketSize);
-      const bracketMatchs=genBracketMatchs(seededFlat,tournoiId,manchesMap);
+      const bracketMatchs=genBracketMatchs(seededFlat,tournoiId,manchesMap,{consolante,petiteFinale});
       if(bracketMatchs.length>0)await dbTP.addMatchs(bracketMatchs);
       await dbTP.updateTournoi(tournoiId,{statut:"eliminatoires"});
       setShowBracketConfig(false);
@@ -1193,19 +1317,10 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
       const lJ=joueurs.find(j=>j.id===perdant_id);
       if(gJ)await dbTP.updateJoueur(gJ.id,{victoires:gJ.victoires+1,points:gJ.points+2,manches_pour:gJ.manches_pour+score1,manches_contre:gJ.manches_contre+score2});
       if(lJ)await dbTP.updateJoueur(lJ.id,{defaites:lJ.defaites+1,points:lJ.points+(Math.min(score1,score2)>0?1:0),manches_pour:lJ.manches_pour+score2,manches_contre:lJ.manches_contre+score1});
-      // If bracket → advance winner
+      // If bracket → advance winner + route loser (consolante / petite finale)
       if(match.phase!=="poules"&&match.round_bracket>0){
         const allMatchs=await dbTP.getMatchs(match.tournoi_id);
-        const nextRound=match.round_bracket+1;
-        const nextPos=Math.floor(match.position_bracket/2);
-        const isJ1Slot=match.position_bracket%2===0;
-        const nextMatch=allMatchs.find(m=>m.round_bracket===nextRound&&m.position_bracket===nextPos&&m.phase!=="poules");
-        if(nextMatch){
-          const patch=isJ1Slot?{joueur1_id:gagnant_id}:{joueur2_id:gagnant_id};
-          const otherFilled=isJ1Slot?nextMatch.joueur2_id:nextMatch.joueur1_id;
-          await dbTP.updateMatch(nextMatch.id,{...patch,statut:otherFilled?"en_attente":"attente_avancement"});
-        }
-        if(match.phase==="finale")await dbTP.updateTournoi(match.tournoi_id,{statut:"termine"});
+        await avancerApresMatch(match,gagnant_id,allMatchs);
       }
     }catch(e){console.error("Erreur save match:",e);}
   };
