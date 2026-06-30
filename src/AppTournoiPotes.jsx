@@ -87,8 +87,11 @@ const phaseName=(round,totalRounds)=>{
   if(fromFinal===0)return"finale";
   if(fromFinal===1)return"demi";
   if(fromFinal===2)return"quart";
-  return"huitieme";
+  if(fromFinal===3)return"huitieme";
+  return"seizieme";
 };
+const ROUND_LABEL={seizieme:"16es de finale",huitieme:"8es de finale",quart:"Quarts de finale",demi:"Demi-finales",finale:"Finale"};
+const roundsForBracket=(size)=>{ const tr=Math.log2(size); const a=[]; for(let r=1;r<=tr;r++)a.push(phaseName(r,tr)); return a; };
 
 // Generate all poule matches (round-robin)
 const genPouleMatchs=(joueurs,groupe,tournoi_id,manches=2)=>{
@@ -102,9 +105,10 @@ const genPouleMatchs=(joueurs,groupe,tournoi_id,manches=2)=>{
 };
 
 // Generate bracket matches from ordered seeded list
-const genBracketMatchs=(seeded,tournoi_id)=>{
+const genBracketMatchs=(seeded,tournoi_id,manchesMap={})=>{
   const n=seeded.length; // power of 2
   const totalRounds=Math.log2(n);
+  const mm=(phase)=>manchesMap[phase]||(phase==="finale"?5:2);
   const matchs=[];
   // Round 1
   for(let pos=0;pos<n/2;pos++){
@@ -112,14 +116,14 @@ const genBracketMatchs=(seeded,tournoi_id)=>{
     const j2=seeded[pos*2+1];
     const phase=phaseName(1,totalRounds);
     const statut=j1&&j2?"en_attente":j1?"bye_j2":j2?"bye_j1":"vide";
-    matchs.push({tournoi_id,joueur1_id:j1?.id||null,joueur2_id:j2?.id||null,score1:0,score2:0,gagnant_id:j1&&!j2?j1.id:j2&&!j1?j2.id:null,phase,groupe:0,statut,round_bracket:1,position_bracket:pos,manches_max:2});
+    matchs.push({tournoi_id,joueur1_id:j1?.id||null,joueur2_id:j2?.id||null,score1:0,score2:0,gagnant_id:j1&&!j2?j1.id:j2&&!j1?j2.id:null,phase,groupe:0,statut,round_bracket:1,position_bracket:pos,manches_max:mm(phase)});
   }
   // Subsequent rounds (empty placeholders)
   for(let r=2;r<=totalRounds;r++){
     const nb=n/Math.pow(2,r);
     const phase=phaseName(r,totalRounds);
     for(let pos=0;pos<nb;pos++){
-      matchs.push({tournoi_id,joueur1_id:null,joueur2_id:null,score1:0,score2:0,gagnant_id:null,phase,groupe:0,statut:"attente_avancement",round_bracket:r,position_bracket:pos,manches_max:r===totalRounds?5:2});
+      matchs.push({tournoi_id,joueur1_id:null,joueur2_id:null,score1:0,score2:0,gagnant_id:null,phase,groupe:0,statut:"attente_avancement",round_bracket:r,position_bracket:pos,manches_max:mm(phase)});
     }
   }
   return matchs;
@@ -391,6 +395,49 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
   );
 };
 
+// ── Réglages du tableau (après les poules) ──
+const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
+  const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
+  const [nbQual,setNbQual]=useState(2);
+  const totalQual=Math.min(joueurs.length,nbQual*nbGroupes);
+  const minSize=Math.max(2,Math.pow(2,Math.ceil(Math.log2(Math.max(2,totalQual)))));
+  const sizeOptions=[...new Set([minSize,Math.min(32,minSize*2)])];
+  const [bracketSize,setBracketSize]=useState(minSize);
+  useEffect(()=>{ setBracketSize(s=>sizeOptions.includes(s)?s:minSize); },[nbQual]); // eslint-disable-line
+  const rounds=roundsForBracket(bracketSize);
+  const [manchesMap,setManchesMap]=useState({seizieme:2,huitieme:2,quart:2,demi:3,finale:5});
+  const exempts=bracketSize-totalQual;
+  const chip=(val,sel,onPick,label)=>(
+    <button key={String(val)} onClick={()=>onPick(val)} style={{flex:1,padding:"9px 4px",borderRadius:10,border:`1px solid ${sel?CT.accent:CT.border}`,background:sel?CT.accent+"22":CT.card,color:sel?CT.accent:CT.text,fontWeight:sel?800:600,fontSize:13,cursor:"pointer",touchAction:"manipulation"}}>{label}</button>
+  );
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000000e6",zIndex:99999,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:16,overflowY:"auto"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#15151c",border:`1px solid ${CT.border}`,borderRadius:18,padding:22,maxWidth:420,width:"100%",margin:"auto"}}>
+        <h3 style={{fontWeight:800,fontSize:18,marginBottom:4,color:"#fff",textAlign:"center"}}><EmoText s="🏆 Réglages du tableau" size={17}/></h3>
+        <p style={{color:CT.muted,fontSize:12,textAlign:"center",marginBottom:18}}>{nbGroupes} poule{nbGroupes>1?"s":""}</p>
+        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Qualifiés par poule</div>
+        <div style={{display:"flex",gap:8,marginBottom:16}}>{[1,2].map(q=>chip(q,nbQual===q,setNbQual,q>1?"Les 2 premiers":"Le 1er"))}</div>
+        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Départ du tableau <span style={{color:CT.muted,fontWeight:500}}>({totalQual} qualifiés)</span></div>
+        <div style={{display:"flex",gap:8,marginBottom:exempts>0?6:18}}>{sizeOptions.map(s=>chip(s,bracketSize===s,setBracketSize,ROUND_LABEL[roundsForBracket(s)[0]]))}</div>
+        {exempts>0&&<div style={{fontSize:11,color:CT.yellow,marginBottom:18}}>ℹ️ {exempts} exempt{exempts>1?"s":""} (qualifié{exempts>1?"s":""} passe{exempts>1?"nt":""} directement le 1er tour)</div>}
+        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Manches par tour <span style={{color:CT.muted,fontWeight:500}}>(premier à…)</span></div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:22}}>
+          {rounds.map(ph=>(
+            <div key={ph} style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{flex:1,fontSize:13,color:CT.text}}>{ROUND_LABEL[ph]}</span>
+              <div style={{display:"flex",gap:4}}>{[1,2,3,4,5].map(m=>(
+                <button key={m} onClick={()=>setManchesMap(mm=>({...mm,[ph]:m}))} style={{width:30,height:32,borderRadius:8,border:`1px solid ${manchesMap[ph]===m?CT.accent:CT.border}`,background:manchesMap[ph]===m?CT.accent+"22":CT.card,color:manchesMap[ph]===m?CT.accent:CT.text,fontWeight:manchesMap[ph]===m?800:600,fontSize:13,cursor:"pointer",touchAction:"manipulation"}}>{m}</button>
+              ))}</div>
+            </div>
+          ))}
+        </div>
+        <Btn onClick={()=>onValider({nbQual,bracketSize,manchesMap})} disabled={saving} style={{width:"100%",fontSize:15,padding:"13px"}}>{saving?"Lancement…":"✅ Valider et lancer le tableau"}</Btn>
+        <button onClick={onClose} style={{width:"100%",marginTop:8,background:"none",border:"none",color:CT.muted,fontSize:13,cursor:"pointer",padding:8}}>Annuler</button>
+      </div>
+    </div>
+  );
+};
+
 // ── VUE POULES ────────────────────────────────────────────────────────────────
 const PoulesView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,onLancerEliminatoires})=>{
   const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
@@ -600,6 +647,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   const [tournoi,setTournoi]=useState(null);
   const [joueurs,setJoueurs]=useState([]);
   const [showPoolConfig,setShowPoolConfig]=useState(false);
+  const [showBracketConfig,setShowBracketConfig]=useState(false);
   const [matchs,setMatchs]=useState([]);
   const [loading,setLoading]=useState(true);
   const [matchModal,setMatchModal]=useState(null);
@@ -708,25 +756,25 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   };
 
   // ── Lancer les éliminatoires
-  const lancerEliminatoires=async()=>{
+  const lancerEliminatoires=async(config={})=>{
+    const {nbQual=2,bracketSize:bsChoisi,manchesMap={}}=config;
     setSaving(true);
     try{
       const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
-      // Take top 2 from each group + sort all remaining by points for wildcard
+      // Qualifiés : les N premiers de chaque poule (N réglable par l'orga)
       const topParGroupe=[];
       for(let g=1;g<=nbGroupes;g++){
         const jG=rankGroup(joueurs.filter(j=>j.groupe===g));
-        topParGroupe.push(...jG.slice(0,2));
+        topParGroupe.push(...jG.slice(0,nbQual));
       }
-      // Sort all qualifiés by points desc for seeding
       const qualifies=rankGroup(topParGroupe);
-      // Pad to nearest power of 2
-      const sizes=[2,4,8,16];
-      const bracketSize=sizes.find(s=>s>=qualifies.length)||16;
+      const sizes=[2,4,8,16,32];
+      const bracketSize=bsChoisi||sizes.find(s=>s>=qualifies.length)||32;
       const seededFlat=seedBracket(qualifies,bracketSize);
-      const bracketMatchs=genBracketMatchs(seededFlat,tournoiId);
+      const bracketMatchs=genBracketMatchs(seededFlat,tournoiId,manchesMap);
       if(bracketMatchs.length>0)await dbTP.addMatchs(bracketMatchs);
       await dbTP.updateTournoi(tournoiId,{statut:"eliminatoires"});
+      setShowBracketConfig(false);
       await reload();
     }catch(e){alert("Erreur : "+e.message);}
     setSaving(false);
@@ -816,8 +864,9 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} isCreateur={isCreateur}
           onSaisirScore={m=>setMatchModal(m)}
           onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
-          onLancerEliminatoires={lancerEliminatoires}/>
+          onLancerEliminatoires={()=>setShowBracketConfig(true)}/>
       )}
+      {showBracketConfig&&<BracketConfigModal joueurs={joueurs} saving={saving} onValider={lancerEliminatoires} onClose={()=>setShowBracketConfig(false)}/>}
       {tournoi.statut==="eliminatoires"&&(
         <EliminatoiresView tournoi={tournoi} joueurs={joueurs}
           matchs={matchs.filter(m=>m.phase!=="poules")} isCreateur={isCreateur}
