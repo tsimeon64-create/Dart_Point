@@ -9693,10 +9693,11 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
   const [joueursList, setJoueursList] = useState([]);
   const [avisCount, setAvisCount]   = useState(0);
   const [adminLogs, setAdminLogs]   = useState([]);
-  const [stats, setStats]           = useState({ matchsDuJour:0, joueursActifs:0, nouveauxJoueurs:0, totalJoueurs:0, connexionsJour:0 });
-  const [kpiDetail, setKpiDetail]   = useState(null); // "nouveaux" | "connexions" | null
+  const [stats, setStats]           = useState({ matchsDuJour:0, matchsJour:0, matchsSemaine:0, joueursActifs:0, nouveauxJoueurs:0, totalJoueurs:0, connexionsJour:0 });
+  const [kpiDetail, setKpiDetail]   = useState(null); // "nouveaux" | "connexions" | "matchsJour" | "matchsSemaine" | null
   const [valBusy, setValBusy]       = useState({});   // anti-double-clic sur les validations
   const [connexionsDetail, setConnexionsDetail] = useState([]);
+  const [matchsRecents, setMatchsRecents] = useState([]); // duels terminés des 7 derniers jours (détail jour/semaine)
 
   // Charge les logs persistés au montage
   useEffect(()=>{
@@ -9738,6 +9739,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
   const fetchAdminStats = () => {
     const weekAgo = Date.now() - 7*24*60*60*1000;
     const today = new Date().toISOString().split("T")[0];
+    const sd = new Date(); sd.setHours(0,0,0,0); const startTodayMs = sd.getTime(); // minuit local
     Promise.all([
       db.getPropositions(),
       db.getSignalements(),
@@ -9745,15 +9747,20 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
       sb(`joueurs?order=date_inscription.desc&limit=500&select=id,pseudo,drix,date_inscription,photo`).catch(()=>[]),
       sb(`duels?statut=eq.en_cours&select=id`).catch(()=>[]),
       sb(`presences?date_jour=eq.${today}&select=joueur_id`).catch(()=>[]),
-    ]).then(([p,s,av,j,duels,pres])=>{
+      sb(`duels?statut=eq.termine&date=gte.${weekAgo}&order=date.desc&limit=500&select=id,challenger_pseudo,defie_pseudo,challenger_id,defie_id,gagnant_id,score_challenger,score_defie,mode,manches,date`).catch(()=>[]),
+    ]).then(([p,s,av,j,duels,pres,matchs])=>{
       setPropositions(p||[]);
       setSignalements(s||[]);
       setAvisCount((av||[]).length);
       const jList = j||[];
       setJoueursList(jList);
       const uniqueConns = new Set((pres||[]).map(x=>x.joueur_id)).size;
+      const mList = matchs||[];
+      setMatchsRecents(mList);
       setStats({
         matchsDuJour: (duels||[]).length,
+        matchsJour: mList.filter(m=>(m.date||0) >= startTodayMs).length,
+        matchsSemaine: mList.length,
         joueursActifs: uniqueConns,
         nouveauxJoueurs: jList.filter(x=>x.date_inscription&&new Date(x.date_inscription).getTime()>weekAgo).length,
         totalJoueurs: jList.length,
@@ -9959,6 +9966,8 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
           <AdminKpiCard icon="👥" label="Total joueurs" count={stats.totalJoueurs} prio="normal" onClick={()=>setTab("joueurs")}/>
           <AdminKpiCard icon="🆕" label="Nouveaux (7j)" count={stats.nouveauxJoueurs} prio={stats.nouveauxJoueurs>0?"important":"normal"} onClick={()=>setKpiDetail("nouveaux")}/>
           <AdminKpiCard icon="🍺" label="Présences en bar (jour)" count={stats.connexionsJour} prio={stats.connexionsJour>0?"important":"normal"} onClick={()=>setKpiDetail("connexions")}/>
+          <AdminKpiCard icon="🎯" label="Matchs joués (jour)" count={stats.matchsJour} prio={stats.matchsJour>0?"important":"normal"} onClick={()=>setKpiDetail("matchsJour")}/>
+          <AdminKpiCard icon="📅" label="Matchs joués (7j)" count={stats.matchsSemaine} prio={stats.matchsSemaine>0?"important":"normal"} onClick={()=>setKpiDetail("matchsSemaine")}/>
           <AdminKpiCard icon="🎯" label="Bars référencés" count={bars.length} prio="normal"/>
           <AdminKpiCard icon="🫂" label="Associations" count={associations.length} prio="normal"/>
           <AdminKpiCard icon="🏅" label="Tournois" count={tournois.length} prio="normal"/>
@@ -10018,6 +10027,40 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
                 </div>
               ))}
             </>)}
+
+            {(kpiDetail==="matchsJour" || kpiDetail==="matchsSemaine") && (() => {
+              const sd0 = new Date(); sd0.setHours(0,0,0,0);
+              const liste = kpiDetail==="matchsJour" ? matchsRecents.filter(m=>(m.date||0) >= sd0.getTime()) : matchsRecents;
+              return (<>
+                <div style={{fontSize:15,fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
+                  <EmoIcon e="🎯" size={15} color="#f59e0b"/><span>{kpiDetail==="matchsJour" ? "Matchs joués aujourd'hui" : "Matchs joués (7 derniers jours)"}</span>
+                  <span style={{background:"#f59e0b22",color:"#f59e0b",borderRadius:8,padding:"2px 10px",fontSize:12,fontWeight:700,marginLeft:4}}>{liste.length}</span>
+                </div>
+                <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Duels terminés (DRIX) · les plus récents d'abord</div>
+                {liste.length===0
+                  ? <div style={{textAlign:"center",padding:40,color:C.muted}}>Aucun match joué sur cette période</div>
+                  : liste.map(m=>{
+                      const cGagne = m.gagnant_id && m.gagnant_id===m.challenger_id;
+                      const dGagne = m.gagnant_id && m.gagnant_id===m.defie_id;
+                      return (
+                        <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontWeight:700,fontSize:14,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                              <span style={{color:cGagne?"#10b981":C.text}}>{m.challenger_pseudo||"?"}</span>
+                              <span style={{color:C.muted,margin:"0 6px",fontWeight:400}}>vs</span>
+                              <span style={{color:dGagne?"#10b981":C.text}}>{m.defie_pseudo||"?"}</span>
+                            </div>
+                            <div style={{fontSize:11,color:C.muted}}>{m.mode||"duel"} · {m.manches||1} manche{(m.manches||1)>1?"s":""} · {m.date?new Date(m.date).toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"—"}</div>
+                          </div>
+                          <div style={{textAlign:"right",whiteSpace:"nowrap"}}>
+                            <div style={{fontSize:9,color:C.muted,letterSpacing:.5}}>MOY.</div>
+                            <div style={{fontWeight:800,fontSize:14}}>{Math.round(m.score_challenger||0)} <span style={{color:C.muted,fontWeight:400}}>–</span> {Math.round(m.score_defie||0)}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+              </>);
+            })()}
           </div>
         </div>
       )}
