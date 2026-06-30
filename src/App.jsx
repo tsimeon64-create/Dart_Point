@@ -8946,38 +8946,16 @@ const AdminJoueurs = ({ addLog }) => {
     setSetDrix(d=>({...d,[j.id]:""}));
   };
 
-  // Nettoyage complet de toutes les tables liées avant suppression
-  const nettoyerJoueur = async (id) => {
-    await Promise.allSettled([
-      // Liens d'amitié (joueur des deux côtés)
-      sb(`amis?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
-      sb(`amis?ami_id=eq.${id}`,  {method:"DELETE",prefer:"return=minimal"}),
-      // Stats joueur (FK contrainte bloquante)
-      sb(`stats_joueurs?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
-      // Mouvements DRIX
-      sb(`drix_mouvements?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
-      // Présences (table: presences + presence_joueurs)
-      sb(`presences?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
-      sb(`presence_joueurs?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
-      // Duels en cours (marquer comme annulé plutôt que supprimer)
-      sb(`duels?or=(challenger_id.eq.${id},defie_id.eq.${id})&statut=eq.en_cours`,
-         {method:"PATCH",body:JSON.stringify({statut:"annule"}),prefer:"return=minimal"}),
-      // Inscriptions tournois potes
-      sb(`tournois_potes_joueurs?joueur_id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
-      // Messages
-      sb(`messages?or=(from_id.eq.${id},to_id.eq.${id})`,{method:"DELETE",prefer:"return=minimal"}),
-    ]);
-  };
+  // (nettoyerJoueur retiré : le nettoyage des tables liées est désormais fait côté serveur
+  //  par admin-ops — ops supprimeJoueur / banJoueur, clé service-role.)
 
   const supprimerCompte = async (j) => {
     if (!window.confirm(`⚠️ Supprimer définitivement ${j.pseudo} ?\n\nCela supprimera aussi :\n• Ses liens d'amitié\n• Son historique DRIX\n• Ses présences\n\nCette action est irréversible.\n\n⚠️ Préférable : utiliser "Anonymiser (RGPD)" pour conserver l'intégrité des stats des autres joueurs.`)) return;
     setSaving(s=>({...s,[j.id]:true}));
     try {
-      // 1. Nettoyer les tables liées
-      await nettoyerJoueur(j.id);
-      // 2. Supprimer le joueur
-      await sb(`joueurs?id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"});
-      // 3. Retirer de l'UI
+      // Suppression complète côté serveur (service-role) : tables liées + joueur.
+      await sbAdmin("supprimeJoueur", "joueurs", { id: j.id });
+      // Retirer de l'UI
       setTous(x=>x.filter(p=>p.id!==j.id));
       addLog?.("Compte supprimé", j.pseudo, "danger");
       setMsg(m=>({...m,[j.id]:"✅ Compte et données associées supprimés."}));
@@ -8994,28 +8972,10 @@ const AdminJoueurs = ({ addLog }) => {
     if (!window.confirm(`🕵️ Anonymiser le compte de ${j.pseudo} (RGPD) ?\n\n• Le pseudo devient "Joueur supprimé #${j.id}"\n• Email, nom, prénom, photo, ville → effacés\n• Amis, messages, présences → supprimés\n• Historique des matchs et DRIX → CONSERVÉS (intégrité des stats des autres joueurs)\n\nLe joueur ne pourra plus se connecter.`)) return;
     setSaving(s=>({...s,[j.id]:true}));
     try {
-      // 1. Anonymise le profil
-      await sb(`joueurs?id=eq.${j.id}`, { method:"PATCH", body:JSON.stringify({
-        pseudo: `Joueur supprimé #${j.id}`,
-        email: null,
-        nom: null,
-        prenom: null,
-        photo: null,
-        ville: null,
-        password_hash: null,
-        bar_slug: null,
-        anonymise: true,
-        anonymise_date: Date.now(),
-      }), prefer:"return=minimal" });
-      // 2. Supprime les données perso liées (amis, messages, présences)
-      await Promise.allSettled([
-        sb(`amis?joueur_id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}),
-        sb(`amis?ami_id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}),
-        sb(`presences?joueur_id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}),
-        sb(`presence_joueurs?joueur_id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"}),
-        sb(`messages?or=(from_id.eq.${j.id},to_id.eq.${j.id})`,{method:"DELETE",prefer:"return=minimal"}),
-      ]);
-      // 3. Retire de l'UI
+      // Anonymisation complète côté serveur (service-role) : password_hash sentinelle (NOT
+      // NULL) + effacement amis/messages/présences. Voir Edge Function admin-ops (op anonymiseJoueur).
+      await sbAdmin("anonymiseJoueur", "joueurs", { id: j.id });
+      // Retire de l'UI
       setTous(x=>x.filter(p=>p.id!==j.id));
       addLog?.("Compte anonymisé (RGPD)", j.pseudo, "warning");
       setMsg(m=>({...m,[j.id]:"✅ Compte anonymisé. Stats des autres joueurs préservées."}));
@@ -9029,18 +8989,9 @@ const AdminJoueurs = ({ addLog }) => {
     if (!window.confirm(`🚫 BANNIR ${j.pseudo} ?\n\nCela va :\n• Remettre ses DRIX à 0\n• Supprimer son compte et toutes ses données\n\nIrréversible.`)) return;
     setSaving(s=>({...s,[j.id]:true}));
     try {
-      // 1. Mettre DRIX à 0 + log du mouvement
-      await sb(`joueurs?id=eq.${j.id}`,{method:"PATCH",body:JSON.stringify({drix:0}),prefer:"return=minimal"});
-      await sb("drix_mouvements",{method:"POST",body:JSON.stringify({
-        joueur_id:j.id, joueur_pseudo:j.pseudo, adversaire_pseudo:"Admin",
-        variation:-(j.drix||1000), drix_avant:j.drix||1000, drix_apres:0,
-        resultat:"defaite", date:Date.now(),
-      })}).catch(()=>{});
-      // 2. Nettoyer les tables liées
-      await nettoyerJoueur(j.id);
-      // 3. Supprimer le joueur
-      await sb(`joueurs?id=eq.${j.id}`,{method:"DELETE",prefer:"return=minimal"});
-      // 4. Retirer de l'UI
+      // Ban complet côté serveur (service-role) : DRIX à 0 + log + nettoyage + suppression.
+      await sbAdmin("banJoueur", "joueurs", { id: j.id }, { pseudo: j.pseudo, drix: j.drix||1000 });
+      // Retirer de l'UI
       setTous(x=>x.filter(p=>p.id!==j.id));
       addLog?.("Joueur banni", j.pseudo, "danger");
     } catch(e) {

@@ -75,6 +75,72 @@ Deno.serve(async (req) => {
       return json({ ok: r.ok, status: r.status, data });
     }
 
+    // ── OPÉRATIONS JOUEUR encapsulées (service-role) ──────────────────────────────
+    // Corrige l'anonymisation/suppression admin qui échouait via la clé anon :
+    // password_hash est NOT NULL + colonne protégée (REVOKE UPDATE anon). Ici la SERVICE
+    // KEY peut tout écrire ; on encapsule aussi les filtres `or=(...)` que le filtre
+    // générique ne sait pas exprimer. `match.id` = l'id (uuid) du joueur ciblé.
+    if (op === "anonymiseJoueur" || op === "supprimeJoueur" || op === "banJoueur") {
+      const jid = match?.id;
+      if (!jid) return json({ error: "match.id (uuid du joueur) requis" }, 400);
+      const id = String(jid);
+      const del = (path: string) => api(path, { method: "DELETE", headers: { Prefer: "return=minimal" } });
+
+      // Données perso liées (toujours supprimées) — amis, présences, messages.
+      const cleanPerso = () => Promise.allSettled([
+        del(`amis?joueur_id=eq.${id}`),
+        del(`amis?ami_id=eq.${id}`),
+        del(`presences?joueur_id=eq.${id}`),
+        del(`presence_joueurs?joueur_id=eq.${id}`),
+        del(`messages?or=(from_id.eq.${id},to_id.eq.${id})`),
+      ]);
+      // Nettoyage complet (avant suppression dure) — + stats, mouvements DRIX, duels, tournois.
+      const cleanAll = () => Promise.allSettled([
+        del(`amis?joueur_id=eq.${id}`),
+        del(`amis?ami_id=eq.${id}`),
+        del(`stats_joueurs?joueur_id=eq.${id}`),
+        del(`drix_mouvements?joueur_id=eq.${id}`),
+        del(`presences?joueur_id=eq.${id}`),
+        del(`presence_joueurs?joueur_id=eq.${id}`),
+        api(`duels?or=(challenger_id.eq.${id},defie_id.eq.${id})&statut=eq.en_cours`,
+            { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ statut: "annule" }) }),
+        del(`tournois_potes_joueurs?joueur_id=eq.${id}`),
+        del(`messages?or=(from_id.eq.${id},to_id.eq.${id})`),
+      ]);
+
+      if (op === "anonymiseJoueur") {
+        // RGPD art.17 : efface la PII + le mot de passe (sentinelle, NOT NULL), garde
+        // l'historique des matchs (pseudo anonymisé) pour ne pas fausser les stats.
+        const pr = await api(`joueurs?id=eq.${id}`, {
+          method: "PATCH", headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({
+            pseudo: `Joueur supprimé #${id.slice(0, 8)}`,
+            email: null, nom: null, prenom: null, photo: null, ville: null,
+            password_hash: "deleted", bar_slug: null, asso_slug: null,
+            anonymise: true, anonymise_date: Date.now(),
+          }),
+        });
+        if (!pr.ok) return json({ error: "anonymisation échouée", detail: (await pr.text()).slice(0, 200) }, 500);
+        await cleanPerso();
+        return json({ ok: true });
+      }
+
+      if (op === "banJoueur") {
+        const drixAvant = Number(body?.drix ?? 1000) || 1000;
+        await api(`joueurs?id=eq.${id}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ drix: 0 }) });
+        await api("drix_mouvements", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({
+          joueur_id: id, joueur_pseudo: body?.pseudo || "", adversaire_pseudo: "Admin",
+          variation: -drixAvant, drix_avant: drixAvant, drix_apres: 0, resultat: "defaite", date: Date.now(),
+        }) }).catch(() => {});
+      }
+
+      // supprimeJoueur + banJoueur : nettoyage complet puis suppression dure du joueur.
+      await cleanAll();
+      const dr = await del(`joueurs?id=eq.${id}`);
+      if (!dr.ok) return json({ error: "suppression échouée", detail: (await dr.text()).slice(0, 200) }, 500);
+      return json({ ok: true });
+    }
+
     // 2) Garde-fous
     if (!ALLOWED.has(table)) return json({ error: "table non autorisée" }, 400);
 
