@@ -559,12 +559,18 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch})=>
         {match.phase==="finale"?<EmoText s="🏆 Finale" size={13}/>:match.phase==="demi"?<EmoText s="🥈 Demie" size={13}/>:match.phase==="quart"?<EmoText s="⚔️ Quart" size={13}/>:"1/8"}
       </div>
       <div style={rowStyle(j1,done&&match.gagnant_id===j1?.id)}>
-        <span style={{fontSize:13,fontWeight:done&&match.gagnant_id===j1?.id?700:400}}>{j1?.nom||<span style={{color:CT.muted}}>À définir</span>}</span>
+        <span style={{fontSize:13,fontWeight:done&&match.gagnant_id===j1?.id?700:400,color:j1?CT.text:CT.muted}}>
+          {j1?.nom||(bye?"— pas d'adversaire —":"À définir")}
+          {bye&&j1&&<span style={{color:CT.green,fontWeight:800,fontSize:11,marginLeft:6}}>✓</span>}
+        </span>
         {done&&<span style={{fontWeight:800,color:match.gagnant_id===j1?.id?CT.green:CT.muted}}>{match.score1}</span>}
       </div>
       <div style={{height:1,background:CT.border}}/>
       <div style={rowStyle(j2,done&&match.gagnant_id===j2?.id)}>
-        <span style={{fontSize:13,fontWeight:done&&match.gagnant_id===j2?.id?700:400}}>{j2?.nom||<span style={{color:CT.muted}}>À définir</span>}</span>
+        <span style={{fontSize:13,fontWeight:done&&match.gagnant_id===j2?.id?700:400,color:j2?CT.text:CT.muted}}>
+          {j2?.nom||(bye?"— pas d'adversaire —":"À définir")}
+          {bye&&j2&&<span style={{color:CT.green,fontWeight:800,fontSize:11,marginLeft:6}}>✓</span>}
+        </span>
         {done&&<span style={{fontWeight:800,color:match.gagnant_id===j2?.id?CT.green:CT.muted}}>{match.score2}</span>}
       </div>
       {!done&&!bye&&j1&&j2&&(
@@ -573,7 +579,8 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch})=>
           {isCreateur&&<Btn onClick={()=>onSaisirScore(match)} variant="dark" small style={{fontSize:11}}><EmoIcon e="✏️" size={12}/></Btn>}
         </div>
       )}
-      {bye&&<div style={{padding:"4px 10px",fontSize:10,color:CT.muted}}>Bye automatique</div>}
+      {bye&&<div style={{padding:"5px 10px",fontSize:10.5,color:CT.green,fontWeight:600,borderTop:`1px solid ${CT.border}`,background:CT.green+"11"}}>✅ Qualifié d'office — pas d'adversaire à ce tour</div>}
+      {(match.statut==="attente_avancement"||match.statut==="vide")&&<div style={{padding:"5px 10px",fontSize:10.5,color:CT.muted,borderTop:`1px solid ${CT.border}`}}>⏳ En attente du tour précédent</div>}
     </div>
   );
 };
