@@ -638,7 +638,8 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
       {/* Groups */}
       {groupes.map(g=>{
         const jG=rankGroup(joueurs.filter(j=>j.groupe===g));
-        const mG=matchs.filter(m=>m.phase==="poules"&&m.groupe===g);
+        // Ordre FIXE (par position) : la liste ne bouge pas, seule la barre verte se déplace
+        const mG=matchs.filter(m=>m.phase==="poules"&&m.groupe===g).sort((a,b)=>(a.position_bracket||0)-(b.position_bracket||0));
         return(
           <Card key={g} style={{marginBottom:16}}>
             <h3 style={{fontWeight:700,fontSize:15,marginBottom:12,color:CT.accent,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🏷️" size={14}/>Groupe {g}</h3>
@@ -657,10 +658,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
             {/* Matchs du groupe */}
             <div style={{borderTop:`1px solid ${CT.border}`,paddingTop:12}}>
               <div style={{fontSize:11,color:CT.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Matchs</div>
-              {[...mG].sort((a,b)=>{
-                const rk=(m)=>m.statut==="termine"?2:(actifs.has(m.id)?0:1);
-                return rk(a)-rk(b);
-              }).map(m=>{
+              {mG.map(m=>{
                 const j1=joueurs.find(j=>j.id===m.joueur1_id);
                 const j2=joueurs.find(j=>j.id===m.joueur2_id);
                 const done=m.statut==="termine";
