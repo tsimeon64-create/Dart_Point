@@ -189,12 +189,57 @@ const MatchModal=({match,joueurs,onSave,onClose})=>{
   );
 };
 
+// ── Scanner QR pour inscrire des joueurs (option C : l'orga scanne les profils) ──
+const QRScanModal=({onAdd,dejaIds,onClose})=>{
+  const [feedback,setFeedback]=useState("");
+  const [erreurCam,setErreurCam]=useState("");
+  const scannedRef=useRef(new Set((dejaIds||[]).map(String)));
+  const lockRef=useRef(0);
+  useEffect(()=>{
+    let qr,stopped=false;
+    (async()=>{
+      try{
+        const {Html5Qrcode}=await import("html5-qrcode");
+        if(stopped)return;
+        qr=new Html5Qrcode("qr-reader");
+        await qr.start({facingMode:"environment"},{fps:10,qrbox:{width:230,height:230}},
+          (decoded)=>{
+            const now=Date.now(); if(now-lockRef.current<1200)return; lockRef.current=now;
+            let data; try{data=JSON.parse(decoded);}catch{ setFeedback("⚠️ QR non valide"); return; }
+            if(!data||data.app!=="dartpoint"||!data.id){ setFeedback("⚠️ Ce n'est pas un QR de profil DartPoint"); return; }
+            if(scannedRef.current.has(String(data.id))){ setFeedback(`⚠️ ${data.pseudo||"Ce joueur"} est déjà inscrit`); return; }
+            scannedRef.current.add(String(data.id));
+            try{ onAdd(data.pseudo||"Joueur",data.id); setFeedback(`✅ ${data.pseudo||"Joueur"} ajouté !`); }
+            catch(e){ setFeedback("Erreur lors de l'ajout"); }
+          },
+          ()=>{}
+        );
+      }catch(e){ setErreurCam("Caméra inaccessible — autorise l'accès à la caméra dans ton navigateur, puis réessaie."); }
+    })();
+    return()=>{ stopped=true; if(qr){ try{ qr.stop().then(()=>qr.clear()).catch(()=>{}); }catch(e){} } };
+  },[]); // eslint-disable-line
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000000ee",zIndex:99999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#15151c",border:`1px solid ${CT.border}`,borderRadius:18,padding:18,maxWidth:380,width:"100%",textAlign:"center"}}>
+        <h3 style={{fontWeight:800,fontSize:17,marginBottom:4,color:"#fff"}}><EmoText s="📲 Scanner un joueur" size={16}/></h3>
+        <p style={{color:CT.muted,fontSize:12,lineHeight:1.5,marginBottom:12}}>Vise le QR code du profil d'un joueur (Profil → icône QR en haut à droite). Tu peux en scanner plusieurs à la suite.</p>
+        {erreurCam
+          ? <div style={{color:"#fca5a5",fontSize:13,padding:"24px 8px",lineHeight:1.5}}>{erreurCam}</div>
+          : <div id="qr-reader" style={{width:"100%",borderRadius:12,overflow:"hidden"}}/>}
+        {feedback&&<div style={{marginTop:12,fontWeight:700,fontSize:14,color:feedback.startsWith("✅")?CT.green:CT.yellow}}>{feedback}</div>}
+        <button onClick={onClose} style={{marginTop:14,width:"100%",background:CT.accent,color:"#fff",border:"none",borderRadius:10,padding:"12px",fontWeight:800,fontSize:15,cursor:"pointer",touchAction:"manipulation"}}>Terminer</button>
+      </div>
+    </div>
+  );
+};
+
 // ── VUE LOBBY ─────────────────────────────────────────────────────────────────
 const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,joueurConnecte})=>{
   const [nom,setNom]=useState("");
   const [adding,setAdding]=useState(false);
   const [amis,setAmis]=useState([]);
   const [addingAmi,setAddingAmi]=useState(null); // id de l'ami en cours d'ajout
+  const [scanOpen,setScanOpen]=useState(false);
 
   // Charger la liste d'amis
   useEffect(()=>{
@@ -210,7 +255,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
   },[joueurConnecte,isCreateur]);
 
   const handleAdd=async()=>{
-    if(!nom.trim()||joueurs.length>=25)return;
+    if(!nom.trim())return;
     setAdding(true);
     await onAddJoueur(nom.trim(),null);
     setNom("");
@@ -218,7 +263,6 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
   };
 
   const handleAddAmi=async(ami)=>{
-    if(joueurs.length>=25)return;
     setAddingAmi(ami.id);
     await onAddJoueur(ami.pseudo,ami.id);
     setAddingAmi(null);
@@ -245,6 +289,13 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
         <div style={{marginTop:10,fontSize:12,color:CT.muted}}>Code : <b style={{color:CT.yellow,fontSize:16,letterSpacing:2}}>{tournoi.code}</b></div>
       </Card>
 
+      {/* Inscription par scan QR (option C) */}
+      {isCreateur&&(
+        <Btn onClick={()=>setScanOpen(true)} style={{width:"100%",marginBottom:16,fontSize:15,padding:"13px"}}>
+          <EmoIcon e="📲" size={16} style={{verticalAlign:"-2px",marginRight:6}}/>Scanner un joueur (QR)
+        </Btn>
+      )}
+
       {/* Inviter mes amis (si créateur connecté) */}
       {isCreateur&&amis.length>0&&(
         <Card style={{marginBottom:16}}>
@@ -258,7 +309,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
                   <span style={{flex:1,fontWeight:500,fontSize:14}}>{ami.pseudo}</span>
                   {deja
                     ?<Badge color={CT.green}><EmoText s="✅ Ajouté" size={11}/></Badge>
-                    :<Btn onClick={()=>handleAddAmi(ami)} disabled={addingAmi===ami.id||joueurs.length>=25} small variant="ghost">
+                    :<Btn onClick={()=>handleAddAmi(ami)} disabled={addingAmi===ami.id} small variant="ghost">
                       {addingAmi===ami.id?"…":"+ Inviter"}
                     </Btn>
                   }
@@ -272,7 +323,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
       {/* Players list */}
       <Card style={{marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-          <h3 style={{fontWeight:700,fontSize:15,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🎯" size={15}/>Joueurs inscrits ({joueurs.length}/25)</h3>
+          <h3 style={{fontWeight:700,fontSize:15,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🎯" size={15}/>Joueurs inscrits ({joueurs.length})</h3>
           <Badge color={joueurs.length>=2?CT.green:CT.muted}>{joueurs.length>=2?"Prêt à lancer":"Ajoutez des joueurs"}</Badge>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
@@ -288,7 +339,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
         </div>
 
         {/* Add manual player */}
-        {isCreateur&&joueurs.length<25&&(
+        {isCreateur&&(
           <div>
             <div style={{fontSize:12,color:CT.muted,marginBottom:6,fontWeight:500}}>Ajouter un joueur sans compte :</div>
             <div style={{display:"flex",gap:8}}>
@@ -306,6 +357,8 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
         </Btn>
       )}
       {!isCreateur&&<p style={{textAlign:"center",color:CT.muted,fontSize:13}}>En attente du lancement par {tournoi.createur_pseudo}…</p>}
+
+      {scanOpen&&<QRScanModal onAdd={onAddJoueur} dejaIds={joueurs.map(j=>j.joueur_id).filter(Boolean)} onClose={()=>setScanOpen(false)}/>}
     </div>
   );
 };
