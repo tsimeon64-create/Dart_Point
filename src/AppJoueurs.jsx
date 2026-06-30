@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Crosshair, Star, Zap, Flame, Sparkles, Snowflake, Minus, ArrowUp, ArrowDown, Gamepad2, Dices, Scale, Beer, Cake, HeartCrack, Circle, Bomb, Sprout, List, Cog, Hand, Rocket } from "lucide-react";
+import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Crosshair, Star, Zap, Flame, Sparkles, Snowflake, Minus, ArrowUp, ArrowDown, Gamepad2, Dices, Scale, Beer, Cake, HeartCrack, Circle, Bomb, Sprout, List, Cog, Hand, Rocket, QrCode } from "lucide-react";
+import QRCode from "qrcode";
 import { EmoIcon } from "./icons";
 
 // ── Modal de crop circulaire (zoom + drag) — réutilisable ─────────────────────
@@ -617,6 +618,22 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   const prog = getProgression(joueur.drix||1000);
   const STYLES = [["electronique","⚡ Électronique"],["traditionnel","🎯 Traditionnel"],["les deux","🎯⚡ Les deux"]];
 
+  // ── QR code du profil (contient les infos clés ; servira au scan d'inscription aux tournois) ──
+  const [showQR, setShowQR] = useState(false);
+  const [qrUrl, setQrUrl]   = useState("");
+  const ouvrirQR = async () => {
+    try {
+      const data = JSON.stringify({
+        app: "dartpoint", v: 1,
+        id: joueur.id, pseudo: joueur.pseudo, drix: joueur.drix || 1000,
+        ville: joueur.ville || null, niveau: joueur.niveau || null,
+        style: joueur.style_jeu || null, age: joueur.age || null,
+      });
+      const url = await QRCode.toDataURL(data, { width: 320, margin: 1, errorCorrectionLevel: "M", color: { dark: "#0f0f0f", light: "#ffffff" } });
+      setQrUrl(url); setShowQR(true);
+    } catch (e) { window.dpToast?.("Impossible de générer le QR code", "error"); }
+  };
+
   useEffect(() => {
     Promise.all([
       dbJ.getStats(joueur.id),
@@ -845,6 +862,12 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
         <div aria-hidden style={{ position:"absolute", top:"50%", right:"-20%", transform:"translateY(-50%)", fontSize:240, opacity:.03, lineHeight:1, pointerEvents:"none", color:color }}>🎯</div>
         {/* Shine balayage */}
         <div aria-hidden style={{ position:"absolute", top:0, left:0, bottom:0, width:100, background:"linear-gradient(90deg,transparent,#ffffff08,transparent)", animation:"monShine 5s ease-in-out infinite", pointerEvents:"none" }}/>
+
+        {/* Bouton QR code du profil — haut droite */}
+        <button onClick={ouvrirQR} aria-label="Afficher mon QR code"
+          style={{ position:"absolute", top:12, right:12, zIndex:4, background:"#0a0a14cc", border:`1px solid ${color}88`, borderRadius:10, width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", touchAction:"manipulation", backdropFilter:"blur(4px)" }}>
+          <QrCode size={19} color={color}/>
+        </button>
 
         {/* Header row : avatar(+camera) + identité(+pencil) + rang */}
         <div style={{ display:"flex", gap:14, alignItems:"center", position:"relative", marginBottom:12 }}>
@@ -1239,6 +1262,22 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       {onglet === "amis"       && <div style={{ marginTop:2 }}><AmiSection joueur={joueur} setPage={setPage}/></div>}
       {onglet === "badges"     && <PageProfilBadges joueur={joueur} setPage={setPage} embedded/>}
       {onglet === "historique" && <PageProfilHistorique joueur={joueur} setPage={setPage} embedded/>}
+
+      {/* ── Fenêtre QR code du profil ── */}
+      {showQR && (
+        <div onClick={()=>setShowQR(false)} style={{ position:"fixed", inset:0, background:"#000000e6", zIndex:99999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ background:"#15151c", border:`1px solid ${CJ.border}`, borderRadius:20, padding:"24px 22px", maxWidth:360, width:"100%", textAlign:"center", position:"relative" }}>
+            <button onClick={()=>setShowQR(false)} aria-label="Fermer" style={{ position:"absolute", top:12, right:12, background:"#ffffff14", border:"none", color:CJ.muted, borderRadius:8, width:30, height:30, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", touchAction:"manipulation" }}><X size={18}/></button>
+            <div style={{ fontWeight:900, fontSize:18, marginBottom:4, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}><QrCode size={20} color={CJ.accent}/>Mon QR code</div>
+            <div style={{ color:CJ.muted, fontSize:12, lineHeight:1.5, marginBottom:18 }}>À scanner pour récupérer mon profil — bientôt utile pour s'inscrire à un tournoi en un scan.</div>
+            <div style={{ background:"#fff", borderRadius:16, padding:14, display:"inline-block", marginBottom:16, lineHeight:0 }}>
+              {qrUrl && <img src={qrUrl} alt="QR code du profil" style={{ width:236, height:236, display:"block" }}/>}
+            </div>
+            <div style={{ fontWeight:800, fontSize:16, color:"#fff" }}>{joueur.pseudo}</div>
+            <div style={{ color:CJ.muted, fontSize:13 }}>{(joueur.drix||1000)} DRIX{joueur.ville ? " · "+joueur.ville : ""}</div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
