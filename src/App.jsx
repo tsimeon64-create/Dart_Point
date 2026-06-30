@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, Component } from "react";
 import { C, Z } from "./theme";
 import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell, Users, RefreshCw, Swords, TrendingUp, TrendingDown, Medal, Check, AlertCircle, ThumbsUp, MessageCircle, MapPin, Flame, Zap, Target, Clock, ChevronRight, ChevronDown, Map, List, Phone, Share2, Eye, Info, Calendar, Home as HomeIcon, Lock, ExternalLink, Crown, Gem, Pencil, Navigation, Camera, Link2, Building2, Skull, Gamepad2, HelpCircle, Brain, Timer } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
@@ -48,6 +48,40 @@ const sbAdmin = async (op, table, match, body) => {
   if (!res.ok || j.error) throw new Error(j.error || `admin-ops ${res.status}`);
   return j.data;
 };
+
+// ── Filet de sécurité : capture les erreurs de rendu pour éviter l'ÉCRAN NOIR. ──
+// Au lieu de planter toute l'appli sans message, on affiche l'erreur + un bouton de
+// récupération. La clé `key={page}` remonte le boundary à chaque changement de page.
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { try { console.error("ErrorBoundary:", error, info?.componentStack); } catch(e){ /* ignore */ } }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ maxWidth:480, margin:"60px auto", padding:24, textAlign:"center", color:"#e2e8f0" }}>
+          <div style={{ fontSize:46, marginBottom:12 }}>😵</div>
+          <div style={{ fontWeight:900, fontSize:20, marginBottom:8 }}>Oups, un souci est survenu</div>
+          <div style={{ color:"#94a3b8", fontSize:14, lineHeight:1.6, marginBottom:16 }}>
+            Cette page a planté, mais <b>ton compte et tes données sont intacts</b>. Recharge l'appli pour continuer.
+          </div>
+          <div style={{ background:"#1a0a0a", border:"1px solid #7f1d1d", borderRadius:10, padding:"10px 12px", fontSize:11, color:"#fca5a5", textAlign:"left", wordBreak:"break-word", marginBottom:16, fontFamily:"monospace" }}>
+            {String(this.state.error?.message || this.state.error || "Erreur inconnue")}
+          </div>
+          <button onClick={()=>{ try { window.location.href = "/"; } catch(e){ window.location.reload(); } }}
+            style={{ background:"#f97316", color:"#fff", border:"none", borderRadius:10, padding:"12px 26px", fontWeight:800, fontSize:15, cursor:"pointer", touchAction:"manipulation" }}>
+            🔄 Recharger l'appli
+          </button>
+          <div style={{ marginTop:14, fontSize:12, color:"#64748b" }}>
+            Si ça se reproduit, fais une <b>capture de ce message</b> et envoie-la — ça aide à corriger 🙏
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const db = {
   getBars: () => sb("bars?order=nom.asc&select=*"),
   getBar: (slug) => sb(`bars?slug=eq.${encodeURIComponent(slug)}&select=*`).then(r => r?.[0]),
@@ -12092,6 +12126,7 @@ export default function App() {
         </div>
       )}
       <main style={{ flex:1 }}>
+        <ErrorBoundary key={page}>
         {page==="home"             && <Home joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="defi"             && joueur && <PageDefi joueur={joueur} setPage={nav}/>}
         {page==="communaute"       && <PageCommunaute joueur={joueur} setPage={nav} bars={bars}/>}
@@ -12156,6 +12191,7 @@ export default function App() {
         {page==="mentions"         && <MentionsLegales/>}
         {page==="adminlogin"       && <AdminLogin onLogin={()=>{setIsAdmin(true);nav("admin");}}/>}
         {page==="admin"            && (isAdmin?<Admin joueur={joueur} bars={bars} setBars={setBars} associations={associations} setAssociations={setAssociations} tournois={tournois} setTournois={setTournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} onLogout={()=>{try{sessionStorage.removeItem("dp_admin_pw");}catch(e){/*ignore*/}setIsAdmin(false);nav("home");}}/>:<AdminLogin onLogin={()=>{setIsAdmin(true);nav("admin");}}/>)}
+        </ErrorBoundary>
       </main>
       <Footer setPage={nav} onOpenHelp={HELP_CONTENT[page] ? ()=>setHelpOpen(true) : null}/>
 
