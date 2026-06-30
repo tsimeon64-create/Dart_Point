@@ -199,11 +199,13 @@ Deno.serve(async (req) => {
       const jid = await verifyToken(token);
       if (!jid) return json({ error: "Session invalide ou expirée. Reconnecte-toi puis réessaie." }, 401);
       const anonPseudo = `Joueur supprimé #${String(jid).slice(0, 8)}`;
+      // password_hash est NOT NULL → on met une valeur sentinelle INVALIDE (aucun mot de
+      // passe ne peut produire ce hash) plutôt que null : la connexion devient impossible.
       await api(`joueurs?id=eq.${jid}`, {
         method: "PATCH", headers: { Prefer: "return=minimal" },
         body: JSON.stringify({
           pseudo: anonPseudo, email: null, nom: null, prenom: null, photo: null,
-          ville: null, password_hash: null, bar_slug: null, asso_slug: null,
+          ville: null, password_hash: "deleted", bar_slug: null, asso_slug: null,
           anonymise: true, anonymise_date: Date.now(),
         }),
       });
