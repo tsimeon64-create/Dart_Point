@@ -9740,6 +9740,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
     const weekAgo = Date.now() - 7*24*60*60*1000;
     const today = new Date().toISOString().split("T")[0];
     const sd = new Date(); sd.setHours(0,0,0,0); const startTodayMs = sd.getTime(); // minuit local
+    const sw = new Date(); const dow = sw.getDay(); sw.setDate(sw.getDate() - (dow===0 ? 6 : dow-1)); sw.setHours(0,0,0,0); const startWeekMs = sw.getTime(); // lundi 00:00 de cette semaine
     Promise.all([
       db.getPropositions(),
       db.getSignalements(),
@@ -9747,7 +9748,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
       sb(`joueurs?order=date_inscription.desc&limit=500&select=id,pseudo,drix,date_inscription,photo`).catch(()=>[]),
       sb(`duels?statut=eq.en_cours&select=id`).catch(()=>[]),
       sb(`presences?date_jour=eq.${today}&select=joueur_id`).catch(()=>[]),
-      sb(`duels?statut=eq.termine&date=gte.${weekAgo}&order=date.desc&limit=500&select=id,challenger_pseudo,defie_pseudo,challenger_id,defie_id,gagnant_id,score_challenger,score_defie,mode,manches,date`).catch(()=>[]),
+      sb(`duels?statut=eq.termine&type=eq.drix&date=gte.${startWeekMs}&order=date.desc&limit=500&select=id,challenger_pseudo,defie_pseudo,challenger_id,defie_id,gagnant_id,score_challenger,score_defie,mode,manches,date`).catch(()=>[]),
     ]).then(([p,s,av,j,duels,pres,matchs])=>{
       setPropositions(p||[]);
       setSignalements(s||[]);
@@ -9967,7 +9968,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
           <AdminKpiCard icon="🆕" label="Nouveaux (7j)" count={stats.nouveauxJoueurs} prio={stats.nouveauxJoueurs>0?"important":"normal"} onClick={()=>setKpiDetail("nouveaux")}/>
           <AdminKpiCard icon="🍺" label="Présences en bar (jour)" count={stats.connexionsJour} prio={stats.connexionsJour>0?"important":"normal"} onClick={()=>setKpiDetail("connexions")}/>
           <AdminKpiCard icon="🎯" label="Matchs joués (jour)" count={stats.matchsJour} prio={stats.matchsJour>0?"important":"normal"} onClick={()=>setKpiDetail("matchsJour")}/>
-          <AdminKpiCard icon="📅" label="Matchs joués (7j)" count={stats.matchsSemaine} prio={stats.matchsSemaine>0?"important":"normal"} onClick={()=>setKpiDetail("matchsSemaine")}/>
+          <AdminKpiCard icon="📅" label="Matchs joués (semaine)" count={stats.matchsSemaine} prio={stats.matchsSemaine>0?"important":"normal"} onClick={()=>setKpiDetail("matchsSemaine")}/>
           <AdminKpiCard icon="🎯" label="Bars référencés" count={bars.length} prio="normal"/>
           <AdminKpiCard icon="🫂" label="Associations" count={associations.length} prio="normal"/>
           <AdminKpiCard icon="🏅" label="Tournois" count={tournois.length} prio="normal"/>
@@ -10033,7 +10034,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
               const liste = kpiDetail==="matchsJour" ? matchsRecents.filter(m=>(m.date||0) >= sd0.getTime()) : matchsRecents;
               return (<>
                 <div style={{fontSize:15,fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
-                  <EmoIcon e="🎯" size={15} color="#f59e0b"/><span>{kpiDetail==="matchsJour" ? "Matchs joués aujourd'hui" : "Matchs joués (7 derniers jours)"}</span>
+                  <EmoIcon e="🎯" size={15} color="#f59e0b"/><span>{kpiDetail==="matchsJour" ? "Matchs joués aujourd'hui" : "Matchs joués cette semaine (depuis lundi)"}</span>
                   <span style={{background:"#f59e0b22",color:"#f59e0b",borderRadius:8,padding:"2px 10px",fontSize:12,fontWeight:700,marginLeft:4}}>{liste.length}</span>
                 </div>
                 <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Duels terminés (DRIX) · les plus récents d'abord</div>
