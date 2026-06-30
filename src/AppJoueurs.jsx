@@ -1070,7 +1070,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       {/* ── ONGLETS : Stats · Amis · Badges · Historique (le haut reste fixe ; le contenu change dessous ; barre collante) ── */}
       <div style={{ position:"sticky", top:0, zIndex:6, background:"#0f0f0f", display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, padding:"8px 0 10px", marginBottom:6 }}>
         {[
-          { key:"stats",      icon:<BarChart2 size={15}/>, label:"Stats",      color:CJ.blue },
+          { key:"stats",      icon:<BarChart2 size={15}/>, label:"Analyse",    color:CJ.blue },
           { key:"amis",       icon:<Users size={15}/>,     label:"Amis",       color:CJ.green,  badge:demandesAmisCount },
           { key:"badges",     icon:<Medal size={15}/>,     label:"Badges",     color:CJ.yellow, badge:newBadgesCount },
           { key:"historique", icon:<Clock size={15}/>,     label:"Historique", color:CJ.accent },
