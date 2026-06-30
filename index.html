@@ -1,7 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr" translate="no">
   <head>
     <meta charset="UTF-8" />
+    <meta name="google" content="notranslate" />
+    <script>
+      // ── Pare-chocs anti écran-noir : la traduction automatique du navigateur
+      //    (Google / Samsung Translate) modifie le DOM dans le dos de React et
+      //    provoque "Failed to execute 'removeChild' on 'Node'". On rend
+      //    removeChild / insertBefore tolérants au lieu de faire planter l'appli.
+      (function () {
+        if (typeof Node !== "function" || !Node.prototype) return;
+        var _remove = Node.prototype.removeChild;
+        Node.prototype.removeChild = function (child) {
+          if (child && child.parentNode !== this) return child;
+          return _remove.apply(this, arguments);
+        };
+        var _insert = Node.prototype.insertBefore;
+        Node.prototype.insertBefore = function (newNode, ref) {
+          if (ref && ref.parentNode !== this) return newNode;
+          return _insert.apply(this, arguments);
+        };
+      })();
+    </script>
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="apple-touch-icon" href="/logo.png" />
     <link rel="manifest" href="/manifest.json" />
