@@ -708,6 +708,23 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
   const finale=mainM.find(m=>m.phase==="finale");
   const champion=finale&&finale.statut==="termine"&&finale.gagnant_id?joueurs.find(j=>j.id===finale.gagnant_id):null;
   const colLabel={fontSize:12,fontWeight:700,color:CT.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:4,textAlign:"center"};
+  const finaleRoundNum=rounds.length?Math.max(...rounds):0;
+  const roundCol=(r)=>{
+    const rm=mainM.filter(m=>m.round_bracket===r).sort((a,b)=>a.position_bracket-b.position_bracket);
+    const phase=rm[0]?.phase||"";
+    return(
+      <div key={r} style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
+        <div style={colLabel}>{phase==="finale"?<EmoText s="🏆 Finale" size={13}/>:phase==="demi"?"Demi-finales":phase==="quart"?"Quarts":phase==="huitieme"?"Huitièmes":phase==="seizieme"?"Seizièmes":"Tour "+r}</div>
+        {rm.map(m=>(<BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch}/>))}
+      </div>
+    );
+  };
+  const petiteCol=()=>(
+    <div key="petite-finale" style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
+      <div style={colLabel}><EmoText s="🥉 3e place" size={13}/></div>
+      <BracketMatchCard match={petiteM} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch}/>
+    </div>
+  );
 
   return(
     <div>
@@ -727,26 +744,10 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
       {/* Tableau principal */}
       <div style={{overflowX:"auto",paddingBottom:16}}>
         <div style={{display:"flex",gap:24,alignItems:"flex-start",minWidth:"max-content",padding:"8px 0"}}>
-          {rounds.map(r=>{
-            const rm=mainM.filter(m=>m.round_bracket===r).sort((a,b)=>a.position_bracket-b.position_bracket);
-            const phase=rm[0]?.phase||"";
-            return(
-              <div key={r} style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
-                <div style={colLabel}>
-                  {phase==="finale"?<EmoText s="🏆 Finale" size={13}/>:phase==="demi"?"Demi-finales":phase==="quart"?"Quarts":phase==="huitieme"?"Huitièmes":phase==="seizieme"?"Seizièmes":"Tour "+r}
-                </div>
-                {rm.map(m=>(
-                  <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch}/>
-                ))}
-              </div>
-            );
-          })}
-          {petiteM&&(
-            <div style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
-              <div style={colLabel}><EmoText s="🥉 3e place" size={13}/></div>
-              <BracketMatchCard match={petiteM} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch}/>
-            </div>
-          )}
+          {/* tours jusqu'aux demies, puis la 3e place JUSTE AVANT la finale */}
+          {rounds.filter(r=>r!==finaleRoundNum).map(roundCol)}
+          {petiteM&&petiteCol()}
+          {rounds.filter(r=>r===finaleRoundNum).map(roundCol)}
         </div>
       </div>
       {/* Consolante (repêchage des perdants du 1er tour) */}
