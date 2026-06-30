@@ -210,6 +210,23 @@ const rankGroup=(joueurs)=>[...joueurs].sort((a,b)=>{
   return(b.manches_pour-b.manches_contre)-(a.manches_pour-a.manches_contre);
 });
 
+// Planning des cibles : renvoie l'ensemble des ids de matchs à jouer MAINTENANT.
+// Au plus nbCibles matchs en même temps, jamais un même joueur sur 2 cibles à la fois.
+// Priorité aux matchs dont les joueurs ont le moins joué (pour que tout le monde joue, peu d'attente).
+const matchsSurCibles=(pending,nbCibles,allMatchs)=>{
+  const played={};
+  allMatchs.forEach(m=>{ if(m.statut==="termine"){ [m.joueur1_id,m.joueur2_id].forEach(id=>{ if(id!=null)played[id]=(played[id]||0)+1; }); } });
+  const score=(m)=>(played[m.joueur1_id]||0)+(played[m.joueur2_id]||0);
+  const ordered=[...pending].sort((a,b)=>score(a)-score(b)||((a.position_bracket||0)-(b.position_bracket||0)));
+  const busy=new Set(), actifs=new Set();
+  for(const m of ordered){
+    if(actifs.size>=nbCibles)break;
+    if(busy.has(m.joueur1_id)||busy.has(m.joueur2_id))continue;
+    actifs.add(m.id); busy.add(m.joueur1_id); busy.add(m.joueur2_id);
+  }
+  return actifs;
+};
+
 // ── MODAL SAISIE SCORE ────────────────────────────────────────────────────────
 const MatchModal=({match,joueurs,onSave,onClose})=>{
   const j1=joueurs.find(j=>j.id===match.joueur1_id);
@@ -327,6 +344,7 @@ const PoolConfigModal=({nbJoueurs,onValider,onClose,saving})=>{
   const reco=[3,4,5].map(t=>({t,...evalTaillePoule(nbJoueurs,t)})).sort((a,b)=>(a.exempts-b.exempts)||(b.q-a.q))[0].t;
   const [taille,setTaille]=useState(reco);
   const [manches,setManches]=useState(2);
+  const [cibles,setCibles]=useState(2);
   const ev=evalTaillePoule(nbJoueurs,taille);
   const base=Math.floor(nbJoueurs/ev.np), reste=nbJoueurs%ev.np;
   const apercu=reste===0?`${ev.np} poule${ev.np>1?"s":""} de ${base} joueurs`:`${ev.np} poules de ${base} à ${base+1} joueurs`;
@@ -357,8 +375,15 @@ const PoolConfigModal=({nbJoueurs,onValider,onClose,saving})=>{
           {clean?"✅ Tout le monde joue son 1er match (aucun exempt)":`⚠️ ${ev.exempts} joueur(s) exempté(s) — choisis un réglage ✅ pour que tout le monde joue`}
         </div>
         <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Manches par match <span style={{color:CT.muted,fontWeight:500}}>(premier à…)</span></div>
-        <div style={{display:"flex",gap:6,marginBottom:22}}>{[1,2,3,4,5].map(m=>opt(m,manches===m,setManches))}</div>
-        <Btn onClick={()=>onValider(taille,manches)} disabled={saving} style={{width:"100%",fontSize:15,padding:"13px"}}>{saving?"Lancement…":"✅ Valider et lancer les poules"}</Btn>
+        <div style={{display:"flex",gap:6,marginBottom:16}}>{[1,2,3,4,5].map(m=>opt(m,manches===m,setManches))}</div>
+        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Cibles disponibles <span style={{color:CT.muted,fontWeight:500}}>(jeux de fléchettes)</span></div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:16,marginBottom:8}}>
+          <button onClick={()=>setCibles(c=>Math.max(1,c-1))} style={{width:42,height:42,borderRadius:12,border:`1px solid ${CT.border}`,background:CT.card,color:CT.text,fontSize:22,fontWeight:800,cursor:"pointer",touchAction:"manipulation"}}>−</button>
+          <span style={{fontWeight:800,fontSize:26,color:CT.accent,minWidth:36,textAlign:"center"}}>{cibles}</span>
+          <button onClick={()=>setCibles(c=>Math.min(12,c+1))} style={{width:42,height:42,borderRadius:12,border:`1px solid ${CT.border}`,background:CT.card,color:CT.text,fontSize:22,fontWeight:800,cursor:"pointer",touchAction:"manipulation"}}>+</button>
+        </div>
+        <div style={{fontSize:11.5,color:CT.muted,textAlign:"center",marginBottom:20,lineHeight:1.4}}>🎯 L'appli allumera en vert {cibles===1?"le match":`jusqu'à ${cibles} matchs`} à jouer en même temps (un par cible), pour que personne n'attende trop. Réglable pendant le tournoi.</div>
+        <Btn onClick={()=>onValider(taille,manches,cibles)} disabled={saving} style={{width:"100%",fontSize:15,padding:"13px"}}>{saving?"Lancement…":"✅ Valider et lancer les poules"}</Btn>
         <button onClick={onClose} style={{width:"100%",marginTop:8,background:"none",border:"none",color:CT.muted,fontSize:13,cursor:"pointer",padding:8}}>Annuler</button>
       </div>
     </div>
@@ -573,12 +598,16 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
 };
 
 // ── VUE POULES ────────────────────────────────────────────────────────────────
-const PoulesView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,onLancerEliminatoires})=>{
+const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires})=>{
   const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
   const groupes=Array.from({length:nbGroupes},(_,i)=>i+1);
   const termines=matchs.filter(m=>m.phase==="poules"&&m.statut==="termine");
   const total=matchs.filter(m=>m.phase==="poules").length;
   const allDone=total>0&&termines.length===total;
+  // Planning des cibles : quels matchs jouer maintenant (vert) vs en attente
+  const pending=matchs.filter(m=>m.phase==="poules"&&m.statut!=="termine"&&m.joueur1_id&&m.joueur2_id);
+  const actifs=matchsSurCibles(pending,nbCibles,matchs);
+  const enAttente=Math.max(0,pending.length-actifs.size);
 
   return(
     <div>
@@ -591,6 +620,19 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,
         <div style={{background:"#111",borderRadius:6,height:8,overflow:"hidden"}}>
           <div style={{background:allDone?CT.green:CT.accent,height:"100%",width:`${total?termines.length/total*100:0}%`,transition:"width .4s",borderRadius:6}}/>
         </div>
+        {!allDone&&(
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginTop:12,paddingTop:12,borderTop:`1px solid ${CT.border}`,flexWrap:"wrap"}}>
+            <span style={{fontSize:13,fontWeight:600,color:CT.text,display:"inline-flex",alignItems:"center",gap:6}}><EmoIcon e="🎯" size={14}/>Cibles disponibles</span>
+            {isCreateur&&onSetCibles?(
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <button onClick={()=>onSetCibles(nbCibles-1)} style={{width:32,height:32,borderRadius:9,border:`1px solid ${CT.border}`,background:CT.card,color:CT.text,fontSize:18,fontWeight:800,cursor:"pointer",touchAction:"manipulation"}}>−</button>
+                <span style={{fontWeight:800,fontSize:18,minWidth:24,textAlign:"center",color:CT.accent}}>{nbCibles}</span>
+                <button onClick={()=>onSetCibles(nbCibles+1)} style={{width:32,height:32,borderRadius:9,border:`1px solid ${CT.border}`,background:CT.card,color:CT.text,fontSize:18,fontWeight:800,cursor:"pointer",touchAction:"manipulation"}}>+</button>
+              </div>
+            ):<span style={{fontWeight:800,fontSize:16,color:CT.accent}}>{nbCibles}</span>}
+          </div>
+        )}
+        {!allDone&&<div style={{marginTop:10,fontSize:12.5,textAlign:"center"}}><span style={{color:CT.green,fontWeight:800}}>🟢 {actifs.size} à jouer maintenant</span>{enAttente>0&&<span style={{color:CT.muted}}> · ⏳ {enAttente} en attente</span>}</div>}
       </Card>
 
       {/* Groups */}
@@ -615,23 +657,34 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,
             {/* Matchs du groupe */}
             <div style={{borderTop:`1px solid ${CT.border}`,paddingTop:12}}>
               <div style={{fontSize:11,color:CT.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Matchs</div>
-              {mG.map(m=>{
+              {[...mG].sort((a,b)=>{
+                const rk=(m)=>m.statut==="termine"?2:(actifs.has(m.id)?0:1);
+                return rk(a)-rk(b);
+              }).map(m=>{
                 const j1=joueurs.find(j=>j.id===m.joueur1_id);
                 const j2=joueurs.find(j=>j.id===m.joueur2_id);
                 const done=m.statut==="termine";
+                const actif=!done&&actifs.has(m.id);
+                const attente=!done&&!actif;
                 return(
-                  <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:`1px solid ${CT.border+"44"}`}}>
+                  <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,marginBottom:4,
+                    background:actif?CT.green+"14":"transparent",
+                    border:`1px solid ${actif?CT.green+"66":"transparent"}`,
+                    borderBottom:actif?`1px solid ${CT.green+"66"}`:`1px solid ${CT.border+"44"}`,
+                    opacity:attente?0.6:1}}>
                     <span style={{flex:1,fontSize:13,fontWeight:done&&m.gagnant_id===j1?.id?700:400,color:done&&m.gagnant_id===j1?.id?CT.green:CT.text}}>{j1?.nom||"?"}</span>
                     <span style={{fontWeight:800,fontSize:15,minWidth:40,textAlign:"center",color:done?CT.text:CT.muted}}>
                       {done?`${m.score1}–${m.score2}`:"vs"}
                     </span>
                     <span style={{flex:1,fontSize:13,fontWeight:done&&m.gagnant_id===j2?.id?700:400,color:done&&m.gagnant_id===j2?.id?CT.green:CT.text,textAlign:"right"}}>{j2?.nom||"?"}</span>
-                    {!done&&(
+                    {actif&&(
                       <div style={{display:"flex",gap:6}}>
                         <Btn onClick={()=>onJouerMatch(m)} variant="primary" small>▶ Jouer</Btn>
-                        <Btn onClick={()=>onSaisirScore(m)} variant="dark" small><EmoIcon e="✏️" size={13}/></Btn>
+                        {isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small><EmoIcon e="✏️" size={13}/></Btn>}
                       </div>
                     )}
+                    {attente&&<span style={{fontSize:10.5,color:CT.muted,fontWeight:600,whiteSpace:"nowrap"}}>⏳ en attente</span>}
+                    {attente&&isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small><EmoIcon e="✏️" size={13}/></Btn>}
                     {done&&<Badge color={CT.green}><EmoIcon e="✅" size={12}/></Badge>}
                   </div>
                 );
@@ -883,6 +936,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   const [loading,setLoading]=useState(true);
   const [matchModal,setMatchModal]=useState(null);
   const [saving,setSaving]=useState(false);
+  const [cibles,setCibles]=useState(2);
   const pollRef=useRef(null);
 
   const reload=useCallback(async()=>{
@@ -902,10 +956,20 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     return()=>clearInterval(pollRef.current);
   },[reload]);
 
+  // Synchronise le nb de cibles depuis le serveur (si la colonne existe)
+  useEffect(()=>{ if(tournoi&&typeof tournoi.nb_cibles==="number"&&tournoi.nb_cibles>0)setCibles(tournoi.nb_cibles); },[tournoi?.nb_cibles]);
+  // Change le nb de cibles (optimiste + persistance serveur si possible)
+  const changerCibles=async(n)=>{
+    const v=Math.max(1,Math.min(12,n));
+    setCibles(v);
+    setTournoi(t=>t?{...t,nb_cibles:v}:t);
+    try{ await dbTP.updateTournoi(tournoiId,{nb_cibles:v}); }catch(e){ /* colonne nb_cibles pas encore créée : on garde l'état local */ }
+  };
+
   const isCreateur=joueurConnecte&&tournoi&&tournoi.createur_id===joueurConnecte.id;
 
   // ── Lancer le tournoi (phase poules)
-  const lancerTournoi=async(poolSize=4,poolManches=2)=>{
+  const lancerTournoi=async(poolSize=4,poolManches=2,nbCibles=2)=>{
     if(joueurs.length<2)return;
     setSaving(true);
     try{
@@ -924,6 +988,8 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       }
       if(allMatchs.length>0)await dbTP.addMatchs(allMatchs);
       await dbTP.updateTournoi(tournoiId,{statut:"poules"});
+      setCibles(nbCibles);
+      try{ await dbTP.updateTournoi(tournoiId,{nb_cibles:nbCibles}); }catch(e){ /* colonne nb_cibles pas encore créée */ }
       setShowPoolConfig(false);
       await reload();
     }catch(e){alert("Erreur : "+e.message);}
@@ -1112,6 +1178,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       {showPoolConfig&&<PoolConfigModal nbJoueurs={joueurs.length} saving={saving} onValider={lancerTournoi} onClose={()=>setShowPoolConfig(false)}/>}
       {tournoi.statut==="poules"&&(
         <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} isCreateur={isCreateur}
+          nbCibles={cibles} onSetCibles={changerCibles}
           onSaisirScore={m=>setMatchModal(m)}
           onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
           onLancerEliminatoires={()=>setShowBracketConfig(true)}/>
