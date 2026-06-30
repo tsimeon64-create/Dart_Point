@@ -565,6 +565,7 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
 // ── MON PROFIL ────────────────────────────────────────────────────────────────
 export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setBarSlug, demandesAmisCount=0 }) => {
   const [stats, setStats]         = useState(null);
+  const [onglet, setOnglet]       = useState("stats"); // onglet actif : stats | amis | badges | historique
   const [duels, setDuels]         = useState([]);
   const [drixMvts, setDrixMvts]   = useState([]);
   const [classement, setClassement] = useState(null);
@@ -1066,25 +1067,29 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       {/* ⭐ Niveau XP + barre (échangé avec la progression de rang) */}
       <XpBlock xp={joueur.xp || 0} />
 
-      {/* ── NAV RAPIDE : Stats · Amis · Badges · Historique ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, marginBottom:14 }}>
+      {/* ── ONGLETS : Stats · Amis · Badges · Historique (le haut reste fixe ; le contenu change dessous ; barre collante) ── */}
+      <div style={{ position:"sticky", top:0, zIndex:6, background:"#0f0f0f", display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, padding:"8px 0 10px", marginBottom:6 }}>
         {[
-          { icon:<BarChart2 size={15}/>, label:"Stats",      action:()=>setPage("profil-stats"),      color:CJ.blue },
-          { icon:<Users size={15}/>,     label:"Amis",       action:()=>setPage("profil-amis"),       color:CJ.green,  badge:demandesAmisCount },
-          { icon:<Medal size={15}/>,     label:"Badges",     action:()=>{ const n=badgeCount; localStorage.setItem(BADGES_SEEN_KEY,String(n)); setBadgesSeen(n); setPage("profil-badges"); }, color:CJ.yellow, badge:newBadgesCount },
-          { icon:<Clock size={15}/>,     label:"Historique", action:()=>setPage("profil-historique"), color:CJ.accent },
-        ].map(({ icon, label, action, color: col, badge }) => (
-          <button key={label} onClick={action}
-            style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"center", gap:5, background:"#ffffff07", border:`1px solid ${CJ.border}`, borderRadius:10, padding:"9px 4px", cursor:"pointer", touchAction:"manipulation", transition:"all .15s", minWidth:0 }}
-            onMouseEnter={e=>{ e.currentTarget.style.borderColor=col; e.currentTarget.style.background=col+"12"; }}
-            onMouseLeave={e=>{ e.currentTarget.style.borderColor=CJ.border; e.currentTarget.style.background="#ffffff07"; }}>
+          { key:"stats",      icon:<BarChart2 size={15}/>, label:"Stats",      color:CJ.blue },
+          { key:"amis",       icon:<Users size={15}/>,     label:"Amis",       color:CJ.green,  badge:demandesAmisCount },
+          { key:"badges",     icon:<Medal size={15}/>,     label:"Badges",     color:CJ.yellow, badge:newBadgesCount },
+          { key:"historique", icon:<Clock size={15}/>,     label:"Historique", color:CJ.accent },
+        ].map(({ key, icon, label, color: col, badge }) => {
+          const actif = onglet === key;
+          return (
+          <button key={key} onClick={()=>{ if(key==="badges"){ const n=badgeCount; localStorage.setItem(BADGES_SEEN_KEY,String(n)); setBadgesSeen(n); } setOnglet(key); }}
+            style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"center", gap:5, background: actif ? col+"22" : "#ffffff07", border:`1px solid ${actif ? col : CJ.border}`, borderRadius:10, padding:"9px 4px", cursor:"pointer", touchAction:"manipulation", transition:"all .15s", minWidth:0 }}>
+            {actif && <span style={{ position:"absolute", top:0, left:"50%", transform:"translateX(-50%)", width:22, height:3, borderRadius:"0 0 3px 3px", background:col }}/>}
             <span style={{ color:col, display:"flex", flexShrink:0 }}>{icon}</span>
-            <span style={{ fontSize:11, fontWeight:700, color:CJ.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{label}</span>
+            <span style={{ fontSize:11, fontWeight: actif?800:600, color: actif?col:CJ.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{label}</span>
             {badge > 0 && <span style={{ position:"absolute", top:-5, right:-5, background:CJ.green, color:"#fff", borderRadius:"50%", minWidth:16, height:16, padding:"0 3px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:900, border:"2px solid #0f0f0f" }}>{badge>9?"9+":badge}</span>}
           </button>
-        ))}
+          );
+        })}
       </div>
 
+      {/* ═══ ONGLET STATS : analyse + tournois + affiliations + compte ═══ */}
+      {onglet === "stats" && (<>
       {/* ── ANALYSE COMPLÈTE (auto-scouting, façon fiche adversaire) ── */}
       <JoueurAnalyse j={joueur} stats={stats} duels={duels} drixMvts={drixMvts}/>
 
@@ -1228,6 +1233,12 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
           🗑️ Supprimer mon compte
         </button>
       </div>
+      </>)}
+
+      {/* ═══ AUTRES ONGLETS (contenu sous la barre) ═══ */}
+      {onglet === "amis"       && <div style={{ marginTop:2 }}><AmiSection joueur={joueur} setPage={setPage}/></div>}
+      {onglet === "badges"     && <PageProfilBadges joueur={joueur} setPage={setPage} embedded/>}
+      {onglet === "historique" && <PageProfilHistorique joueur={joueur} setPage={setPage} embedded/>}
 
     </div>
   );
@@ -1516,7 +1527,7 @@ export const PageProfilAmis = ({ joueur, setPage }) => (
 );
 
 // ── PAGE HISTORIQUE ────────────────────────────────────────────────────────────
-export const PageProfilHistorique = ({ joueur, setPage }) => {
+export const PageProfilHistorique = ({ joueur, setPage, embedded = false }) => {
   const [duels, setDuels]       = useState([]);
   const [drixMvtMap, setDrixMvtMap] = useState({});
   const [loading, setLoading]   = useState(true);
@@ -1539,8 +1550,8 @@ export const PageProfilHistorique = ({ joueur, setPage }) => {
   const termines = duels.filter(d => d.statut === "termine");
 
   return (
-    <div style={{ maxWidth:860, margin:"0 auto", padding:"16px 16px 40px" }}>
-      <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}><ArrowLeft size={16}/> Retour au profil</button>
+    <div style={embedded ? {} : { maxWidth:860, margin:"0 auto", padding:"16px 16px 40px" }}>
+      {!embedded && <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}><ArrowLeft size={16}/> Retour au profil</button>}
       <h1 style={{ fontWeight:900, fontSize:22, marginBottom:4, display:"flex", alignItems:"center", gap:8 }}><Clock size={20} color={CJ.accent}/>Historique</h1>
       <p style={{ color:CJ.muted, fontSize:13, marginBottom:20 }}>{termines.length} duel{termines.length>1?"s":""} terminé{termines.length>1?"s":""}</p>
       <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:18 }}>
@@ -1752,7 +1763,7 @@ export const BadgeVisual = ({ b, size = 42, fill = false, unlocked = true }) => 
       : { width: size, height: size, objectFit: "contain", display: "block", filter: fil }}/>;
 };
 
-export const PageProfilBadges = ({ joueur, setPage }) => {
+export const PageProfilBadges = ({ joueur, setPage, embedded = false }) => {
   const [stats, setStats]   = useState(null);
   const [duels, setDuels]   = useState([]);
   const [drixMvts, setDrixMvts] = useState([]);
@@ -1843,15 +1854,15 @@ export const PageProfilBadges = ({ joueur, setPage }) => {
   const globalPct = Math.round((totalUnlocked / ALL_BADGES.length) * 100);
 
   return (
-    <div style={{ maxWidth: 600, margin: "0 auto", padding: "16px 16px 40px" }}>
+    <div style={embedded ? {} : { maxWidth: 600, margin: "0 auto", padding: "16px 16px 40px" }}>
 
       {/* Bouton retour — ArrowLeft SVG (design system) */}
-      <button onClick={() => window.history.back()}
+      {!embedded && <button onClick={() => window.history.back()}
         style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 14, marginBottom: 20, display: "flex", alignItems: "center", gap: 6, touchAction: "manipulation", padding: 0 }}
         onMouseEnter={e => e.currentTarget.style.color = "#f1f5f9"}
         onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}>
         <ArrowLeft size={16}/> Retour au profil
-      </button>
+      </button>}
 
       {/* En-tête */}
       <h1 style={{ fontWeight: 900, fontSize: 24, marginBottom: 4 }}>🏅 Mes badges</h1>
