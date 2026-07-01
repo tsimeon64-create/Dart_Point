@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import QRCode from "qrcode";
 import { Scoreur } from "./AppJeux";
 import { EmoIcon, EmoText } from "./icons";
 
@@ -367,6 +368,48 @@ const QRScanModal=({onAdd,dejaIds,onClose})=>{
   );
 };
 
+// ── Scanner le QR d'un TOURNOI (pour le rejoindre) ──
+const ScanTournoiModal=({onScan,onClose})=>{
+  const [feedback,setFeedback]=useState("");
+  const [erreurCam,setErreurCam]=useState("");
+  const lockRef=useRef(0);
+  useEffect(()=>{
+    let qr,stopped=false;
+    (async()=>{
+      try{
+        const {Html5Qrcode}=await import("html5-qrcode");
+        if(stopped)return;
+        qr=new Html5Qrcode("qr-reader-tournoi");
+        await qr.start({facingMode:"environment"},{fps:10,qrbox:{width:230,height:230}},
+          (decoded)=>{
+            const now=Date.now(); if(now-lockRef.current<1500)return; lockRef.current=now;
+            const m=String(decoded).match(/#t=([0-9a-fA-F-]{6,})/);
+            const id=m?m[1]:null;
+            if(!id){ setFeedback("⚠️ Ce n'est pas un QR de tournoi DartPoint"); return; }
+            setFeedback("✅ Tournoi trouvé — ouverture…");
+            setTimeout(()=>onScan(id),400);
+          },
+          ()=>{}
+        );
+      }catch(e){ setErreurCam("Caméra inaccessible — autorise l'accès à la caméra dans ton navigateur, puis réessaie."); }
+    })();
+    return()=>{ stopped=true; if(qr){ try{ qr.stop().then(()=>qr.clear()).catch(()=>{}); }catch(e){} } };
+  },[]); // eslint-disable-line
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000000ee",zIndex:99999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#15151c",border:`1px solid ${CT.border}`,borderRadius:18,padding:18,maxWidth:380,width:"100%",textAlign:"center"}}>
+        <h3 style={{fontWeight:800,fontSize:17,marginBottom:4,color:"#fff"}}><EmoText s="📷 Scanner un tournoi" size={16}/></h3>
+        <p style={{color:CT.muted,fontSize:12,lineHeight:1.5,marginBottom:12}}>Vise le QR code affiché par l'organisateur pour rejoindre son tournoi.</p>
+        {erreurCam
+          ? <div style={{color:"#fca5a5",fontSize:13,padding:"24px 8px",lineHeight:1.5}}>{erreurCam}</div>
+          : <div id="qr-reader-tournoi" style={{width:"100%",borderRadius:12,overflow:"hidden"}}/>}
+        {feedback&&<div style={{marginTop:12,fontWeight:700,fontSize:14,color:feedback.startsWith("✅")?CT.green:CT.yellow}}>{feedback}</div>}
+        <button onClick={onClose} style={{marginTop:14,width:"100%",background:CT.accent,color:"#fff",border:"none",borderRadius:10,padding:"12px",fontWeight:800,fontSize:15,cursor:"pointer",touchAction:"manipulation"}}>Fermer</button>
+      </div>
+    </div>
+  );
+};
+
 // ── Réglages des poules (avant lancement) ──
 // Plus petite puissance de 2 ≥ x (taille de tableau)
 const nextPow2=(x)=>Math.max(2,Math.pow(2,Math.ceil(Math.log2(Math.max(2,x)))));
@@ -466,6 +509,8 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
   const lien=`${window.location.origin}${window.location.pathname}#t=${tournoi.id}`;
   const [copied,setCopied]=useState(false);
   const copyLien=()=>{navigator.clipboard.writeText(lien).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});};
+  const [qrTournoi,setQrTournoi]=useState("");
+  useEffect(()=>{ QRCode.toDataURL(lien,{width:220,margin:1,color:{dark:"#000000",light:"#ffffff"}}).then(setQrTournoi).catch(()=>{}); },[lien]);
 
   const amiDejaAjoute=(amiId)=>joueurs.some(j=>j.joueur_id===amiId);
 
@@ -482,6 +527,12 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
           <Btn onClick={copyLien} variant="ghost" small>{copied?<EmoText s="✅ Copié !" size={13}/>:<EmoText s="📋 Copier" size={13}/>}</Btn>
         </div>
         <div style={{marginTop:10,fontSize:12,color:CT.muted}}>Code : <b style={{color:CT.yellow,fontSize:16,letterSpacing:2}}>{tournoi.code}</b></div>
+        {qrTournoi&&(
+          <div style={{marginTop:14,display:"flex",flexDirection:"column",alignItems:"center",gap:6,borderTop:`1px solid ${CT.border}`,paddingTop:14}}>
+            <img src={qrTournoi} alt="QR du tournoi" style={{width:158,height:158,borderRadius:12,background:"#fff",padding:7}}/>
+            <div style={{fontSize:11.5,color:CT.muted,textAlign:"center",lineHeight:1.4}}><EmoIcon e="📷" size={12} style={{verticalAlign:"-1px",marginRight:3}}/>Les joueurs scannent ce QR pour rejoindre le tournoi</div>
+          </div>
+        )}
       </Card>
 
       {/* Inscription par scan QR (option C) */}
@@ -1383,6 +1434,7 @@ export const TournoiPotesPage=({joueur,setPage})=>{
   const [loading,setLoading]=useState(true);
   const [form,setForm]=useState({nom:"",mode:"501",format:"simple"});
   const [creating,setSaving]=useState(false);
+  const [scanOpen,setScanOpen]=useState(false);
 
   useEffect(()=>{
     if(!joueur){setLoading(false);return;}
@@ -1429,7 +1481,9 @@ export const TournoiPotesPage=({joueur,setPage})=>{
         {[["liste","📋 Mes tournois"],["creer","➕ Créer"]].map(([v,l])=>(
           <button key={v} onClick={()=>setVue(v)} style={{background:vue===v?CT.accent+"22":"transparent",color:vue===v?CT.accent:CT.muted,border:`1px solid ${vue===v?CT.accent:CT.border}`,cursor:"pointer",padding:"8px 16px",borderRadius:8,fontSize:13,fontWeight:600}}><EmoText s={l} size={13}/></button>
         ))}
+        <button onClick={()=>setScanOpen(true)} style={{background:"transparent",color:CT.muted,border:`1px solid ${CT.border}`,cursor:"pointer",padding:"8px 16px",borderRadius:8,fontSize:13,fontWeight:600,touchAction:"manipulation"}}><EmoText s="📷 Scanner un tournoi" size={13}/></button>
       </div>
+      {scanOpen&&<ScanTournoiModal onScan={(id)=>{setScanOpen(false);setPage("tournoi-potes-"+id);}} onClose={()=>setScanOpen(false)}/>}
 
       {/* VUE LISTE */}
       {vue==="liste"&&(
