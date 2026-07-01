@@ -11584,8 +11584,9 @@ export default function App() {
     if (!joueur) return;
     const today = new Date().toISOString().split("T")[0];
     const popupKey = `dp_chrono_popup_${today}`;
-    const playedKey = `dp_chrono_${today}`;
-    if (!localStorage.getItem(popupKey) && !localStorage.getItem(playedKey)) {
+    const finishDone = !!localStorage.getItem(`dp_chrono_${today}`);
+    const scoreurDone = localStorage.getItem(`dp_scoreur_locked_${today}`) === "1";
+    if (!localStorage.getItem(popupKey) && !(finishDone && scoreurDone)) {
       localStorage.setItem(popupKey, "1");
       // Récupérer le leader du jour + sa photo
       sb(`chrono_finish_scores?date_jour=eq.${today}&order=temps_ms.asc&limit=1&select=joueur_id,joueur_pseudo,temps_ms`)
@@ -12007,16 +12008,30 @@ export default function App() {
           const t=Math.floor(ms/100); const d=t%10; const s=Math.floor(t/10)%60; const m=Math.floor(t/600);
           return m>0?`${m}:${String(s).padStart(2,"0")}.${d}s`:`${s}.${d}s`;
         };
+        const today = new Date().toISOString().split("T")[0];
+        const finishDone = !!localStorage.getItem(`dp_chrono_${today}`);
+        const scoreurDone = localStorage.getItem(`dp_scoreur_locked_${today}`) === "1";
+        const restants = (finishDone?0:1) + (scoreurDone?0:1);
+        const gameBtn = (done,grad,emoji,titre,desc,target)=>(
+          <button onClick={()=>{ if(done)return; setShowChronoPopup(false); nav(target); }} disabled={done}
+            style={{ width:"100%",background:done?"#ffffff0d":grad,color:done?"#64748b":"#fff",border:done?"1px solid #ffffff14":"none",borderRadius:14,padding:"13px 16px",fontWeight:900,cursor:done?"default":"pointer",touchAction:"manipulation",boxShadow:done?"none":"0 4px 18px #00000055",textAlign:"left",display:"flex",alignItems:"center",gap:12,opacity:done?0.75:1 }}>
+            <span style={{ fontSize:22,flexShrink:0 }}>{done?"✅":emoji}</span>
+            <span style={{ flex:1 }}>
+              <span style={{ display:"block",fontWeight:900,fontSize:15 }}>{titre}</span>
+              <span style={{ display:"block",fontWeight:600,fontSize:11.5,opacity:.85,marginTop:2 }}>{done?"Déjà fait aujourd'hui ✓":desc}</span>
+            </span>
+          </button>
+        );
         return (
           <div style={{ position:"fixed",inset:0,background:"#000000cc",zIndex:1500,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:"0 16px 80px" }} onClick={()=>setShowChronoPopup(false)}>
             <div onClick={e=>e.stopPropagation()} style={{ background:"linear-gradient(135deg,#1a1030,#0f0f20)",border:"2px solid #a78bfa",borderRadius:24,padding:"28px 24px 24px",maxWidth:400,width:"100%",textAlign:"center",boxShadow:"0 24px 64px #000000bb,0 0 40px #a78bfa33",position:"relative" }}>
               <button onClick={()=>setShowChronoPopup(false)} style={{ position:"absolute",top:12,right:14,background:"none",border:"none",color:"#64748b",fontSize:20,cursor:"pointer",lineHeight:1,padding:4,touchAction:"manipulation" }}><X size={18}/></button>
               <div style={{ fontSize:48,marginBottom:10 }}>⏱️</div>
               <div style={{ fontWeight:900,fontSize:20,color:"#a78bfa",marginBottom:8,lineHeight:1.25 }}>
-                Tu n'as pas fait<br/>ton défi quotidien !
+                {restants>=2?<>Tu n'as pas fait<br/>tes défis quotidiens !</>:<>Il te reste<br/>un défi quotidien !</>}
               </div>
               <div style={{ fontSize:14,color:"#94a3b8",lineHeight:1.65,marginBottom:chronoLeader?16:24 }}>
-                Montre à tes amis dartistes que<br/>tu es le meilleur en comptage finish.
+                {restants>=2?<>2 speedruns t'attendent — montre à tes amis<br/>que tu es le plus rapide !</>:<>Termine ton dernier speedrun du jour<br/>et rafle les DRIX !</>}
               </div>
               {chronoLeader && (
                 <div style={{ background:"#ffffff0d",border:"1px solid #f59e0b55",borderRadius:14,padding:"12px 16px",marginBottom:20 }}>
@@ -12034,10 +12049,10 @@ export default function App() {
                   </div>
                 </div>
               )}
-              <button onClick={()=>{ setShowChronoPopup(false); nav("chrono-finish"); }}
-                style={{ width:"100%",background:"linear-gradient(135deg,#a78bfa,#7c3aed)",color:"#fff",border:"none",borderRadius:14,padding:"16px",fontWeight:900,fontSize:16,cursor:"pointer",touchAction:"manipulation",boxShadow:"0 4px 20px #a78bfa55" }}>
-                <EmoIcon e="🎯" size={16} style={{verticalAlign:"-2px",marginRight:6}}/>Jouer maintenant
-              </button>
+              <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+                {gameBtn(finishDone,"linear-gradient(135deg,#a78bfa,#7c3aed)","⏱","Finish Speedrun","5 finishes le plus vite possible","chrono-finish")}
+                {gameBtn(scoreurDone,"linear-gradient(135deg,#60a5fa,#2563eb)","⚡","Scoreur Speedrun","501 → 0 en calcul mental","chrono-scoreur")}
+              </div>
             </div>
           </div>
         );
