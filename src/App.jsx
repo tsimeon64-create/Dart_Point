@@ -11435,6 +11435,9 @@ const HELP_CONTENT = {
 
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("dp_onboarding_done"));
+  // Tournoi actif (pour le bouton flottant "Reprendre le tournoi")
+  const [activeTournoi, setActiveTournoi] = useState(null);
+  useEffect(() => { try { setActiveTournoi(JSON.parse(localStorage.getItem("dp_active_tournoi") || "null")); } catch(e) { setActiveTournoi(null); } }, [page]);
   const [page,setPage]=useState("home");
   // Expose setPage globally so child modules (AppJoueurs CGU links) can navigate
   window.setPageGlobal = (p) => nav(p);
@@ -12295,6 +12298,17 @@ export default function App() {
         </ErrorBoundary>
       </main>
       <Footer setPage={nav} onOpenHelp={HELP_CONTENT[page] ? ()=>setHelpOpen(true) : null}/>
+
+      {/* ── Bouton flottant : reprendre le tournoi en cours ── */}
+      {activeTournoi && !isGamePage(page) && page !== "tournoi-potes-"+activeTournoi.id && page !== "tournoi-live-"+activeTournoi.id && (
+        <div style={{ position:"fixed", left:"50%", transform:"translateX(-50%)", bottom: joueur ? "calc(58px + env(safe-area-inset-bottom) + 12px)" : "calc(env(safe-area-inset-bottom) + 16px)", zIndex:250, display:"flex", alignItems:"stretch", maxWidth:"calc(100% - 24px)", boxShadow:"0 8px 28px #000000bb", borderRadius:26, overflow:"hidden", border:"1px solid #f9731566" }}>
+          <button onClick={()=>nav("tournoi-potes-"+activeTournoi.id)} style={{ background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", border:"none", padding:"11px 18px", fontWeight:800, fontSize:14, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:8, touchAction:"manipulation", overflow:"hidden" }}>
+            <span style={{ fontSize:16, flexShrink:0 }}>🏆</span>
+            <span style={{ whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:220 }}>Reprendre : {activeTournoi.nom}</span>
+          </button>
+          <button onClick={()=>{ try{localStorage.removeItem("dp_active_tournoi");}catch(e){} setActiveTournoi(null); }} aria-label="Masquer" style={{ background:"#c2410c", color:"#fff", border:"none", borderLeft:"1px solid #ffffff33", padding:"0 13px", cursor:"pointer", fontSize:15, fontWeight:700, touchAction:"manipulation", flexShrink:0 }}>✕</button>
+        </div>
+      )}
 
       {/* ── Barre de navigation fixe (mobile), style Dart Point ── */}
       {joueur && !isGamePage(page) && (<>

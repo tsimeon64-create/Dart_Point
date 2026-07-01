@@ -1316,6 +1316,18 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
 
   // Synchronise le nb de cibles depuis le serveur (si la colonne existe)
   useEffect(()=>{ if(tournoi&&typeof tournoi.nb_cibles==="number"&&tournoi.nb_cibles>0)setCibles(tournoi.nb_cibles); },[tournoi?.nb_cibles]);
+  // Mémorise le tournoi actif (pour le bouton flottant "Reprendre le tournoi") — effacé quand il est terminé
+  useEffect(()=>{
+    if(!tournoi)return;
+    try{
+      if(tournoi.statut==="termine"){
+        const cur=JSON.parse(localStorage.getItem("dp_active_tournoi")||"null");
+        if(cur&&cur.id===tournoiId)localStorage.removeItem("dp_active_tournoi");
+      }else{
+        localStorage.setItem("dp_active_tournoi",JSON.stringify({id:tournoiId,nom:tournoi.nom||"Tournoi"}));
+      }
+    }catch(e){}
+  },[tournoi?.statut,tournoi?.nom,tournoiId]);
   // Change le nb de cibles (optimiste + persistance serveur si possible)
   const changerCibles=async(n)=>{
     const v=Math.max(1,Math.min(12,n));
