@@ -11607,7 +11607,7 @@ export default function App() {
     const hash=window.location.hash;
     if(hash.startsWith("#t=")){
       const tid=hash.replace("#t=","");
-      if(tid)nav("tournoi-potes-"+tid);
+      if(tid){ setShowOnboarding(false); nav("tournoi-potes-"+tid); } // invité : on saute l'onboarding pour aller direct au tournoi
       window.history.replaceState(null,"",window.location.pathname);
     }
   },[]);

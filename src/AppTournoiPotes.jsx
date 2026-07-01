@@ -514,26 +514,30 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
 
   const amiDejaAjoute=(amiId)=>joueurs.some(j=>j.joueur_id===amiId);
 
-  // Inscription (rejoindre) — surtout pour la doublette
+  // Inscription (rejoindre) — marche avec OU sans compte (invité)
   const isDoublette=tournoi.format==="doublette";
-  const isParticipant=!!joueurConnecte&&joueurs.some(j=>j.joueur_id===joueurConnecte.id||(Array.isArray(j.membres)&&j.membres.some(m=>m&&m.id===joueurConnecte.id)));
-  const peutRejoindre=!!joueurConnecte&&!isParticipant;
+  const estConnecte=!!joueurConnecte;
+  const isParticipant=estConnecte&&joueurs.some(j=>j.joueur_id===joueurConnecte.id||(Array.isArray(j.membres)&&j.membres.some(m=>m&&m.id===joueurConnecte.id)));
+  const peutRejoindre=!isParticipant; // invité (sans compte) OU joueur connecté non encore inscrit
   const [teamName,setTeamName]=useState("");
+  const [j1Name,setJ1Name]=useState("");       // nom du membre 1 pour un invité (sans compte)
   const [binomeName,setBinomeName]=useState("");
   const [binomeId,setBinomeId]=useState(null);
   const [amiPickerOpen,setAmiPickerOpen]=useState(false);
   const [amiSearch,setAmiSearch]=useState("");
   const [rejoining,setRejoining]=useState(false);
-  const rejoindreValide=isDoublette?(!!teamName.trim()&&!!binomeName.trim()):true;
+  const membre1Nom=estConnecte?joueurConnecte.pseudo:j1Name.trim();
+  const rejoindreValide=isDoublette?(!!membre1Nom&&!!binomeName.trim()&&!!teamName.trim()):!!membre1Nom;
   const handleRejoindre=async()=>{
-    if(!joueurConnecte||!rejoindreValide)return;
+    if(!rejoindreValide)return;
     setRejoining(true);
     try{
+      const monId=joueurConnecte?.id||null;
       if(isDoublette){
-        const membres=[{nom:joueurConnecte.pseudo,id:joueurConnecte.id},{nom:binomeName.trim(),id:binomeId||null}];
-        await onRejoindre({nom:teamName.trim(),joueur_id:joueurConnecte.id,membres});
+        const membres=[{nom:membre1Nom,id:monId},{nom:binomeName.trim(),id:binomeId||null}];
+        await onRejoindre({nom:teamName.trim(),joueur_id:monId,membres});
       }else{
-        await onRejoindre({nom:joueurConnecte.pseudo,joueur_id:joueurConnecte.id,membres:null});
+        await onRejoindre({nom:membre1Nom,joueur_id:monId,membres:null});
       }
     }finally{ setRejoining(false); }
   };
@@ -544,14 +548,19 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
       {peutRejoindre&&(
         <Card style={{marginBottom:16,background:CT.accent+"11",border:`1px solid ${CT.accent}66`}}>
           <h3 style={{fontWeight:800,fontSize:16,marginBottom:4,color:CT.accent,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🙋" size={16}/>Rejoindre le tournoi</h3>
-          <p style={{fontSize:12.5,color:CT.muted,marginBottom:14}}>{isDoublette?"Tournoi en doublette — inscris ton équipe (2 joueurs).":"Inscris-toi à ce tournoi."}</p>
-          <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:"#111",borderRadius:8,marginBottom:isDoublette?12:14}}>
-            <EmoIcon e="👤" size={18} color={CT.accent}/>
-            <span style={{flex:1,fontWeight:600,fontSize:14}}>{joueurConnecte.pseudo}</span>
-            <Badge color={CT.blue}>Toi</Badge>
-          </div>
+          <p style={{fontSize:12.5,color:CT.muted,marginBottom:14}}>{isDoublette?"Tournoi en doublette — inscris ton équipe (2 joueurs).":"Inscris-toi à ce tournoi."}{!estConnecte&&" Pas besoin de compte."}</p>
+          {estConnecte
+            ? <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:"#111",borderRadius:8,marginBottom:isDoublette?12:14}}>
+                <EmoIcon e="👤" size={18} color={CT.accent}/>
+                <span style={{flex:1,fontWeight:600,fontSize:14}}>{joueurConnecte.pseudo}</span>
+                <Badge color={CT.blue}>Toi</Badge>
+              </div>
+            : <div style={{marginBottom:isDoublette?12:14}}>
+                <label style={{fontSize:12.5,color:CT.muted,fontWeight:600,display:"block",marginBottom:6}}>{isDoublette?"Joueur 1 (toi)":"Ton nom"}</label>
+                <input value={j1Name} onChange={e=>setJ1Name(e.target.value)} placeholder={isDoublette?"Nom du joueur 1…":"Ton nom…"} style={{width:"100%",background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:"9px 13px",color:CT.text,fontSize:14}}/>
+              </div>}
           {isDoublette&&(<>
-            <label style={{fontSize:12.5,color:CT.muted,fontWeight:600,display:"block",marginBottom:6}}>Ton binôme</label>
+            <label style={{fontSize:12.5,color:CT.muted,fontWeight:600,display:"block",marginBottom:6}}>{estConnecte?"Ton binôme":"Joueur 2"}</label>
             <div style={{display:"flex",gap:8,marginBottom:8}}>
               <input value={binomeName} onChange={e=>{setBinomeName(e.target.value);setBinomeId(null);}} placeholder="Nom du binôme…" style={{flex:1,background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:"9px 13px",color:CT.text,fontSize:14}}/>
               {amis.length>0&&<Btn onClick={()=>setAmiPickerOpen(v=>!v)} variant="ghost" small><EmoIcon e="🔍" size={13} style={{verticalAlign:"-2px",marginRight:3}}/>Amis</Btn>}
