@@ -861,6 +861,32 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer})=>{
   // MVP = joueur avec le plus de victoires
   const mvp=[...joueurs].sort((a,b)=>b.victoires-a.victoires)[0];
 
+  // Palmarès du MVP : meilleure moyenne, plus gros finish, nb de 180 — depuis ses duels 1v1 (si joueur inscrit)
+  const [palmares,setPalmares]=useState(null);
+  useEffect(()=>{
+    const jid=mvp?.joueur_id;
+    if(!jid){ setPalmares(null); return; }
+    let annule=false;
+    sbTP(`duels?or=(challenger_id.eq.${jid},defie_id.eq.${jid})&select=statut,challenger_id,challenger_pseudo,defie_pseudo,score_challenger,score_defie,manches_detail`)
+      .then(rows=>{
+        if(annule||!rows)return;
+        const termines=rows.filter(d=>d.statut==="termine");
+        const moys=termines.map(d=>parseFloat(d.challenger_id===jid?d.score_challenger:d.score_defie)).filter(s=>!isNaN(s)&&s>0);
+        let nb180=0,plusGrosFinish=0;
+        termines.forEach(d=>{
+          const monPseudo=d.challenger_id===jid?(d.challenger_pseudo||mvp.nom):(d.defie_pseudo||mvp.nom);
+          (d.manches_detail||[]).forEach(m=>{
+            const isW=m.winner===monPseudo||m.winner===mvp.nom;
+            nb180+=isW?(m.winner_180||0):(m.loser_180||0);
+            if(isW)plusGrosFinish=Math.max(plusGrosFinish,m.winner_finish||0);
+          });
+        });
+        setPalmares({moyenne:moys.length?Math.max(...moys):null,finish:plusGrosFinish,nb180});
+      }).catch(()=>{ if(!annule)setPalmares(null); });
+    return()=>{ annule=true; };
+  },[mvp?.joueur_id]);
+  const hasPalmares=!!palmares&&(palmares.moyenne!=null||palmares.finish>0||palmares.nb180>0);
+
   // Best stats
   const bestPoules=rankGroup(joueurs)[0];
 
@@ -923,7 +949,7 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer})=>{
       {/* MVP */}
       {mvp&&(
         <Card style={{marginBottom:16,background:"#a78bfa11",border:`1px solid ${CT.purple}44`}}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:hasPalmares?14:0}}>
             <EmoIcon e="⭐" size={32} color="#fbbf24" fill="#fbbf24"/>
             <div>
               <div style={{fontWeight:700,fontSize:15,color:CT.purple}}>MVP du tournoi</div>
@@ -931,6 +957,24 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer})=>{
               <div style={{fontSize:12,color:CT.muted}}>{mvp.victoires} victoires · {mvp.points} points</div>
             </div>
           </div>
+          {hasPalmares&&(
+            <>
+              <div style={{fontSize:10,color:CT.muted,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:8,borderTop:`1px solid ${CT.purple}33`,paddingTop:12}}><EmoText s="🏅 Palmarès (carrière)" size={10}/></div>
+              <div style={{display:"flex",gap:8}}>
+                {[
+                  {e:"🎯",l:"Meilleure moyenne",v:palmares.moyenne!=null?palmares.moyenne.toFixed(1):"—"},
+                  {e:"🏁",l:"Plus gros finish",v:palmares.finish>0?palmares.finish:"—"},
+                  {e:"💥",l:"Nombre de 180",v:palmares.nb180||0},
+                ].map((s,i)=>(
+                  <div key={i} style={{flex:1,background:"#ffffff08",border:`1px solid ${CT.border}`,borderRadius:10,padding:"10px 4px",textAlign:"center"}}>
+                    <EmoIcon e={s.e} size={16}/>
+                    <div style={{fontWeight:900,fontSize:18,color:CT.purple,margin:"2px 0"}}>{s.v}</div>
+                    <div style={{fontSize:9.5,color:CT.muted,lineHeight:1.2}}>{s.l}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </Card>
       )}
 
