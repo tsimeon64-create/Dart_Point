@@ -11750,7 +11750,7 @@ export default function App() {
   const [pendingNav, setPendingNav] = useState(null);
   const isGamePage = (p) =>
     p === "jeux-capital" || p === "scoreur" || p === "scoreur-bot" || p === "scoreur-libre" || p === "scoreur-doublette" ||
-    p === "cricket-config" || p === "rush-mode" || p === "chrono-finish" ||
+    p === "cricket-config" || p === "rush-mode" || p === "chrono-finish" || p === "entrainement-finish" ||
     p === "chrono-scoreur" || p === "horloge-double" ||
     p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-");
 
