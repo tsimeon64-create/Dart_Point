@@ -205,10 +205,30 @@ const avancerApresMatch=async(match,gagnant_id,allMatchs)=>{
 };
 
 // Sort joueurs by ranking in a group
-const rankGroup=(joueurs)=>[...joueurs].sort((a,b)=>{
+const rankGroup=(joueurs,barrages=[])=>[...joueurs].sort((a,b)=>{
   if(b.points!==a.points)return b.points-a.points;
-  return(b.manches_pour-b.manches_contre)-(a.manches_pour-a.manches_contre);
+  const da=a.manches_pour-a.manches_contre, db=b.manches_pour-b.manches_contre;
+  if(db!==da)return db-da;
+  // Départage par match de barrage (tête-à-tête gagné en 701)
+  const bm=barrages.find(m=>m.statut==="termine"&&m.gagnant_id&&((m.joueur1_id===a.id&&m.joueur2_id===b.id)||(m.joueur1_id===b.id&&m.joueur2_id===a.id)));
+  if(bm)return bm.gagnant_id===a.id?-1:1;
+  return 0;
 });
+
+// Deux joueurs sont-ils à égalité parfaite (mêmes points ET même différence de manches) ?
+const memeNiveau=(a,b)=>a.points===b.points&&(a.manches_pour-a.manches_contre)===(b.manches_pour-b.manches_contre);
+// Égalités NON tranchées sur les places qui comptent (1re/2e/3e → qualif + tête de série).
+// Renvoie les paires [a,b] qui ont besoin d'un barrage (pas encore joué).
+const egalitesADepartager=(joueursGroupe,barrages=[])=>{
+  const ranked=rankGroup(joueursGroupe,barrages), paires=[];
+  for(let i=0;i<Math.min(2,ranked.length-1);i++){
+    const a=ranked[i], b=ranked[i+1];
+    if(!memeNiveau(a,b))continue;
+    const resolu=barrages.some(m=>m.statut==="termine"&&((m.joueur1_id===a.id&&m.joueur2_id===b.id)||(m.joueur1_id===b.id&&m.joueur2_id===a.id)));
+    if(!resolu)paires.push([a,b]);
+  }
+  return paires;
+};
 
 // Planning des cibles : renvoie l'ensemble des ids de matchs à jouer MAINTENANT.
 // Au plus nbCibles matchs en même temps, jamais un même joueur sur 2 cibles à la fois.
@@ -616,7 +636,8 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
 };
 
 // ── VUE POULES ────────────────────────────────────────────────────────────────
-const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires})=>{
+const RED_TP="#ef4444";
+const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages})=>{
   const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
   const groupes=Array.from({length:nbGroupes},(_,i)=>i+1);
   const termines=matchs.filter(m=>m.phase==="poules"&&m.statut==="termine");
@@ -626,6 +647,18 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
   const pending=matchs.filter(m=>m.phase==="poules"&&m.statut!=="termine"&&m.joueur1_id&&m.joueur2_id);
   const actifs=matchsSurCibles(pending,nbCibles,matchs);
   const enAttente=Math.max(0,pending.length-actifs.size);
+  // Barrages (égalités) — détectés une fois les poules terminées
+  const barrages=matchs.filter(m=>m.phase==="barrage");
+  const barrageExiste=(a,b)=>barrages.some(m=>(m.joueur1_id===a&&m.joueur2_id===b)||(m.joueur1_id===b&&m.joueur2_id===a));
+  const aCreer=[]; let tieNonTranchee=false;
+  if(allDone){
+    groupes.forEach(g=>{
+      egalitesADepartager(joueurs.filter(j=>j.groupe===g),barrages).forEach(([a,b])=>{
+        tieNonTranchee=true;
+        if(!barrageExiste(a.id,b.id))aCreer.push({a:a.id,b:b.id,groupe:g});
+      });
+    });
+  }
 
   return(
     <div>
@@ -653,9 +686,32 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
         {!allDone&&<div style={{marginTop:10,fontSize:12.5,textAlign:"center"}}><span style={{color:CT.green,fontWeight:800}}>🟢 {actifs.size} à jouer maintenant</span>{enAttente>0&&<span style={{color:CT.muted}}> · ⏳ {enAttente} en attente</span>}</div>}
       </Card>
 
+      {/* Avertissement égalité → barrage en 701 */}
+      {allDone&&tieNonTranchee&&(
+        <Card style={{marginBottom:16,background:RED_TP+"14",border:`1px solid ${RED_TP}66`}}>
+          <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+            <EmoIcon e="⚠️" size={20}/>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:800,fontSize:14,color:RED_TP}}>Égalité à départager</div>
+              <div style={{fontSize:12.5,color:CT.text,lineHeight:1.5,marginTop:3}}>
+                {aCreer.length>0
+                  ? <>Des joueurs sont à <b>égalité parfaite</b> sur une place qui compte. Un <b>match de barrage en 701</b> est nécessaire pour les départager.</>
+                  : <>Un <b>barrage en 701</b> (en rouge ci-dessous) est à jouer pour trancher l'égalité.</>}
+              </div>
+              {isCreateur&&aCreer.length>0&&(
+                <button onClick={()=>onCreerBarrages&&onCreerBarrages(aCreer)} style={{marginTop:10,background:RED_TP,color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontWeight:800,fontSize:13.5,cursor:"pointer",touchAction:"manipulation"}}>
+                  🎯 Créer le{aCreer.length>1?"s":""} barrage{aCreer.length>1?"s":""} ({aCreer.length})
+                </button>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Groups */}
       {groupes.map(g=>{
-        const jG=rankGroup(joueurs.filter(j=>j.groupe===g));
+        const jG=rankGroup(joueurs.filter(j=>j.groupe===g),barrages);
+        const barrageG=barrages.filter(m=>m.groupe===g).sort((a,b)=>(a.position_bracket||0)-(b.position_bracket||0));
         // Ordre FIXE (par position) : la liste ne bouge pas, seule la barre verte se déplace
         const mG=matchs.filter(m=>m.phase==="poules"&&m.groupe===g).sort((a,b)=>(a.position_bracket||0)-(b.position_bracket||0));
         return(
@@ -705,16 +761,35 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
                   </div>
                 );
               })}
+              {barrageG.map(m=>{
+                const j1=joueurs.find(j=>j.id===m.joueur1_id);
+                const j2=joueurs.find(j=>j.id===m.joueur2_id);
+                const done=m.statut==="termine";
+                return(
+                  <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 10px",borderRadius:8,marginTop:6,background:RED_TP+"14",border:`1px solid ${RED_TP}77`}}>
+                    <span style={{fontSize:8.5,fontWeight:800,color:RED_TP,background:RED_TP+"22",borderRadius:5,padding:"2px 5px",letterSpacing:.5,whiteSpace:"nowrap"}}>BARRAGE 701</span>
+                    <span style={{flex:1,fontSize:13,fontWeight:done&&m.gagnant_id===j1?.id?700:400,color:done&&m.gagnant_id===j1?.id?CT.green:CT.text}}>{j1?.nom||"?"}</span>
+                    <span style={{fontWeight:800,fontSize:15,minWidth:34,textAlign:"center",color:done?CT.text:RED_TP}}>{done?`${m.score1}–${m.score2}`:"vs"}</span>
+                    <span style={{flex:1,fontSize:13,fontWeight:done&&m.gagnant_id===j2?.id?700:400,color:done&&m.gagnant_id===j2?.id?CT.green:CT.text,textAlign:"right"}}>{j2?.nom||"?"}</span>
+                    {!done&&<button onClick={()=>onJouerMatch(m)} style={{background:RED_TP,color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:800,fontSize:12,cursor:"pointer",touchAction:"manipulation"}}>▶ Jouer</button>}
+                    {!done&&isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small><EmoIcon e="✏️" size={13}/></Btn>}
+                    {done&&<Badge color={CT.green}><EmoIcon e="✅" size={12}/></Badge>}
+                  </div>
+                );
+              })}
             </div>
           </Card>
         );
       })}
 
       {/* Advance to eliminatoires */}
-      {allDone&&isCreateur&&(
+      {allDone&&isCreateur&&!tieNonTranchee&&(
         <Btn onClick={onLancerEliminatoires} style={{width:"100%",fontSize:15,padding:14}}>
           <EmoIcon e="🏆" size={15} style={{verticalAlign:"-2px",marginRight:6}}/>Lancer les éliminatoires
         </Btn>
+      )}
+      {allDone&&isCreateur&&tieNonTranchee&&(
+        <div style={{textAlign:"center",fontSize:12.5,color:RED_TP,fontWeight:700,padding:"12px 8px",lineHeight:1.5}}>⚠️ Départage l'égalité (barrage en 701) avant de lancer les éliminatoires.</div>
       )}
     </div>
   );
@@ -1067,22 +1142,22 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       // Update match
       await dbTP.updateMatch(match.id,{score1,score2,gagnant_id,statut:"termine",date_fin:new Date().toISOString()});
 
-      // Update joueur stats
-      const j1=joueurs.find(j=>j.id===match.joueur1_id);
-      const j2=joueurs.find(j=>j.id===match.joueur2_id);
-      const pts_win=2,pts_lose=1; // points per victory/defeat regardless of score
-
-      // Winner
-      if(gagnant_id===match.joueur1_id){
-        await dbTP.updateJoueur(j1.id,{victoires:j1.victoires+1,defaites:j1.defaites,points:j1.points+pts_win,manches_pour:j1.manches_pour+score1,manches_contre:j1.manches_contre+score2});
-        await dbTP.updateJoueur(j2.id,{victoires:j2.victoires,defaites:j2.defaites+1,points:j2.points+(lose>0?pts_lose:0),manches_pour:j2.manches_pour+score2,manches_contre:j2.manches_contre+score1});
-      }else{
-        await dbTP.updateJoueur(j2.id,{victoires:j2.victoires+1,defaites:j2.defaites,points:j2.points+pts_win,manches_pour:j2.manches_pour+score2,manches_contre:j2.manches_contre+score1});
-        await dbTP.updateJoueur(j1.id,{victoires:j1.victoires,defaites:j1.defaites+1,points:j1.points+(lose>0?pts_lose:0),manches_pour:j1.manches_pour+score1,manches_contre:j1.manches_contre+score2});
+      // Update joueur stats — un BARRAGE ne change pas les points de poule (il départage seulement)
+      if(match.phase!=="barrage"){
+        const j1=joueurs.find(j=>j.id===match.joueur1_id);
+        const j2=joueurs.find(j=>j.id===match.joueur2_id);
+        const pts_win=2,pts_lose=1; // points per victory/defeat regardless of score
+        if(gagnant_id===match.joueur1_id){
+          await dbTP.updateJoueur(j1.id,{victoires:j1.victoires+1,defaites:j1.defaites,points:j1.points+pts_win,manches_pour:j1.manches_pour+score1,manches_contre:j1.manches_contre+score2});
+          await dbTP.updateJoueur(j2.id,{victoires:j2.victoires,defaites:j2.defaites+1,points:j2.points+(lose>0?pts_lose:0),manches_pour:j2.manches_pour+score2,manches_contre:j2.manches_contre+score1});
+        }else{
+          await dbTP.updateJoueur(j2.id,{victoires:j2.victoires+1,defaites:j2.defaites,points:j2.points+pts_win,manches_pour:j2.manches_pour+score2,manches_contre:j2.manches_contre+score1});
+          await dbTP.updateJoueur(j1.id,{victoires:j1.victoires,defaites:j1.defaites+1,points:j1.points+(lose>0?pts_lose:0),manches_pour:j1.manches_pour+score1,manches_contre:j1.manches_contre+score2});
+        }
       }
 
-      // If bracket match → advance winner
-      if(match.phase!=="poules"&&match.round_bracket>0){
+      // If bracket match → advance winner (les barrages ont round_bracket=0 → non concernés)
+      if(match.phase!=="poules"&&match.phase!=="barrage"&&match.round_bracket>0){
         await advancerBracket(match,gagnant_id);
       }
 
@@ -1104,8 +1179,9 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
       // Qualifiés : les N premiers de chaque poule (N réglable), taggés par rang de poule
       const topParGroupe=[];
+      const barragesTP=matchs.filter(m=>m.phase==="barrage");
       for(let g=1;g<=nbGroupes;g++){
-        const jG=rankGroup(joueurs.filter(j=>j.groupe===g));
+        const jG=rankGroup(joueurs.filter(j=>j.groupe===g),barragesTP);
         jG.slice(0,nbQual).forEach((j,idx)=>topParGroupe.push({...j,poolRank:idx+1}));
       }
       const sizes=[2,4,8,16,32];
@@ -1115,6 +1191,18 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       if(bracketMatchs.length>0)await dbTP.addMatchs(bracketMatchs);
       await dbTP.updateTournoi(tournoiId,{statut:"eliminatoires"});
       setShowBracketConfig(false);
+      await reload();
+    }catch(e){alert("Erreur : "+e.message);}
+    setSaving(false);
+  };
+
+  // ── Créer les matchs de barrage (701) pour départager les égalités
+  const creerBarrages=async(paires)=>{
+    if(!paires||!paires.length)return;
+    setSaving(true);
+    try{
+      const news=paires.map((p,i)=>({tournoi_id:tournoiId,joueur1_id:p.a,joueur2_id:p.b,score1:0,score2:0,gagnant_id:null,phase:"barrage",groupe:p.groupe,statut:"en_attente",round_bracket:0,position_bracket:9000+i,manches_max:1}));
+      await dbTP.addMatchs(news);
       await reload();
     }catch(e){alert("Erreur : "+e.message);}
     setSaving(false);
@@ -1241,7 +1329,8 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           nbCibles={cibles} onSetCibles={changerCibles}
           onSaisirScore={m=>setMatchModal(m)}
           onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
-          onLancerEliminatoires={()=>setShowBracketConfig(true)}/>
+          onLancerEliminatoires={()=>setShowBracketConfig(true)}
+          onCreerBarrages={creerBarrages}/>
       )}
       {showBracketConfig&&<BracketConfigModal joueurs={joueurs} saving={saving} onValider={lancerEliminatoires} onClose={()=>setShowBracketConfig(false)}/>}
       {tournoi.statut==="eliminatoires"&&(
@@ -1438,7 +1527,7 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
 
   const fakeDuel={
     id:"potes-"+matchId,
-    mode:tournoi.mode||"501",
+    mode:match.phase==="barrage"?"701":(tournoi.mode||"501"),
     manches:match.manches_max||2,
     challenger_pseudo:j1.nom,
     defie_pseudo:j2.nom,
@@ -1454,13 +1543,15 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
     const score2=gagnant_id===j2.id?Math.max(scoreC,scoreD):Math.min(scoreC,scoreD);
     try{
       await dbTP.updateMatch(match.id,{score1,score2,gagnant_id,statut:"termine",date_fin:new Date().toISOString()});
-      // Update joueur stats in tournament
-      const gJ=joueurs.find(j=>j.id===gagnant_id);
-      const lJ=joueurs.find(j=>j.id===perdant_id);
-      if(gJ)await dbTP.updateJoueur(gJ.id,{victoires:gJ.victoires+1,points:gJ.points+2,manches_pour:gJ.manches_pour+score1,manches_contre:gJ.manches_contre+score2});
-      if(lJ)await dbTP.updateJoueur(lJ.id,{defaites:lJ.defaites+1,points:lJ.points+(Math.min(score1,score2)>0?1:0),manches_pour:lJ.manches_pour+score2,manches_contre:lJ.manches_contre+score1});
+      // Update joueur stats — un BARRAGE ne change pas les points de poule (il départage seulement)
+      if(match.phase!=="barrage"){
+        const gJ=joueurs.find(j=>j.id===gagnant_id);
+        const lJ=joueurs.find(j=>j.id===perdant_id);
+        if(gJ)await dbTP.updateJoueur(gJ.id,{victoires:gJ.victoires+1,points:gJ.points+2,manches_pour:gJ.manches_pour+score1,manches_contre:gJ.manches_contre+score2});
+        if(lJ)await dbTP.updateJoueur(lJ.id,{defaites:lJ.defaites+1,points:lJ.points+(Math.min(score1,score2)>0?1:0),manches_pour:lJ.manches_pour+score2,manches_contre:lJ.manches_contre+score1});
+      }
       // If bracket → advance winner + route loser (consolante / petite finale)
-      if(match.phase!=="poules"&&match.round_bracket>0){
+      if(match.phase!=="poules"&&match.phase!=="barrage"&&match.round_bracket>0){
         const allMatchs=await dbTP.getMatchs(match.tournoi_id);
         await avancerApresMatch(match,gagnant_id,allMatchs);
       }
