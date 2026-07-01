@@ -272,8 +272,9 @@ const MatchModal=({match,joueurs,onSave,onClose})=>{
   const j2=joueurs.find(j=>j.id===match.joueur2_id);
   const max=match.manches_max||2;
   const win=max; // manches_max = cible à atteindre (2 manches gagnantes, ou 5 en finale)
-  const [s1,setS1]=useState(0);
-  const [s2,setS2]=useState(0);
+  const isEdit=match.statut==="termine"; // correction d'un match déjà joué
+  const [s1,setS1]=useState(match.score1||0);
+  const [s2,setS2]=useState(match.score2||0);
   const [saving,setSaving]=useState(false);
 
   const validScore=s1!==s2&&(s1===win||s2===win);
@@ -290,9 +291,9 @@ const MatchModal=({match,joueurs,onSave,onClose})=>{
     <div style={{position:"fixed",inset:0,background:"#000a",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
       <Card style={{width:"100%",maxWidth:400,position:"relative"}}>
         <button onClick={onClose} style={{position:"absolute",top:12,right:12,background:"none",border:"none",color:CT.muted,cursor:"pointer",display:"inline-flex"}}><EmoIcon e="✕" size={18}/></button>
-        <h3 style={{fontWeight:700,fontSize:16,marginBottom:4}}><EmoText s="⚔️ Saisir le score" size={16}/></h3>
+        <h3 style={{fontWeight:700,fontSize:16,marginBottom:4}}><EmoText s={isEdit?"✏️ Corriger le score":"⚔️ Saisir le score"} size={16}/></h3>
         <p style={{fontSize:12,color:CT.muted,marginBottom:20}}>
-          {match.phase==="finale"?"Finale — premier à gagner 5 manches":`Premier à gagner ${win} manche${win>1?"s":""}`}
+          {isEdit?"Corrige le nombre de manches gagnées — le classement sera recalculé.":match.phase==="finale"?"Finale — premier à gagner 5 manches":`Premier à gagner ${win} manche${win>1?"s":""}`}
         </p>
         <div style={{display:"flex",alignItems:"center",gap:16,justifyContent:"center",marginBottom:20}}>
           {/* Joueur 1 */}
@@ -978,6 +979,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
                     )}
                     {attente&&<span style={{fontSize:10.5,color:CT.muted,fontWeight:600,whiteSpace:"nowrap"}}>⏳ en attente</span>}
                     {attente&&isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small><EmoIcon e="✏️" size={13}/></Btn>}
+                    {done&&isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small title="Corriger le score"><EmoIcon e="✏️" size={13}/></Btn>}
                     {done&&<Badge color={CT.green}><EmoIcon e="✅" size={12}/></Badge>}
                   </div>
                 );
@@ -1355,19 +1357,29 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   // ── Saisir un score
   const saisirScore=async(match,score1,score2)=>{
     const gagnant_id=score1>score2?match.joueur1_id:match.joueur2_id;
-    const perdant_id=score1>score2?match.joueur2_id:match.joueur1_id;
-    const win=Math.max(score1,score2);
     const lose=Math.min(score1,score2);
-
     try{
       // Update match
       await dbTP.updateMatch(match.id,{score1,score2,gagnant_id,statut:"termine",date_fin:new Date().toISOString()});
 
-      // Update joueur stats — un BARRAGE ne change pas les points de poule (il départage seulement)
-      if(match.phase!=="barrage"){
+      if(match.phase==="poules"){
+        // Recalcule TOUT le classement de poules depuis les matchs terminés
+        // → gère la 1re saisie ET les corrections, sans jamais compter les points en double
+        const fresh=await dbTP.getMatchs(tournoiId);
+        const st={}; joueurs.forEach(j=>{ st[j.id]={victoires:0,defaites:0,points:0,manches_pour:0,manches_contre:0}; });
+        fresh.filter(m=>m.phase==="poules"&&m.statut==="termine"&&m.gagnant_id).forEach(m=>{
+          const l2=Math.min(m.score1,m.score2);
+          const w=m.gagnant_id, l=m.gagnant_id===m.joueur1_id?m.joueur2_id:m.joueur1_id;
+          const ws=m.gagnant_id===m.joueur1_id?m.score1:m.score2, ls=m.gagnant_id===m.joueur1_id?m.score2:m.score1;
+          if(st[w]){ st[w].victoires++; st[w].points+=2; st[w].manches_pour+=ws; st[w].manches_contre+=ls; }
+          if(st[l]){ st[l].defaites++; st[l].points+=(l2>0?1:0); st[l].manches_pour+=ls; st[l].manches_contre+=ws; }
+        });
+        await Promise.all(joueurs.filter(j=>st[j.id]).map(j=>dbTP.updateJoueur(j.id,st[j.id])));
+      }else if(match.phase!=="barrage"){
+        // Tableau (bracket) : incrémental — 1re saisie (un barrage ne change pas les points de poule)
         const j1=joueurs.find(j=>j.id===match.joueur1_id);
         const j2=joueurs.find(j=>j.id===match.joueur2_id);
-        const pts_win=2,pts_lose=1; // points per victory/defeat regardless of score
+        const pts_win=2,pts_lose=1;
         if(gagnant_id===match.joueur1_id){
           await dbTP.updateJoueur(j1.id,{victoires:j1.victoires+1,defaites:j1.defaites,points:j1.points+pts_win,manches_pour:j1.manches_pour+score1,manches_contre:j1.manches_contre+score2});
           await dbTP.updateJoueur(j2.id,{victoires:j2.victoires,defaites:j2.defaites+1,points:j2.points+(lose>0?pts_lose:0),manches_pour:j2.manches_pour+score2,manches_contre:j2.manches_contre+score1});
