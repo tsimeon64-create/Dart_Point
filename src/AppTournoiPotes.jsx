@@ -519,7 +519,9 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
   const isDoublette=tournoi.format==="doublette";
   const estConnecte=!!joueurConnecte;
   const isParticipant=estConnecte&&joueurs.some(j=>j.joueur_id===joueurConnecte.id||(Array.isArray(j.membres)&&j.membres.some(m=>m&&m.id===joueurConnecte.id)));
-  const peutRejoindre=!isParticipant; // invité (sans compte) OU joueur connecté non encore inscrit
+  const [dejaInscrit,setDejaInscrit]=useState(()=>{ try{return localStorage.getItem("dp_tp_joined_"+tournoi.id)==="1";}catch(e){return false;} });
+  const [nomInscrit,setNomInscrit]=useState("");
+  const peutRejoindre=!isParticipant&&!dejaInscrit; // invité OU joueur connecté non encore inscrit (et pas déjà inscrit cette fois)
   const [teamName,setTeamName]=useState("");
   const [j1Name,setJ1Name]=useState("");       // nom du membre 1 pour un invité (sans compte)
   const [binomeName,setBinomeName]=useState("");
@@ -530,17 +532,22 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
   const membre1Nom=estConnecte?joueurConnecte.pseudo:j1Name.trim();
   const rejoindreValide=isDoublette?(!!membre1Nom&&!!binomeName.trim()&&!!teamName.trim()):!!membre1Nom;
   const handleRejoindre=async()=>{
-    if(!rejoindreValide)return;
+    if(!rejoindreValide||rejoining||dejaInscrit)return; // une seule inscription
     setRejoining(true);
     try{
       const monId=joueurConnecte?.id||null;
+      const nomFinal=isDoublette?teamName.trim():membre1Nom;
       if(isDoublette){
         const membres=[{nom:membre1Nom,id:monId},{nom:binomeName.trim(),id:binomeId||null}];
-        await onRejoindre({nom:teamName.trim(),joueur_id:monId,membres});
+        await onRejoindre({nom:nomFinal,joueur_id:monId,membres});
       }else{
-        await onRejoindre({nom:membre1Nom,joueur_id:monId,membres:null});
+        await onRejoindre({nom:nomFinal,joueur_id:monId,membres:null});
       }
-    }finally{ setRejoining(false); }
+      setNomInscrit(nomFinal);
+      setDejaInscrit(true);
+      try{ localStorage.setItem("dp_tp_joined_"+tournoi.id,"1"); }catch(e){}
+    }catch(e){ alert("Erreur : "+(e&&e.message||e)); }
+    finally{ setRejoining(false); }
   };
 
   return(
@@ -584,6 +591,16 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
             <input value={teamName} onChange={e=>setTeamName(e.target.value)} placeholder={'Ex : "Les Fléchettos"'} style={{width:"100%",background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:"9px 13px",color:CT.text,fontSize:14,marginBottom:14}}/>
           </>)}
           <Btn onClick={handleRejoindre} disabled={!rejoindreValide||rejoining} style={{width:"100%",fontSize:15,padding:"12px"}}>{rejoining?"Inscription…":<EmoText s="✅ Rejoindre le tournoi" size={15}/>}</Btn>
+        </Card>
+      )}
+
+      {/* Confirmation d'inscription (empêche une 2e inscription) */}
+      {!peutRejoindre&&(dejaInscrit||(isParticipant&&!isCreateur))&&(
+        <Card style={{marginBottom:16,background:CT.green+"14",border:`1px solid ${CT.green}66`,textAlign:"center"}}>
+          <EmoIcon e="✅" size={30} color={CT.green}/>
+          <div style={{fontWeight:800,fontSize:16,color:CT.green,marginTop:4}}>Tu es inscrit au tournoi !</div>
+          {nomInscrit&&<div style={{fontSize:13,color:CT.text,marginTop:3}}>{isDoublette?"Équipe : ":""}<b>{nomInscrit}</b></div>}
+          <div style={{fontSize:12,color:CT.muted,marginTop:6}}>En attente du lancement par l'organisateur…</div>
         </Card>
       )}
 
