@@ -1292,7 +1292,7 @@ export const TournoiPotesPage=({joueur,setPage})=>{
   const [filtre,setFiltre]=useState("en_cours"); // en_cours | passes
   const [mesT,setMesT]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [form,setForm]=useState({nom:"",mode:"501"});
+  const [form,setForm]=useState({nom:"",mode:"501",format:"simple"});
   const [creating,setSaving]=useState(false);
 
   useEffect(()=>{
@@ -1312,7 +1312,10 @@ export const TournoiPotesPage=({joueur,setPage})=>{
     if(!form.nom.trim()||!joueur)return;
     setSaving(true);
     try{
-      const t=await dbTP.createTournoi({nom:form.nom.trim(),mode:form.mode,createur_id:joueur.id,createur_pseudo:joueur.pseudo,statut:"attente",code:genCode(),date:new Date().toISOString()});
+      const base={nom:form.nom.trim(),mode:form.mode,createur_id:joueur.id,createur_pseudo:joueur.pseudo,statut:"attente",code:genCode(),date:new Date().toISOString()};
+      let t;
+      try{ t=await dbTP.createTournoi({...base,format:form.format}); }
+      catch(err){ t=await dbTP.createTournoi(base); } // repli si la colonne "format" n'existe pas encore
       if(!t)throw new Error("Création échouée");
       await dbTP.addJoueur({tournoi_id:t.id,nom:joueur.pseudo,joueur_id:joueur.id,groupe:1,ordre:0,points:0,victoires:0,defaites:0,manches_pour:0,manches_contre:0});
       setPage("tournoi-potes-"+t.id);
@@ -1386,6 +1389,17 @@ export const TournoiPotesPage=({joueur,setPage})=>{
                 <div style={{display:"flex",gap:8}}>
                   {["501","301"].map(m=>(
                     <button key={m} onClick={()=>setForm(f=>({...f,mode:m}))} style={{flex:1,padding:"10px",borderRadius:8,border:`2px solid ${form.mode===m?CT.accent:CT.border}`,background:form.mode===m?CT.accent+"22":"#111",color:form.mode===m?CT.accent:CT.muted,cursor:"pointer",fontWeight:700,fontSize:15,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:5}}><EmoIcon e="🎯" size={14}/>{m}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{fontSize:13,color:CT.muted,fontWeight:500,display:"block",marginBottom:6}}>Format</label>
+                <div style={{display:"flex",gap:8}}>
+                  {[{v:"simple",lab:"Simple",emo:"🧍",sub:"chacun joue seul"},{v:"doublette",lab:"Doublette",emo:"👥",sub:"équipes de 2"}].map(o=>(
+                    <button key={o.v} onClick={()=>setForm(f=>({...f,format:o.v}))} style={{flex:1,padding:"10px 8px",borderRadius:8,border:`2px solid ${form.format===o.v?CT.accent:CT.border}`,background:form.format===o.v?CT.accent+"22":"#111",color:form.format===o.v?CT.accent:CT.muted,cursor:"pointer",fontWeight:700,fontSize:14,display:"flex",flexDirection:"column",alignItems:"center",gap:2,touchAction:"manipulation"}}>
+                      <span style={{display:"inline-flex",alignItems:"center",gap:5}}><EmoIcon e={o.emo} size={14}/>{o.lab}</span>
+                      <span style={{fontSize:10,fontWeight:500,opacity:.8}}>{o.sub}</span>
+                    </button>
                   ))}
                 </div>
               </div>
