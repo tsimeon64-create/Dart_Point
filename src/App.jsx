@@ -5138,6 +5138,62 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
   );
 };
 
+// Vue LIVE d'un TOURNOI : les matchs du tournoi en cours (réutilise le live du comptoir)
+const TournoiLiveView = ({ tournoiId, joueur, setPage }) => {
+  const [rowIds, setRowIds] = useState([]);
+  const [tournoiNom, setTournoiNom] = useState("");
+  const [sessions, setSessions] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    sb(`tournois_potes_joueurs?tournoi_id=eq.${tournoiId}&select=id`).then(r => setRowIds((r||[]).map(x=>String(x.id)))).catch(()=>{});
+    sb(`tournois_potes?id=eq.${tournoiId}&select=nom`).then(r => setTournoiNom(r?.[0]?.nom||"")).catch(()=>{});
+  }, [tournoiId]);
+
+  useEffect(() => {
+    if (!rowIds.length) { setLoading(false); return; }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const inList = rowIds.join(",");
+        const data = await sb(`live_sessions?statut=eq.en_cours&or=(joueur1_id.in.(${inList}),joueur2_id.in.(${inList}))&order=debut.desc`).catch(()=>[]);
+        const now = Date.now();
+        const fresh = (data||[]).filter(s => (now-(s.debut||now)) < 2*60*60*1000);
+        if (!cancelled) { setSessions(fresh); setLoading(false); }
+      } catch(e) { if (!cancelled) setLoading(false); }
+    };
+    load();
+    const iv = setInterval(load, 8000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [rowIds]);
+
+  if (selected) return <LiveMatchView session={selected} joueur={joueur} setPage={setPage} onBack={()=>setSelected(null)}/>;
+
+  return (
+    <div style={{ maxWidth:700, margin:"0 auto", padding:"24px 16px" }}>
+      <style>{`@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(1.5)}}`}</style>
+      <button onClick={()=>setPage("tournoi-potes-"+tournoiId)} style={{ background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:14, padding:0, marginBottom:14 }}>← Retour au tournoi</button>
+      <h1 style={{ fontWeight:800, fontSize:22, marginBottom:4, display:"flex", alignItems:"center", gap:9 }}>
+        <span style={{ width:10,height:10,borderRadius:"50%",background:"#ef4444",boxShadow:"0 0 10px #ef4444",animation:"livePulse 1.4s infinite",display:"inline-block",flexShrink:0 }}/>
+        Live {tournoiNom?`— ${tournoiNom}`:""}
+      </h1>
+      <p style={{ color:"#94a3b8", fontSize:13, marginBottom:20 }}>Suis les matchs du tournoi en direct 🎯</p>
+      {loading ? <p style={{ color:"#64748b", textAlign:"center", padding:30 }}>Chargement…</p>
+        : sessions.length === 0
+          ? <div style={{ textAlign:"center", padding:"48px 16px", color:"#64748b" }}>
+              <div style={{ fontSize:44, marginBottom:12 }}>📺</div>
+              <div style={{ fontWeight:700, fontSize:15, color:"#94a3b8" }}>Aucun match en direct pour l'instant</div>
+              <div style={{ fontSize:13, marginTop:6, lineHeight:1.5 }}>Les matchs apparaîtront ici<br/>dès que les joueurs les lanceront.</div>
+            </div>
+          : <>
+              <div style={{ fontSize:12, color:"#ef4444", fontWeight:700, marginBottom:12 }}>🔴 {sessions.length} match{sessions.length>1?"s":""} en direct</div>
+              {sessions.map(s => <LiveMatchCard key={s.id} session={s} onClick={()=>setSelected(s)} setPage={setPage}/>)}
+            </>}
+    </div>
+  );
+};
+
 const PageLive = ({ joueur, setPage }) => {
   const [sessions, setSessions] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -12205,6 +12261,7 @@ export default function App() {
         {page==="rush-mode"             && <RushMode setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="tournois-potes"   && <TournoiPotesPage joueur={joueur} setPage={nav}/>}
         {page.startsWith("tournoi-potes-") && <TournoiPotesDetail tournoiId={page.replace("tournoi-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
+        {page.startsWith("tournoi-live-") && <TournoiLiveView tournoiId={page.replace("tournoi-live-","")} joueur={joueur} setPage={nav}/>}
         {page.startsWith("scoreur-potes-") && <ScoreurPotesWrapper matchId={page.replace("scoreur-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
         {page==="messagerie"       && <MessagesPage joueur={joueur} setPage={nav}/>}
         {page.startsWith("messages-") && (()=>{

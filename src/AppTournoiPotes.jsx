@@ -1527,14 +1527,21 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
 
   return(
     <div style={{maxWidth:700,margin:"0 auto",padding:"24px 16px"}}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes livePulse{0%,100%{opacity:1}50%{opacity:.25}}`}</style>
       {/* Header */}
       <div style={{marginBottom:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <button onClick={()=>window.history.back()} style={{background:"none",border:"none",color:CT.muted,cursor:"pointer",fontSize:13,padding:0}}>← Retour</button>
-          {isCreateur&&tournoi.statut!=="termine"&&(
-            <button onClick={supprimerTournoi} style={{background:"none",border:`1px solid ${CT.red}44`,color:CT.red,cursor:"pointer",fontSize:12,padding:"5px 12px",borderRadius:8,fontWeight:600,display:"inline-flex",alignItems:"center",gap:5}}><EmoIcon e="🗑" size={12}/>Supprimer</button>
-          )}
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            {(tournoi.statut==="poules"||tournoi.statut==="eliminatoires")&&(
+              <button onClick={()=>setPage("tournoi-live-"+tournoiId)} style={{background:"#ef444418",border:"1px solid #ef444455",color:"#ef4444",cursor:"pointer",fontSize:12,padding:"5px 12px",borderRadius:8,fontWeight:800,display:"inline-flex",alignItems:"center",gap:5,touchAction:"manipulation"}}>
+                <span style={{width:7,height:7,borderRadius:"50%",background:"#ef4444",display:"inline-block",animation:"livePulse 1.4s infinite"}}/>LIVE
+              </button>
+            )}
+            {isCreateur&&tournoi.statut!=="termine"&&(
+              <button onClick={supprimerTournoi} style={{background:"none",border:`1px solid ${CT.red}44`,color:CT.red,cursor:"pointer",fontSize:12,padding:"5px 12px",borderRadius:8,fontWeight:600,display:"inline-flex",alignItems:"center",gap:5}}><EmoIcon e="🗑" size={12}/>Supprimer</button>
+            )}
+          </div>
         </div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
           <div>
