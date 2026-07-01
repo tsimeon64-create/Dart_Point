@@ -214,14 +214,24 @@ const rankGroup=(joueurs)=>[...joueurs].sort((a,b)=>{
 // Au plus nbCibles matchs en même temps, jamais un même joueur sur 2 cibles à la fois.
 // Priorité aux matchs dont les joueurs ont le moins joué (pour que tout le monde joue, peu d'attente).
 const matchsSurCibles=(pending,nbCibles,allMatchs)=>{
-  const played={};
-  allMatchs.forEach(m=>{ if(m.statut==="termine"){ [m.joueur1_id,m.joueur2_id].forEach(id=>{ if(id!=null)played[id]=(played[id]||0)+1; }); } });
-  const score=(m)=>(played[m.joueur1_id]||0)+(played[m.joueur2_id]||0);
-  const ordered=[...pending].sort((a,b)=>score(a)-score(b)||((a.position_bracket||0)-(b.position_bracket||0)));
+  // Historique : combien chaque joueur a joué, et depuis quand il n'a pas joué (pour la rotation)
+  const termines=[...allMatchs].filter(m=>m.statut==="termine").sort((a,b)=>new Date(a.date_fin||0)-new Date(b.date_fin||0));
+  const played={}, lastIdx={};
+  termines.forEach((m,idx)=>{ [m.joueur1_id,m.joueur2_id].forEach(id=>{ if(id!=null){ played[id]=(played[id]||0)+1; lastIdx[id]=idx; } }); });
+  const nbT=termines.length;
+  const attente=(id)=> lastIdx[id]===undefined ? nbT+1 : nbT-lastIdx[id]; // grand = attend depuis longtemps (jamais joué = max)
+  const cmp=(a,b)=>{
+    const pa=(played[a.joueur1_id]||0)+(played[a.joueur2_id]||0), pb=(played[b.joueur1_id]||0)+(played[b.joueur2_id]||0);
+    if(pa!==pb)return pa-pb;                                                                  // 1) le moins joué d'abord → tout le monde joue
+    const wa=Math.max(attente(a.joueur1_id),attente(a.joueur2_id)), wb=Math.max(attente(b.joueur1_id),attente(b.joueur2_id));
+    if(wa!==wb)return wb-wa;                                                                  // 2) celui qui attend depuis le + longtemps passe
+    return (a.position_bracket||0)-(b.position_bracket||0);                                   // 3) ordre stable
+  };
+  const ordered=[...pending].sort(cmp);
   const busy=new Set(), actifs=new Set();
   for(const m of ordered){
     if(actifs.size>=nbCibles)break;
-    if(busy.has(m.joueur1_id)||busy.has(m.joueur2_id))continue;
+    if(busy.has(m.joueur1_id)||busy.has(m.joueur2_id))continue;                               // jamais 2 fois le même joueur en même temps
     actifs.add(m.id); busy.add(m.joueur1_id); busy.add(m.joueur2_id);
   }
   return actifs;
