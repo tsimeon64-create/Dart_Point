@@ -537,15 +537,16 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
     try{
       const monId=joueurConnecte?.id||null;
       const nomFinal=isDoublette?teamName.trim():membre1Nom;
-      if(isDoublette){
-        const membres=[{nom:membre1Nom,id:monId},{nom:binomeName.trim(),id:binomeId||null}];
-        await onRejoindre({nom:nomFinal,joueur_id:monId,membres});
-      }else{
-        await onRejoindre({nom:nomFinal,joueur_id:monId,membres:null});
-      }
+      const payload=isDoublette
+        ? {nom:nomFinal,joueur_id:monId,membres:[{nom:membre1Nom,id:monId},{nom:binomeName.trim(),id:binomeId||null}]}
+        : {nom:nomFinal,joueur_id:monId,membres:null};
+      const created=await onRejoindre(payload);
       setNomInscrit(nomFinal);
       setDejaInscrit(true);
-      try{ localStorage.setItem("dp_tp_joined_"+tournoi.id,"1"); }catch(e){}
+      try{
+        localStorage.setItem("dp_tp_joined_"+tournoi.id,"1");
+        if(created&&created.id)localStorage.setItem("dp_tp_myrow_"+tournoi.id,String(created.id)); // pour la notif "c'est à toi de jouer" (même sans compte)
+      }catch(e){}
     }catch(e){ alert("Erreur : "+(e&&e.message||e)); }
     finally{ setRejoining(false); }
   };
@@ -782,7 +783,7 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
 
 // ── VUE POULES ────────────────────────────────────────────────────────────────
 const RED_TP="#ef4444";
-const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages})=>{
+const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,joueurConnecte})=>{
   const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
   const groupes=Array.from({length:nbGroupes},(_,i)=>i+1);
   const termines=matchs.filter(m=>m.phase==="poules"&&m.statut==="termine");
@@ -805,8 +806,63 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
     });
   }
 
+  // ── Notification "c'est à toi de jouer" quand MON match passe en vert (marche aussi sans compte)
+  const myRowId=(()=>{
+    if(joueurConnecte){ const r=joueurs.find(j=>j.joueur_id===joueurConnecte.id||(Array.isArray(j.membres)&&j.membres.some(m=>m&&m.id===joueurConnecte.id))); if(r)return r.id; }
+    try{ return localStorage.getItem("dp_tp_myrow_"+tournoi.id)||null; }catch(e){ return null; }
+  })();
+  const isMine=(id)=>myRowId!=null&&String(id)===String(myRowId);
+  const monMatchActif=myRowId?matchs.find(m=>m.phase==="poules"&&actifs.has(m.id)&&(isMine(m.joueur1_id)||isMine(m.joueur2_id))):null;
+  const [alerteMatch,setAlerteMatch]=useState(null);
+  const alertedRef=useRef(null), buzzRef=useRef(null), audioRef=useRef(null);
+  const stopBuzz=()=>{
+    if(buzzRef.current){clearInterval(buzzRef.current);buzzRef.current=null;}
+    try{ if(navigator.vibrate)navigator.vibrate(0); }catch(e){}
+  };
+  const beep=()=>{ try{
+    const AC=window.AudioContext||window.webkitAudioContext; if(!AC)return;
+    if(!audioRef.current)audioRef.current=new AC();
+    const ctx=audioRef.current; if(ctx.state==="suspended")ctx.resume().catch(()=>{});
+    const o=ctx.createOscillator(),g=ctx.createGain(); o.type="sine"; o.frequency.value=880;
+    o.connect(g); g.connect(ctx.destination); const t=ctx.currentTime;
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.3,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.4);
+    o.start(t); o.stop(t+0.42);
+  }catch(e){} };
+  const startBuzz=()=>{
+    const buzz=()=>{ try{ if(navigator.vibrate)navigator.vibrate([500,220,500,220,700]); }catch(e){} beep(); };
+    buzz(); if(buzzRef.current)clearInterval(buzzRef.current); buzzRef.current=setInterval(buzz,2200);
+  };
+  useEffect(()=>{
+    if(monMatchActif&&alertedRef.current!==monMatchActif.id){
+      alertedRef.current=monMatchActif.id;
+      setAlerteMatch(monMatchActif);
+      startBuzz();
+    }
+  },[monMatchActif&&monMatchActif.id]); // eslint-disable-line
+  useEffect(()=>()=>stopBuzz(),[]); // eslint-disable-line
+  const fermerAlerte=(jouer)=>{ stopBuzz(); const m=alerteMatch; setAlerteMatch(null); if(jouer&&m)onJouerMatch(m); };
+
   return(
     <div>
+      {/* Alerte "c'est à toi de jouer" (vibration + son + message) */}
+      {alerteMatch&&(()=>{
+        const advId=isMine(alerteMatch.joueur1_id)?alerteMatch.joueur2_id:alerteMatch.joueur1_id;
+        const adv=joueurs.find(j=>j.id===advId);
+        return(
+          <div style={{position:"fixed",inset:0,background:"#000000ee",zIndex:100000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <style>{`@keyframes tpBuzz{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}`}</style>
+            <div style={{background:"linear-gradient(135deg,#14320f,#0f0f1f)",border:`2px solid ${CT.green}`,borderRadius:22,padding:"30px 22px",maxWidth:380,width:"100%",textAlign:"center",boxShadow:`0 0 50px ${CT.green}66`}}>
+              <div style={{animation:"tpBuzz .5s infinite",display:"inline-block",marginBottom:8}}><EmoIcon e="🎯" size={52}/></div>
+              <div style={{fontWeight:900,fontSize:23,color:CT.green,marginBottom:8,lineHeight:1.2}}>C'est à toi de jouer !</div>
+              <div style={{fontSize:15,color:CT.text,marginBottom:4}}>Ton match contre <b>{adv?.nom||"ton adversaire"}</b> est prêt.</div>
+              <div style={{fontSize:12.5,color:CT.muted,marginBottom:22}}>Va au pas de tir <EmoIcon e="🎯" size={12} style={{verticalAlign:"-1px"}}/> c'est ton tour !</div>
+              <Btn onClick={()=>fermerAlerte(false)} style={{width:"100%",fontSize:16,padding:"14px"}}>👍 OK, j'y vais !</Btn>
+              <button onClick={()=>fermerAlerte(true)} style={{marginTop:10,width:"100%",background:"none",border:"none",color:CT.accent,fontSize:13,fontWeight:700,cursor:"pointer",padding:6,touchAction:"manipulation"}}>▶ Ouvrir le scoreur</button>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Progress */}
       <Card style={{marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -1485,7 +1541,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           onSaisirScore={m=>setMatchModal(m)}
           onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
           onLancerEliminatoires={()=>setShowBracketConfig(true)}
-          onCreerBarrages={creerBarrages}/>
+          onCreerBarrages={creerBarrages} joueurConnecte={joueurConnecte}/>
       )}
       {showBracketConfig&&<BracketConfigModal joueurs={joueurs} saving={saving} onValider={lancerEliminatoires} onClose={()=>setShowBracketConfig(false)}/>}
       {tournoi.statut==="eliminatoires"&&(
