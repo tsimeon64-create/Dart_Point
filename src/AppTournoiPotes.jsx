@@ -227,6 +227,14 @@ const matchsSurCibles=(pending,nbCibles,allMatchs)=>{
   return actifs;
 };
 
+// Vrai tirage au sort (Fisher-Yates) : mélange UNIFORME.
+// (sort(()=>Math.random()-.5) est biaisé et garde souvent l'ordre de départ sur de petits groupes.)
+const melangerAleatoire=(arr)=>{
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+};
+
 // ── MODAL SAISIE SCORE ────────────────────────────────────────────────────────
 const MatchModal=({match,joueurs,onSave,onClose})=>{
   const j1=joueurs.find(j=>j.id===match.joueur1_id);
@@ -972,8 +980,8 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     setSaving(true);
     try{
       const nb=Math.max(1,Math.round(joueurs.length/poolSize)); // nb de poules d'après la taille choisie
-      // Assign groups (shuffle then round-robin → poules équilibrées)
-      const shuffled=[...joueurs].sort(()=>Math.random()-.5);
+      // Vrai tirage au sort (Fisher-Yates) puis répartition round-robin → poules équilibrées et aléatoires
+      const shuffled=melangerAleatoire(joueurs);
       for(let i=0;i<shuffled.length;i++){
         await dbTP.updateJoueur(shuffled[i].id,{groupe:(i%nb)+1,ordre:i});
       }
