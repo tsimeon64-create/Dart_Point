@@ -529,6 +529,8 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
   const [amiPickerOpen,setAmiPickerOpen]=useState(false);
   const [amiSearch,setAmiSearch]=useState("");
   const [rejoining,setRejoining]=useState(false);
+  const [notifOk,setNotifOk]=useState(()=>{ try{return "Notification" in window&&Notification.permission==="granted";}catch(e){return false;} });
+  const demanderNotif=()=>{ try{ if("Notification" in window)Notification.requestPermission().then(p=>setNotifOk(p==="granted")); }catch(e){} };
   const membre1Nom=estConnecte?joueurConnecte.pseudo:j1Name.trim();
   const rejoindreValide=isDoublette?(!!membre1Nom&&!!binomeName.trim()&&!!teamName.trim()):!!membre1Nom;
   const handleRejoindre=async()=>{
@@ -547,6 +549,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
         localStorage.setItem("dp_tp_joined_"+tournoi.id,"1");
         if(created&&created.id)localStorage.setItem("dp_tp_myrow_"+tournoi.id,String(created.id)); // pour la notif "c'est à toi de jouer" (même sans compte)
       }catch(e){}
+      try{ if("Notification" in window&&Notification.permission==="default"){ Notification.requestPermission().then(p=>setNotifOk(p==="granted")); } }catch(e){}
     }catch(e){ alert("Erreur : "+(e&&e.message||e)); }
     finally{ setRejoining(false); }
   };
@@ -602,6 +605,9 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
           <div style={{fontWeight:800,fontSize:16,color:CT.green,marginTop:4}}>Tu es inscrit au tournoi !</div>
           {nomInscrit&&<div style={{fontSize:13,color:CT.text,marginTop:3}}>{isDoublette?"Équipe : ":""}<b>{nomInscrit}</b></div>}
           <div style={{fontSize:12,color:CT.muted,marginTop:6}}>En attente du lancement par l'organisateur…</div>
+          {"Notification" in window&&(notifOk
+            ? <div style={{marginTop:12,fontSize:12,color:CT.green,fontWeight:700}}>🔔 Alertes activées — ton téléphone te préviendra quand ce sera ton tour</div>
+            : <button onClick={demanderNotif} style={{marginTop:14,background:CT.accent+"22",color:CT.accent,border:`1px solid ${CT.accent}`,borderRadius:10,padding:"10px 14px",fontWeight:700,fontSize:13,cursor:"pointer",width:"100%",touchAction:"manipulation"}}>🔔 Activer les alertes de match</button>)}
         </Card>
       )}
 
@@ -832,15 +838,29 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
     const buzz=()=>{ try{ if(navigator.vibrate)navigator.vibrate([500,220,500,220,700]); }catch(e){} beep(); };
     buzz(); if(buzzRef.current)clearInterval(buzzRef.current); buzzRef.current=setInterval(buzz,2200);
   };
+  // Notification SYSTÈME (visible même appli en arrière-plan, tant que l'onglet vit) : c'est l'OS qui vibre/sonne
+  const showSystemNotif=(advNom)=>{
+    try{
+      if(!("Notification" in window)||Notification.permission!=="granted")return;
+      if(navigator.serviceWorker&&navigator.serviceWorker.ready){
+        navigator.serviceWorker.ready.then(reg=>reg.showNotification("🎯 C'est à toi de jouer !",{
+          body:"Ton match"+(advNom?` contre ${advNom}`:"")+" est prêt. Va au pas de tir !",
+          vibrate:[500,220,500,220,700],tag:"tp-turn",renotify:true,requireInteraction:true,icon:"/logo.png",badge:"/logo.png",
+        }).catch(()=>{})).catch(()=>{});
+      }
+    }catch(e){}
+  };
   useEffect(()=>{
     if(monMatchActif&&alertedRef.current!==monMatchActif.id){
       alertedRef.current=monMatchActif.id;
       setAlerteMatch(monMatchActif);
       startBuzz();
+      const advId=isMine(monMatchActif.joueur1_id)?monMatchActif.joueur2_id:monMatchActif.joueur1_id;
+      showSystemNotif((joueurs.find(j=>j.id===advId)||{}).nom);
     }
   },[monMatchActif&&monMatchActif.id]); // eslint-disable-line
   useEffect(()=>()=>stopBuzz(),[]); // eslint-disable-line
-  const fermerAlerte=(jouer)=>{ stopBuzz(); const m=alerteMatch; setAlerteMatch(null); if(jouer&&m)onJouerMatch(m); };
+  const fermerAlerte=(jouer)=>{ stopBuzz(); try{ if("Notification" in window&&Notification.permission==="default")Notification.requestPermission(); }catch(e){} const m=alerteMatch; setAlerteMatch(null); if(jouer&&m)onJouerMatch(m); };
 
   return(
     <div>
