@@ -11435,10 +11435,10 @@ const HELP_CONTENT = {
 
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("dp_onboarding_done"));
+  const [page,setPage]=useState("home");
   // Tournoi actif (pour le bouton flottant "Reprendre le tournoi")
   const [activeTournoi, setActiveTournoi] = useState(null);
   useEffect(() => { try { setActiveTournoi(JSON.parse(localStorage.getItem("dp_active_tournoi") || "null")); } catch(e) { setActiveTournoi(null); } }, [page]);
-  const [page,setPage]=useState("home");
   // Expose setPage globally so child modules (AppJoueurs CGU links) can navigate
   window.setPageGlobal = (p) => nav(p);
   const [barSlug,setBarSlug]=useState(null);
