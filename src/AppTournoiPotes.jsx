@@ -472,16 +472,16 @@ const PoolConfigModal=({nbJoueurs,onValider,onClose,saving})=>{
 };
 
 // ── VUE LOBBY ─────────────────────────────────────────────────────────────────
-const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,joueurConnecte})=>{
+const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,joueurConnecte,onRejoindre})=>{
   const [nom,setNom]=useState("");
   const [adding,setAdding]=useState(false);
   const [amis,setAmis]=useState([]);
   const [addingAmi,setAddingAmi]=useState(null); // id de l'ami en cours d'ajout
   const [scanOpen,setScanOpen]=useState(false);
 
-  // Charger la liste d'amis
+  // Charger la liste d'amis (créateur : pour inviter ; joueur : pour choisir son binôme)
   useEffect(()=>{
-    if(!joueurConnecte||!isCreateur)return;
+    if(!joueurConnecte)return;
     dbTP.getAmis(joueurConnecte.id).then(rows=>{
       if(!rows)return;
       const parsed=rows.map(r=>{
@@ -490,7 +490,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
       });
       setAmis(parsed);
     }).catch(()=>{});
-  },[joueurConnecte,isCreateur]);
+  },[joueurConnecte]);
 
   const handleAdd=async()=>{
     if(!nom.trim())return;
@@ -514,8 +514,69 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
 
   const amiDejaAjoute=(amiId)=>joueurs.some(j=>j.joueur_id===amiId);
 
+  // Inscription (rejoindre) — surtout pour la doublette
+  const isDoublette=tournoi.format==="doublette";
+  const isParticipant=!!joueurConnecte&&joueurs.some(j=>j.joueur_id===joueurConnecte.id||(Array.isArray(j.membres)&&j.membres.some(m=>m&&m.id===joueurConnecte.id)));
+  const peutRejoindre=!!joueurConnecte&&!isParticipant;
+  const [teamName,setTeamName]=useState("");
+  const [binomeName,setBinomeName]=useState("");
+  const [binomeId,setBinomeId]=useState(null);
+  const [amiPickerOpen,setAmiPickerOpen]=useState(false);
+  const [amiSearch,setAmiSearch]=useState("");
+  const [rejoining,setRejoining]=useState(false);
+  const rejoindreValide=isDoublette?(!!teamName.trim()&&!!binomeName.trim()):true;
+  const handleRejoindre=async()=>{
+    if(!joueurConnecte||!rejoindreValide)return;
+    setRejoining(true);
+    try{
+      if(isDoublette){
+        const membres=[{nom:joueurConnecte.pseudo,id:joueurConnecte.id},{nom:binomeName.trim(),id:binomeId||null}];
+        await onRejoindre({nom:teamName.trim(),joueur_id:joueurConnecte.id,membres});
+      }else{
+        await onRejoindre({nom:joueurConnecte.pseudo,joueur_id:joueurConnecte.id,membres:null});
+      }
+    }finally{ setRejoining(false); }
+  };
+
   return(
     <div>
+      {/* Rejoindre le tournoi (joueur non inscrit) */}
+      {peutRejoindre&&(
+        <Card style={{marginBottom:16,background:CT.accent+"11",border:`1px solid ${CT.accent}66`}}>
+          <h3 style={{fontWeight:800,fontSize:16,marginBottom:4,color:CT.accent,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🙋" size={16}/>Rejoindre le tournoi</h3>
+          <p style={{fontSize:12.5,color:CT.muted,marginBottom:14}}>{isDoublette?"Tournoi en doublette — inscris ton équipe (2 joueurs).":"Inscris-toi à ce tournoi."}</p>
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:"#111",borderRadius:8,marginBottom:isDoublette?12:14}}>
+            <EmoIcon e="👤" size={18} color={CT.accent}/>
+            <span style={{flex:1,fontWeight:600,fontSize:14}}>{joueurConnecte.pseudo}</span>
+            <Badge color={CT.blue}>Toi</Badge>
+          </div>
+          {isDoublette&&(<>
+            <label style={{fontSize:12.5,color:CT.muted,fontWeight:600,display:"block",marginBottom:6}}>Ton binôme</label>
+            <div style={{display:"flex",gap:8,marginBottom:8}}>
+              <input value={binomeName} onChange={e=>{setBinomeName(e.target.value);setBinomeId(null);}} placeholder="Nom du binôme…" style={{flex:1,background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:"9px 13px",color:CT.text,fontSize:14}}/>
+              {amis.length>0&&<Btn onClick={()=>setAmiPickerOpen(v=>!v)} variant="ghost" small><EmoIcon e="🔍" size={13} style={{verticalAlign:"-2px",marginRight:3}}/>Amis</Btn>}
+            </div>
+            {binomeId&&<div style={{fontSize:11,color:CT.blue,marginBottom:8}}><EmoIcon e="🔗" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>Binôme lié à son compte Dart Point</div>}
+            {amiPickerOpen&&(
+              <div style={{background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:10,marginBottom:10}}>
+                <input value={amiSearch} onChange={e=>setAmiSearch(e.target.value)} placeholder="🔍 Chercher un ami…" style={{width:"100%",background:"#0d0d0d",border:`1px solid ${CT.border}`,borderRadius:6,padding:"7px 10px",color:CT.text,fontSize:13,marginBottom:8}}/>
+                <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:170,overflowY:"auto"}}>
+                  {amis.filter(a=>a.pseudo.toLowerCase().includes(amiSearch.toLowerCase())).map(a=>(
+                    <button key={a.id} onClick={()=>{setBinomeName(a.pseudo);setBinomeId(a.id);setAmiPickerOpen(false);setAmiSearch("");}} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#0d0d0d",border:`1px solid ${CT.border}`,borderRadius:6,cursor:"pointer",color:CT.text,fontSize:13,textAlign:"left",touchAction:"manipulation"}}>
+                      <EmoIcon e="👤" size={14} color={CT.muted}/>{a.pseudo}
+                    </button>
+                  ))}
+                  {amis.filter(a=>a.pseudo.toLowerCase().includes(amiSearch.toLowerCase())).length===0&&<div style={{fontSize:12,color:CT.muted,padding:6,textAlign:"center"}}>Aucun ami trouvé</div>}
+                </div>
+              </div>
+            )}
+            <label style={{fontSize:12.5,color:CT.muted,fontWeight:600,display:"block",marginBottom:6}}>Nom de l'équipe <span style={{fontWeight:400}}>(s'affichera dans le tournoi)</span></label>
+            <input value={teamName} onChange={e=>setTeamName(e.target.value)} placeholder={'Ex : "Les Fléchettos"'} style={{width:"100%",background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:"9px 13px",color:CT.text,fontSize:14,marginBottom:14}}/>
+          </>)}
+          <Btn onClick={handleRejoindre} disabled={!rejoindreValide||rejoining} style={{width:"100%",fontSize:15,padding:"12px"}}>{rejoining?"Inscription…":<EmoText s="✅ Rejoindre le tournoi" size={15}/>}</Btn>
+        </Card>
+      )}
+
       {/* Share link */}
       <Card style={{marginBottom:16}}>
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -575,9 +636,13 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
           {joueurs.map((j,i)=>(
             <div key={j.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#111",borderRadius:8,border:`1px solid ${CT.border}`}}>
-              <span style={{width:24,height:24,borderRadius:"50%",background:CT.accent+"22",color:CT.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{i+1}</span>
-              <span style={{flex:1,fontWeight:500}}>{j.nom}</span>
-              {j.joueur_id&&<Badge color={CT.blue}>Compte <EmoIcon e="🔗" size={10} style={{verticalAlign:"-1px",marginLeft:2}}/></Badge>}
+              <span style={{width:24,height:24,borderRadius:"50%",background:CT.accent+"22",color:CT.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0}}>{i+1}</span>
+              <span style={{flex:1,fontWeight:500}}>
+                {j.nom}
+                {Array.isArray(j.membres)&&j.membres.length>0&&<span style={{display:"block",fontSize:11,color:CT.muted,fontWeight:400,marginTop:1}}><EmoIcon e="👥" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{j.membres.map(m=>m&&m.nom).filter(Boolean).join(" & ")}</span>}
+              </span>
+              {Array.isArray(j.membres)&&j.membres.length>0&&<Badge color={CT.purple}>Équipe</Badge>}
+              {!j.membres&&j.joueur_id&&<Badge color={CT.blue}>Compte <EmoIcon e="🔗" size={10} style={{verticalAlign:"-1px",marginLeft:2}}/></Badge>}
               {isCreateur&&<button onClick={()=>onRemoveJoueur(j.id)} style={{background:"none",border:"none",color:CT.muted,cursor:"pointer",padding:"0 4px",display:"inline-flex"}} title="Retirer"><EmoIcon e="✕" size={15}/></button>}
             </div>
           ))}
@@ -1334,6 +1399,16 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     if(j)setJoueurs(jj=>[...jj,j]);
   };
 
+  // Un joueur rejoint le tournoi (via QR/lien) — solo ou équipe (doublette avec membres)
+  const rejoindre=async({nom,joueur_id=null,membres=null})=>{
+    const base={tournoi_id:tournoiId,nom,joueur_id,groupe:1,ordre:joueurs.length,points:0,victoires:0,defaites:0,manches_pour:0,manches_contre:0};
+    let j;
+    try{ j=await dbTP.addJoueur(membres?{...base,membres}:base); }
+    catch(err){ j=await dbTP.addJoueur(base); } // repli si la colonne "membres" n'existe pas encore
+    await reload();
+    return j;
+  };
+
   const removeJoueur=async(id)=>{
     await dbTP.removeJoueur(id);
     setJoueurs(jj=>jj.filter(j=>j.id!==id));
@@ -1372,7 +1447,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       {tournoi.statut==="attente"&&(
         <LobbyView tournoi={tournoi} joueurs={joueurs} isCreateur={isCreateur}
           onStart={()=>setShowPoolConfig(true)} onAddJoueur={addJoueur} onRemoveJoueur={removeJoueur}
-          joueurConnecte={joueurConnecte}/>
+          joueurConnecte={joueurConnecte} onRejoindre={rejoindre}/>
       )}
       {showPoolConfig&&<PoolConfigModal nbJoueurs={joueurs.length} saving={saving} onValider={lancerTournoi} onClose={()=>setShowPoolConfig(false)}/>}
       {tournoi.statut==="poules"&&(
