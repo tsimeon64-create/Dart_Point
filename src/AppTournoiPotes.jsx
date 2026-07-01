@@ -511,6 +511,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
   const copyLien=()=>{navigator.clipboard.writeText(lien).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});};
   const [qrTournoi,setQrTournoi]=useState("");
   useEffect(()=>{ QRCode.toDataURL(lien,{width:220,margin:1,color:{dark:"#000000",light:"#ffffff"}}).then(setQrTournoi).catch(()=>{}); },[lien]);
+  const estLocalhost=/localhost|127\.0\.0\.1|:5173/.test(lien);
 
   const amiDejaAjoute=(amiId)=>joueurs.some(j=>j.joueur_id===amiId);
 
@@ -600,7 +601,9 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
         {qrTournoi&&(
           <div style={{marginTop:14,display:"flex",flexDirection:"column",alignItems:"center",gap:6,borderTop:`1px solid ${CT.border}`,paddingTop:14}}>
             <img src={qrTournoi} alt="QR du tournoi" style={{width:158,height:158,borderRadius:12,background:"#fff",padding:7}}/>
-            <div style={{fontSize:11.5,color:CT.muted,textAlign:"center",lineHeight:1.4}}><EmoIcon e="📷" size={12} style={{verticalAlign:"-1px",marginRight:3}}/>Les joueurs scannent ce QR pour rejoindre le tournoi</div>
+            {estLocalhost
+              ? <div style={{fontSize:11,color:"#eab308",textAlign:"center",lineHeight:1.45,fontWeight:600}}>⚠️ Adresse locale (localhost) — ce QR ne marche que sur cet ordinateur. Ouvre la <b>version en ligne</b> du site pour un QR scannable par les téléphones.</div>
+              : <div style={{fontSize:11.5,color:CT.muted,textAlign:"center",lineHeight:1.4}}><EmoIcon e="📷" size={12} style={{verticalAlign:"-1px",marginRight:3}}/>Les joueurs scannent ce QR pour rejoindre le tournoi</div>}
           </div>
         )}
       </Card>
