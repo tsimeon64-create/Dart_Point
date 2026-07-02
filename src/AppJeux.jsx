@@ -1019,6 +1019,34 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     }
   }, [etape]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Anti-live-fantôme : ferme la session live même si l'onglet est fermé brutalement ──
+  // Si l'utilisateur tue l'appli sans finir, closeLiveSession() normal ne part pas.
+  // Ici on envoie une petite requête « keepalive » (qui part même pendant la fermeture)
+  // pour marquer la session comme terminée. On le fait UNIQUEMENT si une session est vraiment ouverte.
+  useEffect(() => {
+    const fermerLiveFantome = () => {
+      if (!liveIdRef.current) return; // rien d'ouvert → on ne touche à rien
+      const id = liveIdRef.current;
+      liveIdRef.current = null; // évite un double envoi
+      try {
+        fetch(`${SB_URL}/rest/v1/live_sessions?id=eq.${id}`, {
+          method: "PATCH",
+          keepalive: true, // laisse la requête partir même quand l'onglet se ferme
+          headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({ statut: "termine" }),
+        }).catch(() => {});
+      } catch {}
+    };
+    // pagehide = fermeture d'onglet / mise en arrière-plan sur mobile (plus fiable que beforeunload sur téléphone)
+    window.addEventListener("pagehide", fermerLiveFantome);
+    window.addEventListener("beforeunload", fermerLiveFantome);
+    return () => {
+      window.removeEventListener("pagehide", fermerLiveFantome);
+      window.removeEventListener("beforeunload", fermerLiveFantome);
+      fermerLiveFantome(); // si le Scoreur est démonté (retour, navigation), on ferme aussi la session ouverte
+    };
+  }, []);
+
   // ── Plein écran auto + blocage scroll pendant le jeu ──
   useEffect(() => {
     if (etape !== "jeu") return;
@@ -2067,7 +2095,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           </span>
           <span style={{ color:"#475569", fontSize:10 }}>·</span>
           <span style={{ fontWeight:700, fontSize:11, color:"#94a3b8" }}>
-            BO{manchesTotal}
+            {/* On gagne en atteignant manchesTotal manches gagnées → « Premier à X » est plus clair que « BO » */}
+            Premier à {manchesTotal} manche{manchesTotal > 1 ? "s" : ""}
           </span>
           <span style={{ color:"#475569", fontSize:10 }}>·</span>
           <span style={{ fontWeight:600, fontSize:10, color:"#64748b" }}>Double out</span>

@@ -203,28 +203,60 @@ const avancerApresMatch=async(match,gagnant_id,allMatchs)=>{
 };
 
 // Sort joueurs by ranking in a group
-const rankGroup=(joueurs,barrages=[])=>[...joueurs].sort((a,b)=>{
-  if(b.points!==a.points)return b.points-a.points;             // 1) points
-  if(b.victoires!==a.victoires)return b.victoires-a.victoires; // 2) victoires (V/D)
-  const da=a.manches_pour-a.manches_contre, db=b.manches_pour-b.manches_contre;
-  if(db!==da)return db-da;                                     // 3) goal average (manches gagnées − perdues)
-  // 4) Départage par match de barrage (tête-à-tête gagné en 701)
-  const bm=barrages.find(m=>m.statut==="termine"&&m.gagnant_id&&((m.joueur1_id===a.id&&m.joueur2_id===b.id)||(m.joueur1_id===b.id&&m.joueur2_id===a.id)));
-  if(bm)return bm.gagnant_id===a.id?-1:1;
-  return 0;
-});
+const rankGroup=(joueurs,barrages=[])=>{
+  // Ids des joueurs de CE groupe (pour ne compter que les barrages ENTRE eux)
+  const idsGroupe=new Set(joueurs.map(j=>j.id));
+  // Pour chaque joueur : ses victoires + sa diff de manches, UNIQUEMENT sur les barrages joués contre un autre joueur du groupe.
+  // Ça marche pour 1 seul barrage (2 joueurs) comme pour un mini round-robin (3+ joueurs, toutes les paires).
+  const statBarrage=(id)=>{
+    let vic=0, diff=0;
+    barrages.forEach(m=>{
+      if(m.statut!=="termine"||!m.gagnant_id)return;
+      const j1=m.joueur1_id, j2=m.joueur2_id;
+      // le match doit opposer 'id' à un AUTRE joueur du même groupe
+      if(j1!==id&&j2!==id)return;
+      const autre=j1===id?j2:j1;
+      if(!idsGroupe.has(autre))return;
+      if(m.gagnant_id===id)vic++;
+      const s1=m.score1||0, s2=m.score2||0;
+      diff+=(j1===id)?(s1-s2):(s2-s1); // diff de manches vue du joueur 'id'
+    });
+    return {vic,diff};
+  };
+  return [...joueurs].sort((a,b)=>{
+    if(b.points!==a.points)return b.points-a.points;             // 1) points
+    if(b.victoires!==a.victoires)return b.victoires-a.victoires; // 2) victoires (V/D)
+    const da=a.manches_pour-a.manches_contre, db=b.manches_pour-b.manches_contre;
+    if(db!==da)return db-da;                                     // 3) goal average (manches gagnées − perdues)
+    // 4) Départage par barrage(s) 701 : d'abord le NOMBRE de victoires en barrage entre ces joueurs...
+    const sa=statBarrage(a.id), sb=statBarrage(b.id);
+    if(sb.vic!==sa.vic)return sb.vic-sa.vic;                     // 4a) plus de victoires en barrage = mieux classé
+    if(sb.diff!==sa.diff)return sb.diff-sa.diff;                 // 4b) sinon meilleure diff de manches en barrage
+    return 0;
+  });
+};
 
 // Égalité PARFAITE (mêmes points ET mêmes victoires ET même goal average) → barrage 701 nécessaire
 const memeNiveau=(a,b)=>a.points===b.points&&a.victoires===b.victoires&&(a.manches_pour-a.manches_contre)===(b.manches_pour-b.manches_contre);
 // Égalités NON tranchées sur les places qui comptent (1re/2e/3e → qualif + tête de série).
-// Renvoie les paires [a,b] qui ont besoin d'un barrage (pas encore joué).
-const egalitesADepartager=(joueursGroupe,barrages=[])=>{
+// Pour un groupe de N joueurs (N≥2) à égalité PARFAITE, renvoie TOUTES les paires du groupe
+// (mini round-robin : A-B, A-C, B-C...) qui n'ont pas encore été jouées en barrage.
+const egalitesADepartager=(joueursGroupe,barrages=[],nbQual=2)=>{
   const ranked=rankGroup(joueursGroupe,barrages), paires=[];
-  for(let i=0;i<Math.min(2,ranked.length-1);i++){
-    const a=ranked[i], b=ranked[i+1];
-    if(!memeNiveau(a,b))continue;
-    const resolu=barrages.some(m=>m.statut==="termine"&&((m.joueur1_id===a.id&&m.joueur2_id===b.id)||(m.joueur1_id===b.id&&m.joueur2_id===a.id)));
-    if(!resolu)paires.push([a,b]);
+  const dejaVu=new Set();
+  // On ne départage QUE les égalités parfaites qui touchent une place qualificative (rang < nbQual).
+  // Pour un groupe de 3+ ex aequo, on crée TOUTES les paires (mini poule de barrage), pas seulement les paires consécutives.
+  for(let i=0;i<Math.min(nbQual,ranked.length);i++){
+    if(dejaVu.has(ranked[i].id))continue;
+    const groupe=[ranked[i]];
+    for(let k=i+1;k<ranked.length;k++){ if(memeNiveau(ranked[i],ranked[k]))groupe.push(ranked[k]); else break; }
+    if(groupe.length<2)continue;
+    groupe.forEach(j=>dejaVu.add(j.id));
+    for(let x=0;x<groupe.length;x++)for(let y=x+1;y<groupe.length;y++){
+      const a=groupe[x], b=groupe[y];
+      const resolu=barrages.some(m=>m.statut==="termine"&&((m.joueur1_id===a.id&&m.joueur2_id===b.id)||(m.joueur1_id===b.id&&m.joueur2_id===a.id)));
+      if(!resolu)paires.push([a,b]);
+    }
   }
   return paires;
 };
@@ -468,6 +500,7 @@ const PoolConfigModal=({nbJoueurs,onValider,onClose,saving})=>{
   const [taille,setTaille]=useState(reco);
   const [manches,setManches]=useState(2);
   const [cibles,setCibles]=useState(2);
+  const [nbQualifies,setNbQualifies]=useState(2); // combien de joueurs sortent de chaque poule (1 ou 2)
   const ev=evalTaillePoule(nbJoueurs,taille);
   const base=Math.floor(nbJoueurs/ev.np), reste=nbJoueurs%ev.np;
   const apercu=reste===0?`${ev.np} poule${ev.np>1?"s":""} de ${base} joueurs`:`${ev.np} poules de ${base} à ${base+1} joueurs`;
@@ -492,10 +525,15 @@ const PoolConfigModal=({nbJoueurs,onValider,onClose,saving})=>{
           );
         })}</div>
         <div style={{background:(clean?CT.green:"#eab308")+"15",border:`1px solid ${(clean?CT.green:"#eab308")}55`,borderRadius:10,padding:"10px 12px",fontSize:12.5,color:clean?CT.green:"#eab308",fontWeight:700,textAlign:"center",marginBottom:6,lineHeight:1.45}}>
-          → {apercu}<br/>{ev.q} qualifiés (les 2 premiers) → tableau de {ev.bs}
+          → {apercu}<br/>{Math.min(nbJoueurs,ev.np*nbQualifies)} qualifiés ({nbQualifies===1?"le 1er de chaque poule":"les 2 premiers"}) → tableau de {nextPow2(Math.min(nbJoueurs,ev.np*nbQualifies))}
         </div>
         <div style={{fontSize:11.5,color:clean?CT.green:"#eab308",textAlign:"center",fontWeight:700,marginBottom:18}}>
           {clean?"✅ Tout le monde joue son 1er match (aucun exempt)":`⚠️ ${ev.exempts} joueur(s) exempté(s) — choisis un réglage ✅ pour que tout le monde joue`}
+        </div>
+        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Qualifiés par poule <span style={{color:CT.muted,fontWeight:500}}>(qui passe au tableau)</span></div>
+        <div style={{display:"flex",gap:8,marginBottom:16}}>
+          <button onClick={()=>setNbQualifies(1)} style={{flex:1,padding:"10px 4px",borderRadius:10,border:`1px solid ${nbQualifies===1?CT.accent:CT.border}`,background:nbQualifies===1?CT.accent+"22":CT.card,color:nbQualifies===1?CT.accent:CT.text,fontWeight:nbQualifies===1?800:600,fontSize:14,cursor:"pointer",touchAction:"manipulation"}}>🥇 Le 1er</button>
+          <button onClick={()=>setNbQualifies(2)} style={{flex:1,padding:"10px 4px",borderRadius:10,border:`1px solid ${nbQualifies===2?CT.accent:CT.border}`,background:nbQualifies===2?CT.accent+"22":CT.card,color:nbQualifies===2?CT.accent:CT.text,fontWeight:nbQualifies===2?800:600,fontSize:14,cursor:"pointer",touchAction:"manipulation"}}>🥇🥈 Les 2 premiers</button>
         </div>
         <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Manches par match <span style={{color:CT.muted,fontWeight:500}}>(premier à…)</span></div>
         <div style={{display:"flex",gap:6,marginBottom:16}}>{[1,2,3,4,5].map(m=>opt(m,manches===m,setManches))}</div>
@@ -506,7 +544,7 @@ const PoolConfigModal=({nbJoueurs,onValider,onClose,saving})=>{
           <button onClick={()=>setCibles(c=>Math.min(12,c+1))} style={{width:42,height:42,borderRadius:12,border:`1px solid ${CT.border}`,background:CT.card,color:CT.text,fontSize:22,fontWeight:800,cursor:"pointer",touchAction:"manipulation"}}>+</button>
         </div>
         <div style={{fontSize:11.5,color:CT.muted,textAlign:"center",marginBottom:20,lineHeight:1.4}}>🎯 L'appli allumera en vert {cibles===1?"le match":`jusqu'à ${cibles} matchs`} à jouer en même temps (un par cible), pour que personne n'attende trop. Réglable pendant le tournoi.</div>
-        <Btn onClick={()=>onValider(taille,manches,cibles)} disabled={saving} style={{width:"100%",fontSize:15,padding:"13px"}}>{saving?"Lancement…":"✅ Valider et lancer les poules"}</Btn>
+        <Btn onClick={()=>onValider(taille,manches,cibles,nbQualifies)} disabled={saving} style={{width:"100%",fontSize:15,padding:"13px"}}>{saving?"Lancement…":"✅ Valider et lancer les poules"}</Btn>
         <button onClick={onClose} style={{width:"100%",marginTop:8,background:"none",border:"none",color:CT.muted,fontSize:13,cursor:"pointer",padding:8}}>Annuler</button>
       </div>
     </div>
@@ -873,45 +911,14 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
   );
 };
 
-// ── VUE POULES ────────────────────────────────────────────────────────────────
-const RED_TP="#ef4444";
-// Identité visuelle des groupes + avatars (initiales)
-const GROUP_COLORS=["#f97316","#22c55e","#60a5fa","#a78bfa","#f59e0b","#ec4899","#14b8a6","#ef4444"];
-const groupCol=(g)=>GROUP_COLORS[(g-1)%GROUP_COLORS.length];
-const groupLetter=(g)=>String.fromCharCode(64+((g-1)%26)+1); // 1->A, 2->B…
-const initiales=(nom)=>{ const s=(nom||"?").trim(); const p=s.split(/[\s-]+/).filter(Boolean); return (p.length>=2?(p[0][0]+p[1][0]):s.slice(0,2)).toUpperCase(); };
-const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,joueurConnecte,canPlay=false,onOpenShare,onModifier,saving=false})=>{
-  const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
-  const groupes=Array.from({length:nbGroupes},(_,i)=>i+1);
-  const termines=matchs.filter(m=>m.phase==="poules"&&m.statut==="termine");
-  const total=matchs.filter(m=>m.phase==="poules").length;
-  const allDone=total>0&&termines.length===total;
-  // Planning des cibles : quels matchs jouer maintenant (vert) vs en attente
-  const pending=matchs.filter(m=>m.phase==="poules"&&m.statut!=="termine"&&m.joueur1_id&&m.joueur2_id);
-  const actifs=matchsSurCibles(pending,nbCibles,matchs);
-  const enAttente=Math.max(0,pending.length-actifs.size);
-  // Barrages (égalités) — détectés une fois les poules terminées
-  const barrages=matchs.filter(m=>m.phase==="barrage");
-  // Planning des barrages : MEME logique que les poules (matchsSurCibles) → jamais 2 fois le même joueur, au plus nbCibles à la fois.
-  const actifsBarrages=matchsSurCibles(barrages.filter(m=>m.statut!=="termine"),nbCibles,matchs);
-  const barrageExiste=(a,b)=>barrages.some(m=>(m.joueur1_id===a&&m.joueur2_id===b)||(m.joueur1_id===b&&m.joueur2_id===a));
-  const aCreer=[]; let tieNonTranchee=false;
-  if(allDone){
-    groupes.forEach(g=>{
-      egalitesADepartager(joueurs.filter(j=>j.groupe===g),barrages).forEach(([a,b])=>{
-        tieNonTranchee=true;
-        if(!barrageExiste(a.id,b.id))aCreer.push({a:a.id,b:b.id,groupe:g});
-      });
-    });
-  }
-
-  // ── Notification "c'est à toi de jouer" quand MON match passe en vert (marche aussi sans compte)
-  const myRowId=(()=>{
-    if(joueurConnecte){ const r=joueurs.find(j=>j.joueur_id===joueurConnecte.id||(Array.isArray(j.membres)&&j.membres.some(m=>m&&m.id===joueurConnecte.id))); if(r)return r.id; }
-    try{ return localStorage.getItem("dp_tp_myrow_"+tournoi.id)||null; }catch(e){ return null; }
-  })();
-  const isMine=(id)=>myRowId!=null&&String(id)===String(myRowId);
-  const monMatchActif=myRowId?matchs.find(m=>m.phase==="poules"&&actifs.has(m.id)&&(isMine(m.joueur1_id)||isMine(m.joueur2_id))):null;
+// ── ALERTE "C'EST A TOI DE JOUER" (composant reutilisable, monte dans TOUTES les phases) ──
+// Pourquoi un composant separe ? Avant, cette alerte vivait DANS PoulesView, qui n'est affiche
+// qu'en phase de poules. Du coup, en eliminatoires/barrages, plus aucune alerte. Ici on la sort
+// pour la monter au niveau du tournoi (present en poules, barrages ET eliminatoires).
+// monMatch = LE match "a jouer maintenant" qui me concerne (deja calcule par le parent), ou null.
+const TurnAlert=({monMatch,joueurs,canPlay=false,onJouer})=>{
+  // Qui suis-je ? (compte lie OU ligne memorisee dans localStorage, meme sans compte)
+  const isMine=(id)=>false; // (non utilise ici : le parent a deja filtre sur mon match)
   const [alerteMatch,setAlerteMatch]=useState(null);
   const alertedRef=useRef(null), buzzRef=useRef(null), audioRef=useRef(null);
   const stopBuzz=()=>{
@@ -931,7 +938,6 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
     const buzz=()=>{ try{ if(navigator.vibrate)navigator.vibrate([500,220,500,220,700]); }catch(e){} beep(); };
     buzz(); if(buzzRef.current)clearInterval(buzzRef.current); buzzRef.current=setInterval(buzz,2200);
   };
-  // Notification SYSTÈME (visible même appli en arrière-plan, tant que l'onglet vit) : c'est l'OS qui vibre/sonne
   const showSystemNotif=(advNom)=>{
     try{
       if(!("Notification" in window)||Notification.permission!=="granted")return;
@@ -943,22 +949,72 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
       }
     }catch(e){}
   };
-  // Un scoreur est-il affiché sur ce téléphone en ce moment ? (battement de cœur posé par <Scoreur/>)
+  // Un scoreur est-il affiche sur ce telephone la ? (battement de coeur pose par <Scoreur/>) → on ne derange pas.
   const scoreurAffiche=()=>{ try{ return !!window.__dpScoreurTs && (Date.now()-window.__dpScoreurTs)<12000; }catch(e){ return false; } };
+  // Adversaire = l'AUTRE joueur de mon match (le parent m'a deja marque via monMatch.__moiEstJ1).
+  const advId=monMatch?(monMatch.__moiEstJ1?monMatch.joueur2_id:monMatch.joueur1_id):null;
   useEffect(()=>{
-    if(monMatchActif&&alertedRef.current!==monMatchActif.id){
-      // Ne pas déranger pendant qu'on score une partie (on n'enregistre PAS l'alerte → elle pourra sonner
-      // au retour sur le tournoi si c'est toujours notre tour).
-      if(scoreurAffiche())return;
-      alertedRef.current=monMatchActif.id;
-      setAlerteMatch(monMatchActif);
+    if(monMatch&&alertedRef.current!==monMatch.id){
+      if(scoreurAffiche())return; // je suis deja en train de scorer → pas d'alerte (elle sonnera au retour)
+      alertedRef.current=monMatch.id;
+      setAlerteMatch(monMatch);
       startBuzz();
-      const advId=isMine(monMatchActif.joueur1_id)?monMatchActif.joueur2_id:monMatchActif.joueur1_id;
       showSystemNotif((joueurs.find(j=>j.id===advId)||{}).nom);
     }
-  },[monMatchActif&&monMatchActif.id]); // eslint-disable-line
+  },[monMatch&&monMatch.id]); // eslint-disable-line
   useEffect(()=>()=>stopBuzz(),[]); // eslint-disable-line
-  const fermerAlerte=(jouer)=>{ stopBuzz(); try{ if("Notification" in window&&Notification.permission==="default")Notification.requestPermission(); }catch(e){} const m=alerteMatch; setAlerteMatch(null); if(jouer&&m)onJouerMatch(m); };
+  const fermerAlerte=(jouer)=>{ stopBuzz(); try{ if("Notification" in window&&Notification.permission==="default")Notification.requestPermission(); }catch(e){} const m=alerteMatch; setAlerteMatch(null); if(jouer&&m&&onJouer)onJouer(m); };
+  if(!alerteMatch)return null;
+  const adv=joueurs.find(j=>j.id===(alerteMatch.__moiEstJ1?alerteMatch.joueur2_id:alerteMatch.joueur1_id));
+  return(
+    <div style={{position:"fixed",inset:0,background:"#000000ee",zIndex:100000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <style>{`@keyframes tpBuzz{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}`}</style>
+      <div style={{background:"linear-gradient(135deg,#14320f,#0f0f1f)",border:`2px solid ${CT.green}`,borderRadius:22,padding:"30px 22px",maxWidth:380,width:"100%",textAlign:"center",boxShadow:`0 0 50px ${CT.green}66`}}>
+        <div style={{animation:"tpBuzz .5s infinite",display:"inline-block",marginBottom:8}}><EmoIcon e="🎯" size={52}/></div>
+        <div style={{fontWeight:900,fontSize:23,color:CT.green,marginBottom:8,lineHeight:1.2}}>C'est à toi de jouer !</div>
+        <div style={{fontSize:15,color:CT.text,marginBottom:4}}>Ton match contre <b>{adv?.nom||"ton adversaire"}</b> est prêt.</div>
+        <div style={{fontSize:12.5,color:CT.muted,marginBottom:22}}>Va au pas de tir <EmoIcon e="🎯" size={12} style={{verticalAlign:"-1px"}}/> c'est ton tour !</div>
+        <Btn onClick={()=>fermerAlerte(false)} style={{width:"100%",fontSize:16,padding:"14px"}}>👍 OK, j'y vais !</Btn>
+        {canPlay&&<button onClick={()=>fermerAlerte(true)} style={{marginTop:10,width:"100%",background:"none",border:"none",color:CT.accent,fontSize:13,fontWeight:700,cursor:"pointer",padding:6,touchAction:"manipulation"}}>▶ Ouvrir le scoreur</button>}
+      </div>
+    </div>
+  );
+};
+
+// ── VUE POULES ────────────────────────────────────────────────────────────────
+const RED_TP="#ef4444";
+// Identité visuelle des groupes + avatars (initiales)
+const GROUP_COLORS=["#f97316","#22c55e","#60a5fa","#a78bfa","#f59e0b","#ec4899","#14b8a6","#ef4444"];
+const groupCol=(g)=>GROUP_COLORS[(g-1)%GROUP_COLORS.length];
+const groupLetter=(g)=>String.fromCharCode(64+((g-1)%26)+1); // 1->A, 2->B…
+const initiales=(nom)=>{ const s=(nom||"?").trim(); const p=s.split(/[\s-]+/).filter(Boolean); return (p.length>=2?(p[0][0]+p[1][0]):s.slice(0,2)).toUpperCase(); };
+const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,joueurConnecte,canPlay=false,onOpenShare,onModifier,saving=false})=>{
+  const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
+  const groupes=Array.from({length:nbGroupes},(_,i)=>i+1);
+  const termines=matchs.filter(m=>m.phase==="poules"&&m.statut==="termine");
+  const total=matchs.filter(m=>m.phase==="poules").length;
+  const allDone=total>0&&termines.length===total;
+  // Planning des cibles : quels matchs jouer maintenant (vert) vs en attente
+  const pending=matchs.filter(m=>m.phase==="poules"&&m.statut!=="termine"&&m.joueur1_id&&m.joueur2_id);
+  const actifs=matchsSurCibles(pending,nbCibles,matchs);
+  const enAttente=Math.max(0,pending.length-actifs.size);
+  // Barrages (égalités) — détectés une fois les poules terminées
+  const barrages=matchs.filter(m=>m.phase==="barrage");
+  // Planning des barrages : MEME logique que les poules (matchsSurCibles) → jamais 2 fois le même joueur, au plus nbCibles à la fois.
+  const actifsBarrages=matchsSurCibles(barrages.filter(m=>m.statut!=="termine"),nbCibles,matchs);
+  const barrageExiste=(a,b)=>barrages.some(m=>(m.joueur1_id===a&&m.joueur2_id===b)||(m.joueur1_id===b&&m.joueur2_id===a));
+  const aCreer=[]; let tieNonTranchee=false;
+  if(allDone){
+    groupes.forEach(g=>{
+      egalitesADepartager(joueurs.filter(j=>j.groupe===g),barrages,nbQual).forEach(([a,b])=>{
+        tieNonTranchee=true;
+        if(!barrageExiste(a.id,b.id))aCreer.push({a:a.id,b:b.id,groupe:g});
+      });
+    });
+  }
+
+  // (L'alerte "c'est a toi de jouer" a ete DEPLACEE dans <TurnAlert>, monte au niveau du tournoi,
+  //  pour qu'elle marche aussi en barrages et en eliminatoires — pas seulement en poules.)
 
   // ── Carte de match "premium" (avatars, ⚔️, couleur d'état, badge) ──
   const av=(nom,col,win)=>(<span style={{width:32,height:32,borderRadius:"50%",flexShrink:0,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,background:(win?CT.green:col)+"1e",color:win?CT.green:col,border:`1px solid ${(win?CT.green:col)}44`}}>{initiales(nom)}</span>);
@@ -1011,24 +1067,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
 
   return(
     <div>
-      {/* Alerte "c'est à toi de jouer" (vibration + son + message) */}
-      {alerteMatch&&(()=>{
-        const advId=isMine(alerteMatch.joueur1_id)?alerteMatch.joueur2_id:alerteMatch.joueur1_id;
-        const adv=joueurs.find(j=>j.id===advId);
-        return(
-          <div style={{position:"fixed",inset:0,background:"#000000ee",zIndex:100000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-            <style>{`@keyframes tpBuzz{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}`}</style>
-            <div style={{background:"linear-gradient(135deg,#14320f,#0f0f1f)",border:`2px solid ${CT.green}`,borderRadius:22,padding:"30px 22px",maxWidth:380,width:"100%",textAlign:"center",boxShadow:`0 0 50px ${CT.green}66`}}>
-              <div style={{animation:"tpBuzz .5s infinite",display:"inline-block",marginBottom:8}}><EmoIcon e="🎯" size={52}/></div>
-              <div style={{fontWeight:900,fontSize:23,color:CT.green,marginBottom:8,lineHeight:1.2}}>C'est à toi de jouer !</div>
-              <div style={{fontSize:15,color:CT.text,marginBottom:4}}>Ton match contre <b>{adv?.nom||"ton adversaire"}</b> est prêt.</div>
-              <div style={{fontSize:12.5,color:CT.muted,marginBottom:22}}>Va au pas de tir <EmoIcon e="🎯" size={12} style={{verticalAlign:"-1px"}}/> c'est ton tour !</div>
-              <Btn onClick={()=>fermerAlerte(false)} style={{width:"100%",fontSize:16,padding:"14px"}}>👍 OK, j'y vais !</Btn>
-              {canPlay&&<button onClick={()=>fermerAlerte(true)} style={{marginTop:10,width:"100%",background:"none",border:"none",color:CT.accent,fontSize:13,fontWeight:700,cursor:"pointer",padding:6,touchAction:"manipulation"}}>▶ Ouvrir le scoreur</button>}
-            </div>
-          </div>
-        );
-      })()}
+      {/* (La pop-up "c'est à toi de jouer" est maintenant rendue par <TurnAlert> au niveau du tournoi.) */}
 
       {/* Progress */}
       <Card style={{marginBottom:16}}>
@@ -1109,14 +1148,14 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
             {jG.map((j,i)=>{
               const rc=i===0?"#fbbf24":i===1?"#cbd5e1":i===2?"#f59e0b":"#64748b";
               const rbc=groupeFini?rc:"#7a7a88";  // médailles seulement une fois la poule finie
-              const qual=groupeFini&&i<2;          // qualifié = poule finie + top 2
+              const qual=groupeFini&&i<nbQual;     // qualifié = poule finie + top nbQual (1 ou 2)
               const diff=j.manches_pour-j.manches_contre, joue=(j.victoires+j.defaites)>0;
               return [
-                (i===2&&groupeFini)?<div key={"cut"+g} style={{display:"flex",alignItems:"center",gap:8,margin:"6px 4px 8px"}}><div style={{flex:1,height:1,background:"repeating-linear-gradient(90deg,#3a3a44 0 6px,transparent 6px 12px)"}}/><span style={{fontSize:10,color:CT.muted}}>qualification</span><div style={{flex:1,height:1,background:"repeating-linear-gradient(90deg,#3a3a44 0 6px,transparent 6px 12px)"}}/></div>:null,
+                (i===nbQual&&groupeFini)?<div key={"cut"+g} style={{display:"flex",alignItems:"center",gap:8,margin:"6px 4px 8px"}}><div style={{flex:1,height:1,background:"repeating-linear-gradient(90deg,#3a3a44 0 6px,transparent 6px 12px)"}}/><span style={{fontSize:10,color:CT.muted}}>qualification</span><div style={{flex:1,height:1,background:"repeating-linear-gradient(90deg,#3a3a44 0 6px,transparent 6px 12px)"}}/></div>:null,
                 <div key={j.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:qual?gc+"0e":"transparent",marginBottom:4}}>
                   <span style={{width:22,height:22,borderRadius:"50%",flexShrink:0,background:rbc+"22",color:rbc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800}}>{i+1}</span>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:14,fontWeight:600,color:(groupeFini&&i>=2)?"#cbd5e1":CT.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{j.nom}</div>
+                    <div style={{fontSize:14,fontWeight:600,color:(groupeFini&&i>=nbQual)?"#cbd5e1":CT.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{j.nom}</div>
                     <div style={{fontSize:11,color:CT.muted,marginTop:2}}>
                       <b style={{color:CT.green}}>{j.victoires}V</b> <b style={{color:"#f87171"}}>{j.defaites}D</b>
                       {joue&&<> · manches <b style={{color:CT.text}}>{j.manches_pour}</b>–<b style={{color:CT.text}}>{j.manches_contre}</b> <span style={{color:diff>=0?CT.green:"#f87171",fontWeight:600}}>({diff>=0?"+":""}{diff})</span></>}
@@ -1695,6 +1734,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   const [matchModal,setMatchModal]=useState(null);
   const [saving,setSaving]=useState(false);
   const [cibles,setCibles]=useState(2);
+  const [nbQualLocal,setNbQualLocal]=useState(2); // repli d'affichage si la colonne nb_qualifies n'existe pas encore
   const [showShare,setShowShare]=useState(false);
   const [codeUnlocked,setCodeUnlocked]=useState(()=>{ try{return localStorage.getItem("dp_tp_player_"+tournoiId)==="1";}catch(e){return false;} });
   const pollRef=useRef(null);
@@ -1764,9 +1804,10 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   const deverrouiller=()=>{ setCodeUnlocked(true); try{localStorage.setItem("dp_tp_player_"+tournoiId,"1");}catch(e){} setShowShare(false); };
 
   // ── Lancer le tournoi (phase poules)
-  const lancerTournoi=async(poolSize=4,poolManches=2,nbCibles=2)=>{
+  const lancerTournoi=async(poolSize=4,poolManches=2,nbCibles=2,nbQualif=2)=>{
     if(joueurs.length<2)return;
     setSaving(true);
+    setNbQualLocal(nbQualif); // affichage immediat (avant meme la relecture du tournoi)
     try{
       const nb=Math.max(1,Math.round(joueurs.length/poolSize)); // nb de poules d'après la taille choisie
       // Vrai tirage au sort (Fisher-Yates) puis répartition round-robin → poules équilibrées et aléatoires
@@ -1785,6 +1826,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       await dbTP.updateTournoi(tournoiId,{statut:"poules"});
       setCibles(nbCibles);
       try{ await dbTP.updateTournoi(tournoiId,{nb_cibles:nbCibles}); }catch(e){ /* colonne nb_cibles pas encore créée */ }
+      try{ await dbTP.updateTournoi(tournoiId,{nb_qualifies:nbQualif}); }catch(e){ /* colonne nb_qualifies pas encore créée : on garde l'état local */ }
       setShowPoolConfig(false);
       await reload();
     }catch(e){alert("Erreur : "+e.message);}
@@ -1851,7 +1893,8 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
 
   // ── Lancer les éliminatoires
   const lancerEliminatoires=async(config={})=>{
-    const {nbQual=2,bracketSize:bsChoisi,manchesMap={},consolante=false,petiteFinale=false}=config;
+    const defQual=(tournoi&&tournoi.nb_qualifies!=null)?tournoi.nb_qualifies:nbQualLocal; // defaut = reglage des poules
+    const {nbQual=defQual,bracketSize:bsChoisi,manchesMap={},consolante=false,petiteFinale=false}=config;
     setSaving(true);
     try{
       const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
@@ -2055,6 +2098,43 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   const modeLabel=tournoi.mode==="301"?"🎯 301":"🎯 501";
   const statutLabel={attente:"⏳ Lobby",poules:"🏟️ Phase de poules",eliminatoires:"⚔️ Éliminatoires",termine:"🏆 Terminé"}[tournoi.statut]||tournoi.statut;
 
+  // ── Mon match "a jouer maintenant", TOUTES phases confondues (pour l'alerte <TurnAlert>) ──
+  // Qui suis-je dans ce tournoi ? compte lie OU ligne memorisee (meme sans compte, cle dp_tp_myrow_<id>).
+  const myRowId=(()=>{
+    if(joueurConnecte){ const r=joueurs.find(j=>j.joueur_id===joueurConnecte.id||(Array.isArray(j.membres)&&j.membres.some(m=>m&&m.id===joueurConnecte.id))); if(r)return r.id; }
+    try{ return localStorage.getItem("dp_tp_myrow_"+tournoiId)||null; }catch(e){ return null; }
+  })();
+  const monMatchActifTournoi=(()=>{
+    if(myRowId==null)return null;
+    const estMoi=(id)=>id!=null&&String(id)===String(myRowId);
+    // 1) Poule active : meme regle que PoulesView (rotation des cibles).
+    if(tournoi.statut==="poules"){
+      const pending=matchs.filter(m=>m.phase==="poules"&&m.statut!=="termine"&&m.joueur1_id&&m.joueur2_id);
+      const actifs=matchsSurCibles(pending,cibles,matchs);
+      const mp=matchs.find(m=>m.phase==="poules"&&actifs.has(m.id)&&(estMoi(m.joueur1_id)||estMoi(m.joueur2_id)));
+      if(mp)return{...mp,__moiEstJ1:estMoi(mp.joueur1_id)};
+      // 2) Barrage actif (egalites en fin de poules) : meme rotation des cibles.
+      const barrages=matchs.filter(m=>m.phase==="barrage"&&m.statut!=="termine"&&m.joueur1_id&&m.joueur2_id);
+      const actifsB=matchsSurCibles(barrages,cibles,matchs);
+      const mb=matchs.find(m=>m.phase==="barrage"&&actifsB.has(m.id)&&(estMoi(m.joueur1_id)||estMoi(m.joueur2_id)));
+      if(mb)return{...mb,__moiEstJ1:estMoi(mb.joueur1_id)};
+      return null;
+    }
+    // 3) Eliminatoires : un match du tableau est jouable = pas fini, pas bye, pas en attente, 2 joueurs connus.
+    if(tournoi.statut==="eliminatoires"){
+      const me=matchs.find(m=>{
+        if(m.phase==="poules")return false;
+        const done=m.statut==="termine";
+        const bye=m.statut&&m.statut.startsWith("bye");
+        const waiting=(m.statut==="attente_avancement"||m.statut==="vide")&&(!m.joueur1_id||!m.joueur2_id);
+        const playable=!done&&!bye&&!waiting&&m.joueur1_id&&m.joueur2_id;
+        return playable&&(estMoi(m.joueur1_id)||estMoi(m.joueur2_id));
+      });
+      if(me)return{...me,__moiEstJ1:estMoi(me.joueur1_id)};
+    }
+    return null;
+  })();
+
   return(
     <div style={{maxWidth:700,margin:"0 auto",padding:"24px 16px"}}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes livePulse{0%,100%{opacity:1}50%{opacity:.25}}`}</style>
@@ -2086,6 +2166,9 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         </div>
       </div>
 
+      {/* Alerte "c'est a toi de jouer" — montee ici pour TOUTES les phases (poules, barrages, eliminatoires) */}
+      <TurnAlert monMatch={monMatchActifTournoi} joueurs={joueurs} canPlay={canPlay} onJouer={m=>setPage("scoreur-potes-"+m.id)}/>
+
       {/* Content by statut */}
       {tournoi.statut==="attente"&&(
         <LobbyView tournoi={tournoi} joueurs={joueurs} isCreateur={isCreateur}
@@ -2095,7 +2178,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       {showPoolConfig&&<PoolConfigModal nbJoueurs={joueurs.length} saving={saving} onValider={lancerTournoi} onClose={()=>setShowPoolConfig(false)}/>}
       {tournoi.statut==="poules"&&(
         <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} isCreateur={isCreateur}
-          nbCibles={cibles} onSetCibles={changerCibles} canPlay={canPlay} onOpenShare={()=>setShowShare(true)} onModifier={retourLobby}
+          nbCibles={cibles} nbQual={tournoi.nb_qualifies!=null?tournoi.nb_qualifies:nbQualLocal} onSetCibles={changerCibles} canPlay={canPlay} onOpenShare={()=>setShowShare(true)} onModifier={retourLobby}
           onSaisirScore={m=>setMatchModal(m)}
           onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
           onLancerEliminatoires={()=>setShowBracketConfig(true)}
