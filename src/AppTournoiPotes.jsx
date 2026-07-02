@@ -64,24 +64,17 @@ const getTournoiConfig=(n)=>{
   return          {nbGroupes:6,bracket:8};
 };
 
-// Seed players into bracket slots (standard tournament seeding)
-const seedBracket=(ranked,size)=>{
-  // Pad with null to fill bracket size
-  const padded=[...ranked];
-  while(padded.length<size) padded.push(null);
-  // Standard seeding: 1 vs last, etc.
-  // Build pairs for first round
-  const build=(arr)=>{
-    if(arr.length===2) return arr;
-    const mid=arr.length/2;
-    const top=arr.slice(0,mid);
-    const bot=arr.slice(mid).reverse();
-    const result=[];
-    for(let i=0;i<top.length;i++){result.push(top[i]);result.push(bot[i]);}
-    return result;
-  };
-  return build(padded);
+// Ordre de placement STANDARD d'un tableau : les têtes de série sont réparties (seed 1 et seed 2
+// dans des moitiés opposées → ils ne peuvent se croiser qu'en finale). Ex. taille 8 → [1,8,4,5,2,7,3,6].
+const seedOrder=(size)=>{
+  let order=[1];
+  while(order.length<size){ const n=order.length*2; order=order.flatMap(s=>[s,n+1-s]); }
+  return order;
 };
+// Place les joueurs classés (ranked[0]=meilleur) dans les slots selon l'ordre standard.
+// Les seeds manquants (> nb de joueurs) restent null → ce sont les exempts (byes), attribués aux MEILLEURS
+// et répartis dans le tableau (jamais 2 exempts collés dans la même paire).
+const seedBracket=(ranked,size)=>seedOrder(size).map(s=>ranked[s-1]||null);
 
 // Tirage tenant compte des poules : les 1ers de poule = têtes de série (affrontent des 2es
 // d'une AUTRE poule, fort vs faible), et on évite que 2 joueurs d'une même poule se croisent
@@ -199,6 +192,21 @@ const avancerApresMatch=async(match,gagnant_id,allMatchs)=>{
   if(r===finaleRound-1){
     const petite=allMatchs.find(m=>m.phase==="petite_finale");
     if(petite){ await placer(petite,slotIsJ1,perdant_id); }
+  }
+};
+
+// Fait AVANCER tous les exempts (byes) du tableau jusqu'a ce qu'il n'en reste plus.
+// Re-lit les matchs a CHAQUE etape (jamais de donnee perimee), et marque chaque bye "termine".
+// Idempotent : peut etre relance sans risque (sert au lancement ET en auto-reparation).
+const propagerByes=async(tid)=>{
+  let secu=0;
+  while(secu<64){
+    secu++;
+    const fresh=await dbTP.getMatchs(tid);
+    const bye=(fresh||[]).find(m=>typeof m.statut==="string"&&m.statut.startsWith("bye")&&m.gagnant_id);
+    if(!bye)break;
+    await avancerApresMatch(bye,bye.gagnant_id,fresh);
+    await dbTP.updateMatch(bye.id,{statut:"termine"});
   }
 };
 
@@ -1803,6 +1811,17 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   const canPlay=!!isCreateur||codeUnlocked;
   const deverrouiller=()=>{ setCodeUnlocked(true); try{localStorage.setItem("dp_tp_player_"+tournoiId,"1");}catch(e){} setShowShare(false); };
 
+  // Auto-réparation des exempts (byes) bloqués : si un tableau a été lancé par une ancienne version
+  // (bye jamais avancé → tour suivant vide), le CRÉATEUR le répare une fois à l'ouverture. Idempotent.
+  const byeHealRef=useRef(false);
+  useEffect(()=>{
+    if(byeHealRef.current||!tournoi||tournoi.statut!=="eliminatoires"||!isCreateur)return;
+    const stuck=matchs.some(m=>typeof m.statut==="string"&&m.statut.startsWith("bye")&&m.gagnant_id);
+    if(!stuck)return;
+    byeHealRef.current=true;
+    (async()=>{ try{ await propagerByes(tournoiId); await reload(); }catch(e){console.error("propagerByes:",e);} })();
+  },[tournoi?.statut,isCreateur,matchs,tournoiId,reload]);
+
   // ── Lancer le tournoi (phase poules)
   const lancerTournoi=async(poolSize=4,poolManches=2,nbCibles=2,nbQualif=2)=>{
     if(joueurs.length<2)return;
@@ -1912,21 +1931,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       if(bracketMatchs.length>0)await dbTP.addMatchs(bracketMatchs);
       // On fait avancer tout de suite les exemptes (byes) : ils ont deja gagne d'office.
       // Sans ca, leur adversaire du tour suivant n'arrive jamais et le tableau se bloque.
-      // On boucle tant qu'il reste un bye a propager (cas 2 byes qui se rejoignent au tour d'apres).
-      let restePasse=true, secu=0;
-      while(restePasse&&secu<10){
-        secu++;
-        restePasse=false;
-        const fresh=await dbTP.getMatchs(tournoiId);
-        for(const m of fresh){
-          if(typeof m.statut==="string"&&m.statut.startsWith("bye")&&m.gagnant_id){
-            await avancerApresMatch(m,m.gagnant_id,fresh);
-            // On marque ce bye comme traite pour ne pas le repropager a la passe suivante.
-            await dbTP.updateMatch(m.id,{statut:"termine"});
-            restePasse=true;
-          }
-        }
-      }
+      await propagerByes(tournoiId);
       await dbTP.updateTournoi(tournoiId,{statut:"eliminatoires"});
       setShowBracketConfig(false);
       await reload();
