@@ -207,17 +207,18 @@ const avancerApresMatch=async(match,gagnant_id,allMatchs)=>{
 
 // Sort joueurs by ranking in a group
 const rankGroup=(joueurs,barrages=[])=>[...joueurs].sort((a,b)=>{
-  if(b.points!==a.points)return b.points-a.points;
+  if(b.points!==a.points)return b.points-a.points;             // 1) points
+  if(b.victoires!==a.victoires)return b.victoires-a.victoires; // 2) victoires (V/D)
   const da=a.manches_pour-a.manches_contre, db=b.manches_pour-b.manches_contre;
-  if(db!==da)return db-da;
-  // Départage par match de barrage (tête-à-tête gagné en 701)
+  if(db!==da)return db-da;                                     // 3) goal average (manches gagnées − perdues)
+  // 4) Départage par match de barrage (tête-à-tête gagné en 701)
   const bm=barrages.find(m=>m.statut==="termine"&&m.gagnant_id&&((m.joueur1_id===a.id&&m.joueur2_id===b.id)||(m.joueur1_id===b.id&&m.joueur2_id===a.id)));
   if(bm)return bm.gagnant_id===a.id?-1:1;
   return 0;
 });
 
-// Deux joueurs sont-ils à égalité parfaite (mêmes points ET même différence de manches) ?
-const memeNiveau=(a,b)=>a.points===b.points&&(a.manches_pour-a.manches_contre)===(b.manches_pour-b.manches_contre);
+// Égalité PARFAITE (mêmes points ET mêmes victoires ET même goal average) → barrage 701 nécessaire
+const memeNiveau=(a,b)=>a.points===b.points&&a.victoires===b.victoires&&(a.manches_pour-a.manches_contre)===(b.manches_pour-b.manches_contre);
 // Égalités NON tranchées sur les places qui comptent (1re/2e/3e → qualif + tête de série).
 // Renvoie les paires [a,b] qui ont besoin d'un barrage (pas encore joué).
 const egalitesADepartager=(joueursGroupe,barrages=[])=>{
@@ -833,6 +834,11 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
 
 // ── VUE POULES ────────────────────────────────────────────────────────────────
 const RED_TP="#ef4444";
+// Identité visuelle des groupes + avatars (initiales)
+const GROUP_COLORS=["#f97316","#22c55e","#60a5fa","#a78bfa","#f59e0b","#ec4899","#14b8a6","#ef4444"];
+const groupCol=(g)=>GROUP_COLORS[(g-1)%GROUP_COLORS.length];
+const groupLetter=(g)=>String.fromCharCode(64+((g-1)%26)+1); // 1->A, 2->B…
+const initiales=(nom)=>{ const s=(nom||"?").trim(); const p=s.split(/[\s-]+/).filter(Boolean); return (p.length>=2?(p[0][0]+p[1][0]):s.slice(0,2)).toUpperCase(); };
 const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,joueurConnecte,canPlay=false,onOpenShare,onModifier})=>{
   const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
   const groupes=Array.from({length:nbGroupes},(_,i)=>i+1);
@@ -894,8 +900,13 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
       }
     }catch(e){}
   };
+  // Un scoreur est-il affiché sur ce téléphone en ce moment ? (battement de cœur posé par <Scoreur/>)
+  const scoreurAffiche=()=>{ try{ return !!window.__dpScoreurTs && (Date.now()-window.__dpScoreurTs)<12000; }catch(e){ return false; } };
   useEffect(()=>{
     if(monMatchActif&&alertedRef.current!==monMatchActif.id){
+      // Ne pas déranger pendant qu'on score une partie (on n'enregistre PAS l'alerte → elle pourra sonner
+      // au retour sur le tournoi si c'est toujours notre tour).
+      if(scoreurAffiche())return;
       alertedRef.current=monMatchActif.id;
       setAlerteMatch(monMatchActif);
       startBuzz();
@@ -905,6 +916,54 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
   },[monMatchActif&&monMatchActif.id]); // eslint-disable-line
   useEffect(()=>()=>stopBuzz(),[]); // eslint-disable-line
   const fermerAlerte=(jouer)=>{ stopBuzz(); try{ if("Notification" in window&&Notification.permission==="default")Notification.requestPermission(); }catch(e){} const m=alerteMatch; setAlerteMatch(null); if(jouer&&m)onJouerMatch(m); };
+
+  // ── Carte de match "premium" (avatars, ⚔️, couleur d'état, badge) ──
+  const av=(nom,col,win)=>(<span style={{width:32,height:32,borderRadius:"50%",flexShrink:0,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,background:(win?CT.green:col)+"1e",color:win?CT.green:col,border:`1px solid ${(win?CT.green:col)}44`}}>{initiales(nom)}</span>);
+  const carteMatch=(m,barrage=false)=>{
+    const j1=joueurs.find(j=>j.id===m.joueur1_id), j2=joueurs.find(j=>j.id===m.joueur2_id);
+    const done=m.statut==="termine";
+    const actif=!done&&(barrage||actifs.has(m.id));
+    const attente=!done&&!actif;
+    const col=done?CT.green:barrage?RED_TP:actif?CT.accent:CT.muted;
+    const g1=done&&m.gagnant_id===j1?.id, g2=done&&m.gagnant_id===j2?.id;
+    const bordC=done?CT.green+"33":actif||barrage?col+"88":CT.border;
+    const bg=done?"#16161d":actif||barrage?col+"12":"#16161d";
+    return(
+      <div key={m.id} style={{borderRadius:12,padding:"11px 13px",marginBottom:8,background:bg,border:`1px solid ${bordC}`,opacity:attente?0.62:1}}>
+        {barrage&&<div style={{fontSize:8.5,fontWeight:800,color:RED_TP,letterSpacing:.6,marginBottom:7}}>BARRAGE · 701</div>}
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:9}}>
+          <div style={{flex:1,display:"flex",alignItems:"center",gap:8,minWidth:0}}>
+            {av(j1?.nom,col,g1)}
+            <span style={{fontSize:14,fontWeight:g1?800:500,color:g1?CT.green:CT.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{j1?.nom||"?"}</span>
+          </div>
+          {done?(
+            <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
+              <span style={{fontSize:18,fontWeight:800,color:g1?CT.green:CT.muted}}>{m.score1}</span>
+              <EmoIcon e="⚔️" size={12}/>
+              <span style={{fontSize:18,fontWeight:800,color:g2?CT.green:CT.muted}}>{m.score2}</span>
+            </div>
+          ):(
+            <div style={{width:32,height:32,borderRadius:9,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:col+"18"}}><EmoIcon e="⚔️" size={16}/></div>
+          )}
+          <div style={{flex:1,display:"flex",alignItems:"center",gap:8,justifyContent:"flex-end",minWidth:0}}>
+            <span style={{fontSize:14,fontWeight:g2?800:500,color:g2?CT.green:CT.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"right"}}>{j2?.nom||"?"}</span>
+            {av(j2?.nom,col,g2)}
+          </div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {done&&<span style={{fontSize:11,fontWeight:600,color:CT.green,background:CT.green+"18",borderRadius:20,padding:"3px 9px",display:"inline-flex",alignItems:"center",gap:4}}><EmoIcon e="✅" size={11}/>Terminé</span>}
+          {actif&&<span style={{fontSize:11,fontWeight:600,color:col,background:col+"1e",borderRadius:20,padding:"3px 9px",display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:6,height:6,borderRadius:"50%",background:col,display:"inline-block"}}/>{barrage?"Barrage à jouer":"À jouer maintenant"}</span>}
+          {attente&&<span style={{fontSize:11,fontWeight:600,color:CT.muted,background:CT.muted+"18",borderRadius:20,padding:"3px 9px",display:"inline-flex",alignItems:"center",gap:4}}><EmoIcon e="⏳" size={11}/>En attente</span>}
+          {!done&&<span style={{fontSize:10.5,color:CT.muted}}>Premier à {m.manches_max||2} manche{(m.manches_max||2)>1?"s":""}</span>}
+          <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+            {actif&&canPlay&&<Btn onClick={()=>onJouerMatch(m)} variant="primary" small><EmoText s="▶ Lancer" size={12}/></Btn>}
+            {isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small title={done?"Corriger le score":"Saisir les manches"}><EmoIcon e="✏️" size={13}/></Btn>}
+            {actif&&!canPlay&&<span style={{fontSize:11,color:col,fontWeight:700}}>🎯</span>}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return(
     <div>
@@ -988,71 +1047,50 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
         const barrageG=barrages.filter(m=>m.groupe===g).sort((a,b)=>(a.position_bracket||0)-(b.position_bracket||0));
         // Ordre FIXE (par position) : la liste ne bouge pas, seule la barre verte se déplace
         const mG=matchs.filter(m=>m.phase==="poules"&&m.groupe===g).sort((a,b)=>(a.position_bracket||0)-(b.position_bracket||0));
+        const gc=groupCol(g);
+        const termG=mG.filter(m=>m.statut==="termine").length, totG=mG.length;
+        const groupeFini=totG>0&&termG===totG; // qualifiés affichés SEULEMENT quand la poule est finie
         return(
           <Card key={g} style={{marginBottom:16}}>
-            <h3 style={{fontWeight:700,fontSize:15,marginBottom:12,color:CT.accent,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🏷️" size={14}/>Groupe {g}</h3>
-            {/* Classement */}
-            <div style={{marginBottom:14}}>
-              {jG.map((j,i)=>(
-                <div key={j.id} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 10px",background:i<2?"#f9731608":"transparent",borderRadius:7,marginBottom:4}}>
-                  <span style={{width:20,fontWeight:800,fontSize:13,color:i<2?CT.accent:CT.muted}}>{i+1}</span>
-                  <span style={{flex:1,fontWeight:600,fontSize:14}}>{j.nom}</span>
-                  <span style={{fontSize:12,color:CT.muted}}>{j.victoires}V {j.defaites}D</span>
-                  <span style={{fontWeight:700,fontSize:14,color:CT.accent}}>{j.points} pts</span>
-                  {i<2&&<span style={{fontSize:10,color:CT.green}}>↑ Qualifié</span>}
-                </div>
-              ))}
+            {/* En-tête groupe + avancement */}
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
+              <span style={{width:11,height:11,borderRadius:"50%",background:gc,flexShrink:0}}/>
+              <span style={{fontWeight:700,fontSize:16}}>Groupe {groupLetter(g)}</span>
+              <span style={{marginLeft:"auto",fontSize:12,color:CT.muted}}>{termG}/{totG} matchs</span>
             </div>
+            <div style={{height:6,borderRadius:6,background:"#26262e",overflow:"hidden",marginBottom:16}}>
+              <div style={{width:`${totG?termG/totG*100:0}%`,height:"100%",background:gc,borderRadius:6,transition:"width .4s"}}/>
+            </div>
+            {/* Classement */}
+            {jG.map((j,i)=>{
+              const rc=i===0?"#fbbf24":i===1?"#cbd5e1":i===2?"#f59e0b":"#64748b";
+              const rbc=groupeFini?rc:"#7a7a88";  // médailles seulement une fois la poule finie
+              const qual=groupeFini&&i<2;          // qualifié = poule finie + top 2
+              const diff=j.manches_pour-j.manches_contre, joue=(j.victoires+j.defaites)>0;
+              return [
+                (i===2&&groupeFini)?<div key={"cut"+g} style={{display:"flex",alignItems:"center",gap:8,margin:"6px 4px 8px"}}><div style={{flex:1,height:1,background:"repeating-linear-gradient(90deg,#3a3a44 0 6px,transparent 6px 12px)"}}/><span style={{fontSize:10,color:CT.muted}}>qualification</span><div style={{flex:1,height:1,background:"repeating-linear-gradient(90deg,#3a3a44 0 6px,transparent 6px 12px)"}}/></div>:null,
+                <div key={j.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:qual?gc+"0e":"transparent",marginBottom:4}}>
+                  <span style={{width:22,height:22,borderRadius:"50%",flexShrink:0,background:rbc+"22",color:rbc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800}}>{i+1}</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:600,color:(groupeFini&&i>=2)?"#cbd5e1":CT.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{j.nom}</div>
+                    <div style={{fontSize:11,color:CT.muted,marginTop:2}}>
+                      <b style={{color:CT.green}}>{j.victoires}V</b> <b style={{color:"#f87171"}}>{j.defaites}D</b>
+                      {joue&&<> · manches <b style={{color:CT.text}}>{j.manches_pour}</b>–<b style={{color:CT.text}}>{j.manches_contre}</b> <span style={{color:diff>=0?CT.green:"#f87171",fontWeight:600}}>({diff>=0?"+":""}{diff})</span></>}
+                      {qual&&<span style={{color:CT.green,fontWeight:700}}> · ✓ Qualifié</span>}
+                    </div>
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    <div style={{fontSize:17,fontWeight:800,color:qual?gc:CT.text,lineHeight:1}}>{j.points}</div>
+                    <div style={{fontSize:9.5,color:CT.muted,marginTop:1,letterSpacing:.5}}>PTS</div>
+                  </div>
+                </div>
+              ];
+            })}
             {/* Matchs du groupe */}
-            <div style={{borderTop:`1px solid ${CT.border}`,paddingTop:12}}>
-              <div style={{fontSize:11,color:CT.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Matchs</div>
-              {mG.map(m=>{
-                const j1=joueurs.find(j=>j.id===m.joueur1_id);
-                const j2=joueurs.find(j=>j.id===m.joueur2_id);
-                const done=m.statut==="termine";
-                const actif=!done&&actifs.has(m.id);
-                const attente=!done&&!actif;
-                return(
-                  <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,marginBottom:4,
-                    background:actif?CT.green+"14":"transparent",
-                    border:`1px solid ${actif?CT.green+"66":"transparent"}`,
-                    borderBottom:actif?`1px solid ${CT.green+"66"}`:`1px solid ${CT.border+"44"}`,
-                    opacity:attente?0.6:1}}>
-                    <span style={{flex:1,fontSize:13,fontWeight:done&&m.gagnant_id===j1?.id?700:400,color:done&&m.gagnant_id===j1?.id?CT.green:CT.text}}>{j1?.nom||"?"}</span>
-                    <span style={{fontWeight:800,fontSize:15,minWidth:40,textAlign:"center",color:done?CT.text:CT.muted}}>
-                      {done?`${m.score1}–${m.score2}`:"vs"}
-                    </span>
-                    <span style={{flex:1,fontSize:13,fontWeight:done&&m.gagnant_id===j2?.id?700:400,color:done&&m.gagnant_id===j2?.id?CT.green:CT.text,textAlign:"right"}}>{j2?.nom||"?"}</span>
-                    {actif&&canPlay&&(
-                      <div style={{display:"flex",gap:6}}>
-                        <Btn onClick={()=>onJouerMatch(m)} variant="primary" small>▶ Jouer</Btn>
-                        {isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small><EmoIcon e="✏️" size={13}/></Btn>}
-                      </div>
-                    )}
-                    {actif&&!canPlay&&<span style={{fontSize:10,color:CT.green,fontWeight:700,whiteSpace:"nowrap"}}>🎯 à jouer</span>}
-                    {attente&&<span style={{fontSize:10.5,color:CT.muted,fontWeight:600,whiteSpace:"nowrap"}}>⏳ en attente</span>}
-                    {attente&&isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small><EmoIcon e="✏️" size={13}/></Btn>}
-                    {done&&isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small title="Corriger le score"><EmoIcon e="✏️" size={13}/></Btn>}
-                    {done&&<Badge color={CT.green}><EmoIcon e="✅" size={12}/></Badge>}
-                  </div>
-                );
-              })}
-              {barrageG.map(m=>{
-                const j1=joueurs.find(j=>j.id===m.joueur1_id);
-                const j2=joueurs.find(j=>j.id===m.joueur2_id);
-                const done=m.statut==="termine";
-                return(
-                  <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 10px",borderRadius:8,marginTop:6,background:RED_TP+"14",border:`1px solid ${RED_TP}77`}}>
-                    <span style={{fontSize:8.5,fontWeight:800,color:RED_TP,background:RED_TP+"22",borderRadius:5,padding:"2px 5px",letterSpacing:.5,whiteSpace:"nowrap"}}>BARRAGE 701</span>
-                    <span style={{flex:1,fontSize:13,fontWeight:done&&m.gagnant_id===j1?.id?700:400,color:done&&m.gagnant_id===j1?.id?CT.green:CT.text}}>{j1?.nom||"?"}</span>
-                    <span style={{fontWeight:800,fontSize:15,minWidth:34,textAlign:"center",color:done?CT.text:RED_TP}}>{done?`${m.score1}–${m.score2}`:"vs"}</span>
-                    <span style={{flex:1,fontSize:13,fontWeight:done&&m.gagnant_id===j2?.id?700:400,color:done&&m.gagnant_id===j2?.id?CT.green:CT.text,textAlign:"right"}}>{j2?.nom||"?"}</span>
-                    {!done&&canPlay&&<button onClick={()=>onJouerMatch(m)} style={{background:RED_TP,color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:800,fontSize:12,cursor:"pointer",touchAction:"manipulation"}}>▶ Jouer</button>}
-                    {!done&&isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small><EmoIcon e="✏️" size={13}/></Btn>}
-                    {done&&<Badge color={CT.green}><EmoIcon e="✅" size={12}/></Badge>}
-                  </div>
-                );
-              })}
+            <div style={{borderTop:`1px solid ${CT.border}`,paddingTop:14,marginTop:10}}>
+              <div style={{fontSize:11,color:CT.muted,fontWeight:600,letterSpacing:1,marginBottom:10}}>MATCHS</div>
+              {mG.map(m=>carteMatch(m,false))}
+              {barrageG.map(m=>carteMatch(m,true))}
             </div>
           </Card>
         );
@@ -1072,51 +1110,231 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
 };
 
 // ── VUE BRACKET ───────────────────────────────────────────────────────────────
-const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch,canPlay=false})=>{
+// ── Identité visuelle par tour (couleur différente selon le stade) ────────────
+const bktRoundColor=(phase)=>{
+  switch(phase){
+    case "finale":        return "#fbbf24"; // OR
+    case "petite_finale": return CT.yellow; // bronze / ambre
+    case "demi":          return CT.red;    // demi-finales
+    case "quart":         return CT.yellow; // quarts
+    case "huitieme":      return CT.accent; // huitièmes
+    case "seizieme":      return CT.accent; // seizièmes
+    case "consolante":    return CT.purple;
+    default:              return CT.accent;
+  }
+};
+const bktPhaseLabel=(phase,r)=>{
+  switch(phase){
+    case "finale":        return <EmoText s="🏆 Finale" size={13}/>;
+    case "petite_finale": return <EmoText s="🥉 3e place" size={13}/>;
+    case "demi":          return <EmoText s="🥈 Demi-finales" size={12}/>;
+    case "quart":         return <EmoText s="⚔️ Quarts" size={12}/>;
+    case "huitieme":      return <EmoText s="🎯 Huitièmes" size={12}/>;
+    case "seizieme":      return <EmoText s="🎯 Seizièmes" size={12}/>;
+    case "consolante":    return "Consolante";
+    default:              return "Tour "+r;
+  }
+};
+
+// ── Keyframes du bracket (injectés une fois) ─────────────────────────────────
+const BktStyles=()=>(
+  <style>{`
+    @keyframes bkt-halo{0%,100%{box-shadow:0 0 0 1px #fbbf2455 inset,0 0 18px 2px #fbbf2433;}50%{box-shadow:0 0 0 1px #fbbf2488 inset,0 0 32px 7px #fbbf2455;}}
+    @keyframes bkt-pulse{0%,100%{opacity:.5;}50%{opacity:1;}}
+    @keyframes bkt-slidein{0%{opacity:0;transform:translateX(-10px) scale(.85);}100%{opacity:1;transform:translateX(0) scale(1);}}
+    @keyframes bkt-glowdot{0%,100%{box-shadow:0 0 4px 0 currentColor;}50%{box-shadow:0 0 10px 2px currentColor;}}
+    @keyframes bkt-emblem{0%,100%{transform:scale(1);box-shadow:0 0 14px #fbbf2455;}50%{transform:scale(1.08);box-shadow:0 0 26px #fbbf2299;}}
+    @keyframes bkt-crown{0%,100%{transform:translateY(0);}50%{transform:translateY(-2px);}}
+  `}</style>
+);
+
+// ── Avatar bracket (initiales, garde-fou anti-crash) ─────────────────────────
+const bktInit=(nom)=>{ try{ return nom?initiales(nom):"?"; }catch(_){ return "?"; } };
+const BktAvatar=({nom,col,win,size=40,animate})=>(
+  <span style={{
+    width:size,height:size,borderRadius:"50%",flexShrink:0,
+    display:"inline-flex",alignItems:"center",justifyContent:"center",
+    fontSize:size>42?14:13,fontWeight:800,
+    background:(win?CT.green:col)+"22",
+    color:win?CT.green:(nom?col:CT.muted),
+    border:`2px solid ${(win?CT.green:(nom?col:CT.border))}${win?"":"66"}`,
+    boxShadow:win?`0 0 10px ${CT.green}55`:"none",
+    animation:animate?"bkt-slidein .5s ease both":"none",
+  }}>{bktInit(nom)}</span>
+);
+
+// ── Bandeau de statut (haut de chaque carte) ─────────────────────────────────
+const BktStatusBanner=({label,color,bg,hero})=>(
+  <div style={{
+    display:"flex",alignItems:"center",justifyContent:"center",gap:6,
+    padding:hero?"6px 10px":"4px 10px",
+    fontSize:hero?11.5:10,fontWeight:800,letterSpacing:1,textTransform:"uppercase",
+    color:color,background:bg,borderBottom:`1px solid ${color}33`,
+  }}>
+    <span style={{width:7,height:7,borderRadius:"50%",background:color,color:color,animation:"bkt-glowdot 1.6s ease-in-out infinite"}}/>
+    {label}
+  </div>
+);
+
+// ============================================================================
+//  Carte de match du tableau (Match Card e-sport)
+// ============================================================================
+const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch,canPlay=false,hero=false})=>{
   const j1=joueurs.find(j=>j.id===match.joueur1_id);
   const j2=joueurs.find(j=>j.id===match.joueur2_id);
   const done=match.statut==="termine";
-  const bye=match.statut.startsWith("bye");
+  const bye=match.statut&&match.statut.startsWith("bye");
+  const waiting=match.statut==="attente_avancement"||match.statut==="vide";
+  const playable=!done&&!bye&&!waiting&&j1&&j2;
+  const roundCol=bktRoundColor(match.phase);
+  const emblemCol=hero?"#fbbf24":roundCol;
 
-  const rowStyle=(j,isGagnant)=>({
-    padding:"6px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",
-    background:isGagnant?"#22c55e22":done&&!isGagnant?"#ef444411":"transparent",
-    borderRadius:6,
-  });
+  const borderColor=done?CT.green:hero?"#fbbf24":bye?CT.green:waiting?CT.border:roundCol;
+  const avSize=hero?46:40;
+  const nameSize=hero?16:14;
+
+  // Bandeau de statut (le point coloré porte déjà la couleur → libellés sans emoji)
+  let banner;
+  if(hero){            banner={label:"Grande finale",color:"#fbbf24",bg:"linear-gradient(90deg,#78350f55,#fbbf2433,#78350f55)"}; }
+  else if(done){       banner={label:"Terminé",color:CT.green,bg:CT.green+"14"}; }
+  else if(bye){        banner={label:"Qualifié",color:CT.green,bg:CT.green+"14"}; }
+  else if(waiting){    banner={label:"En attente",color:CT.muted,bg:"#ffffff08"}; }
+  else{                banner={label:"À jouer",color:roundCol,bg:roundCol+"14"}; }
+
+  // Ligne joueur (avatar + nom + score) — ghostLabel quand le slot n'a pas encore de joueur
+  const playerRow=(j,isWin,score,ghostLabel,crown)=>(
+    <div style={{
+      display:"flex",alignItems:"center",gap:10,
+      padding:hero?"9px 11px":"7px 10px",borderRadius:8,
+      background:isWin?CT.green+"1e":done&&j&&!isWin?CT.red+"12":"transparent",
+      border:isWin?`1px solid ${CT.green}44`:"1px solid transparent",
+    }}>
+      <div style={{position:"relative",display:"inline-flex",flexShrink:0}}>
+        {crown&&<div style={{position:"absolute",top:-15,left:0,right:0,display:"flex",justifyContent:"center",pointerEvents:"none",animation:"bkt-crown 1.8s ease-in-out infinite",filter:"drop-shadow(0 2px 4px #fbbf2488)"}}><EmoIcon e="👑" size={18} color="#fbbf24"/></div>}
+        <BktAvatar nom={j?.nom} col={roundCol} win={isWin} size={avSize} animate={isWin&&done}/>
+      </div>
+      <span style={{
+        flex:1,minWidth:0,fontSize:nameSize,fontWeight:isWin?800:j?600:500,
+        color:isWin?CT.green:j?CT.text:CT.muted,
+        whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
+      }}>
+        {j?.nom || ghostLabel || (bye?"— pas d'adversaire —":"À définir")}
+      </span>
+      {done&&<span style={{fontSize:hero?22:18,fontWeight:900,minWidth:22,textAlign:"center",color:isWin?CT.green:CT.muted}}>{score}</span>}
+      {isWin&&<span style={{display:"inline-flex"}}><EmoIcon e="✅" size={hero?18:15} color={CT.green}/></span>}
+    </div>
+  );
+
+  const ghost1=!j1&&waiting?`Vainqueur match ${(match.position_bracket??0)*2+1}`:null;
+  const ghost2=!j2&&waiting?`Vainqueur match ${(match.position_bracket??0)*2+2}`:null;
+  const crown1=hero&&done&&match.gagnant_id===j1?.id;
+  const crown2=hero&&done&&match.gagnant_id===j2?.id;
 
   return(
-    <div style={{background:CT.card,border:`2px solid ${done?CT.green:match.statut==="attente_avancement"?CT.border:CT.accent+"66"}`,borderRadius:10,overflow:"hidden",minWidth:180,maxWidth:220,width:"100%"}}>
-      <div style={{background:"#111",padding:"4px 10px",fontSize:10,fontWeight:700,color:CT.muted,textTransform:"uppercase",letterSpacing:1}}>
-        {match.phase==="finale"?<EmoText s="🏆 Finale" size={13}/>:match.phase==="petite_finale"?<EmoText s="🥉 3e place" size={13}/>:match.phase==="consolante"?<EmoText s="🎖️ Consolante" size={13}/>:match.phase==="demi"?<EmoText s="🥈 Demie" size={13}/>:match.phase==="quart"?<EmoText s="⚔️ Quart" size={13}/>:match.phase==="huitieme"?"1/8":"1/16"}
-      </div>
-      <div style={rowStyle(j1,done&&match.gagnant_id===j1?.id)}>
-        <span style={{fontSize:13,fontWeight:done&&match.gagnant_id===j1?.id?700:400,color:j1?CT.text:CT.muted}}>
-          {j1?.nom||(bye?"— pas d'adversaire —":"À définir")}
-          {bye&&j1&&<span style={{color:CT.green,fontWeight:800,fontSize:11,marginLeft:6}}>✓</span>}
-        </span>
-        {done&&<span style={{fontWeight:800,color:match.gagnant_id===j1?.id?CT.green:CT.muted}}>{match.score1}</span>}
-      </div>
-      <div style={{height:1,background:CT.border}}/>
-      <div style={rowStyle(j2,done&&match.gagnant_id===j2?.id)}>
-        <span style={{fontSize:13,fontWeight:done&&match.gagnant_id===j2?.id?700:400,color:j2?CT.text:CT.muted}}>
-          {j2?.nom||(bye?"— pas d'adversaire —":"À définir")}
-          {bye&&j2&&<span style={{color:CT.green,fontWeight:800,fontSize:11,marginLeft:6}}>✓</span>}
-        </span>
-        {done&&<span style={{fontWeight:800,color:match.gagnant_id===j2?.id?CT.green:CT.muted}}>{match.score2}</span>}
-      </div>
-      {!done&&!bye&&j1&&j2&&canPlay&&(
-        <div style={{padding:"6px 10px",borderTop:`1px solid ${CT.border}`,display:"flex",gap:6}}>
-          <Btn onClick={()=>onJouerMatch(match)} variant="primary" small style={{flex:1,fontSize:11}}>▶ Jouer</Btn>
-          {isCreateur&&<Btn onClick={()=>onSaisirScore(match)} variant="dark" small style={{fontSize:11}}><EmoIcon e="✏️" size={12}/></Btn>}
+    <div style={{
+      position:"relative",
+      background:hero?"linear-gradient(160deg,#1c1608,#1a1a1a 55%,#140f04)":"linear-gradient(160deg,#1d1d1d,#161616)",
+      // texture discrète "points / cible"
+      backgroundImage:hero
+        ?`radial-gradient(circle at 50% 0%, #fbbf2418, transparent 62%), radial-gradient(#fbbf240c 1px, transparent 1px)`
+        :`radial-gradient(${roundCol}0c 1px, transparent 1px)`,
+      backgroundSize:hero?"100% 100%, 9px 9px":"9px 9px",
+      border:`${hero?3:2}px solid ${borderColor}${hero||done?"":"aa"}`,
+      borderRadius:hero?16:12,overflow:"hidden",
+      minWidth:hero?226:176,maxWidth:hero?268:210,width:"100%",
+      boxShadow:hero?"0 0 0 1px #fbbf2455 inset, 0 0 26px 4px #fbbf2440":done?`0 4px 14px ${CT.green}22`:`0 4px 12px #00000055`,
+      animation:hero?"bkt-halo 2.8s ease-in-out infinite":"none",
+    }}>
+      {hero&&(
+        <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",paddingTop:12,paddingBottom:4,background:"linear-gradient(180deg,#fbbf2418,transparent)"}}>
+          <div style={{filter:"drop-shadow(0 3px 8px #fbbf2488)"}}><EmoIcon e="🏆" size={44} color="#fbbf24"/></div>
         </div>
       )}
-      {!done&&!bye&&j1&&j2&&!canPlay&&<div style={{padding:"5px 10px",fontSize:10,color:CT.green,fontWeight:700,borderTop:`1px solid ${CT.border}`,textAlign:"center"}}>🎯 match à jouer</div>}
-      {bye&&<div style={{padding:"5px 10px",fontSize:10.5,color:CT.green,fontWeight:600,borderTop:`1px solid ${CT.border}`,background:CT.green+"11"}}>✅ Qualifié d'office — pas d'adversaire à ce tour</div>}
-      {(match.statut==="attente_avancement"||match.statut==="vide")&&<div style={{padding:"5px 10px",fontSize:10.5,color:CT.muted,borderTop:`1px solid ${CT.border}`}}>⏳ En attente du tour précédent</div>}
+
+      <BktStatusBanner label={banner.label} color={banner.color} bg={banner.bg} hero={hero}/>
+
+      <div style={{padding:hero?"12px 11px 11px":"9px 9px 8px",display:"flex",flexDirection:"column",gap:0}}>
+        {playerRow(j1,done&&match.gagnant_id===j1?.id,match.score1,ghost1,crown1)}
+
+        {/* Emblème central du duel : badge circulaire lumineux ⚔ */}
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:hero?"4px 2px":"2px 2px",margin:"2px 0"}}>
+          <div style={{flex:1,height:2,borderRadius:2,background:`linear-gradient(90deg,transparent,${emblemCol}66)`}}/>
+          <div style={{
+            width:hero?46:36,height:hero?46:36,borderRadius:"50%",flexShrink:0,
+            display:"inline-flex",alignItems:"center",justifyContent:"center",
+            background:`radial-gradient(circle,${emblemCol}38,${emblemCol}0d 72%)`,
+            border:`2px solid ${emblemCol}66`,boxShadow:`0 0 ${hero?18:11}px ${emblemCol}66`,
+            animation:hero?"bkt-emblem 2.4s ease-in-out infinite":"none",
+          }}>
+            <EmoIcon e="⚔️" size={hero?22:16} color={emblemCol}/>
+          </div>
+          <div style={{flex:1,height:2,borderRadius:2,background:`linear-gradient(270deg,transparent,${emblemCol}66)`}}/>
+        </div>
+
+        {playerRow(j2,done&&match.gagnant_id===j2?.id,match.score2,ghost2,crown2)}
+
+        {match.manches_max&&!bye&&(
+          <div style={{textAlign:"center",fontSize:10,color:CT.muted,marginTop:6,display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
+            <EmoIcon e="🎯" size={10} color={CT.muted}/>Premier à {match.manches_max} manche{match.manches_max>1?"s":""}
+          </div>
+        )}
+      </div>
+
+      {playable&&canPlay&&(
+        <div style={{padding:hero?"0 11px 12px":"0 9px 9px",display:"flex",gap:8,justifyContent:"center"}}>
+          <Btn onClick={()=>onJouerMatch(match)} variant="primary" small style={{fontSize:12,padding:"7px 16px",boxShadow:`0 3px 10px ${CT.accent}55`}}><EmoText s="▶️ Jouer" size={12} color="#fff"/></Btn>
+          {isCreateur&&<Btn onClick={()=>onSaisirScore(match)} variant="dark" small style={{fontSize:12,padding:"7px 12px"}}><EmoText s="✏️ Modifier" size={12}/></Btn>}
+        </div>
+      )}
+      {playable&&!canPlay&&(
+        <div style={{padding:"0 9px 9px"}}>
+          <div style={{padding:"6px 8px",fontSize:10.5,color:roundCol,fontWeight:700,textAlign:"center",background:roundCol+"12",borderRadius:8,border:`1px solid ${roundCol}33`}}>
+            <EmoText s="🎯 Match à jouer" size={10.5} color={roundCol}/>
+          </div>
+        </div>
+      )}
+      {bye&&(
+        <div style={{padding:"0 9px 9px"}}>
+          <div style={{padding:"6px 8px",fontSize:10.5,color:CT.green,fontWeight:700,textAlign:"center",background:CT.green+"12",borderRadius:8,border:`1px solid ${CT.green}33`}}>
+            <EmoText s="✅ Qualifié d'office" size={10.5} color={CT.green}/>
+          </div>
+        </div>
+      )}
+      {waiting&&(
+        <div style={{padding:"0 9px 9px"}}>
+          <div style={{padding:"6px 8px",fontSize:10.5,color:CT.muted,fontWeight:600,textAlign:"center",background:"#ffffff06",borderRadius:8,border:`1px dashed ${CT.border}`,animation:"bkt-pulse 2s ease-in-out infinite"}}>
+            <EmoText s="⏳ En attente du tour précédent" size={10.5} color={CT.muted}/>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
+// ============================================================================
+//  Gouttière de connexion — coudes CSS entre deux tours (auto-alignés en flex)
+// ============================================================================
+const BktGutter=({pairs,color})=>(
+  <div style={{display:"flex",flexDirection:"column",justifyContent:"space-around",flex:1,minHeight:0,alignSelf:"stretch",width:26,flexShrink:0,position:"relative"}}>
+    {Array.from({length:pairs}).map((_,i)=>(
+      <div key={i} style={{position:"relative",flex:1,minHeight:60}}>
+        {/* 2 stubs ENTRANTS à gauche (sortent des 2 cartes du tour source) */}
+        <div style={{position:"absolute",left:0,top:"25%",width:13,height:2,background:color+"66"}}/>
+        <div style={{position:"absolute",left:0,bottom:"25%",width:13,height:2,background:color+"66"}}/>
+        {/* montant vertical au bout des stubs, qui joint les 2 */}
+        <div style={{position:"absolute",left:12,top:"25%",bottom:"25%",width:2,background:color+"66",borderRadius:2}}/>
+        {/* 1 stub SORTANT à droite (vers le tour suivant / la finale) */}
+        <div style={{position:"absolute",left:13,right:0,top:"50%",height:2,background:color+"66",transform:"translateY(-1px)"}}/>
+        {/* pastille de jonction à l'entrée du tour suivant */}
+        <div style={{position:"absolute",right:-3,top:"50%",transform:"translateY(-50%)",width:6,height:6,borderRadius:"50%",background:color,boxShadow:`0 0 6px ${color}`}}/>
+      </div>
+    ))}
+  </div>
+);
+
+// ============================================================================
+//  VUE ÉLIMINATOIRES (arbre de championnat)
+// ============================================================================
 const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,onRetourPoules,onTerminer,canPlay=false,onOpenShare})=>{
   const bracketM=matchs.filter(m=>m.phase!=="poules");
   const mainM=bracketM.filter(m=>MAIN_PHASES.includes(m.phase));
@@ -1124,75 +1342,120 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
   const consoM=bracketM.filter(m=>m.phase==="consolante");
   const rounds=[...new Set(mainM.map(m=>m.round_bracket))].sort((a,b)=>a-b);
   const consoRounds=[...new Set(consoM.map(m=>m.round_bracket))].sort((a,b)=>a-b);
-  // Tournoi prêt à clôturer : tous les matchs du tableau sont réglés (joués, exempts, ou vides)
-  const allDone=bracketM.length>0&&bracketM.every(m=>m.statut==="termine"||m.statut.startsWith("bye")||m.statut==="vide");
+  const allDone=bracketM.length>0&&bracketM.every(m=>m.statut==="termine"||(m.statut&&m.statut.startsWith("bye"))||m.statut==="vide");
   const finale=mainM.find(m=>m.phase==="finale");
   const champion=finale&&finale.statut==="termine"&&finale.gagnant_id?joueurs.find(j=>j.id===finale.gagnant_id):null;
-  const colLabel={fontSize:12,fontWeight:700,color:CT.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:4,textAlign:"center"};
   const finaleRoundNum=rounds.length?Math.max(...rounds):0;
-  const roundCol=(r)=>{
-    const rm=mainM.filter(m=>m.round_bracket===r).sort((a,b)=>a.position_bracket-b.position_bracket);
-    const phase=rm[0]?.phase||"";
+
+  const colHeaderH=30;
+
+  const colLabel=(phase,r)=>{
+    const col=bktRoundColor(phase);
     return(
-      <div key={r} style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
-        <div style={colLabel}>{phase==="finale"?<EmoText s="🏆 Finale" size={13}/>:phase==="demi"?"Demi-finales":phase==="quart"?"Quarts":phase==="huitieme"?"Huitièmes":phase==="seizieme"?"Seizièmes":"Tour "+r}</div>
-        {rm.map(m=>(<BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay}/>))}
+      <div style={{
+        height:colHeaderH,display:"flex",alignItems:"center",justifyContent:"center",gap:6,
+        marginBottom:6,padding:"0 12px",borderRadius:20,alignSelf:"center",
+        fontSize:11.5,fontWeight:800,letterSpacing:1,textTransform:"uppercase",
+        color:col,background:col+"14",border:`1px solid ${col}44`,whiteSpace:"nowrap",
+      }}>
+        {bktPhaseLabel(phase,r)}
       </div>
     );
   };
+
+  const roundColWithGutter=(r,withGutter,gutterColor)=>{
+    const rm=mainM.filter(m=>m.round_bracket===r).sort((a,b)=>a.position_bracket-b.position_bracket);
+    const phase=rm[0]?.phase||"";
+    const isFinaleCol=phase==="finale";
+    return(
+      <div key={r} style={{display:"flex",alignItems:"stretch",flexShrink:0}}>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0,paddingTop:isFinaleCol?26:0}}>
+          {colLabel(phase,r)}
+          <div style={{flex:1,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-around",alignItems:"center",gap:24}}>
+            {rm.map(m=>(
+              <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} hero={isFinaleCol}/>
+            ))}
+          </div>
+        </div>
+        {withGutter&&rm.length>1&&(
+          <div style={{display:"flex",flexDirection:"column",paddingTop:colHeaderH+6}}>
+            <BktGutter pairs={Math.max(1,Math.floor(rm.length/2))} color={gutterColor||bktRoundColor(phase)}/>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const petiteCol=()=>(
-    <div key="petite-finale" style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
-      <div style={colLabel}><EmoText s="🥉 3e place" size={13}/></div>
+    <div key="petite-finale" style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",gap:24,flexShrink:0}}>
+      {colLabel("petite_finale",0)}
       <BracketMatchCard match={petiteM} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay}/>
     </div>
   );
 
+  const nonFinaleRounds=rounds.filter(r=>r!==finaleRoundNum);
+
   return(
     <div>
+      <BktStyles/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:14,flexWrap:"wrap"}}>
         {isCreateur
           ? <button onClick={onRetourPoules} style={{background:"none",border:`1px solid ${CT.border}`,color:CT.muted,cursor:"pointer",fontSize:12,padding:"6px 12px",borderRadius:8,display:"inline-flex",alignItems:"center",gap:6,touchAction:"manipulation"}}>← Retour aux poules</button>
           : <span/>}
         {isCreateur&&<Btn onClick={()=>onTerminer(allDone)} variant={allDone?"primary":"dark"} small style={{fontSize:12}}>🏆 Terminer le tournoi</Btn>}
       </div>
+
       {!canPlay&&(
         <Card style={{marginBottom:16,textAlign:"center"}}>
           <div style={{fontSize:12.5,color:CT.text,fontWeight:600,marginBottom:onOpenShare?8:0}}>👀 Tu es en mode spectateur (lecture seule)</div>
           {onOpenShare&&<Btn onClick={onOpenShare} variant="ghost" small><EmoText s="🎯 Entrer le code pour jouer" size={12}/></Btn>}
         </Card>
       )}
+
       {champion&&(
-        <Card style={{textAlign:"center",marginBottom:16,background:"linear-gradient(135deg,#78350f22,#f97316)",border:`1px solid ${CT.yellow}`}}>
+        <Card style={{textAlign:"center",marginBottom:16,background:"linear-gradient(135deg,#78350f22,#f97316)",border:`1px solid ${CT.yellow}`,boxShadow:`0 0 26px ${CT.yellow}44`}}>
           <div style={{display:"flex",justifyContent:"center",marginBottom:2}}><EmoIcon e="🏆" size={42} color="#fbbf24"/></div>
           <div style={{fontWeight:800,fontSize:19,color:CT.yellow}}>{champion.nom} remporte le tournoi !</div>
           {isCreateur&&<Btn onClick={()=>onTerminer(true)} variant="primary" style={{marginTop:12}}>🏁 Clôturer et voir le classement final</Btn>}
         </Card>
       )}
-      {/* Tableau principal */}
-      <div style={{overflowX:"auto",paddingBottom:16}}>
-        <div style={{display:"flex",gap:24,alignItems:"flex-start",minWidth:"max-content",padding:"8px 0"}}>
-          {/* tours jusqu'aux demies, puis la 3e place JUSTE AVANT la finale */}
-          {rounds.filter(r=>r!==finaleRoundNum).map(roundCol)}
+
+      {/* Tableau principal — arbre de championnat */}
+      <div style={{overflowX:"auto",paddingBottom:16,WebkitOverflowScrolling:"touch"}}>
+        <div style={{display:"flex",gap:0,alignItems:"stretch",minWidth:"max-content",padding:"30px 4px 8px"}}>
+          {nonFinaleRounds.map((r,i)=>roundColWithGutter(r,true,i===nonFinaleRounds.length-1?"#fbbf24":null))}
           {petiteM&&petiteCol()}
-          {rounds.filter(r=>r===finaleRoundNum).map(roundCol)}
+          {rounds.filter(r=>r===finaleRoundNum).map(r=>roundColWithGutter(r,false,null))}
         </div>
       </div>
-      {/* Consolante (repêchage des perdants du 1er tour) */}
+
+      {/* Consolante */}
       {consoM.length>0&&(
         <div style={{marginTop:10,borderTop:`1px solid ${CT.border}`,paddingTop:14}}>
-          <div style={{fontWeight:800,fontSize:15,color:CT.accent,marginBottom:2,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🎖️" size={15}/>Consolante</div>
+          <div style={{fontWeight:800,fontSize:15,color:CT.purple,marginBottom:2,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🎖️" size={15} color={CT.purple}/>Consolante</div>
           <div style={{fontSize:11.5,color:CT.muted,marginBottom:10}}>Repêchage : les perdants du 1er tour rejouent ici pour le lot de consolation.</div>
-          <div style={{overflowX:"auto",paddingBottom:16}}>
-            <div style={{display:"flex",gap:24,alignItems:"flex-start",minWidth:"max-content",padding:"8px 0"}}>
-              {consoRounds.map(r=>{
+          <div style={{overflowX:"auto",paddingBottom:16,WebkitOverflowScrolling:"touch"}}>
+            <div style={{display:"flex",gap:0,alignItems:"stretch",minWidth:"max-content",padding:"8px 4px"}}>
+              {consoRounds.map((r,idx)=>{
                 const rm=consoM.filter(m=>m.round_bracket===r).sort((a,b)=>a.position_bracket-b.position_bracket);
                 const isLast=r===consoRounds[consoRounds.length-1];
                 return(
-                  <div key={r} style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
-                    <div style={colLabel}>{isLast?<EmoText s="🎖️ Finale consolante" size={12}/>:"Tour "+r}</div>
-                    {rm.map(m=>(
-                      <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay}/>
-                    ))}
+                  <div key={r} style={{display:"flex",alignItems:"stretch",flexShrink:0}}>
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0}}>
+                      <div style={{height:colHeaderH,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:6,padding:"0 12px",borderRadius:20,fontSize:11.5,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:CT.purple,background:CT.purple+"14",border:`1px solid ${CT.purple}44`,whiteSpace:"nowrap"}}>
+                        {isLast?<EmoText s="🎖️ Finale consolante" size={11.5} color={CT.purple}/>:"Tour "+r}
+                      </div>
+                      <div style={{flex:1,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-around",alignItems:"center",gap:24}}>
+                        {rm.map(m=>(
+                          <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay}/>
+                        ))}
+                      </div>
+                    </div>
+                    {!isLast&&rm.length>1&&(
+                      <div style={{display:"flex",flexDirection:"column",paddingTop:colHeaderH+6}}>
+                        <BktGutter pairs={Math.max(1,Math.floor(rm.length/2))} color={CT.purple}/>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1205,7 +1468,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
 };
 
 // ── VUE RÉSULTATS ─────────────────────────────────────────────────────────────
-const ResultatsView=({tournoi,joueurs,matchs,onRejouer})=>{
+const ResultatsView=({tournoi,joueurs,matchs,onRejouer,onQuitter})=>{
   const finale=matchs.find(m=>m.phase==="finale"&&m.statut==="termine");
   const gagnant=finale?joueurs.find(j=>j.id===finale.gagnant_id):null;
   const perdant=finale?joueurs.find(j=>j.id===(finale.joueur1_id===finale.gagnant_id?finale.joueur2_id:finale.joueur1_id)):null;
@@ -1216,33 +1479,44 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer})=>{
   const consoFinale=matchs.filter(m=>m.phase==="consolante"&&m.statut==="termine"&&m.gagnant_id).sort((a,b)=>b.round_bracket-a.round_bracket)[0];
   const consoWinner=consoFinale?joueurs.find(j=>j.id===consoFinale.gagnant_id):null;
 
-  // MVP = joueur avec le plus de victoires
-  const mvp=[...joueurs].sort((a,b)=>b.victoires-a.victoires)[0];
-
-  // Palmarès du MVP : meilleure moyenne, plus gros finish, nb de 180 — depuis ses duels 1v1 (si joueur inscrit)
-  const [palmares,setPalmares]=useState(null);
+  // Stats du tournoi par joueur (depuis les parties live jouées au scoreur) :
+  // meilleure moyenne, plus gros finish, nombre de 180 — clé = id du joueur du tournoi.
+  const [statsTournoi,setStatsTournoi]=useState(null); // { [joueurId]: {moy,finish,nb180} }
+  const idsKey=joueurs.map(j=>j.id).join(",");
   useEffect(()=>{
-    const jid=mvp?.joueur_id;
-    if(!jid){ setPalmares(null); return; }
+    const ids=joueurs.map(j=>j.id).filter(Boolean);
+    if(!ids.length){ setStatsTournoi(null); return; }
     let annule=false;
-    sbTP(`duels?or=(challenger_id.eq.${jid},defie_id.eq.${jid})&select=statut,challenger_id,challenger_pseudo,defie_pseudo,score_challenger,score_defie,manches_detail`)
+    const list=ids.join(",");
+    sbTP(`live_sessions?or=(joueur1_id.in.(${list}),joueur2_id.in.(${list}))&select=joueur1_id,joueur2_id,stats_j1,stats_j2`)
       .then(rows=>{
-        if(annule||!rows)return;
-        const termines=rows.filter(d=>d.statut==="termine");
-        const moys=termines.map(d=>parseFloat(d.challenger_id===jid?d.score_challenger:d.score_defie)).filter(s=>!isNaN(s)&&s>0);
-        let nb180=0,plusGrosFinish=0;
-        termines.forEach(d=>{
-          const monPseudo=d.challenger_id===jid?(d.challenger_pseudo||mvp.nom):(d.defie_pseudo||mvp.nom);
-          (d.manches_detail||[]).forEach(m=>{
-            const isW=m.winner===monPseudo||m.winner===mvp.nom;
-            nb180+=isW?(m.winner_180||0):(m.loser_180||0);
-            if(isW)plusGrosFinish=Math.max(plusGrosFinish,m.winner_finish||0);
+        if(annule)return;
+        const agg={};
+        (rows||[]).forEach(s=>{
+          [[s.joueur1_id,s.stats_j1],[s.joueur2_id,s.stats_j2]].forEach(([pid,st])=>{
+            if(!pid||!st)return;
+            const moy=parseFloat(st.moy)||0, fin=parseFloat(st.max_finish)||0, n180=parseInt(st.nb180)||0;
+            if(!agg[pid])agg[pid]={moy:0,finish:0,nb180:0};
+            agg[pid].moy=Math.max(agg[pid].moy,moy);
+            agg[pid].finish=Math.max(agg[pid].finish,fin);
+            agg[pid].nb180+=n180;
           });
         });
-        setPalmares({moyenne:moys.length?Math.max(...moys):null,finish:plusGrosFinish,nb180});
-      }).catch(()=>{ if(!annule)setPalmares(null); });
+        setStatsTournoi(agg);
+      }).catch(()=>{ if(!annule)setStatsTournoi(null); });
     return()=>{ annule=true; };
-  },[mvp?.joueur_id]);
+  },[idsKey]);
+
+  // MVP = joueur avec la PLUS GROSSE MOYENNE du tournoi ; à défaut (aucune moyenne enregistrée) → le plus de victoires
+  const mvp=(()=>{
+    if(statsTournoi){
+      const avecMoy=joueurs.filter(j=>statsTournoi[j.id]&&statsTournoi[j.id].moy>0);
+      if(avecMoy.length)return [...avecMoy].sort((a,b)=>(statsTournoi[b.id].moy-statsTournoi[a.id].moy)||(b.victoires-a.victoires))[0];
+    }
+    return [...joueurs].sort((a,b)=>b.victoires-a.victoires)[0];
+  })();
+  const mvpStats=mvp&&statsTournoi?statsTournoi[mvp.id]:null;
+  const palmares=mvpStats?{moyenne:mvpStats.moy>0?mvpStats.moy:null,finish:mvpStats.finish,nb180:mvpStats.nb180}:null;
   const hasPalmares=!!palmares&&(palmares.moyenne!=null||palmares.finish>0||palmares.nb180>0);
 
   // Best stats
@@ -1312,12 +1586,14 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer})=>{
             <div>
               <div style={{fontWeight:700,fontSize:15,color:CT.purple}}>MVP du tournoi</div>
               <div style={{fontWeight:800,fontSize:18}}>{mvp.nom}</div>
-              <div style={{fontSize:12,color:CT.muted}}>{mvp.victoires} victoires · {mvp.points} points</div>
+              {mvpStats&&mvpStats.moy>0
+                ? <div style={{fontSize:12.5,color:CT.muted,display:"flex",alignItems:"center",gap:5}}><span style={{color:CT.purple,fontWeight:800}}><EmoText s={`🎯 Moyenne ${mvpStats.moy.toFixed(1)}`} size={12.5} color={CT.purple}/></span><span>· {mvp.victoires}V</span></div>
+                : <div style={{fontSize:12,color:CT.muted}}>{mvp.victoires} victoires · {mvp.points} points</div>}
             </div>
           </div>
           {hasPalmares&&(
             <>
-              <div style={{fontSize:10,color:CT.muted,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:8,borderTop:`1px solid ${CT.purple}33`,paddingTop:12}}><EmoText s="🏅 Palmarès (carrière)" size={10}/></div>
+              <div style={{fontSize:10,color:CT.muted,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:8,borderTop:`1px solid ${CT.purple}33`,paddingTop:12}}><EmoText s="🏅 Palmarès du tournoi" size={10}/></div>
               <div style={{display:"flex",gap:8}}>
                 {[
                   {e:"🎯",l:"Meilleure moyenne",v:palmares.moyenne!=null?palmares.moyenne.toFixed(1):"—"},
@@ -1336,6 +1612,12 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer})=>{
         </Card>
       )}
 
+      {/* Tournoi terminé — ferme les résultats et revient à la liste des tournois */}
+      {onQuitter&&(
+        <Btn onClick={onQuitter} variant="primary" style={{width:"100%",marginTop:8}}>
+          <EmoIcon e="🏆" size={15} color="#fff" style={{verticalAlign:"-2px",marginRight:6}}/>Tournoi terminé
+        </Btn>
+      )}
       {/* Rejouer */}
       <Btn onClick={onRejouer} variant="ghost" style={{width:"100%",marginTop:8}}>
         <EmoIcon e="🔄" size={14} style={{verticalAlign:"-2px",marginRight:6}}/>Rejouer avec les mêmes joueurs
@@ -1686,7 +1968,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           onRetourPoules={retourPoules} onTerminer={terminerTournoi}/>
       )}
       {tournoi.statut==="termine"&&(
-        <ResultatsView tournoi={tournoi} joueurs={joueurs} matchs={matchs} onRejouer={rejouer}/>
+        <ResultatsView tournoi={tournoi} joueurs={joueurs} matchs={matchs} onRejouer={rejouer} onQuitter={()=>setPage("tournois-potes")}/>
       )}
 
       {/* Modal partage (QR + lien + code) */}
@@ -1914,6 +2196,7 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
       duel={fakeDuel}
       onResultat={handleResultat}
       onDuelTermine={()=>setPage("tournoi-potes-"+match.tournoi_id)}
+      onQuitter={()=>setPage("tournoi-potes-"+match.tournoi_id)}
       setPage={setPage}
     />
   );

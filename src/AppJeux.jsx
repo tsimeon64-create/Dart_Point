@@ -920,8 +920,18 @@ const JoueursConfigSection = ({ config, setConfig, modeDuel }) => {
   );
 };
 
-export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, setPage = null, onResultat = null, onRejouer = null, joueur = null, setJoueur = null, botStart = false }) => {
+export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, setPage = null, onResultat = null, onRejouer = null, joueur = null, setJoueur = null, botStart = false, onQuitter = null }) => {
   const modeDuel = !!duel;
+
+  // Signale globalement qu'un scoreur est AFFICHÉ (battement de cœur toutes les 4 s).
+  // → un tournoi ne déclenchera pas l'alerte « c'est à toi de jouer » (vibration/son/pop-up/notif)
+  //   tant qu'on est en train de scorer une partie sur ce téléphone, pour ne pas polluer la partie.
+  useEffect(() => {
+    const ping = () => { try { window.__dpScoreurTs = Date.now(); } catch (e) {} };
+    ping();
+    const id = setInterval(ping, 4000);
+    return () => { clearInterval(id); try { window.__dpScoreurTs = 0; } catch (e) {} };
+  }, []);
 
   const [etape, setEtape] = useState(modeDuel ? "bulle" : botStart ? "amis" : "config");
   const [config, setConfig] = useState({
@@ -1210,7 +1220,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           });
         } catch {}
       }
-      setPage("mon-profil");
+      if (onQuitter) onQuitter(); else setPage("mon-profil");
       return;
     }
     setJoueurs(null); setGagnant(null); setInput("");
@@ -1760,7 +1770,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             </button>
           ))}
         </div>
-        <button onClick={()=>{ if(setPage) setPage("defi"); }}
+        <button onClick={()=>{ if(onQuitter) onQuitter(); else if(setPage) setPage("defi"); }}
           style={{ marginTop:24, background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13 }}>
           ← Annuler
         </button>
