@@ -411,6 +411,49 @@ const ScanTournoiModal=({onScan,onClose})=>{
   );
 };
 
+// ── Modal PARTAGE : QR + lien (spectateurs) + code joueur / saisie du code ──
+const ShareTournoiModal=({tournoi,canPlay,onUnlock,onClose})=>{
+  const lien=`${window.location.origin}${window.location.pathname}#t=${tournoi.id}`;
+  const [qr,setQr]=useState("");
+  useEffect(()=>{ QRCode.toDataURL(lien,{width:220,margin:1,color:{dark:"#000000",light:"#ffffff"}}).then(setQr).catch(()=>{}); },[lien]);
+  const [copied,setCopied]=useState(false);
+  const copy=()=>{navigator.clipboard.writeText(lien).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);}).catch(()=>{});};
+  const estLocalhost=/localhost|127\.0\.0\.1|:5173/.test(lien);
+  const [code,setCode]=useState(""); const [err,setErr]=useState("");
+  const valider=()=>{ if(code.trim().toUpperCase()===(tournoi.code||"").toUpperCase())onUnlock(); else setErr("Code incorrect"); };
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000000e6",zIndex:99999,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:16,overflowY:"auto"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#15151c",border:`1px solid ${CT.border}`,borderRadius:18,padding:22,maxWidth:400,width:"100%",margin:"auto"}}>
+        <h3 style={{fontWeight:800,fontSize:18,marginBottom:14,color:"#fff",textAlign:"center"}}><EmoText s="📲 Partager le tournoi" size={17}/></h3>
+        {qr&&<div style={{display:"flex",justifyContent:"center",marginBottom:12}}><img src={qr} alt="QR du tournoi" style={{width:176,height:176,borderRadius:12,background:"#fff",padding:8}}/></div>}
+        <div style={{fontSize:12,fontWeight:700,color:CT.text,marginBottom:6}}>Lien (pour les spectateurs)</div>
+        <div style={{display:"flex",gap:8,marginBottom:6}}>
+          <div style={{flex:1,fontSize:11,color:CT.muted,wordBreak:"break-all",background:"#111",borderRadius:8,padding:"8px 10px",fontFamily:"monospace"}}>{lien}</div>
+          <Btn onClick={copy} variant="ghost" small>{copied?<EmoText s="✅" size={13}/>:<EmoText s="📋" size={13}/>}</Btn>
+        </div>
+        {estLocalhost&&<div style={{fontSize:10.5,color:"#eab308",marginBottom:8,fontWeight:600,lineHeight:1.4}}>⚠️ Adresse locale — ouvre la version en ligne pour un QR scannable par les téléphones.</div>}
+        <div style={{fontSize:11.5,color:CT.muted,marginBottom:16,lineHeight:1.45}}>Avec ce lien/QR on peut <b>regarder</b> le tournoi (spectateur). Pour <b>jouer et marquer les scores</b>, il faut le <b>code joueur</b>.</div>
+        {canPlay?(
+          <div style={{background:CT.accent+"11",border:`1px solid ${CT.accent}44`,borderRadius:12,padding:"12px 14px",textAlign:"center"}}>
+            <div style={{fontSize:11.5,color:CT.muted,marginBottom:4}}><EmoIcon e="🔑" size={12} style={{verticalAlign:"-1px",marginRight:3}}/>Code joueur — à donner aux joueurs</div>
+            <div style={{fontWeight:900,fontSize:26,letterSpacing:4,color:CT.yellow}}>{tournoi.code}</div>
+          </div>
+        ):(
+          <div style={{background:CT.accent+"11",border:`1px solid ${CT.accent}44`,borderRadius:12,padding:"12px 14px"}}>
+            <div style={{fontSize:12.5,fontWeight:700,color:CT.text,marginBottom:8}}>🎯 Tu es un joueur ? Entre le code (donné par l'organisateur) pour marquer les scores :</div>
+            <div style={{display:"flex",gap:8}}>
+              <input value={code} onChange={e=>{setCode(e.target.value);setErr("");}} onKeyDown={e=>e.key==="Enter"&&valider()} placeholder="Code…" style={{flex:1,background:"#111",border:`1px solid ${err?"#ef4444":CT.border}`,borderRadius:8,padding:"9px 13px",color:CT.text,fontSize:15,letterSpacing:2,textTransform:"uppercase"}}/>
+              <Btn onClick={valider} small>Valider</Btn>
+            </div>
+            {err&&<div style={{fontSize:11.5,color:"#ef4444",marginTop:6,fontWeight:600}}>{err}</div>}
+          </div>
+        )}
+        <button onClick={onClose} style={{width:"100%",marginTop:14,background:"none",border:"none",color:CT.muted,fontSize:13,cursor:"pointer",padding:8}}>Fermer</button>
+      </div>
+    </div>
+  );
+};
+
 // ── Réglages des poules (avant lancement) ──
 // Plus petite puissance de 2 ≥ x (taille de tableau)
 const nextPow2=(x)=>Math.max(2,Math.pow(2,Math.ceil(Math.log2(Math.max(2,x)))));
@@ -790,7 +833,7 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
 
 // ── VUE POULES ────────────────────────────────────────────────────────────────
 const RED_TP="#ef4444";
-const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,joueurConnecte})=>{
+const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,joueurConnecte,canPlay=false,onOpenShare,onModifier})=>{
   const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
   const groupes=Array.from({length:nbGroupes},(_,i)=>i+1);
   const termines=matchs.filter(m=>m.phase==="poules"&&m.statut==="termine");
@@ -878,7 +921,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
               <div style={{fontSize:15,color:CT.text,marginBottom:4}}>Ton match contre <b>{adv?.nom||"ton adversaire"}</b> est prêt.</div>
               <div style={{fontSize:12.5,color:CT.muted,marginBottom:22}}>Va au pas de tir <EmoIcon e="🎯" size={12} style={{verticalAlign:"-1px"}}/> c'est ton tour !</div>
               <Btn onClick={()=>fermerAlerte(false)} style={{width:"100%",fontSize:16,padding:"14px"}}>👍 OK, j'y vais !</Btn>
-              <button onClick={()=>fermerAlerte(true)} style={{marginTop:10,width:"100%",background:"none",border:"none",color:CT.accent,fontSize:13,fontWeight:700,cursor:"pointer",padding:6,touchAction:"manipulation"}}>▶ Ouvrir le scoreur</button>
+              {canPlay&&<button onClick={()=>fermerAlerte(true)} style={{marginTop:10,width:"100%",background:"none",border:"none",color:CT.accent,fontSize:13,fontWeight:700,cursor:"pointer",padding:6,touchAction:"manipulation"}}>▶ Ouvrir le scoreur</button>}
             </div>
           </div>
         );
@@ -906,6 +949,15 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
           </div>
         )}
         {!allDone&&<div style={{marginTop:10,fontSize:12.5,textAlign:"center"}}><span style={{color:CT.green,fontWeight:800}}>🟢 {actifs.size} à jouer maintenant</span>{enAttente>0&&<span style={{color:CT.muted}}> · ⏳ {enAttente} en attente</span>}</div>}
+        {!canPlay&&(
+          <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${CT.border}`,textAlign:"center"}}>
+            <div style={{fontSize:12.5,color:CT.text,fontWeight:600,marginBottom:8}}>👀 Tu es en mode spectateur (lecture seule)</div>
+            {onOpenShare&&<Btn onClick={onOpenShare} variant="ghost" small><EmoText s="🎯 Entrer le code pour jouer" size={12}/></Btn>}
+          </div>
+        )}
+        {isCreateur&&onModifier&&(
+          <button onClick={onModifier} style={{marginTop:12,width:"100%",background:"none",border:`1px solid ${CT.border}`,color:CT.muted,borderRadius:9,padding:"9px",fontSize:12.5,fontWeight:600,cursor:"pointer",touchAction:"manipulation",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6}}><EmoIcon e="⚙️" size={13}/>Modifier le tournoi (revenir aux réglages)</button>
+        )}
       </Card>
 
       {/* Avertissement égalité → barrage en 701 */}
@@ -971,12 +1023,13 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
                       {done?`${m.score1}–${m.score2}`:"vs"}
                     </span>
                     <span style={{flex:1,fontSize:13,fontWeight:done&&m.gagnant_id===j2?.id?700:400,color:done&&m.gagnant_id===j2?.id?CT.green:CT.text,textAlign:"right"}}>{j2?.nom||"?"}</span>
-                    {actif&&(
+                    {actif&&canPlay&&(
                       <div style={{display:"flex",gap:6}}>
                         <Btn onClick={()=>onJouerMatch(m)} variant="primary" small>▶ Jouer</Btn>
                         {isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small><EmoIcon e="✏️" size={13}/></Btn>}
                       </div>
                     )}
+                    {actif&&!canPlay&&<span style={{fontSize:10,color:CT.green,fontWeight:700,whiteSpace:"nowrap"}}>🎯 à jouer</span>}
                     {attente&&<span style={{fontSize:10.5,color:CT.muted,fontWeight:600,whiteSpace:"nowrap"}}>⏳ en attente</span>}
                     {attente&&isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small><EmoIcon e="✏️" size={13}/></Btn>}
                     {done&&isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small title="Corriger le score"><EmoIcon e="✏️" size={13}/></Btn>}
@@ -994,7 +1047,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
                     <span style={{flex:1,fontSize:13,fontWeight:done&&m.gagnant_id===j1?.id?700:400,color:done&&m.gagnant_id===j1?.id?CT.green:CT.text}}>{j1?.nom||"?"}</span>
                     <span style={{fontWeight:800,fontSize:15,minWidth:34,textAlign:"center",color:done?CT.text:RED_TP}}>{done?`${m.score1}–${m.score2}`:"vs"}</span>
                     <span style={{flex:1,fontSize:13,fontWeight:done&&m.gagnant_id===j2?.id?700:400,color:done&&m.gagnant_id===j2?.id?CT.green:CT.text,textAlign:"right"}}>{j2?.nom||"?"}</span>
-                    {!done&&<button onClick={()=>onJouerMatch(m)} style={{background:RED_TP,color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:800,fontSize:12,cursor:"pointer",touchAction:"manipulation"}}>▶ Jouer</button>}
+                    {!done&&canPlay&&<button onClick={()=>onJouerMatch(m)} style={{background:RED_TP,color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:800,fontSize:12,cursor:"pointer",touchAction:"manipulation"}}>▶ Jouer</button>}
                     {!done&&isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small><EmoIcon e="✏️" size={13}/></Btn>}
                     {done&&<Badge color={CT.green}><EmoIcon e="✅" size={12}/></Badge>}
                   </div>
@@ -1019,7 +1072,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
 };
 
 // ── VUE BRACKET ───────────────────────────────────────────────────────────────
-const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch})=>{
+const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch,canPlay=false})=>{
   const j1=joueurs.find(j=>j.id===match.joueur1_id);
   const j2=joueurs.find(j=>j.id===match.joueur2_id);
   const done=match.statut==="termine";
@@ -1051,19 +1104,20 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch})=>
         </span>
         {done&&<span style={{fontWeight:800,color:match.gagnant_id===j2?.id?CT.green:CT.muted}}>{match.score2}</span>}
       </div>
-      {!done&&!bye&&j1&&j2&&(
+      {!done&&!bye&&j1&&j2&&canPlay&&(
         <div style={{padding:"6px 10px",borderTop:`1px solid ${CT.border}`,display:"flex",gap:6}}>
           <Btn onClick={()=>onJouerMatch(match)} variant="primary" small style={{flex:1,fontSize:11}}>▶ Jouer</Btn>
           {isCreateur&&<Btn onClick={()=>onSaisirScore(match)} variant="dark" small style={{fontSize:11}}><EmoIcon e="✏️" size={12}/></Btn>}
         </div>
       )}
+      {!done&&!bye&&j1&&j2&&!canPlay&&<div style={{padding:"5px 10px",fontSize:10,color:CT.green,fontWeight:700,borderTop:`1px solid ${CT.border}`,textAlign:"center"}}>🎯 match à jouer</div>}
       {bye&&<div style={{padding:"5px 10px",fontSize:10.5,color:CT.green,fontWeight:600,borderTop:`1px solid ${CT.border}`,background:CT.green+"11"}}>✅ Qualifié d'office — pas d'adversaire à ce tour</div>}
       {(match.statut==="attente_avancement"||match.statut==="vide")&&<div style={{padding:"5px 10px",fontSize:10.5,color:CT.muted,borderTop:`1px solid ${CT.border}`}}>⏳ En attente du tour précédent</div>}
     </div>
   );
 };
 
-const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,onRetourPoules,onTerminer})=>{
+const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,onRetourPoules,onTerminer,canPlay=false,onOpenShare})=>{
   const bracketM=matchs.filter(m=>m.phase!=="poules");
   const mainM=bracketM.filter(m=>MAIN_PHASES.includes(m.phase));
   const petiteM=bracketM.find(m=>m.phase==="petite_finale");
@@ -1082,14 +1136,14 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
     return(
       <div key={r} style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
         <div style={colLabel}>{phase==="finale"?<EmoText s="🏆 Finale" size={13}/>:phase==="demi"?"Demi-finales":phase==="quart"?"Quarts":phase==="huitieme"?"Huitièmes":phase==="seizieme"?"Seizièmes":"Tour "+r}</div>
-        {rm.map(m=>(<BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch}/>))}
+        {rm.map(m=>(<BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay}/>))}
       </div>
     );
   };
   const petiteCol=()=>(
     <div key="petite-finale" style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
       <div style={colLabel}><EmoText s="🥉 3e place" size={13}/></div>
-      <BracketMatchCard match={petiteM} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch}/>
+      <BracketMatchCard match={petiteM} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay}/>
     </div>
   );
 
@@ -1101,6 +1155,12 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
           : <span/>}
         {isCreateur&&<Btn onClick={()=>onTerminer(allDone)} variant={allDone?"primary":"dark"} small style={{fontSize:12}}>🏆 Terminer le tournoi</Btn>}
       </div>
+      {!canPlay&&(
+        <Card style={{marginBottom:16,textAlign:"center"}}>
+          <div style={{fontSize:12.5,color:CT.text,fontWeight:600,marginBottom:onOpenShare?8:0}}>👀 Tu es en mode spectateur (lecture seule)</div>
+          {onOpenShare&&<Btn onClick={onOpenShare} variant="ghost" small><EmoText s="🎯 Entrer le code pour jouer" size={12}/></Btn>}
+        </Card>
+      )}
       {champion&&(
         <Card style={{textAlign:"center",marginBottom:16,background:"linear-gradient(135deg,#78350f22,#f97316)",border:`1px solid ${CT.yellow}`}}>
           <div style={{display:"flex",justifyContent:"center",marginBottom:2}}><EmoIcon e="🏆" size={42} color="#fbbf24"/></div>
@@ -1131,7 +1191,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
                   <div key={r} style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center"}}>
                     <div style={colLabel}>{isLast?<EmoText s="🎖️ Finale consolante" size={12}/>:"Tour "+r}</div>
                     {rm.map(m=>(
-                      <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch}/>
+                      <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay}/>
                     ))}
                   </div>
                 );
@@ -1295,6 +1355,8 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   const [matchModal,setMatchModal]=useState(null);
   const [saving,setSaving]=useState(false);
   const [cibles,setCibles]=useState(2);
+  const [showShare,setShowShare]=useState(false);
+  const [codeUnlocked,setCodeUnlocked]=useState(()=>{ try{return localStorage.getItem("dp_tp_player_"+tournoiId)==="1";}catch(e){return false;} });
   const pollRef=useRef(null);
 
   const reload=useCallback(async()=>{
@@ -1337,6 +1399,9 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   };
 
   const isCreateur=joueurConnecte&&tournoi&&tournoi.createur_id===joueurConnecte.id;
+  // canPlay : créateur OU joueur qui a saisi le code (sinon spectateur = lecture seule)
+  const canPlay=!!isCreateur||codeUnlocked;
+  const deverrouiller=()=>{ setCodeUnlocked(true); try{localStorage.setItem("dp_tp_player_"+tournoiId,"1");}catch(e){} setShowShare(false); };
 
   // ── Lancer le tournoi (phase poules)
   const lancerTournoi=async(poolSize=4,poolManches=2,nbCibles=2)=>{
@@ -1453,6 +1518,23 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     setSaving(false);
   };
 
+  // ── Modifier le tournoi : revenir aux réglages (lobby) SANS perdre les joueurs inscrits
+  const retourLobby=async()=>{
+    const nbJoues=matchs.filter(m=>m.phase==="poules"&&m.statut==="termine").length;
+    const msg=nbJoues>0
+      ? `Revenir aux réglages du tournoi ?\n\n⚠️ ${nbJoues} match(s) déjà joué(s) : les résultats des poules seront effacés.\n\n✅ Les ${joueurs.length} joueur(s) inscrit(s) sont CONSERVÉS.`
+      : `Revenir aux réglages du tournoi ?\n\nLes poules seront annulées (aucun match joué).\n✅ Les ${joueurs.length} joueur(s) inscrit(s) sont CONSERVÉS.`;
+    if(!window.confirm(msg))return;
+    setSaving(true);
+    try{
+      await sbTP(`tournois_potes_matchs?tournoi_id=eq.${tournoiId}`,{method:"DELETE",prefer:"return=minimal"}); // supprime TOUS les matchs
+      await Promise.all(joueurs.map(j=>dbTP.updateJoueur(j.id,{groupe:0,ordre:0,points:0,victoires:0,defaites:0,manches_pour:0,manches_contre:0}))); // reset stats, on GARDE les joueurs
+      await dbTP.updateTournoi(tournoiId,{statut:"attente"});
+      await reload();
+    }catch(e){alert("Erreur : "+e.message);}
+    setSaving(false);
+  };
+
   // ── Retour aux poules (annule le tableau, en cas d'erreur de réglage)
   const retourPoules=async()=>{
     if(!window.confirm("Revenir à la phase de poules ?\n\nLe tableau actuel sera supprimé. Les poules et leurs résultats sont conservés."))return;
@@ -1556,7 +1638,8 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       <div style={{marginBottom:20}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <button onClick={()=>window.history.back()} style={{background:"none",border:"none",color:CT.muted,cursor:"pointer",fontSize:13,padding:0}}>← Retour</button>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
+            <button onClick={()=>setShowShare(true)} style={{background:CT.accent+"18",border:`1px solid ${CT.accent}55`,color:CT.accent,cursor:"pointer",fontSize:12,padding:"5px 12px",borderRadius:8,fontWeight:700,display:"inline-flex",alignItems:"center",gap:5,touchAction:"manipulation"}}><EmoIcon e="📲" size={13}/>Partager</button>
             {(tournoi.statut==="poules"||tournoi.statut==="eliminatoires")&&(
               <button onClick={()=>setPage("tournoi-live-"+tournoiId)} style={{background:"#ef444418",border:"1px solid #ef444455",color:"#ef4444",cursor:"pointer",fontSize:12,padding:"5px 12px",borderRadius:8,fontWeight:800,display:"inline-flex",alignItems:"center",gap:5,touchAction:"manipulation"}}>
                 <span style={{width:7,height:7,borderRadius:"50%",background:"#ef4444",display:"inline-block",animation:"livePulse 1.4s infinite"}}/>LIVE
@@ -1588,7 +1671,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       {showPoolConfig&&<PoolConfigModal nbJoueurs={joueurs.length} saving={saving} onValider={lancerTournoi} onClose={()=>setShowPoolConfig(false)}/>}
       {tournoi.statut==="poules"&&(
         <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} isCreateur={isCreateur}
-          nbCibles={cibles} onSetCibles={changerCibles}
+          nbCibles={cibles} onSetCibles={changerCibles} canPlay={canPlay} onOpenShare={()=>setShowShare(true)} onModifier={retourLobby}
           onSaisirScore={m=>setMatchModal(m)}
           onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
           onLancerEliminatoires={()=>setShowBracketConfig(true)}
@@ -1597,7 +1680,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       {showBracketConfig&&<BracketConfigModal joueurs={joueurs} saving={saving} onValider={lancerEliminatoires} onClose={()=>setShowBracketConfig(false)}/>}
       {tournoi.statut==="eliminatoires"&&(
         <EliminatoiresView tournoi={tournoi} joueurs={joueurs}
-          matchs={matchs.filter(m=>m.phase!=="poules")} isCreateur={isCreateur}
+          matchs={matchs.filter(m=>m.phase!=="poules")} isCreateur={isCreateur} canPlay={canPlay} onOpenShare={()=>setShowShare(true)}
           onSaisirScore={m=>setMatchModal(m)}
           onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
           onRetourPoules={retourPoules} onTerminer={terminerTournoi}/>
@@ -1605,6 +1688,9 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       {tournoi.statut==="termine"&&(
         <ResultatsView tournoi={tournoi} joueurs={joueurs} matchs={matchs} onRejouer={rejouer}/>
       )}
+
+      {/* Modal partage (QR + lien + code) */}
+      {showShare&&<ShareTournoiModal tournoi={tournoi} canPlay={canPlay} onUnlock={deverrouiller} onClose={()=>setShowShare(false)}/>}
 
       {/* Match modal */}
       {matchModal&&(
