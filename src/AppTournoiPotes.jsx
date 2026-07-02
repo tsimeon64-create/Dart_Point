@@ -210,63 +210,74 @@ const propagerByes=async(tid)=>{
   }
 };
 
-// Sort joueurs by ranking in a group
+// Stat d'un joueur sur les barrages d'un TOUR donné (round_bracket=r), contre les joueurs de son groupe.
+const statBarrageTour=(id,r,bg)=>{
+  let vic=0,diff=0;
+  bg.forEach(m=>{
+    if((m.round_bracket||0)!==r)return;
+    if(m.joueur1_id!==id&&m.joueur2_id!==id)return;
+    const s1=m.score1||0,s2=m.score2||0;
+    if(m.gagnant_id===id)vic++;
+    diff+=(m.joueur1_id===id)?(s1-s2):(s2-s1);
+  });
+  return vic*10000+diff; // clé comparable (victoires priment, puis diff)
+};
+// Sort joueurs by ranking in a group. Départage : points → victoires → goal average →
+// puis les BARRAGES 701. Les barrages ont des TOURS (round_bracket 0,1,2…) : le 1er tour est un
+// round-robin ; s'il finit en cycle parfait, on rejoue un tour décisif. On compare d'abord le
+// tour le plus RÉCENT (le plus décisif), puis on redescend.
 const rankGroup=(joueurs,barrages=[])=>{
-  // Ids des joueurs de CE groupe (pour ne compter que les barrages ENTRE eux)
   const idsGroupe=new Set(joueurs.map(j=>j.id));
-  // Pour chaque joueur : ses victoires + sa diff de manches, UNIQUEMENT sur les barrages joués contre un autre joueur du groupe.
-  // Ça marche pour 1 seul barrage (2 joueurs) comme pour un mini round-robin (3+ joueurs, toutes les paires).
-  const statBarrage=(id)=>{
-    let vic=0, diff=0;
-    barrages.forEach(m=>{
-      if(m.statut!=="termine"||!m.gagnant_id)return;
-      const j1=m.joueur1_id, j2=m.joueur2_id;
-      // le match doit opposer 'id' à un AUTRE joueur du même groupe
-      if(j1!==id&&j2!==id)return;
-      const autre=j1===id?j2:j1;
-      if(!idsGroupe.has(autre))return;
-      if(m.gagnant_id===id)vic++;
-      const s1=m.score1||0, s2=m.score2||0;
-      diff+=(j1===id)?(s1-s2):(s2-s1); // diff de manches vue du joueur 'id'
-    });
-    return {vic,diff};
-  };
+  const bg=barrages.filter(m=>m.statut==="termine"&&m.gagnant_id&&idsGroupe.has(m.joueur1_id)&&idsGroupe.has(m.joueur2_id));
+  const maxRound=bg.reduce((mx,m)=>Math.max(mx,m.round_bracket||0),0);
   return [...joueurs].sort((a,b)=>{
     if(b.points!==a.points)return b.points-a.points;             // 1) points
     if(b.victoires!==a.victoires)return b.victoires-a.victoires; // 2) victoires (V/D)
     const da=a.manches_pour-a.manches_contre, db=b.manches_pour-b.manches_contre;
-    if(db!==da)return db-da;                                     // 3) goal average (manches gagnées − perdues)
-    // 4) Départage par barrage(s) 701 : d'abord le NOMBRE de victoires en barrage entre ces joueurs...
-    const sa=statBarrage(a.id), sb=statBarrage(b.id);
-    if(sb.vic!==sa.vic)return sb.vic-sa.vic;                     // 4a) plus de victoires en barrage = mieux classé
-    if(sb.diff!==sa.diff)return sb.diff-sa.diff;                 // 4b) sinon meilleure diff de manches en barrage
+    if(db!==da)return db-da;                                     // 3) goal average (poule)
+    for(let r=maxRound;r>=0;r--){                                // 4) barrages, du tour le + récent au + ancien
+      const ka=statBarrageTour(a.id,r,bg), kb=statBarrageTour(b.id,r,bg);
+      if(kb!==ka)return kb-ka;
+    }
     return 0;
   });
 };
 
-// Égalité PARFAITE (mêmes points ET mêmes victoires ET même goal average) → barrage 701 nécessaire
+// Égalité PARFAITE de POULE (mêmes points ET victoires ET goal average) → départage nécessaire.
 const memeNiveau=(a,b)=>a.points===b.points&&a.victoires===b.victoires&&(a.manches_pour-a.manches_contre)===(b.manches_pour-b.manches_contre);
-// Égalités NON tranchées sur les places qui comptent (1re/2e/3e → qualif + tête de série).
-// Pour un groupe de N joueurs (N≥2) à égalité PARFAITE, renvoie TOUTES les paires du groupe
-// (mini round-robin : A-B, A-C, B-C...) qui n'ont pas encore été jouées en barrage.
+
+// Renvoie les matchs de barrage À CRÉER pour départager les égalités parfaites sur les places qualificatives.
+// Chaque spec : {a, b, round}. round 0 = 1er round-robin ; round≥1 = tour DÉCISIF (rejoué en 1 manche 701
+// quand un tour finit sur un cycle parfait — chacun 1 victoire, tout égal).
 const egalitesADepartager=(joueursGroupe,barrages=[],nbQual=2)=>{
-  const ranked=rankGroup(joueursGroupe,barrages), paires=[];
-  const dejaVu=new Set();
-  // On ne départage QUE les égalités parfaites qui touchent une place qualificative (rang < nbQual).
-  // Pour un groupe de 3+ ex aequo, on crée TOUTES les paires (mini poule de barrage), pas seulement les paires consécutives.
+  const specs=[]; const idsAll=new Set(joueursGroupe.map(j=>j.id));
+  const bgAll=barrages.filter(m=>idsAll.has(m.joueur1_id)&&idsAll.has(m.joueur2_id));
+  const ranked=rankGroup(joueursGroupe,barrages); const dejaVu=new Set();
   for(let i=0;i<Math.min(nbQual,ranked.length);i++){
     if(dejaVu.has(ranked[i].id))continue;
     const groupe=[ranked[i]];
     for(let k=i+1;k<ranked.length;k++){ if(memeNiveau(ranked[i],ranked[k]))groupe.push(ranked[k]); else break; }
     if(groupe.length<2)continue;
     groupe.forEach(j=>dejaVu.add(j.id));
-    for(let x=0;x<groupe.length;x++)for(let y=x+1;y<groupe.length;y++){
-      const a=groupe[x], b=groupe[y];
-      const resolu=barrages.some(m=>m.statut==="termine"&&((m.joueur1_id===a.id&&m.joueur2_id===b.id)||(m.joueur1_id===b.id&&m.joueur2_id===a.id)));
-      if(!resolu)paires.push([a,b]);
+    const gids=new Set(groupe.map(j=>j.id));
+    const bgg=bgAll.filter(m=>gids.has(m.joueur1_id)&&gids.has(m.joueur2_id));
+    const maxR=bgg.reduce((mx,m)=>Math.max(mx,m.round_bracket||0),-1);
+    const curR=Math.max(0,maxR);
+    const toutes=[]; for(let x=0;x<groupe.length;x++)for(let y=x+1;y<groupe.length;y++)toutes.push([groupe[x],groupe[y]]);
+    const jouee=(a,b,r)=>bgg.some(m=>(m.round_bracket||0)===r&&m.statut==="termine"&&((m.joueur1_id===a&&m.joueur2_id===b)||(m.joueur1_id===b&&m.joueur2_id===a)));
+    if(maxR<0){
+      toutes.forEach(([a,b])=>specs.push({a,b,round:0}));                       // 1er round-robin
+    }else{
+      const manquantes=toutes.filter(([a,b])=>!jouee(a.id,b.id,curR));
+      if(manquantes.length>0){
+        manquantes.forEach(([a,b])=>specs.push({a,b,round:curR}));             // finir le tour courant
+      }else{
+        const vals=groupe.map(j=>statBarrageTour(j.id,curR,bgg));
+        if(vals.every(v=>v===vals[0])) toutes.forEach(([a,b])=>specs.push({a,b,round:curR+1})); // cycle → tour décisif
+      }
     }
   }
-  return paires;
+  return specs;
 };
 
 // Planning des cibles : renvoie l'ensemble des ids de matchs à jouer MAINTENANT.
@@ -1010,13 +1021,13 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
   const barrages=matchs.filter(m=>m.phase==="barrage");
   // Planning des barrages : MEME logique que les poules (matchsSurCibles) → jamais 2 fois le même joueur, au plus nbCibles à la fois.
   const actifsBarrages=matchsSurCibles(barrages.filter(m=>m.statut!=="termine"),nbCibles,matchs);
-  const barrageExiste=(a,b)=>barrages.some(m=>(m.joueur1_id===a&&m.joueur2_id===b)||(m.joueur1_id===b&&m.joueur2_id===a));
+  const barrageExiste=(a,b,round=0)=>barrages.some(m=>(m.round_bracket||0)===round&&((m.joueur1_id===a&&m.joueur2_id===b)||(m.joueur1_id===b&&m.joueur2_id===a)));
   const aCreer=[]; let tieNonTranchee=false;
   if(allDone){
     groupes.forEach(g=>{
-      egalitesADepartager(joueurs.filter(j=>j.groupe===g),barrages,nbQual).forEach(([a,b])=>{
+      egalitesADepartager(joueurs.filter(j=>j.groupe===g),barrages,nbQual).forEach(({a,b,round})=>{
         tieNonTranchee=true;
-        if(!barrageExiste(a.id,b.id))aCreer.push({a:a.id,b:b.id,groupe:g});
+        if(!barrageExiste(a.id,b.id,round))aCreer.push({a:a.id,b:b.id,groupe:g,round});
       });
     });
   }
@@ -1945,7 +1956,8 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     if(!paires||!paires.length)return;
     setSaving(true);
     try{
-      const news=paires.map((p,i)=>({tournoi_id:tournoiId,joueur1_id:p.a,joueur2_id:p.b,score1:0,score2:0,gagnant_id:null,phase:"barrage",groupe:p.groupe,statut:"en_attente",round_bracket:0,position_bracket:9000+i,manches_max:1}));
+      // round_bracket = tour de barrage (0 = round-robin ; ≥1 = tour décisif). position unique par tour.
+      const news=paires.map((p,i)=>({tournoi_id:tournoiId,joueur1_id:p.a,joueur2_id:p.b,score1:0,score2:0,gagnant_id:null,phase:"barrage",groupe:p.groupe,statut:"en_attente",round_bracket:p.round||0,position_bracket:9000+(p.round||0)*100+i,manches_max:1}));
       await dbTP.addMatchs(news);
       await reload();
     }catch(e){alert("Erreur : "+e.message);}
