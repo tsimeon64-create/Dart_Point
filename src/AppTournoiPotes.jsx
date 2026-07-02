@@ -880,7 +880,7 @@ const GROUP_COLORS=["#f97316","#22c55e","#60a5fa","#a78bfa","#f59e0b","#ec4899",
 const groupCol=(g)=>GROUP_COLORS[(g-1)%GROUP_COLORS.length];
 const groupLetter=(g)=>String.fromCharCode(64+((g-1)%26)+1); // 1->A, 2->B…
 const initiales=(nom)=>{ const s=(nom||"?").trim(); const p=s.split(/[\s-]+/).filter(Boolean); return (p.length>=2?(p[0][0]+p[1][0]):s.slice(0,2)).toUpperCase(); };
-const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,joueurConnecte,canPlay=false,onOpenShare,onModifier})=>{
+const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,joueurConnecte,canPlay=false,onOpenShare,onModifier,saving=false})=>{
   const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
   const groupes=Array.from({length:nbGroupes},(_,i)=>i+1);
   const termines=matchs.filter(m=>m.phase==="poules"&&m.statut==="termine");
@@ -892,6 +892,8 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
   const enAttente=Math.max(0,pending.length-actifs.size);
   // Barrages (égalités) — détectés une fois les poules terminées
   const barrages=matchs.filter(m=>m.phase==="barrage");
+  // Planning des barrages : MEME logique que les poules (matchsSurCibles) → jamais 2 fois le même joueur, au plus nbCibles à la fois.
+  const actifsBarrages=matchsSurCibles(barrages.filter(m=>m.statut!=="termine"),nbCibles,matchs);
   const barrageExiste=(a,b)=>barrages.some(m=>(m.joueur1_id===a&&m.joueur2_id===b)||(m.joueur1_id===b&&m.joueur2_id===a));
   const aCreer=[]; let tieNonTranchee=false;
   if(allDone){
@@ -963,7 +965,8 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
   const carteMatch=(m,barrage=false)=>{
     const j1=joueurs.find(j=>j.id===m.joueur1_id), j2=joueurs.find(j=>j.id===m.joueur2_id);
     const done=m.statut==="termine";
-    const actif=!done&&(barrage||actifs.has(m.id));
+    // Un barrage n'est actif que s'il est dans actifsBarrages (rotation cibles) ; un match de poule via actifs.
+    const actif=!done&&(barrage?actifsBarrages.has(m.id):actifs.has(m.id));
     const attente=!done&&!actif;
     const col=done?CT.green:barrage?RED_TP:actif?CT.accent:CT.muted;
     const g1=done&&m.gagnant_id===j1?.id, g2=done&&m.gagnant_id===j2?.id;
@@ -1073,7 +1076,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSetCibles,onSa
                   : <>Un <b>barrage en 701</b> (en rouge ci-dessous) est à jouer pour trancher l'égalité.</>}
               </div>
               {isCreateur&&aCreer.length>0&&(
-                <button onClick={()=>onCreerBarrages&&onCreerBarrages(aCreer)} style={{marginTop:10,background:RED_TP,color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontWeight:800,fontSize:13.5,cursor:"pointer",touchAction:"manipulation"}}>
+                <button onClick={()=>onCreerBarrages&&onCreerBarrages(aCreer)} disabled={saving} style={{marginTop:10,background:RED_TP,color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontWeight:800,fontSize:13.5,cursor:saving?"not-allowed":"pointer",opacity:saving?.6:1,touchAction:"manipulation"}}>
                   🎯 Créer le{aCreer.length>1?"s":""} barrage{aCreer.length>1?"s":""} ({aCreer.length})
                 </button>
               )}
@@ -1518,14 +1521,20 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
 
 // ── VUE RÉSULTATS ─────────────────────────────────────────────────────────────
 const ResultatsView=({tournoi,joueurs,matchs,onRejouer,onQuitter})=>{
+  // Verrou local anti double-clic sur 'Rejouer' (ResultatsView n'a pas l'etat 'saving' du parent)
+  const rejouLockRef=useRef(false);
+  const [rejouLock,setRejouLock]=useState(false);
   const finale=matchs.find(m=>m.phase==="finale"&&m.statut==="termine");
   const gagnant=finale?joueurs.find(j=>j.id===finale.gagnant_id):null;
   const perdant=finale?joueurs.find(j=>j.id===(finale.joueur1_id===finale.gagnant_id?finale.joueur2_id:finale.joueur1_id)):null;
   // 3e place (petite finale)
   const petite=matchs.find(m=>m.phase==="petite_finale"&&m.statut==="termine"&&m.gagnant_id);
   const troisieme=petite?joueurs.find(j=>j.id===petite.gagnant_id):null;
-  // Vainqueur de la consolante (dernier tour joué)
-  const consoFinale=matchs.filter(m=>m.phase==="consolante"&&m.statut==="termine"&&m.gagnant_id).sort((a,b)=>b.round_bracket-a.round_bracket)[0];
+  // Vainqueur de la consolante : SEULEMENT quand la vraie finale de consolante est finie.
+  // maxRoundConso = le dernier tour de la consolante (tous matchs consolante confondus, pas seulement ceux deja joues).
+  const consoAll=matchs.filter(m=>m.phase==="consolante");
+  const maxRoundConso=consoAll.length?Math.max(...consoAll.map(m=>m.round_bracket||0)):0;
+  const consoFinale=consoAll.find(m=>m.round_bracket===maxRoundConso&&m.statut==="termine"&&m.gagnant_id);
   const consoWinner=consoFinale?joueurs.find(j=>j.id===consoFinale.gagnant_id):null;
 
   // Stats du tournoi par joueur (depuis les parties live jouées au scoreur) :
@@ -1619,7 +1628,7 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer,onQuitter})=>{
         <h3 style={{fontWeight:700,fontSize:15,marginBottom:12}}><EmoText s="📋 Classement par points" size={15}/></h3>
         {rankGroup(joueurs).map((j,i)=>(
           <div key={j.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:i===0?"#f9731614":i===1?"#94a3b814":i===2?"#f59e0b14":"transparent",borderRadius:8,marginBottom:4}}>
-            <span style={{fontSize:18,display:"inline-flex",justifyContent:"center",width:20}}>{i<3?<EmoIcon e={i===0?"🥇":i===1?"🥈":"🥉"} size={18}/>:"·"}</span>
+            <span style={{fontSize:18,display:"inline-flex",justifyContent:"center",width:20}}>{i<3&&(j.victoires+j.defaites)>0?<EmoIcon e={i===0?"🥇":i===1?"🥈":"🥉"} size={18}/>:"·"}</span>
             <span style={{flex:1,fontWeight:i<3?700:400}}>{j.nom}</span>
             <span style={{fontSize:12,color:CT.muted}}>{j.victoires}V {j.defaites}D</span>
             <span style={{fontWeight:700,color:CT.accent}}>{j.points} pts</span>
@@ -1627,8 +1636,8 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer,onQuitter})=>{
         ))}
       </Card>
 
-      {/* MVP */}
-      {mvp&&(
+      {/* MVP : uniquement si le MVP a vraiment gagne au moins un match (evite un MVP a 0 victoire sur cloture anticipee) */}
+      {mvp&&mvp.victoires>0&&(
         <Card style={{marginBottom:16,background:"#a78bfa11",border:`1px solid ${CT.purple}44`}}>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:hasPalmares?14:0}}>
             <EmoIcon e="⭐" size={32} color="#fbbf24" fill="#fbbf24"/>
@@ -1668,7 +1677,7 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer,onQuitter})=>{
         </Btn>
       )}
       {/* Rejouer */}
-      <Btn onClick={onRejouer} variant="ghost" style={{width:"100%",marginTop:8}}>
+      <Btn onClick={()=>{ if(rejouLockRef.current)return; rejouLockRef.current=true; setRejouLock(true); onRejouer&&onRejouer(); }} disabled={rejouLock} variant="ghost" style={{width:"100%",marginTop:8}}>
         <EmoIcon e="🔄" size={14} style={{verticalAlign:"-2px",marginRight:6}}/>Rejouer avec les mêmes joueurs
       </Btn>
     </div>
@@ -1719,8 +1728,10 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     return()=>clearInterval(pollRef.current);
   },[reload]);
 
-  // Synchronise le nb de cibles depuis le serveur (si la colonne existe)
-  useEffect(()=>{ if(tournoi&&typeof tournoi.nb_cibles==="number"&&tournoi.nb_cibles>0)setCibles(tournoi.nb_cibles); },[tournoi?.nb_cibles]);
+  // Fenetre 'dirty' : apres un changement local de cibles, on ignore la valeur serveur qq secondes (le temps que l'ecriture se propage) → evite le retour en arriere du compteur.
+  const cibleDirtyUntil=useRef(0);
+  // Synchronise le nb de cibles depuis le serveur (si la colonne existe), SAUF pendant la fenetre dirty
+  useEffect(()=>{ if(Date.now()<cibleDirtyUntil.current)return; if(tournoi&&typeof tournoi.nb_cibles==="number"&&tournoi.nb_cibles>0)setCibles(tournoi.nb_cibles); },[tournoi?.nb_cibles]);
   // Mémorise le tournoi actif (pour le bouton flottant "Reprendre le tournoi") — effacé quand il est terminé
   useEffect(()=>{
     if(!tournoi)return;
@@ -1729,13 +1740,19 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         const cur=JSON.parse(localStorage.getItem("dp_active_tournoi")||"null");
         if(cur&&cur.id===tournoiId)localStorage.removeItem("dp_active_tournoi");
       }else{
-        localStorage.setItem("dp_active_tournoi",JSON.stringify({id:tournoiId,nom:tournoi.nom||"Tournoi"}));
+        // On ne pose le FAB que pour un utilisateur IMPLIQUE : createur, joueur deverrouille, ou deja inscrit.
+        const estCreateur=!!(joueurConnecte&&tournoi.createur_id===joueurConnecte.id);
+        let dejaInscrit=false; try{dejaInscrit=localStorage.getItem("dp_tp_joined_"+tournoiId)==="1";}catch(e){}
+        if(estCreateur||codeUnlocked||dejaInscrit){
+          localStorage.setItem("dp_active_tournoi",JSON.stringify({id:tournoiId,nom:tournoi.nom||"Tournoi"}));
+        }
       }
     }catch(e){}
-  },[tournoi?.statut,tournoi?.nom,tournoiId]);
+  },[tournoi?.statut,tournoi?.nom,tournoiId,codeUnlocked]);
   // Change le nb de cibles (optimiste + persistance serveur si possible)
   const changerCibles=async(n)=>{
     const v=Math.max(1,Math.min(12,n));
+    cibleDirtyUntil.current=Date.now()+4000; // 4s : on protege la valeur locale du polling
     setCibles(v);
     setTournoi(t=>t?{...t,nb_cibles:v}:t);
     try{ await dbTP.updateTournoi(tournoiId,{nb_cibles:v}); }catch(e){ /* colonne nb_cibles pas encore créée : on garde l'état local */ }
@@ -1785,8 +1802,8 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       const fraisMatchs=await dbTP.getMatchs(tournoiId);
       const matchFrais=fraisMatchs.find(m=>m.id===match.id);
       const dejaTermine=matchFrais&&matchFrais.statut==="termine";
-      // Update match
-      await dbTP.updateMatch(match.id,{score1,score2,gagnant_id,statut:"termine",date_fin:new Date().toISOString()});
+      // Update match — date_fin uniquement a la 1re saisie : une correction ne doit pas ecraser l'heure de fin.
+      await dbTP.updateMatch(match.id,{score1,score2,gagnant_id,statut:"termine",...(dejaTermine?{}:{date_fin:new Date().toISOString()})});
 
       if(match.phase==="poules"){
         // Recalcule TOUT le classement de poules depuis les matchs terminés
@@ -1850,6 +1867,23 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       const seededFlat=seedPoolAware(topParGroupe,bracketSize);
       const bracketMatchs=genBracketMatchs(seededFlat,tournoiId,manchesMap,{consolante,petiteFinale});
       if(bracketMatchs.length>0)await dbTP.addMatchs(bracketMatchs);
+      // On fait avancer tout de suite les exemptes (byes) : ils ont deja gagne d'office.
+      // Sans ca, leur adversaire du tour suivant n'arrive jamais et le tableau se bloque.
+      // On boucle tant qu'il reste un bye a propager (cas 2 byes qui se rejoignent au tour d'apres).
+      let restePasse=true, secu=0;
+      while(restePasse&&secu<10){
+        secu++;
+        restePasse=false;
+        const fresh=await dbTP.getMatchs(tournoiId);
+        for(const m of fresh){
+          if(typeof m.statut==="string"&&m.statut.startsWith("bye")&&m.gagnant_id){
+            await avancerApresMatch(m,m.gagnant_id,fresh);
+            // On marque ce bye comme traite pour ne pas le repropager a la passe suivante.
+            await dbTP.updateMatch(m.id,{statut:"termine"});
+            restePasse=true;
+          }
+        }
+      }
       await dbTP.updateTournoi(tournoiId,{statut:"eliminatoires"});
       setShowBracketConfig(false);
       await reload();
@@ -1859,6 +1893,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
 
   // ── Créer les matchs de barrage (701) pour départager les égalités
   const creerBarrages=async(paires)=>{
+    if(saving)return; // garde anti double-tap : un envoi deja en cours
     if(!paires||!paires.length)return;
     setSaving(true);
     try{
@@ -1924,6 +1959,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
 
   // ── Rejouer
   const rejouer=async()=>{
+    if(saving)return; // garde anti double-clic : une creation deja en cours
     setSaving(true);
     try{
       const code=genCode();
@@ -2002,6 +2038,8 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     let j;
     try{ j=await dbTP.addJoueur(membres?{...base,membres}:base); }
     catch(err){ j=await dbTP.addJoueur(base); } // repli si la colonne "membres" n'existe pas encore
+    // Celui qui s'inscrit devient JOUEUR (peut scorer), pas simple spectateur
+    if(j){ try{localStorage.setItem("dp_tp_player_"+tournoiId,"1");}catch(e){} setCodeUnlocked(true); }
     await reload();
     return j;
   };
@@ -2061,7 +2099,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           onSaisirScore={m=>setMatchModal(m)}
           onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
           onLancerEliminatoires={()=>setShowBracketConfig(true)}
-          onCreerBarrages={creerBarrages} joueurConnecte={joueurConnecte}/>
+          onCreerBarrages={creerBarrages} saving={saving} joueurConnecte={joueurConnecte}/>
       )}
       {showBracketConfig&&<BracketConfigModal joueurs={joueurs} saving={saving} onValider={lancerEliminatoires} onClose={()=>setShowBracketConfig(false)}/>}
       {tournoi.statut==="eliminatoires"&&(
@@ -2288,7 +2326,16 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
       const _fraisMatchs=await dbTP.getMatchs(match.tournoi_id);
       const _matchFrais=_fraisMatchs.find(m=>m.id===match.id);
       const dejaTermine=_matchFrais&&_matchFrais.statut==="termine";
-      await dbTP.updateMatch(match.id,{score1,score2,gagnant_id,statut:"termine",date_fin:new Date().toISOString()});
+      // GARDE anti-recreation : si l'organisateur a annule/relance le tournoi sur un autre telephone,
+      // le match n'existe plus. On ne DOIT pas le recreer via updateMatch ni compter de stats fantomes.
+      if(!_matchFrais){
+        alert("Ce match a été annulé par l'organisateur.");
+        if(setPage)setPage("tournoi-potes-"+match.tournoi_id);
+        return;
+      }
+      // date_fin seulement a la 1re saisie : une CORRECTION ne doit pas ecraser l'heure de fin d'origine.
+      const _patchMatch={score1,score2,gagnant_id,statut:"termine",...(dejaTermine?{}:{date_fin:new Date().toISOString()})};
+      await dbTP.updateMatch(match.id,_patchMatch);
       // Mise à jour des stats — un BARRAGE ne change pas les points de poule (il départage seulement)
       if(match.phase==="poules"){
         // Recalcule TOUT le classement de la poule depuis les matchs terminés
@@ -2306,8 +2353,11 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
       }else if(match.phase!=="barrage"&&!dejaTermine){
         // Tableau (bracket) : incrémental. Gagnant = max des manches, perdant = min → pas d'inversion.
         // Saute si le match etait DEJA termine → evite de doubler les points sur une re-validation.
-        const gJ=joueurs.find(j=>j.id===gagnant_id);
-        const lJ=joueurs.find(j=>j.id===perdant_id);
+        // On relit les joueurs FRAIS de la base : le snapshot du montage peut etre perime
+        // (un autre match a pu changer victoires/points entre-temps) → sinon on ecraserait des stats.
+        const jFrais=await dbTP.getJoueurs(match.tournoi_id);
+        const gJ=jFrais.find(j=>j.id===gagnant_id);
+        const lJ=jFrais.find(j=>j.id===perdant_id);
         const mgG=Math.max(score1,score2), mgP=Math.min(score1,score2);
         if(gJ)await dbTP.updateJoueur(gJ.id,{victoires:gJ.victoires+1,points:gJ.points+2,manches_pour:gJ.manches_pour+mgG,manches_contre:gJ.manches_contre+mgP});
         if(lJ)await dbTP.updateJoueur(lJ.id,{defaites:lJ.defaites+1,points:lJ.points+(mgP>0?1:0),manches_pour:lJ.manches_pour+mgP,manches_contre:lJ.manches_contre+mgG});
@@ -2318,7 +2368,11 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
         const allMatchs=await dbTP.getMatchs(match.tournoi_id);
         await avancerApresMatch(match,gagnant_id,allMatchs);
       }
-    }catch(e){console.error("Erreur save match:",e);}
+    }catch(e){
+      // On PREVIENT l'organisateur au lieu d'echouer en silence : sinon il croit que le score est enregistre.
+      console.error("Erreur save match:",e);
+      alert("⚠️ Le résultat n'a PAS pu être enregistré (réseau ?). Note le score et re-saisis-le avec le crayon quand la connexion revient.");
+    }
   };
 
   return(
