@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "app.vercel.dart_point.twa",
       "sha256_cert_fingerprints": [
-        "6A:B5:3F:AA:93:39:CC:21:84:77:65:08:D7:1B:D2:5C:A1:6E:6E:E7:89:4C:B4:78:DE:8D:74:64:CF:B7:AD:DF"
+        "6A:B5:3F:AA:93:39:CC:21:84:77:65:08:D7:1B:D2:5C:A1:6E:6E:E7:89:4C:B4:78:DE:8D:74:64:CF:B7:AD:DF",
+        "1E:4E:DC:3A:0E:48:1E:4E:A8:13:8D:C6:72:A0:58:B1:F9:1F:D5:E9:16:BB:81:27:7F:DA:6A:C8:B7:44:F9:35"
       ]
     }
   }
