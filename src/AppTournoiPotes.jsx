@@ -961,7 +961,7 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
 // qu'en phase de poules. Du coup, en eliminatoires/barrages, plus aucune alerte. Ici on la sort
 // pour la monter au niveau du tournoi (present en poules, barrages ET eliminatoires).
 // monMatch = LE match "a jouer maintenant" qui me concerne (deja calcule par le parent), ou null.
-const TurnAlert=({monMatch,joueurs,canPlay=false,onJouer})=>{
+const TurnAlert=({monMatch,joueurs})=>{
   // Qui suis-je ? (compte lie OU ligne memorisee dans localStorage, meme sans compte)
   const isMine=(id)=>false; // (non utilise ici : le parent a deja filtre sur mon match)
   const [alerteMatch,setAlerteMatch]=useState(null);
@@ -1008,7 +1008,9 @@ const TurnAlert=({monMatch,joueurs,canPlay=false,onJouer})=>{
     }
   },[monMatch&&monMatch.id]); // eslint-disable-line
   useEffect(()=>()=>stopBuzz(),[]); // eslint-disable-line
-  const fermerAlerte=(jouer)=>{ stopBuzz(); try{ if("Notification" in window&&Notification.permission==="default")Notification.requestPermission(); }catch(e){} const m=alerteMatch; setAlerteMatch(null); if(jouer&&m&&onJouer)onJouer(m); };
+  // L'alerte NE LANCE PLUS le scoreur (pour éviter tout scoreur lancé par erreur) : elle ferme juste.
+  // Le joueur ouvre le scoreur lui-même depuis sa carte de match (bouton ▶ Lancer), une fois au pas de tir.
+  const fermerAlerte=()=>{ stopBuzz(); try{ if("Notification" in window&&Notification.permission==="default")Notification.requestPermission(); }catch(e){} setAlerteMatch(null); };
   if(!alerteMatch)return null;
   const adv=joueurs.find(j=>j.id===(alerteMatch.__moiEstJ1?alerteMatch.joueur2_id:alerteMatch.joueur1_id));
   return(
@@ -1019,8 +1021,8 @@ const TurnAlert=({monMatch,joueurs,canPlay=false,onJouer})=>{
         <div style={{fontWeight:900,fontSize:23,color:CT.green,marginBottom:8,lineHeight:1.2}}>C'est à toi de jouer !</div>
         <div style={{fontSize:15,color:CT.text,marginBottom:4}}>Ton match contre <b>{adv?.nom||"ton adversaire"}</b> est prêt.</div>
         <div style={{fontSize:12.5,color:CT.muted,marginBottom:22}}>Va au pas de tir <EmoIcon e="🎯" size={12} style={{verticalAlign:"-1px"}}/> c'est ton tour !</div>
-        <Btn onClick={()=>fermerAlerte(false)} style={{width:"100%",fontSize:16,padding:"14px"}}>👍 OK, j'y vais !</Btn>
-        {canPlay&&<button onClick={()=>fermerAlerte(true)} style={{marginTop:10,width:"100%",background:"none",border:"none",color:CT.accent,fontSize:13,fontWeight:700,cursor:"pointer",padding:6,touchAction:"manipulation"}}>▶ Ouvrir le scoreur</button>}
+        <Btn onClick={()=>fermerAlerte()} style={{width:"100%",fontSize:16,padding:"14px"}}>👍 OK, j'y vais !</Btn>
+        <div style={{marginTop:12,fontSize:11.5,color:CT.muted,lineHeight:1.45}}>Le scoreur se lance depuis ta <b style={{color:CT.text}}>carte de match</b> (bouton ▶ Lancer), une fois au pas de tir <EmoIcon e="🎯" size={11} style={{verticalAlign:"-1px"}}/></div>
       </div>
     </div>
   );
@@ -2319,7 +2321,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       </div>
 
       {/* Alerte "c'est a toi de jouer" — montee ici pour TOUTES les phases (poules, barrages, eliminatoires) */}
-      <TurnAlert monMatch={monMatchActifTournoi} joueurs={joueurs} canPlay={canPlay} onJouer={m=>setPage("scoreur-potes-"+m.id)}/>
+      <TurnAlert monMatch={monMatchActifTournoi} joueurs={joueurs}/>
 
       {/* Content by statut */}
       {tournoi.statut==="attente"&&(
