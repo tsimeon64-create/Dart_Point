@@ -923,6 +923,20 @@ const JoueursConfigSection = ({ config, setConfig, modeDuel }) => {
 export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, setPage = null, onResultat = null, onRejouer = null, joueur = null, setJoueur = null, botStart = false, onQuitter = null }) => {
   const modeDuel = !!duel;
 
+  // ── REPRISE AUTO : si une partie (duel/tournoi) a été coupée (appel, appli tuée, plantage…),
+  //    on restaure exactement l'état sauvegardé. Clé unique par duel/match. Aucune sauvegarde = comportement normal.
+  const resumeKey = (modeDuel && duel?.id) ? "dp_game_" + duel.id : null;
+  const resume = (() => {
+    if (!resumeKey) return null;
+    try {
+      const raw = localStorage.getItem(resumeKey);
+      if (!raw) return null;
+      const s = JSON.parse(raw);
+      if (s && s.v === 1 && s.etape === "jeu" && Array.isArray(s.joueurs) && s.joueurs.length && (Date.now() - (s.ts || 0)) < 6 * 3600 * 1000) return s;
+    } catch (e) {}
+    return null;
+  })();
+
   // Signale globalement qu'un scoreur est AFFICHÉ (battement de cœur toutes les 4 s).
   // → un tournoi ne déclenchera pas l'alerte « c'est à toi de jouer » (vibration/son/pop-up/notif)
   //   tant qu'on est en train de scorer une partie sur ce téléphone, pour ne pas polluer la partie.
@@ -933,17 +947,17 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     return () => { clearInterval(id); try { window.__dpScoreurTs = 0; } catch (e) {} };
   }, []);
 
-  const [etape, setEtape] = useState(modeDuel ? "bulle" : botStart ? "amis" : "config");
-  const [config, setConfig] = useState({
+  const [etape, setEtape] = useState(resume ? "jeu" : (modeDuel ? "bulle" : botStart ? "amis" : "config"));
+  const [config, setConfig] = useState(resume?.config || {
     mode: duel?.mode || "501",
     manches: duel?.manches || 1,
     // Libre mode : tableau dynamique (2-6 joueurs). Duel mode utilise duel.challenger_pseudo / defie_pseudo.
     noms: [duel?.challenger_pseudo || "Joueur 1", duel?.defie_pseudo || "Joueur 2"],
   });
   const [input, setInput] = useState("");
-  const [joueurs, setJoueurs] = useState(null);
-  const [actifIdx, setActifIdx] = useState(0);
-  const [bulleStartIdx, setBulleStartIdx] = useState(0); // qui commence la manche 1
+  const [joueurs, setJoueurs] = useState(resume ? resume.joueurs : null);
+  const [actifIdx, setActifIdx] = useState(resume?.actifIdx ?? 0);
+  const [bulleStartIdx, setBulleStartIdx] = useState(resume?.bulleStartIdx ?? 0); // qui commence la manche 1
   const [ordreBulle, setOrdreBulle] = useState([]); // mode libre : ordre de passage choisi à la bulle (indices de config.noms)
   // ── Mode bot (mode libre) : affronter le « fantôme » d'un ami ──────────────────
   const [botPseudo, setBotPseudo] = useState(null); // pseudo de l'ami simulé (identifie le bot dans `joueurs`)
@@ -955,15 +969,15 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [loadingAmis, setLoadingAmis] = useState(false);
   const [loadingBot, setLoadingBot]   = useState(null); // id de l'ami en cours de préparation
   const botXpRef = useRef(false);                       // évite de créditer l'XP deux fois
-  const [mancheEnCours, setMancheEnCours] = useState(0); // 0-based
+  const [mancheEnCours, setMancheEnCours] = useState(resume?.mancheEnCours ?? 0); // 0-based
   const [gagnant, setGagnant] = useState(null);
   const [resultEnregistre, setResultEnregistre] = useState(false);
   const [showConfirmQuitter, setShowConfirmQuitter] = useState(false);
   const [showHistorique, setShowHistorique] = useState(false);
-  const [historique, setHistorique] = useState([]);
-  const [manchesHistory, setManchesHistory] = useState([]);
+  const [historique, setHistorique] = useState(resume?.historique || []);
+  const [manchesHistory, setManchesHistory] = useState(resume?.manchesHistory || []);
   // Valeurs cumulatives au début de la manche courante (tours/flechettes/points sont cumulatifs)
-  const [mancheStart, setMancheStart] = useState({ vol:[0,0], pts:[0,0], nbtours:[0,0], flechettes:[0,0] }); // redimensionné au démarrage
+  const [mancheStart, setMancheStart] = useState(resume?.mancheStart || { vol:[0,0], pts:[0,0], nbtours:[0,0], flechettes:[0,0] }); // redimensionné au démarrage
   const [pendingVolee, setPendingVolee] = useState(null); // { val, type:"finish"|"zero" }
   const [drixBreakdown, setDrixBreakdown] = useState(null); // breakdown détaillé post-match
   const [liveBadgeNotif, setLiveBadgeNotif] = useState(null); // { emoji, nom, desc, couleur }
@@ -975,6 +989,36 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const liveVoleeNumRef = useRef([0, 0]);
   const liveMaxFinishRef = useRef([0, 0]);
   const liveBustsRef = useRef([0, 0]);
+
+  // ── Anti double-déclenchement (double-tap / multitouch) d'une volée ou d'une validation ──
+  //   Verrou posé au début de l'action, relâché dès que l'état a réellement avancé (via les effets ci-dessous).
+  const lockRef = useRef({ envoi: false, confirm: false });
+  useEffect(() => { lockRef.current.envoi = false; }, [joueurs, actifIdx, pendingVolee]);
+  useEffect(() => { lockRef.current.confirm = false; }, [pendingVolee]);
+
+  // ── Reprise : ferme l'ANCIENNE session live du brouillon (sinon 2 sessions live si l'appli a été tuée à froid) ──
+  useEffect(() => {
+    if (!resume || !resume.liveId) return;
+    try {
+      fetch(`${SB_URL}/rest/v1/live_sessions?id=eq.${resume.liveId}`, {
+        method: "PATCH", keepalive: true,
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ statut: "termine" }),
+      }).catch(() => {});
+    } catch (e) {}
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Sauvegarde auto de la partie (duel/tournoi) → reprise exacte si l'appli est coupée (appel, plantage, fermeture) ──
+  useEffect(() => {
+    if (!resumeKey) return;
+    try {
+      if (etape === "jeu" && Array.isArray(joueurs) && joueurs.length) {
+        localStorage.setItem(resumeKey, JSON.stringify({ v: 1, ts: Date.now(), etape: "jeu", joueurs, actifIdx, bulleStartIdx, mancheEnCours, historique, manchesHistory, mancheStart, config, liveId: liveIdRef.current }));
+      } else {
+        localStorage.removeItem(resumeKey); // partie finie / quittée → on efface le brouillon de reprise
+      }
+    } catch (e) {}
+  }, [resumeKey, etape, joueurs, actifIdx, bulleStartIdx, mancheEnCours, historique, manchesHistory, mancheStart, config]);
 
   // ── Scroll auto vers le joueur actif (déclaré ici pour respecter les Rules of Hooks) ──
   const scoresGridRef = useRef(null);
@@ -1024,10 +1068,15 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // Ici on envoie une petite requête « keepalive » (qui part même pendant la fermeture)
   // pour marquer la session comme terminée. On le fait UNIQUEMENT si une session est vraiment ouverte.
   useEffect(() => {
-    const fermerLiveFantome = () => {
+    const fermerLiveFantome = (e) => {
+      // ⚠️ Appel téléphonique / changement d'appli : le téléphone met la page en CACHE (pagehide avec
+      // persisted=true) et peut la REVENIR ensuite. Dans ce cas on NE ferme PAS la session : la partie
+      // continue quand l'utilisateur revient, et la session doit rester « en cours » (sinon session
+      // fantôme fermée à tort, ou zombie si le PATCH échoue). On ne ferme que sur une VRAIE fermeture.
+      if (e && e.type === "pagehide" && e.persisted) return;
       if (!liveIdRef.current) return; // rien d'ouvert → on ne touche à rien
       const id = liveIdRef.current;
-      liveIdRef.current = null; // évite un double envoi
+      liveIdRef.current = null; // évite un double envoi (l'id reste dans le brouillon de reprise → nettoyé à la relance si besoin)
       try {
         fetch(`${SB_URL}/rest/v1/live_sessions?id=eq.${id}`, {
           method: "PATCH",
@@ -1292,6 +1341,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   };
 
   const enregistrerResultatDuel = async (gagnantNom, scoreC, scoreD, moyC, moyD, manchesDetail=[], joueursData=[]) => {
+    try { if (resumeKey) localStorage.removeItem(resumeKey); } catch (e) {} // partie FINIE → efface le brouillon de reprise (sinon "partie fantôme" en rouvrant le match)
     if (onResultat) {
       onResultat({ gagnantNom, scoreC, scoreD, moyC, moyD, joueurs: joueursData, manchesDetail });
       setResultEnregistre(true);
@@ -1514,11 +1564,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const pushHistorique = () => setHistorique(h => [...h.slice(-14), snapshot()]);
 
   const envoyer = (overrideVal) => {
-    if (!joueurs) return;
+    if (!joueurs || lockRef.current.envoi) return;
     const val = overrideVal !== undefined ? overrideVal : parseInt(input);
     // overrideVal autorise val=0 (bouton NO SCORE) sans avoir tapé "0"
     if (overrideVal === undefined && (!input || isNaN(val) || val < 0 || val > 180)) { setInput(""); return; }
     if (overrideVal !== undefined && (isNaN(val) || val < 0 || val > 180)) return;
+    lockRef.current.envoi = true; // verrou anti double-tap : relâché par l'effet quand joueurs/actifIdx/pendingVolee change
 
     const joueur = joueurs[actifIdx];
     const nouveau = joueur.score - val;
@@ -1558,9 +1609,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // Appelé après sélection du nb de fléchettes dans la popup
   const confirmerVolee = (nbFlechettes) => {
-    if (!pendingVolee || !joueurs) return;
+    if (lockRef.current.confirm || !pendingVolee || !joueurs) return;
     // Anti-double validation : si pendingVolee est déjà null on sort immédiatement
     if (nbFlechettes < 1 || nbFlechettes > 3) return;
+    lockRef.current.confirm = true; // verrou anti double-tap : relâché par l'effet quand pendingVolee repasse à null
     const { val, type } = pendingVolee;
     const joueur = joueurs[actifIdx];
     setPendingVolee(null);

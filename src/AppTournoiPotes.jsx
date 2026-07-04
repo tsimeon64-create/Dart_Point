@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import QRCode from "qrcode";
 import { Scoreur } from "./AppJeux";
 import { EmoIcon, EmoText } from "./icons";
+import { rankGroup, egalitesADepartager } from "./barrage";
 
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -218,6 +219,29 @@ const avancerApresMatch=async(match,gagnant_id,allMatchs)=>{
   }
 };
 
+// Cases du tableau à corriger si on INVERSE le vainqueur d'un match déjà terminé (mêmes cibles que
+// avancerApresMatch, mais renvoyées pour vérif/patch). {target, slotJ1, val} : val = joueur à mettre dans la case.
+const ciblesAvancement=(match,nouveauGagnant,allMatchs)=>{
+  const r=match.round_bracket, nextPos=Math.floor(match.position_bracket/2), slotJ1=match.position_bracket%2===0;
+  const nouveauPerdant=match.joueur1_id===nouveauGagnant?match.joueur2_id:match.joueur1_id;
+  const cibles=[];
+  if(match.phase==="consolante"){
+    const t=allMatchs.find(m=>m.phase==="consolante"&&m.round_bracket===r+1&&m.position_bracket===nextPos);
+    if(t)cibles.push({target:t,slotJ1,val:nouveauGagnant});
+    return cibles;
+  }
+  if(match.phase==="petite_finale"||match.phase==="finale")return cibles; // terminal → aucune suite
+  const principal=allMatchs.find(m=>MAIN_PHASES.includes(m.phase)&&m.round_bracket===r+1&&m.position_bracket===nextPos);
+  if(principal)cibles.push({target:principal,slotJ1,val:nouveauGagnant});
+  const finaleMatch=allMatchs.find(m=>m.phase==="finale");
+  const finaleRound=finaleMatch?finaleMatch.round_bracket:r;
+  if(r===finaleRound-1){
+    const petite=allMatchs.find(m=>m.phase==="petite_finale");
+    if(petite)cibles.push({target:petite,slotJ1,val:nouveauPerdant}); // le perdant (corrigé) va en petite finale
+  }
+  return cibles;
+};
+
 // Fait AVANCER tous les exempts (byes) du tableau jusqu'a ce qu'il n'en reste plus.
 // Re-lit les matchs a CHAQUE etape (jamais de donnee perimee), et marque chaque bye "termine".
 // Idempotent : peut etre relance sans risque (sert au lancement ET en auto-reparation).
@@ -247,75 +271,8 @@ const propagerByes=async(tid)=>{
   }
 };
 
-// Stat d'un joueur sur les barrages d'un TOUR donné (round_bracket=r), contre les joueurs de son groupe.
-const statBarrageTour=(id,r,bg)=>{
-  let vic=0,diff=0;
-  bg.forEach(m=>{
-    if((m.round_bracket||0)!==r)return;
-    if(m.joueur1_id!==id&&m.joueur2_id!==id)return;
-    const s1=m.score1||0,s2=m.score2||0;
-    if(m.gagnant_id===id)vic++;
-    diff+=(m.joueur1_id===id)?(s1-s2):(s2-s1);
-  });
-  return vic*10000+diff; // clé comparable (victoires priment, puis diff)
-};
-// Sort joueurs by ranking in a group. Départage : points → victoires → goal average →
-// puis les BARRAGES 701. Les barrages ont des TOURS (round_bracket 0,1,2…) : le 1er tour est un
-// round-robin ; s'il finit en cycle parfait, on rejoue un tour décisif. On compare d'abord le
-// tour le plus RÉCENT (le plus décisif), puis on redescend.
-const rankGroup=(joueurs,barrages=[])=>{
-  const idsGroupe=new Set(joueurs.map(j=>j.id));
-  const bg=barrages.filter(m=>m.statut==="termine"&&m.gagnant_id&&idsGroupe.has(m.joueur1_id)&&idsGroupe.has(m.joueur2_id));
-  const maxRound=bg.reduce((mx,m)=>Math.max(mx,m.round_bracket||0),0);
-  return [...joueurs].sort((a,b)=>{
-    if(b.victoires!==a.victoires)return b.victoires-a.victoires; // 1) VICTOIRES d'abord (le + de victoires devant)
-    if(a.defaites!==b.defaites)return a.defaites-b.defaites;     // 2) puis le MOINS de défaites
-    const da=a.manches_pour-a.manches_contre, db=b.manches_pour-b.manches_contre;
-    if(db!==da)return db-da;                                     // 3) départage seulement si égalité V/D : goal average manches
-    for(let r=maxRound;r>=0;r--){                                // 4) puis barrages, du tour le + récent au + ancien
-      const ka=statBarrageTour(a.id,r,bg), kb=statBarrageTour(b.id,r,bg);
-      if(kb!==ka)return kb-ka;
-    }
-    return 0;
-  });
-};
-
-// Égalité PARFAITE de POULE (mêmes points ET victoires ET goal average) → départage nécessaire.
-const memeNiveau=(a,b)=>a.victoires===b.victoires&&a.defaites===b.defaites&&(a.manches_pour-a.manches_contre)===(b.manches_pour-b.manches_contre);
-
-// Renvoie les matchs de barrage À CRÉER pour départager les égalités parfaites sur les places qualificatives.
-// Chaque spec : {a, b, round}. round 0 = 1er round-robin ; round≥1 = tour DÉCISIF (rejoué en 1 manche 701
-// quand un tour finit sur un cycle parfait — chacun 1 victoire, tout égal).
-const egalitesADepartager=(joueursGroupe,barrages=[],nbQual=2)=>{
-  const specs=[]; const idsAll=new Set(joueursGroupe.map(j=>j.id));
-  const bgAll=barrages.filter(m=>idsAll.has(m.joueur1_id)&&idsAll.has(m.joueur2_id));
-  const ranked=rankGroup(joueursGroupe,barrages); const dejaVu=new Set();
-  for(let i=0;i<Math.min(nbQual,ranked.length);i++){
-    if(dejaVu.has(ranked[i].id))continue;
-    const groupe=[ranked[i]];
-    for(let k=i+1;k<ranked.length;k++){ if(memeNiveau(ranked[i],ranked[k]))groupe.push(ranked[k]); else break; }
-    if(groupe.length<2)continue;
-    groupe.forEach(j=>dejaVu.add(j.id));
-    const gids=new Set(groupe.map(j=>j.id));
-    const bgg=bgAll.filter(m=>gids.has(m.joueur1_id)&&gids.has(m.joueur2_id));
-    const maxR=bgg.reduce((mx,m)=>Math.max(mx,m.round_bracket||0),-1);
-    const curR=Math.max(0,maxR);
-    const toutes=[]; for(let x=0;x<groupe.length;x++)for(let y=x+1;y<groupe.length;y++)toutes.push([groupe[x],groupe[y]]);
-    const jouee=(a,b,r)=>bgg.some(m=>(m.round_bracket||0)===r&&m.statut==="termine"&&((m.joueur1_id===a&&m.joueur2_id===b)||(m.joueur1_id===b&&m.joueur2_id===a)));
-    if(maxR<0){
-      toutes.forEach(([a,b])=>specs.push({a,b,round:0}));                       // 1er round-robin
-    }else{
-      const manquantes=toutes.filter(([a,b])=>!jouee(a.id,b.id,curR));
-      if(manquantes.length>0){
-        manquantes.forEach(([a,b])=>specs.push({a,b,round:curR}));             // finir le tour courant
-      }else{
-        const vals=groupe.map(j=>statBarrageTour(j.id,curR,bgg));
-        if(vals.every(v=>v===vals[0])) toutes.forEach(([a,b])=>specs.push({a,b,round:curR+1})); // cycle → tour décisif
-      }
-    }
-  }
-  return specs;
-};
+// Classement de poule + barrages 701 → extraits dans ./barrage.js (fonctions pures, testées par barrage.test.mjs).
+// rankGroup et egalitesADepartager sont importés en tête de fichier.
 
 // Planning des cibles : renvoie l'ensemble des ids de matchs à jouer MAINTENANT.
 // Au plus nbCibles matchs en même temps, jamais un même joueur sur 2 cibles à la fois.
@@ -1153,7 +1110,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
           {!done&&<span style={{fontSize:10.5,color:CT.muted}}>Premier à {m.manches_max||2} manche{(m.manches_max||2)>1?"s":""}</span>}
           <div style={{marginLeft:"auto",display:"flex",gap:6}}>
             {actif&&!enCours&&canPlay&&<Btn onClick={()=>onJouerMatch(m)} variant="primary" small><EmoText s="▶ Lancer" size={12}/></Btn>}
-            {isCreateur&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small title={done?"Corriger le score":"Saisir les manches"}><EmoIcon e="✏️" size={13}/></Btn>}
+            {isCreateur&&!bracketLance&&<Btn onClick={()=>onSaisirScore(m)} variant="dark" small title={done?"Corriger le score":"Saisir les manches"}><EmoIcon e="✏️" size={13}/></Btn>}
             {actif&&!enCours&&!canPlay&&<span style={{fontSize:11,color:col,fontWeight:700}}>🎯</span>}
           </div>
         </div>
@@ -1302,7 +1259,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
         <div style={{textAlign:"center",fontSize:12.5,color:RED_TP,fontWeight:700,padding:"12px 8px",lineHeight:1.5}}>⚠️ Départage l'égalité (barrage en 701) avant de lancer les éliminatoires.</div>
       )}
       {bracketLance&&(
-        <div style={{textAlign:"center",fontSize:12,color:CT.muted,padding:"11px 12px",lineHeight:1.5,background:"#16161d",borderRadius:10,border:`1px solid ${CT.border}`}}><EmoIcon e="ℹ️" size={12} style={{verticalAlign:"-1px",marginRight:4}}/>Consultation des poules — le tableau final est déjà lancé (onglet <b style={{color:CT.accent}}>Éliminatoires</b>). Tu peux corriger un score de poule ici si besoin.</div>
+        <div style={{textAlign:"center",fontSize:12,color:CT.muted,padding:"11px 12px",lineHeight:1.5,background:"#16161d",borderRadius:10,border:`1px solid ${CT.border}`}}><EmoIcon e="ℹ️" size={12} style={{verticalAlign:"-1px",marginRight:4}}/>Consultation des poules — le tableau final est déjà lancé (onglet <b style={{color:CT.accent}}>Éliminatoires</b>). Les scores de poule sont maintenant <b style={{color:CT.text}}>verrouillés</b> : le classement qui a servi à créer le tableau ne peut plus changer.</div>
       )}
     </div>
   );
@@ -1992,7 +1949,6 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   // ── Saisir un score
   const saisirScore=async(match,score1,score2)=>{
     const gagnant_id=score1>score2?match.joueur1_id:match.joueur2_id;
-    const lose=Math.min(score1,score2);
     try{
       // GARDE anti-double-comptage : on relit le VRAI statut du match dans la base juste avant.
       // Si un autre appareil (ou le scoreur pendant les 5 s de rafraichissement) a deja termine ce match,
@@ -2000,8 +1956,27 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       const fraisMatchs=await dbTP.getMatchs(tournoiId);
       const matchFrais=fraisMatchs.find(m=>m.id===match.id);
       const dejaTermine=matchFrais&&matchFrais.statut==="termine";
-      // Update match — date_fin uniquement a la 1re saisie : une correction ne doit pas ecraser l'heure de fin.
-      await dbTP.updateMatch(match.id,{score1,score2,gagnant_id,statut:"termine",...(dejaTermine?{}:{date_fin:new Date().toISOString()})});
+      const estBracket=match.phase!=="poules"&&match.phase!=="barrage"&&(match.round_bracket||0)>0;
+      const ancienGagnant=matchFrais?matchFrais.gagnant_id:null;
+      const inversion=dejaTermine&&estBracket&&ancienGagnant&&ancienGagnant!==gagnant_id; // correction qui change le vainqueur d'un match de tableau
+      // Si on inverse le vainqueur mais que le match SUIVANT de ce joueur est déjà joué, on ne peut pas
+      // corriger proprement (il faudrait défaire un match déjà terminé) → on bloque avec un message clair.
+      const cibles=inversion?ciblesAvancement(match,gagnant_id,fraisMatchs):[];
+      if(inversion&&cibles.some(c=>c.target&&c.target.statut==="termine")){
+        alert("⚠️ Impossible de corriger le vainqueur : le match SUIVANT de ce joueur dans le tableau a déjà été joué.\n\nCorrige d'abord ce match-là (le plus avancé dans le tableau), puis reviens corriger celui-ci.");
+        return;
+      }
+      // ── Écriture anti-double-comptage (2 téléphones sur le même match) ──
+      if(dejaTermine){
+        // Correction volontaire : on écrit sans condition (on garde la date_fin d'origine).
+        await dbTP.updateMatch(match.id,{score1,score2,gagnant_id,statut:"termine"});
+      }else{
+        // 1re saisie : "claim" ATOMIQUE côté serveur → on ne passe le match à "termine" QUE s'il ne l'est pas déjà.
+        // Si un autre appareil l'a terminé entre notre lecture et notre écriture, le claim renvoie 0 ligne :
+        // on NE compte PAS les points une 2e fois et on NE ré-avance PAS le tableau.
+        const claim=await sbTP(`tournois_potes_matchs?id=eq.${match.id}&statut=neq.termine`,{method:"PATCH",prefer:"return=representation",body:JSON.stringify({score1,score2,gagnant_id,statut:"termine",date_fin:new Date().toISOString()})});
+        if(!Array.isArray(claim)||claim.length===0){ await reload(); return; }
+      }
 
       if(match.phase==="poules"){
         // Recalcule TOUT le classement de poules depuis les matchs terminés
@@ -2015,25 +1990,42 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           if(st[l]){ st[l].defaites++; st[l].manches_pour+=ls; st[l].manches_contre+=ws; }                   // défaite = 0 pt (plus de point bonus)
         });
         await Promise.all(joueurs.filter(j=>st[j.id]).map(j=>dbTP.updateJoueur(j.id,st[j.id])));
-      }else if(match.phase!=="barrage"&&!dejaTermine){
-        // Tableau (bracket) : incrémental — 1re saisie (un barrage ne change pas les points de poule)
-        // On saute ce bloc si le match etait DEJA termine → evite de doubler les points sur une re-saisie.
+      }else if(match.phase!=="barrage"){
+        // Tableau (bracket) : contribution de CE match aux stats. 1re saisie → on AJOUTE le résultat.
+        // Correction → on RETIRE d'abord l'ancien résultat puis on applique le nouveau (gère l'inversion
+        // de vainqueur ET le changement de score, sans jamais compter en double).
         const j1=joueurs.find(j=>j.id===match.joueur1_id);
         const j2=joueurs.find(j=>j.id===match.joueur2_id);
-        const pts_win=2,pts_lose=1;
-        if(gagnant_id===match.joueur1_id){
-          await dbTP.updateJoueur(j1.id,{victoires:j1.victoires+1,defaites:j1.defaites,points:j1.points+pts_win,manches_pour:j1.manches_pour+score1,manches_contre:j1.manches_contre+score2});
-          await dbTP.updateJoueur(j2.id,{victoires:j2.victoires,defaites:j2.defaites+1,points:j2.points+(lose>0?pts_lose:0),manches_pour:j2.manches_pour+score2,manches_contre:j2.manches_contre+score1});
-        }else{
-          await dbTP.updateJoueur(j2.id,{victoires:j2.victoires+1,defaites:j2.defaites,points:j2.points+pts_win,manches_pour:j2.manches_pour+score2,manches_contre:j2.manches_contre+score1});
-          await dbTP.updateJoueur(j1.id,{victoires:j1.victoires,defaites:j1.defaites+1,points:j1.points+(lose>0?pts_lose:0),manches_pour:j1.manches_pour+score1,manches_contre:j1.manches_contre+score2});
+        if(j1&&j2){
+          const pts_win=2,pts_lose=1;
+          const d1={victoires:0,defaites:0,points:0,manches_pour:0,manches_contre:0};
+          const d2={victoires:0,defaites:0,points:0,manches_pour:0,manches_contre:0};
+          const appliquer=(w,s1,s2,sign)=>{ // sign +1 = ajouter, -1 = retirer
+            const lo=Math.min(s1,s2);
+            d1.manches_pour+=sign*s1; d1.manches_contre+=sign*s2;
+            d2.manches_pour+=sign*s2; d2.manches_contre+=sign*s1;
+            if(w===j1.id){ d1.victoires+=sign; d1.points+=sign*pts_win; d2.defaites+=sign; d2.points+=sign*(lo>0?pts_lose:0); }
+            else{ d2.victoires+=sign; d2.points+=sign*pts_win; d1.defaites+=sign; d1.points+=sign*(lo>0?pts_lose:0); }
+          };
+          if(dejaTermine)appliquer(matchFrais.gagnant_id,matchFrais.score1||0,matchFrais.score2||0,-1); // retire l'ancien
+          appliquer(gagnant_id,score1,score2,+1);                                                       // applique le nouveau
+          await dbTP.updateJoueur(j1.id,{victoires:j1.victoires+d1.victoires,defaites:j1.defaites+d1.defaites,points:j1.points+d1.points,manches_pour:j1.manches_pour+d1.manches_pour,manches_contre:j1.manches_contre+d1.manches_contre});
+          await dbTP.updateJoueur(j2.id,{victoires:j2.victoires+d2.victoires,defaites:j2.defaites+d2.defaites,points:j2.points+d2.points,manches_pour:j2.manches_pour+d2.manches_pour,manches_contre:j2.manches_contre+d2.manches_contre});
         }
       }
 
-      // If bracket match → advance winner (les barrages ont round_bracket=0 → non concernés)
-      // On n'avance QUE si le match n'etait pas deja termine → pas de double avancement.
-      if(match.phase!=="poules"&&match.phase!=="barrage"&&match.round_bracket>0&&!dejaTermine){
+      // Avancement du tableau. 1re saisie → on avance le vainqueur (pas de double avancement si déjà terminé).
+      // Correction qui INVERSE le vainqueur → on remplace le joueur dans la/les case(s) suivante(s) déjà remplies.
+      if(estBracket&&!dejaTermine){
         await advancerBracket(match,gagnant_id);
+      }else if(inversion){
+        for(const c of cibles){
+          if(!c.target)continue;
+          const patch=c.slotJ1?{joueur1_id:c.val}:{joueur2_id:c.val};
+          const otherFilled=c.slotJ1?c.target.joueur2_id:c.target.joueur1_id;
+          await dbTP.updateMatch(c.target.id,{...patch,statut:otherFilled?"en_attente":"attente_avancement"});
+        }
+        if(match.phase==="consolante")await propagerByes(tournoiId); // au cas où l'inversion recrée un exempt
       }
 
       await reload();
@@ -2570,17 +2562,13 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
     // On departage par ces scores plutot que par le nom → juste meme si j1 et j2 s'appellent pareil (homonymes).
     // Si egalite de manches (ne devrait pas arriver a la fin d'un match), on retombe sur le nom.
     const gagnant_id = scoreC!==scoreD ? (scoreC>scoreD?j1.id:j2.id) : (gagnantNom===j1.nom?j1.id:j2.id);
-    const perdant_id=gagnant_id===j1.id?j2.id:j1.id;
     // scoreC = manches won by challenger (j1), scoreD by defie (j2)
     const score1=gagnant_id===j1.id?Math.max(scoreC,scoreD):Math.min(scoreC,scoreD);
     const score2=gagnant_id===j2.id?Math.max(scoreC,scoreD):Math.min(scoreC,scoreD);
     try{
-      // GARDE anti-double-comptage : on relit le VRAI statut du match dans la base avant d'ecrire.
-      // Si le match etait deja termine (autre appareil, ou double validation), on n'appliquera PAS
-      // les stats incrementales du tableau ni le nouvel avancement (les poules, elles, sont recalculees a neuf).
+      // On relit l'état FRAIS du match avant d'écrire (anti-double-comptage + anti-recréation).
       const _fraisMatchs=await dbTP.getMatchs(match.tournoi_id);
       const _matchFrais=_fraisMatchs.find(m=>m.id===match.id);
-      const dejaTermine=_matchFrais&&_matchFrais.statut==="termine";
       // GARDE anti-recreation : si l'organisateur a annule/relance le tournoi sur un autre telephone,
       // le match n'existe plus. On ne DOIT pas le recreer via updateMatch ni compter de stats fantomes.
       if(!_matchFrais){
@@ -2588,9 +2576,23 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
         if(setPage)setPage("tournoi-potes-"+match.tournoi_id);
         return;
       }
-      // date_fin seulement a la 1re saisie : une CORRECTION ne doit pas ecraser l'heure de fin d'origine.
-      const _patchMatch={score1,score2,gagnant_id,statut:"termine",...(dejaTermine?{}:{date_fin:new Date().toISOString()})};
-      await dbTP.updateMatch(match.id,_patchMatch);
+      const dejaTermine=_matchFrais.statut==="termine";
+      const estBracket=match.phase!=="poules"&&match.phase!=="barrage"&&(match.round_bracket||0)>0;
+      const ancienGagnant=_matchFrais.gagnant_id;
+      const inversion=dejaTermine&&estBracket&&ancienGagnant&&ancienGagnant!==gagnant_id; // re-jeu qui change le vainqueur
+      const cibles=inversion?ciblesAvancement(match,gagnant_id,_fraisMatchs):[];
+      if(inversion&&cibles.some(c=>c.target&&c.target.statut==="termine")){
+        alert("⚠️ Impossible de changer le vainqueur : le match SUIVANT de ce joueur dans le tableau a déjà été joué. Corrige-le d'abord.");
+        return;
+      }
+      // ── Écriture anti-double-comptage (2 téléphones sur le même match) ──
+      if(dejaTermine){
+        await dbTP.updateMatch(match.id,{score1,score2,gagnant_id,statut:"termine"}); // correction : garde la date_fin d'origine
+      }else{
+        // "claim" ATOMIQUE : on ne passe le match à "termine" que si personne ne l'a fait entre-temps.
+        const claim=await sbTP(`tournois_potes_matchs?id=eq.${match.id}&statut=neq.termine`,{method:"PATCH",prefer:"return=representation",body:JSON.stringify({score1,score2,gagnant_id,statut:"termine",date_fin:new Date().toISOString()})});
+        if(!Array.isArray(claim)||claim.length===0)return; // un autre appareil a déjà terminé ce match → on ne compte pas 2 fois
+      }
       // Mise à jour des stats — un BARRAGE ne change pas les points de poule (il départage seulement)
       if(match.phase==="poules"){
         // Recalcule TOUT le classement de la poule depuis les matchs terminés
@@ -2604,24 +2606,42 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
           if(st[l]){ st[l].defaites++; st[l].manches_pour+=ls; st[l].manches_contre+=ws; }                   // défaite = 0 pt (plus de point bonus)
         });
         await Promise.all(joueurs.filter(j=>st[j.id]).map(j=>dbTP.updateJoueur(j.id,st[j.id])));
-      }else if(match.phase!=="barrage"&&!dejaTermine){
-        // Tableau (bracket) : incrémental. Gagnant = max des manches, perdant = min → pas d'inversion.
-        // Saute si le match etait DEJA termine → evite de doubler les points sur une re-validation.
-        // On relit les joueurs FRAIS de la base : le snapshot du montage peut etre perime
-        // (un autre match a pu changer victoires/points entre-temps) → sinon on ecraserait des stats.
+      }else if(match.phase!=="barrage"){
+        // Tableau : on relit les joueurs FRAIS (le snapshot du montage peut être périmé), puis on RETIRE
+        // l'ancien résultat (si re-jeu/correction) et on APPLIQUE le nouveau → jamais de double comptage.
         const jFrais=await dbTP.getJoueurs(match.tournoi_id);
-        const gJ=jFrais.find(j=>j.id===gagnant_id);
-        const lJ=jFrais.find(j=>j.id===perdant_id);
-        const mgG=Math.max(score1,score2), mgP=Math.min(score1,score2);
-        if(gJ)await dbTP.updateJoueur(gJ.id,{victoires:gJ.victoires+1,points:gJ.points+2,manches_pour:gJ.manches_pour+mgG,manches_contre:gJ.manches_contre+mgP});
-        if(lJ)await dbTP.updateJoueur(lJ.id,{defaites:lJ.defaites+1,points:lJ.points+(mgP>0?1:0),manches_pour:lJ.manches_pour+mgP,manches_contre:lJ.manches_contre+mgG});
+        const j1f=jFrais.find(j=>j.id===match.joueur1_id);
+        const j2f=jFrais.find(j=>j.id===match.joueur2_id);
+        if(j1f&&j2f){
+          const pts_win=2,pts_lose=1;
+          const d1={victoires:0,defaites:0,points:0,manches_pour:0,manches_contre:0};
+          const d2={victoires:0,defaites:0,points:0,manches_pour:0,manches_contre:0};
+          const appliquer=(w,s1,s2,sign)=>{ // sign +1 = ajouter, -1 = retirer
+            const lo=Math.min(s1,s2);
+            d1.manches_pour+=sign*s1; d1.manches_contre+=sign*s2;
+            d2.manches_pour+=sign*s2; d2.manches_contre+=sign*s1;
+            if(w===j1f.id){ d1.victoires+=sign; d1.points+=sign*pts_win; d2.defaites+=sign; d2.points+=sign*(lo>0?pts_lose:0); }
+            else{ d2.victoires+=sign; d2.points+=sign*pts_win; d1.defaites+=sign; d1.points+=sign*(lo>0?pts_lose:0); }
+          };
+          if(dejaTermine)appliquer(_matchFrais.gagnant_id,_matchFrais.score1||0,_matchFrais.score2||0,-1); // retire l'ancien
+          appliquer(gagnant_id,score1,score2,+1);                                                          // applique le nouveau
+          await dbTP.updateJoueur(j1f.id,{victoires:j1f.victoires+d1.victoires,defaites:j1f.defaites+d1.defaites,points:j1f.points+d1.points,manches_pour:j1f.manches_pour+d1.manches_pour,manches_contre:j1f.manches_contre+d1.manches_contre});
+          await dbTP.updateJoueur(j2f.id,{victoires:j2f.victoires+d2.victoires,defaites:j2f.defaites+d2.defaites,points:j2f.points+d2.points,manches_pour:j2f.manches_pour+d2.manches_pour,manches_contre:j2f.manches_contre+d2.manches_contre});
+        }
       }
-      // If bracket → advance winner + route loser (consolante / petite finale)
-      // On n'avance QUE si le match n'etait pas deja termine → pas de double avancement du tableau.
-      if(match.phase!=="poules"&&match.phase!=="barrage"&&match.round_bracket>0&&!dejaTermine){
+      // Avancement du tableau. 1re saisie → on avance le vainqueur. Re-jeu qui INVERSE → on re-route le joueur.
+      if(estBracket&&!dejaTermine){
         const allMatchs=await dbTP.getMatchs(match.tournoi_id);
         await avancerApresMatch(match,gagnant_id,allMatchs);
         if(match.phase==="consolante")await propagerByes(match.tournoi_id); // résorbe les exempts émergents de consolante
+      }else if(inversion){
+        for(const c of cibles){
+          if(!c.target)continue;
+          const patch=c.slotJ1?{joueur1_id:c.val}:{joueur2_id:c.val};
+          const otherFilled=c.slotJ1?c.target.joueur2_id:c.target.joueur1_id;
+          await dbTP.updateMatch(c.target.id,{...patch,statut:otherFilled?"en_attente":"attente_avancement"});
+        }
+        if(match.phase==="consolante")await propagerByes(match.tournoi_id);
       }
     }catch(e){
       // On PREVIENT l'organisateur au lieu d'echouer en silence : sinon il croit que le score est enregistre.
