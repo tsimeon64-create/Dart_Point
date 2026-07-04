@@ -1039,7 +1039,45 @@ const GROUP_COLORS=["#f97316","#22c55e","#60a5fa","#a78bfa","#f59e0b","#ec4899",
 const groupCol=(g)=>GROUP_COLORS[(g-1)%GROUP_COLORS.length];
 const groupLetter=(g)=>String.fromCharCode(64+((g-1)%26)+1); // 1->A, 2->B…
 const initiales=(nom)=>{ const s=(nom||"?").trim(); const p=s.split(/[\s-]+/).filter(Boolean); return (p.length>=2?(p[0][0]+p[1][0]):s.slice(0,2)).toUpperCase(); };
-const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,joueurConnecte,canPlay=false,onOpenShare,onModifier,saving=false,live=null,bracketLance=false})=>{
+
+// ── MOYENNE DE JEU DU TOURNOI par équipe, sur TOUS les matchs joués au scoreur ───────────────
+// La moyenne d'un match = 3 × points / fléchettes (moyenne aux 3 fléchettes). La moyenne du tournoi
+// est donc pondérée : 3 × Σpoints / Σfléchettes. Pour les vieux matchs sans "flech" enregistré,
+// on approxime 3 fléchettes par volée. Renvoie { [equipeId]: { moy, best, finish, nb180, pts, flech } }.
+const aggStatsSessions=(rows,ids)=>{
+  const idset=new Set((ids||[]).map(String)); const agg={};
+  (rows||[]).forEach(s=>{
+    [[s.joueur1_id,s.stats_j1],[s.joueur2_id,s.stats_j2]].forEach(([pid,st])=>{
+      if(!pid||!st||!idset.has(String(pid)))return;
+      const pts=parseFloat(st.total_pts)||0, vol=parseInt(st.volees)||0;
+      const fl=(parseInt(st.flech)||0)||vol*3; // fléchettes exactes si dispo, sinon ≈ 3/volée
+      if(!agg[pid])agg[pid]={pts:0,flech:0,best:0,finish:0,nb180:0};
+      agg[pid].pts+=pts; agg[pid].flech+=fl;
+      agg[pid].best=Math.max(agg[pid].best,parseFloat(st.moy)||0);
+      agg[pid].finish=Math.max(agg[pid].finish,parseFloat(st.max_finish)||0);
+      agg[pid].nb180+=parseInt(st.nb180)||0;
+    });
+  });
+  Object.values(agg).forEach(a=>{ a.moy=a.flech>0?(3*a.pts/a.flech):0; }); // moyenne pondérée du tournoi
+  return agg;
+};
+// Hook : récupère et agrège les stats live du tournoi. refreshKey change (ex. nb de matchs finis) → re-fetch.
+const useStatsTournoi=(joueurs,refreshKey=0)=>{
+  const [stats,setStats]=useState(null);
+  const idsKey=joueurs.map(j=>j.id).join(",");
+  useEffect(()=>{
+    const ids=joueurs.map(j=>j.id).filter(Boolean);
+    if(!ids.length){ setStats(null); return; }
+    let annule=false;
+    sbTP(`live_sessions?or=(joueur1_id.in.(${ids.join(",")}),joueur2_id.in.(${ids.join(",")}))&select=joueur1_id,joueur2_id,stats_j1,stats_j2`)
+      .then(rows=>{ if(!annule)setStats(aggStatsSessions(rows,ids)); })
+      .catch(()=>{ if(!annule)setStats(null); });
+    return()=>{ annule=true; };
+  },[idsKey,refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  return stats;
+};
+
+const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,joueurConnecte,canPlay=false,onOpenShare,onModifier,saving=false,live=null,bracketLance=false,stats=null})=>{
   const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
   const groupes=Array.from({length:nbGroupes},(_,i)=>i+1);
   // Ma poule (celle du joueur connecté) → pour l'⭐ sur l'onglet.
@@ -1238,7 +1276,10 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
                 <div key={j.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:qual?gc+"0e":"transparent",marginBottom:4}}>
                   <span style={{width:22,height:22,borderRadius:"50%",flexShrink:0,background:rbc+"22",color:rbc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800}}>{i+1}</span>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:14,fontWeight:600,color:(groupeFini&&i>=nbQual)?"#cbd5e1":CT.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{j.nom}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <span style={{fontSize:14,fontWeight:600,color:(groupeFini&&i>=nbQual)?"#cbd5e1":CT.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0}}>{j.nom}</span>
+                      {stats&&stats[j.id]&&stats[j.id].moy>0&&<span style={{flexShrink:0,fontSize:11,fontWeight:800,color:CT.purple,background:CT.purple+"1c",border:`1px solid ${CT.purple}44`,borderRadius:20,padding:"1px 8px"}} title="Moyenne de jeu (aux 3 fléchettes) sur tout le tournoi">moy {stats[j.id].moy.toFixed(2)}</span>}
+                    </div>
                     <div style={{fontSize:11,color:CT.muted,marginTop:2}}>
                       <b style={{color:CT.green}}>{V}V</b> <b style={{color:"#f87171"}}>{D}D</b>
                       {joue&&<> · manches <b style={{color:CT.text}}>{MP}</b>–<b style={{color:CT.text}}>{MC}</b> <span style={{color:diff>=0?CT.green:"#f87171",fontWeight:600}}>({diff>=0?"+":""}{diff})</span></>}
@@ -1349,7 +1390,7 @@ const BktStatusBanner=({label,color,bg,hero})=>(
 // ============================================================================
 //  Carte de match du tableau (Match Card e-sport)
 // ============================================================================
-const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch,canPlay=false,hero=false,live=null})=>{
+const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch,canPlay=false,hero=false,live=null,stats=null})=>{
   const j1=joueurs.find(j=>j.id===match.joueur1_id);
   const j2=joueurs.find(j=>j.id===match.joueur2_id);
   const done=match.statut==="termine";
@@ -1388,13 +1429,16 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch,can
         {crown&&<div style={{position:"absolute",top:-15,left:0,right:0,display:"flex",justifyContent:"center",pointerEvents:"none",animation:"bkt-crown 1.8s ease-in-out infinite",filter:"drop-shadow(0 2px 4px #fbbf2488)"}}><EmoIcon e="👑" size={18} color="#fbbf24"/></div>}
         <BktAvatar nom={j?.nom} col={roundCol} win={isWin} size={avSize} animate={isWin&&done}/>
       </div>
-      <span style={{
-        flex:1,minWidth:0,fontSize:nameSize,fontWeight:isWin?800:j?600:500,
-        color:isWin?CT.green:j?CT.text:CT.muted,
-        whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
-      }}>
-        {j?.nom || ghostLabel || (bye?"— pas d'adversaire —":"À définir")}
-      </span>
+      <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
+        <span style={{
+          fontSize:nameSize,fontWeight:isWin?800:j?600:500,
+          color:isWin?CT.green:j?CT.text:CT.muted,
+          whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
+        }}>
+          {j?.nom || ghostLabel || (bye?"— pas d'adversaire —":"À définir")}
+        </span>
+        {j&&stats&&stats[j.id]&&stats[j.id].moy>0&&<span style={{fontSize:10,color:CT.purple,fontWeight:700,marginTop:1}}>moy {stats[j.id].moy.toFixed(2)}</span>}
+      </div>
       {done&&<span style={{fontSize:hero?22:18,fontWeight:900,minWidth:22,textAlign:"center",color:isWin?CT.green:CT.muted}}>{score}</span>}
       {isWin&&<span style={{display:"inline-flex"}}><EmoIcon e="✅" size={hero?18:15} color={CT.green}/></span>}
     </div>
@@ -1522,7 +1566,7 @@ const BktGutter=({pairs,color})=>(
 // ============================================================================
 //  VUE ÉLIMINATOIRES (arbre de championnat)
 // ============================================================================
-const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,onRetourPoules,onTerminer,canPlay=false,onOpenShare,live=null})=>{
+const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,onRetourPoules,onTerminer,canPlay=false,onOpenShare,live=null,stats=null})=>{
   const bracketM=matchs.filter(m=>m.phase!=="poules");
   const mainM=bracketM.filter(m=>MAIN_PHASES.includes(m.phase));
   const petiteM=bracketM.find(m=>m.phase==="petite_finale");
@@ -1560,7 +1604,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
           {colLabel(phase,r)}
           <div style={{flex:1,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-around",alignItems:"center",gap:24}}>
             {rm.map(m=>(
-              <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} hero={isFinaleCol} live={live}/>
+              <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} hero={isFinaleCol} live={live} stats={stats}/>
             ))}
           </div>
         </div>
@@ -1576,7 +1620,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
   const petiteCol=()=>(
     <div key="petite-finale" style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",gap:24,flexShrink:0}}>
       {colLabel("petite_finale",0)}
-      <BracketMatchCard match={petiteM} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live}/>
+      <BracketMatchCard match={petiteM} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live} stats={stats}/>
     </div>
   );
 
@@ -1634,7 +1678,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
                       </div>
                       <div style={{flex:1,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-around",alignItems:"center",gap:24}}>
                         {rm.map(m=>(
-                          <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live}/>
+                          <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live} stats={stats}/>
                         ))}
                       </div>
                     </div>
@@ -1672,35 +1716,10 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer,onQuitter})=>{
   const consoFinale=consoAll.find(m=>m.round_bracket===maxRoundConso&&m.statut==="termine"&&m.gagnant_id);
   const consoWinner=consoFinale?joueurs.find(j=>j.id===consoFinale.gagnant_id):null;
 
-  // Stats du tournoi par joueur (depuis les parties live jouées au scoreur) :
-  // meilleure moyenne, plus gros finish, nombre de 180 — clé = id du joueur du tournoi.
-  const [statsTournoi,setStatsTournoi]=useState(null); // { [joueurId]: {moy,finish,nb180} }
-  const idsKey=joueurs.map(j=>j.id).join(",");
-  useEffect(()=>{
-    const ids=joueurs.map(j=>j.id).filter(Boolean);
-    if(!ids.length){ setStatsTournoi(null); return; }
-    let annule=false;
-    const list=ids.join(",");
-    sbTP(`live_sessions?or=(joueur1_id.in.(${list}),joueur2_id.in.(${list}))&select=joueur1_id,joueur2_id,stats_j1,stats_j2`)
-      .then(rows=>{
-        if(annule)return;
-        const agg={};
-        (rows||[]).forEach(s=>{
-          [[s.joueur1_id,s.stats_j1],[s.joueur2_id,s.stats_j2]].forEach(([pid,st])=>{
-            if(!pid||!st)return;
-            const moy=parseFloat(st.moy)||0, fin=parseFloat(st.max_finish)||0, n180=parseInt(st.nb180)||0;
-            if(!agg[pid])agg[pid]={moy:0,finish:0,nb180:0};
-            agg[pid].moy=Math.max(agg[pid].moy,moy);
-            agg[pid].finish=Math.max(agg[pid].finish,fin);
-            agg[pid].nb180+=n180;
-          });
-        });
-        setStatsTournoi(agg);
-      }).catch(()=>{ if(!annule)setStatsTournoi(null); });
-    return()=>{ annule=true; };
-  },[idsKey]);
+  // Stats du tournoi par équipe (moyenne pondérée sur TOUS les matchs, meilleure moyenne, plus gros finish, 180).
+  const statsTournoi=useStatsTournoi(joueurs, matchs.filter(m=>m.statut==="termine").length);
 
-  // MVP = joueur avec la PLUS GROSSE MOYENNE du tournoi ; à défaut (aucune moyenne enregistrée) → le plus de victoires
+  // MVP = équipe avec la meilleure MOYENNE DE JEU du tournoi ; à défaut (aucune moyenne enregistrée) → le plus de victoires
   const mvp=(()=>{
     if(statsTournoi){
       const avecMoy=joueurs.filter(j=>statsTournoi[j.id]&&statsTournoi[j.id].moy>0);
@@ -1709,7 +1728,7 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer,onQuitter})=>{
     return [...joueurs].sort((a,b)=>b.victoires-a.victoires)[0];
   })();
   const mvpStats=mvp&&statsTournoi?statsTournoi[mvp.id]:null;
-  const palmares=mvpStats?{moyenne:mvpStats.moy>0?mvpStats.moy:null,finish:mvpStats.finish,nb180:mvpStats.nb180}:null;
+  const palmares=mvpStats?{moyenne:mvpStats.moy>0?mvpStats.moy:null,best:mvpStats.best>0?mvpStats.best:null,finish:mvpStats.finish,nb180:mvpStats.nb180}:null;
   const hasPalmares=!!palmares&&(palmares.moyenne!=null||palmares.finish>0||palmares.nb180>0);
 
   // Best stats
@@ -1764,9 +1783,10 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer,onQuitter})=>{
         {rankGroup(joueurs).map((j,i)=>(
           <div key={j.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:i===0?"#f9731614":i===1?"#94a3b814":i===2?"#f59e0b14":"transparent",borderRadius:8,marginBottom:4}}>
             <span style={{fontSize:18,display:"inline-flex",justifyContent:"center",width:20}}>{i<3&&(j.victoires+j.defaites)>0?<EmoIcon e={i===0?"🥇":i===1?"🥈":"🥉"} size={18}/>:"·"}</span>
-            <span style={{flex:1,fontWeight:i<3?700:400}}>{j.nom}</span>
-            <span style={{fontSize:12,color:CT.muted}}>{j.victoires}V {j.defaites}D</span>
-            <span style={{fontWeight:700,color:CT.accent}}>{j.points} pts</span>
+            <span style={{flex:1,fontWeight:i<3?700:400,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{j.nom}</span>
+            {statsTournoi&&statsTournoi[j.id]&&statsTournoi[j.id].moy>0&&<span style={{fontSize:12,fontWeight:800,color:CT.purple,flexShrink:0}} title="Moyenne de jeu (3 fléchettes) sur tout le tournoi">moy {statsTournoi[j.id].moy.toFixed(2)}</span>}
+            <span style={{fontSize:12,color:CT.muted,flexShrink:0}}>{j.victoires}V {j.defaites}D</span>
+            <span style={{fontWeight:700,color:CT.accent,flexShrink:0}}>{j.points} pts</span>
           </div>
         ))}
       </Card>
@@ -1780,7 +1800,7 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer,onQuitter})=>{
               <div style={{fontWeight:700,fontSize:15,color:CT.purple}}>MVP du tournoi</div>
               <div style={{fontWeight:800,fontSize:18}}>{mvp.nom}</div>
               {mvpStats&&mvpStats.moy>0
-                ? <div style={{fontSize:12.5,color:CT.muted,display:"flex",alignItems:"center",gap:5}}><span style={{color:CT.purple,fontWeight:800}}><EmoText s={`🎯 Moyenne ${mvpStats.moy.toFixed(1)}`} size={12.5} color={CT.purple}/></span><span>· {mvp.victoires}V</span></div>
+                ? <div style={{fontSize:12.5,color:CT.muted,display:"flex",alignItems:"center",gap:5}}><span style={{color:CT.purple,fontWeight:800}}><EmoText s={`🎯 Moyenne ${mvpStats.moy.toFixed(2)}`} size={12.5} color={CT.purple}/></span><span>· {mvp.victoires}V</span></div>
                 : <div style={{fontSize:12,color:CT.muted}}>{mvp.victoires} victoires · {mvp.points} points</div>}
             </div>
           </div>
@@ -1789,7 +1809,7 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer,onQuitter})=>{
               <div style={{fontSize:10,color:CT.muted,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:8,borderTop:`1px solid ${CT.purple}33`,paddingTop:12}}><EmoText s="🏅 Palmarès du tournoi" size={10}/></div>
               <div style={{display:"flex",gap:8}}>
                 {[
-                  {e:"🎯",l:"Meilleure moyenne",v:palmares.moyenne!=null?palmares.moyenne.toFixed(1):"—"},
+                  {e:"🎯",l:"Meilleure moyenne (1 match)",v:palmares.best!=null?palmares.best.toFixed(2):"—"},
                   {e:"🏁",l:"Plus gros finish",v:palmares.finish>0?palmares.finish:"—"},
                   {e:"💥",l:"Nombre de 180",v:palmares.nb180||0},
                 ].map((s,i)=>(
@@ -1918,6 +1938,9 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   // canPlay : créateur OU joueur qui a saisi le code (sinon spectateur = lecture seule)
   const canPlay=!!isCreateur||codeUnlocked;
   const deverrouiller=()=>{ setCodeUnlocked(true); try{localStorage.setItem("dp_tp_player_"+tournoiId,"1");}catch(e){} setShowShare(false); };
+
+  // Moyenne de jeu par équipe sur TOUT le tournoi (matchs joués au scoreur). Re-fetch à chaque match terminé.
+  const statsTournoi=useStatsTournoi(joueurs||[], (matchs||[]).filter(m=>m.statut==="termine").length);
 
   // Auto-réparation des exempts (byes) bloqués : si un tableau a été lancé par une ancienne version
   // (bye jamais avancé → tour suivant vide), le CRÉATEUR le répare une fois à l'ouverture. Idempotent.
@@ -2350,7 +2373,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           onSaisirScore={m=>setMatchModal(m)}
           onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
           onLancerEliminatoires={()=>setShowBracketConfig(true)}
-          onCreerBarrages={creerBarrages} saving={saving} joueurConnecte={joueurConnecte} live={liveInfo}/>
+          onCreerBarrages={creerBarrages} saving={saving} joueurConnecte={joueurConnecte} live={liveInfo} stats={statsTournoi}/>
       )}
       {showBracketConfig&&<BracketConfigModal joueurs={joueurs} saving={saving} onValider={lancerEliminatoires} onClose={()=>setShowBracketConfig(false)}/>}
       {tournoi.statut==="eliminatoires"&&(<>
@@ -2365,12 +2388,12 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
               nbCibles={cibles} nbQual={tournoi.nb_qualifies!=null?tournoi.nb_qualifies:nbQualLocal} canPlay={canPlay} onOpenShare={()=>setShowShare(true)}
               onSaisirScore={m=>setMatchModal(m)}
               onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
-              saving={saving} joueurConnecte={joueurConnecte} live={liveInfo} bracketLance={true}/>
+              saving={saving} joueurConnecte={joueurConnecte} live={liveInfo} bracketLance={true} stats={statsTournoi}/>
           : <EliminatoiresView tournoi={tournoi} joueurs={joueurs} live={liveInfo}
               matchs={matchs.filter(m=>m.phase!=="poules")} isCreateur={isCreateur} canPlay={canPlay} onOpenShare={()=>setShowShare(true)}
               onSaisirScore={m=>setMatchModal(m)}
               onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
-              onRetourPoules={retourPoules} onTerminer={terminerTournoi}/>}
+              onRetourPoules={retourPoules} onTerminer={terminerTournoi} stats={statsTournoi}/>}
       </>)}
       {tournoi.statut==="termine"&&(
         <ResultatsView tournoi={tournoi} joueurs={joueurs} matchs={matchs} onRejouer={rejouer} onQuitter={()=>setPage("tournois-potes")}/>

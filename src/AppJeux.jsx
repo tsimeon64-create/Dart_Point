@@ -1525,7 +1525,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         fetch(`${SB_URL}/rest/v1/live_sessions?id=eq.${liveIdRef.current}`, {
           method:"PATCH",
           headers:{ apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, "Content-Type":"application/json", Prefer:"return=minimal" },
-          body: JSON.stringify({ [statsKey]:{ moy, volees:j.tours.length, total_pts:j.totalPoints, nb180, reste, max_finish:liveMaxFinishRef.current[joueurIdx], busts:liveBustsRef.current[joueurIdx] }, [scoreKey]:j.manchesGagnees }),
+          body: JSON.stringify({ [statsKey]:{ moy, volees:j.tours.length, flech, total_pts:j.totalPoints, nb180, reste, max_finish:liveMaxFinishRef.current[joueurIdx], busts:liveBustsRef.current[joueurIdx] }, [scoreKey]:j.manchesGagnees }),
         }),
         fetch(`${SB_URL}/rest/v1/live_volees`, {
           method:"POST",
