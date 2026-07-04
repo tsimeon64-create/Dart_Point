@@ -2154,8 +2154,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           <span style={{ fontWeight:600, fontSize:10, color:"#64748b" }}>Double out</span>
         </div>
         <button
-          onPointerDown={e=>{ e.preventDefault(); setShowHistorique(true); }}
-          style={{ background:"#0f0a1a", border:"1px solid #4c1d9544", color:"#a78bfa", cursor:"pointer", fontSize:11, fontWeight:800, padding:"5px 10px", borderRadius:8, letterSpacing:.3 }}>
+          onClick={()=>setShowHistorique(true)}
+          style={{ background:"#0f0a1a", border:"1px solid #4c1d9544", color:"#a78bfa", cursor:"pointer", fontSize:11, fontWeight:800, padding:"5px 10px", borderRadius:8, letterSpacing:.3, touchAction:"manipulation" }}>
           <EmoIcon e="📊" size={11} style={{verticalAlign:"-1px",marginRight:4}}/>VOLÉES
         </button>
       </div>
