@@ -1204,6 +1204,11 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
       {groupes.filter(g=>g===activeTab).map(g=>{
         const jG=rankGroup(joueurs.filter(j=>j.groupe===g),barrages);
         const barrageG=barrages.filter(m=>m.groupe===g).sort((a,b)=>(a.position_bracket||0)-(b.position_bracket||0));
+        // Stats des barrages (701) d'une équipe DANS cette poule → ajoutées au récap V/D/manches/points AFFICHÉ,
+        // pour que les barrages joués soient bien comptabilisés à l'écran. (Le classement, lui, reste géré par
+        // rankGroup ; les stats STOCKÉES restent "poule seule" car elles servent à détecter l'égalité à départager.)
+        const barrTerm=barrageG.filter(m=>m.statut==="termine"&&m.gagnant_id);
+        const statsBarr=(id)=>{ let v=0,d=0,mp=0,mc=0; barrTerm.forEach(m=>{ if(m.joueur1_id!==id&&m.joueur2_id!==id)return; const s1=m.score1||0,s2=m.score2||0; if(m.joueur1_id===id){mp+=s1;mc+=s2;}else{mp+=s2;mc+=s1;} if(m.gagnant_id===id)v++;else d++; }); return {v,d,mp,mc,pts:v*2}; };
         // Ordre FIXE (par position) : la liste ne bouge pas, seule la barre verte se déplace
         const mG=matchs.filter(m=>m.phase==="poules"&&m.groupe===g).sort((a,b)=>(a.position_bracket||0)-(b.position_bracket||0));
         const gc=groupCol(g);
@@ -1225,7 +1230,9 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
               const rc=i===0?"#fbbf24":i===1?"#cbd5e1":i===2?"#f59e0b":"#64748b";
               const rbc=groupeFini?rc:"#7a7a88";  // médailles seulement une fois la poule finie
               const qual=groupeFini&&i<nbQual;     // qualifié = poule finie + top nbQual (1 ou 2)
-              const diff=j.manches_pour-j.manches_contre, joue=(j.victoires+j.defaites)>0;
+              const sb=statsBarr(j.id); // barrages joués (701), ajoutés à l'affichage
+              const V=j.victoires+sb.v, D=j.defaites+sb.d, MP=j.manches_pour+sb.mp, MC=j.manches_contre+sb.mc, PTS=j.points+sb.pts;
+              const diff=MP-MC, joue=(V+D)>0;
               return [
                 (i===nbQual&&groupeFini)?<div key={"cut"+g} style={{display:"flex",alignItems:"center",gap:8,margin:"6px 4px 8px"}}><div style={{flex:1,height:1,background:"repeating-linear-gradient(90deg,#3a3a44 0 6px,transparent 6px 12px)"}}/><span style={{fontSize:10,color:CT.muted}}>qualification</span><div style={{flex:1,height:1,background:"repeating-linear-gradient(90deg,#3a3a44 0 6px,transparent 6px 12px)"}}/></div>:null,
                 <div key={j.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:qual?gc+"0e":"transparent",marginBottom:4}}>
@@ -1233,13 +1240,14 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:14,fontWeight:600,color:(groupeFini&&i>=nbQual)?"#cbd5e1":CT.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{j.nom}</div>
                     <div style={{fontSize:11,color:CT.muted,marginTop:2}}>
-                      <b style={{color:CT.green}}>{j.victoires}V</b> <b style={{color:"#f87171"}}>{j.defaites}D</b>
-                      {joue&&<> · manches <b style={{color:CT.text}}>{j.manches_pour}</b>–<b style={{color:CT.text}}>{j.manches_contre}</b> <span style={{color:diff>=0?CT.green:"#f87171",fontWeight:600}}>({diff>=0?"+":""}{diff})</span></>}
+                      <b style={{color:CT.green}}>{V}V</b> <b style={{color:"#f87171"}}>{D}D</b>
+                      {joue&&<> · manches <b style={{color:CT.text}}>{MP}</b>–<b style={{color:CT.text}}>{MC}</b> <span style={{color:diff>=0?CT.green:"#f87171",fontWeight:600}}>({diff>=0?"+":""}{diff})</span></>}
+                      {sb.v+sb.d>0&&<span style={{color:RED_TP,fontWeight:600}}> · dont barrage {sb.v}V {sb.d}D</span>}
                       {qual&&<span style={{color:CT.green,fontWeight:700}}> · ✓ Qualifié</span>}
                     </div>
                   </div>
                   <div style={{textAlign:"right",flexShrink:0}}>
-                    <div style={{fontSize:17,fontWeight:800,color:qual?gc:CT.text,lineHeight:1}}>{j.points}</div>
+                    <div style={{fontSize:17,fontWeight:800,color:qual?gc:CT.text,lineHeight:1}}>{PTS}</div>
                     <div style={{fontSize:9.5,color:CT.muted,marginTop:1,letterSpacing:.5}}>PTS</div>
                   </div>
                 </div>
