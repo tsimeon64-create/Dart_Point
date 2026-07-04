@@ -961,11 +961,15 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
 // qu'en phase de poules. Du coup, en eliminatoires/barrages, plus aucune alerte. Ici on la sort
 // pour la monter au niveau du tournoi (present en poules, barrages ET eliminatoires).
 // monMatch = LE match "a jouer maintenant" qui me concerne (deja calcule par le parent), ou null.
+// Mémoire de SESSION : ids des matchs déjà "buzzés". Vit au niveau module → survit au démontage/remontage
+// du composant (navigation). Sans ça, l'alerte re-sonnait à CHAQUE retour sur la page tournoi pour le même
+// match non joué. Se réinitialise seulement au rechargement complet de l'appli (nouvelle session).
+const matchsDejaAlertes=new Set();
 const TurnAlert=({monMatch,joueurs})=>{
   // Qui suis-je ? (compte lie OU ligne memorisee dans localStorage, meme sans compte)
   const isMine=(id)=>false; // (non utilise ici : le parent a deja filtre sur mon match)
   const [alerteMatch,setAlerteMatch]=useState(null);
-  const alertedRef=useRef(null), buzzRef=useRef(null), audioRef=useRef(null);
+  const buzzRef=useRef(null), audioRef=useRef(null);
   const stopBuzz=()=>{
     if(buzzRef.current){clearInterval(buzzRef.current);buzzRef.current=null;}
     try{ if(navigator.vibrate)navigator.vibrate(0); }catch(e){}
@@ -999,9 +1003,9 @@ const TurnAlert=({monMatch,joueurs})=>{
   // Adversaire = l'AUTRE joueur de mon match (le parent m'a deja marque via monMatch.__moiEstJ1).
   const advId=monMatch?(monMatch.__moiEstJ1?monMatch.joueur2_id:monMatch.joueur1_id):null;
   useEffect(()=>{
-    if(monMatch&&alertedRef.current!==monMatch.id){
+    if(monMatch&&!matchsDejaAlertes.has(monMatch.id)){
       if(scoreurAffiche())return; // je suis deja en train de scorer → pas d'alerte (elle sonnera au retour)
-      alertedRef.current=monMatch.id;
+      matchsDejaAlertes.add(monMatch.id); // on ne re-sonnera plus pour CE match, même après un retour sur la page
       setAlerteMatch(monMatch);
       startBuzz();
       showSystemNotif((joueurs.find(j=>j.id===advId)||{}).nom);
@@ -2277,11 +2281,13 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     // 3) Eliminatoires : un match du tableau est jouable = pas fini, pas bye, pas en attente, 2 joueurs connus.
     if(tournoi.statut==="eliminatoires"){
       const me=matchs.find(m=>{
-        if(m.phase==="poules")return false;
+        if(m.phase==="poules"||m.phase==="barrage")return false; // barrage = sous-phase des poules, jamais "à jouer" en éliminatoires
         const done=m.statut==="termine";
         const bye=m.statut&&m.statut.startsWith("bye");
-        const waiting=(m.statut==="attente_avancement"||m.statut==="vide")&&(!m.joueur1_id||!m.joueur2_id);
-        const playable=!done&&!bye&&!waiting&&m.joueur1_id&&m.joueur2_id;
+        // Un match du tableau n'est JOUABLE que s'il est "en_attente" avec 2 joueurs. "attente_avancement"/"vide"
+        // = il attend encore le vainqueur d'un tour précédent → jamais d'alerte (même si les 2 cases semblent remplies).
+        const waiting=m.statut==="attente_avancement"||m.statut==="vide"||!m.joueur1_id||!m.joueur2_id;
+        const playable=!done&&!bye&&!waiting;
         return playable&&!estEnCours(m)&&(estMoi(m.joueur1_id)||estMoi(m.joueur2_id));
       });
       if(me)return{...me,__moiEstJ1:estMoi(me.joueur1_id)};
