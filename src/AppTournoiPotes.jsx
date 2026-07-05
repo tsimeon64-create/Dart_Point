@@ -890,9 +890,14 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
   const rounds=roundsForBracket(bracketSize);
   const [manchesMap,setManchesMap]=useState({seizieme:2,huitieme:2,quart:2,demi:3,finale:5,petite_finale:2,consolante:2});
   const exempts=bracketSize-totalQual;
-  // Options : petite finale (3e place) dès qu'il y a des demies ; consolante = les non-qualifiés SAUF le dernier de chaque poule
+  // Options : petite finale (3e place) dès qu'il y a des demies ; consolante = les nbConso premières équipes non qualifiées de chaque poule
   const peutPetite=bracketSize>=4;
-  const consoCount=(()=>{ let c=0; for(let g=1;g<=nbGroupes;g++){ const sz=joueurs.filter(j=>j.groupe===g).length; c+=Math.max(0,sz-nbQual-1); } return c; })();
+  const [nbConso,setNbConso]=useState(2); // repêchage : nb d'équipes NON qualifiées prises par poule (2 ou 3)
+  // Nombre d'équipes en consolante pour un choix donné (n premières non qualifiées par poule)
+  const consoCountFor=(n)=>{ let c=0; for(let g=1;g<=nbGroupes;g++){ const sz=joueurs.filter(j=>j.groupe===g).length; c+=Math.max(0,Math.min(n,sz-nbQual)); } return c; };
+  // Exempts (byes) du tableau consolante « greedy » : un exempt à chaque tour où le nb d'équipes est impair. 0 = tableau plein.
+  const exemptsConso=(cnt)=>{ let b=0,x=cnt; while(x>1){ if(x%2)b++; x=Math.ceil(x/2); } return b; };
+  const consoCount=consoCountFor(nbConso);
   const peutConso=consoCount>=2;
   const [consolante,setConsolante]=useState(true);
   const [petiteFinale,setPetiteFinale]=useState(true);
@@ -933,7 +938,18 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
         {exempts>0&&<div style={{fontSize:11,color:CT.yellow,marginBottom:18,lineHeight:1.4}}>ℹ️ {exempts} joueur{exempts>1?"s":""} exempté{exempts>1?"s":""} : ils passent directement le 1er tour. Choisis « {ROUND_LABEL[roundsForBracket(minSize)[0]]} » pour que <b>tout le monde joue</b>.</div>}
         <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Options</div>
         {toggleRow(petiteFinale,setPetiteFinale,peutPetite,"🥉 Petite finale (3e place)","Les 2 perdants des demies jouent pour la 3e place.","Dispo dès 4 qualifiés (il faut des demies).")}
-        {toggleRow(consolante,setConsolante,peutConso,"🎖️ Consolante (repêchage)",`Les ${consoCount} équipe(s) non qualifiée(s) — sauf la dernière de chaque poule — jouent un 2e tableau.`,"Dispo s'il y a au moins 2 équipes concernées (poules assez grandes).")}
+        {toggleRow(consolante,setConsolante,peutConso,"🎖️ Consolante (repêchage)",`Les ${nbConso} premières équipes non qualifiées de chaque poule (${consoCount} au total) jouent un 2e tableau.`,"Dispo s'il y a au moins 2 équipes concernées (poules assez grandes).")}
+        {consolante&&peutConso&&(
+          <div style={{margin:"-2px 0 10px",padding:"0 2px"}}>
+            <div style={{fontSize:11.5,color:CT.muted,marginBottom:6}}>Combien d'équipes non qualifiées par poule ?</div>
+            <div style={{display:"flex",gap:8}}>{[2,3].map(n=>{ const sel=nbConso===n; const cc=consoCountFor(n); const ex=exemptsConso(cc); return(
+              <button key={n} onClick={()=>setNbConso(n)} style={{flex:1,padding:"8px 6px",borderRadius:10,border:`1px solid ${sel?CT.accent:CT.border}`,background:sel?CT.accent+"22":CT.card,cursor:"pointer",touchAction:"manipulation",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                <span style={{fontWeight:sel?800:600,fontSize:12.5,color:sel?CT.accent:CT.text}}>Les {n} premières</span>
+                <span style={{fontSize:10,fontWeight:700,color:ex===0?CT.green:CT.yellow}}>{cc} équipes · {ex===0?"✅ sans exempt":`⚠️ ${ex} exempt${ex>1?"s":""}`}</span>
+              </button>
+            );})}</div>
+          </div>
+        )}
         <div style={{fontSize:13,fontWeight:700,color:CT.text,margin:"6px 0 8px"}}>Manches par tour <span style={{color:CT.muted,fontWeight:500}}>(premier à…)</span></div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:8}}>
           {manchePhases.map(ph=>(
@@ -949,7 +965,7 @@ const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
         <div style={{background:(exempts===0?CT.green:CT.yellow)+"18",border:`1px solid ${(exempts===0?CT.green:CT.yellow)}55`,borderRadius:10,padding:"10px 12px",fontSize:12.5,fontWeight:700,color:exempts===0?CT.green:CT.yellow,textAlign:"center",marginBottom:14,lineHeight:1.5}}>
           🏆 Tableau de {bracketSize} → {totalQual} qualifiés<br/>{exempts===0?"✅ Tout le monde joue son 1er match":`⚠️ ${exempts} exempté${exempts>1?"s":""} (passe${exempts>1?"nt":""} le 1er tour)`}
         </div>
-        <Btn onClick={()=>onValider({nbQual,bracketSize,manchesMap,consolante:consolante&&peutConso,petiteFinale:petiteFinale&&peutPetite})} disabled={saving} style={{width:"100%",fontSize:15,padding:"13px"}}>{saving?"Lancement…":"✅ Valider et lancer le tableau"}</Btn>
+        <Btn onClick={()=>onValider({nbQual,bracketSize,manchesMap,consolante:consolante&&peutConso,petiteFinale:petiteFinale&&peutPetite,nbConso})} disabled={saving} style={{width:"100%",fontSize:15,padding:"13px"}}>{saving?"Lancement…":"✅ Valider et lancer le tableau"}</Btn>
         <button onClick={onClose} style={{width:"100%",marginTop:8,background:"none",border:"none",color:CT.muted,fontSize:13,cursor:"pointer",padding:8}}>Annuler</button>
       </div>
     </div>
@@ -2079,7 +2095,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   // ── Lancer les éliminatoires
   const lancerEliminatoires=async(config={})=>{
     const defQual=(tournoi&&tournoi.nb_qualifies!=null)?tournoi.nb_qualifies:nbQualLocal; // defaut = reglage des poules
-    const {nbQual=defQual,bracketSize:bsChoisi,manchesMap={},consolante=false,petiteFinale=false}=config;
+    const {nbQual=defQual,bracketSize:bsChoisi,manchesMap={},consolante=false,petiteFinale=false,nbConso=2}=config;
     setSaving(true);
     try{
       const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
@@ -2094,14 +2110,14 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       const bracketSize=bsChoisi||sizes.find(s=>s>=topParGroupe.length)||32;
       const seededFlat=seedPoolAware(topParGroupe,bracketSize);
       const bracketMatchs=genBracketMatchs(seededFlat,tournoiId,manchesMap,{consolante,petiteFinale});
-      // Consolante = toutes les équipes NON qualifiées SAUF la dernière de chaque poule (tableau séparé, alimenté par les poules).
+      // Consolante = les nbConso PREMIÈRES équipes non qualifiées de chaque poule (réglable : 2 ou 3 ; tableau séparé).
       let consoMatchs=[];
       if(consolante){
         const consoTeams=[];
         for(let g=1;g<=nbGroupes;g++){
           const jG=rankGroup(joueurs.filter(j=>j.groupe===g),barragesTP);
-          // du (nbQual+1)e jusqu'à l'avant-dernier de la poule → on saute le top-nbQual ET le dernier
-          jG.slice(nbQual,Math.max(nbQual,jG.length-1)).forEach((j,idx)=>consoTeams.push({...j,consoRank:nbQual+idx+1}));
+          // Repêchage : les nbConso PREMIÈRES équipes non qualifiées de la poule (2 ou 3, réglable).
+          jG.slice(nbQual,nbQual+nbConso).forEach((j,idx)=>consoTeams.push({...j,consoRank:nbQual+idx+1}));
         }
         if(consoTeams.length>=2){
           // appariement maximal : on passe les équipes ORDONNÉES (meilleures d'abord) ; genConsolanteMatchs apparie tout le monde

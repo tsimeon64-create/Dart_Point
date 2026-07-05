@@ -932,7 +932,11 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       const raw = localStorage.getItem(resumeKey);
       if (!raw) return null;
       const s = JSON.parse(raw);
-      if (s && s.v === 1 && s.etape === "jeu" && Array.isArray(s.joueurs) && s.joueurs.length && (Date.now() - (s.ts || 0)) < 6 * 3600 * 1000) return s;
+      if (!(s && s.v === 1 && s.etape === "jeu" && Array.isArray(s.joueurs) && s.joueurs.length && (Date.now() - (s.ts || 0)) < 6 * 3600 * 1000)) return null;
+      // On ne reprend QUE si la partie a VRAIMENT commencé (≥ 1 fléchette / manche jouée). Sinon (ex. on s'est
+      // trompé de joueur au départ et on revient), on laisse ré-afficher « Qui commence ? » pour re-choisir.
+      const aProgresse = s.joueurs.some(j => (j.flechettes || 0) > 0) || (Array.isArray(s.historique) && s.historique.length > 0) || (Array.isArray(s.manchesHistory) && s.manchesHistory.length > 0);
+      return aProgresse ? s : null;
     } catch (e) {}
     return null;
   })();
@@ -1273,7 +1277,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // Clic sur un joueur pendant la bulle (mode libre) : on l'ajoute à l'ordre de passage.
   // Quand il ne reste qu'un seul joueur, il est placé automatiquement (ordre déterminé).
   const clicBulleJoueur = (idx) => {
-    if (ordreBulle.includes(idx)) return;
+    const dejaPlace = ordreBulle.indexOf(idx);
+    // Re-clic sur un joueur DÉJÀ placé → on l'annule (lui + tous ceux placés après) pour pouvoir corriger l'ordre.
+    if (dejaPlace >= 0) { setOrdreBulle(ordreBulle.slice(0, dejaPlace)); return; }
     let next = [...ordreBulle, idx];
     const restants = config.noms.map((_, i) => i).filter((i) => !next.includes(i));
     if (restants.length === 1) next = [...next, restants[0]];
@@ -1793,13 +1799,13 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             const pos = ordreBulle.indexOf(idx);
             const place = pos >= 0;
             return (
-              <button key={idx} onClick={() => clicBulleJoueur(idx)} disabled={place}
-                style={{ padding:"18px 20px", borderRadius:16, border:`2px solid ${place ? "#22c55e" : "#f97316"}`, background: place ? "#22c55e18" : "#f9731622", color:"#f1f5f9", fontWeight:800, fontSize:18, cursor: place ? "default" : "pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:12, opacity: place ? 0.85 : 1, transition:"all .15s" }}>
+              <button key={idx} onClick={() => clicBulleJoueur(idx)}
+                style={{ padding:"18px 20px", borderRadius:16, border:`2px solid ${place ? "#22c55e" : "#f97316"}`, background: place ? "#22c55e18" : "#f9731622", color:"#f1f5f9", fontWeight:800, fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", gap:12, transition:"all .15s", textAlign:"left" }}>
                 <span style={{ width:30, height:30, borderRadius:"50%", background: place ? "#22c55e" : "#3a3a3a", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:15, flexShrink:0 }}>
                   {place ? pos + 1 : "?"}
                 </span>
-                {nom || `Joueur ${idx + 1}`}
-                {pos === 0 && <span style={{ fontSize:13, color:"#94a3b8", fontWeight:500 }}>commence</span>}
+                <span style={{ flex:1 }}>{nom || `Joueur ${idx + 1}`}{pos === 0 && <span style={{ fontSize:13, color:"#94a3b8", fontWeight:500, marginLeft:8 }}>commence</span>}</span>
+                {place && <span style={{ fontSize:12.5, color:"#86efac", fontWeight:700, flexShrink:0 }}>✕ corriger</span>}
               </button>
             );
           })}
@@ -2159,6 +2165,17 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           <EmoIcon e="📊" size={11} style={{verticalAlign:"-1px",marginRight:4}}/>VOLÉES
         </button>
       </div>
+
+      {/* Correction du départ : tant qu'AUCUNE fléchette n'a été lancée, on peut revenir choisir qui commence. */}
+      {modeDuel && Array.isArray(joueurs) && mancheEnCours === 0 && (historique?.length || 0) === 0 && joueurs.every(j => (j.flechettes || 0) === 0) && (
+        <div style={{ background:"#1a1206", borderBottom:"1px solid #3a2a0a", padding:"7px 12px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexShrink:0 }}>
+          <span style={{ fontSize:12, color:"#94a3b8" }}><b style={{color:"#fbbf24"}}>{joueurs[actifIdx]?.nom}</b> commence.</span>
+          <button onClick={()=>setEtape("bulle")}
+            style={{ background:"#f9731622", border:"1px solid #f97316", color:"#f97316", cursor:"pointer", fontSize:11.5, fontWeight:800, padding:"5px 11px", borderRadius:8, touchAction:"manipulation", whiteSpace:"nowrap" }}>
+            ← Changer qui commence
+          </button>
+        </div>
+      )}
 
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* PLAYER CARDS PREMIUM — glow joueur actif + score massif         */}
