@@ -1108,6 +1108,19 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
   const pending=matchs.filter(m=>m.phase==="poules"&&m.statut!=="termine"&&m.joueur1_id&&m.joueur2_id);
   const actifs=matchsSurCibles(pending,nbCibles,matchs,live);
   const enAttente=Math.max(0,pending.length-actifs.size);
+  // Classement de poule = UNIQUEMENT sur les matchs de poule. (Les V-D stockées sur le joueur incluent aussi
+  // les matchs du TABLEAU une fois les éliminatoires lancées → ça faussait l'affichage « 5 vs 4 matchs ».)
+  // On recalcule donc ici, à partir des seuls matchs de poule terminés, des équipes avec V/D/manches « poule seule ».
+  const joueursPoule=(()=>{
+    const st={}; joueurs.forEach(j=>{ st[j.id]={...j,victoires:0,defaites:0,points:0,manches_pour:0,manches_contre:0}; });
+    termines.filter(m=>m.gagnant_id).forEach(m=>{
+      const w=m.gagnant_id, l=m.gagnant_id===m.joueur1_id?m.joueur2_id:m.joueur1_id;
+      const ws=m.gagnant_id===m.joueur1_id?m.score1:m.score2, ls=m.gagnant_id===m.joueur1_id?m.score2:m.score1;
+      if(st[w]){ st[w].victoires++; st[w].points+=2; st[w].manches_pour+=ws; st[w].manches_contre+=ls; }
+      if(st[l]){ st[l].defaites++; st[l].manches_pour+=ls; st[l].manches_contre+=ws; }
+    });
+    return joueurs.map(j=>st[j.id]||j);
+  })();
   // Barrages (égalités) — détectés une fois les poules terminées
   const barrages=matchs.filter(m=>m.phase==="barrage");
   // Planning des barrages : MEME logique que les poules (matchsSurCibles) → jamais 2 fois le même joueur, au plus nbCibles à la fois.
@@ -1256,7 +1269,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
 
       {/* Poule sélectionnée */}
       {groupes.filter(g=>g===activeTab).map(g=>{
-        const jG=rankGroup(joueurs.filter(j=>j.groupe===g),barrages);
+        const jG=rankGroup(joueursPoule.filter(j=>j.groupe===g),barrages);
         const barrageG=barrages.filter(m=>m.groupe===g).sort((a,b)=>(a.position_bracket||0)-(b.position_bracket||0));
         // Stats des barrages (701) d'une équipe DANS cette poule → ajoutées au récap V/D/manches/points AFFICHÉ,
         // pour que les barrages joués soient bien comptabilisés à l'écran. (Le classement, lui, reste géré par
