@@ -920,7 +920,7 @@ const JoueursConfigSection = ({ config, setConfig, modeDuel }) => {
   );
 };
 
-export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, setPage = null, onResultat = null, onRejouer = null, joueur = null, setJoueur = null, botStart = false, onQuitter = null }) => {
+export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, setPage = null, onResultat = null, onRejouer = null, joueur = null, setJoueur = null, botStart = false, initBotAmiId = null, onQuitter = null }) => {
   const modeDuel = !!duel;
 
   // ── REPRISE AUTO : si une partie (duel/tournoi) a été coupée (appel, appli tuée, plantage…),
@@ -972,6 +972,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [amisListe, setAmisListe] = useState([]);   // liste d'amis pour le sélecteur
   const [loadingAmis, setLoadingAmis] = useState(false);
   const [loadingBot, setLoadingBot]   = useState(null); // id de l'ami en cours de préparation
+  const [botPreparing, setBotPreparing] = useState(!!initBotAmiId); // entrée directe « Affronte son bot » depuis une fiche joueur
   const botXpRef = useRef(false);                       // évite de créditer l'XP deux fois
   const [mancheEnCours, setMancheEnCours] = useState(resume?.mancheEnCours ?? 0); // 0-based
   const [gagnant, setGagnant] = useState(null);
@@ -1243,9 +1244,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     } catch { setAmisListe([]); }
     setLoadingAmis(false);
   };
-  // Au montage en mode bot (entrée depuis la page Défis), on charge directement les amis.
+  // Au montage en mode bot : soit on prépare direct le bot d'un joueur précis (bouton « Affronte son bot »
+  // depuis sa fiche), soit on ouvre le sélecteur d'amis (entrée depuis la page Défis).
   useEffect(() => {
-    if (botStart) chargerAmis();
+    if (!botStart) return;
+    if (initBotAmiId) lancerBotDirect(initBotAmiId);
+    else chargerAmis();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1269,6 +1273,22 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       setEtape("config"); // écran de réglages (mode + manches) avant la bulle
     } catch { window.dpToast?.("Impossible de charger cet ami", "error"); }
     setLoadingBot(null);
+  };
+
+  // Entrée directe « Affronte son bot » (depuis une fiche joueur) : on prépare le bot de CE joueur précis,
+  // sans passer par le sélecteur d'amis. On récupère ses infos par son id puis on calcule son profil.
+  const lancerBotDirect = async (id) => {
+    try {
+      const profils = (await dbJ.getJoueursByIds([id])) || [];
+      const p = profils[0];
+      if (!p) throw new Error("joueur introuvable");
+      const ami = { id: p.id, pseudo: p.pseudo || "Joueur", photo: p.photo || null, drix: p.drix ?? 1000, self: p.id === joueur?.id };
+      await choisirAmiBot(ami); // calcule le profil (stats réelles / DRIX) → écran réglages
+    } catch {
+      window.dpToast?.("Impossible de préparer ce bot", "error");
+      chargerAmis(); // repli : on montre le sélecteur classique
+    }
+    setBotPreparing(false);
   };
 
   // C'est au tour du bot de jouer ? (utilisé pour bloquer la saisie humaine)
@@ -1867,13 +1887,15 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // ── ÉCRAN SÉLECTION D'UN AMI (mode bot) ────────────────────────────────────
   if (etape === "amis") return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"16px 16px 24px", fontFamily:"Inter,sans-serif" }}>
-      <button onClick={()=>{ if (botStart) setPage?.("defi"); else setEtape("config"); }}
+      <button onClick={()=>{ if (initBotAmiId) setPage?.("profil-joueur-"+initBotAmiId); else if (botStart) setPage?.("defi"); else setEtape("config"); }}
         style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, color:"#cbd5e1", cursor:"pointer", fontSize:14, fontWeight:700, padding:"9px 14px", marginBottom:14, display:"inline-flex", alignItems:"center", gap:6 }}>← Retour</button>
       <h1 style={{ fontWeight:900, fontSize:24, marginBottom:4, color:"#f1f5f9", textAlign:"center" }}>🤖 Affronter un ami</h1>
       <p style={{ color:"#94a3b8", fontSize:13, marginBottom:22, textAlign:"center", lineHeight:1.5 }}>
         Choisis un ami : le bot jouera à son niveau, d'après ses vraies stats (ou son DRIX s'il a peu joué).
       </p>
-      {loadingAmis ? (
+      {botPreparing ? (
+        <p style={{ color:"#64748b", textAlign:"center", padding:"30px 0" }}>🤖 Préparation du bot…</p>
+      ) : loadingAmis ? (
         <p style={{ color:"#64748b", textAlign:"center", padding:"30px 0" }}>Chargement de tes amis…</p>
       ) : amisListe.length === 0 ? (
         <div style={{ textAlign:"center", padding:"24px 16px", color:"#94a3b8" }}>
@@ -1906,7 +1928,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           })}
         </div>
       )}
-      <button onClick={()=>{ if (botStart) setPage?.("defi"); else setEtape("config"); }}
+      <button onClick={()=>{ if (initBotAmiId) setPage?.("profil-joueur-"+initBotAmiId); else if (botStart) setPage?.("defi"); else setEtape("config"); }}
         style={{ marginTop:18, width:"100%", background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13, padding:8 }}>
         ← Retour
       </button>
@@ -1916,7 +1938,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // ── ÉCRAN CONFIG ──────────────────────────────────────────────────────────
   if (etape === "config") return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"16px 16px 24px", fontFamily:"Inter,sans-serif" }}>
-      <button onClick={()=>{ if (botPseudo) setEtape("amis"); else setPage?.("home"); }}
+      <button onClick={()=>{ if (initBotAmiId) setPage?.("profil-joueur-"+initBotAmiId); else if (botPseudo) setEtape("amis"); else setPage?.("home"); }}
         style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, color:"#cbd5e1", cursor:"pointer", fontSize:14, fontWeight:700, padding:"9px 14px", marginBottom:14, display:"inline-flex", alignItems:"center", gap:6 }}>← Retour</button>
       <h1 style={{ fontWeight:900, fontSize:26, marginBottom:4, color:"#f1f5f9", textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}><EmoIcon e="🎯" size={24} color="#f97316"/>Scoreur</h1>
       <p style={{ color:"#94a3b8", fontSize:14, marginBottom:28, textAlign:"center" }}>{botPseudo ? "Mode bot · réglages" : "Mode libre"}</p>
@@ -1963,7 +1985,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                 background:"linear-gradient(135deg,#a78bfa,#7c3aed)", color:"#fff", marginTop:4 }}>
               <EmoIcon e="🎯" size={18} style={{verticalAlign:"-3px",marginRight:8}}/>Choisir qui commence →
             </button>
-            <button onClick={()=>setEtape("amis")}
+            <button onClick={()=>{ if (!amisListe.length) chargerAmis(); setEtape("amis"); }}
               style={{ width:"100%", background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13, padding:6 }}>
               ← Changer d'adversaire
             </button>

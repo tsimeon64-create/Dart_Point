@@ -3058,6 +3058,14 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
         </div>
       )}
 
+      {/* ════ AFFRONTE SON BOT ════ */}
+      {moi&&moi.id!==j.id&&(
+        <button onClick={()=>setPage("scoreur-bot-"+j.id)}
+          style={{width:"100%",background:"#a78bfa14",border:"1px solid #a78bfa55",color:"#c4b5fd",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:800,fontSize:14,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:14}}>
+          <EmoIcon e="🤖" size={15} color="#c4b5fd"/>Affronte son bot
+        </button>
+      )}
+
       {/* ── MODAL DÉFI ── */}
       {showDefi&&moi&&(()=>{
         const lancerDefi = async () => {

@@ -11811,7 +11811,7 @@ export default function App() {
     p === "jeux-capital" || p === "scoreur" || p === "scoreur-bot" || p === "scoreur-libre" || p === "scoreur-doublette" ||
     p === "cricket-config" || p === "rush-mode" || p === "chrono-finish" || p === "entrainement-finish" ||
     p === "chrono-scoreur" || p === "horloge-double" ||
-    p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-");
+    p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-") || p.startsWith("scoreur-bot-");
 
   const navSafe = (targetPage) => {
     if (isGamePage(pageRef.current)) { setPendingNav(targetPage); }
@@ -12251,6 +12251,7 @@ export default function App() {
         {page==="inscription"      && <Connexion onLogin={handleLogin} setPage={nav} associations={associations} initMode="register"/>}
         {page==="scoreur"          && <Scoreur setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="scoreur-bot"      && joueur && <Scoreur setPage={nav} joueur={joueur} setJoueur={setJoueur} botStart/>}
+        {page.startsWith("scoreur-bot-") && joueur && <Scoreur setPage={nav} joueur={joueur} setJoueur={setJoueur} botStart initBotAmiId={page.replace("scoreur-bot-","")}/>}
         {page==="scoreur-libre"    && <ScoreurLibre setPage={nav}/>}
         {page==="jeux"             && <PageModeJeu joueur={joueur} setPage={nav}/>}
         {page==="jeux-flechettes"       && <PageModeJeu joueur={joueur} setPage={nav} initCat="fleche"/>}
