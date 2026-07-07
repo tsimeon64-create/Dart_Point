@@ -621,7 +621,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
                 fontSize:10, fontWeight:800,
               }}>
                 <EmoIcon e="🏆" size={11} color="#fbbf24"/>
-                <span style={{ color:"#fbbf24",textShadow:"0 0 4px #fbbf24aa" }}>+20</span>
+                <span style={{ color:"#fbbf24",textShadow:"0 0 4px #fbbf24aa" }}>+5</span>
                 <span style={{ color:"#fcd34d" }}>vainqueur</span>
               </div>
             </div>
@@ -1201,7 +1201,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
         <div style={{ flex:1,overflowY:"auto",padding:"12px 14px 40px" }}>
           <div style={{ background:`${C.blue}15`,border:`1px solid ${C.blue}44`,borderRadius:14,padding:"12px 16px",marginBottom:14,textAlign:"center" }}>
             <div style={{ fontSize:11,color:C.muted,letterSpacing:1,marginBottom:4 }}>CLASSEMENT DU SCOREUR SPEEDRUN</div>
-            <div style={{ fontSize:11,color:C.muted }}><EmoIcon e="🥇" size={11} color="#fbbf24" style={{verticalAlign:"-2px",marginRight:4}}/>Le vainqueur reçoit <b style={{ color:C.yellow }}>+20 DRIX</b> · <EmoIcon e="💎" size={11} color={C.blue} style={{verticalAlign:"-2px",margin:"0 3px"}}/><b style={{ color:C.blue }}>+5 DRIX</b> participation · publication à 00:01</div>
+            <div style={{ fontSize:11,color:C.muted }}><EmoIcon e="🥇" size={11} color="#fbbf24" style={{verticalAlign:"-2px",marginRight:4}}/>Le vainqueur reçoit <b style={{ color:C.yellow }}>+5 DRIX</b> · <EmoIcon e="💎" size={11} color={C.blue} style={{verticalAlign:"-2px",margin:"0 3px"}}/><b style={{ color:C.blue }}>+5 DRIX</b> participation · publication à 00:01</div>
           </div>
 
           {loadingScores ? (
@@ -1333,26 +1333,26 @@ export const checkYesterdayScoreurReward = async (joueur, onWin) => {
   const winner = claimed.reduce((best, s) => (best == null || s.temps_ms < best.temps_ms ? s : best), null);
   if (!winner) return null;
 
-  // +20 DRIX au vainqueur (la participation +5 a déjà été versée en fin de partie).
+  // +5 DRIX au vainqueur (la participation +5 a déjà été versée en fin de partie).
   const jArr = await sb(`joueurs?id=eq.${winner.joueur_id}&select=id,drix,photo`);
   const j = jArr?.[0];
   if (!j) return null;
-  const newDrix = (j.drix || 1000) + 20;
+  const newDrix = (j.drix || 1000) + 5;
   await sb(`joueurs?id=eq.${j.id}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ drix: newDrix }) });
   await sb("drix_mouvements", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({
     joueur_id: j.id, joueur_pseudo: winner.joueur_pseudo,
     adversaire_pseudo: "⏱ Scoreur Speedrun — 🥇 Vainqueur du jour",
-    variation: 20, drix_avant: j.drix || 1000, drix_apres: newDrix,
+    variation: 5, drix_avant: j.drix || 1000, drix_apres: newDrix,
     resultat: "victoire", date: Date.now(),
   }) });
 
   // Post Comptoir — félicitation vainqueur (format spécial __CHRONO_SCOREUR__)
   const dateFr = yest.split("-").reverse().join("/");
-  const payload = { type: "chrono_scoreur_vainqueur", temps_ms: winner.temps_ms, drix: 20, date_jour: yest };
+  const payload = { type: "chrono_scoreur_vainqueur", temps_ms: winner.temps_ms, drix: 5, date_jour: yest };
   const contenu = `__CHRONO_SCOREUR__|${JSON.stringify(payload)}\n\n` +
     `🏆 Scoreur Speedrun — Vainqueur du ${dateFr}\n` +
     `👑 ${winner.joueur_pseudo} remporte le défi en ${formatChrono(winner.temps_ms)} !\n` +
-    `🥇 +20 DRIX`;
+    `🥇 +5 DRIX`;
   sb("wall_posts", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({
     joueur_id: winner.joueur_id, joueur_pseudo: winner.joueur_pseudo, joueur_photo: j.photo || null,
     contenu, date: Date.now(),
@@ -1360,8 +1360,8 @@ export const checkYesterdayScoreurReward = async (joueur, onWin) => {
 
   // Notifier / retourner si le joueur courant est le vainqueur (maj DRIX locale côté App).
   if (joueur?.id && joueur.id === winner.joueur_id) {
-    if (onWin) onWin({ pseudo: winner.joueur_pseudo, drix: 20 });
-    return { drix: 20, label: "🥇 Vainqueur du jour" };
+    if (onWin) onWin({ pseudo: winner.joueur_pseudo, drix: 5 });
+    return { drix: 5, label: "🥇 Vainqueur du jour" };
   }
   return null;
 };

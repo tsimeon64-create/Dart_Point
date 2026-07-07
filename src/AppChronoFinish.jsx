@@ -158,7 +158,7 @@ export const checkYesterdayReward = async (joueur, onWin) => {
   const jArr = await sb(`joueurs?id=eq.${winner.joueur_id}&select=id,drix`);
   if (!jArr || jArr.length === 0) return;
   const j = jArr[0];
-  const newDrix = (j.drix || 1000) + 20;
+  const newDrix = (j.drix || 1000) + 5;
 
   await sb(`joueurs?id=eq.${j.id}`, {
     method: "PATCH",
@@ -171,7 +171,7 @@ export const checkYesterdayReward = async (joueur, onWin) => {
       joueur_id:        j.id,
       joueur_pseudo:    winner.joueur_pseudo,
       adversaire_pseudo:"⏱ Finish Speedrun — 🥇 Vainqueur du jour",
-      variation:        20,
+      variation:        5,
       drix_avant:       j.drix || 1000,
       drix_apres:       newDrix,
       resultat:         "victoire",
@@ -189,14 +189,14 @@ export const checkYesterdayReward = async (joueur, onWin) => {
       joueur_id:     winner.joueur_id,
       joueur_pseudo: winner.joueur_pseudo,
       joueur_photo:  photo,
-      contenu:       `🏆 Finish Speedrun — Vainqueur du ${dd}/${mm}/${yd}\n👑 ${winner.joueur_pseudo} remporte le défi du jour en ${formatChrono(winner.temps_ms)} !\n🥇 +20 DRIX`,
+      contenu:       `🏆 Finish Speedrun — Vainqueur du ${dd}/${mm}/${yd}\n👑 ${winner.joueur_pseudo} remporte le défi du jour en ${formatChrono(winner.temps_ms)} !\n🥇 +5 DRIX`,
       date:          Date.now(),
     }),
   }).catch(() => {});
 
   // Notifier si c'est le joueur courant
   if (joueur?.id === winner.joueur_id) {
-    onWin({ pseudo: winner.joueur_pseudo, drix: 20 });
+    onWin({ pseudo: winner.joueur_pseudo, drix: 5 });
   }
 };
 
@@ -600,7 +600,7 @@ export const ChronoFinish = ({ setPage, joueur }) => {
                 fontSize:10, fontWeight:800,
               }}>
                 <EmoIcon e="🏆" size={11} color="#fbbf24"/>
-                <span style={{ color:"#fbbf24",textShadow:"0 0 4px #fbbf24aa" }}>+20</span>
+                <span style={{ color:"#fbbf24",textShadow:"0 0 4px #fbbf24aa" }}>+5</span>
                 <span style={{ color:"#fcd34d" }}>meilleur temps</span>
               </div>
             </div>
@@ -816,7 +816,7 @@ export const ChronoFinish = ({ setPage, joueur }) => {
           {/* Titre du jour */}
           <div style={{ background:`${C.purple}15`,border:`1px solid ${C.purple}44`,borderRadius:14,padding:"12px 16px",marginBottom:14,textAlign:"center" }}>
             <div style={{ fontSize:11,color:C.muted,letterSpacing:1,marginBottom:4 }}>CLASSEMENT DU DÉFI QUOTIDIEN</div>
-            <div style={{ fontSize:11,color:C.muted,marginTop:4 }}><EmoIcon e="🥇" size={11} color="#fbbf24" style={{verticalAlign:"-2px",marginRight:4}}/>Le vainqueur reçoit <b style={{ color:C.yellow }}>+20 DRIX</b> à minuit</div>
+            <div style={{ fontSize:11,color:C.muted,marginTop:4 }}><EmoIcon e="🥇" size={11} color="#fbbf24" style={{verticalAlign:"-2px",marginRight:4}}/>Le vainqueur reçoit <b style={{ color:C.yellow }}>+5 DRIX</b> à minuit</div>
           </div>
 
           {loadingScores ? (
@@ -900,11 +900,11 @@ export const ChronoFinish = ({ setPage, joueur }) => {
 
     return (
       <div style={{ position:"fixed",inset:0,zIndex:200,background:C.bg,display:"flex",flexDirection:"column",overflow:"hidden" }}>
-        {/* DRIX notif vainqueur +20 */}
+        {/* DRIX notif vainqueur +5 */}
         {drixNotif && (
           <div style={{ position:"absolute",top:60,left:"50%",transform:"translateX(-50%)",zIndex:999,background:"#000c",borderRadius:16,padding:"14px 24px",textAlign:"center",boxShadow:`0 0 40px ${C.yellow}55`,pointerEvents:"none" }}>
             <div style={{ marginBottom:4,display:"flex",justifyContent:"center" }}><EmoIcon e="🏆" size={24} color={C.yellow}/></div>
-            <div style={{ fontWeight:900,fontSize:16,color:C.yellow }}>+20 DRIX remportés !</div>
+            <div style={{ fontWeight:900,fontSize:16,color:C.yellow }}>+5 DRIX remportés !</div>
             <div style={{ fontSize:12,color:C.muted,marginTop:2 }}>Vainqueur du Finish Speedrun d'hier</div>
           </div>
         )}

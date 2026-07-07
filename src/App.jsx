@@ -3636,7 +3636,7 @@ const parseChronoFinishContent = (contenu) => {
     if (contenu.includes("Zéro erreur")) erreurs = 0;
     // Extraction DRIX
     const drixMatch = contenu.match(/\+(\d+)\s+DRIX/);
-    const drix = drixMatch ? parseInt(drixMatch[1]) : (isVainqueur ? 20 : 5);
+    const drix = drixMatch ? parseInt(drixMatch[1]) : 5;
     // Extraction date
     const dateMatch = contenu.match(/du\s+(\d{2}\/\d{2}\/\d{4})/);
     const dateLabel = dateMatch ? dateMatch[1] : null;
@@ -3678,7 +3678,7 @@ const parseChronoScoreurContent = (contenu) => {
       kind: "scoreur",
       temps_label,
       erreurs: 0,
-      drix: data.drix || 20,
+      drix: data.drix || 5,
       date_label,
     };
   } catch { return null; }
