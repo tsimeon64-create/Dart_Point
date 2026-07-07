@@ -52,21 +52,35 @@ export function statsReelles(duels, amiPseudo) {
   return { moyenne: vol > 0 ? pts / vol : 0, volees: vol, maxFinish, maxVisit, n180 };
 }
 
-// Taux de réussite RÉEL du checkout : sur les volées qui PARTENT d'un score finissable ≤ 100,
-// combien finissent (reste = 0). Capture le fait qu'on rate souvent le double plusieurs fois.
-function tauxCheckoutReel(volees) {
-  let attempts = 0, conv = 0, prev = Infinity, session = null;
+// Analyse fine des VRAIES volées d'un joueur pour COLLER à son jeu :
+//  • sa distribution de descentes (scoringPool) → le bot jette les mêmes scores que lui
+//  • son taux de finish PAR ZONE (rateZone) → il finit comme lui selon la distance au double
+//  • son taux de bust réel (bustRate) → il buste comme lui
+// Astuce : pour chaque volée, "avant" = le score restant AVANT de la jouer = reste + score
+// (ou reste si bust). Pas besoin de reconstruire les legs, c'est exact volée par volée.
+function analyseReplay(volees) {
+  const ZONES = [[2, 40], [41, 70], [71, 100], [101, 170]]; // zones de checkout (distance au double)
+  const att = [0, 0, 0, 0], conv = [0, 0, 0, 0];
+  let attG = 0, convG = 0, busts = 0, total = 0;
+  const scoringPool = [], finishPool = [];
   for (const v of volees) {
-    if (v.session_id !== session) { session = v.session_id; prev = Infinity; } // nouvelle session → reset
-    if (v.score === -1) continue; // BUST : reste inchangé → ne compte pas comme tentative et ne touche pas `prev`
-    const start = (prev === Infinity || v.reste > prev) ? null : prev; // reste au DÉBUT de la volée (null = début de leg)
-    if (start != null && start > 0 && start <= 100 && estFinissable(start)) {
-      attempts++;
-      if (v.reste === 0) conv++;
+    const isBust = v.score === -1;
+    const avant = isBust ? v.reste : v.reste + v.score; // score restant AVANT la volée
+    total++;
+    if (isBust) busts++;
+    if (!isBust && avant > 0 && avant <= 170 && estFinissable(avant)) {
+      attG++; if (v.reste === 0) convG++;                       // tentative de finish depuis un nombre finissable
+      const zi = ZONES.findIndex(([a, b]) => avant >= a && avant <= b);
+      if (zi >= 0) { att[zi]++; if (v.reste === 0) conv[zi]++; }
     }
-    prev = v.reste;
+    if (!isBust && v.reste !== 0 && v.score > 0) scoringPool.push({ s: v.score, a: avant }); // vraies descentes (score + distance)
+    if (!isBust && v.reste === 0 && v.score > 0) finishPool.push(v.score);  // vrais finishes
   }
-  return attempts >= 8 ? clamp(conv / attempts, 0.08, 0.85) : null; // null si trop peu de données
+  const globalRate = attG >= 6 ? clamp(convG / attG, 0.05, 0.85) : 0.22;
+  const PRIOR = 4; // lissage : une zone avec peu de données penche vers le taux global (évite le bruit)
+  const rateZone = ZONES.map((_, i) => clamp((conv[i] + globalRate * PRIOR) / (att[i] + PRIOR), 0.03, 0.9));
+  const bustRate = clamp(busts / Math.max(1, total), 0, 0.14);
+  return { scoringPool, finishPool, rateZone, zones: ZONES, bustRate, globalRate };
 }
 
 // Construit le profil du bot. 3 niveaux de réalisme, du meilleur au plus prudent :
@@ -81,12 +95,16 @@ export function calculerProfilBot({ drix, duels, amiPseudo, volees }) {
     const valides = volees.map((v) => v.score).filter((s) => s >= 0);
     if (scoring.length >= 15) {
       const moy = Math.round(valides.reduce((a, b) => a + b, 0) / (valides.length || 1));
+      const A = analyseReplay(volees);
       return {
         mode: "replay",
         moyenne: moy,
-        scoringVolleys: scoring,
+        scoringVolleys: A.scoringPool, // [{ s: score, a: distance }] pour piocher selon la situation
         maxFinish: finishes.length ? Math.max(...finishes) : Math.max(60, moy),
-        checkoutRate: tauxCheckoutReel(volees) ?? 0.30, // taux réel de réussite du double (sinon défaut prudent)
+        checkoutRate: A.globalRate,   // taux de checkout global (repli)
+        rateZone: A.rateZone,         // taux de finish PAR zone → colle à son jeu
+        zones: A.zones,
+        bustRate: A.bustRate,         // il buste comme lui
         source: "volees", volees: volees.length,
       };
     }
@@ -135,39 +153,54 @@ function tirerVolee(moy, plafond, rate180) {
   return clamp(Math.round(g), 1, Math.max(20, plafond));
 }
 
-// MODE REPLAY : le bot rejoue les VRAIES volées de l'ami (échantillonnées dans son historique),
-// avec un checkout plafonné à son meilleur finish réel. C'est le plus humain possible.
+// Taux de checkout RÉEL pour un score restant (selon la zone), pour coller à son jeu.
+function rateCheckout(profil, remaining) {
+  if (Array.isArray(profil.rateZone) && Array.isArray(profil.zones)) {
+    const zi = profil.zones.findIndex(([a, b]) => remaining >= a && remaining <= b);
+    if (zi >= 0) return profil.rateZone[zi];
+  }
+  return profil.checkoutRate ?? 0.28;
+}
+
+// MODE REPLAY : le bot rejoue le JEU RÉEL de l'ami — ses descentes (mêmes scores, même
+// distribution), ses finishes (son vrai taux de réussite par zone) et ses busts.
+// Un checkout n'arrive jamais au-dessus de son meilleur finish réel. Le plus humain possible.
 function genererScoreReplay(remaining, profil) {
   const scoring = profil.scoringVolleys || [];
   const maxFinish = profil.maxFinish || 100;
-  const rate = profil.checkoutRate ?? 0.28; // taux réel de réussite du double
+  const bustRate = profil.bustRate ?? 0.05;
+  const moy = profil.moyenne || 45;
 
-  // 1) Zone DOUBLE (≤ 50) : on tente le double au TAUX RÉEL. Raté = souvent 0 (on reste sur
-  //    le même nombre → nouvelle tentative la fois d'après), parfois un simple touché.
-  if (remaining <= 50 && estFinissable(remaining) && remaining <= maxFinish) {
-    if (Math.random() < rate) return remaining;                  // double réussi 🎯
-    // Raté : un bon joueur laisse bien plus souvent un petit double (near-miss) qu'un tour à 0.
-    const pZero = clamp(0.6 - ((profil.moyenne || 45) - 30) * 0.008, 0.15, 0.6);
-    if (Math.random() < pZero) return 0;                          // raté sec (reste sur le nombre)
-    const laisse = DOUBLES.find((d) => d <= remaining - 2);       // sinon simple touché → laisse un plus petit double
-    return laisse == null ? 0 : remaining - laisse;
-  }
-
-  // 2) Finish à 2 fléchettes (51–100) : rare en une visite ; sinon on POSE pour laisser un double.
-  if (remaining <= 100 && estFinissable(remaining) && remaining <= maxFinish) {
-    if (Math.random() < rate * 0.3) return remaining;             // beau finish d'un coup (rare)
+  // ── ZONE DE FINISH : il tente le checkout à SON vrai taux (qui dépend de la distance au double) ──
+  if (estFinissable(remaining) && remaining <= 170 && remaining <= maxFinish) {
+    if (Math.random() < rateCheckout(profil, remaining)) return remaining; // il finit comme lui 🎯
+    // Il ne finit pas ce tour-ci :
+    if (remaining <= 50) {
+      // Double direct : parfois il buste en tentant, sinon rate sec (0) ou laisse un petit double.
+      if (Math.random() < bustRate) return remaining + 1 + Math.floor(Math.random() * 8);
+      const pZero = clamp(0.5 - (moy - 30) * 0.008, 0.12, 0.5); // un bon joueur rate moins « sec »
+      if (Math.random() < pZero) return 0;
+      const laisse = DOUBLES.find((d) => d <= remaining - 2);
+      return laisse == null ? 0 : remaining - laisse;
+    }
+    // 51+ : il POSE pour se laisser un bon double (parfois un bust, jamais un 0 sec).
+    if (Math.random() < bustRate * 0.6) return remaining + 1 + Math.floor(Math.random() * 8);
     const laisse = DOUBLES.find((d) => d <= remaining - 2);
-    if (laisse != null) return remaining - laisse;
+    return laisse != null ? remaining - laisse : (remaining <= maxFinish ? remaining : 1);
   }
 
-  // 3) Gros checkout (101 – meilleur finish réel) : très rare en une visite.
-  if (estFinissable(remaining) && remaining <= maxFinish && Math.random() < rate * 0.15) {
-    return remaining;
+  // ── ZONE DE SCORE : il rejoue une VRAIE descente jouée dans une situation PROCHE (même distance),
+  //    pour coller à sa façon de scorer (grosses volées loin du but, plus posé en approche) ──
+  const pool = scoring; // [{ s: score, a: distance }]
+  let cand = pool.filter((p) => p.s <= remaining - 2 && p.a >= remaining - 70); // volées jouées à distance comparable
+  if (cand.length < 5) cand = pool.filter((p) => p.s <= remaining - 2);         // repli : toutes ses volées sûres
+  if (cand.length) {
+    if (remaining <= 200 && Math.random() < bustRate * 0.5
+        && pool.some((p) => p.s > remaining - 2 && p.s <= remaining + 15)) {
+      return remaining + 1; // il vise gros et buste, exactement comme dans ses vraies parties
+    }
+    return cand[(Math.random() * cand.length) | 0].s;
   }
-
-  // 4) Volée normale : rejouer une VRAIE volée de son historique qui ne buste pas.
-  const safe = scoring.filter((s) => s <= remaining - 2);
-  if (safe.length) return safe[(Math.random() * safe.length) | 0];
   const laisse = DOUBLES.find((d) => d <= remaining - 2);
   if (laisse == null) return remaining <= maxFinish ? remaining : 1;
   return remaining - laisse;
