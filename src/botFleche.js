@@ -76,7 +76,7 @@ function tauxCheckoutReel(volees) {
 export function calculerProfilBot({ drix, duels, amiPseudo, volees }) {
   // ── 1) MODE REPLAY (le plus réaliste) ──
   if (Array.isArray(volees) && volees.length >= 25) {
-    const scoring = volees.filter((v) => v.reste !== 0 && v.score >= 0).map((v) => v.score); // lancers de scoring (hors finish, hors bust)
+    const scoring = volees.filter((v) => v.reste !== 0 && v.score > 0).map((v) => v.score); // lancers de scoring (hors finish, hors bust, hors tour blanc à 0)
     const finishes = volees.filter((v) => v.reste === 0 && v.score > 0).map((v) => v.score); // finishes réels
     const valides = volees.map((v) => v.score).filter((s) => s >= 0);
     if (scoring.length >= 15) {
@@ -146,7 +146,9 @@ function genererScoreReplay(remaining, profil) {
   //    le même nombre → nouvelle tentative la fois d'après), parfois un simple touché.
   if (remaining <= 50 && estFinissable(remaining) && remaining <= maxFinish) {
     if (Math.random() < rate) return remaining;                  // double réussi 🎯
-    if (Math.random() < 0.6) return 0;                            // raté → reste sur le nombre
+    // Raté : un bon joueur laisse bien plus souvent un petit double (near-miss) qu'un tour à 0.
+    const pZero = clamp(0.6 - ((profil.moyenne || 45) - 30) * 0.008, 0.15, 0.6);
+    if (Math.random() < pZero) return 0;                          // raté sec (reste sur le nombre)
     const laisse = DOUBLES.find((d) => d <= remaining - 2);       // sinon simple touché → laisse un plus petit double
     return laisse == null ? 0 : remaining - laisse;
   }
