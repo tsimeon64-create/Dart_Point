@@ -1728,7 +1728,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         const score = genererScoreBot(reste, botProfil);
         const bust = score > reste || (reste - score) === 1;
         // Pop-up « le bot a fait X » pendant 2 s, puis on enchaîne.
-        setBotAnnonce({ nom: botPseudo, score, bust, finish: score === reste });
+        setBotAnnonce({ nom: botPseudo, score, bust, finish: score === reste, reste });
         setTimeout(() => setBotAnnonce(null), 2000);
         envoyer(score);
       }
@@ -2118,7 +2118,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             <div style={{ fontSize:14,fontWeight:800,color:"#c4b5fd",letterSpacing:.5,marginBottom:8 }}>🤖 {botAnnonce.nom}</div>
             {botAnnonce.bust ? (
               <div style={{ fontSize:46,fontWeight:900,color:"#ef4444",lineHeight:1 }}>BUST !</div>
-            ) : botAnnonce.score === 0 ? (
+            ) : (botAnnonce.score === 0 && (botAnnonce.reste ?? 0) <= 50) ? (
               <div style={{ fontSize:30,fontWeight:900,color:"#f59e0b",lineHeight:1.1 }}>raté le double 😤</div>
             ) : (
               <>
