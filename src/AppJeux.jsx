@@ -1347,21 +1347,38 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     // Si popup finish/zero ouverte → on annule d'abord sans dépiler (l'entrée a déjà été pushée)
     const wasFinishPopup = !!pendingVolee;
     setPendingVolee(null);
+    if (botPseudo) setBotAnnonce(null); // enlève l'éventuelle pop-up « le bot a fait X »
     if (historique.length === 0) { setInput(""); return; }
 
-    const prev = historique[historique.length - 1];
+    // Combien de volées on dépile (normalement 1).
+    // ── MODE BOT UNIQUEMENT : le bot joue automatiquement juste après nous. Si on fait « Retour »
+    //    pour corriger NOTRE volée, il faut aussi dépiler celle du bot pour retomber sur la nôtre
+    //    (sinon on n'annulerait que celle du bot, sans pouvoir corriger la nôtre).
+    let nbPop = 1;
+    let annuleNotreVolee = false;
+    const botIdx = botPseudo ? joueurs.findIndex(j => j.nom === botPseudo) : -1;
+    if (botIdx >= 0 && !wasFinishPopup && historique.length >= 2
+        && historique[historique.length - 1].actifIdx === botIdx) {
+      nbPop = 2; // on retire la volée du bot + la nôtre → on peut ressaisir la nôtre
+      annuleNotreVolee = true;
+    }
+
+    const prev = historique[historique.length - nbPop];
     // Rollback TOTAL : scores + joueur actif + manche + starter + historique manches
     setJoueurs(prev.joueurs.map(j => ({ ...j, tours: [...j.tours] })));
     setActifIdx(prev.actifIdx);
     if (prev.mancheEnCours !== undefined) setMancheEnCours(prev.mancheEnCours);
     if (prev.mancheStart  !== undefined) setMancheStart(prev.mancheStart);
     if (prev.manchesHistory !== undefined) setManchesHistory(prev.manchesHistory);
-    setHistorique(h => h.slice(0, -1));
+    setHistorique(h => h.slice(0, -nbPop));
     setInput("");
 
     // Message UX bref
     if (wasFinishPopup) {
       setAnnulMsg("↩️ Finish annulé — état précédent restauré.");
+      setTimeout(() => setAnnulMsg(null), 2500);
+    } else if (annuleNotreVolee) {
+      setAnnulMsg("↩️ Ta volée annulée — à toi de rejouer.");
       setTimeout(() => setAnnulMsg(null), 2500);
     }
   };
