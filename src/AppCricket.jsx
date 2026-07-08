@@ -354,18 +354,31 @@ export const ScoreurCricket = ({ config, setPage }) => {
     setHistorique(h => h.slice(0, -1));
   };
 
-  const checkWin = (js, idx) => {
-    const j = js[idx];
-    if (!ZONES.every(z => j.marks[z] >= 3)) return false;
-    if (!config.points) return true;
-    if (!config.cutThroat) return js.every((o, i) => i === idx || j.score >= o.score);
-    return true; // cut throat: end leg when anyone closes all
-  };
+  // ── Détection du gagnant d'une MANCHE (leg) ────────────────────────────────
+  // Retourne l'index du joueur qui remplit les DEUX conditions (les 7 cibles fermées
+  // + la condition de score de son mode), sinon -1.
+  // On teste TOUS les joueurs, pas seulement l'actif : en Cut-Throat, un joueur qui a
+  // déjà tout fermé peut devenir gagnant quand les AUTRES encaissent des points (il se
+  // retrouve alors avec le plus bas score, sans avoir rejoué).
+  // Égalité : priorité au joueur actif (celui qui vient de jouer le coup décisif).
+  const trouverGagnant = (js) => {
+    const aToutFerme = (j) => ZONES.every(z => j.marks[z] >= 3);
+    const fermes = js.map((j, i) => (aToutFerme(j) ? i : -1)).filter(i => i >= 0);
+    if (!fermes.length) return -1;
+    if (!config.points) return fermes.includes(actifIdx) ? actifIdx : fermes[0]; // points OFF : 1er à tout fermer
 
-  const ctWinner = (js) => {
-    let min = Infinity, mi = 0;
-    js.forEach((j, i) => { if (j.score < min) { min = j.score; mi = i; } });
-    return mi;
+    const remplitScore = (i) => config.cutThroat
+      ? js.every((o, k) => k === i || js[i].score <= o.score)   // Cut-Throat : score le PLUS BAS (ou égal)
+      : js.every((o, k) => k === i || js[i].score >= o.score);  // Normal    : score le PLUS HAUT (ou égal)
+
+    const qualifies = fermes.filter(remplitScore);
+    if (!qualifies.length) return -1;
+    if (qualifies.includes(actifIdx)) return actifIdx;
+    return qualifies.reduce((best, i) =>
+      config.cutThroat
+        ? (js[i].score < js[best].score ? i : best)
+        : (js[i].score > js[best].score ? i : best),
+      qualifies[0]);
   };
 
   const handleLegWin = (js, wi) => {
@@ -407,7 +420,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
     if (darts.length >= 3 || phase !== "jeu" || advancing) return;
     setHistorique(h => [...h.slice(-29), snap()]);
 
-    const nb = mult;
+    const nb = zone === "Bull" ? Math.min(2, mult) : mult; // le Bull ne compte jamais comme un triple (max 2 marques)
     const zv = ZONE_VAL[zone];
     let js = joueurs.map(j => ({ ...j, marks: { ...j.marks } }));
     const cur = js[actifIdx].marks[zone];
@@ -438,9 +451,10 @@ export const ScoreurCricket = ({ config, setPage }) => {
     const nd = [...darts, { zone, mult: nb, label }];
     setMult(1); // auto-reset to simple
 
-    if (checkWin(js, actifIdx)) {
+    const wi = trouverGagnant(js);
+    if (wi >= 0) {
       setJoueurs(js); setDarts(nd);
-      handleLegWin(js, config.cutThroat ? ctWinner(js) : actifIdx);
+      handleLegWin(js, wi);
       return;
     }
 
@@ -497,9 +511,8 @@ export const ScoreurCricket = ({ config, setPage }) => {
     if (phase !== "fin" || !config.defi || drixPublished) return;
     setDrixPublished(true);
     const d = config.defi;
-    const winnerJ = config.cutThroat
-      ? [...joueurs].sort((a,b) => a.score-b.score)[0]
-      : [...joueurs].sort((a,b) => b.setsGagnes-a.setsGagnes)[0];
+    // Le vainqueur du MATCH est celui qui a gagné le plus de sets (vrai dans les deux modes).
+    const winnerJ = [...joueurs].sort((a,b) => b.setsGagnes - a.setsGagnes)[0];
     const winnerId = winnerJ?.id;
     const challengerWon = winnerId === d.challengerId;
 
@@ -616,9 +629,10 @@ export const ScoreurCricket = ({ config, setPage }) => {
   }, [phase, config.defi, drixPublished, joueurs]);
 
   if (phase === "fin" && interInfo) {
-    const sorted = config.cutThroat
-      ? [...joueurs].sort((a, b) => a.score - b.score)
-      : [...joueurs].sort((a, b) => b.setsGagnes - a.setsGagnes);
+    // Classement du match : d'abord par sets gagnés, puis par score (bas = mieux en Cut-Throat).
+    const sorted = [...joueurs].sort((a, b) =>
+      (b.setsGagnes - a.setsGagnes) ||
+      (config.cutThroat ? a.score - b.score : b.score - a.score));
     const w = sorted[0];
     return (
       <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:"Inter,sans-serif", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, textAlign:"center" }}>
