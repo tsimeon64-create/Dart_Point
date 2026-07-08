@@ -410,7 +410,7 @@ const QRScanModal=({onAdd,dejaIds,onClose})=>{
           },
           ()=>{}
         );
-      }catch(e){ setErreurCam("Caméra inaccessible — autorise l'accès à la caméra dans ton navigateur, puis réessaie."); }
+      }catch(e){ setErreurCam("Caméra inaccessible (code : "+(e?.name||e?.message||"inconnu")+"). Vérifie l'autorisation Appareil photo, puis réessaie."); }
     })();
     return()=>{ stopped=true; if(qr){ try{ qr.stop().then(()=>qr.clear()).catch(()=>{}); }catch(e){} } };
   },[]); // eslint-disable-line
@@ -452,7 +452,7 @@ const ScanTournoiModal=({onScan,onClose})=>{
           },
           ()=>{}
         );
-      }catch(e){ setErreurCam("Caméra inaccessible — autorise l'accès à la caméra dans ton navigateur, puis réessaie."); }
+      }catch(e){ setErreurCam("Caméra inaccessible (code : "+(e?.name||e?.message||"inconnu")+"). Vérifie l'autorisation Appareil photo, puis réessaie."); }
     })();
     return()=>{ stopped=true; if(qr){ try{ qr.stop().then(()=>qr.clear()).catch(()=>{}); }catch(e){} } };
   },[]); // eslint-disable-line
