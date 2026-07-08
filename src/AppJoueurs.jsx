@@ -219,6 +219,138 @@ const CJ = {
   green:"#22c55e", red:"#ef4444", yellow:"#f59e0b", purple:"#a78bfa", blue:"#60a5fa",
 };
 
+// ── Graphique d'évolution des DRIX : onglets de période + échelle (paliers) + dates ──
+const DrixEvolution = ({ drixMvts = [], current = 1000 }) => {
+  const [periode, setPeriode] = useState("7j"); // 7j | 30j | 365j | tout
+  const now = Date.now();
+  const JOUR = 86400000;
+
+  // Série ascendante des vraies valeurs de DRIX (v = après le mouvement, v0 = avant)
+  const asc = (drixMvts || [])
+    .filter(m => m && m.date)
+    .map(m => ({ t:m.date, v:(m.drix_apres ?? m.drix_avant ?? current), v0:(m.drix_avant ?? m.drix_apres ?? current) }))
+    .sort((a, b) => a.t - b.t);
+
+  const PERIODES = [
+    { k:"7j", l:"7 jours", jours:7 }, { k:"30j", l:"Mois", jours:30 },
+    { k:"365j", l:"Année", jours:365 }, { k:"tout", l:"Tout", jours:null },
+  ];
+
+  const Onglets = () => (
+    <div style={{ display:"flex", gap:6, marginTop:12 }}>
+      {PERIODES.map(p => {
+        const on = p.k === periode;
+        return (
+          <button key={p.k} onClick={() => setPeriode(p.k)}
+            style={{ flex:1, padding:"8px 0", borderRadius:9, cursor:"pointer", fontSize:12, fontWeight:700, touchAction:"manipulation",
+              border:`1px solid ${on ? CJ.blue : CJ.border}`, background: on ? `${CJ.blue}1e` : "transparent", color: on ? CJ.blue : CJ.muted }}>
+            {p.l}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  if (asc.length < 2) {
+    return (
+      <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:16 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, fontWeight:800, color:CJ.muted, letterSpacing:1, marginBottom:8 }}><TrendingUp size={14} color={CJ.green}/> ÉVOLUTION DRIX</div>
+        <p style={{ color:CJ.muted, fontSize:12, textAlign:"center", padding:"18px 0" }}>Pas encore assez d'historique DRIX pour afficher la courbe.</p>
+        <Onglets/>
+      </div>
+    );
+  }
+
+  const conf = PERIODES.find(p => p.k === periode) || PERIODES[0];
+  const start = conf.jours == null ? asc[0].t : now - conf.jours * JOUR;
+
+  // Valeur au début de la fenêtre = dernière valeur connue avant `start` (sinon la toute 1re)
+  const avant = asc.filter(p => p.t < start);
+  const valDebut = avant.length ? avant[avant.length - 1].v : asc[0].v0;
+
+  // Points tracés : ancrage au début + mouvements dans la fenêtre + point "aujourd'hui"
+  const pts = [{ t:start, v:valDebut }, ...asc.filter(p => p.t >= start && p.t <= now), { t:now, v:current }]
+    .sort((a, b) => a.t - b.t);
+
+  // Échelle Y (paliers arrondis)
+  const vals = pts.map(p => p.v);
+  let vmin = Math.min(...vals), vmax = Math.max(...vals);
+  if (vmin === vmax) { vmin -= 20; vmax += 20; }
+  const STEPS = [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
+  const step = STEPS.find(s => s >= (vmax - vmin) / 4) || 5000;
+  const tickMin = Math.floor(vmin / step) * step;
+  const tickMax = Math.ceil(vmax / step) * step;
+  const ticks = [];
+  for (let t = tickMin; t <= tickMax + 0.5; t += step) ticks.push(t);
+
+  // Étiquettes de dates (axe X) selon la période
+  const clean = (s) => s.replace(".", "");
+  const xticks = [];
+  if (periode === "7j") {
+    const d0 = new Date(now); d0.setHours(12, 0, 0, 0);
+    for (let i = 6; i >= 0; i--) { const t = d0.getTime() - i * JOUR; xticks.push({ t, label:clean(new Date(t).toLocaleDateString("fr-FR", { weekday:"short" })) }); }
+  } else if (periode === "365j") {
+    const d = new Date(start); d.setDate(1); d.setHours(12, 0, 0, 0);
+    const mois = [];
+    while (d.getTime() <= now) { mois.push(d.getTime()); d.setMonth(d.getMonth() + 1); }
+    const stepM = Math.max(1, Math.ceil(mois.length / 6));
+    mois.filter((_, i) => i % stepM === 0).forEach(t => xticks.push({ t, label:clean(new Date(t).toLocaleDateString("fr-FR", { month:"short" })) }));
+  } else {
+    const N = 5, span = now - start, long = span > 400 * JOUR;
+    for (let i = 0; i < N; i++) {
+      const t = start + span * (i / (N - 1));
+      const label = periode === "30j"
+        ? new Date(t).toLocaleDateString("fr-FR", { day:"numeric", month:"numeric" })
+        : clean(new Date(t).toLocaleDateString("fr-FR", long ? { month:"short", year:"2-digit" } : { day:"numeric", month:"short" }));
+      xticks.push({ t, label });
+    }
+  }
+
+  // Géométrie SVG
+  const XL = 34, XR = 314, YT = 8, YB = 116;
+  const px = (t) => XL + ((t - start) / ((now - start) || 1)) * (XR - XL);
+  const py = (v) => YB - ((v - tickMin) / ((tickMax - tickMin) || 1)) * (YB - YT);
+  const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${px(p.t).toFixed(1)},${py(p.v).toFixed(1)}`).join(" ");
+  const area = `${line} L${px(pts[pts.length - 1].t).toFixed(1)},${YB} L${px(pts[0].t).toFixed(1)},${YB} Z`;
+
+  const variation = Math.round(pts[pts.length - 1].v - pts[0].v);
+  const positif = variation >= 0;
+  const accent = positif ? CJ.green : CJ.red;
+  const gid = "drixgrad-" + periode + "-" + (positif ? "g" : "r");
+
+  return (
+    <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:16 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, fontWeight:800, color:CJ.muted, letterSpacing:1 }}><TrendingUp size={14} color={accent}/> ÉVOLUTION DRIX</div>
+        <span style={{ fontWeight:800, fontSize:15, color:accent }}>{positif ? "+" : ""}{variation} <span style={{ fontSize:10, color:CJ.muted, fontWeight:600 }}>{conf.l.toLowerCase()}</span></span>
+      </div>
+
+      <svg viewBox="0 0 320 140" style={{ width:"100%", height:"auto", display:"block" }} preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={accent} stopOpacity="0.28"/>
+            <stop offset="100%" stopColor={accent} stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+        {ticks.map((t, i) => (
+          <g key={i}>
+            <line x1={XL} y1={py(t)} x2={XR} y2={py(t)} stroke={CJ.border} strokeWidth="0.6" strokeDasharray="2 3"/>
+            <text x={XL - 4} y={py(t) + 3} textAnchor="end" style={{ fill:CJ.muted, fontSize:8, fontWeight:600 }}>{t}</text>
+          </g>
+        ))}
+        <path d={area} fill={`url(#${gid})`}/>
+        <path d={line} fill="none" stroke={accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+        <circle cx={px(pts[pts.length - 1].t)} cy={py(pts[pts.length - 1].v)} r="3.5" fill={accent}/>
+        {xticks.map((x, i) => (
+          <text key={i} x={Math.max(XL, Math.min(XR, px(x.t)))} y={132} textAnchor="middle" style={{ fill:CJ.muted, fontSize:8, fontWeight:600 }}>{x.label}</text>
+        ))}
+      </svg>
+
+      <Onglets/>
+    </div>
+  );
+};
+
 const BtnJ = ({ children, onClick, variant="primary", style={}, disabled=false }) => {
   const variants = {
     primary:{ background:CJ.accent, color:"#fff", border:"none" },
@@ -2364,28 +2496,6 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
     );
   };
 
-  const MiniChart = ({ points, color="#22c55e", height=44 }) => {
-    if (!points || points.length < 2) return null;
-    const w = 200;
-    const min = Math.min(...points) - 10;
-    const max = Math.max(...points) + 10;
-    const toX = i => (i / (points.length - 1)) * w;
-    const toY = v => height - ((v - min) / (max - min || 1)) * (height - 6) - 3;
-    const d = points.map((v,i) => `${i===0?"M":"L"}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" ");
-    return (
-      <svg viewBox={`0 0 ${w} ${height}`} style={{ width:"100%", height }} preserveAspectRatio="none">
-        <defs>
-          <linearGradient id={`grad-${color.replace("#","")}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.25"/>
-            <stop offset="100%" stopColor={color} stopOpacity="0"/>
-          </linearGradient>
-        </defs>
-        <path d={`${d} L${toX(points.length-1)},${height} L${toX(0)},${height} Z`} fill={`url(#grad-${color.replace("#","")})`}/>
-        <path d={d} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <circle cx={toX(points.length-1).toFixed(1)} cy={toY(points[points.length-1]).toFixed(1)} r="4" fill={color}/>
-      </svg>
-    );
-  };
 
   const VDBadge = ({ gagne, size=30 }) => (
     <div style={{ width:size, height:size, borderRadius:"50%", background:gagne?"#16a34a":"#dc2626", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:size*0.42, color:"#fff", flexShrink:0 }}>
@@ -2601,7 +2711,6 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   // Tendance DRIX
   const now = Date.now();
   const var7j = drixMvts.filter(m=>(now-(m.date||0))<7*86400000).reduce((s,m)=>s+(m.variation||0),0);
-  const var30j = drixMvts.filter(m=>(now-(m.date||0))<30*86400000).reduce((s,m)=>s+(m.variation||0),0);
 
   // Style de joueur — déduit des métriques réelles agrégées
   const styleJoueur = (() => {
@@ -2758,7 +2867,6 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   })();
 
   // Chart DRIX
-  const chartPoints = drixMvts.slice(0,20).reverse().map(m=>m.drix_apres||m.drix_avant||1000);
 
   // Comparaison moi
   const maMoy = (() => {
@@ -3502,19 +3610,10 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                 </div>}
           </div>
 
-          {/* 7 ── COURBE DRIX ── */}
-          {chartPoints.length>=2&&(
-            <div style={{...card,...sec(8),marginBottom:10}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <SecLabel icon={TrendingUp} style={{marginBottom:0}}>ÉVOLUTION DRIX</SecLabel>
-                <span style={{fontWeight:800,fontSize:15,color:var7j>=0?CJ.green:CJ.red}}>{var7j>=0?"+":""}{var7j} <span style={{fontSize:10,color:CJ.muted,fontWeight:600}}>7j</span></span>
-              </div>
-              <MiniChart points={chartPoints} color={var7j>=0?"#22c55e":"#ef4444"} height={80}/>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:CJ.muted,marginTop:4}}>
-                <span>{drixMvts.length>0?new Date(drixMvts[drixMvts.length-1].date||0).toLocaleDateString("fr-FR",{day:"numeric",month:"short"}):""}</span>
-                <span>Aujourd'hui</span>
-              </div>
-              <div style={{fontSize:10,color:CJ.muted,marginTop:6,textAlign:"center"}}>{var30j>=0?"+":""}{var30j} DRIX sur 30 jours</div>
+          {/* 7 ── ÉVOLUTION DRIX (onglets période + échelle + dates) ── */}
+          {drixMvts.length>=2&&(
+            <div style={{...sec(8),marginBottom:10}}>
+              <DrixEvolution drixMvts={drixMvts} current={j?.drix ?? drixMvts[0]?.drix_apres ?? 1000}/>
             </div>
           )}
 
@@ -3815,24 +3914,6 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
       </svg>
     );
   };
-  const MiniChart = ({ points, color="#22c55e", height=44 }) => {
-    if (!points || points.length < 2) return null;
-    const w = 200;
-    const min = Math.min(...points) - 10;
-    const max = Math.max(...points) + 10;
-    const toX = i => (i / (points.length - 1)) * w;
-    const toY = v => height - ((v - min) / (max - min || 1)) * (height - 6) - 3;
-    const d = points.map((v,i) => `${i===0?"M":"L"}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" ");
-    const gid = `gradA-${color.replace("#","")}`;
-    return (
-      <svg viewBox={`0 0 ${w} ${height}`} style={{ width:"100%", height }} preserveAspectRatio="none">
-        <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.25"/><stop offset="100%" stopColor={color} stopOpacity="0"/></linearGradient></defs>
-        <path d={`${d} L${toX(points.length-1)},${height} L${toX(0)},${height} Z`} fill={`url(#${gid})`}/>
-        <path d={d} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <circle cx={toX(points.length-1).toFixed(1)} cy={toY(points[points.length-1]).toFixed(1)} r="4" fill={color}/>
-      </svg>
-    );
-  };
   const VDBadge = ({ gagne, size=30 }) => (
     <div style={{ width:size, height:size, borderRadius:"50%", background:gagne?"#16a34a":"#dc2626", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:size*0.42, color:"#fff", flexShrink:0 }}>{gagne?"V":"D"}</div>
   );
@@ -3956,7 +4037,6 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
   // Tendance DRIX
   const now = Date.now();
   const var7j = drixMvts.filter(m=>(now-(m.date||0))<7*86400000).reduce((s,m)=>s+(m.variation||0),0);
-  const var30j = drixMvts.filter(m=>(now-(m.date||0))<30*86400000).reduce((s,m)=>s+(m.variation||0),0);
 
   // Style
   const styleJoueur = (() => {
@@ -4133,7 +4213,6 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
   const ctxParties = (stats?.parties||0)>=50?"Très expérimenté":(stats?.parties||0)>=20?"Expérimenté":(stats?.parties||0)>=8?"Joueur régulier":"Débutant";
   const ctxFinish  = recordFinish>=120?"Niveau élite":recordFinish>=100?"Gros finish":recordFinish>=60?"Bon finish":recordFinish>0?"À améliorer":null;
 
-  const chartPoints = drixMvts.slice(0,20).reverse().map(m=>m.drix_apres||m.drix_avant||1000);
 
   if (!duels.length && !stats) return null;
 
@@ -4265,19 +4344,10 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
             </div>}
       </div>
 
-      {/* 7 ── COURBE DRIX ── */}
-      {chartPoints.length>=2&&(
-        <div style={{...card,...sec(8),marginBottom:10}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <SecLabel icon={TrendingUp} style={{marginBottom:0}}>TON ÉVOLUTION DRIX</SecLabel>
-            <span style={{fontWeight:800,fontSize:15,color:var7j>=0?CJ.green:CJ.red}}>{var7j>=0?"+":""}{var7j} <span style={{fontSize:10,color:CJ.muted,fontWeight:600}}>7j</span></span>
-          </div>
-          <MiniChart points={chartPoints} color={var7j>=0?"#22c55e":"#ef4444"} height={80}/>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:CJ.muted,marginTop:4}}>
-            <span>{drixMvts.length>0?new Date(drixMvts[drixMvts.length-1].date||0).toLocaleDateString("fr-FR",{day:"numeric",month:"short"}):""}</span>
-            <span>Aujourd'hui</span>
-          </div>
-          <div style={{fontSize:10,color:CJ.muted,marginTop:6,textAlign:"center"}}>{var30j>=0?"+":""}{var30j} DRIX sur 30 jours</div>
+      {/* 7 ── ÉVOLUTION DRIX (onglets période + échelle + dates) ── */}
+      {drixMvts.length>=2&&(
+        <div style={{...sec(8),marginBottom:10}}>
+          <DrixEvolution drixMvts={drixMvts} current={drixMvts[0]?.drix_apres ?? 1000}/>
         </div>
       )}
 
