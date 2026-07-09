@@ -1422,15 +1422,18 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
   const [duels, setDuels]         = useState([]);
   const [drixMvts, setDrixMvts]   = useState([]);
   const [classement, setClassement] = useState(null);
+  const [extra, setExtra]         = useState({ tournois:0, bars:0 });
   const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
     Promise.all([
       dbJ.getStats(joueur.id),
       dbJ.getDuels(joueur.id),
-      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=50&select=*`).catch(()=>[]),
+      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=400&select=*`).catch(()=>[]),
       sbJ(`joueurs?order=drix.desc&select=id`).catch(()=>[]),
-    ]).then(([s, d, mvts, allJ]) => {
+      sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
+      sbJ(`presences?joueur_id=eq.${joueur.id}&select=bar_slug`).catch(()=>[]),
+    ]).then(([s, d, mvts, allJ, trn, pres]) => {
       setStats(s);
       setDuels(d||[]);
       setDrixMvts(mvts||[]);
@@ -1438,6 +1441,10 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
         const pos = allJ.findIndex(j => j.id === joueur.id);
         setClassement({ position: pos >= 0 ? pos + 1 : null, total: allJ.length });
       }
+      setExtra({
+        tournois: Array.isArray(trn)  ? new Set(trn.map(t=>t.tournoi_id)).size : 0,
+        bars:     Array.isArray(pres) ? new Set(pres.map(p=>p.bar_slug)).size  : 0,
+      });
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [joueur.id]);
@@ -1526,6 +1533,120 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
   const nemesisCnt = {};
   defaites.forEach(d=>{ const adv=d.challenger_id===joueur.id?d.defie_pseudo:d.challenger_pseudo; nemesisCnt[adv]=(nemesisCnt[adv]||0)+1; });
   const nemesis = Object.entries(nemesisCnt).sort((a,b)=>b[1]-a[1])[0];
+
+  // ══ STATISTIQUES AVANCÉES (calculées à la volée ; affichées seulement si dispo) ══
+  const isMine     = (d) => d.challenger_id === joueur.id;
+  const advOf      = (d) => isMine(d) ? d.defie_pseudo : d.challenger_pseudo;
+  const myMoy      = (d) => { const v = parseFloat(isMine(d) ? d.score_challenger : d.score_defie); return isNaN(v) ? null : v; };
+  const myLegs     = (d) => isMine(d) ? d.score_manches_challenger : d.score_manches_defie;
+  const oppLegs    = (d) => isMine(d) ? d.score_manches_defie : d.score_manches_challenger;
+  const myPseudoIn = (d) => isMine(d) ? (d.challenger_pseudo || joueur.pseudo) : (d.defie_pseudo || joueur.pseudo);
+  const wonManche  = (d, m) => m.winner === myPseudoIn(d) || m.winner === joueur.pseudo;
+  const jourKey    = (t) => { const dt = new Date(t); return dt.getFullYear()+"-"+dt.getMonth()+"-"+dt.getDate(); };
+  const moisKey    = (t) => { const dt = new Date(t); return dt.getFullYear()+"-"+dt.getMonth(); };
+  const dayAvg     = (arr) => { const v = arr.filter(x => x != null && x > 0); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null; };
+  const fmtDuree   = (min) => min >= 60 ? `${Math.floor(min/60)}h${String(min%60).padStart(2,"0")}` : `${min} min`;
+
+  // Séries de défaites (la série V = meilleureSerieW déjà calculée)
+  let meilleureSerieL = 0, tmpL = 0;
+  sortedChron.forEach(d => { if (d.gagnant_id !== joueur.id) { tmpL++; meilleureSerieL = Math.max(meilleureSerieL, tmpL); } else tmpL = 0; });
+
+  // Moyennes par partie + seuils + par jour/mois + progression 30j
+  const moyParPartie = termines.map(myMoy).filter(v => v != null && v > 0);
+  const meilleureMoyPartie = moyParPartie.length ? Math.max(...moyParPartie) : null;
+  const nbMoy = (seuil) => moyParPartie.filter(v => v >= seuil).length;
+  const parJourMoy = {}, parMoisMoy = {};
+  termines.forEach(d => { if (!d.date) return; const mo = myMoy(d);
+    (parJourMoy[jourKey(d.date)] = parJourMoy[jourKey(d.date)] || []).push(mo);
+    (parMoisMoy[moisKey(d.date)] = parMoisMoy[moisKey(d.date)] || { moys:[], t:d.date }).moys.push(mo);
+  });
+  let meilleureMoyJour = null;
+  Object.values(parJourMoy).forEach(arr => { const a = dayAvg(arr); if (a != null) meilleureMoyJour = Math.max(meilleureMoyJour || 0, a); });
+  let meilleurMois = null;
+  Object.values(parMoisMoy).forEach(({ moys, t }) => { const a = dayAvg(moys); if (a != null && a > (meilleurMois?.avg || 0)) meilleurMois = { avg:a, label:new Date(t).toLocaleDateString("fr-FR",{month:"long"}) }; });
+  const moy30     = dayAvg(termines.filter(d => (now-(d.date||0)) < monthMs).map(myMoy));
+  const moy30prev = dayAvg(termines.filter(d => { const a = now-(d.date||0); return a >= monthMs && a < 2*monthMs; }).map(myMoy));
+  const progMoy30 = (moy30 != null && moy30prev != null) ? +(moy30 - moy30prev).toFixed(1) : null;
+
+  // Scoring / Finishes avancés (par duel)
+  let totalVolees = 0, totalPoints = 0, record180Partie = 0, record100Partie = 0;
+  let totalFinishes = 0, sommeFinishes = 0, recordFinishPartie = 0, plusGrosFinishMois = 0;
+  let checkout30A = 0, checkout30S = 0;
+  termines.forEach(d => {
+    let d180 = 0, d100 = 0, dFin = 0;
+    const recent = (now-(d.date||0)) < monthMs;
+    (d.manches_detail||[]).forEach(m => {
+      const w = wonManche(d, m);
+      const vol = w ? (m.winner_volees||0) : (m.loser_volees||0);
+      const moy = w ? (m.winner_moy||0)    : (m.loser_moy||0);
+      totalVolees += vol; totalPoints += moy * vol;
+      d180 += w ? (m.winner_180||0)     : (m.loser_180||0);
+      d100 += w ? (m.winner_100plus||0) : (m.loser_100plus||0);
+      if (w && (m.winner_finish||0) > 0) { totalFinishes++; sommeFinishes += m.winner_finish; dFin++; if (recent) plusGrosFinishMois = Math.max(plusGrosFinishMois, m.winner_finish); }
+      const att = w ? (m.winner_checkout_attempts||0) : (m.loser_checkout_attempts||0);
+      if (recent && att > 0) { checkout30A += att; if (w) checkout30S++; }
+    });
+    record180Partie = Math.max(record180Partie, d180);
+    record100Partie = Math.max(record100Partie, d100);
+    recordFinishPartie = Math.max(recordFinishPartie, dFin);
+  });
+  const scoreMoyVolee = totalVolees > 0 ? (totalPoints/totalVolees).toFixed(1) : null;
+  const pct100 = (hasScoring && totalVolees > 0) ? Math.round((nb100/totalVolees)*100) : null;
+  const pct140 = (hasScoring && totalVolees > 0) ? Math.round((nb140/totalVolees)*100) : null;
+  const finishMoyen = totalFinishes > 0 ? Math.round(sommeFinishes/totalFinishes) : null;
+  const checkout30  = checkout30A > 0 ? Math.round((checkout30S/checkout30A)*100) : null;
+
+  // Duels avancés
+  const winsByOpp = {}, invaincu = {}, faced = new Set(), beaten = new Set();
+  let revenant = 0, remonteeMax = 0, dernierLegW = 0, dernierLegL = 0;
+  termines.forEach(d => {
+    const adv = advOf(d), won = d.gagnant_id === joueur.id;
+    faced.add(adv);
+    if (!invaincu[adv]) invaincu[adv] = { w:0, t:0 };
+    invaincu[adv].t++;
+    if (won) { winsByOpp[adv] = (winsByOpp[adv]||0)+1; beaten.add(adv); invaincu[adv].w++; }
+    const ml = myLegs(d), ol = oppLegs(d);
+    if (ml != null && ol != null) { const tgt = Math.max(ml, ol);
+      if (won  && ol === tgt-1 && tgt > 1) dernierLegW++;
+      if (!won && ml === tgt-1 && tgt > 1) dernierLegL++;
+    }
+    if (won) {
+      const md = d.manches_detail || [];
+      if (md.length && !wonManche(d, md[0])) revenant++;
+      let myL = 0, opL = 0, deficit = 0;
+      md.forEach(m => { if (wonManche(d, m)) myL++; else opL++; deficit = Math.max(deficit, opL - myL); });
+      remonteeMax = Math.max(remonteeMax, deficit);
+    }
+  });
+  const battuLePlus = Object.entries(winsByOpp).sort((a,b)=>b[1]-a[1])[0];
+  const advDiff = faced.size, advBattus = beaten.size;
+  const cauchemar = Object.values(invaincu).filter(v => v.t >= 5 && v.w === v.t).length;
+
+  // DRIX avancé
+  const drixMax = drixMvts.length ? Math.max(joueur.drix||1000, ...drixMvts.map(m => Math.max(m.drix_apres||0, m.drix_avant||0))) : (joueur.drix||1000);
+  const parJourDrix = {}, parMoisDrix = {};
+  drixMvts.forEach(m => { if (!m.date) return; parJourDrix[jourKey(m.date)] = (parJourDrix[jourKey(m.date)]||0)+(m.variation||0); parMoisDrix[moisKey(m.date)] = (parMoisDrix[moisKey(m.date)]||0)+(m.variation||0); });
+  const jVals = Object.values(parJourDrix), mVals = Object.values(parMoisDrix);
+  const bestJourDrix  = jVals.length ? Math.max(...jVals) : null;
+  const worstJourDrix = jVals.length ? Math.min(...jVals) : null;
+  const bestMoisDrix  = mVals.length ? Math.max(...mVals) : null;
+
+  // Activité
+  const totalLegs = termines.reduce((s,d) => s + ((myLegs(d)||0) + (oppLegs(d)||0)), 0) || manchesJouees;
+  const tempsEstimeMin = Math.round((totalVolees * 22) / 60); // ~22 s par volée
+  const joursSem = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+  const dowCnt = [0,0,0,0,0,0,0], hourCnt = new Array(24).fill(0);
+  termines.forEach(d => { if (!d.date) return; const dt = new Date(d.date); dowCnt[dt.getDay()]++; hourCnt[dt.getHours()]++; });
+  const bestDow  = dowCnt.some(c=>c>0)  ? joursSem[dowCnt.indexOf(Math.max(...dowCnt))] : null;
+  const bestHour = hourCnt.some(c=>c>0) ? hourCnt.indexOf(Math.max(...hourCnt)) : null;
+  const dts = termines.map(d => d.date).filter(Boolean).sort((a,b)=>a-b);
+  let sessStart = null, prevT = null, longestSession = 0;
+  dts.forEach(t => { if (prevT == null || t-prevT > 90*60000) sessStart = t; longestSession = Math.max(longestSession, t - sessStart); prevT = t; });
+  const longestSessionMin = Math.round(longestSession/60000);
+  const daySet = new Set(dts.map(t => jourKey(t)));
+  let streakJours = 0; { const d0 = new Date(); d0.setHours(12,0,0,0); if (!daySet.has(jourKey(d0.getTime()))) d0.setDate(d0.getDate()-1); while (daySet.has(jourKey(d0.getTime()))) { streakJours++; d0.setDate(d0.getDate()-1); } }
+
+  const nbBadgesStats = getBadgesStored(joueur.id).size;
 
   // ── Styles & composants premium ───────────────────────────────────────────
   const card = { background:"#16161c", border:"1px solid #ffffff10", borderRadius:16, boxShadow:"0 4px 16px #00000040, inset 0 1px 0 #ffffff08" };
@@ -1662,6 +1783,11 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
           <StatCard i={0} label="Parties" value={stats?.parties??0} color={CJ.blue}/>
           <StatCard i={1} label="Ratio V/D" value={stats?.defaites>0?(stats.victoires/stats.defaites).toFixed(1):"∞"} color={CJ.accent}/>
           <StatCard i={2} label="Série actuelle" value={serieActuelle>0?(serieType==="win"?`${serieActuelle}🔥`:`${serieActuelle}💔`):"—"} color={serieType==="win"?CJ.green:CJ.red}/>
+          {meilleureSerieW>0 && <StatCard i={3} label="Plus longue série V" value={`${meilleureSerieW}🔥`} color={CJ.green}/>}
+          {meilleureSerieL>0 && <StatCard i={4} label="Plus longue série D" value={`${meilleureSerieL}💧`} color={CJ.red}/>}
+          {remonteeMax>0 && <StatCard i={5} label="Plus grosse remontée" value={remonteeMax} sub="manches menées" color={CJ.yellow}/>}
+          {dernierLegW>0 && <StatCard i={6} label="Gagnés au dernier leg" value={dernierLegW} color={CJ.green}/>}
+          {dernierLegL>0 && <StatCard i={7} label="Perdus au dernier leg" value={dernierLegL} color={CJ.red}/>}
         </div>
       </div>
 
@@ -1675,6 +1801,14 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
           <StatCard i={0} label="Aujourd'hui"   value={moyenneJour??    "—"} color={CJ.blue} sub={nbJour>0?`${nbJour} match${nbJour>1?"s":""}`:null}/>
           <StatCard i={1} label="Cette semaine" value={moyenneSemaine?? "—"} color={CJ.blue} sub={nbSemaine>0?`${nbSemaine} match${nbSemaine>1?"s":""}`:null}/>
           <StatCard i={2} label="Ce mois"       value={moyenneMois??    "—"} color={CJ.blue} sub={nbMois>0?`${nbMois} match${nbMois>1?"s":""}`:null}/>
+          {meilleureMoyPartie!=null && <StatCard i={3} label="Meilleure (1 partie)" value={meilleureMoyPartie.toFixed(1)} color={CJ.green}/>}
+          {meilleureMoyJour!=null && <StatCard i={4} label="Meilleure (1 jour)" value={meilleureMoyJour.toFixed(1)} color={CJ.green}/>}
+          {meilleurMois && <StatCard i={5} label="Meilleur mois" value={meilleurMois.avg.toFixed(1)} color={CJ.yellow} sub={meilleurMois.label}/>}
+          {progMoy30!=null && <StatCard i={6} label="Progression 30j" value={`${progMoy30>=0?"+":""}${progMoy30}`} color={progMoy30>=0?CJ.green:CJ.red}/>}
+          {nbMoy(60)>0 && <StatCard i={7} label="Parties 60+" value={nbMoy(60)} color={CJ.blue}/>}
+          {nbMoy(70)>0 && <StatCard i={8} label="Parties 70+" value={nbMoy(70)} color={CJ.blue}/>}
+          {nbMoy(80)>0 && <StatCard i={9} label="Parties 80+" value={nbMoy(80)} color={CJ.accent}/>}
+          {nbMoy(100)>0 && <StatCard i={10} label="Parties 100+" value={nbMoy(100)} color="#fbbf24"/>}
         </div>
       </div>
 
@@ -1689,6 +1823,13 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
           <StatCard i={3} label="80+"  value={hasScoring ? nb80   : "—"} color={CJ.muted} bientot={!hasScoring}/>
           <StatCard i={4} label="60+"  value={hasScoring ? nb60   : "—"} color={CJ.muted} bientot={!hasScoring}/>
           <StatCard i={5} label="Plus gros score" value={hasScoring && plusGrosScore>0 ? plusGrosScore : "—"} color={CJ.accent} bientot={!hasScoring}/>
+          {totalPoints>0 && <StatCard i={6} label="Points marqués" value={Math.round(totalPoints).toLocaleString("fr-FR")} color={CJ.accent}/>}
+          {totalVolees>0 && <StatCard i={7} label="Volées jouées" value={totalVolees.toLocaleString("fr-FR")} color={CJ.muted}/>}
+          {scoreMoyVolee!=null && <StatCard i={8} label="Moy / volée" value={scoreMoyVolee} color={CJ.blue}/>}
+          {pct100!=null && <StatCard i={9} label="Volées 100+" value={`${pct100}%`} color={CJ.yellow}/>}
+          {pct140!=null && <StatCard i={10} label="Volées 140+" value={`${pct140}%`} color={CJ.accent}/>}
+          {record180Partie>0 && <StatCard i={11} label="Record 180 / partie" value={record180Partie} color="#fbbf24"/>}
+          {record100Partie>0 && <StatCard i={12} label="Record 100+ / partie" value={record100Partie} color={CJ.yellow}/>}
         </div>
       </div>
 
@@ -1709,6 +1850,15 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
             <StatCard i={1} label="Finishes 100+" value={hasScoring ? nbFinishes100 : "—"} color={CJ.yellow} bientot={!hasScoring}/>
           </div>
         )}
+        {(totalFinishes>0 || plusGrosFinishMois>0 || checkout30!=null) && (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:10 }}>
+            {totalFinishes>0 && <StatCard i={0} label="Total finishes" value={totalFinishes} color={CJ.purple}/>}
+            {finishMoyen!=null && <StatCard i={1} label="Finish moyen" value={finishMoyen} color={CJ.purple}/>}
+            {recordFinishPartie>0 && <StatCard i={2} label="Record finishes / partie" value={recordFinishPartie} color={CJ.green}/>}
+            {plusGrosFinishMois>0 && <StatCard i={3} label="Plus gros finish (mois)" value={plusGrosFinishMois} color={CJ.yellow}/>}
+            {checkout30!=null && <StatCard i={4} label="Checkout 30j" value={`${checkout30}%`} color={CJ.accent}/>}
+          </div>
+        )}
       </div>
 
       {/* ── DUELS ── */}
@@ -1721,6 +1871,9 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
           <StatCard i={3} label="Max DRIX perdu"  value={maxPerte?`${maxPerte}`:"—"} color={CJ.red}/>
           <StatCard i={4} label="Meilleure série" value={meilleureSerieW>0?`${meilleureSerieW}W`:"—"} color={CJ.green} bientot={termines.length===0}/>
           <StatCard i={5} label="Nemesis"         value={nemesis?nemesis[0]:"—"} sub={nemesis?`${nemesis[1]} défaite${nemesis[1]>1?"s":""}`:null} color={CJ.red} bientot={defaites.length===0}/>
+          {battuLePlus && <StatCard i={6} label="Tu bats le plus" value={battuLePlus[0]} sub={`${battuLePlus[1]} victoire${battuLePlus[1]>1?"s":""}`} color={CJ.green}/>}
+          {advDiff>0 && <StatCard i={7} label="Adversaires affrontés" value={advDiff} color={CJ.accent}/>}
+          {advBattus>0 && <StatCard i={8} label="Adversaires battus" value={advBattus} color={CJ.green}/>}
         </div>
       </div>
 
@@ -1733,6 +1886,12 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
               <DrixEvolution drixMvts={drixMvts} current={joueur.drix||1000}/>
             </div>
           )}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:12 }}>
+            <StatCard i={0} label="DRIX max atteint" value={drixMax} color={CJ.yellow}/>
+            {bestJourDrix>0 && <StatCard i={1} label="Meilleur jour" value={`+${bestJourDrix}`} color={CJ.green}/>}
+            {bestMoisDrix>0 && <StatCard i={2} label="Meilleur mois" value={`+${bestMoisDrix}`} color={CJ.green}/>}
+            {worstJourDrix<0 && <StatCard i={3} label="Pire jour" value={worstJourDrix} color={CJ.red}/>}
+          </div>
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             {drixMvts.slice(0,10).map((m,i)=>{
               const win = m.resultat === "victoire";
@@ -1760,6 +1919,71 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
           </div>
         </div>
       )}
+
+      {/* ── ACTIVITÉ ── */}
+      {termines.length > 0 && (
+        <div style={secBox(CJ.blue)}>
+          <SectionTitle icon={Clock} color={CJ.blue}>Activité</SectionTitle>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+            <StatCard i={0} label="Parties" value={termines.length} color={CJ.blue}/>
+            <StatCard i={1} label="Manches" value={manchesJouees} color={CJ.accent}/>
+            <StatCard i={2} label="Legs" value={totalLegs} color={CJ.accent}/>
+            {tempsEstimeMin>0 && <StatCard i={3} label="Temps de jeu (est.)" value={fmtDuree(tempsEstimeMin)} color={CJ.green}/>}
+            {bestDow && <StatCard i={4} label="Jour favori" value={bestDow} color={CJ.yellow}/>}
+            {bestHour!=null && <StatCard i={5} label="Heure favorite" value={`${bestHour}h`} color={CJ.yellow}/>}
+            {longestSessionMin>0 && <StatCard i={6} label="Plus longue session" value={fmtDuree(longestSessionMin)} color={CJ.purple}/>}
+            {streakJours>0 && <StatCard i={7} label="Jours consécutifs" value={`${streakJours}🔥`} color={CJ.green}/>}
+          </div>
+        </div>
+      )}
+
+      {/* ── RECORDS ── */}
+      {(hasScoring || termines.length>0) && (
+        <div style={secBox(CJ.yellow)}>
+          <SectionTitle icon={Trophy} color={CJ.yellow}>Records</SectionTitle>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+            {meilleureMoyPartie!=null && <StatCard i={0} label="Record moyenne" value={meilleureMoyPartie.toFixed(1)} color={CJ.blue}/>}
+            {plusGrosScore>0 && <StatCard i={1} label="Record score" value={plusGrosScore} color={CJ.accent}/>}
+            {plusGrosFinish>0 && <StatCard i={2} label="Record finish" value={plusGrosFinish} color={CJ.purple}/>}
+            {record180Partie>0 && <StatCard i={3} label="Record 180 / partie" value={record180Partie} color="#fbbf24"/>}
+            {meilleureSerieW>0 && <StatCard i={4} label="Record victoires" value={`${meilleureSerieW}🔥`} color={CJ.green}/>}
+            <StatCard i={5} label="Record DRIX" value={drixMax} color={CJ.yellow}/>
+            {bestJourDrix>0 && <StatCard i={6} label="Record gain / jour" value={`+${bestJourDrix}`} color={CJ.green}/>}
+          </div>
+        </div>
+      )}
+
+      {/* ── STATISTIQUES FUN ── */}
+      {(() => {
+        const fun = [
+          tempsEstimeMin>0     && { e:"🏃", nom:"Marathonien",       desc:"Temps total estimé de jeu",              val:fmtDuree(tempsEstimeMin), c:CJ.green },
+          termines.length>0    && { e:"🔥", nom:"L'Acharné",         desc:"Matchs joués",                           val:termines.length,          c:CJ.accent },
+          revenant>0           && { e:"💪", nom:"Le Revenant",       desc:"Victoires après une 1re manche perdue",  val:revenant,                 c:CJ.yellow },
+          nbBadgesStats>0      && { e:"🏅", nom:"Le Collectionneur", desc:"Badges débloqués",                       val:nbBadgesStats,            c:CJ.yellow },
+          extra.bars>0         && { e:"🍻", nom:"Le Globe-trotter",  desc:"Bars différents visités",                val:extra.bars,               c:CJ.blue },
+          extra.tournois>0     && { e:"🏆", nom:"Le Compétiteur",    desc:"Tournois joués",                         val:extra.tournois,           c:CJ.purple },
+          cauchemar>0          && { e:"😈", nom:"Le Cauchemar",      desc:"Joueurs jamais battu par toi (5+ matchs)", val:cauchemar,              c:CJ.red },
+          advBattus>0          && { e:"👑", nom:"Le Bourreau",       desc:"Joueurs différents battus",              val:advBattus,                c:CJ.green },
+        ].filter(Boolean);
+        if (!fun.length) return null;
+        return (
+          <div style={secBox(CJ.purple)}>
+            <SectionTitle icon={Sparkles} color={CJ.purple}>Statistiques fun</SectionTitle>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {fun.map((f,i)=>(
+                <div key={i} style={{ ...card, display:"flex", alignItems:"center", gap:12, padding:"11px 13px", animation:"dpStatIn .4s ease both", animationDelay:`${(0.03*i).toFixed(2)}s` }}>
+                  <div style={{ flexShrink:0, width:42, height:42, borderRadius:12, background:`${f.c}1a`, border:`1px solid ${f.c}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:21 }}>{f.e}</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13.5, fontWeight:800, color:CJ.text }}>{f.nom}</div>
+                    <div style={{ fontSize:11, color:CJ.muted }}>{f.desc}</div>
+                  </div>
+                  <div style={{ fontSize:20, fontWeight:900, color:f.c, whiteSpace:"nowrap", flexShrink:0 }}>{f.val}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
