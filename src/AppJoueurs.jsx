@@ -1527,22 +1527,56 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
   defaites.forEach(d=>{ const adv=d.challenger_id===joueur.id?d.defie_pseudo:d.challenger_pseudo; nemesisCnt[adv]=(nemesisCnt[adv]||0)+1; });
   const nemesis = Object.entries(nemesisCnt).sort((a,b)=>b[1]-a[1])[0];
 
-  // Graphique DRIX
-  const chartPts = [...drixMvts].reverse().map(m=>m.drix_apres||m.drix_avant||1000);
-  const drixTrend = chartPts.length>=2 ? chartPts[chartPts.length-1]-chartPts[0] : 0;
+  // ── Styles & composants premium ───────────────────────────────────────────
+  const card = { background:"#16161c", border:"1px solid #ffffff10", borderRadius:16, boxShadow:"0 4px 16px #00000040, inset 0 1px 0 #ffffff08" };
+  const secBox = (tint) => ({ background:`linear-gradient(180deg,${tint}0d,transparent 70%)`, border:`1px solid ${tint}22`, borderRadius:20, padding:"14px 12px 16px", marginBottom:14, animation:"dpStatIn .45s ease both" });
 
-  // ── Composants internes ───────────────────────────────────────────────────
-  const StatCard = ({ label, value, color=CJ.text, sub=null, bientot=false }) => (
-    <div style={{ background:"#1a1a1a", border:`1px solid ${CJ.border}`, borderRadius:10, padding:"12px 10px", position:"relative" }}>
-      {bientot && <span style={{ position:"absolute",top:6,right:6,background:"#1a1a1a",border:`1px solid ${CJ.border}`,borderRadius:4,fontSize:9,color:CJ.muted,padding:"1px 5px" }}>bientôt</span>}
-      <div style={{ fontSize:22, fontWeight:900, color, marginBottom:2 }}>{bientot?"—":value}</div>
-      <div style={{ fontSize:12, color:CJ.muted }}>{label}</div>
-      {sub && !bientot && <div style={{ fontSize:11, color:CJ.muted, marginTop:1 }}>{sub}</div>}
+  const StatCard = ({ label, value, color=CJ.text, sub=null, bientot=false, i=0 }) => (
+    <div style={{ ...card, padding:"13px 12px 12px 14px", position:"relative", overflow:"hidden", animation:"dpStatIn .4s ease both", animationDelay:`${(0.03*i).toFixed(2)}s` }}>
+      <div aria-hidden style={{ position:"absolute", left:0, top:0, bottom:0, width:3, background:bientot?"#ffffff12":color }}/>
+      {bientot && <span style={{ position:"absolute",top:7,right:7,background:"#ffffff08",border:`1px solid ${CJ.border}`,borderRadius:5,fontSize:9,color:CJ.muted,padding:"1px 5px" }}>bientôt</span>}
+      <div style={{ fontSize:23, fontWeight:900, color:bientot?CJ.muted:color, marginBottom:2, lineHeight:1.05 }}>{bientot?"—":value}</div>
+      <div style={{ fontSize:11.5, color:CJ.muted, fontWeight:600 }}>{label}</div>
+      {sub && !bientot && <div style={{ fontSize:10.5, color:"#64748b", marginTop:1 }}>{sub}</div>}
     </div>
   );
-  const SectionTitle = ({ icon: Icon, children }) => (
-    <h3 style={{ fontWeight:800, fontSize:14, color:CJ.text, marginBottom:10, marginTop:18, letterSpacing:0.5, display:"flex", alignItems:"center", gap:6 }}>
-      {Icon && <Icon size={14} color={CJ.accent}/>}
+
+  const WideStat = ({ icon:Icon, label, value, color=CJ.text, sub=null, big=false }) => (
+    <div style={{ ...card, padding:"15px 16px", display:"flex", alignItems:"center", gap:14, position:"relative", overflow:"hidden", animation:"dpStatIn .45s ease both" }}>
+      <div aria-hidden style={{ position:"absolute", right:-16, bottom:-16, opacity:.06, pointerEvents:"none" }}><Icon size={82} color={color}/></div>
+      <div style={{ flexShrink:0, width:44, height:44, borderRadius:12, background:`${color}1f`, border:`1px solid ${color}55`, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 0 12px ${color}33` }}><Icon size={22} color={color}/></div>
+      <div style={{ flex:1, minWidth:0, position:"relative" }}>
+        <div style={{ fontSize:11.5, color:CJ.muted, fontWeight:700, letterSpacing:.3 }}>{label}</div>
+        <div style={{ fontSize:big?34:26, fontWeight:900, color, lineHeight:1.05, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{value}</div>
+        {sub && <div style={{ fontSize:10.5, color:"#64748b", marginTop:1 }}>{sub}</div>}
+      </div>
+    </div>
+  );
+
+  const CircularStat = ({ pct, label, sub, color, size=98 }) => {
+    const sw=9, r=(size-sw)/2, cc=2*Math.PI*r, off=cc*(1-Math.max(0,Math.min(100,pct))/100);
+    return (
+      <div style={{ ...card, padding:"14px 10px 12px", display:"flex", flexDirection:"column", alignItems:"center", gap:6, animation:"dpStatIn .45s ease both" }}>
+        <div style={{ position:"relative", width:size, height:size }}>
+          <svg width={size} height={size} style={{ transform:"rotate(-90deg)" }}>
+            <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#ffffff12" strokeWidth={sw}/>
+            <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeDasharray={cc} strokeDashoffset={off} style={{ filter:`drop-shadow(0 0 4px ${color}99)` }}>
+              <animate attributeName="stroke-dashoffset" from={cc} to={off} dur="1s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.8 0.2 1"/>
+            </circle>
+          </svg>
+          <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <span style={{ fontSize:24, fontWeight:900, color }}>{pct}%</span>
+          </div>
+        </div>
+        <div style={{ fontSize:12, color:CJ.text, fontWeight:800 }}>{label}</div>
+        {sub && <div style={{ fontSize:10, color:CJ.muted, textAlign:"center" }}>{sub}</div>}
+      </div>
+    );
+  };
+
+  const SectionTitle = ({ icon: Icon, color=CJ.accent, children }) => (
+    <h3 style={{ fontWeight:900, fontSize:12.5, color:CJ.text, margin:"0 0 12px", letterSpacing:.7, textTransform:"uppercase", display:"flex", alignItems:"center", gap:8 }}>
+      <span style={{ width:26, height:26, borderRadius:8, background:`${color}22`, border:`1px solid ${color}55`, display:"inline-flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{Icon && <Icon size={14} color={color}/>}</span>
       {children}
     </h3>
   );
@@ -1553,137 +1587,178 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
     <div style={{ maxWidth:860, margin:"0 auto", padding:"16px 16px 40px" }}>
       <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}><ArrowLeft size={16}/> Retour</button>
 
-      {/* Hero DRIX */}
-      <div style={{ background:"#1a1a1a",border:`1px solid ${drixColor}44`,borderRadius:16,padding:20,marginBottom:4,display:"flex",alignItems:"center",gap:16 }}>
-        <div style={{ fontSize:48 }}>{drixEmoji}</div>
-        <div style={{ flex:1 }}>
-          <div style={{ fontSize:13,color:CJ.muted,marginBottom:2 }}>DRIX actuel</div>
-          <div style={{ fontSize:42,fontWeight:900,color:drixColor,lineHeight:1 }}>{joueur.drix||1000}</div>
-          <div style={{ fontSize:13,color:drixColor,marginTop:3 }}>{drixTitre}</div>
+      <style>{`
+        @keyframes dpStatIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes dpHeroGlow { 0%,100%{box-shadow:0 0 28px #f9731622, inset 0 0 44px #f9731610} 50%{box-shadow:0 0 48px #22c55e2b, inset 0 0 66px #22c55e14} }
+        @keyframes dpBarFill { from{width:0} }
+      `}</style>
+
+      {/* ── HERO DRIX ── */}
+      {(() => {
+        const prog = getProgression(joueur.drix||1000);
+        return (
+          <div style={{ position:"relative", overflow:"hidden", borderRadius:22, padding:"22px 20px", marginBottom:12,
+            background:"radial-gradient(130% 130% at 100% 0%, #1d1d28 0%, #101017 55%, #0b0b10 100%)",
+            border:`1px solid ${drixColor}44`, animation:"dpHeroGlow 5s ease-in-out infinite, dpStatIn .5s ease both" }}>
+            <div aria-hidden style={{ position:"absolute", top:-45, right:-35, width:190, height:190, borderRadius:"50%", background:`radial-gradient(circle, ${drixColor}38 0%, transparent 65%)`, pointerEvents:"none" }}/>
+            <div style={{ display:"flex", alignItems:"center", gap:15, position:"relative" }}>
+              <div style={{ flexShrink:0, width:64, height:64, borderRadius:18, background:`linear-gradient(135deg,${drixColor}38,${drixColor}12)`, border:`1px solid ${drixColor}66`, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 0 20px ${drixColor}44` }}>
+                <RankIcon drix={joueur.drix||1000} size={34}/>
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:11, color:CJ.muted, fontWeight:700, letterSpacing:.6 }}>DRIX ACTUEL</div>
+                <div style={{ fontSize:56, fontWeight:900, color:drixColor, lineHeight:1, textShadow:`0 0 26px ${drixColor}55` }}>{joueur.drix||1000}</div>
+                <div style={{ fontSize:14, color:drixColor, fontWeight:800, marginTop:2, display:"flex", alignItems:"center", gap:5 }}>{drixEmoji} {drixTitre}</div>
+              </div>
+              {classement?.position && (
+                <div style={{ flexShrink:0, textAlign:"center", background:`linear-gradient(135deg,${CJ.yellow}26,${CJ.yellow}08)`, border:`1px solid ${CJ.yellow}55`, borderRadius:16, padding:"12px 14px", boxShadow:`0 0 16px ${CJ.yellow}22` }}>
+                  <div style={{ fontSize:10, color:CJ.yellow, fontWeight:800, letterSpacing:.5 }}>RANG</div>
+                  <div style={{ fontSize:30, fontWeight:900, color:CJ.yellow, lineHeight:1 }}>#{classement.position}</div>
+                  <div style={{ fontSize:10, color:CJ.muted }}>/ {classement.total}</div>
+                </div>
+              )}
+            </div>
+            {prog.prochain && (
+              <div style={{ marginTop:16, position:"relative" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:10.5, color:CJ.muted, marginBottom:5, fontWeight:600 }}>
+                  <span>{drixTitre}</span>
+                  <span>Plus que <b style={{ color:drixColor }}>{prog.restant}</b> → {prog.prochain.titre}</span>
+                </div>
+                <div style={{ height:8, borderRadius:6, background:"#ffffff10", overflow:"hidden" }}>
+                  <div style={{ width:`${prog.pct}%`, height:"100%", borderRadius:6, background:`linear-gradient(90deg,${drixColor},${prog.prochain.color})`, boxShadow:`0 0 10px ${drixColor}88`, animation:"dpBarFill 1.1s ease both" }}/>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ── BADGES ── */}
+      {(() => {
+        const nbBadges = getBadgesStored(joueur.id).size;
+        return (
+          <div onClick={()=>setPage("profil-badges")} style={{ ...card, display:"flex", alignItems:"center", gap:12, padding:"12px 14px", marginBottom:16, cursor:"pointer", animation:"dpStatIn .5s ease both" }}>
+            <div style={{ flexShrink:0, width:38, height:38, borderRadius:11, background:`${CJ.yellow}1f`, border:`1px solid ${CJ.yellow}55`, display:"flex", alignItems:"center", justifyContent:"center" }}><Trophy size={20} color={CJ.yellow}/></div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:14, fontWeight:800, color:CJ.text }}>{nbBadges} badge{nbBadges>1?"s":""} débloqué{nbBadges>1?"s":""}</div>
+              <div style={{ fontSize:11, color:CJ.muted }}>Ta collection de trophées</div>
+            </div>
+            <span style={{ fontSize:12.5, color:CJ.yellow, fontWeight:800, whiteSpace:"nowrap" }}>Voir tous →</span>
+          </div>
+        );
+      })()}
+
+      {/* ── PERFORMANCE ── */}
+      <div style={secBox(CJ.green)}>
+        <SectionTitle icon={Trophy} color={CJ.green}>Performance</SectionTitle>
+        <div style={{ display:"grid", gridTemplateColumns:"auto 1fr", gap:10, marginBottom:10 }}>
+          <CircularStat pct={winRate} label="Win Rate" color={CJ.green} sub={`${stats?.victoires??0} V · ${stats?.defaites??0} D`}/>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            <WideStat icon={Check} label="Victoires" value={stats?.victoires??0} color={CJ.green}/>
+            <WideStat icon={X} label="Défaites" value={stats?.defaites??0} color={CJ.red}/>
+          </div>
         </div>
-        {classement?.position && (
-          <div style={{ textAlign:"center",background:"#ffffff0d",borderRadius:12,padding:"10px 16px" }}>
-            <div style={{ fontSize:28,fontWeight:900,color:CJ.yellow }}>#{classement.position}</div>
-            <div style={{ fontSize:10,color:CJ.muted }}>/ {classement.total} joueurs</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+          <StatCard i={0} label="Parties" value={stats?.parties??0} color={CJ.blue}/>
+          <StatCard i={1} label="Ratio V/D" value={stats?.defaites>0?(stats.victoires/stats.defaites).toFixed(1):"∞"} color={CJ.accent}/>
+          <StatCard i={2} label="Série actuelle" value={serieActuelle>0?(serieType==="win"?`${serieActuelle}🔥`:`${serieActuelle}💔`):"—"} color={serieType==="win"?CJ.green:CJ.red}/>
+        </div>
+      </div>
+
+      {/* ── MOYENNES ── */}
+      <div style={secBox(CJ.blue)}>
+        <SectionTitle icon={BarChart2} color={CJ.blue}>Moyennes pts/volée</SectionTitle>
+        <div style={{ marginBottom:10 }}>
+          <WideStat icon={BarChart2} label="Moyenne générale" value={moyenneGenerale?? "—"} color={CJ.blue} big sub={`sur ${termines.length} match${termines.length>1?"s":""}`}/>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+          <StatCard i={0} label="Aujourd'hui"   value={moyenneJour??    "—"} color={CJ.blue} sub={nbJour>0?`${nbJour} match${nbJour>1?"s":""}`:null}/>
+          <StatCard i={1} label="Cette semaine" value={moyenneSemaine?? "—"} color={CJ.blue} sub={nbSemaine>0?`${nbSemaine} match${nbSemaine>1?"s":""}`:null}/>
+          <StatCard i={2} label="Ce mois"       value={moyenneMois??    "—"} color={CJ.blue} sub={nbMois>0?`${nbMois} match${nbMois>1?"s":""}`:null}/>
+        </div>
+      </div>
+
+      {/* ── SCORING ── */}
+      <div style={secBox(CJ.accent)}>
+        <SectionTitle icon={Target} color={CJ.accent}>Scoring</SectionTitle>
+        {!hasScoring && <p style={{ color:CJ.muted,fontSize:11.5,marginBottom:10 }}>Les stats de scoring sont calculées à partir de tes prochains matchs.</p>}
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
+          <StatCard i={0} label="180"  value={hasScoring ? nb180  : "—"} color="#fbbf24" bientot={!hasScoring}/>
+          <StatCard i={1} label="140+" value={hasScoring ? nb140  : "—"} color={CJ.accent} bientot={!hasScoring}/>
+          <StatCard i={2} label="100+" value={hasScoring ? nb100  : "—"} color={CJ.yellow} bientot={!hasScoring}/>
+          <StatCard i={3} label="80+"  value={hasScoring ? nb80   : "—"} color={CJ.muted} bientot={!hasScoring}/>
+          <StatCard i={4} label="60+"  value={hasScoring ? nb60   : "—"} color={CJ.muted} bientot={!hasScoring}/>
+          <StatCard i={5} label="Plus gros score" value={hasScoring && plusGrosScore>0 ? plusGrosScore : "—"} color={CJ.accent} bientot={!hasScoring}/>
+        </div>
+      </div>
+
+      {/* ── FINISHES ── */}
+      <div style={secBox(CJ.purple)}>
+        <SectionTitle icon={Crown} color={CJ.purple}>Finishes</SectionTitle>
+        <div style={{ marginBottom:10 }}>
+          <WideStat icon={Crown} label="Plus gros finish" value={hasScoring && plusGrosFinish>0 ? plusGrosFinish : "—"} color={CJ.purple} big/>
+        </div>
+        {hasCheckout ? (
+          <div style={{ display:"grid", gridTemplateColumns:"auto 1fr", gap:10, alignItems:"center" }}>
+            <CircularStat pct={tauxCheckout} label="Checkout" color={CJ.purple} sub={`${checkoutSuccess}/${checkoutAttempts} tentatives`}/>
+            <WideStat icon={Target} label="Finishes 100+" value={hasScoring ? nbFinishes100 : "—"} color={CJ.yellow}/>
+          </div>
+        ) : (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8 }}>
+            <StatCard i={0} label="Checkout %" value="—" color={CJ.purple} bientot/>
+            <StatCard i={1} label="Finishes 100+" value={hasScoring ? nbFinishes100 : "—"} color={CJ.yellow} bientot={!hasScoring}/>
           </div>
         )}
       </div>
 
-      {/* Performance */}
-      <SectionTitle icon={Target}>Performance</SectionTitle>
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
-        <StatCard label="Victoires"  value={stats?.victoires??0}  color={CJ.green}/>
-        <StatCard label="Défaites"   value={stats?.defaites??0}   color={CJ.red}/>
-        <StatCard label="Parties"    value={stats?.parties??0}    color={CJ.muted}/>
-        <StatCard label="Win Rate"   value={winRate+"%"}          color={CJ.yellow}/>
-        <StatCard label="Ratio V/D"  value={stats?.defaites>0?(stats.victoires/stats.defaites).toFixed(1):"∞"} color={CJ.accent}/>
-        <StatCard label="Série actuelle" value={serieActuelle>0?(serieType==="win"?`${serieActuelle}🔥`:`${serieActuelle}💔`):"—"} color={serieType==="win"?CJ.green:CJ.red}/>
+      {/* ── DUELS ── */}
+      <div style={secBox(CJ.red)}>
+        <SectionTitle icon={Swords} color={CJ.red}>Duels</SectionTitle>
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
+          <StatCard i={0} label="Duels joués"     value={termines.length} color={CJ.accent}/>
+          <StatCard i={1} label="Rival principal" value={rival?rival[0]:"—"} sub={rival?`${rival[1]} match${rival[1]>1?"s":""}`:null} color={CJ.yellow}/>
+          <StatCard i={2} label="Max DRIX gagné"  value={maxGain?`+${maxGain}`:"—"} color={CJ.green}/>
+          <StatCard i={3} label="Max DRIX perdu"  value={maxPerte?`${maxPerte}`:"—"} color={CJ.red}/>
+          <StatCard i={4} label="Meilleure série" value={meilleureSerieW>0?`${meilleureSerieW}W`:"—"} color={CJ.green} bientot={termines.length===0}/>
+          <StatCard i={5} label="Nemesis"         value={nemesis?nemesis[0]:"—"} sub={nemesis?`${nemesis[1]} défaite${nemesis[1]>1?"s":""}`:null} color={CJ.red} bientot={defaites.length===0}/>
+        </div>
       </div>
 
-      {/* Moyennes */}
-      <SectionTitle icon={BarChart2}>Moyennes pts/volée</SectionTitle>
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8 }}>
-        <StatCard label="Générale"        value={moyenneGenerale?? "—"} color={CJ.blue} sub={`sur ${termines.length} match${termines.length>1?"s":""}`}/>
-        <StatCard label="Aujourd'hui"     value={moyenneJour??     "—"} color={CJ.blue} sub={nbJour>0?`${nbJour} match${nbJour>1?"s":""}`:null}/>
-        <StatCard label="Cette semaine"   value={moyenneSemaine??  "—"} color={CJ.blue} sub={nbSemaine>0?`${nbSemaine} match${nbSemaine>1?"s":""}`:null}/>
-        <StatCard label="Ce mois"         value={moyenneMois??     "—"} color={CJ.blue} sub={nbMois>0?`${nbMois} match${nbMois>1?"s":""}`:null}/>
-      </div>
-
-      {/* Scoring */}
-      <SectionTitle icon={Target}>Scoring</SectionTitle>
-      {!hasScoring && <p style={{ color:CJ.muted,fontSize:12,marginBottom:8 }}>Les stats de scoring sont calculées à partir de tes prochains matchs.</p>}
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
-        <StatCard label="180"  value={hasScoring ? nb180  : "—"} color="#f59e0b" bientot={!hasScoring}/>
-        <StatCard label="140+" value={hasScoring ? nb140  : "—"} color={CJ.accent} bientot={!hasScoring}/>
-        <StatCard label="100+" value={hasScoring ? nb100  : "—"} color={CJ.yellow} bientot={!hasScoring}/>
-        <StatCard label="80+"  value={hasScoring ? nb80   : "—"} color={CJ.muted} bientot={!hasScoring}/>
-        <StatCard label="60+"  value={hasScoring ? nb60   : "—"} color={CJ.muted} bientot={!hasScoring}/>
-        <StatCard label="Plus gros score" value={hasScoring && plusGrosScore>0 ? plusGrosScore : "—"} color={CJ.accent} bientot={!hasScoring}/>
-      </div>
-
-      {/* Finishes */}
-      <SectionTitle icon={Crown}>Finishes</SectionTitle>
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
-        <StatCard label="Plus gros finish" value={hasScoring && plusGrosFinish>0 ? plusGrosFinish : "—"} color={CJ.green} bientot={!hasScoring}/>
-        <StatCard label="Finishes 100+"    value={hasScoring ? nbFinishes100 : "—"} color={CJ.yellow} bientot={!hasScoring}/>
-        <StatCard label="Checkout %" value={hasCheckout ? `${tauxCheckout}%` : "—"} color={CJ.accent} sub={hasCheckout?`${checkoutSuccess}/${checkoutAttempts} tentatives`:null} bientot={!hasCheckout}/>
-
-      </div>
-
-      {/* Duels */}
-      <SectionTitle icon={Swords}>Duels</SectionTitle>
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
-        <StatCard label="Duels joués"      value={termines.length}                                                     color={CJ.accent}/>
-        <StatCard label="Rival principal"  value={rival?rival[0]:"—"}   sub={rival?`${rival[1]} match${rival[1]>1?"s":""}`:null} color={CJ.yellow}/>
-        <StatCard label="Max DRIX gagné"   value={maxGain?`+${maxGain}`:"—"}                                           color={CJ.green}/>
-        <StatCard label="Max DRIX perdu"   value={maxPerte?`${maxPerte}`:"—"}                                          color={CJ.red}/>
-        <StatCard label="Meilleure série"  value={meilleureSerieW>0?`${meilleureSerieW}W`:"—"}                         color={CJ.green} bientot={termines.length===0}/>
-        <StatCard label="Nemesis"          value={nemesis?nemesis[0]:"—"} sub={nemesis?`${nemesis[1]} défaite${nemesis[1]>1?"s":""}`:null} color={CJ.red} bientot={defaites.length===0}/>
-      </div>
-
-      {/* Graphique + Historique DRIX */}
+      {/* ── ÉVOLUTION DRIX ── */}
       {drixMvts.length > 0 && (
-        <>
-          <SectionTitle icon={TrendingUp}>Évolution DRIX</SectionTitle>
-          {/* Graphique */}
-          {chartPts.length >= 2 && (
-            <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,padding:"14px 16px",marginBottom:10 }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-                <span style={{ fontSize:12,color:CJ.muted }}>Courbe DRIX ({chartPts.length} mouvements)</span>
-                <span style={{ fontWeight:800,fontSize:14,color:drixTrend>=0?CJ.green:CJ.red }}>
-                  {drixTrend>=0?"+":""}{drixTrend} {drixTrend>=0?"▲":"▼"}
-                </span>
-              </div>
-              {/* SVG inline chart */}
-              {(() => {
-                const h=56, w=300, clr=drixTrend>=0?"#22c55e":"#ef4444";
-                const mn=Math.min(...chartPts)-20, mx=Math.max(...chartPts)+20;
-                const tx=i=>(i/(chartPts.length-1))*w;
-                const ty=v=>h-((v-mn)/(mx-mn||1))*(h-8)-4;
-                const path=chartPts.map((v,i)=>`${i===0?"M":"L"}${tx(i).toFixed(1)},${ty(v).toFixed(1)}`).join(" ");
-                const gradId=`g${drixTrend>=0?"g":"r"}`;
-                return (
-                  <svg viewBox={`0 0 ${w} ${h}`} style={{ width:"100%",height:h }} preserveAspectRatio="none">
-                    <defs>
-                      <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={clr} stopOpacity="0.3"/>
-                        <stop offset="100%" stopColor={clr} stopOpacity="0"/>
-                      </linearGradient>
-                    </defs>
-                    <path d={`${path} L${tx(chartPts.length-1)},${h} L${tx(0)},${h} Z`} fill={`url(#${gradId})`}/>
-                    <path d={path} fill="none" stroke={clr} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <circle cx={tx(chartPts.length-1).toFixed(1)} cy={ty(chartPts[chartPts.length-1]).toFixed(1)} r="4" fill={clr}/>
-                  </svg>
-                );
-              })()}
-              <div style={{ display:"flex",justifyContent:"space-between",fontSize:10,color:CJ.muted,marginTop:4 }}>
-                <span>{new Date(drixMvts[drixMvts.length-1]?.date||0).toLocaleDateString("fr-FR",{day:"numeric",month:"short"})}</span>
-                <span>Aujourd'hui · {joueur.drix||1000} DRIX</span>
-              </div>
+        <div style={secBox(CJ.yellow)}>
+          <SectionTitle icon={TrendingUp} color={CJ.yellow}>Évolution DRIX</SectionTitle>
+          {drixMvts.length >= 2 && (
+            <div style={{ marginBottom:12 }}>
+              <DrixEvolution drixMvts={drixMvts} current={joueur.drix||1000}/>
             </div>
           )}
-          {/* Liste historique */}
-          <div style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:12,overflow:"hidden" }}>
-            {drixMvts.slice(0,10).map((m,i)=>(
-              <div key={i} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",borderBottom:i<Math.min(drixMvts.length,10)-1?`1px solid ${CJ.border}`:"none" }}>
-                <div>
-                  <div style={{ fontWeight:600,fontSize:13 }}>vs {m.adversaire_pseudo||"?"}</div>
-                  <div style={{ fontSize:10,color:CJ.muted,display:"flex",alignItems:"center",gap:3 }}>
-                    {m.resultat==="victoire"
-                      ? <><Check size={10} color={CJ.green} strokeWidth={3}/><span style={{color:CJ.green}}>Victoire</span></>
-                      : <><X size={10} color={CJ.red} strokeWidth={3}/><span style={{color:CJ.red}}>Défaite</span></>
-                    }
-                    <span>{" · "}{new Date(m.date).toLocaleDateString("fr-FR")}</span>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {drixMvts.slice(0,10).map((m,i)=>{
+              const win = m.resultat === "victoire";
+              const up  = m.variation > 0;
+              return (
+                <div key={i} style={{ ...card, display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 13px",
+                  background:win?"linear-gradient(90deg,#14532d24,#16161c 62%)":"linear-gradient(90deg,#7f1d1d24,#16161c 62%)",
+                  border:`1px solid ${win?"#22c55e33":"#ef444433"}`, animation:"dpStatIn .4s ease both", animationDelay:`${(0.03*i).toFixed(2)}s` }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:11, minWidth:0 }}>
+                    <div style={{ flexShrink:0, width:34, height:34, borderRadius:10, background:win?"#22c55e22":"#ef444422", border:`1px solid ${win?"#22c55e55":"#ef444455"}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      {win ? <Check size={16} color={CJ.green} strokeWidth={3}/> : <X size={16} color={CJ.red} strokeWidth={3}/>}
+                    </div>
+                    <div style={{ minWidth:0 }}>
+                      <div style={{ fontWeight:800, fontSize:13.5, color:CJ.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>vs {m.adversaire_pseudo||"?"}</div>
+                      <div style={{ fontSize:10.5, color:CJ.muted }}>{win?"Victoire":"Défaite"} · {new Date(m.date).toLocaleDateString("fr-FR")}</div>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+                    <span style={{ fontSize:10.5, color:"#64748b" }}>{m.drix_avant}→{m.drix_apres}</span>
+                    <span style={{ fontWeight:900, fontSize:14, color:up?CJ.green:CJ.red, background:up?"#14532d":"#7f1d1d", borderRadius:8, padding:"3px 9px" }}>{up?"+":""}{m.variation}</span>
                   </div>
                 </div>
-                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                  <span style={{ fontSize:11,color:CJ.muted }}>{m.drix_avant}→{m.drix_apres}</span>
-                  <span style={{ fontWeight:800,fontSize:14,color:m.variation>0?CJ.green:CJ.red,background:m.variation>0?"#14532d":"#7f1d1d",borderRadius:6,padding:"2px 8px" }}>{m.variation>0?"+":""}{m.variation}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
