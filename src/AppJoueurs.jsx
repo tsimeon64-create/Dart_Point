@@ -2578,15 +2578,19 @@ export const AmiSection = ({ joueur, setPage }) => {
   const [amis, setAmis] = useState([]);
   const [demandes, setDemandes] = useState([]);
   const [photosAmis, setPhotosAmis] = useState({});
+  const [duels, setDuels] = useState([]);
+  const [favoris, setFavoris] = useState(() => { try { return new Set(JSON.parse(localStorage.getItem(`dp_favamis_${joueur.id}`)||"[]")); } catch { return new Set(); } });
+  const [tri, setTri] = useState("drix");      // nom|drix|ligue|matchs|victoires|defaites
+  const [triOpen, setTriOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchAmis, setSearchAmis] = useState("");
   const [searchGlobal, setSearchGlobal] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
   useEffect(() => {
-    Promise.all([dbAmis.getAmis(joueur.id), dbAmis.getDemandesRecues(joueur.id)])
-      .then(async ([a,d]) => {
-        setAmis(a||[]); setDemandes(d||[]);
+    Promise.all([dbAmis.getAmis(joueur.id), dbAmis.getDemandesRecues(joueur.id), dbJ.getDuels(joueur.id)])
+      .then(async ([a,d,du]) => {
+        setAmis(a||[]); setDemandes(d||[]); setDuels((du||[]).filter(x=>x.statut==="termine"));
         const ids = (a||[]).map(x => x.joueur_id===joueur.id ? x.ami_id : x.joueur_id);
         if (ids.length > 0) {
           const profils = await sbJ(`joueurs?id=in.(${ids.join(",")})&select=id,photo,drix`).catch(()=>[]);
@@ -2598,6 +2602,8 @@ export const AmiSection = ({ joueur, setPage }) => {
       })
       .catch(() => setLoading(false));
   }, [joueur.id]);
+
+  const toggleFav = (id, e) => { e?.stopPropagation?.(); setFavoris(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); try { localStorage.setItem(`dp_favamis_${joueur.id}`, JSON.stringify([...n])); } catch {} return n; }); };
 
   // Recherche globale debounced
   useEffect(() => {
@@ -2633,18 +2639,50 @@ export const AmiSection = ({ joueur, setPage }) => {
 
   if (loading) return <SpinnerJ/>;
 
+  const monDrix = joueur.drix || 1000;
   const amisIds = new Set(amis.map(a => a.joueur_id===joueur.id ? a.ami_id : a.joueur_id));
-  const amisTries = [...amis].sort((a, b) => {
-    const pa = (a.joueur_id===joueur.id ? a.ami_pseudo : a.joueur_pseudo)||"";
-    const pb = (b.joueur_id===joueur.id ? b.ami_pseudo : b.joueur_pseudo)||"";
-    return pa.localeCompare(pb, "fr", { sensitivity:"base" });
+
+  // Confrontations : matchs / victoires / défaites contre chaque adversaire
+  const matchups = {};
+  duels.forEach(d => {
+    const oppId = d.challenger_id===joueur.id ? d.defie_id : d.challenger_id;
+    if (!matchups[oppId]) matchups[oppId] = { m:0, w:0, l:0 };
+    matchups[oppId].m++;
+    if (d.gagnant_id===joueur.id) matchups[oppId].w++; else matchups[oppId].l++;
   });
+
+  // Amis enrichis (drix, ligue, confrontations, favori, écart)
+  const amisEnrichis = amis.map(a => {
+    const id = a.joueur_id===joueur.id ? a.ami_id : a.joueur_id;
+    const pseudo = a.joueur_id===joueur.id ? a.ami_pseudo : a.joueur_pseudo;
+    const profil = photosAmis[id] || {};
+    const drix = profil.drix || 1000;
+    const mu = matchups[id] || { m:0, w:0, l:0 };
+    return { key:a.id, id, pseudo:pseudo||"Joueur", photo:profil.photo||null, drix, mu, fav:favoris.has(id), rang:getDrixTitreLocal(drix), diff:drix-monDrix };
+  });
+  // Rival principal = ami le plus affronté (au moins 3 matchs)
+  const topRival = amisEnrichis.reduce((r,x)=> x.mu.m>(r?.mu.m||0) ? x : r, null);
+  const rivalKey = (topRival && topRival.mu.m>=3) ? topRival.id : null;
+
+  const TRI_LABELS = { nom:"Nom", drix:"DRIX", ligue:"Ligue", matchs:"Matchs", victoires:"Victoires", defaites:"Défaites" };
+  const cmp = ({
+    nom:       (a,b)=> a.pseudo.localeCompare(b.pseudo,"fr",{sensitivity:"base"}),
+    drix:      (a,b)=> b.drix-a.drix,
+    ligue:     (a,b)=> b.drix-a.drix,
+    matchs:    (a,b)=> b.mu.m-a.mu.m || b.drix-a.drix,
+    victoires: (a,b)=> b.mu.w-a.mu.w || b.drix-a.drix,
+    defaites:  (a,b)=> b.mu.l-a.mu.l || b.drix-a.drix,
+  })[tri] || ((a,b)=>b.drix-a.drix);
+
   const q = searchAmis.trim().toLowerCase();
-  const amisFiltres = q ? amisTries.filter(a => {
-    const pseudo = (a.joueur_id===joueur.id ? a.ami_pseudo : a.joueur_pseudo)||"";
-    return pseudo.toLowerCase().includes(q);
-  }) : amisTries;
+  const amisFiltres = (q ? amisEnrichis.filter(a=>a.pseudo.toLowerCase().includes(q)) : amisEnrichis)
+    .slice().sort((a,b) => (b.fav?1:0)-(a.fav?1:0) || cmp(a,b));   // favoris toujours en premier
   const nonAmis = searchGlobal.filter(p => p.id !== joueur.id && !amisIds.has(p.id));
+
+  // Récap
+  const avgDrix   = amisEnrichis.length ? Math.round(amisEnrichis.reduce((s,a)=>s+a.drix,0)/amisEnrichis.length) : 0;
+  const ligueMoy  = getDrixTitreLocal(avgDrix);
+  const totalConfr= amisEnrichis.reduce((s,a)=>s+a.mu.m,0);
 
   return (
     <div>
@@ -2663,47 +2701,103 @@ export const AmiSection = ({ joueur, setPage }) => {
         </div>
       )}
 
-      <h3 style={{ fontWeight:700,fontSize:15,marginBottom:12,color:CJ.text,display:"flex",alignItems:"center",gap:6 }}><Users size={15} color={CJ.accent}/> Mes amis ({amis.length})</h3>
+      <style>{`
+        @keyframes dpFadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        .ami-card { transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease; }
+        .ami-card:hover { transform: translateY(-2px); }
+        .ami-card:active { transform: scale(.985); }
+      `}</style>
 
-      {/* Barre de recherche globale */}
-      <div style={{ display:"flex",alignItems:"center",gap:8,background:CJ.bg,border:`1px solid ${CJ.border}`,borderRadius:10,padding:"10px 14px",marginBottom:12 }}>
-        <Search size={15} color={CJ.muted} style={{ flexShrink:0 }}/>
-        <input
-          value={searchAmis}
-          onChange={e=>{ setSearchAmis(e.target.value); setSearchGlobal([]); setSearchLoading(false); }}
-          placeholder="Rechercher un joueur…"
-          style={{ flex:1,background:"transparent",border:"none",color:CJ.text,fontSize:16,outline:"none",minWidth:0 }}
-        />
-        {searchAmis && (
-          <button onClick={()=>{ setSearchAmis(""); setSearchGlobal([]); }} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",padding:0,lineHeight:1,display:"flex" }}><X size={14}/></button>
-        )}
+      <h3 style={{ fontWeight:900,fontSize:16,marginBottom:12,color:CJ.text,display:"flex",alignItems:"center",gap:7 }}><Users size={17} color={CJ.accent}/> Mes amis ({amis.length})</h3>
+
+      {/* ── Bandeau récap ── */}
+      {amisEnrichis.length > 0 && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:14 }}>
+          {[
+            { v:amis.length,      l:"Amis",      c:CJ.accent },
+            { v:avgDrix,          l:"DRIX moy.", c:CJ.blue },
+            { v:ligueMoy.titre,   l:"Ligue moy.",c:ligueMoy.color, small:true },
+            { v:totalConfr,       l:"Matchs",    c:CJ.green },
+          ].map((s,i)=>(
+            <div key={i} style={{ background:"#16161c", border:`1px solid ${s.c}33`, borderRadius:12, padding:"10px 5px", textAlign:"center", boxShadow:"0 2px 8px #00000030", animation:"dpFadeUp .4s ease both", animationDelay:`${(i*0.04).toFixed(2)}s` }}>
+              <div style={{ fontSize:s.small?12.5:19, fontWeight:900, color:s.c, lineHeight:1.15, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{s.v}</div>
+              <div style={{ fontSize:9.5, color:CJ.muted, fontWeight:600, marginTop:2 }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Recherche + Tri ── */}
+      <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+        <div style={{ flex:1, display:"flex", alignItems:"center", gap:8, background:CJ.bg, border:`1px solid ${CJ.border}`, borderRadius:10, padding:"10px 14px", minWidth:0 }}>
+          <Search size={15} color={CJ.muted} style={{ flexShrink:0 }}/>
+          <input value={searchAmis} onChange={e=>{ setSearchAmis(e.target.value); setSearchGlobal([]); setSearchLoading(false); }}
+            placeholder="Rechercher un joueur…" style={{ flex:1,background:"transparent",border:"none",color:CJ.text,fontSize:16,outline:"none",minWidth:0 }}/>
+          {searchAmis && <button onClick={()=>{ setSearchAmis(""); setSearchGlobal([]); }} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",padding:0,lineHeight:1,display:"flex" }}><X size={14}/></button>}
+        </div>
+        <div style={{ position:"relative", flexShrink:0 }}>
+          <button onClick={()=>setTriOpen(o=>!o)} style={{ height:"100%", display:"flex", alignItems:"center", gap:5, background:CJ.bg, border:`1px solid ${triOpen?CJ.accent:CJ.border}`, borderRadius:10, padding:"0 12px", color:CJ.text, fontWeight:800, fontSize:12.5, cursor:"pointer", whiteSpace:"nowrap", touchAction:"manipulation" }}>
+            <span style={{ color:CJ.accent, fontSize:14 }}>⇅</span>{TRI_LABELS[tri]}
+          </button>
+          {triOpen && (
+            <div style={{ position:"absolute", top:"calc(100% + 6px)", right:0, zIndex:30, background:"#16161c", border:`1px solid ${CJ.border}`, borderRadius:12, padding:6, minWidth:160, boxShadow:"0 10px 28px #000b" }}>
+              {Object.entries(TRI_LABELS).map(([k,l])=>(
+                <button key={k} onClick={()=>{ setTri(k); setTriOpen(false); }} style={{ display:"block", width:"100%", textAlign:"left", background:tri===k?`${CJ.accent}1e`:"none", border:"none", color:tri===k?CJ.accent:CJ.text, borderRadius:8, padding:"9px 11px", fontSize:13, fontWeight:tri===k?800:600, cursor:"pointer", touchAction:"manipulation" }}>{l}</button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* ── Résultats amis ── */}
+      {/* ── Cartes amis ── */}
       {amis.length === 0 && !q ? (
         <p style={{ color:CJ.muted,fontSize:13 }}>Aucun ami pour l'instant. Recherche un joueur ci-dessus pour l'ajouter !</p>
       ) : amisFiltres.length > 0 ? (
         <div style={{ marginBottom:nonAmis.length>0?16:0 }}>
           {q && <div style={{ fontSize:12,color:CJ.muted,fontWeight:700,letterSpacing:.5,marginBottom:6 }}>AMIS</div>}
-          {amisFiltres.map(a => {
-            const amiId = a.joueur_id === joueur.id ? a.ami_id : a.joueur_id;
-            const amiPseudo = a.joueur_id === joueur.id ? a.ami_pseudo : a.joueur_pseudo;
-            const profil = photosAmis[amiId];
-            const { color } = getDrixTitreLocal(profil?.drix||1000);
+          {amisFiltres.map((a, idx) => {
+            const rang = a.rang;
+            const isRival = a.id === rivalKey;
+            const isClose = Math.abs(a.diff) <= 100 && a.diff !== 0;
+            const bCol = a.fav ? CJ.yellow : isRival ? CJ.red : isClose ? CJ.blue : `${CJ.border}`;
+            const glow = a.fav ? `0 0 16px ${CJ.yellow}26` : isRival ? `0 0 14px ${CJ.red}22` : isClose ? `0 0 12px ${CJ.blue}1c` : "none";
             return (
-              <div key={a.id} onClick={()=>setPage("profil-joueur-"+amiId)}
-                style={{ background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:10,padding:12,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }}
-                onMouseEnter={e=>e.currentTarget.style.borderColor=CJ.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=CJ.border}>
-                <div style={{ display:"flex",alignItems:"center",gap:12 }}>
-                  <div style={{ width:40,height:40,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:`2px solid ${color}`,background:color+"22",display:"flex",alignItems:"center",justifyContent:"center" }}>
-                    {profil?.photo ? <img src={profil.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <RankIcon drix={profil?.drix||1000} size={18}/>}
+              <div key={a.key} className="ami-card" onClick={()=>setPage("profil-joueur-"+a.id)}
+                style={{ position:"relative", overflow:"hidden", background:"#16161c", border:`1.5px solid ${bCol}`, borderRadius:16, padding:"12px 14px", marginBottom:9, cursor:"pointer", boxShadow:`0 3px 12px #00000035${glow!=="none"?", "+glow:""}`, animation:"dpFadeUp .4s ease both", animationDelay:`${Math.min(idx*0.03,0.3).toFixed(2)}s` }}>
+                <div aria-hidden style={{ position:"absolute", top:-30, right:-25, width:120, height:120, borderRadius:"50%", background:`radial-gradient(circle, ${rang.color}18 0%, transparent 65%)`, pointerEvents:"none" }}/>
+                <div style={{ display:"flex", alignItems:"center", gap:13, position:"relative" }}>
+                  {/* Avatar */}
+                  <div style={{ width:54, height:54, borderRadius:"50%", overflow:"hidden", flexShrink:0, border:`2.5px solid ${rang.color}`, background:`${rang.color}22`, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 0 12px ${rang.color}44` }}>
+                    {a.photo ? <img src={a.photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <RankIcon drix={a.drix} size={24}/>}
                   </div>
-                  <div>
-                    <div style={{ fontWeight:600 }}>{amiPseudo}</div>
-                    <div style={{ fontSize:12,color,fontWeight:600,display:"flex",alignItems:"center",gap:4 }}><RankIcon drix={profil?.drix||1000} size={13}/> {profil?.drix||1000} DRIX</div>
+                  {/* Infos */}
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      <span style={{ fontWeight:800, fontSize:16, color:CJ.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{a.pseudo}</span>
+                      {isRival && <span style={{ flexShrink:0, fontSize:8.5, fontWeight:900, color:CJ.red, background:`${CJ.red}1e`, border:`1px solid ${CJ.red}55`, borderRadius:5, padding:"1px 5px", letterSpacing:.5 }}>RIVAL</span>}
+                    </div>
+                    <div style={{ display:"inline-flex", alignItems:"center", gap:4, marginTop:4, background:`${rang.color}18`, border:`1px solid ${rang.color}44`, borderRadius:6, padding:"2px 7px" }}>
+                      <RankIcon drix={a.drix} size={11}/>
+                      <span style={{ fontSize:10.5, fontWeight:800, color:rang.color }}>{rang.titre}</span>
+                    </div>
+                    {a.mu.m>0 && (
+                      <div style={{ fontSize:11, color:CJ.muted, marginTop:5, display:"flex", alignItems:"center", gap:7 }}>
+                        <span style={{ fontWeight:700, color:CJ.text }}>{a.mu.m} match{a.mu.m>1?"s":""}</span>
+                        <span style={{ color:CJ.green, fontWeight:800 }}>{a.mu.w} V</span>
+                        <span style={{ color:"#475569" }}>•</span>
+                        <span style={{ color:CJ.red, fontWeight:800 }}>{a.mu.l} D</span>
+                      </div>
+                    )}
+                  </div>
+                  {/* DRIX + écart + favori */}
+                  <div style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"flex-end", gap:1 }}>
+                    <button onClick={(e)=>toggleFav(a.id, e)} title={a.fav?"Retirer des favoris":"Ajouter aux favoris"}
+                      style={{ background:"none", border:"none", cursor:"pointer", fontSize:17, padding:"0 0 2px", lineHeight:1, opacity:a.fav?1:.3, touchAction:"manipulation" }}>⭐</button>
+                    <div style={{ fontSize:23, fontWeight:900, color:rang.color, lineHeight:1 }}>{a.drix}</div>
+                    <div style={{ fontSize:9, color:CJ.muted, fontWeight:700, letterSpacing:.5 }}>DRIX</div>
+                    {a.diff!==0 && <div style={{ fontSize:11.5, fontWeight:900, color:a.diff>0?CJ.accent:CJ.green, marginTop:1 }}>{a.diff>0?`▲ +${a.diff}`:`▼ ${a.diff}`}</div>}
                   </div>
                 </div>
-                <ChevronRight size={16} color={CJ.accent}/>
               </div>
             );
           })}
