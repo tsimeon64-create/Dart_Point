@@ -3574,6 +3574,14 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
         </button>
       )}
 
+      {/* ════ JOUER EN LIGNE ════ */}
+      {moi&&moi.id!==j.id&&(
+        <button onClick={()=>setPage("scoreur-online-new-"+j.id)}
+          style={{width:"100%",background:"#34d39914",border:"1px solid #34d39955",color:"#6ee7b7",borderRadius:12,padding:"13px 0",cursor:"pointer",fontWeight:800,fontSize:14,touchAction:"manipulation",display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:14}}>
+          <EmoIcon e="🌐" size={15} color="#6ee7b7"/>Jouer en ligne
+        </button>
+      )}
+
       {/* ── MODAL DÉFI ── */}
       {showDefi&&moi&&(()=>{
         const lancerDefi = async () => {

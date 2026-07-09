@@ -10972,6 +10972,200 @@ const ScoreurLibreWrapper = ({ config, onResultat, onBack, onRejouer }) => {
 };
 
 // ── SCOREUR DUEL (charge le duel depuis Supabase) ─────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  JOUER EN LIGNE — partie à distance entre 2 téléphones (amical : pas de DRIX,
+//  mais compte pour l'XP + les stats). Étape 1 : bouton + invitation + accept.
+//  Le scoreur partagé temps réel (chacun saisit ses fléchettes) arrive à l'étape 2.
+// ═══════════════════════════════════════════════════════════════════════════
+const ONLINE_INVITE_TTL = 75000; // 75 s avant expiration d'une invitation sans réponse
+
+// Premier joueur tiré "au sort" mais DÉTERMINISTE à partir de l'id du duel :
+// les deux téléphones calculent le même résultat sans avoir à se synchroniser.
+const onlineStarterIsChallenger = (duelId) => {
+  const hex = String(duelId || "").replace(/[^0-9a-f]/gi, "").slice(0, 8) || "0";
+  return (parseInt(hex, 16) % 2) === 0;
+};
+
+const OnlineOptBtn = ({ active, onClick, children }) => (
+  <button onClick={onClick} style={{ flex:1, padding:"11px 0", borderRadius:10, border:"none", cursor:"pointer", fontWeight:800, fontSize:15, background:active?"#34d399":"#1e1e1e", color:active?"#04160e":C.muted, transition:"all .12s" }}>{children}</button>
+);
+
+// Écran de partie en ligne — ÉTAPE 1 : confirme que les 2 téléphones sont connectés.
+// (Le vrai scoreur partagé temps réel remplacera ce placeholder à l'étape 2.)
+const ScoreurOnlinePlay = ({ duelId, setPage }) => {
+  const [duel, setDuel] = useState(null);
+  const [err, setErr] = useState(false);
+  useEffect(() => {
+    sb(`duels?id=eq.${duelId}&select=*`).then(r => { if (r?.[0]) setDuel(r[0]); else setErr(true); }).catch(() => setErr(true));
+  }, [duelId]);
+  if (err) return <div style={{ textAlign:"center", padding:60, color:C.muted }}>Partie introuvable.<div><button onClick={()=>setPage("home")} style={{ marginTop:16, background:C.accent, border:"none", color:"#fff", borderRadius:10, padding:"10px 20px", cursor:"pointer", fontWeight:700 }}>Retour</button></div></div>;
+  if (!duel) return <Spinner/>;
+  const starter = onlineStarterIsChallenger(duel.id) ? duel.challenger_pseudo : duel.defie_pseudo;
+  return (
+    <div style={{ maxWidth:520, margin:"0 auto", padding:"24px 16px", textAlign:"center" }}>
+      <div style={{ fontSize:48, marginBottom:8 }}>🌐</div>
+      <h2 style={{ fontWeight:900, fontSize:22, color:C.text, marginBottom:6 }}>Connecté !</h2>
+      <p style={{ color:"#6ee7b7", fontWeight:700, marginBottom:20 }}>Partie en ligne · amicale</p>
+      <div style={{ background:"#16161c", border:`1px solid ${C.border}`, borderRadius:16, padding:20, marginBottom:16 }}>
+        <div style={{ fontWeight:900, fontSize:18, color:C.text }}>{duel.challenger_pseudo} <span style={{ color:C.muted, fontWeight:700 }}>vs</span> {duel.defie_pseudo}</div>
+        <div style={{ color:C.muted, fontSize:13, marginTop:6 }}>{duel.mode} · {duel.manches} manche{duel.manches>1?"s":""} gagnante{duel.manches>1?"s":""} · sans DRIX</div>
+        <div style={{ marginTop:14, background:"#34d39914", border:"1px solid #34d39944", borderRadius:10, padding:"10px 12px", color:"#6ee7b7", fontWeight:800, fontSize:14 }}>🎯 {starter} commence (tirage au sort)</div>
+      </div>
+      <div style={{ background:"#12203a", border:"1px solid #3b82f644", borderRadius:14, padding:16, color:C.muted, fontSize:13, lineHeight:1.5, marginBottom:20 }}>
+        <strong style={{ color:"#93c5fd" }}>Étape 1 validée ✅</strong><br/>
+        L'invitation et la connexion des 2 téléphones fonctionnent. Le <strong style={{ color:C.text }}>scoreur partagé en temps réel</strong> (chacun marque ses fléchettes) arrive à l'étape 2.
+      </div>
+      <button onClick={()=>setPage("home")} style={{ width:"100%", background:C.accent, border:"none", color:"#fff", borderRadius:12, padding:"14px 0", cursor:"pointer", fontWeight:800, fontSize:15 }}>Retour à l'accueil</button>
+    </div>
+  );
+};
+
+// Écran de création d'invitation (côté challenger) : config → envoi → attente.
+const ScoreurOnlineCreate = ({ adversaireId, joueur, setPage }) => {
+  const [adv, setAdv] = useState(null);
+  const [form, setForm] = useState({ mode:"501", manches:1 });
+  const [invite, setInvite] = useState(null);
+  const [phase, setPhase] = useState("config"); // config | waiting | refused | expired
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    sb(`joueurs?id=eq.${adversaireId}&select=id,pseudo,photo,drix`)
+      .then(r => setAdv(r?.[0] || { id:adversaireId, pseudo:"Joueur" }))
+      .catch(() => setAdv({ id:adversaireId, pseudo:"Joueur" }));
+  }, [adversaireId]);
+
+  // Attente de la réponse : on interroge le duel toutes les 2,5 s.
+  useEffect(() => {
+    if (phase !== "waiting" || !invite?.id) return;
+    const t0 = Date.now();
+    const iv = setInterval(async () => {
+      try {
+        const r = await sb(`duels?id=eq.${invite.id}&select=statut`);
+        const st = r?.[0]?.statut;
+        if (st === "en_cours") { clearInterval(iv); setPage("scoreur-online-play-"+invite.id); return; }
+        if (st === "refuse")   { clearInterval(iv); setPhase("refused"); return; }
+        if (Date.now() - t0 > ONLINE_INVITE_TTL) {
+          clearInterval(iv);
+          sb(`duels?id=eq.${invite.id}`, { method:"PATCH", body:JSON.stringify({ statut:"abandonne" }), prefer:"return=minimal" }).catch(()=>{});
+          setPhase("expired");
+        }
+      } catch { /* on réessaiera au prochain tick */ }
+    }, 2500);
+    return () => clearInterval(iv);
+  }, [phase, invite?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const envoyer = async () => {
+    if (sending || !adv) return;
+    setSending(true);
+    try {
+      const res = await sb("duels", { method:"POST", body:JSON.stringify({
+        challenger_id:joueur.id, challenger_pseudo:joueur.pseudo,
+        defie_id:adversaireId, defie_pseudo:adv.pseudo,
+        statut:"en_attente", type:"amical",
+        mode:form.mode, manches:form.manches,
+        date:Date.now(), valide_challenger:false, valide_defie:false,
+        score_manches_challenger:0, score_manches_defie:0,
+      })});
+      const nd = Array.isArray(res) ? res[0] : res;
+      if (nd?.id) { setInvite(nd); setPhase("waiting"); }
+      else throw new Error("no-id");
+    } catch {
+      window.dpToast?.("Impossible d'envoyer l'invitation. Réessaie dans un instant.", "error", 5000);
+    }
+    setSending(false);
+  };
+
+  const annuler = () => {
+    if (invite?.id) sb(`duels?id=eq.${invite.id}`, { method:"PATCH", body:JSON.stringify({ statut:"abandonne" }), prefer:"return=minimal" }).catch(()=>{});
+    setPage("profil-joueur-"+adversaireId);
+  };
+
+  const advPseudo = adv?.pseudo || "Joueur";
+
+  return (
+    <div style={{ maxWidth:520, margin:"0 auto", padding:"20px 16px" }}>
+      <button onClick={()=> phase==="waiting" ? annuler() : setPage("profil-joueur-"+adversaireId)}
+        style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", display:"flex", alignItems:"center", gap:6, fontSize:14, marginBottom:16, padding:0 }}>
+        <ArrowLeft size={16}/> Retour
+      </button>
+
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:6 }}>
+        <EmoIcon e="🌐" size={22} color="#6ee7b7"/>
+        <h2 style={{ fontWeight:900, fontSize:22, color:C.text, textAlign:"center" }}>Jouer en ligne</h2>
+      </div>
+      <p style={{ textAlign:"center", color:"#6ee7b7", fontWeight:700, fontSize:13, marginBottom:20 }}>Partie amicale · sans DRIX · compte pour l'XP</p>
+
+      <div style={{ display:"flex", alignItems:"center", gap:14, background:"#16161c", border:`1px solid ${C.border}`, borderRadius:16, padding:14, marginBottom:18 }}>
+        <div style={{ width:52, height:52, borderRadius:"50%", overflow:"hidden", flexShrink:0, border:"2px solid #34d399", background:"#34d39922", display:"flex", alignItems:"center", justifyContent:"center" }}>
+          {adv?.photo ? <img src={adv.photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <RankIcon drix={adv?.drix||1000} size={24}/>}
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ color:C.muted, fontSize:12 }}>Contre</div>
+          <div style={{ fontWeight:800, fontSize:17, color:C.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{advPseudo}</div>
+        </div>
+      </div>
+
+      {phase === "config" && (<>
+        <div style={{ marginBottom:16 }}>
+          <div style={{ fontSize:12, color:C.muted, fontWeight:700, marginBottom:7, letterSpacing:.5 }}>MODE</div>
+          <div style={{ display:"flex", gap:8 }}>
+            {["501","301"].map(m => <OnlineOptBtn key={m} active={form.mode===m} onClick={()=>setForm(f=>({...f,mode:m}))}>{m}</OnlineOptBtn>)}
+          </div>
+        </div>
+        <div style={{ marginBottom:22 }}>
+          <div style={{ fontSize:12, color:C.muted, fontWeight:700, marginBottom:7, letterSpacing:.5 }}>MANCHES GAGNANTES</div>
+          <div style={{ display:"flex", gap:8 }}>
+            {[1,2,3].map(n => <OnlineOptBtn key={n} active={form.manches===n} onClick={()=>setForm(f=>({...f,manches:n}))}>{n}</OnlineOptBtn>)}
+          </div>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8, background:"#12203a", border:"1px solid #3b82f633", borderRadius:10, padding:"10px 12px", marginBottom:18, color:"#93c5fd", fontSize:12.5, lineHeight:1.4 }}>
+          <EmoIcon e="🎲" size={16} color="#93c5fd"/> Le premier joueur est tiré au sort. Chacun marque son score sur son téléphone.
+        </div>
+        <button onClick={envoyer} disabled={sending || !adv} style={{ width:"100%", background:"linear-gradient(135deg,#34d399,#059669)", border:"none", color:"#04160e", borderRadius:12, padding:"15px 0", cursor:sending?"wait":"pointer", fontWeight:900, fontSize:16, opacity:(sending||!adv)?.7:1 }}>
+          {sending ? "Envoi…" : "📨 Envoyer l'invitation"}
+        </button>
+      </>)}
+
+      {phase === "waiting" && (
+        <div style={{ textAlign:"center", padding:"10px 0" }}>
+          <div style={{ margin:"0 auto 18px", width:64, height:64, borderRadius:"50%", border:"3px solid #34d39933", borderTopColor:"#34d399", animation:"onlineSpin 1s linear infinite" }}/>
+          <style>{`@keyframes onlineSpin{to{transform:rotate(360deg)}}@keyframes onlinePulse{0%,100%{opacity:.4}50%{opacity:1}}`}</style>
+          <div style={{ fontWeight:800, fontSize:17, color:C.text, marginBottom:6 }}>En attente de {advPseudo}…</div>
+          <div style={{ color:C.muted, fontSize:13, marginBottom:4, animation:"onlinePulse 1.5s ease infinite" }}>Une invitation vient d'apparaître sur son téléphone</div>
+          <div style={{ color:"#64748b", fontSize:11, marginBottom:22 }}>(il doit avoir l'appli ouverte)</div>
+          <button onClick={annuler} style={{ background:"#1e1e1e", border:`1px solid ${C.border}`, color:C.muted, borderRadius:10, padding:"11px 24px", cursor:"pointer", fontWeight:700, fontSize:14 }}>Annuler</button>
+        </div>
+      )}
+
+      {phase === "refused" && (
+        <div style={{ textAlign:"center", padding:"14px 0" }}>
+          <div style={{ fontSize:44, marginBottom:10 }}>🙅</div>
+          <div style={{ fontWeight:800, fontSize:17, color:C.text, marginBottom:18 }}>{advPseudo} a refusé l'invitation.</div>
+          <button onClick={()=>setPage("profil-joueur-"+adversaireId)} style={{ background:C.accent, border:"none", color:"#fff", borderRadius:10, padding:"12px 26px", cursor:"pointer", fontWeight:800, fontSize:15 }}>Retour</button>
+        </div>
+      )}
+
+      {phase === "expired" && (
+        <div style={{ textAlign:"center", padding:"14px 0" }}>
+          <div style={{ fontSize:44, marginBottom:10 }}>⏱️</div>
+          <div style={{ fontWeight:800, fontSize:17, color:C.text, marginBottom:8 }}>{advPseudo} n'a pas répondu à temps.</div>
+          <div style={{ color:C.muted, fontSize:13, marginBottom:18 }}>Vérifie qu'il a bien l'appli ouverte.</div>
+          <div style={{ display:"flex", gap:8, justifyContent:"center" }}>
+            <button onClick={()=>{ setInvite(null); setPhase("config"); }} style={{ background:"linear-gradient(135deg,#34d399,#059669)", border:"none", color:"#04160e", borderRadius:10, padding:"12px 22px", cursor:"pointer", fontWeight:800, fontSize:15 }}>Réessayer</button>
+            <button onClick={()=>setPage("profil-joueur-"+adversaireId)} style={{ background:"#1e1e1e", border:`1px solid ${C.border}`, color:C.muted, borderRadius:10, padding:"12px 22px", cursor:"pointer", fontWeight:700, fontSize:15 }}>Retour</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Aiguillage : "create" (challenger) ou "play" (partie en cours). Pas de hook ici.
+const ScoreurOnline = ({ mode, adversaireId, duelId, joueur, setPage }) =>
+  mode === "play"
+    ? <ScoreurOnlinePlay duelId={duelId} setPage={setPage}/>
+    : <ScoreurOnlineCreate adversaireId={adversaireId} joueur={joueur} setPage={setPage}/>;
+
 const ScoreurDuel = ({ duelId, joueur, setPage }) => {
   const [duel, setDuel] = useState(null);
   const [drixData, setDrixData] = useState(null);
@@ -11475,6 +11669,8 @@ export default function App() {
   const [unreadMessages,setUnreadMessages]=useState(0);
   const [newBadgesCount,setNewBadgesCount]=useState(0);
   const prevDemandesRef = useRef(0);
+  // Invitation "jouer en ligne" entrante (détectée par le polling fetchNotifs)
+  const [onlineInvite, setOnlineInvite] = useState(null);
   // Détection hors-ligne (bannière globale)
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && navigator.onLine === false);
   useEffect(() => {
@@ -11706,7 +11902,16 @@ export default function App() {
         sb(`amis?ami_id=eq.${joueur.id}&statut=eq.en_attente&select=id`),
         sb(`duels?defie_id=eq.${joueur.id}&statut=eq.termine&valide_defie=eq.false&select=id,date`),
         dbM.getUnreadCount(joueur.id),
-      ]).then(([matchsActifs, demandesAmis, aContester, unread]) => {
+        sb(`duels?defie_id=eq.${joueur.id}&statut=eq.en_attente&type=eq.amical&order=date.desc&limit=1&select=*`).catch(()=>[]),
+      ]).then(([matchsActifs, demandesAmis, aContester, unread, onlineInv]) => {
+        // Invitation "jouer en ligne" reçue (l'adversaire doit avoir l'appli ouverte).
+        // On n'interrompt pas un joueur déjà dans un scoreur.
+        const inv = (onlineInv||[])[0];
+        const onScoreur = (pageRef.current||"").startsWith("scoreur");
+        setOnlineInvite(prev => {
+          if (inv && (now - (inv.date||0) < 90000) && !onScoreur) return (prev && prev.id===inv.id) ? prev : inv;
+          return prev ? null : prev;
+        });
         const matchsN = matchsActifs?.length || 0;
         const amisN = demandesAmis?.length || 0;
         const contestN = (aContester||[]).filter(d => now - (d.date||0) < 86400000).length;
@@ -11825,7 +12030,7 @@ export default function App() {
     p === "jeux-capital" || p === "scoreur" || p === "scoreur-bot" || p === "scoreur-libre" || p === "scoreur-doublette" ||
     p === "cricket-config" || p === "rush-mode" || p === "chrono-finish" || p === "entrainement-finish" ||
     p === "chrono-scoreur" || p === "horloge-double" ||
-    p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-") || p.startsWith("scoreur-bot-");
+    p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-") || p.startsWith("scoreur-bot-") || p.startsWith("scoreur-online-play-");
 
   const navSafe = (targetPage) => {
     if (isGamePage(pageRef.current)) { setPendingNav(targetPage); }
@@ -12242,6 +12447,39 @@ export default function App() {
           <style>{`@keyframes toastIn { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }`}</style>
         </div>
       )}
+
+      {/* ── Pop-up : invitation "jouer en ligne" reçue ── */}
+      {onlineInvite && (() => {
+        const inv = onlineInvite;
+        const accepter = async () => {
+          setOnlineInvite(null);
+          try { await sb(`duels?id=eq.${inv.id}`, { method:"PATCH", body:JSON.stringify({ statut:"en_cours" }), prefer:"return=minimal" }); } catch {}
+          nav("scoreur-online-play-"+inv.id);
+        };
+        const refuser = async () => {
+          setOnlineInvite(null);
+          try { await sb(`duels?id=eq.${inv.id}`, { method:"PATCH", body:JSON.stringify({ statut:"refuse" }), prefer:"return=minimal" }); } catch {}
+        };
+        return (
+          <div style={{ position:"fixed", inset:0, zIndex:1950, background:"rgba(0,0,0,0.92)", backdropFilter:"blur(14px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+            <div style={{ width:"100%", maxWidth:380, background:"linear-gradient(160deg,#0f1a14,#0a0f0d)", border:"1px solid #34d39955", borderRadius:24, padding:"26px 22px", textAlign:"center", boxShadow:"0 20px 60px rgba(52,211,153,0.15)" }}>
+              <div style={{ fontSize:44, marginBottom:6, animation:"onlineInvitePulse 1.4s ease infinite" }}>🌐</div>
+              <style>{`@keyframes onlineInvitePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}`}</style>
+              <div style={{ fontSize:11, fontWeight:800, letterSpacing:1.5, color:"#6ee7b7", marginBottom:10 }}>INVITATION EN LIGNE</div>
+              <div style={{ fontWeight:900, fontSize:21, color:"#fff", marginBottom:4 }}>{inv.challenger_pseudo}</div>
+              <div style={{ color:"#cbd5e1", fontSize:15, marginBottom:14 }}>te défie en ligne !</div>
+              <div style={{ display:"inline-block", background:"#34d39914", border:"1px solid #34d39944", borderRadius:10, padding:"7px 14px", color:"#6ee7b7", fontWeight:800, fontSize:13, marginBottom:22 }}>
+                {inv.mode} · {inv.manches} manche{inv.manches>1?"s":""} · amical
+              </div>
+              <div style={{ display:"flex", gap:10 }}>
+                <button onClick={refuser} style={{ flex:1, background:"#1e1e1e", border:`1px solid ${C.border}`, color:C.muted, borderRadius:12, padding:"14px 0", cursor:"pointer", fontWeight:800, fontSize:15 }}>Refuser</button>
+                <button onClick={accepter} style={{ flex:2, background:"linear-gradient(135deg,#34d399,#059669)", border:"none", color:"#04160e", borderRadius:12, padding:"14px 0", cursor:"pointer", fontWeight:900, fontSize:16 }}>✅ Accepter</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <main style={{ flex:1 }}>
         <ErrorBoundary key={page} page={page}>
         {page==="home"             && <Home joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
@@ -12266,6 +12504,8 @@ export default function App() {
         {page==="scoreur"          && <Scoreur setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="scoreur-bot"      && joueur && <Scoreur setPage={nav} joueur={joueur} setJoueur={setJoueur} botStart/>}
         {page.startsWith("scoreur-bot-") && joueur && <Scoreur setPage={nav} joueur={joueur} setJoueur={setJoueur} botStart initBotAmiId={page.replace("scoreur-bot-","")}/>}
+        {page.startsWith("scoreur-online-new-") && joueur && <ScoreurOnline mode="create" adversaireId={page.replace("scoreur-online-new-","")} joueur={joueur} setPage={nav}/>}
+        {page.startsWith("scoreur-online-play-") && joueur && <ScoreurOnline mode="play" duelId={page.replace("scoreur-online-play-","")} joueur={joueur} setPage={nav}/>}
         {page==="scoreur-libre"    && <ScoreurLibre setPage={nav}/>}
         {page==="jeux"             && <PageModeJeu joueur={joueur} setPage={nav}/>}
         {page==="jeux-flechettes"       && <PageModeJeu joueur={joueur} setPage={nav} initCat="fleche"/>}
