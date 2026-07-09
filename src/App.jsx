@@ -6210,7 +6210,6 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
   const [dailyData, setDailyData] = useState({ finishRecord:null, finishCount:0, scoreurRecord:null, scoreurCount:0, finishPlayed:false, scoreurPlayed:false });
 
   // ─── Stats fléchettes du jour (count par mode) + partie en cours ───────────
-  const [flecheStats, setFlecheStats] = useState({ "501":0, "301":0, "Cricket":0, "Capital":0, total:0 });
   const [partieEnCours, setPartieEnCours] = useState(null);
 
   useEffect(() => {
@@ -6245,19 +6244,6 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
         if (s && s.joueurs && s.joueurs.length > 0 && !s.fini) setPartieEnCours(s);
       }
     } catch {}
-    // Stats par mode aujourd'hui
-    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-    const iso = todayStart.toISOString();
-    sb(`duels?statut=eq.termine&date=gte.${iso}&select=mode&limit=500`)
-      .then(r => {
-        const arr = r || [];
-        const counts = { "501":0, "301":0, "Cricket":0, "Capital":0, total:arr.length };
-        for (const d of arr) {
-          const m = d.mode || "501";
-          if (counts[m] != null) counts[m]++;
-        }
-        setFlecheStats(counts);
-      });
   }, [categorie]);
 
   const fmtMs = (ms) => {
@@ -6493,32 +6479,27 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
         <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
           <GameCard icon={Target} label="501" col="#f97316"
             sub="🎯 Le grand classique. Descends de 501 à 0 et termine sur un double."
-            badge="CLASSIQUE" badgeIcon="🥇" difficulty="inter"
-            drix="Jeu libre" stat={`${flecheStats["501"]} parties aujourd'hui`} statIcon="🔥" bgIcon="501"
+            badge="CLASSIQUE" badgeIcon="🥇" bgIcon="501"
             onClick={()=>setPage("scoreur")}/>
 
           <GameCard icon={Target} label="301" col="#f59e0b"
             sub="⚡ Version rapide du 501. Parties courtes et nerveuses."
-            badge="RAPIDE" badgeIcon="⚡" difficulty="inter"
-            drix="Jeu libre" stat={`${flecheStats["301"]} parties aujourd'hui`} statIcon="🔥" bgIcon="301"
+            badge="RAPIDE" badgeIcon="⚡" bgIcon="301"
             onClick={()=>setPage("scoreur")}/>
 
           <GameCard icon={Swords} label="Cricket" col="#22c55e"
             sub="⚔ Ferme les zones 15-20 + Bull avant ton adversaire."
-            badge="POPULAIRE" badgeIcon="🔥" difficulty="inter"
-            drix="Jeu libre" stat={`${flecheStats["Cricket"]} parties aujourd'hui`} statIcon="🔥" bgIcon="🎯"
+            badge="POPULAIRE" badgeIcon="🔥" bgIcon="🎯"
             onClick={()=>setPage("cricket-config")}/>
 
           <GameCard icon={Building2} label="Capital" col="#a78bfa"
             sub="🎯 Précision et stratégie. Chaque cible compte."
-            badge="TECHNIQUE" badgeIcon="🎯" difficulty="expert"
-            drix="Jeu libre" stat={`${flecheStats["Capital"]} parties aujourd'hui`} statIcon="⚡" bgIcon="🏛"
+            badge="TECHNIQUE" badgeIcon="🎯" bgIcon="🏛"
             onClick={()=>setPage("jeux-capital")}/>
 
           <GameCard icon={Users} label="Tournoi entre potes" col="#60a5fa"
             sub="🏆 Organise ton propre tournoi privé entre amis."
-            badge="MULTIJOUEUR" badgeIcon="👥" difficulty="debut"
-            drix="Format libre" stat="Ambiance garantie" statIcon="🏆" bgIcon="🏆"
+            badge="MULTIJOUEUR" badgeIcon="👥" bgIcon="🏆"
             onClick={()=>setPage("tournois-potes")}/>
         </div>
       </div>
@@ -6697,20 +6678,17 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
       <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
         <GameCard icon={Zap} label="Rush Mode" col="#ef4444"
           sub="Calcul mental sous pression : score, finishes, bust, routes."
-          badge="POPULAIRE" badgeIcon="🔥" difficulty="expert"
-          drix="Badges" stat="3 niveaux" statIcon="⚡" bgIcon="⚡"
+          badge="POPULAIRE" badgeIcon="🔥" bgIcon="⚡"
           onClick={()=>setPage("rush-mode")}/>
 
         <GameCard icon={Target} label="Calcul Finish" col="#f97316"
           sub="Entraîne-toi à construire tes finishes en 1, 2 ou 3 fléchettes."
-          badge="ENTRAÎNEMENT" badgeIcon="🎯" difficulty="inter"
-          drix="Pratique libre" stat="Tous niveaux" statIcon="🎯" bgIcon="🎯"
+          badge="ENTRAÎNEMENT" badgeIcon="🎯" bgIcon="🎯"
           onClick={()=>setPage("entrainement-finish")}/>
 
         <GameCard icon={Clock} label="Horloge Double" col="#a78bfa"
           sub="Enchaîne D1 à D20, Bull et Double Bull. Chrono par cible."
-          badge="ENTRAÎNEMENT" badgeIcon="🎯" difficulty="inter"
-          drix="Pratique libre" stat="Stats double favori" statIcon="🎯" bgIcon="🕐"
+          badge="ENTRAÎNEMENT" badgeIcon="🎯" bgIcon="🕐"
           onClick={()=>setPage("horloge-double")}/>
       </div>
     </div>
