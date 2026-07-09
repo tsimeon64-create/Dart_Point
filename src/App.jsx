@@ -6282,13 +6282,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
   );
 
   // ─── Carte jeu PREMIUM (refonte) ────────────────────────────────────────────
-  const GameCard = ({ icon: IconComp, label, sub, onClick, col, badge, badgeIcon, difficulty, drix, stat, statIcon, played, bgIcon }) => {
-    const diffMap = {
-      debut: { label:"Débutant", col:"#22c55e", dot:"🟢" },
-      inter: { label:"Intermédiaire", col:"#f59e0b", dot:"🟠" },
-      expert: { label:"Expert", col:"#ef4444", dot:"🔴" },
-    };
-    const diff = diffMap[difficulty];
+  const GameCard = ({ icon: IconComp, label, sub, onClick, col, badge, badgeIcon, played, bgIcon }) => {
     return (
       <div onClick={onClick} className="mj-card"
         style={{
@@ -6324,7 +6318,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           </div>
           <div style={{ flex:1,minWidth:0 }}>
             <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:2,flexWrap:"wrap" }}>
-              <span style={{ fontWeight:900,fontSize:15,color:"#f1f5f9",letterSpacing:.3 }}>{label}</span>
+              <span style={{ fontWeight:900,fontSize:21,color:"#f1f5f9",letterSpacing:.3 }}>{label}</span>
               {badge && (
                 <span style={{
                   background:`linear-gradient(135deg,${col}33,${col}11)`,
@@ -6342,31 +6336,8 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
                 }}><EmoText s="✓ FAIT" size={9} gap={3}/></span>
               )}
             </div>
-            <div style={{ fontSize:11,color:"#94a3b8",lineHeight:1.4 }}>{sub}</div>
+            <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.45 }}>{sub}</div>
           </div>
-        </div>
-
-        {/* Mid row : difficulté + DRIX + stat */}
-        <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:8,position:"relative" }}>
-          {diff && (
-            <span style={{ fontSize:9,fontWeight:800,color:diff.col,padding:"2px 7px",borderRadius:10,background:`${diff.col}15`,border:`1px solid ${diff.col}44`,letterSpacing:.4 }}>
-              {diff.dot} {diff.label}
-            </span>
-          )}
-          {drix && (() => {
-            const isLibre = /libre/i.test(drix);
-            const cAcc = isLibre ? "#fbbf24" : "#a78bfa";
-            return (
-              <span style={{ fontSize:9,fontWeight:800,color:cAcc,padding:"2px 7px",borderRadius:10,background:`${cAcc}15`,border:`1px solid ${cAcc}44`,letterSpacing:.4,display:"inline-flex",alignItems:"center",gap:3 }}>
-                {isLibre ? "🎯" : "💎"} {drix}
-              </span>
-            );
-          })()}
-          {stat && (
-            <span style={{ fontSize:9,fontWeight:800,color:"#64748b",padding:"2px 7px",borderRadius:10,background:"#64748b15",border:"1px solid #64748b33",letterSpacing:.4 }}>
-              {statIcon} {stat}
-            </span>
-          )}
         </div>
 
         {/* Bottom : bouton Jouer */}
