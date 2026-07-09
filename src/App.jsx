@@ -11000,7 +11000,12 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
   const [volleys, setVolleys] = useState([]);
   const [input, setInput] = useState("");
   const [sessionReady, setSessionReady] = useState(false);
+  const [pendingFinish, setPendingFinish] = useState(null); // { val } → popup nb fléchettes (finish)
+  const [showVolees, setShowVolees] = useState(false);
+  const [showQuit, setShowQuit] = useState(false);
   const finalizedRef = useRef(false);
+  const deletedRef = useRef(new Set());   // n° de volées annulées (retour), en attente de confirmation serveur
+  const maxSeqRef = useRef(-1);           // n° de volée toujours croissant (jamais réutilisé après un retour)
 
   // Charge le duel
   useEffect(() => {
@@ -11031,7 +11036,18 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
     const poll = async () => {
       try {
         const rows = await sb(`live_volees?session_id=eq.${duelId}&order=numero_volee.asc&select=joueur_id,numero_volee,score,reste,date`);
-        if (alive) setVolleys(prev => mergeVolleys(prev, rows || []));
+        if (!alive) return;
+        for (const r of (rows||[])) maxSeqRef.current = Math.max(maxSeqRef.current, r.numero_volee || 0);
+        setVolleys(prev => {
+          const serverSeqs = new Set((rows||[]).map(r => r.numero_volee));
+          // Une volée annulée est confirmée supprimée dès que le serveur ne la renvoie plus
+          for (const s of [...deletedRef.current]) if (!serverSeqs.has(s)) deletedRef.current.delete(s);
+          const server = (rows||[]).filter(r => !deletedRef.current.has(r.numero_volee));
+          const have = new Set(server.map(r => r.numero_volee));
+          // On garde nos volées optimistes pas encore renvoyées par le serveur
+          const pending = prev.filter(v => v._local && !have.has(v.numero_volee) && !deletedRef.current.has(v.numero_volee));
+          return [...server, ...pending].sort((x,y)=>(x.numero_volee-y.numero_volee)||((x.date||0)-(y.date||0)));
+        });
       } catch { /* on réessaie au prochain tick */ }
     };
     poll();
@@ -11083,33 +11099,62 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
   if (err) return <div style={{ textAlign:"center", padding:60, color:C.muted }}>Partie introuvable.<div><button onClick={()=>setPage("home")} style={{ marginTop:16, background:C.accent, border:"none", color:"#fff", borderRadius:10, padding:"10px 20px", cursor:"pointer", fontWeight:700 }}>Retour</button></div></div>;
   if (!duel || !state) return <Spinner/>;
 
-  const valider = async () => {
-    if (!monTour) return;
-    if (!sessionReady) { window.dpToast?.("Connexion à la partie en cours…", "info"); return; }
-    const val = inputNum;
-    const seq = volleys.length;
-    const nr = me.reste - val;
-    const resteApres = nr === 0 ? 0 : (nr < 0 || nr === 1 ? me.reste : nr);
-    const optimistic = { joueur_id: meId, numero_volee: seq, score: val, reste: resteApres, date: Date.now() };
-    const nextVolleys = mergeVolleys(volleys, [optimistic]);
+  // Poste une volée dans le journal partagé.
+  // resteField : pour un FINISH = nb fléchettes (1..3) ; sinon = reste résultant.
+  const postVolley = (val, resteField) => {
+    const seq = Math.max(maxSeqRef.current, ...volleys.map(v => v.numero_volee || 0), -1) + 1;
+    maxSeqRef.current = seq;
+    deletedRef.current.delete(seq);
+    const optimistic = { joueur_id: meId, numero_volee: seq, score: val, reste: resteField, date: Date.now(), _local: true };
+    const nextVolleys = [...volleys, optimistic].sort((a, b) => a.numero_volee - b.numero_volee);
     setVolleys(nextVolleys);
-    setInput("");
-    // Diffusion Comptoir : met à jour MON côté de la session live
     const ns = reduceGameOnline(nextVolleys, { startScore, manchesToWin, starterId, players });
     const mn = ns.players[meId];
     const iAmJ1 = meId === duel.challenger_id;
-    const myStats = { moy: mn.flechettes>0 ? Math.round(mn.totalPoints/mn.flechettes*3*10)/10 : 0, volees:mn.tours.length, flech:mn.flechettes, total_pts:mn.totalPoints, nb180:mn.tours.filter(v=>v===180).length, reste:mn.reste, max_finish:0, busts:mn.busts };
-    try {
-      await sb("live_volees", { method:"POST", prefer:"return=minimal", body: JSON.stringify({
-        session_id: duelId, joueur_id: meId, numero_volee: seq, score: val, reste: resteApres, date: Date.now(),
-      })});
-      sb(`live_sessions?id=eq.${duelId}`, { method:"PATCH", prefer:"return=minimal", body: JSON.stringify(
-        iAmJ1 ? { score1: mn.manches, stats_j1: myStats } : { score2: mn.manches, stats_j2: myStats }
-      )}).catch(()=>{});
-    } catch {
-      setVolleys(prev => prev.filter(v => !(v.numero_volee === seq && v.joueur_id === meId)));
-      window.dpToast?.("Volée non envoyée, réessaie", "error");
-    }
+    const myStats = { moy: mn.flechettes > 0 ? Math.round(mn.totalPoints / mn.flechettes * 3 * 10) / 10 : 0, volees: mn.tours.length, flech: mn.flechettes, total_pts: mn.totalPoints, nb180: mn.tours.filter(v => v === 180).length, reste: mn.reste, max_finish: 0, busts: mn.busts };
+    sb("live_volees", { method: "POST", prefer: "return=minimal", body: JSON.stringify({ session_id: duelId, joueur_id: meId, numero_volee: seq, score: val, reste: resteField, date: Date.now() }) })
+      .then(() => { sb(`live_sessions?id=eq.${duelId}`, { method: "PATCH", prefer: "return=minimal", body: JSON.stringify(iAmJ1 ? { score1: mn.manches, stats_j1: myStats } : { score2: mn.manches, stats_j2: myStats }) }).catch(() => {}); })
+      .catch(() => { setVolleys(prev => prev.filter(v => v.numero_volee !== seq)); window.dpToast?.("Volée non envoyée, réessaie", "error"); });
+  };
+
+  const appuyer = (key) => {
+    if (key === "del") { setInput(v => v.slice(0, -1)); return; }
+    setInput(v => { const nv = (v + key).replace(/^0+(?=\d)/, ""); return parseInt(nv || "0", 10) > 180 ? v : nv.slice(0, 3); });
+  };
+
+  const envoyer = (overrideVal) => {
+    if (!monTour || pendingFinish) return;
+    if (!sessionReady) { window.dpToast?.("Connexion à la partie en cours…", "info"); return; }
+    const val = overrideVal !== undefined ? overrideVal : inputNum;
+    if (isNaN(val) || val < 0 || val > 180) { setInput(""); return; }
+    setInput("");
+    const nr = me.reste - val;
+    if (nr === 0) { setPendingFinish({ val }); return; }          // FINISH → popup nb fléchettes
+    if (nr < 0 || nr === 1) { postVolley(val, me.reste); return; } // BUST (reste inchangé)
+    postVolley(val, nr);                                            // volée normale (val=0 = NO SCORE)
+  };
+
+  const confirmerFinish = (darts) => {
+    if (!pendingFinish) return;
+    const { val } = pendingFinish;
+    setPendingFinish(null);
+    postVolley(val, Math.max(1, Math.min(3, darts)));              // le champ reste porte le nb de fléchettes
+  };
+
+  const annuler = () => {
+    if (input) { setInput(v => v.slice(0, -1)); return; }
+    if (pendingFinish) { setPendingFinish(null); return; }
+    // Retour : annule MA dernière volée (uniquement si c'est la dernière du journal)
+    const last = volleys.reduce((m, v) => (!m || v.numero_volee > m.numero_volee ? v : m), null);
+    if (!last || last.joueur_id !== meId) return;
+    const seq = last.numero_volee;
+    deletedRef.current.add(seq);
+    const next = volleys.filter(v => v.numero_volee !== seq);
+    setVolleys(next);
+    sb(`live_volees?session_id=eq.${duelId}&numero_volee=eq.${seq}`, { method: "DELETE", prefer: "return=minimal" }).catch(() => {});
+    const ns = reduceGameOnline(next, { startScore, manchesToWin, starterId, players });
+    const mn = ns.players[meId]; const iAmJ1 = meId === duel.challenger_id;
+    sb(`live_sessions?id=eq.${duelId}`, { method: "PATCH", prefer: "return=minimal", body: JSON.stringify(iAmJ1 ? { score1: mn.manches } : { score2: mn.manches }) }).catch(() => {});
   };
 
   // ── ÉCRAN DE FIN ──
@@ -11139,84 +11184,166 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
     );
   }
 
-  // ── ÉCRAN DE JEU ──
-  const startPseudo = starterId === meId ? mePseudo : advPseudo;
-  const PScore = ({ pseudo, p, actif, moi }) => (
-    <div style={{ flex:1, background:actif ? "#0f2018" : "#16161c", border:`2px solid ${actif ? "#34d399" : C.border}`, borderRadius:16, padding:"14px 8px", textAlign:"center", position:"relative", boxShadow:actif ? "0 0 18px #34d39933" : "none", transition:"all .2s" }}>
-      {actif && <div style={{ position:"absolute", top:6, left:0, right:0, fontSize:9, fontWeight:800, letterSpacing:1, color:"#34d399" }}>À LUI DE JOUER</div>}
-      <div style={{ fontWeight:800, fontSize:14, color:moi?"#6ee7b7":C.text, marginTop:actif?8:0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{pseudo}{moi?" (toi)":""}</div>
-      <div style={{ fontWeight:900, fontSize:46, color:actif?"#34d399":C.text, lineHeight:1.1, marginTop:2 }}>{p.reste}</div>
-      <div style={{ display:"flex", justifyContent:"center", gap:5, marginTop:6 }}>
-        {Array.from({length:manchesToWin}).map((_,i)=>(
-          <div key={i} style={{ width:9, height:9, borderRadius:"50%", background: i < p.manches ? "#34d399" : "#2a2a2a" }}/>
-        ))}
-      </div>
-    </div>
-  );
-
-  const NumBtn = ({ children, onClick, grow, danger, valider:isValider }) => (
-    <button onClick={onClick} style={{ flex: grow || 1, padding:"18px 0", borderRadius:12, border:"none", cursor:"pointer",
-      fontWeight:900, fontSize:22, touchAction:"manipulation",
-      background: isValider ? "linear-gradient(135deg,#34d399,#059669)" : danger ? "#2a1520" : "#1e1e1e",
-      color: isValider ? "#04160e" : danger ? "#fca5a5" : C.text }}>{children}</button>
-  );
+  // ── ÉCRAN DE JEU (reproduction fidèle du scoreur Défi/Libre) ──
+  const startPseudo = starterId === duel.challenger_id ? duel.challenger_pseudo : duel.defie_pseudo;
+  const activeId = state.turn;
+  const cards = [
+    { id: duel.challenger_id, pseudo: duel.challenger_pseudo, p: state.players[duel.challenger_id] },
+    { id: duel.defie_id,      pseudo: duel.defie_pseudo,      p: state.players[duel.defie_id] },
+  ];
+  const quickScores = [26, 45, 60, 81, 100, 121, 140, 180];
+  const disabled = !monTour;
+  const tap = (fn) => (e) => { e.preventDefault(); fn(); };
+  // RETOUR : on peut toujours corriger SA propre dernière volée, même juste après
+  // l'avoir jouée (donc pendant le tour de l'adversaire), tant qu'il n'a pas répondu.
+  const lastVolley = volleys.reduce((m, v) => (!m || v.numero_volee > m.numero_volee ? v : m), null);
+  const canUndo = !!input || (!!lastVolley && lastVolley.joueur_id === meId && !pendingFinish);
 
   return (
-    <div style={{ maxWidth:520, margin:"0 auto", padding:"14px 14px 20px" }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#6ee7b7", fontWeight:800 }}>
-          <EmoIcon e="🌐" size={14} color="#6ee7b7"/> EN LIGNE
+    <div className="scoreur-wrap" style={{ position:"fixed", inset:0, background:"#0f0f0f", fontFamily:"Inter,sans-serif", display:"flex", flexDirection:"column", overflow:"hidden", zIndex:500, touchAction:"none" }}>
+      <style>{`.scoreur-wrap button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}.scoreur-wrap button:active{opacity:.7;transform:scale(.96)}@keyframes scActiveGlow{0%,100%{box-shadow:0 0 0 1px #f9731666,0 0 18px #f9731633}50%{box-shadow:0 0 0 1px #f97316cc,0 0 36px #f9731666}}@keyframes scPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.25)}}`}</style>
+
+      {/* POPUP FLÉCHETTES (finish) */}
+      {pendingFinish && (
+        <div style={{ position:"fixed", inset:0, background:"#000000dd", zIndex:9998, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ background:"#1a1a1a", border:"2px solid #22c55e", borderRadius:20, padding:28, maxWidth:340, width:"100%", textAlign:"center" }}>
+            <div style={{ marginBottom:10, display:"flex", justifyContent:"center" }}><EmoIcon e="🏆" size={48} color="#fbbf24"/></div>
+            <h3 style={{ fontWeight:900, fontSize:19, color:"#f1f5f9", marginBottom:8 }}><EmoText s="🏆 FINISH !" size={16}/></h3>
+            <p style={{ color:"#94a3b8", fontSize:14, marginBottom:20 }}>Combien de fléchettes as-tu utilisées pour finir ?</p>
+            <div style={{ display:"flex", gap:10, justifyContent:"center", marginBottom:14 }}>
+              {[1,2,3].map(n => (
+                <button key={n} onPointerDown={tap(()=>confirmerFinish(n))} style={{ flex:1, padding:"18px 0", borderRadius:14, border:"none", fontWeight:900, fontSize:24, cursor:"pointer", background:"linear-gradient(135deg,#14532d,#16a34a)", color:"#fff" }}>{n}</button>
+              ))}
+            </div>
+            <button onPointerDown={tap(()=>setPendingFinish(null))} style={{ width:"100%", padding:12, borderRadius:12, border:"1px solid #ef444466", background:"#1a0000", color:"#ef4444", fontWeight:700, fontSize:15, cursor:"pointer" }}>
+              <EmoIcon e="⬅" size={15} style={{verticalAlign:"-2px",marginRight:6}}/>Retour — j'ai fait une erreur
+            </button>
+          </div>
         </div>
-        <div style={{ fontSize:12, color:C.muted, fontWeight:700 }}>{duel.mode} · Manche {state.manche}{manchesToWin>1?` · BO${manchesToWin*2-1}`:""}</div>
-        <button onClick={()=>setPage("home")} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:12, display:"flex", alignItems:"center", gap:3 }}><X size={14}/>Quitter</button>
-      </div>
-
-      {/* Scoreboard */}
-      <div style={{ display:"flex", gap:10, marginBottom:16 }}>
-        <PScore pseudo={mePseudo} p={me} actif={state.turn===meId} moi/>
-        <PScore pseudo={advPseudo} p={adv} actif={state.turn===advId}/>
-      </div>
-
-      {volleys.length===0 && (
-        <div style={{ textAlign:"center", fontSize:12, color:C.muted, marginBottom:12 }}>🎲 {startPseudo} commence (tirage au sort)</div>
       )}
 
-      {monTour ? (
-        <div>
-          <div style={{ background:"#16161c", border:`1px solid ${C.border}`, borderRadius:14, padding:"14px 16px", marginBottom:12, textAlign:"center" }}>
-            <div style={{ fontSize:11, color:C.muted, fontWeight:700, marginBottom:2 }}>SCORE DE TA VOLÉE (3 fléchettes)</div>
-            <div style={{ fontWeight:900, fontSize:40, color: inputNum > me.reste ? "#f59e0b" : "#34d399", lineHeight:1 }}>{input || "0"}</div>
-            <div style={{ fontSize:11, color:C.muted, marginTop:4 }}>
-              {inputNum > me.reste || me.reste - inputNum === 1 ? "⚠️ Bust (tu gardes ton score)" : (me.reste - inputNum === 0 ? "🎯 Finish !" : `reste ${me.reste - inputNum}`)}
+      {/* MODALE VOLÉES */}
+      {showVolees && (
+        <div onClick={()=>setShowVolees(false)} style={{ position:"fixed", inset:0, background:"#000000dd", zIndex:9997, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ background:"#111", border:`1px solid ${C.border}`, borderRadius:18, padding:18, maxWidth:400, width:"100%", maxHeight:"80vh", overflowY:"auto" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <h3 style={{ fontWeight:900, fontSize:16, color:C.text }}>📊 Volées</h3>
+              <button onClick={()=>setShowVolees(false)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer" }}><X size={18}/></button>
             </div>
-          </div>
-          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-            {[[1,2,3],[4,5,6],[7,8,9]].map((row,ri)=>(
-              <div key={ri} style={{ display:"flex", gap:8 }}>
-                {row.map(n => <NumBtn key={n} onClick={()=>setInput(v => (v+String(n)).slice(0,3))}>{n}</NumBtn>)}
+            {cards.map(c => (
+              <div key={c.id} style={{ marginBottom:12 }}>
+                <div style={{ fontSize:12, fontWeight:800, color:"#fbbf24", marginBottom:5 }}>{c.pseudo}{c.id===meId?" (toi)":""} · moy {moyenneJoueur3(c.p)}</div>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+                  {c.p.tours.length===0 ? <span style={{ fontSize:12, color:C.muted }}>—</span> : c.p.tours.map((t,i)=>(
+                    <span key={i} style={{ fontSize:12, fontWeight:800, minWidth:30, textAlign:"center", padding:"3px 6px", borderRadius:6, background:t>=100?"#14532d":t===0?"#2a1520":"#1a1a1a", color:t>=100?"#4ade80":t===0?"#fca5a5":C.text }}>{t}</span>
+                  ))}
+                </div>
               </div>
             ))}
-            <div style={{ display:"flex", gap:8 }}>
-              <NumBtn danger onClick={()=>setInput("")}>C</NumBtn>
-              <NumBtn onClick={()=>setInput(v => (v+"0").slice(0,3))}>0</NumBtn>
-              <NumBtn onClick={()=>setInput(v => v.slice(0,-1))}>⌫</NumBtn>
-            </div>
-            <NumBtn valider grow={1} onClick={valider}>✓ Valider {inputNum}</NumBtn>
           </div>
         </div>
-      ) : (
-        <div style={{ textAlign:"center", padding:"30px 0" }}>
-          <div style={{ margin:"0 auto 16px", width:54, height:54, borderRadius:"50%", border:"3px solid #34d39933", borderTopColor:"#34d399", animation:"onlineSpin 1s linear infinite" }}/>
-          <style>{`@keyframes onlineSpin{to{transform:rotate(360deg)}}`}</style>
-          <div style={{ fontWeight:800, fontSize:16, color:C.text }}>Au tour de {advPseudo}…</div>
-          <div style={{ fontSize:12, color:C.muted, marginTop:4 }}>Son score s'affichera ici automatiquement</div>
-          {state.lastEvent && state.lastEvent.joueur_id===advId && (
-            <div style={{ marginTop:14, display:"inline-block", background:"#16161c", border:`1px solid ${C.border}`, borderRadius:10, padding:"8px 14px", fontSize:13, color:C.muted }}>
-              Dernière volée de {advPseudo} : <strong style={{ color: state.lastEvent.type==="finish"?"#34d399":state.lastEvent.type==="bust"?"#f59e0b":C.text }}>{state.lastEvent.type==="bust"?"Bust":state.lastEvent.val}</strong>
+      )}
+
+      {/* MODALE QUITTER */}
+      {showQuit && (
+        <div style={{ position:"fixed", inset:0, background:"#000000dd", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ background:"#1a1a1a", border:"2px solid #7f1d1d", borderRadius:18, padding:24, maxWidth:320, width:"100%", textAlign:"center" }}>
+            <div style={{ fontSize:40, marginBottom:8 }}>⚠️</div>
+            <h3 style={{ fontWeight:900, fontSize:18, color:C.text, marginBottom:6 }}>Quitter la partie ?</h3>
+            <p style={{ color:C.muted, fontSize:13, marginBottom:18 }}>La partie en ligne sera abandonnée.</p>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={()=>setShowQuit(false)} style={{ flex:1, background:"#1e1e1e", border:`1px solid ${C.border}`, color:C.text, borderRadius:12, padding:"12px 0", cursor:"pointer", fontWeight:800 }}>Continuer</button>
+              <button onClick={()=>{ sb(`duels?id=eq.${duelId}`, { method:"PATCH", prefer:"return=minimal", body: JSON.stringify({ statut:"abandonne" }) }).catch(()=>{}); sb(`live_sessions?id=eq.${duelId}`, { method:"PATCH", prefer:"return=minimal", body: JSON.stringify({ statut:"abandonne" }) }).catch(()=>{}); setPage("home"); }} style={{ flex:1, background:"#7f1d1d", border:"none", color:"#fff", borderRadius:12, padding:"12px 0", cursor:"pointer", fontWeight:800 }}>Quitter</button>
             </div>
-          )}
+          </div>
         </div>
       )}
+
+      {/* HEADER */}
+      <div style={{ background:"#0a0a0a", padding:"6px 12px", display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #1a1a1a", flexShrink:0 }}>
+        <button onClick={()=>setShowQuit(true)} style={{ background:"#1a0000", border:"1px solid #7f1d1d", color:"#ef4444", cursor:"pointer", fontSize:11, fontWeight:800, padding:"5px 10px", borderRadius:8 }}><EmoIcon e="⚠" size={11} style={{verticalAlign:"-1px",marginRight:4}}/>QUITTER</button>
+        <div style={{ textAlign:"center", display:"flex", alignItems:"center", gap:7 }}>
+          <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontWeight:900, fontSize:11, color:"#6ee7b7", letterSpacing:1 }}><EmoIcon e="🌐" size={11} color="#6ee7b7"/>EN LIGNE</span>
+          <span style={{ color:"#475569", fontSize:10 }}>·</span>
+          <span style={{ fontWeight:900, fontSize:12, color:"#fbbf24", letterSpacing:1 }}>{duel.mode}</span>
+          <span style={{ color:"#475569", fontSize:10 }}>·</span>
+          <span style={{ fontWeight:700, fontSize:10.5, color:"#94a3b8" }}>Premier à {manchesToWin}</span>
+        </div>
+        <button onClick={()=>setShowVolees(true)} style={{ background:"#0f0a1a", border:"1px solid #4c1d9544", color:"#a78bfa", cursor:"pointer", fontSize:11, fontWeight:800, padding:"5px 10px", borderRadius:8 }}><EmoIcon e="📊" size={11} style={{verticalAlign:"-1px",marginRight:4}}/>VOLÉES</button>
+      </div>
+
+      {/* CARTES JOUEURS */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", padding:"12px 10px", gap:8, alignItems:"stretch", background:"linear-gradient(180deg,#0a0a0a,#0f0f12)", borderBottom:"1px solid #1a1a1a", flexShrink:0 }}>
+        {cards.map((c, ci) => {
+          const isActif = c.id === activeId;
+          const el = (
+            <div key={c.id} style={{ position:"relative", overflow:"hidden", borderRadius:14, padding:"10px 8px", textAlign:"center",
+              background: isActif ? "linear-gradient(135deg,#1a0a00,#100600)" : "linear-gradient(135deg,#0a0a14,#070710)",
+              animation: isActif ? "scActiveGlow 2.4s ease-in-out infinite" : "none",
+              border: isActif ? "1px solid transparent" : "1px solid #1a1a1a",
+              opacity: isActif ? 1 : .55, transform: isActif ? "scale(1)" : "scale(0.96)", transition:"all .3s" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:5, marginBottom:4 }}>
+                {isActif && <span style={{ width:6, height:6, borderRadius:"50%", background:"#f97316", boxShadow:"0 0 8px #f97316", animation:"scPulse 1.4s ease-in-out infinite" }}/>}
+                <span style={{ fontWeight:800, fontSize:11, color:isActif?"#fbbf24":"#64748b", letterSpacing:.5, textTransform:"uppercase", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.pseudo}{c.id===meId?" (toi)":""}</span>
+              </div>
+              <div style={{ fontSize:64, fontWeight:900, lineHeight:.95, color:isActif?"#fff":"#475569", margin:"2px 0", fontVariantNumeric:"tabular-nums" }}>{c.p.reste}</div>
+              <div style={{ display:"flex", gap:4, justifyContent:"center", marginTop:4 }}>
+                {Array.from({length:manchesToWin}).map((_,mi)=>(
+                  <div key={mi} style={{ width:8, height:8, borderRadius:"50%", background: mi<c.p.manches ? (isActif?"#fbbf24":"#f97316aa") : (isActif?"#ffffff15":"#1a1a1a"), boxShadow: mi<c.p.manches&&isActif?"0 0 8px #fbbf24":"none" }}/>
+                ))}
+              </div>
+            </div>
+          );
+          if (ci===0) return [el, (
+            <div key="vs" style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"0 2px" }}>
+              <div style={{ width:28, height:28, borderRadius:"50%", background:"linear-gradient(135deg,#f97316,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 0 12px #f9731644" }}><Swords size={14} color="#fff"/></div>
+            </div>
+          )];
+          return el;
+        })}
+      </div>
+
+      {/* STATS LIGNE */}
+      <div style={{ padding:"6px 12px", background:"#0a0a0a", borderBottom:"1px solid #1a1a1a", flexShrink:0, display:"flex", alignItems:"center", gap:8, fontSize:11 }}>
+        <span style={{ color:"#64748b", fontWeight:700 }}><EmoIcon e="🎯" size={11} style={{verticalAlign:"-1px",marginRight:3}}/>Moy <strong style={{ color:"#94a3b8" }}>{state.players[activeId].mancheMoy}</strong></span>
+        <span style={{ color:"#475569" }}>·</span>
+        <span style={{ color:"#64748b", fontWeight:700 }}>Préc <strong style={{ color:"#94a3b8" }}>{state.players[activeId].scorePrecedent ?? "—"}</strong></span>
+        <span style={{ color:"#475569" }}>·</span>
+        <span style={{ color:"#64748b", fontWeight:700 }}><EmoIcon e="🎯" size={11} style={{verticalAlign:"-1px",marginRight:3}}/><strong style={{ color:"#94a3b8" }}>{state.players[activeId].flechettes}</strong></span>
+        {volleys.length===0 && <span style={{ marginLeft:"auto", color:"#6ee7b7", fontWeight:700, fontSize:10.5 }}>🎲 {startPseudo} commence</span>}
+      </div>
+
+      {/* RACCOURCIS RAPIDES */}
+      <div style={{ display:"flex", gap:5, padding:"6px 10px", background:"#0a0a0a", overflowX:"auto", flexShrink:0, borderBottom:"1px solid #1a1a1a", opacity:disabled?.4:1 }}>
+        {quickScores.map(qs => (
+          <button key={qs} onPointerDown={tap(()=>{ if(!disabled) envoyer(qs); })} style={{ minWidth:50, flexShrink:0, padding:"6px 10px", borderRadius:10, border:"1px solid #2a2a2a", background:"linear-gradient(135deg,#1a1a1a,#0f0f0f)", color:"#fbbf24", fontWeight:800, fontSize:13, cursor:"pointer" }}>{qs}</button>
+        ))}
+      </div>
+
+      {/* INPUT + VALIDER */}
+      <div style={{ padding:"8px 12px", background:"#0a0a0a", flexShrink:0, borderBottom:"1px solid #1a1a1a" }}>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <div style={{ flex:1, background:"linear-gradient(135deg,#0f0f0f,#1a1a1a)", border:`1px solid ${input?"#f97316aa":"#2a2a2a"}`, borderRadius:12, padding:"10px 16px", display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:14, color: disabled?"#a78bfa":input?"#f97316":"#475569" }}>{disabled?"⏳":"⌨️"}</span>
+            <span style={{ fontSize: disabled?15:22, fontWeight:900, color: disabled?"#a78bfa":input?"#fff":"#475569", flex:1, fontVariantNumeric:"tabular-nums", letterSpacing:1, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{disabled ? `${advPseudo} joue…` : (input || "Tape un score…")}</span>
+          </div>
+          <button onPointerDown={tap(()=>{ if(!disabled) (input ? envoyer() : envoyer(0)); })} style={{ minWidth:92, background: input?"linear-gradient(135deg,#22c55e,#16a34a)":"linear-gradient(135deg,#9a3412,#ea580c)", border:"none", borderRadius:12, padding:"11px 16px", fontWeight:900, fontSize:input?14:11.5, color:"#fff", cursor:"pointer", whiteSpace:"nowrap", opacity:disabled?.4:1 }}>{input ? <EmoText s="✓ VALIDER" size={16} gap={6}/> : "NO SCORE"}</button>
+        </div>
+      </div>
+
+      {/* CLAVIER */}
+      <div style={{ padding:"8px 10px 10px", background:"#0a0a0a", flex:1, display:"flex", flexDirection:"column", gap:6 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:6, flex:1 }}>
+          {["1","2","3","4","5","6","7","8","9"].map(n => (
+            <button key={n} onPointerDown={tap(()=>{ if(!disabled) appuyer(n); })} style={{ borderRadius:14, border:"1px solid #2a2a2a", background:"linear-gradient(135deg,#1f1f25,#0f0f15)", color:"#f1f5f9", fontSize:30, fontWeight:800, cursor:"pointer", fontVariantNumeric:"tabular-nums", opacity:disabled?.35:1 }}>{n}</button>
+          ))}
+          <button onPointerDown={tap(()=>{ if(canUndo) annuler(); })} style={{ borderRadius:14, border:"1px solid #7f1d1d44", background:"linear-gradient(135deg,#2a0a0a,#1a0608)", color:"#ef4444", fontSize:24, fontWeight:800, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", opacity:canUndo?1:.35 }}>
+            <span style={{ lineHeight:1 }}>⬅</span><span style={{ fontSize:9, fontWeight:900, letterSpacing:1, marginTop:2 }}>RETOUR</span>
+          </button>
+          <button onPointerDown={tap(()=>{ if(!disabled) appuyer("0"); })} style={{ borderRadius:14, border:"1px solid #2a2a2a", background:"linear-gradient(135deg,#1f1f25,#0f0f15)", color:"#f1f5f9", fontSize:30, fontWeight:800, cursor:"pointer", opacity:disabled?.35:1 }}>0</button>
+          <button onPointerDown={tap(()=>{ if(!disabled) (input ? envoyer() : envoyer(0)); })} style={{ borderRadius:14, border:"none", background: input?"linear-gradient(135deg,#22c55e,#16a34a)":"linear-gradient(135deg,#9a3412,#ea580c)", color:"#fff", fontSize:input?32:13, fontWeight:900, lineHeight:1, cursor:"pointer", letterSpacing:input?0:.5, display:"flex", alignItems:"center", justifyContent:"center", opacity:disabled?.35:1 }}>{input ? "✓" : "NO SCORE"}</button>
+        </div>
+      </div>
     </div>
   );
 };
