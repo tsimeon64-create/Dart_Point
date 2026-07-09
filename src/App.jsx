@@ -3190,6 +3190,35 @@ const PageDefi = ({ joueur, setPage }) => {
               );
             })()}
 
+            {/* BLOC ANALYSE */}
+            <div style={{ margin:"12px 16px 0",background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:16 }}>
+              <div style={{ fontSize:11,color:C.muted,marginBottom:12,fontWeight:700,letterSpacing:1 }}>ANALYSE</div>
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
+                <div style={{ background:"#111",borderRadius:12,padding:"12px 10px" }}>
+                  <div style={{ fontSize:10,color:C.muted,marginBottom:6 }}>FACE À FACE</div>
+                  <div style={{ fontWeight:900,fontSize:18 }}><span style={{ color:"#22c55e" }}>{ms.fafLoses||0}V</span> – <span style={{ color:"#ef4444" }}>{ms.fafWins||0}D</span></div>
+                  <div style={{ fontSize:10,color:C.muted,marginTop:2 }}>{(ms.faceAFace||[]).length} matchs</div>
+                </div>
+                <div style={{ background:"#111",borderRadius:12,padding:"12px 10px" }}>
+                  <div style={{ fontSize:10,color:C.muted,marginBottom:6 }}>STYLE</div>
+                  <div style={{ display:"flex" }}><EmoIcon e={ms.styleObj?.emoji} size={16} color={C.accent}/></div>
+                  <div style={{ fontWeight:700,fontSize:12,marginTop:2 }}>{ms.styleObj?.label}</div>
+                  <div style={{ fontSize:10,color:C.muted }}>{ms.styleObj?.desc}</div>
+                </div>
+                <div style={{ background:"#111",borderRadius:12,padding:"12px 10px" }}>
+                  <div style={{ fontSize:10,color:C.muted,marginBottom:6 }}>POINT FAIBLE</div>
+                  <div style={{ display:"flex" }}><EmoIcon e={ms.pointFaibleObj?.emoji} size={16} color={C.red}/></div>
+                  <div style={{ fontWeight:700,fontSize:12,marginTop:2 }}>{ms.pointFaibleObj?.label}</div>
+                  <div style={{ fontSize:10,color:C.muted }}>{ms.pointFaibleObj?.desc}</div>
+                </div>
+                <div style={{ background:"#111",borderRadius:12,padding:"12px 10px",textAlign:"center" }}>
+                  <div style={{ fontSize:10,color:C.muted,marginBottom:6 }}>PROB. VICTOIRE</div>
+                  <div style={{ fontWeight:900,fontSize:28,color:ms.probaVictoire>=60?"#22c55e":ms.probaVictoire>=40?"#f59e0b":"#ef4444" }}>{ms.probaVictoire||"?"}%</div>
+                  <div style={{ fontSize:10,color:C.muted }}>pour toi</div>
+                </div>
+              </div>
+            </div>
+
             {/* BLOC COMPARAISON DRIX */}
             {(() => {
               // Le mode 'rivalité' (+50/0) ne s'active QUE si on a ouvert la modal via
@@ -3257,35 +3286,6 @@ const PageDefi = ({ joueur, setPage }) => {
                 </div>
               );
             })()}
-
-            {/* BLOC ANALYSE */}
-            <div style={{ margin:"12px 16px 0",background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:16 }}>
-              <div style={{ fontSize:11,color:C.muted,marginBottom:12,fontWeight:700,letterSpacing:1 }}>ANALYSE</div>
-              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
-                <div style={{ background:"#111",borderRadius:12,padding:"12px 10px" }}>
-                  <div style={{ fontSize:10,color:C.muted,marginBottom:6 }}>FACE À FACE</div>
-                  <div style={{ fontWeight:900,fontSize:18 }}><span style={{ color:"#22c55e" }}>{ms.fafLoses||0}V</span> – <span style={{ color:"#ef4444" }}>{ms.fafWins||0}D</span></div>
-                  <div style={{ fontSize:10,color:C.muted,marginTop:2 }}>{(ms.faceAFace||[]).length} matchs</div>
-                </div>
-                <div style={{ background:"#111",borderRadius:12,padding:"12px 10px" }}>
-                  <div style={{ fontSize:10,color:C.muted,marginBottom:6 }}>STYLE</div>
-                  <div style={{ display:"flex" }}><EmoIcon e={ms.styleObj?.emoji} size={16} color={C.accent}/></div>
-                  <div style={{ fontWeight:700,fontSize:12,marginTop:2 }}>{ms.styleObj?.label}</div>
-                  <div style={{ fontSize:10,color:C.muted }}>{ms.styleObj?.desc}</div>
-                </div>
-                <div style={{ background:"#111",borderRadius:12,padding:"12px 10px" }}>
-                  <div style={{ fontSize:10,color:C.muted,marginBottom:6 }}>POINT FAIBLE</div>
-                  <div style={{ display:"flex" }}><EmoIcon e={ms.pointFaibleObj?.emoji} size={16} color={C.red}/></div>
-                  <div style={{ fontWeight:700,fontSize:12,marginTop:2 }}>{ms.pointFaibleObj?.label}</div>
-                  <div style={{ fontSize:10,color:C.muted }}>{ms.pointFaibleObj?.desc}</div>
-                </div>
-                <div style={{ background:"#111",borderRadius:12,padding:"12px 10px",textAlign:"center" }}>
-                  <div style={{ fontSize:10,color:C.muted,marginBottom:6 }}>PROB. VICTOIRE</div>
-                  <div style={{ fontWeight:900,fontSize:28,color:ms.probaVictoire>=60?"#22c55e":ms.probaVictoire>=40?"#f59e0b":"#ef4444" }}>{ms.probaVictoire||"?"}%</div>
-                  <div style={{ fontSize:10,color:C.muted }}>pour toi</div>
-                </div>
-              </div>
-            </div>
 
             {/* BLOC CONFIGURATION */}
             <div style={{ margin:"12px 16px 0",background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:16 }}>
