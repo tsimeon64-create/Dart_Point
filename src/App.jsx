@@ -2745,10 +2745,6 @@ const PageDefi = ({ joueur, setPage }) => {
         // contre eux même si la rivalité hebdo est en cours. Favoris toujours en premier.
         const amisFiltres = (q ? amisEnrichis.filter(a=>a.pseudo.toLowerCase().includes(q)) : amisEnrichis)
           .slice().sort((a,b) => (b.fav?1:0)-(a.fav?1:0) || cmp(a,b));
-        // Récap
-        const avgDrix   = amisEnrichis.length ? Math.round(amisEnrichis.reduce((s,a)=>s+a.drix,0)/amisEnrichis.length) : 0;
-        const ligueMoy  = getDrixTitre(avgDrix);
-        const totalConfr= amisEnrichis.reduce((s,a)=>s+a.mu.m,0);
 
         return (
           <>
@@ -2758,23 +2754,6 @@ const PageDefi = ({ joueur, setPage }) => {
               .defi-ami-card:hover { transform: translateY(-2px); }
               .defi-ami-card:active { transform: scale(.985); }
             `}</style>
-
-            {/* ── Bandeau récap ── */}
-            {amisEnrichis.length > 0 && (
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:14 }}>
-                {[
-                  { v:amis.length,     l:"Amis",      c:C.accent },
-                  { v:avgDrix,         l:"DRIX moy.", c:C.blue },
-                  { v:ligueMoy.titre,  l:"Ligue moy.",c:ligueMoy.color, small:true },
-                  { v:totalConfr,      l:"Matchs",    c:C.green },
-                ].map((s,i)=>(
-                  <div key={i} style={{ background:"#16161c", border:`1px solid ${s.c}33`, borderRadius:12, padding:"10px 5px", textAlign:"center", boxShadow:"0 2px 8px #00000030", animation:"dpFadeUp .4s ease both", animationDelay:`${(i*0.04).toFixed(2)}s` }}>
-                    <div style={{ fontSize:s.small?12.5:19, fontWeight:900, color:s.c, lineHeight:1.15, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{s.v}</div>
-                    <div style={{ fontSize:9.5, color:C.muted, fontWeight:600, marginTop:2 }}>{s.l}</div>
-                  </div>
-                ))}
-              </div>
-            )}
 
             {/* ── Recherche + Tri ── */}
             <div style={{ display:"flex", gap:8, marginBottom:14 }}>
