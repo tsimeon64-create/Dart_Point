@@ -1892,31 +1892,6 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
             {bestMoisDrix>0 && <StatCard i={2} label="Meilleur mois" value={`+${bestMoisDrix}`} color={CJ.green}/>}
             {worstJourDrix<0 && <StatCard i={3} label="Pire jour" value={worstJourDrix} color={CJ.red}/>}
           </div>
-          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-            {drixMvts.slice(0,10).map((m,i)=>{
-              const win = m.resultat === "victoire";
-              const up  = m.variation > 0;
-              return (
-                <div key={i} style={{ ...card, display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 13px",
-                  background:win?"linear-gradient(90deg,#14532d24,#16161c 62%)":"linear-gradient(90deg,#7f1d1d24,#16161c 62%)",
-                  border:`1px solid ${win?"#22c55e33":"#ef444433"}`, animation:"dpStatIn .4s ease both", animationDelay:`${(0.03*i).toFixed(2)}s` }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:11, minWidth:0 }}>
-                    <div style={{ flexShrink:0, width:34, height:34, borderRadius:10, background:win?"#22c55e22":"#ef444422", border:`1px solid ${win?"#22c55e55":"#ef444455"}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                      {win ? <Check size={16} color={CJ.green} strokeWidth={3}/> : <X size={16} color={CJ.red} strokeWidth={3}/>}
-                    </div>
-                    <div style={{ minWidth:0 }}>
-                      <div style={{ fontWeight:800, fontSize:13.5, color:CJ.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>vs {m.adversaire_pseudo||"?"}</div>
-                      <div style={{ fontSize:10.5, color:CJ.muted }}>{win?"Victoire":"Défaite"} · {new Date(m.date).toLocaleDateString("fr-FR")}</div>
-                    </div>
-                  </div>
-                  <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-                    <span style={{ fontSize:10.5, color:"#64748b" }}>{m.drix_avant}→{m.drix_apres}</span>
-                    <span style={{ fontWeight:900, fontSize:14, color:up?CJ.green:CJ.red, background:up?"#14532d":"#7f1d1d", borderRadius:8, padding:"3px 9px" }}>{up?"+":""}{m.variation}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         </div>
       )}
 
@@ -1984,6 +1959,38 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
           </div>
         );
       })()}
+
+      {/* ── HISTORIQUE DRIX (en dernier) ── */}
+      {drixMvts.length > 0 && (
+        <div style={secBox(CJ.muted)}>
+          <SectionTitle icon={Clock} color={CJ.muted}>Historique DRIX</SectionTitle>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {drixMvts.slice(0,10).map((m,i)=>{
+              const win = m.resultat === "victoire";
+              const up  = m.variation > 0;
+              return (
+                <div key={i} style={{ ...card, display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 13px",
+                  background:win?"linear-gradient(90deg,#14532d24,#16161c 62%)":"linear-gradient(90deg,#7f1d1d24,#16161c 62%)",
+                  border:`1px solid ${win?"#22c55e33":"#ef444433"}`, animation:"dpStatIn .4s ease both", animationDelay:`${(0.03*i).toFixed(2)}s` }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:11, minWidth:0 }}>
+                    <div style={{ flexShrink:0, width:34, height:34, borderRadius:10, background:win?"#22c55e22":"#ef444422", border:`1px solid ${win?"#22c55e55":"#ef444455"}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      {win ? <Check size={16} color={CJ.green} strokeWidth={3}/> : <X size={16} color={CJ.red} strokeWidth={3}/>}
+                    </div>
+                    <div style={{ minWidth:0 }}>
+                      <div style={{ fontWeight:800, fontSize:13.5, color:CJ.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>vs {m.adversaire_pseudo||"?"}</div>
+                      <div style={{ fontSize:10.5, color:CJ.muted }}>{win?"Victoire":"Défaite"} · {new Date(m.date).toLocaleDateString("fr-FR")}</div>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+                    <span style={{ fontSize:10.5, color:"#64748b" }}>{m.drix_avant}→{m.drix_apres}</span>
+                    <span style={{ fontWeight:900, fontSize:14, color:up?CJ.green:CJ.red, background:up?"#14532d":"#7f1d1d", borderRadius:8, padding:"3px 9px" }}>{up?"+":""}{m.variation}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
