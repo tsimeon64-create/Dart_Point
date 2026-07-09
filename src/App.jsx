@@ -8,12 +8,13 @@ import {
   PresenceSection, MembresBarSection,
   PageDrix, DrixBadge, HistoriqueDrix,
   AmiSection,
-  appliquerDrixDuel, getDrixTitre, getDrixProgression, calculerDrix,
+  appliquerDrixDuel, getDrixTitre, getDrixProgression, calculerDrix, finaliserDuel,
   dbJoueurs, todayStr, hashPwd, callAuth,
   ALL_BADGES, computeBadgeValues, getBadgesStored, storeBadgesSet,
   NiveauBulle,
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
+import { reduceGameOnline, buildFinalizationData, mergeVolleys } from "./onlineGame";
 import { ConfigCricket } from "./AppCricket";
 import { JeuCapital } from "./AppJeuDecalePoint";
 import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper } from "./AppTournoiPotes";
@@ -10990,35 +10991,238 @@ const OnlineOptBtn = ({ active, onClick, children }) => (
   <button onClick={onClick} style={{ flex:1, padding:"11px 0", borderRadius:10, border:"none", cursor:"pointer", fontWeight:800, fontSize:15, background:active?"#34d399":"#1e1e1e", color:active?"#04160e":C.muted, transition:"all .12s" }}>{children}</button>
 );
 
-// Écran de partie en ligne — ÉTAPE 1 : confirme que les 2 téléphones sont connectés.
-// (Le vrai scoreur partagé temps réel remplacera ce placeholder à l'étape 2.)
-const ScoreurOnlinePlay = ({ duelId, setPage }) => {
+// Écran de partie EN LIGNE — scoreur partagé temps réel.
+// Les 2 téléphones lisent/écrivent le journal de volées (live_volees, session_id = id du duel)
+// et rejouent la même logique (reduceGameOnline) → état identique des deux côtés.
+const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
   const [duel, setDuel] = useState(null);
   const [err, setErr] = useState(false);
+  const [volleys, setVolleys] = useState([]);
+  const [input, setInput] = useState("");
+  const [sessionReady, setSessionReady] = useState(false);
+  const finalizedRef = useRef(false);
+
+  // Charge le duel
   useEffect(() => {
     sb(`duels?id=eq.${duelId}&select=*`).then(r => { if (r?.[0]) setDuel(r[0]); else setErr(true); }).catch(() => setErr(true));
   }, [duelId]);
+
+  // S'assure qu'UNE session live partagée existe (id = id du duel → les 2 téléphones
+  // pointent la même). live_volees a une clé étrangère vers live_sessions.
+  useEffect(() => {
+    if (!duel) return;
+    const sv = /301/.test(String(duel.mode)) ? 301 : 501;
+    const initSt = { moy:0, volees:0, total_pts:0, nb180:0, reste:sv, max_finish:0, busts:0 };
+    const mn = duel.manches || 1;
+    sb("live_sessions", { method:"POST", prefer:"return=minimal", body: JSON.stringify({
+      id: duel.id, mode: duel.mode || "501", format: mn === 1 ? "Bo1" : `Bo${mn*2-1}`,
+      joueur1_id: String(duel.challenger_id), joueur1_pseudo: duel.challenger_pseudo, joueur1_drix: 1000,
+      joueur2_id: String(duel.defie_id), joueur2_pseudo: duel.defie_pseudo, joueur2_drix: 1000,
+      debut: Date.now(), statut: "en_cours", score1: 0, score2: 0, stats_j1: initSt, stats_j2: initSt,
+    })})
+      .then(() => setSessionReady(true))
+      .catch(() => setSessionReady(true)); // 409 = déjà créée par l'autre joueur → OK
+  }, [duel]);
+
+  // Poll du journal de volées (temps réel léger, ~1,6 s)
+  useEffect(() => {
+    if (!duel) return;
+    let alive = true;
+    const poll = async () => {
+      try {
+        const rows = await sb(`live_volees?session_id=eq.${duelId}&order=numero_volee.asc&select=joueur_id,numero_volee,score,reste,date`);
+        if (alive) setVolleys(prev => mergeVolleys(prev, rows || []));
+      } catch { /* on réessaie au prochain tick */ }
+    };
+    poll();
+    const iv = setInterval(poll, 1600);
+    return () => { alive = false; clearInterval(iv); };
+  }, [duel, duelId]);
+
+  // ── État dérivé (sûr même si le duel n'est pas encore chargé) ──
+  const startScore = duel ? (/301/.test(String(duel.mode)) ? 301 : 501) : 501;
+  const manchesToWin = duel?.manches || 1;
+  const players = duel ? [duel.challenger_id, duel.defie_id] : [];
+  const starterId = duel ? (onlineStarterIsChallenger(duel.id) ? duel.challenger_id : duel.defie_id) : null;
+  const state = duel ? reduceGameOnline(volleys, { startScore, manchesToWin, starterId, players }) : null;
+
+  const meId = joueur.id;
+  const advId = duel ? (meId === duel.challenger_id ? duel.defie_id : duel.challenger_id) : null;
+  const mePseudo = duel ? (meId === duel.challenger_id ? duel.challenger_pseudo : duel.defie_pseudo) : "";
+  const advPseudo = duel ? (meId === duel.challenger_id ? duel.defie_pseudo : duel.challenger_pseudo) : "";
+  const me = state ? state.players[meId] : null;
+  const adv = state ? state.players[advId] : null;
+  const monTour = !!state && state.turn === meId && !state.winnerId;
+  const iAmChallenger = duel ? meId === duel.challenger_id : false;
+  const inputNum = Math.max(0, Math.min(180, parseInt(input || "0", 10) || 0));
+  const winnerId = state?.winnerId || null;
+
+  // Finalisation : SEUL l'hôte (challenger) enregistre le résultat (évite le double comptage).
+  useEffect(() => {
+    if (!duel || !state || !winnerId || finalizedRef.current || !iAmChallenger) return;
+    finalizedRef.current = true;
+    (async () => {
+      try {
+        const f = buildFinalizationData(state, duel);
+        const gagnantIsChallenger = f.gagnantId === duel.challenger_id;
+        await sb(`duels?id=eq.${duel.id}`, { method:"PATCH", prefer:"return=minimal", body: JSON.stringify({
+          statut:"termine", gagnant_id:f.gagnantId, gagnant_pseudo:f.gagnantNom,
+          score_manches_challenger:f.scoreC, score_manches_defie:f.scoreD,
+          score_challenger:f.moyC, score_defie:f.moyD,
+          manches_detail:f.manchesDetail,
+          valide_challenger:gagnantIsChallenger, valide_defie:!gagnantIsChallenger,
+          date: Date.now(),
+        })});
+        await finaliserDuel({ ...duel, gagnant_id:f.gagnantId }, { joueursData:f.joueursData, manchesDetail:f.manchesDetail, moyennes:[f.moyC, f.moyD] });
+        sb(`live_sessions?id=eq.${duel.id}`, { method:"PATCH", prefer:"return=minimal", body: JSON.stringify({ statut:"termine", score1:f.scoreC, score2:f.scoreD }) }).catch(()=>{});
+      } catch { /* best-effort : le jeu reste jouable même si l'enregistrement échoue */ }
+    })();
+  }, [winnerId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Écrans (après TOUS les hooks) ──
   if (err) return <div style={{ textAlign:"center", padding:60, color:C.muted }}>Partie introuvable.<div><button onClick={()=>setPage("home")} style={{ marginTop:16, background:C.accent, border:"none", color:"#fff", borderRadius:10, padding:"10px 20px", cursor:"pointer", fontWeight:700 }}>Retour</button></div></div>;
-  if (!duel) return <Spinner/>;
-  const starter = onlineStarterIsChallenger(duel.id) ? duel.challenger_pseudo : duel.defie_pseudo;
+  if (!duel || !state) return <Spinner/>;
+
+  const valider = async () => {
+    if (!monTour) return;
+    if (!sessionReady) { window.dpToast?.("Connexion à la partie en cours…", "info"); return; }
+    const val = inputNum;
+    const seq = volleys.length;
+    const nr = me.reste - val;
+    const resteApres = nr === 0 ? 0 : (nr < 0 || nr === 1 ? me.reste : nr);
+    const optimistic = { joueur_id: meId, numero_volee: seq, score: val, reste: resteApres, date: Date.now() };
+    const nextVolleys = mergeVolleys(volleys, [optimistic]);
+    setVolleys(nextVolleys);
+    setInput("");
+    // Diffusion Comptoir : met à jour MON côté de la session live
+    const ns = reduceGameOnline(nextVolleys, { startScore, manchesToWin, starterId, players });
+    const mn = ns.players[meId];
+    const iAmJ1 = meId === duel.challenger_id;
+    const myStats = { moy: mn.flechettes>0 ? Math.round(mn.totalPoints/mn.flechettes*3*10)/10 : 0, volees:mn.tours.length, flech:mn.flechettes, total_pts:mn.totalPoints, nb180:mn.tours.filter(v=>v===180).length, reste:mn.reste, max_finish:0, busts:mn.busts };
+    try {
+      await sb("live_volees", { method:"POST", prefer:"return=minimal", body: JSON.stringify({
+        session_id: duelId, joueur_id: meId, numero_volee: seq, score: val, reste: resteApres, date: Date.now(),
+      })});
+      sb(`live_sessions?id=eq.${duelId}`, { method:"PATCH", prefer:"return=minimal", body: JSON.stringify(
+        iAmJ1 ? { score1: mn.manches, stats_j1: myStats } : { score2: mn.manches, stats_j2: myStats }
+      )}).catch(()=>{});
+    } catch {
+      setVolleys(prev => prev.filter(v => !(v.numero_volee === seq && v.joueur_id === meId)));
+      window.dpToast?.("Volée non envoyée, réessaie", "error");
+    }
+  };
+
+  // ── ÉCRAN DE FIN ──
+  if (state.winnerId) {
+    const jeGagne = state.winnerId === meId;
+    return (
+      <div style={{ maxWidth:520, margin:"0 auto", padding:"30px 16px", textAlign:"center" }}>
+        <div style={{ fontSize:64, marginBottom:10 }}>{jeGagne ? "🏆" : "🎯"}</div>
+        <h2 style={{ fontWeight:900, fontSize:26, color:jeGagne?"#22c55e":C.text, marginBottom:6 }}>{jeGagne ? "Victoire !" : "Défaite"}</h2>
+        <p style={{ color:C.muted, marginBottom:22 }}>Partie en ligne amicale terminée</p>
+        <div style={{ background:"#16161c", border:`1px solid ${C.border}`, borderRadius:16, padding:20, marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:14 }}>
+            <div style={{ flex:1, textAlign:"right" }}>
+              <div style={{ fontWeight:800, fontSize:15, color:C.text }}>{mePseudo}</div>
+              <div style={{ fontSize:11, color:C.muted }}>moy. {moyenneJoueur3(me)}</div>
+            </div>
+            <div style={{ fontWeight:900, fontSize:30, color:C.accent, minWidth:70 }}>{me.manches}<span style={{ color:C.muted, fontSize:20 }}> - </span>{adv.manches}</div>
+            <div style={{ flex:1, textAlign:"left" }}>
+              <div style={{ fontWeight:800, fontSize:15, color:C.text }}>{advPseudo}</div>
+              <div style={{ fontSize:11, color:C.muted }}>moy. {moyenneJoueur3(adv)}</div>
+            </div>
+          </div>
+          <div style={{ marginTop:14, fontSize:12, color:"#6ee7b7", fontWeight:700 }}>Sans DRIX · XP et stats crédités</div>
+        </div>
+        <button onClick={()=>setPage("home")} style={{ width:"100%", background:C.accent, border:"none", color:"#fff", borderRadius:12, padding:"14px 0", cursor:"pointer", fontWeight:800, fontSize:15 }}>Retour à l'accueil</button>
+      </div>
+    );
+  }
+
+  // ── ÉCRAN DE JEU ──
+  const startPseudo = starterId === meId ? mePseudo : advPseudo;
+  const PScore = ({ pseudo, p, actif, moi }) => (
+    <div style={{ flex:1, background:actif ? "#0f2018" : "#16161c", border:`2px solid ${actif ? "#34d399" : C.border}`, borderRadius:16, padding:"14px 8px", textAlign:"center", position:"relative", boxShadow:actif ? "0 0 18px #34d39933" : "none", transition:"all .2s" }}>
+      {actif && <div style={{ position:"absolute", top:6, left:0, right:0, fontSize:9, fontWeight:800, letterSpacing:1, color:"#34d399" }}>À LUI DE JOUER</div>}
+      <div style={{ fontWeight:800, fontSize:14, color:moi?"#6ee7b7":C.text, marginTop:actif?8:0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{pseudo}{moi?" (toi)":""}</div>
+      <div style={{ fontWeight:900, fontSize:46, color:actif?"#34d399":C.text, lineHeight:1.1, marginTop:2 }}>{p.reste}</div>
+      <div style={{ display:"flex", justifyContent:"center", gap:5, marginTop:6 }}>
+        {Array.from({length:manchesToWin}).map((_,i)=>(
+          <div key={i} style={{ width:9, height:9, borderRadius:"50%", background: i < p.manches ? "#34d399" : "#2a2a2a" }}/>
+        ))}
+      </div>
+    </div>
+  );
+
+  const NumBtn = ({ children, onClick, grow, danger, valider:isValider }) => (
+    <button onClick={onClick} style={{ flex: grow || 1, padding:"18px 0", borderRadius:12, border:"none", cursor:"pointer",
+      fontWeight:900, fontSize:22, touchAction:"manipulation",
+      background: isValider ? "linear-gradient(135deg,#34d399,#059669)" : danger ? "#2a1520" : "#1e1e1e",
+      color: isValider ? "#04160e" : danger ? "#fca5a5" : C.text }}>{children}</button>
+  );
+
   return (
-    <div style={{ maxWidth:520, margin:"0 auto", padding:"24px 16px", textAlign:"center" }}>
-      <div style={{ fontSize:48, marginBottom:8 }}>🌐</div>
-      <h2 style={{ fontWeight:900, fontSize:22, color:C.text, marginBottom:6 }}>Connecté !</h2>
-      <p style={{ color:"#6ee7b7", fontWeight:700, marginBottom:20 }}>Partie en ligne · amicale</p>
-      <div style={{ background:"#16161c", border:`1px solid ${C.border}`, borderRadius:16, padding:20, marginBottom:16 }}>
-        <div style={{ fontWeight:900, fontSize:18, color:C.text }}>{duel.challenger_pseudo} <span style={{ color:C.muted, fontWeight:700 }}>vs</span> {duel.defie_pseudo}</div>
-        <div style={{ color:C.muted, fontSize:13, marginTop:6 }}>{duel.mode} · {duel.manches} manche{duel.manches>1?"s":""} gagnante{duel.manches>1?"s":""} · sans DRIX</div>
-        <div style={{ marginTop:14, background:"#34d39914", border:"1px solid #34d39944", borderRadius:10, padding:"10px 12px", color:"#6ee7b7", fontWeight:800, fontSize:14 }}>🎯 {starter} commence (tirage au sort)</div>
+    <div style={{ maxWidth:520, margin:"0 auto", padding:"14px 14px 20px" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#6ee7b7", fontWeight:800 }}>
+          <EmoIcon e="🌐" size={14} color="#6ee7b7"/> EN LIGNE
+        </div>
+        <div style={{ fontSize:12, color:C.muted, fontWeight:700 }}>{duel.mode} · Manche {state.manche}{manchesToWin>1?` · BO${manchesToWin*2-1}`:""}</div>
+        <button onClick={()=>setPage("home")} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:12, display:"flex", alignItems:"center", gap:3 }}><X size={14}/>Quitter</button>
       </div>
-      <div style={{ background:"#12203a", border:"1px solid #3b82f644", borderRadius:14, padding:16, color:C.muted, fontSize:13, lineHeight:1.5, marginBottom:20 }}>
-        <strong style={{ color:"#93c5fd" }}>Étape 1 validée ✅</strong><br/>
-        L'invitation et la connexion des 2 téléphones fonctionnent. Le <strong style={{ color:C.text }}>scoreur partagé en temps réel</strong> (chacun marque ses fléchettes) arrive à l'étape 2.
+
+      {/* Scoreboard */}
+      <div style={{ display:"flex", gap:10, marginBottom:16 }}>
+        <PScore pseudo={mePseudo} p={me} actif={state.turn===meId} moi/>
+        <PScore pseudo={advPseudo} p={adv} actif={state.turn===advId}/>
       </div>
-      <button onClick={()=>setPage("home")} style={{ width:"100%", background:C.accent, border:"none", color:"#fff", borderRadius:12, padding:"14px 0", cursor:"pointer", fontWeight:800, fontSize:15 }}>Retour à l'accueil</button>
+
+      {volleys.length===0 && (
+        <div style={{ textAlign:"center", fontSize:12, color:C.muted, marginBottom:12 }}>🎲 {startPseudo} commence (tirage au sort)</div>
+      )}
+
+      {monTour ? (
+        <div>
+          <div style={{ background:"#16161c", border:`1px solid ${C.border}`, borderRadius:14, padding:"14px 16px", marginBottom:12, textAlign:"center" }}>
+            <div style={{ fontSize:11, color:C.muted, fontWeight:700, marginBottom:2 }}>SCORE DE TA VOLÉE (3 fléchettes)</div>
+            <div style={{ fontWeight:900, fontSize:40, color: inputNum > me.reste ? "#f59e0b" : "#34d399", lineHeight:1 }}>{input || "0"}</div>
+            <div style={{ fontSize:11, color:C.muted, marginTop:4 }}>
+              {inputNum > me.reste || me.reste - inputNum === 1 ? "⚠️ Bust (tu gardes ton score)" : (me.reste - inputNum === 0 ? "🎯 Finish !" : `reste ${me.reste - inputNum}`)}
+            </div>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {[[1,2,3],[4,5,6],[7,8,9]].map((row,ri)=>(
+              <div key={ri} style={{ display:"flex", gap:8 }}>
+                {row.map(n => <NumBtn key={n} onClick={()=>setInput(v => (v+String(n)).slice(0,3))}>{n}</NumBtn>)}
+              </div>
+            ))}
+            <div style={{ display:"flex", gap:8 }}>
+              <NumBtn danger onClick={()=>setInput("")}>C</NumBtn>
+              <NumBtn onClick={()=>setInput(v => (v+"0").slice(0,3))}>0</NumBtn>
+              <NumBtn onClick={()=>setInput(v => v.slice(0,-1))}>⌫</NumBtn>
+            </div>
+            <NumBtn valider grow={1} onClick={valider}>✓ Valider {inputNum}</NumBtn>
+          </div>
+        </div>
+      ) : (
+        <div style={{ textAlign:"center", padding:"30px 0" }}>
+          <div style={{ margin:"0 auto 16px", width:54, height:54, borderRadius:"50%", border:"3px solid #34d39933", borderTopColor:"#34d399", animation:"onlineSpin 1s linear infinite" }}/>
+          <style>{`@keyframes onlineSpin{to{transform:rotate(360deg)}}`}</style>
+          <div style={{ fontWeight:800, fontSize:16, color:C.text }}>Au tour de {advPseudo}…</div>
+          <div style={{ fontSize:12, color:C.muted, marginTop:4 }}>Son score s'affichera ici automatiquement</div>
+          {state.lastEvent && state.lastEvent.joueur_id===advId && (
+            <div style={{ marginTop:14, display:"inline-block", background:"#16161c", border:`1px solid ${C.border}`, borderRadius:10, padding:"8px 14px", fontSize:13, color:C.muted }}>
+              Dernière volée de {advPseudo} : <strong style={{ color: state.lastEvent.type==="finish"?"#34d399":state.lastEvent.type==="bust"?"#f59e0b":C.text }}>{state.lastEvent.type==="bust"?"Bust":state.lastEvent.val}</strong>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
+
+// petit alias local (moyenne 3 fléchettes) pour l'écran de fin
+const moyenneJoueur3 = (p) => (p && p.flechettes > 0 ? Math.round((p.totalPoints / p.flechettes) * 3) : 0);
 
 // Écran de création d'invitation (côté challenger) : config → envoi → attente.
 const ScoreurOnlineCreate = ({ adversaireId, joueur, setPage }) => {
@@ -11163,7 +11367,7 @@ const ScoreurOnlineCreate = ({ adversaireId, joueur, setPage }) => {
 // Aiguillage : "create" (challenger) ou "play" (partie en cours). Pas de hook ici.
 const ScoreurOnline = ({ mode, adversaireId, duelId, joueur, setPage }) =>
   mode === "play"
-    ? <ScoreurOnlinePlay duelId={duelId} setPage={setPage}/>
+    ? <ScoreurOnlinePlay duelId={duelId} joueur={joueur} setPage={setPage}/>
     : <ScoreurOnlineCreate adversaireId={adversaireId} joueur={joueur} setPage={setPage}/>;
 
 const ScoreurDuel = ({ duelId, joueur, setPage }) => {
