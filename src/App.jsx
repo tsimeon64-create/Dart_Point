@@ -3664,14 +3664,14 @@ const MancheDetailList = ({ manches }) => (
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, fontSize:12 }}>
           <div>
             <div style={{ fontWeight:700, color:"#10b981", marginBottom:2 }}>{m.winner}</div>
-            <div style={{ color:C.muted }}>{m.winner_volees} volée{m.winner_volees>1?"s":""}</div>
-            <div style={{ color:C.muted }}>moy. {m.winner_moy} pts/volée</div>
+            <div style={{ color:C.muted }}>{m.winner_volees ?? "—"} volée{(m.winner_volees ?? 0)>1?"s":""}</div>
+            <div style={{ color:C.muted }}>moy. {m.winner_moy ?? "—"} pts/volée</div>
           </div>
           <div>
             <div style={{ fontWeight:700, color:"#ef4444", marginBottom:2 }}>{m.loser}</div>
-            <div style={{ color:C.muted }}>{m.loser_volees} volée{m.loser_volees>1?"s":""}</div>
-            <div style={{ color:C.muted }}>moy. {m.loser_moy} pts/volée</div>
-            <div style={{ color:"#f59e0b", fontWeight:600 }}>reste : {m.reste_loser} pts</div>
+            <div style={{ color:C.muted }}>{m.loser_volees ?? "—"} volée{(m.loser_volees ?? 0)>1?"s":""}</div>
+            <div style={{ color:C.muted }}>moy. {m.loser_moy ?? "—"} pts/volée</div>
+            <div style={{ color:"#f59e0b", fontWeight:600 }}>reste : {m.reste_loser ?? "—"} pts</div>
           </div>
         </div>
       </div>
@@ -4259,6 +4259,25 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
               <div style={{ fontSize:11, fontWeight:900, color:"#c4b5fd", letterSpacing:1.5, marginBottom:2 }}>DUEL CONTRE UN BOT</div>
               <div style={{ fontSize:12, color:"#94a3b8" }}>{d.botNom} est simulé d'après son vrai niveau · aucun DRIX en jeu</div>
             </div>
+          </div>
+        )}
+
+        {/* GAINS D'XP — pour les parties SANS DRIX (amicale / en ligne / bot). Pour les
+            duels classés, l'XP est déjà dans le détail DRIX dépliable. */}
+        {(isAmical || isBot) && ((w.xp||0) > 0 || (l.xp||0) > 0) && (
+          <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+            {(w.xp||0) > 0 && (
+              <div style={{ flex:1, background:"#12100a", border:"1px solid #fbbf2433", borderRadius:12, padding:"10px 12px" }}>
+                <div style={{ fontSize:11, fontWeight:800, color:"#fbbf24", marginBottom:2, display:"flex", alignItems:"center", gap:4 }}><Trophy size={11} color="#fbbf24"/>{w.nom.split(" ")[0].slice(0,12)}</div>
+                <XpGains data={w}/>
+              </div>
+            )}
+            {(l.xp||0) > 0 && (
+              <div style={{ flex:1, background:"#100c0a", border:"1px solid #fbbf2422", borderRadius:12, padding:"10px 12px" }}>
+                <div style={{ fontSize:11, fontWeight:800, color:"#94a3b8", marginBottom:2 }}>{l.nom.split(" ")[0].slice(0,12)}</div>
+                <XpGains data={l}/>
+              </div>
+            )}
           </div>
         )}
 
@@ -11098,21 +11117,23 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
           valide_challenger:gagnantIsChallenger, valide_defie:!gagnantIsChallenger,
           date: Date.now(),
         })});
-        await finaliserDuel({ ...duel, gagnant_id:f.gagnantId }, { joueursData:f.joueursData, manchesDetail:f.manchesDetail, moyennes:[f.moyC, f.moyD] });
+        const bd = await finaliserDuel({ ...duel, gagnant_id:f.gagnantId }, { joueursData:f.joueursData, manchesDetail:f.manchesDetail, moyennes:[f.moyC, f.moyD] });
         sb(`live_sessions?id=eq.${duel.id}`, { method:"PATCH", prefer:"return=minimal", body: JSON.stringify({ statut:"termine", score1:f.scoreC, score2:f.scoreD }) }).catch(()=>{});
-        // ── Résultat sur le Comptoir (mention « en ligne » + stats des volées) ──
+        // ── Résultat sur le Comptoir (mention « en ligne » + stats des volées + XP) ──
         const loserNom = gagnantIsChallenger ? duel.defie_pseudo : duel.challenger_pseudo;
         const wM = gagnantIsChallenger ? f.scoreC : f.scoreD, lM = gagnantIsChallenger ? f.scoreD : f.scoreC;
+        const wXp = (gagnantIsChallenger ? bd?.challenger?.xp : bd?.defie?.xp) || {};
+        const lXp = (gagnantIsChallenger ? bd?.defie?.xp : bd?.challenger?.xp) || {};
         const bestFinish = Math.max(0, ...f.manchesDetail.map(m => m.winner_finish || 0));
         const all180 = f.manchesDetail.reduce((s, m) => s + (m.winner_180 || 0) + (m.loser_180 || 0), 0);
         const highlights = [ all180 > 0 ? `💥 ${all180}×180` : "", bestFinish >= 100 ? `🎯 Finish ${bestFinish}` : "" ].filter(Boolean).join("  ");
-        const mkSide = (nom, nbManches, moy) => ({ nom, nbManches, moy, elo:0, bonusManches:0, bonusVolees:0, nbVolees:0, bonusFinish:0, nbFinish:0, total:0, xp:0, xpLines:[] });
+        const mkSide = (nom, nbManches, moy, xpObj) => ({ nom, nbManches, moy, elo:0, bonusManches:0, bonusVolees:0, nbVolees:0, bonusFinish:0, nbFinish:0, total:0, xp:xpObj.total||0, xpLines:xpObj.lines||[] });
         const duelPost = {
           duel_id: duel.id, isAmical: true, isRivalite: false, isEnLigne: true, mode: duel.mode || "501",
           headline: `🏆 ${f.gagnantNom} bat ${loserNom} ${wM}-${lM}`,
           highlights: highlights || null,
-          winner: mkSide(f.gagnantNom, wM, gagnantIsChallenger ? f.moyC : f.moyD),
-          loser:  mkSide(loserNom, lM, gagnantIsChallenger ? f.moyD : f.moyC),
+          winner: mkSide(f.gagnantNom, wM, gagnantIsChallenger ? f.moyC : f.moyD, wXp),
+          loser:  mkSide(loserNom, lM, gagnantIsChallenger ? f.moyD : f.moyC, lXp),
           manches: f.manchesDetail,
         };
         const gPhoto = await sb(`joueurs?id=eq.${f.gagnantId}&select=photo`).then(r => r?.[0]?.photo || null).catch(() => null);

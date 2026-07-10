@@ -54,7 +54,7 @@ export function reduceGameOnline(volleys, opts) {
         winnerId: pid, loserId: oppId, finish: val, manche,
         winner_180: cnt(wT, 180), winner_140plus: cnt(wT, 140, 179), winner_100plus: cnt(wT, 100, 139),
         winner_max: wT.length ? Math.max(...wT) : 0, winner_moy: wFlech > 0 ? Math.round(wPts / wFlech * 3) : 0, winner_volees: Math.round(wFlech / 3),
-        loser_180: cnt(lT, 180), loser_max: lT.length ? Math.max(...lT) : 0, loser_moy: lFlech > 0 ? Math.round(lPts / lFlech * 3) : 0, reste_loser: opp.reste,
+        loser_180: cnt(lT, 180), loser_max: lT.length ? Math.max(...lT) : 0, loser_moy: lFlech > 0 ? Math.round(lPts / lFlech * 3) : 0, loser_volees: Math.round(lFlech / 3), reste_loser: opp.reste,
       });
       lastEvent = { type: "finish", joueur_id: pid, val };
       if (p.manches >= manchesToWin) { winnerId = pid; break; }
@@ -114,7 +114,7 @@ export function buildFinalizationData(state, duel) {
     winner_finish: m.finish || 0,
     winner_180: m.winner_180 || 0, winner_140plus: m.winner_140plus || 0, winner_100plus: m.winner_100plus || 0,
     winner_max: m.winner_max || 0, winner_moy: m.winner_moy || 0, winner_volees: m.winner_volees || 0,
-    loser_180: m.loser_180 || 0, loser_max: m.loser_max || 0, loser_moy: m.loser_moy || 0, reste_loser: m.reste_loser ?? 0,
+    loser_180: m.loser_180 || 0, loser_max: m.loser_max || 0, loser_moy: m.loser_moy || 0, loser_volees: m.loser_volees || 0, reste_loser: m.reste_loser ?? 0,
   }));
   const joueursData = [
     { nom: nomC, manchesGagnees: pC.manches, tours: pC.tours, flechettes: pC.flechettes, totalPoints: pC.totalPoints, score: pC.reste },

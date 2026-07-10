@@ -5222,6 +5222,8 @@ export const finaliserDuel = async (duel, matchData = null) => {
     upsertStatsRow(sD, duel.defie_id,      gagnantId === duel.defie_id).catch(()=>{}),
   ]);
   // ── XP du duel (volées, finishes, moyenne… calculés depuis les données du match) ──
+  let xpOnly = null; // pour les amicales : appliquerDrixDuel renvoie null (pas de DRIX),
+  //                     mais l'XP est bien crédité → on le renvoie quand même pour l'afficher.
   if (matchData?.joueursData?.length >= 2) {
     try {
       const xps = calculerXP(matchData.joueursData, matchData.manchesDetail || [], duel, matchData.moyennes || []);
@@ -5231,9 +5233,10 @@ export const finaliserDuel = async (duel, matchData = null) => {
         ajouterXP(duel.defie_id,      xps[1].total, jDx).catch(()=>{}),
       ]);
       if (breakdown) { breakdown.challenger.xp = xps[0]; breakdown.defie.xp = xps[1]; }
+      else { xpOnly = { challenger: { xp: xps[0] }, defie: { xp: xps[1] } }; }
     } catch(e) { /* XP best-effort : n'empêche jamais la finalisation du duel */ }
   }
-  return breakdown;
+  return breakdown || xpOnly;
 };
 
 // ── PAGE CLASSEMENT DRIX ──────────────────────────────────────────────────────
