@@ -18,7 +18,8 @@
 export function reduceGameOnline(volleys, opts) {
   const { startScore = 501, manchesToWin = 1, starterId, players } = opts || {};
   const [a, b] = players || [];
-  const mk = () => ({ reste: startScore, manches: 0, tours: [], flechettes: 0, totalPoints: 0, busts: 0, scorePrecedent: null, mStartPts: 0, mStartFlech: 0 });
+  const mk = () => ({ reste: startScore, manches: 0, tours: [], flechettes: 0, totalPoints: 0, busts: 0, scorePrecedent: null, mStartPts: 0, mStartFlech: 0, mStartTours: 0 });
+  const cnt = (arr, min, max = 999) => arr.filter(v => v >= min && v <= max).length;
   const st = { [a]: mk(), [b]: mk() };
   const other = (id) => (id === a ? b : a);
   const starterIdx = Math.max(0, players.indexOf(starterId));
@@ -44,13 +45,23 @@ export function reduceGameOnline(volleys, opts) {
       // FINISH → gagne la manche. `reste` porte le nb de fléchettes (1..3).
       const darts = Math.max(1, Math.min(3, Math.round(Number(v.reste)) || 3));
       p.flechettes += darts; p.tours.push(val); p.totalPoints += val; p.manches += 1;
-      manchesHistory.push({ winnerId: pid, finish: val, manche });
+      // Détail de la manche (pour le post Comptoir)
+      const oppId = other(pid); const opp = st[oppId];
+      const wT = p.tours.slice(p.mStartTours), lT = opp.tours.slice(opp.mStartTours);
+      const wFlech = p.flechettes - p.mStartFlech, lFlech = opp.flechettes - opp.mStartFlech;
+      const wPts = p.totalPoints - p.mStartPts, lPts = opp.totalPoints - opp.mStartPts;
+      manchesHistory.push({
+        winnerId: pid, loserId: oppId, finish: val, manche,
+        winner_180: cnt(wT, 180), winner_140plus: cnt(wT, 140, 179), winner_100plus: cnt(wT, 100, 139),
+        winner_max: wT.length ? Math.max(...wT) : 0, winner_moy: wFlech > 0 ? Math.round(wPts / wFlech * 3) : 0, winner_volees: Math.round(wFlech / 3),
+        loser_180: cnt(lT, 180), loser_max: lT.length ? Math.max(...lT) : 0, loser_moy: lFlech > 0 ? Math.round(lPts / lFlech * 3) : 0, reste_loser: opp.reste,
+      });
       lastEvent = { type: "finish", joueur_id: pid, val };
       if (p.manches >= manchesToWin) { winnerId = pid; break; }
       // nouvelle manche : restes remis à zéro, le starter alterne
       st[a].reste = startScore; st[b].reste = startScore;
-      st[a].mStartPts = st[a].totalPoints; st[a].mStartFlech = st[a].flechettes;
-      st[b].mStartPts = st[b].totalPoints; st[b].mStartFlech = st[b].flechettes;
+      st[a].mStartPts = st[a].totalPoints; st[a].mStartFlech = st[a].flechettes; st[a].mStartTours = st[a].tours.length;
+      st[b].mStartPts = st[b].totalPoints; st[b].mStartFlech = st[b].flechettes; st[b].mStartTours = st[b].tours.length;
       manche += 1;
       turn = players[(starterIdx + (manche - 1)) % 2];
     } else if (newReste < 0 || newReste === 1) {
@@ -99,9 +110,11 @@ export function buildFinalizationData(state, duel) {
   const nomC = duel.challenger_pseudo, nomD = duel.defie_pseudo;
   const nameOf = (id) => (id === cId ? nomC : nomD);
   const manchesDetail = (state.manchesHistory || []).map((m) => ({
-    winner: nameOf(m.winnerId),
-    loser: nameOf(m.winnerId === cId ? dId : cId),
+    winner: nameOf(m.winnerId), loser: nameOf(m.loserId ?? (m.winnerId === cId ? dId : cId)),
     winner_finish: m.finish || 0,
+    winner_180: m.winner_180 || 0, winner_140plus: m.winner_140plus || 0, winner_100plus: m.winner_100plus || 0,
+    winner_max: m.winner_max || 0, winner_moy: m.winner_moy || 0, winner_volees: m.winner_volees || 0,
+    loser_180: m.loser_180 || 0, loser_max: m.loser_max || 0, loser_moy: m.loser_moy || 0, reste_loser: m.reste_loser ?? 0,
   }));
   const joueursData = [
     { nom: nomC, manchesGagnees: pC.manches, tours: pC.tours, flechettes: pC.flechettes, totalPoints: pC.totalPoints, score: pC.reste },

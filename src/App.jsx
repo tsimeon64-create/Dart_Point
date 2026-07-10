@@ -3990,6 +3990,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
   const w = d.winner; const l = d.loser;
   const isRivalite = !!d.isRivalite;
   const isAmical   = !!d.isAmical;
+  const isEnLigne  = !!d.isEnLigne; // partie amicale jouée À DISTANCE (2 téléphones)
   const isBot      = !!d.bot; // match contre un bot (le « fantôme » d'un ami) — pas de DRIX
 
   // Fetch photos des 2 joueurs (gagnant + perdant) en une seule requête
@@ -4040,7 +4041,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
   const themeSecond = isRivalite ? "#7c3aed" : isAmical ? "#3b82f6" : "#ea580c";
   const winColor    = "#22c55e";
   const loseColor   = "#ef4444";
-  const headerLabel = isBot ? "🤖 DUEL BOT" : isRivalite ? "⚔ RIVALITÉ HEBDO" : isAmical ? "🤝 PARTIE AMICALE" : "⚔ DUEL";
+  const headerLabel = isBot ? "🤖 DUEL BOT" : isEnLigne ? "🌐 PARTIE EN LIGNE" : isRivalite ? "⚔ RIVALITÉ HEBDO" : isAmical ? "🤝 PARTIE AMICALE" : "⚔ DUEL";
 
   return (
     <div key={`post-${p.id}`} style={{
@@ -4564,6 +4565,7 @@ const LiveMatchCard = ({ session:s, onClick, setPage }) => {
         <span style={{ fontSize:10,color:C.muted }}>⏱ {elStr}</span>
         <span style={{ background:"#f9731618",color:"#f97316",border:"1px solid #f9731630",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:700 }}>{s.mode}</span>
         {s.format && <span style={{ background:"#ffffff0a",color:C.muted,borderRadius:6,padding:"2px 8px",fontSize:10 }}>{s.format}</span>}
+        {s.en_ligne && <span style={{ display:"inline-flex",alignItems:"center",gap:3,background:"#3b82f61a",color:"#60a5fa",border:"1px solid #3b82f644",borderRadius:6,padding:"2px 8px",fontSize:10,fontWeight:800 }}>🌐 EN LIGNE</span>}
       </div>
 
       {/* Scoreboard */}
@@ -11019,14 +11021,21 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
     const sv = /301/.test(String(duel.mode)) ? 301 : 501;
     const initSt = { moy:0, volees:0, total_pts:0, nb180:0, reste:sv, max_finish:0, busts:0 };
     const mn = duel.manches || 1;
-    sb("live_sessions", { method:"POST", prefer:"return=minimal", body: JSON.stringify({
+    const base = {
       id: duel.id, mode: duel.mode || "501", format: mn === 1 ? "Bo1" : `Bo${mn*2-1}`,
       joueur1_id: String(duel.challenger_id), joueur1_pseudo: duel.challenger_pseudo, joueur1_drix: 1000,
       joueur2_id: String(duel.defie_id), joueur2_pseudo: duel.defie_pseudo, joueur2_drix: 1000,
       debut: Date.now(), statut: "en_cours", score1: 0, score2: 0, stats_j1: initSt, stats_j2: initSt,
-    })})
+    };
+    const create = (withFlag) => sb("live_sessions", { method:"POST", prefer:"return=minimal", body: JSON.stringify(withFlag ? { ...base, en_ligne: true } : base) });
+    // On tente avec le drapeau en_ligne (badge Comptoir) ; si la colonne n'existe pas
+    // encore, on recrée SANS le drapeau pour que la partie reste jouable (409 = déjà créée = OK).
+    create(true)
       .then(() => setSessionReady(true))
-      .catch(() => setSessionReady(true)); // 409 = déjà créée par l'autre joueur → OK
+      .catch((e) => {
+        if (/en_ligne/.test(String(e?.message || e))) create(false).then(() => setSessionReady(true)).catch(() => setSessionReady(true));
+        else setSessionReady(true);
+      });
   }, [duel]);
 
   // Poll du journal de volées (temps réel léger, ~1,6 s)
@@ -11091,6 +11100,23 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
         })});
         await finaliserDuel({ ...duel, gagnant_id:f.gagnantId }, { joueursData:f.joueursData, manchesDetail:f.manchesDetail, moyennes:[f.moyC, f.moyD] });
         sb(`live_sessions?id=eq.${duel.id}`, { method:"PATCH", prefer:"return=minimal", body: JSON.stringify({ statut:"termine", score1:f.scoreC, score2:f.scoreD }) }).catch(()=>{});
+        // ── Résultat sur le Comptoir (mention « en ligne » + stats des volées) ──
+        const loserNom = gagnantIsChallenger ? duel.defie_pseudo : duel.challenger_pseudo;
+        const wM = gagnantIsChallenger ? f.scoreC : f.scoreD, lM = gagnantIsChallenger ? f.scoreD : f.scoreC;
+        const bestFinish = Math.max(0, ...f.manchesDetail.map(m => m.winner_finish || 0));
+        const all180 = f.manchesDetail.reduce((s, m) => s + (m.winner_180 || 0) + (m.loser_180 || 0), 0);
+        const highlights = [ all180 > 0 ? `💥 ${all180}×180` : "", bestFinish >= 100 ? `🎯 Finish ${bestFinish}` : "" ].filter(Boolean).join("  ");
+        const mkSide = (nom, nbManches, moy) => ({ nom, nbManches, moy, elo:0, bonusManches:0, bonusVolees:0, nbVolees:0, bonusFinish:0, nbFinish:0, total:0, xp:0, xpLines:[] });
+        const duelPost = {
+          duel_id: duel.id, isAmical: true, isRivalite: false, isEnLigne: true, mode: duel.mode || "501",
+          headline: `🏆 ${f.gagnantNom} bat ${loserNom} ${wM}-${lM}`,
+          highlights: highlights || null,
+          winner: mkSide(f.gagnantNom, wM, gagnantIsChallenger ? f.moyC : f.moyD),
+          loser:  mkSide(loserNom, lM, gagnantIsChallenger ? f.moyD : f.moyC),
+          manches: f.manchesDetail,
+        };
+        const gPhoto = await sb(`joueurs?id=eq.${f.gagnantId}&select=photo`).then(r => r?.[0]?.photo || null).catch(() => null);
+        sb("wall_posts", { method:"POST", prefer:"return=minimal", body: JSON.stringify({ joueur_id:f.gagnantId, joueur_pseudo:f.gagnantNom, joueur_photo:gPhoto, contenu:`__DUEL__|${JSON.stringify(duelPost)}`, date:Date.now() }) }).catch(()=>{});
       } catch { /* best-effort : le jeu reste jouable même si l'enregistrement échoue */ }
     })();
   }, [winnerId]); // eslint-disable-line react-hooks/exhaustive-deps
