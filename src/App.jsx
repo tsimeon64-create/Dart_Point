@@ -11024,13 +11024,23 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
   const [pendingFinish, setPendingFinish] = useState(null); // { val } → popup nb fléchettes (finish)
   const [showVolees, setShowVolees] = useState(false);
   const [showQuit, setShowQuit] = useState(false);
+  const [oppAnnonce, setOppAnnonce] = useState(null); // pop-up « l'adversaire a fait X » (3 s)
+  const [advPhoto, setAdvPhoto] = useState(null);
   const finalizedRef = useRef(false);
   const deletedRef = useRef(new Set());   // n° de volées annulées (retour), en attente de confirmation serveur
   const maxSeqRef = useRef(-1);           // n° de volée toujours croissant (jamais réutilisé après un retour)
+  const lastOppSeenRef = useRef(null);    // n° de la dernière volée adverse déjà annoncée
+  const oppAnnonceTimerRef = useRef(null); // timer de fermeture de la pop-up (survit aux re-polls)
 
-  // Charge le duel
+  // Charge le duel + la photo de l'adversaire (pour la pop-up d'annonce)
   useEffect(() => {
-    sb(`duels?id=eq.${duelId}&select=*`).then(r => { if (r?.[0]) setDuel(r[0]); else setErr(true); }).catch(() => setErr(true));
+    sb(`duels?id=eq.${duelId}&select=*`).then(r => {
+      const d = r?.[0];
+      if (!d) { setErr(true); return; }
+      setDuel(d);
+      const oppId = joueur.id === d.challenger_id ? d.defie_id : d.challenger_id;
+      sb(`joueurs?id=eq.${oppId}&select=photo`).then(x => setAdvPhoto(x?.[0]?.photo || null)).catch(() => {});
+    }).catch(() => setErr(true));
   }, [duelId]);
 
   // S'assure qu'UNE session live partagée existe (id = id du duel → les 2 téléphones
@@ -11142,6 +11152,29 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
     })();
   }, [winnerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Pop-up « l'adversaire a fait X » : comme le bot, on annonce le coup de l'adversaire
+  //    pendant 3 s (pseudo + photo + score), puisqu'il joue sur un autre téléphone. ──
+  useEffect(() => {
+    if (!duel || !advId) return;
+    const oppVs = volleys.filter(v => v.joueur_id === advId);
+    if (oppVs.length === 0) return;
+    const last = oppVs.reduce((m, v) => (v.numero_volee > m.numero_volee ? v : m), oppVs[0]);
+    if (last.numero_volee <= (lastOppSeenRef.current ?? -1)) return; // déjà annoncé
+    lastOppSeenRef.current = last.numero_volee;
+    if (Date.now() - (last.date || 0) > 20000) return; // volée de l'historique (au chargement) → pas d'annonce
+    const ns = reduceGameOnline(volleys, { startScore, manchesToWin, starterId, players });
+    const ev = ns.lastEvent;
+    if (!ev || ev.joueur_id !== advId) return;
+    setOppAnnonce({ pseudo: advPseudo, photo: advPhoto, val: ev.val, type: ev.type });
+    // Timer stocké dans un ref (PAS de cleanup d'effet) : sinon le poll (~1,6 s) recrée
+    // `volleys`, l'effet se relance, son cleanup annulerait la fermeture → pop-up figée.
+    if (oppAnnonceTimerRef.current) clearTimeout(oppAnnonceTimerRef.current);
+    oppAnnonceTimerRef.current = setTimeout(() => setOppAnnonce(null), 3000);
+  }, [volleys, advId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Nettoyage du timer de pop-up UNIQUEMENT au démontage (deps vides).
+  useEffect(() => () => { if (oppAnnonceTimerRef.current) clearTimeout(oppAnnonceTimerRef.current); }, []);
+
   // ── Écrans (après TOUS les hooks) ──
   if (err) return <div style={{ textAlign:"center", padding:60, color:C.muted }}>Partie introuvable.<div><button onClick={()=>setPage("home")} style={{ marginTop:16, background:C.accent, border:"none", color:"#fff", borderRadius:10, padding:"10px 20px", cursor:"pointer", fontWeight:700 }}>Retour</button></div></div>;
   if (!duel || !state) return <Spinner/>;
@@ -11249,6 +11282,28 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
   return (
     <div className="scoreur-wrap" style={{ position:"fixed", inset:0, background:"#0f0f0f", fontFamily:"Inter,sans-serif", display:"flex", flexDirection:"column", overflow:"hidden", zIndex:500, touchAction:"none" }}>
       <style>{`.scoreur-wrap button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}.scoreur-wrap button:active{opacity:.7;transform:scale(.96)}@keyframes scActiveGlow{0%,100%{box-shadow:0 0 0 1px #f9731666,0 0 18px #f9731633}50%{box-shadow:0 0 0 1px #f97316cc,0 0 36px #f9731666}}@keyframes scPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.25)}}`}</style>
+
+      {/* POP-UP : l'adversaire vient de jouer (pseudo + photo + score, 3 s) */}
+      {oppAnnonce && (
+        <div style={{ position:"fixed", inset:0, background:"#000000cc", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <style>{`@keyframes oppPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}`}</style>
+          <div style={{ background:"linear-gradient(160deg,#0a1f18,#04140e)", border:"2px solid #34d39977", borderRadius:24, padding:"26px 36px 30px", textAlign:"center", boxShadow:"0 0 50px #34d39955", minWidth:240, animation:"oppPop .25s cubic-bezier(.34,1.56,.64,1) both" }}>
+            {oppAnnonce.photo
+              ? <img src={oppAnnonce.photo} alt="" style={{ width:72, height:72, borderRadius:"50%", objectFit:"cover", border:"2px solid #34d399", boxShadow:"0 0 20px #34d39966", margin:"0 auto 10px", display:"block" }}/>
+              : <div style={{ width:72, height:72, borderRadius:"50%", background:"#34d39933", border:"2px solid #34d399", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 10px" }}><EmoIcon e="🎯" size={30} color="#34d399"/></div>}
+            <div style={{ fontSize:14, fontWeight:800, color:"#6ee7b7", letterSpacing:.5, marginBottom:8, display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}><EmoIcon e="🌐" size={13} color="#6ee7b7"/>{oppAnnonce.pseudo}</div>
+            {oppAnnonce.type === "bust" ? (
+              <div style={{ fontSize:46, fontWeight:900, color:"#ef4444", lineHeight:1 }}>BUST !</div>
+            ) : (
+              <>
+                <div style={{ fontSize:13, color:"#94a3b8", marginBottom:4 }}>a fait</div>
+                <div style={{ fontSize:68, fontWeight:900, color:"#fff", lineHeight:1, textShadow:"0 0 28px #34d399aa" }}>{oppAnnonce.val}</div>
+                {oppAnnonce.type === "finish" && <div style={{ marginTop:8, fontSize:13, fontWeight:900, color:"#fbbf24", letterSpacing:1 }}>🏆 FINISH !</div>}
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* POPUP FLÉCHETTES (finish) */}
       {pendingFinish && (
