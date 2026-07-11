@@ -15,6 +15,7 @@ import {
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
 import { reduceGameOnline, buildFinalizationData, mergeVolleys } from "./onlineGame";
+import { playSon, sonActif, setSonActif } from "./sons";
 import { ConfigCricket } from "./AppCricket";
 import { JeuCapital } from "./AppJeuDecalePoint";
 import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper } from "./AppTournoiPotes";
@@ -354,6 +355,7 @@ const Spinner = () => <div style={{ display:"flex",alignItems:"center",justifyCo
 const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAmisCount=0, unreadMessages=0, newBadgesCount=0, onBadgesSeen, onBack, canGoBack, bars=[], barsActifs=[], associations=[], tournois=[], setBarSlug, setAssoSlug }) => {
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [sonOn, setSonOn] = useState(sonActif()); // miroir local du réglage son (localStorage dp_son)
   const [liveStats, setLiveStats] = useState({ joueursConnectes:0, matchsLive:0 });
   const [joueurStats, setJoueurStats] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
@@ -760,6 +762,21 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
             <MenuItem icon="🏠" label="Proposer un bar" target="proposer" />
             <MenuItem icon="🫂" label="Proposer une association" target="proposer-asso" />
             <MenuItem icon="🏅" label="Proposer un tournoi" target="proposer-tournoi" />
+          </div>
+
+          {/* RÉGLAGES */}
+          <SecTitle>⚙️ Réglages</SecTitle>
+          <div style={{ display:"flex",flexDirection:"column",gap:2,marginBottom:12 }}>
+            <button onClick={()=>{ const v=!sonOn; setSonActif(v); setSonOn(v); if (v) playSon("finish"); }}
+              style={{ display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 12px",background:"transparent",border:"1px solid transparent",borderRadius:11,cursor:"pointer",color:"#cbd5e1",fontSize:14,fontWeight:500,transition:"all .18s",textAlign:"left",touchAction:"manipulation" }}
+              onMouseEnter={e=>{e.currentTarget.style.background="#ffffff08";e.currentTarget.style.borderColor="#ffffff14";}}
+              onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.borderColor="transparent";}}>
+              <span style={{ width:26,display:"flex",justifyContent:"center",flexShrink:0 }}><EmoIcon e={sonOn?"🔊":"🔇"} size={18}/></span>
+              <span style={{ flex:1 }}>Sons des grands moments</span>
+              <span style={{ fontSize:11,fontWeight:800,letterSpacing:.5,padding:"3px 10px",borderRadius:999,
+                background: sonOn?"#22c55e22":"#64748b22", color: sonOn?"#4ade80":"#94a3b8",
+                border:`1px solid ${sonOn?"#22c55e55":"#64748b44"}` }}>{sonOn?"ON":"OFF"}</span>
+            </button>
           </div>
 
           {/* COMPTE */}
@@ -11031,6 +11048,7 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
   const maxSeqRef = useRef(-1);           // n° de volée toujours croissant (jamais réutilisé après un retour)
   const lastOppSeenRef = useRef(null);    // n° de la dernière volée adverse déjà annoncée
   const oppAnnonceTimerRef = useRef(null); // timer de fermeture de la pop-up (survit aux re-polls)
+  const soundSeqRef = useRef(-1);          // n° de la dernière volée déjà « sonnée » (grands moments)
 
   // Charge le duel + la photo de l'adversaire (pour la pop-up d'annonce)
   useEffect(() => {
@@ -11174,6 +11192,25 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
 
   // Nettoyage du timer de pop-up UNIQUEMENT au démontage (deps vides).
   useEffect(() => () => { if (oppAnnonceTimerRef.current) clearTimeout(oppAnnonceTimerRef.current); }, []);
+
+  // ── Sons des grands moments EN LIGNE (180 / finish / victoire) ──
+  //    Un seul observateur keyé sur [volleys] : dédup via soundSeqRef (le poll ~1,6 s
+  //    recrée `volleys`, l'effet retourne donc à chaque cycle) + garde de fraîcheur pour
+  //    ne rien rejouer au (re)chargement. 180 & finish sonnent sur les 2 téléphones ; la
+  //    fanfare de victoire seulement chez le gagnant (pas de fanfare dans l'oreille du perdant).
+  useEffect(() => {
+    if (!duel || !volleys.length) return;
+    const last = volleys.reduce((m, v) => (!m || v.numero_volee > m.numero_volee ? v : m), null);
+    if (!last || last.numero_volee <= soundSeqRef.current) return;
+    soundSeqRef.current = last.numero_volee;
+    if (Date.now() - (last.date || 0) > 20000) return; // volée de l'historique (au chargement)
+    const ns = reduceGameOnline(volleys, { startScore, manchesToWin, starterId, players });
+    const ev = ns.lastEvent;
+    if (!ev) return;
+    if (ev.type === "finish" && ns.winnerId) { if (ns.winnerId === meId) playSon("victoire"); }
+    else if (ev.type === "finish") playSon("finish");
+    else if (ev.type === "score" && ev.val === 180) playSon("180");
+  }, [volleys]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Écrans (après TOUS les hooks) ──
   if (err) return <div style={{ textAlign:"center", padding:60, color:C.muted }}>Partie introuvable.<div><button onClick={()=>setPage("home")} style={{ marginTop:16, background:C.accent, border:"none", color:"#fff", borderRadius:10, padding:"10px 20px", cursor:"pointer", fontWeight:700 }}>Retour</button></div></div>;
