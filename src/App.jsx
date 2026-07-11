@@ -11600,9 +11600,13 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
       const vals = computeBadgeValues(joueur, stats, duels||[], drixMvts||[], amis||[], (trn||[]).length, (wtrn||[]).length, 0, 0);
       const stored = getBadgesStored(joueur.id);
       const freshUnlocked = ALL_BADGES.filter(b=>b.val(vals)>=b.seuil);
-      const justUnlocked = freshUnlocked.filter(b=>!stored.has(b.id));
-      const newSet = new Set([...stored, ...freshUnlocked.map(b=>b.id)]);
-      storeBadgesSet(joueur.id, newSet);
+      storeBadgesSet(joueur.id, new Set(freshUnlocked.map(b=>b.id)));
+      // ANTI-INONDATION du Comptoir : on ne publie/félicite un badge QUE si on avait déjà
+      // une base locale fiable. Si elle est vide (nouvel appareil / cache vidé), republier
+      // ferait apparaître TOUTE la liste des anciens badges d'un coup → on enregistre en
+      // silence. Et on ne publie jamais une avalanche (>3 d'un coup = base locale périmée).
+      const nouveaux = stored.size > 0 ? freshUnlocked.filter(b=>!stored.has(b.id)) : [];
+      const justUnlocked = nouveaux.length <= 3 ? nouveaux : [];
       if (justUnlocked.length > 0) {
         setNewBadges(justUnlocked);
         // Notification navigateur pour les nouveaux badges
