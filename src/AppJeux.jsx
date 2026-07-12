@@ -3,7 +3,6 @@ import { SCORER } from "./theme";
 import { Search, Swords, Check, X } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
 import { calculerProfilBot, genererScoreBot } from "./botFleche";
-import { playSon } from "./sons";
 
 // ── Confetti ──────────────────────────────────────────────────────────────────
 const Confetti = () => {
@@ -1643,7 +1642,6 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     setJoueurs(updatedN);
     setActifIdx((actifIdx + 1) % joueurs.length); setInput("");
     pushLiveVolee(actifIdx, val, false, false, updatedN);
-    if (val === 180 && joueur.nom !== botPseudo) playSon("180"); // 🔊 grand moment : 180 !
     // ⭐ Célébration XP live — grosse volée ≥ 120 (180 → +50, 140-179 → +20, 120-139 → +10)
     if (val >= 120 && modeDuel) {
       const xp = val >= 180 ? 180 : val >= 140 ? 20 : 10;
@@ -1683,11 +1681,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         setGagnant({ ...joueur, manchesGagnees:newManches, tours:[...joueur.tours,val], totalPoints:joueur.totalPoints+val, flechettes:joueur.flechettes+nbFlechettes });
         pushLiveVolee(actifIdx, val, false, true, updated);
         setEtape("fin");
-        if (joueur.nom !== botPseudo) playSon("victoire"); // 🔊 grand moment : match gagné
         if (modeDuel || onResultat) enregistrerResultatDuel(joueur.nom, scoreC, scoreD, moyC, moyD, allManches, updated);
         return;
       }
-      if (joueur.nom !== botPseudo) playSon("finish"); // 🔊 grand moment : manche gagnée
       if (mancheDetail) setManchesHistory(h => [...h, mancheDetail]);
       setMancheStart({
         vol:      updated.map(j => Math.round(j.flechettes / 3)),
