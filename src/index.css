@@ -23,6 +23,20 @@ body {
   min-height: 100vh;
 }
 
+/* ─── Comportement « appli native » : on empêche la sélection de texte (c'est elle
+       qui déclenche le volet Google « rechercher la sélection ») et le menu long-appui.
+       Les champs de saisie restent sélectionnables pour taper/corriger/copier. ─── */
+html {
+  -webkit-touch-callout: none;      /* pas de menu au long-appui (liens, images, texte) */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent; /* pas de flash gris au tap */
+}
+input, textarea, select, [contenteditable="true"], [contenteditable=""] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 input, select, textarea, button {
   font-family: inherit;
 }
