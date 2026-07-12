@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Target, Swords, Home } from "lucide-react";
+import { ArrowLeft, Target, Swords, Home, Crown, Lock } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
 
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -338,6 +338,21 @@ export const ScoreurCricket = ({ config, setPage }) => {
     return () => clearTimeout(t);
   }, [advancing, actifIdx, darts, joueurs.length]);
 
+  // ── Flash « repère global » quand un numéro vient d'être fermé par TOUS ──
+  const [flashZone, setFlashZone] = useState(null);
+  const prevAllClosedRef = useRef(new Set());
+  useEffect(() => {
+    const now = new Set(ZONES.filter(z => joueurs.every(j => j.marks[z] >= 3)));
+    let newly = null;
+    now.forEach(z => { if (!prevAllClosedRef.current.has(z)) newly = z; });
+    prevAllClosedRef.current = now;
+    if (newly !== null) {
+      setFlashZone(newly);
+      const t = setTimeout(() => setFlashZone(null), 750);
+      return () => clearTimeout(t);
+    }
+  }, [joueurs]);
+
   // ── Helpers ────────────────────────────────────────────────────────────────
   const snap = () => ({
     joueurs: joueurs.map(j => ({ ...j, marks: { ...j.marks } })),
@@ -483,13 +498,13 @@ export const ScoreurCricket = ({ config, setPage }) => {
 
   // ── Mark display ──────────────────────────────────────────────────────────
   const markEl = (n, col) => {
-    if (n === 0) return <span style={{ color:"#2a2a2a", fontSize:20 }}>·</span>;
-    if (n === 1) return <span style={{ color:"#555", fontSize:26, fontWeight:200, lineHeight:1 }}>/</span>;
-    if (n === 2) return <EmoIcon e="✕" size={18} color={C.text} strokeWidth={3}/>;
-    // closed
+    if (n === 0) return <span style={{ color:"#3a3a3a", fontSize:24, lineHeight:1 }}>·</span>;
+    if (n === 1) return <span style={{ color:"#e2e8f0", fontSize:30, fontWeight:300, lineHeight:1 }}>/</span>;
+    if (n === 2) return <EmoIcon e="✕" size={23} color="#f1f5f9" strokeWidth={3}/>;
+    // fermé (3 marques) — pastille lumineuse à la couleur de fermeture
     return (
-      <div style={{ width:28, height:28, borderRadius:"50%", background:`${col}22`, border:`2px solid ${col}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-        <EmoIcon e="✕" size={14} color={col} strokeWidth={3}/>
+      <div style={{ width:32, height:32, borderRadius:"50%", background:`${col}26`, border:`2.5px solid ${col}`, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 0 10px ${col}44` }}>
+        <EmoIcon e="✕" size={15} color={col} strokeWidth={3.5}/>
       </div>
     );
   };
@@ -723,11 +738,35 @@ export const ScoreurCricket = ({ config, setPage }) => {
 
   // ── ÉCRAN JEU ─────────────────────────────────────────────────────────────
   const actif = joueurs[actifIdx];
-  const leftW = 54;
-  const colMinW = 110; // chaque colonne joueur a au minimum 110px → scroll horizontal si besoin
+  const leftW = 60;
+  const colMinW = 118;             // largeur mini d'une colonne joueur → scroll horizontal si besoin
+  const HEAD_H = 80, STAT_H = 50, DART_H = 52;
+
+  // Leader (couronne) : sets d'abord, puis le meilleur score (bas si Cut-Throat),
+  // puis le plus de numéros fermés. Pas de couronne tant qu'aucune progression / à égalité.
+  const marksOf = (j) => ZONES.reduce((s,z)=>s+Math.min(3,j.marks[z]),0);
+  const leaderId = (() => {
+    const r = joueurs.map(j => ({ id:j.id,
+      k: j.setsGagnes*1e9 + (config.points ? (config.cutThroat ? -j.score : j.score) : 0)*1e3 + marksOf(j)
+    })).sort((a,b)=>b.k-a.k);
+    const progress = joueurs.some(j => j.setsGagnes>0 || ZONES.some(z=>j.marks[z]>0));
+    return (r.length>1 && r[0].k>r[1].k && progress) ? r[0].id : null;
+  })();
 
   return (
     <div style={{ position:"fixed", inset:0, zIndex:9999, display:"flex", flexDirection:"column", background:C.bg, color:C.text, fontFamily:"Inter,sans-serif", overflow:"hidden", touchAction:"none" }}>
+
+      <style>{`
+        @keyframes ckBreathe { 0%,100%{ box-shadow: inset 0 0 0 2px #22c55e, 0 0 16px #22c55e33; } 50%{ box-shadow: inset 0 0 0 2px #22c55e, 0 0 30px #22c55e88; } }
+        @keyframes ckPop { 0%{ transform:scale(.55); opacity:0; } 60%{ transform:scale(1.18); } 100%{ transform:scale(1); opacity:1; } }
+        @keyframes ckRowClose { 0%{ background:#22c55e44; } 100%{ background:transparent; } }
+        @keyframes ckCrown { 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-2px); } }
+        @keyframes ckTurn { 0%{ opacity:0; transform:translateY(-4px); } 100%{ opacity:1; transform:translateY(0); } }
+        .ck-key { transition: transform .07s ease, background .12s, border-color .12s, box-shadow .12s; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+        .ck-key:active:not(:disabled){ transform: scale(.93); }
+        .ck-col { transition: background .25s; }
+        @media (prefers-reduced-motion: reduce){ .ck-col{ animation:none !important; } }
+      `}</style>
 
       {/* ── Modale quitter ── */}
       {showQuit && (
@@ -751,44 +790,47 @@ export const ScoreurCricket = ({ config, setPage }) => {
       )}
 
       {/* ── Header ── */}
-      <div style={{ height:38, background:"#111", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 10px", flexShrink:0 }}>
-        <button onClick={() => setShowQuit(true)}
-          style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", lineHeight:1, padding:"2px 8px 2px 0", touchAction:"manipulation", display:"inline-flex" }}><EmoIcon e="✕" size={18}/></button>
-        <span style={{ flex:1, textAlign:"center", fontSize:12, color:C.muted, fontWeight:600 }}>
-          <EmoIcon e="🦗" size={12} style={{verticalAlign:"-2px",marginRight:5}}/>Cricket {config.points ? (config.cutThroat ? "· Cut Throat" : "· Normal") : "· Points OFF"}
+      <div style={{ height:44, background:"#141414", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", padding:"0 12px", flexShrink:0 }}>
+        <button className="ck-key" onClick={() => setShowQuit(true)}
+          style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", lineHeight:1, padding:"4px 10px 4px 0", display:"inline-flex" }}><EmoIcon e="✕" size={19}/></button>
+        <span style={{ flex:1, textAlign:"center", fontSize:13, color:C.text, fontWeight:700, letterSpacing:.3 }}>
+          <EmoIcon e="🦗" size={13} style={{verticalAlign:"-2px",marginRight:6}}/>Cricket <span style={{ color:C.muted, fontWeight:600 }}>{config.points ? (config.cutThroat ? "· Cut-Throat" : "· Normal") : "· Sans points"}</span>
         </span>
-        <span style={{ fontSize:11, color:C.muted }}>
-          {joueurs.map(j => j.setsGagnes).join("-")}
+        <span style={{ fontSize:12, color:C.muted, fontWeight:700, fontVariantNumeric:"tabular-nums" }}>
+          {joueurs.map(j => j.setsGagnes).join(" - ")}
         </span>
       </div>
 
       {/* ── Grille principale ── */}
       <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
 
-        {/* Colonne gauche fixe — zones */}
-        <div style={{ width:leftW, flexShrink:0, display:"flex", flexDirection:"column", background:"#0a0a0a", borderRight:`2px solid ${C.border}` }}>
+        {/* Colonne gauche fixe — numéros */}
+        <div style={{ width:leftW, flexShrink:0, display:"flex", flexDirection:"column", background:"#0c0c0c", borderRight:`2px solid ${C.border}` }}>
           {/* Espace header joueur */}
-          <div style={{ flexShrink:0, height:68 }} />
-          {/* Zones */}
+          <div style={{ flexShrink:0, height:HEAD_H }} />
+          {/* Numéros */}
           {ZONES.map(z => {
             const done = allClosed(z);
+            const isBull = z === "Bull";
             return (
-              <div key={z} style={{ flex:1, position:"relative", display:"flex", alignItems:"center", justifyContent:"center",
-                borderBottom:`1px solid ${C.border}18`,
-                background: done ? "#1a1a1a" : "transparent" }}>
-                <span style={{ fontWeight:900, fontSize:z==="Bull"?13:20,
-                  color: done ? "#333" : (z==="Bull" ? C.red : C.text),
+              <div key={z} style={{ flex:1, position:"relative", display:"flex", alignItems:"center", justifyContent:"center", gap:3,
+                borderTop:`1px solid ${C.border}44`,
+                background: done ? "#151515" : "#0e0e0e",
+                filter: done ? "grayscale(1)" : "none" }}>
+                <span style={{ fontWeight:900, fontSize: isBull ? 15 : 25, lineHeight:1,
+                  color: done ? "#555" : (isBull ? C.red : C.text),
+                  textShadow: done ? "none" : (isBull ? "0 0 12px #ef444455" : "none"),
                   textDecoration: done ? "line-through" : "none" }}>
-                  {z === "Bull" ? "BULL" : z}
+                  {isBull ? "BULL" : z}
                 </span>
-                {done && <div style={{ position:"absolute", left:0, right:0, height:2, background:"#ef4444", top:"50%", transform:"translateY(-50%)", pointerEvents:"none", boxShadow:"0 0 6px #ef444488" }}/>}
+                {done && <Lock size={11} color="#64748b" style={{ position:"absolute", right:5, top:"50%", transform:"translateY(-50%)" }}/>}
               </div>
             );
           })}
           {/* Espace stats */}
-          <div style={{ flexShrink:0, height:40 }} />
+          <div style={{ flexShrink:0, height:STAT_H }} />
           {/* Espace dart boxes */}
-          <div style={{ flexShrink:0, height:48 }} />
+          <div style={{ flexShrink:0, height:DART_H }} />
         </div>
 
         {/* Colonnes joueurs scrollables */}
@@ -796,72 +838,77 @@ export const ScoreurCricket = ({ config, setPage }) => {
           {joueurs.map((j, ji) => {
             const isActive = ji === actifIdx;
             const curDarts = isActive ? darts : (lastDarts[ji] || []);
-            const totalM = ZONES.reduce((s, z) => s + j.marks[z], 0);
+            const isLeader = j.id === leaderId;
 
             return (
-              <div key={j.id} ref={el => colRefs.current[ji] = el}
-                style={{ flex:1, minWidth:`${colMinW}px`, display:"flex", flexDirection:"column",
-                  borderRight: ji < joueurs.length-1 ? `1px solid ${C.border}33` : "none",
-                  background: isActive ? `${j.color}06` : "transparent" }}>
+              <div key={j.id} ref={el => colRefs.current[ji] = el} className="ck-col"
+                style={{ flex:1, minWidth:`${colMinW}px`, display:"flex", flexDirection:"column", position:"relative",
+                  background: isActive ? "#0e1a12" : (ji % 2 ? "#101010" : "#131313"),
+                  boxShadow: isActive ? undefined : `inset -1px 0 0 ${C.border}66`,
+                  animation: isActive ? "ckBreathe 2.6s ease-in-out infinite" : "none",
+                  zIndex: isActive ? 2 : 1 }}>
 
-                {/* ── Nom + score + barre active ── */}
-                <div style={{ flexShrink:0, height:68, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:2, padding:"4px 6px 0" }}>
-                  <span style={{ fontSize:14, fontWeight:800, color: isActive ? j.color : C.muted, textAlign:"center", width:"100%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                    {j.pseudo}
-                  </span>
+                {/* ── Couronne + nom + score + « À TOI » ── */}
+                <div style={{ flexShrink:0, height:HEAD_H, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, padding:"4px 6px 0" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:4, maxWidth:"100%" }}>
+                    {isLeader && <Crown size={14} color={C.yellow} fill={C.yellow} style={{ flexShrink:0, animation:"ckCrown 2s ease-in-out infinite" }}/>}
+                    <span style={{ fontSize:15, fontWeight:800, color: isActive ? "#fff" : C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{j.pseudo}</span>
+                  </div>
                   {config.points && (
-                    <span style={{ fontSize:22, fontWeight:900, color: isActive ? j.color : C.text, lineHeight:1 }}>
-                      {j.score}
-                    </span>
+                    <span style={{ fontSize:27, fontWeight:900, lineHeight:1, color: isActive ? "#fff" : "#cbd5e1", fontVariantNumeric:"tabular-nums" }}>{j.score}</span>
                   )}
-                  {/* Barre active */}
-                  <div style={{ width:"80%", height:3, borderRadius:2, marginTop:2,
-                    background: isActive ? j.color : "#222",
-                    boxShadow: isActive ? `0 0 8px ${j.color}88` : "none",
-                    transition:"background .2s" }} />
+                  {isActive
+                    ? <span style={{ fontSize:9, fontWeight:900, letterSpacing:1, color:"#052e16", background:C.green, borderRadius:20, padding:"2px 9px", animation:"ckTurn .3s ease" }}>À TOI</span>
+                    : <div style={{ height:15 }} />}
                 </div>
 
-                {/* ── Zones (flex:1, fills space) ── */}
+                {/* ── Numéros (marques) ── */}
                 <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
                   {ZONES.map(z => {
                     const m = j.marks[z];
                     const closed = m >= 3;
                     const done = allClosed(z);
+                    const flashing = flashZone === z;
+                    const closeCol = isActive ? C.green : C.accent; // vert = actif, orange = autre joueur
                     return (
                       <div key={z} style={{ flex:1, position:"relative", display:"flex", alignItems:"center", justifyContent:"center",
-                        background: done ? "#1a1a1a" : closed ? `${j.color}18` : "transparent",
-                        borderBottom:`1px solid ${C.border}18` }}>
-                        <div style={{ opacity: done ? 0.35 : 1 }}>{markEl(m, j.color)}</div>
-                        {done && <div style={{ position:"absolute", left:0, right:0, height:2, background:"#ef4444", top:"50%", transform:"translateY(-50%)", pointerEvents:"none", zIndex:1, boxShadow:"0 0 6px #ef444488" }}/>}
+                        borderTop:`1px solid ${C.border}33`,
+                        background: done ? "#141414" : (closed ? `${closeCol}20` : "transparent"),
+                        transition:"background .2s" }}>
+                        <div key={m} style={{ display:"flex", animation: done ? "none" : "ckPop .18s ease", filter: done ? "grayscale(1) opacity(.4)" : "none" }}>
+                          {markEl(m, closeCol)}
+                        </div>
+                        {done && <div style={{ position:"absolute", left:0, right:0, top:"50%", transform:"translateY(-50%)", height:2, background:"#ef4444aa", boxShadow:"0 0 6px #ef444455", pointerEvents:"none", zIndex:1 }}/>}
+                        {flashing && <div style={{ position:"absolute", inset:0, animation:"ckRowClose .75s ease", pointerEvents:"none", zIndex:2 }}/>}
                       </div>
                     );
                   })}
                 </div>
 
-                {/* ── Stats ── */}
-                <div style={{ flexShrink:0, height:40, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", borderTop:`1px solid ${C.border}44`, background:"#0d0d0d", gap:2 }}>
-                  <span style={{ fontSize:10, color:C.muted }}>Sets {j.setsGagnes} · Legs {j.legsGagnes}</span>
-                  <span style={{ fontSize:10, color:C.muted }}>
-                    <EmoIcon e="✏" size={10} color={C.muted} style={{marginRight:4,verticalAlign:"-1px"}}/>{totalM}
-                    <span style={{ marginLeft:8 }}>MPR {mpr(j)}</span>
-                  </span>
+                {/* ── Stats : Sets / Legs / MPR ── */}
+                <div style={{ flexShrink:0, height:STAT_H, display:"flex", alignItems:"center", justifyContent:"space-around", borderTop:`1px solid ${C.border}66`, background: isActive ? "#0b130e" : "#0c0c0c" }}>
+                  {[["Sets", j.setsGagnes],["Legs", j.legsGagnes],["MPR", mpr(j)]].map(([lab,val]) => (
+                    <div key={lab} style={{ textAlign:"center", lineHeight:1.05 }}>
+                      <div style={{ fontSize:15, fontWeight:800, color: isActive ? "#f1f5f9" : "#cbd5e1", fontVariantNumeric:"tabular-nums" }}>{val}</div>
+                      <div style={{ fontSize:8.5, fontWeight:700, color:C.muted, letterSpacing:.5, marginTop:2, textTransform:"uppercase" }}>{lab}</div>
+                    </div>
+                  ))}
                 </div>
 
                 {/* ── 3 boîtes fléchettes ── */}
-                <div style={{ flexShrink:0, height:48, display:"flex", gap:3, padding:"5px 4px",
-                  borderTop:`2px solid ${isActive ? j.color+"66" : C.border}`,
-                  background: isActive ? `${j.color}10` : "#0a0a0a" }}>
+                <div style={{ flexShrink:0, height:DART_H, display:"flex", gap:4, padding:"6px 5px",
+                  borderTop:`2px solid ${isActive ? C.green+"66" : C.border}`,
+                  background: isActive ? "#0b130e" : "#0a0a0a" }}>
                   {[0,1,2].map(di => {
                     const d = curDarts[di];
                     const filled = !!d;
                     return (
-                      <div key={di} style={{ flex:1, borderRadius:6,
-                        background: filled ? "#1a1a1a" : "#111",
-                        border:`1px solid ${filled && isActive ? j.color+"55" : C.border}`,
-                        display:"flex", alignItems:"center", justifyContent:"center",
-                        transition:"all .15s" }}>
+                      <div key={di} style={{ flex:1, borderRadius:7,
+                        background: filled ? "#191919" : "#0e0e0e",
+                        border:`1px solid ${filled ? (isActive ? C.green+"55" : C.border) : `${C.border}88`}`,
+                        display:"flex", alignItems:"center", justifyContent:"center" }}>
                         {filled && (
-                          <span style={{ ...dartStyle(d), textAlign:"center", lineHeight:1 }}>
+                          <span key={d.label} style={{ ...dartStyle(d), textAlign:"center", lineHeight:1, animation:"ckPop .18s ease" }}>
                             {d.label}
                           </span>
                         )}
@@ -875,77 +922,68 @@ export const ScoreurCricket = ({ config, setPage }) => {
         </div>
       </div>
 
-      {/* ── Barre de saisie ── */}
-      <div style={{ background:"#111", borderTop:`2px solid ${actif.color}55`, padding:"12px 10px 14px", flexShrink:0 }}>
+      {/* ── Clavier de saisie ── */}
+      <div style={{ background:"#141414", borderTop:`2px solid ${C.green}55`, padding:"10px 8px calc(12px + env(safe-area-inset-bottom))", flexShrink:0 }}>
 
-        {/* Rang 1 : modificateurs + annuler */}
-        <div style={{ display:"flex", gap:7, marginBottom:9 }}>
-          {/* Double */}
-          <button onClick={() => setMult(mult === 2 ? 1 : 2)}
-            style={{ flex:1, padding:"15px 4px", borderRadius:11, border:`2px solid ${mult===2?C.blue:C.border}`,
-              background: mult===2 ? `${C.blue}22` : "#0d0d0d",
-              color: mult===2 ? C.blue : C.muted,
-              fontWeight:800, fontSize:18, cursor:"pointer", touchAction:"manipulation", transition:"all .1s" }}>
-            D ×2
+        {/* Rang 1 : Double · Triple · Miss · Annuler (différenciés) */}
+        <div style={{ display:"flex", gap:7, marginBottom:8 }}>
+          <button className="ck-key" onClick={() => setMult(mult === 2 ? 1 : 2)}
+            style={{ flex:1, padding:"14px 4px", borderRadius:12, border:`2px solid ${mult===2?C.blue:C.border}`,
+              background: mult===2 ? C.blue : "#101010", color: mult===2 ? "#04121f" : C.blue,
+              fontWeight:900, fontSize:15, letterSpacing:.5, cursor:"pointer", boxShadow: mult===2?`0 0 16px ${C.blue}55`:"none" }}>
+            DOUBLE
           </button>
-          {/* Triple */}
-          <button onClick={() => setMult(mult === 3 ? 1 : 3)}
-            style={{ flex:1, padding:"15px 4px", borderRadius:11, border:`2px solid ${mult===3?C.accent:C.border}`,
-              background: mult===3 ? `${C.accent}22` : "#0d0d0d",
-              color: mult===3 ? C.accent : C.muted,
-              fontWeight:800, fontSize:18, cursor:"pointer", touchAction:"manipulation", transition:"all .1s" }}>
-            T ×3
+          <button className="ck-key" onClick={() => setMult(mult === 3 ? 1 : 3)}
+            style={{ flex:1, padding:"14px 4px", borderRadius:12, border:`2px solid ${mult===3?C.accent:C.border}`,
+              background: mult===3 ? C.accent : "#101010", color: mult===3 ? "#1a0a00" : C.accent,
+              fontWeight:900, fontSize:15, letterSpacing:.5, cursor:"pointer", boxShadow: mult===3?`0 0 16px ${C.accent}55`:"none" }}>
+            TRIPLE
           </button>
-          {/* Miss */}
-          <button onClick={miss} disabled={darts.length>=3||advancing}
-            style={{ flex:1, padding:"15px 4px", borderRadius:11, border:`1px solid ${C.border}`,
-              background:"#0d0d0d", color: darts.length>=3||advancing ? "#333" : C.muted,
-              fontWeight:700, fontSize:18, cursor: darts.length>=3||advancing?"not-allowed":"pointer", touchAction:"manipulation" }}>
+          <button className="ck-key" onClick={miss} disabled={darts.length>=3||advancing}
+            style={{ flex:1, padding:"14px 4px", borderRadius:12, border:`1px solid ${C.border}`,
+              background:"#101010", color: darts.length>=3||advancing ? "#333" : C.muted,
+              fontWeight:800, fontSize:14, letterSpacing:.5, cursor: darts.length>=3||advancing?"not-allowed":"pointer" }}>
             MISS
           </button>
-          {/* Annuler */}
-          <button onClick={undo} disabled={!historique.length || advancing}
-            style={{ flex:1, padding:"15px 4px", borderRadius:11, border:`1px solid ${C.border}`,
-              background:"#0d0d0d", color: historique.length && !advancing ? C.yellow : "#333",
-              fontWeight:700, fontSize:18, cursor: historique.length&&!advancing?"pointer":"not-allowed", touchAction:"manipulation" }}>
+          <button className="ck-key" onClick={undo} disabled={!historique.length || advancing}
+            style={{ flex:1, padding:"14px 4px", borderRadius:12, border:`1px solid ${historique.length&&!advancing?`${C.yellow}66`:C.border}`,
+              background:"#101010", color: historique.length && !advancing ? C.yellow : "#333",
+              fontWeight:800, fontSize:19, cursor: historique.length&&!advancing?"pointer":"not-allowed" }}>
             ↩
           </button>
         </div>
 
-        {/* Rang 2 : zones */}
+        {/* Rang 2 : numéros (18/19/20/BULL plus grandes) */}
         <div style={{ display:"flex", gap:6 }}>
           {[15,16,17,18,19,20].map(z => {
             const m = actif.marks[z];
             const closed = m >= 3;
             const disabled = darts.length >= 3 || advancing;
+            const big = z >= 18;
             return (
-              <button key={z} onClick={() => hit(z)} disabled={disabled}
-                style={{ flex:1, padding:"18px 2px", borderRadius:11,
-                  border:`2px solid ${closed ? actif.color+"88" : (disabled?"#1a1a1a":C.border)}`,
-                  background: closed ? `${actif.color}22` : (disabled?"#0a0a0a":"#0d0d0d"),
-                  color: closed ? actif.color : (disabled?"#333":C.text),
-                  fontWeight:800, fontSize:18, cursor: disabled?"not-allowed":"pointer",
-                  touchAction:"manipulation",
-                  boxShadow: closed && !disabled ? `0 0 8px ${actif.color}44` : "none",
-                  transition:"all .1s" }}>
+              <button key={z} className="ck-key" onClick={() => hit(z)} disabled={disabled}
+                style={{ flex: big ? 1.34 : 1, padding:`${big?20:16}px 2px`, borderRadius:12,
+                  border:`2px solid ${closed ? C.green : (disabled?"#1a1a1a":C.border)}`,
+                  background: closed ? `${C.green}26` : (disabled?"#0b0b0b":"#171717"),
+                  color: closed ? C.green : (disabled?"#333":C.text),
+                  fontWeight:900, fontSize: big ? 24 : 19, cursor: disabled?"not-allowed":"pointer",
+                  boxShadow: closed && !disabled ? `0 0 14px ${C.green}44` : "none" }}>
                 {z}
               </button>
             );
           })}
-          {/* Bull */}
           {(() => {
             const m = actif.marks["Bull"];
             const closed = m >= 3;
             const disabled = darts.length >= 3 || advancing;
             return (
-              <button onClick={() => hit("Bull")} disabled={disabled}
-                style={{ flex:1, padding:"18px 2px", borderRadius:11,
-                  border:`2px solid ${closed ? `${C.red}88` : (disabled?"#1a1a1a":`${C.red}44`)}`,
-                  background: closed ? `${C.red}22` : (disabled?"#0a0a0a":"#0d0d0d"),
-                  color: closed ? C.red : (disabled?"#333":"#fca5a5"),
-                  fontWeight:900, fontSize:18, cursor: disabled?"not-allowed":"pointer",
-                  touchAction:"manipulation",
-                  boxShadow: closed && !disabled ? `0 0 8px ${C.red}44` : "none" }}>
+              <button className="ck-key" onClick={() => hit("Bull")} disabled={disabled}
+                style={{ flex:1.34, padding:"20px 2px", borderRadius:12,
+                  border:`2px solid ${closed ? C.green : (disabled?"#1a1a1a":`${C.red}66`)}`,
+                  background: closed ? `${C.green}26` : (disabled?"#0b0b0b":"#171717"),
+                  color: closed ? C.green : (disabled?"#333":"#fca5a5"),
+                  fontWeight:900, fontSize:20, cursor: disabled?"not-allowed":"pointer",
+                  boxShadow: closed && !disabled ? `0 0 14px ${C.green}44` : "none" }}>
                 BULL
               </button>
             );
