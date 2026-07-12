@@ -23,7 +23,7 @@ import { ChronoFinish, checkYesterdayReward } from "./AppChronoFinish";
 import { ChronoScoreur, checkYesterdayScoreurReward } from "./AppChronoScoreur";
 import { RushMode } from "./AppRushMode";
 import { HorlogeDouble } from "./AppHorlogeDouble";
-import { MessagesPage, dbM } from "./AppMessages";
+import { MessagesPage, dbM, BoutonMessage } from "./AppMessages";
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
@@ -1186,12 +1186,29 @@ const EditBarModal = ({ bar, onSave, onClose, joueur=null }) => {
 };
 
 const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
-  const [f,setF]=useState({ nom:asso.nom||"",ville:asso.ville||"",zone:asso.zone||"",type:asso.type||"electronique",president:asso.president||"",contact_nom:asso.contact_nom||"",jours:asso.jours||"",lieu:asso.lieu||"",tel:asso.tel||"",contact:asso.contact||"",description:asso.description||"",lat:String(asso.lat||""),lng:String(asso.lng||"") });
+  const [f,setF]=useState({ nom:asso.nom||"",ville:asso.ville||"",zone:asso.zone||"",type:asso.type||"electronique",president:asso.president||"",president_id:asso.president_id||"",president_pseudo:asso.president_pseudo||"",president_photo:asso.president_photo||"",contact_nom:asso.contact_nom||"",jours:asso.jours||"",lieu:asso.lieu||"",tel:asso.tel||"",contact:asso.contact||"",description:asso.description||"",lat:String(asso.lat||""),lng:String(asso.lng||"") });
   const [selectedBars, setSelectedBars] = useState(Array.isArray(asso.bars) ? asso.bars : []);
   const [barSearch, setBarSearch] = useState("");
   const [saving,setSaving]=useState(false);
   const [errMsg, setErrMsg]=useState("");
   const set=k=>v=>setF(p=>({...p,[k]:v}));
+  // ── Recherche de joueur pour relier le président à un profil Dart Point ──
+  const [presiSearch, setPresiSearch] = useState("");
+  const [presiResults, setPresiResults] = useState([]);
+  const [presiLoading, setPresiLoading] = useState(false);
+  useEffect(() => {
+    const q = presiSearch.trim();
+    if (q.length < 2) { setPresiResults([]); setPresiLoading(false); return; }
+    setPresiLoading(true);
+    const t = setTimeout(async () => {
+      try { const r = await sb(`joueurs?pseudo=ilike.*${encodeURIComponent(q)}*&select=id,pseudo,drix,photo&limit=8`); setPresiResults(Array.isArray(r) ? r : []); }
+      catch { setPresiResults([]); }
+      setPresiLoading(false);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [presiSearch]);
+  const linkPresident = (p) => { setF(prev => ({ ...prev, president_id:p.id, president_pseudo:p.pseudo, president_photo:p.photo||"", president: prev.president?.trim() ? prev.president : p.pseudo })); setPresiSearch(""); setPresiResults([]); };
+  const unlinkPresident = () => setF(prev => ({ ...prev, president_id:"", president_pseudo:"", president_photo:"" }));
   // Stocke le slug (stable) ; rétro-compatible avec l'ancien stockage par nom
   const toggleBar = (b) => { const slug = typeof b==="string"?b:b.slug, nom = typeof b==="string"?b:b.nom; setSelectedBars(prev => (prev.includes(slug)||prev.includes(nom)) ? prev.filter(x=>x!==slug&&x!==nom) : [...prev, slug]); };
   const filteredBars = allBars.filter(b => b.nom.toLowerCase().includes(barSearch.toLowerCase()) || b.ville.toLowerCase().includes(barSearch.toLowerCase()));
@@ -1199,12 +1216,17 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
     setSaving(true);
     setErrMsg("");
     try {
-      const payload = { nom:f.nom, ville:f.ville, zone:f.zone, type:f.type, president:f.president, contact_nom:f.contact_nom, jours:f.jours, lieu:f.lieu, tel:f.tel, contact:f.contact, description:f.description, bars:selectedBars, lat:num(f.lat), lng:num(f.lng) };
-      await db.updateAssociation(asso.slug, payload);
+      const base = { nom:f.nom, ville:f.ville, zone:f.zone, type:f.type, president:f.president, contact_nom:f.contact_nom, jours:f.jours, lieu:f.lieu, tel:f.tel, contact:f.contact, description:f.description, bars:selectedBars, lat:num(f.lat), lng:num(f.lng) };
+      const payload = { ...base, president_id:f.president_id||null, president_pseudo:f.president_pseudo||null, president_photo:f.president_photo||null };
+      let saved = payload;
+      // Repli : si les colonnes president_id/pseudo/photo n'existent pas encore en base,
+      // on réenregistre sans elles (le reste est sauvegardé quand même).
+      try { await db.updateAssociation(asso.slug, payload); }
+      catch { await db.updateAssociation(asso.slug, base); saved = base; }
       // Log de modification
       const champs = Object.entries(f).filter(([k,v])=>String(asso[k]||"")!==v).map(([k])=>k).join(", ");
       db.addProposition({ nom:asso.nom, ville:asso.ville, slug:asso.slug, statut:"info", date:Date.now(), type_prop:"modif_asso", commentaire:`Modifié par ${joueur?.pseudo||"?"} (ID:${joueur?.id||"?"}) — Champs: ${champs||"(aucun changement détecté)"}` }).catch(()=>{});
-      onSave({...asso,...payload});
+      onSave({...asso,...saved});
       onClose();
     } catch(e) {
       setErrMsg("❌ Erreur : " + (e?.message || "impossible de sauvegarder"));
@@ -1251,6 +1273,44 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
         <div style={sec}>
           <div style={{ fontWeight:700, fontSize:12, color:C.accent, letterSpacing:.8 }}><EmoText s="👑 CONTACT" size={12}/></div>
           <div><label style={lbl}>Président</label><input value={f.president} onChange={e=>set("president")(e.target.value)} placeholder="Ex : Jean Dupont" style={inp}/></div>
+          {/* Relier le président à un vrai profil Dart Point (optionnel) → voir profil + message */}
+          <div>
+            <label style={lbl}>Profil Dart Point du président (optionnel)</label>
+            {f.president_id ? (
+              <div style={{ display:"flex", alignItems:"center", gap:10, background:"#111", border:`1px solid ${C.accent}55`, borderRadius:10, padding:"8px 12px" }}>
+                <div style={{ width:34, height:34, borderRadius:"50%", overflow:"hidden", flexShrink:0, background:`linear-gradient(135deg,${C.accent}44,#7c3aed44)`, border:`2px solid ${C.accent}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {f.president_photo ? <img src={f.president_photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <EmoIcon e="🎯" size={16} color={C.accent}/>}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:700, fontSize:14, color:C.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{f.president_pseudo}</div>
+                  <div style={{ fontSize:11, color:"#4ade80" }}>✓ Profil relié</div>
+                </div>
+                <button type="button" onClick={unlinkPresident} style={{ background:"none", border:"none", color:"#f87171", fontSize:13, fontWeight:700, cursor:"pointer", padding:"6px 8px", flexShrink:0 }}>Retirer</button>
+              </div>
+            ) : (
+              <>
+                <input value={presiSearch} onChange={e=>setPresiSearch(e.target.value)} placeholder="🔍 Chercher un joueur par pseudo…" style={inp}/>
+                {presiSearch.trim().length >= 2 && (
+                  <div style={{ marginTop:6, background:"#111", border:`1px solid ${C.border}`, borderRadius:10, overflow:"hidden", maxHeight:240, overflowY:"auto" }}>
+                    {presiLoading ? (
+                      <div style={{ padding:12, color:C.muted, fontSize:13 }}>Recherche…</div>
+                    ) : presiResults.length === 0 ? (
+                      <div style={{ padding:12, color:C.muted, fontSize:13 }}>Aucun joueur trouvé.</div>
+                    ) : presiResults.map(p => (
+                      <div key={p.id} onClick={()=>linkPresident(p)} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", cursor:"pointer", borderBottom:`1px solid ${C.border}` }}>
+                        <div style={{ width:32, height:32, borderRadius:"50%", overflow:"hidden", flexShrink:0, background:`linear-gradient(135deg,${C.accent}44,#7c3aed44)`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                          {p.photo ? <img src={p.photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <EmoIcon e="🎯" size={15} color={C.accent}/>}
+                        </div>
+                        <div style={{ flex:1, minWidth:0, fontWeight:700, fontSize:14, color:C.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.pseudo}</div>
+                        <div style={{ fontSize:12, fontWeight:800, color:C.accent, flexShrink:0 }}>{p.drix ?? 1000}<span style={{ fontSize:9, color:C.muted, marginLeft:3 }}>DRIX</span></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ fontSize:11, color:C.muted, marginTop:5 }}>Relier un profil permet de voir sa fiche et de lui envoyer un message depuis la page du club.</div>
+              </>
+            )}
+          </div>
           <div><label style={lbl}>Personne à contacter</label><input value={f.contact_nom} onChange={e=>set("contact_nom")(e.target.value)} placeholder="Ex : Marie Martin" style={inp}/></div>
           <div><label style={lbl}>Téléphone</label><input value={f.tel} onChange={e=>set("tel")(e.target.value)} placeholder="06 XX XX XX XX" style={inp} type="tel"/></div>
           <div><label style={lbl}>Contact / Réseaux sociaux</label><input value={f.contact} onChange={e=>set("contact")(e.target.value)} placeholder="email, Facebook, Instagram…" style={inp}/></div>
@@ -8177,13 +8237,30 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
       {/* Infos pratiques */}
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:20,marginBottom:16 }}>
         <div style={{ fontWeight:700,fontSize:13,color:C.accent,marginBottom:14,letterSpacing:.5,display:"flex",alignItems:"center",gap:6 }}><Info size={14} color={C.accent}/> INFORMATIONS PRATIQUES</div>
-        {renderContact(Crown, "Président", asso.president)}
+        {asso.president_id ? (
+          <div style={{ display:"flex", gap:10, padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
+            <Crown size={18} color={C.muted} style={{ width:24, flexShrink:0, marginTop:2 }}/>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:11, color:C.muted, marginBottom:6 }}>Président</div>
+              <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                <div onClick={()=>setPage("profil-joueur-"+asso.president_id)} style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", minWidth:0 }}>
+                  <div style={{ width:34, height:34, borderRadius:"50%", overflow:"hidden", flexShrink:0, background:`linear-gradient(135deg,${C.accent}44,#7c3aed44)`, border:`2px solid ${C.accent}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    {asso.president_photo ? <img src={asso.president_photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <Target size={16} color={C.accent}/>}
+                  </div>
+                  <div style={{ fontWeight:700, fontSize:14, color:C.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{asso.president_pseudo || asso.president}</div>
+                </div>
+                <BoutonMessage joueur={joueur} cible={{ id:asso.president_id, pseudo:asso.president_pseudo || asso.president }} setPage={setPage}/>
+                <button onClick={()=>setPage("profil-joueur-"+asso.president_id)} style={{ display:"inline-flex", alignItems:"center", gap:5, background:`${C.accent}22`, border:`1px solid ${C.accent}44`, borderRadius:8, padding:"7px 11px", color:C.accent, fontWeight:700, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}><User size={13}/> Profil</button>
+              </div>
+            </div>
+          </div>
+        ) : renderContact(Crown, "Président", asso.president)}
         {renderContact(User, "Personne à contacter", asso.contact_nom)}
         {renderContact(Phone, "Téléphone", asso.tel)}
         {renderContact(Calendar, "Jour et heure d'entraînement", asso.jours)}
         {renderContact(MapPin, "Lieu d'entraînement", asso.lieu)}
         {renderContact(Link2, "Contact / Réseaux", asso.contact)}
-        {!asso.president && !asso.contact_nom && !asso.jours && !asso.lieu && !asso.tel && !asso.contact && (
+        {!asso.president && !asso.president_id && !asso.contact_nom && !asso.jours && !asso.lieu && !asso.tel && !asso.contact && (
           <p style={{ color:C.muted,fontSize:13 }}>Aucune information pratique renseignée.</p>
         )}
         {asso.lat && (
