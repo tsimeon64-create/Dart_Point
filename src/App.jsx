@@ -1492,15 +1492,17 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
 
   useEffect(() => {
     Promise.all([
-      dbJoueurs.getJoueur(joueur.id),
+      // Rafraîchissement LÉGER : uniquement les colonnes volatiles, SANS la photo base64
+      // (qui ne change qu'à l'édition) → évite de re-télécharger la photo à chaque accueil.
+      sb(`joueurs?id=eq.${joueur.id}&select=id,drix,xp,niveau,bull_balance,bull_reserved,last_daily_reward,actif`).then(r=>r?.[0]).catch(()=>null),
       dbJoueurs.getStats(joueur.id),
     ]).then(([j, s]) => {
       if (j) {
-        setJoueurFrais(j);
+        // ⚠️ MERGE (pas d'écrasement) : on conserve email/nom/prénom/photo (déjà en local) et
+        // on ne rafraîchit QUE drix/xp/niveau/bulls. La photo affichée reste celle du local.
+        const merged = { ...joueur, ...j };
+        setJoueurFrais(merged);
         if (setJoueur) {
-          // ⚠️ MERGE (pas d'écrasement) : on conserve email/nom/prénom (venus du login, pas
-          // renvoyés par les lectures publiques), on rafraîchit juste drix/xp/photo/etc.
-          const merged = { ...joueur, ...j };
           setJoueur(merged);
           localStorage.setItem("dp_joueur", JSON.stringify(merged));
         }
@@ -5546,7 +5548,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
 
       // 2. Charger posts, duels, presences, photos en parallèle
       const [posts, duels, presences, joueursData] = await Promise.all([
-        sb(`wall_posts?joueur_id=in.(${inList})&order=date.desc&limit=30&select=*`).catch(()=>[]),
+        sb(`wall_posts?joueur_id=in.(${inList})&order=date.desc&limit=30&select=id,joueur_id,joueur_pseudo,contenu,image_url,date`).catch(()=>[]),
         sb(`duels?or=(challenger_id.in.(${inList}),defie_id.in.(${inList}))&statut=eq.termine&order=date.desc&limit=40&select=*`).catch(()=>[]),
         sb(`presences?joueur_id=in.(${inList})&order=heure.desc&limit=20&select=*`).catch(()=>[]),
         sb(`joueurs?id=in.(${inList})&select=id,photo`).catch(()=>[]),
