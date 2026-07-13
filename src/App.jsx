@@ -12336,17 +12336,10 @@ export default function App() {
     return ()=>{ cancelled=true; };
   },[]);
 
-  // Popup email obligatoire pour les comptes sans email (après la vérif de session du boot)
-  useEffect(()=>{
-    if (emailCheckDone && joueur?.id && !joueur?.email) {
-      setShowEmailRequired(true);
-      setEmailReqValue("");
-      setEmailReqCgu(false);
-      setEmailReqErr("");
-    } else {
-      setShowEmailRequired(false);
-    }
-  },[joueur?.id, joueur?.email, emailCheckDone]);
+  // Popup email « Une dernière étape » : DÉSACTIVÉE (retirée à la demande de l'utilisateur).
+  // L'e-mail est désormais demandé directement à l'inscription, donc plus besoin de le
+  // redemander aux comptes existants (ça semait la confusion). La popup ne s'affiche plus jamais.
+  useEffect(()=>{ setShowEmailRequired(false); },[joueur?.id, joueur?.email, emailCheckDone]);
 
   // ── Notification déblocage Défi de la Semaine (1 fois, dès 10 amis) ──────────
   useEffect(() => {
