@@ -371,7 +371,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
       setChronoRecord(chrono?.[0] || null);
     }).catch(()=>{});
     fetchLive();
-    const iv = setInterval(() => { if (!document.hidden) fetchLive(); }, 60000); // pas de check en arrière-plan
+    const iv = setInterval(fetchLive, 60000);
     return () => clearInterval(iv);
   }, []);
 
@@ -1492,17 +1492,15 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
 
   useEffect(() => {
     Promise.all([
-      // Rafraîchissement LÉGER : uniquement les colonnes volatiles, SANS la photo base64
-      // (qui ne change qu'à l'édition) → évite de re-télécharger la photo à chaque accueil.
-      sb(`joueurs?id=eq.${joueur.id}&select=id,drix,xp,niveau,bull_balance,bull_reserved,last_daily_reward,actif`).then(r=>r?.[0]).catch(()=>null),
+      dbJoueurs.getJoueur(joueur.id),
       dbJoueurs.getStats(joueur.id),
     ]).then(([j, s]) => {
       if (j) {
-        // ⚠️ MERGE (pas d'écrasement) : on conserve email/nom/prénom/photo (déjà en local) et
-        // on ne rafraîchit QUE drix/xp/niveau/bulls. La photo affichée reste celle du local.
-        const merged = { ...joueur, ...j };
-        setJoueurFrais(merged);
+        setJoueurFrais(j);
         if (setJoueur) {
+          // ⚠️ MERGE (pas d'écrasement) : on conserve email/nom/prénom (venus du login, pas
+          // renvoyés par les lectures publiques), on rafraîchit juste drix/xp/photo/etc.
+          const merged = { ...joueur, ...j };
           setJoueur(merged);
           localStorage.setItem("dp_joueur", JSON.stringify(merged));
         }
@@ -4745,7 +4743,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
     } catch(e) {}
   }, [initSession?.id, aiTick]);
 
-  useEffect(() => { loadData(); const iv = setInterval(() => { if (!document.hidden) loadData(); }, 8000); return () => clearInterval(iv); }, [loadData]); // pas de recharge en arrière-plan
+  useEffect(() => { loadData(); const iv = setInterval(loadData, 8000); return () => clearInterval(iv); }, [loadData]);
   useEffect(() => { commentsEndRef.current?.scrollIntoView({ behavior:"smooth" }); }, [comments.length]);
 
   const sendComment = async () => {
@@ -5313,7 +5311,7 @@ const TournoiLiveView = ({ tournoiId, joueur, setPage }) => {
       } catch(e) { if (!cancelled) setLoading(false); }
     };
     load();
-    const iv = setInterval(() => { if (!document.hidden) load(); }, 8000); // pas de recharge en arrière-plan
+    const iv = setInterval(load, 8000);
     return () => { cancelled = true; clearInterval(iv); };
   }, [rowIds]);
 
@@ -5392,7 +5390,7 @@ const PageLive = ({ joueur, setPage }) => {
       } catch(e) { if (!cancelled) setLoading(false); }
     };
     load();
-    const iv = setInterval(() => { if (!document.hidden) load(); }, 10000); // pas de recharge en arrière-plan
+    const iv = setInterval(load, 10000);
     return () => { cancelled = true; clearInterval(iv); };
   }, [amiIds, joueur?.id]);
 
@@ -5548,7 +5546,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
 
       // 2. Charger posts, duels, presences, photos en parallèle
       const [posts, duels, presences, joueursData] = await Promise.all([
-        sb(`wall_posts?joueur_id=in.(${inList})&order=date.desc&limit=30&select=id,joueur_id,joueur_pseudo,contenu,image_url,date`).catch(()=>[]),
+        sb(`wall_posts?joueur_id=in.(${inList})&order=date.desc&limit=30&select=*`).catch(()=>[]),
         sb(`duels?or=(challenger_id.in.(${inList}),defie_id.in.(${inList}))&statut=eq.termine&order=date.desc&limit=40&select=*`).catch(()=>[]),
         sb(`presences?joueur_id=in.(${inList})&order=heure.desc&limit=20&select=*`).catch(()=>[]),
         sb(`joueurs?id=in.(${inList})&select=id,photo`).catch(()=>[]),
@@ -5703,7 +5701,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
       sb(`live_sessions?statut=eq.en_cours&debut=gt.${Date.now() - STALE_MS}&select=id`).catch(()=>[])
         .then(r => setLiveCount((r||[]).length));
     fetchLive();
-    const iv = setInterval(() => { if (!document.hidden) fetchLive(); }, 30000); // pas de check en arrière-plan
+    const iv = setInterval(fetchLive, 30000);
     return () => clearInterval(iv);
   }, [joueur?.id]);
 
@@ -12486,7 +12484,7 @@ export default function App() {
       }).catch(()=>{});
     };
     fetchNotifs();
-    const interval = setInterval(() => { if (!document.hidden) fetchNotifs(); }, 10000); // pas de check en arrière-plan
+    const interval = setInterval(fetchNotifs, 10000);
     // Resynchro badge quand l'utilisateur revient sur l'appli
     const onVisible = () => { if (document.visibilityState === "visible") fetchNotifs(); };
     document.addEventListener("visibilitychange", onVisible);
