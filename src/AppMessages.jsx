@@ -94,7 +94,7 @@ const ConversationView=({joueur,autreId,autrePseudo,onBack})=>{
     charger(true).finally(()=>{
       setLoading(false);
     });
-    pollRef.current=setInterval(()=>charger(true),4000);
+    pollRef.current=setInterval(()=>{ if(!document.hidden) charger(true); },4000); // pas de recharge en arrière-plan
     return()=>clearInterval(pollRef.current);
   },[charger]);
 
@@ -267,7 +267,7 @@ const ConversationsList=({joueur,onOpen,activeId})=>{
 
   useEffect(()=>{
     charger();
-    pollRef.current=setInterval(charger,5000);
+    pollRef.current=setInterval(()=>{ if(!document.hidden) charger(); },5000); // pas de recharge en arrière-plan
     return()=>clearInterval(pollRef.current);
   },[charger]);
 

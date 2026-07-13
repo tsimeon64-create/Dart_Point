@@ -371,7 +371,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
       setChronoRecord(chrono?.[0] || null);
     }).catch(()=>{});
     fetchLive();
-    const iv = setInterval(fetchLive, 60000);
+    const iv = setInterval(() => { if (!document.hidden) fetchLive(); }, 60000); // pas de check en arrière-plan
     return () => clearInterval(iv);
   }, []);
 
@@ -4745,7 +4745,7 @@ const LiveMatchView = ({ session:initSession, joueur, setPage, onBack }) => {
     } catch(e) {}
   }, [initSession?.id, aiTick]);
 
-  useEffect(() => { loadData(); const iv = setInterval(loadData, 8000); return () => clearInterval(iv); }, [loadData]);
+  useEffect(() => { loadData(); const iv = setInterval(() => { if (!document.hidden) loadData(); }, 8000); return () => clearInterval(iv); }, [loadData]); // pas de recharge en arrière-plan
   useEffect(() => { commentsEndRef.current?.scrollIntoView({ behavior:"smooth" }); }, [comments.length]);
 
   const sendComment = async () => {
@@ -5313,7 +5313,7 @@ const TournoiLiveView = ({ tournoiId, joueur, setPage }) => {
       } catch(e) { if (!cancelled) setLoading(false); }
     };
     load();
-    const iv = setInterval(load, 8000);
+    const iv = setInterval(() => { if (!document.hidden) load(); }, 8000); // pas de recharge en arrière-plan
     return () => { cancelled = true; clearInterval(iv); };
   }, [rowIds]);
 
@@ -5392,7 +5392,7 @@ const PageLive = ({ joueur, setPage }) => {
       } catch(e) { if (!cancelled) setLoading(false); }
     };
     load();
-    const iv = setInterval(load, 10000);
+    const iv = setInterval(() => { if (!document.hidden) load(); }, 10000); // pas de recharge en arrière-plan
     return () => { cancelled = true; clearInterval(iv); };
   }, [amiIds, joueur?.id]);
 
@@ -5703,7 +5703,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
       sb(`live_sessions?statut=eq.en_cours&debut=gt.${Date.now() - STALE_MS}&select=id`).catch(()=>[])
         .then(r => setLiveCount((r||[]).length));
     fetchLive();
-    const iv = setInterval(fetchLive, 30000);
+    const iv = setInterval(() => { if (!document.hidden) fetchLive(); }, 30000); // pas de check en arrière-plan
     return () => clearInterval(iv);
   }, [joueur?.id]);
 
@@ -12486,7 +12486,7 @@ export default function App() {
       }).catch(()=>{});
     };
     fetchNotifs();
-    const interval = setInterval(fetchNotifs, 10000);
+    const interval = setInterval(() => { if (!document.hidden) fetchNotifs(); }, 10000); // pas de check en arrière-plan
     // Resynchro badge quand l'utilisateur revient sur l'appli
     const onVisible = () => { if (document.visibilityState === "visible") fetchNotifs(); };
     document.addEventListener("visibilitychange", onVisible);
