@@ -1929,7 +1929,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   useEffect(()=>{
     reload();
     // Polling toutes les 5s si tournoi actif
-    pollRef.current=setInterval(()=>{ if(!document.hidden) reload(); },5000); // pas de recharge en arrière-plan
+    pollRef.current=setInterval(reload,5000); // EXCEPTION : le tournoi continue de se synchroniser même en arrière-plan (alerte « à toi de jouer »)
     return()=>clearInterval(pollRef.current);
   },[reload]);
 
