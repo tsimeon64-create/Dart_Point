@@ -59,7 +59,8 @@ function orientationsFor(shipKey, num) {
 const shipOf = (fleet, z) => SHIP_KEYS.find(k => (fleet[k] || []).includes(z)) || null;
 const isSunk = (fleet, sh, k) => (fleet[k] || []).length > 0 && (fleet[k] || []).every(z => sh[z] === "hit");
 const shipsLeft = (fleet, sh) => SHIP_KEYS.filter(k => !isSunk(fleet, sh, k)).length;
-const vib = (pat) => { try { navigator.vibrate && navigator.vibrate(pat); } catch { /* */ } };
+const vibOn = () => { try { return localStorage.getItem("tc_vib") !== "off"; } catch { return true; } };
+const vib = (pat) => { if (!vibOn()) return; try { navigator.vibrate && navigator.vibrate(pat); } catch { /* */ } };
 
 // ── Géométrie de la cible (SVG) ──
 const VB = 260, CX = 130, CY = 130, R = 100;
@@ -346,6 +347,55 @@ function QuitModal({ onCancel, onQuit }) {
   );
 }
 
+// Animation plein écran d'un résultat de tir (durées section 44, tap pour passer)
+function AnimOverlay({ anim, onDone }) {
+  const isSh = anim.result === "sunk" && anim.ship === "shanghai";
+  useEffect(() => {
+    const dur = anim.result === "sunk" ? (isSh ? 2500 : 2000) : anim.result === "hit" ? 800 : 550;
+    const t = setTimeout(onDone, dur);
+    return () => clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const bt = bannerText(anim);
+  const bg = anim.result === "hit" ? "#7c2d1233" : (anim.result === "sunk" ? "#7f1d1d55" : (anim.result === "water" ? "#1e3a8a44" : "#000000aa"));
+  let visual;
+  if (anim.result === "water") visual = (<>
+    <div className="tc-rip" style={{ borderColor: "#60a5fa" }} />
+    <div className="tc-rip" style={{ borderColor: "#3b82f6", animationDelay: ".18s" }} />
+    <div style={{ fontSize: 56 }}>💧</div>
+  </>);
+  else if (anim.result === "hit") visual = <div style={{ fontSize: 70, animation: "tc-pop .35s ease" }}>💥</div>;
+  else if (isSh) visual = <div style={{ fontSize: 82, animation: "tc-boom .7s ease" }}>🌟🔥</div>;
+  else if (anim.result === "sunk") visual = <div style={{ fontSize: 76, animation: "tc-boom .6s ease" }}>🔥</div>;
+  else visual = <div style={{ fontSize: 46 }}>{anim.result === "off" ? "🎯💨" : "🔁"}</div>;
+  return (
+    <div onClick={onDone} style={{ position: "fixed", inset: 0, zIndex: 30, background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", animation: (anim.result === "hit" || anim.result === "sunk") ? "tc-shake .3s" : "none" }}>
+      <style>{`
+        @keyframes tc-pop{0%{transform:scale(0)}60%{transform:scale(1.3)}100%{transform:scale(1)}}
+        @keyframes tc-boom{0%{transform:scale(.3);opacity:.4}45%{transform:scale(1.45)}100%{transform:scale(1);opacity:1}}
+        @keyframes tc-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}60%{transform:translateX(6px)}}
+        @keyframes tc-ripa{0%{transform:scale(.2);opacity:.9}100%{transform:scale(1);opacity:0}}
+        .tc-rip{position:absolute;width:240px;height:240px;border-radius:50%;border:3px solid;animation:tc-ripa .6s ease-out forwards}
+      `}</style>
+      <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", height: 120 }}>{visual}</div>
+      {bt && <div style={{ color: bt.col, fontWeight: 900, fontSize: 30, letterSpacing: 1, textShadow: `0 0 18px ${bt.col}`, marginTop: 6, textAlign: "center", padding: "0 20px" }}>{bt.label}</div>}
+      {bt && bt.sub && <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 4 }}>{bt.sub}</div>}
+      <div style={{ position: "absolute", bottom: 22, color: "#64748b", fontSize: 11 }}>Touche pour passer</div>
+    </div>
+  );
+}
+
+// Interrupteur vibrations (réglage local tc_vib)
+function VibToggle() {
+  const [on, setOn] = useState(vibOn());
+  return (
+    <button onClick={() => { const v = !on; try { localStorage.setItem("tc_vib", v ? "on" : "off"); } catch { /* */ } setOn(v); if (v) vib(20); }}
+      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 16 }}>
+      <span>📳 Vibrations</span>
+      <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: .5, padding: "3px 10px", borderRadius: 999, background: on ? "#22c55e22" : "#64748b22", color: on ? "#4ade80" : "#94a3b8", border: `1px solid ${on ? "#22c55e55" : "#64748b44"}` }}>{on ? "ON" : "OFF"}</span>
+    </button>
+  );
+}
+
 // ── Composant principal ──
 export const ToucheCoule = ({ setPage, joueur }) => {
   const [phase, setPhase] = useState("create"); // create | handoff | place | ready | battle
@@ -381,21 +431,22 @@ export const ToucheCoule = ({ setPage, joueur }) => {
   const [log, setLog] = useState([[], []]);          // journal complet par attaquant (stats)
   const [turnShots, setTurnShots] = useState([]);    // tour courant : [{zone,result,ship}]
   const [mult, setMult] = useState(1);               // 1/2/3 pour la saisie
-  const [banner, setBanner] = useState(null);        // dernier résultat { result, ship, zone }
+  const [anim, setAnim] = useState(null);            // animation de résultat en cours { result, ship, zone }
+  const [pendingWin, setPendingWin] = useState(null);// victoire à afficher après l'anim du dernier coulé
   const [turnCount, setTurnCount] = useState(0);
   const [winner, setWinner] = useState(null);
 
   const startBattle = (starter) => {
     const first = starter != null ? starter : Math.floor(Math.random() * 2);
     setFirstAtt(first); setAttacker(first);
-    setShots([{}, {}]); setOff([0, 0]); setLog([[], []]); setTurnShots([]); setTurnCount(0); setWinner(null); setBanner(null); setMult(1);
+    setShots([{}, {}]); setOff([0, 0]); setLog([[], []]); setTurnShots([]); setTurnCount(0); setWinner(null); setAnim(null); setPendingWin(null); setMult(1);
     setHandoff({ toName: players[first].name, subtitle: "L'écran suivant contient tes informations personnelles.", next: () => setPhase("b_ownfleet") });
     setPhase("b_handoff");
   };
 
   // Un tir (zoneId : 'S19'|'D18'|'T20' | 'bull' | 'off')
   const fire = (zoneId) => {
-    if (turnShots.length >= 3 || winner != null) return;
+    if (turnShots.length >= 3 || winner != null || anim) return; // bloqué pendant une animation
     const att = attacker, fleet = fleets[1 - att], sh = shots[att];
     let result, ship = null;
     if (zoneId === "off") { result = "off"; setOff(o => o.map((v, i) => i === att ? v + 1 : v)); }
@@ -407,36 +458,36 @@ export const ToucheCoule = ({ setPage, joueur }) => {
       else {
         const newSh = { ...sh, [zoneId]: "hit" };
         setShots(s => s.map((x, i) => i === att ? newSh : x));
-        if (isSunk(fleet, newSh, ship)) {
-          result = "sunk";
-          if (shipsLeft(fleet, newSh) === 0) {              // dernier bateau → victoire immédiate
-            const shotW = { zone: zoneId, result, ship };
-            setTurnShots(t => [...t, shotW]); setLog(l => l.map((x, i) => i === att ? [...x, shotW] : x));
-            vib([60, 40, 60, 40, 140]); setWinner(att); setPhase("end"); return;
-          }
-        } else result = "hit";
+        if (isSunk(fleet, newSh, ship)) { result = "sunk"; if (shipsLeft(fleet, newSh) === 0) setPendingWin(att); }
+        else result = "hit";
       }
     }
     vib(result === "sunk" ? [40, 30, 40] : result === "hit" ? [25] : result === "already" ? [10] : [18]);
     const shot = { zone: zoneId, result, ship };
     setTurnShots(t => [...t, shot]); setLog(l => l.map((x, i) => i === att ? [...x, shot] : x));
-    setBanner({ result, ship, zone: zoneId });
+    setAnim({ result, ship, zone: zoneId });
+  };
+
+  // Fin de l'animation d'un tir → on continue (ou on va à l'écran de victoire si dernier bateau)
+  const animDone = () => {
+    setAnim(null);
+    if (pendingWin != null) { vib([60, 40, 60, 40, 140]); setWinner(pendingWin); setPhase("end"); setPendingWin(null); }
   };
 
   const undoLast = () => {
-    if (!turnShots.length || winner != null) return;
+    if (!turnShots.length || winner != null || anim) return;
     const last = turnShots[turnShots.length - 1], att = attacker;
     setTurnShots(t => t.slice(0, -1)); setLog(l => l.map((x, i) => i === att ? x.slice(0, -1) : x));
     if (last.result === "off") setOff(o => o.map((v, i) => i === att ? Math.max(0, v - 1) : v));
     if (/^[SDT]/.test(last.zone) && ["water", "hit", "sunk"].includes(last.result))
       setShots(s => s.map((x, i) => { if (i !== att) return x; const c = { ...x }; delete c[last.zone]; return c; }));
-    setBanner(null);
+    setPendingWin(null);
   };
 
   const endTurn = () => {
     setTurnCount(c => c + 1);
     const next = 1 - attacker;
-    setAttacker(next); setTurnShots([]); setBanner(null); setMult(1);
+    setAttacker(next); setTurnShots([]); setAnim(null); setPendingWin(null); setMult(1);
     setHandoff({ toName: players[next].name, subtitle: "L'écran suivant contient tes informations personnelles.", next: () => setPhase("b_ownfleet") });
     setPhase("b_handoff");
   };
@@ -464,6 +515,7 @@ export const ToucheCoule = ({ setPage, joueur }) => {
               Placez secrètement vos <b>4 bateaux</b> sur la cible. Lancez <b>3 fléchettes par tour</b> et saisissez la zone touchée. <b>Coulez toute la flotte adverse</b> pour gagner !
             </p>
           </div>
+          <VibToggle />
           <button onClick={() => { setPlacerIdx(0); setPhase("place"); }} disabled={!canStart}
             style={{ width: "100%", background: canStart ? `linear-gradient(135deg,${C.radar},#16a34a)` : C.border, color: canStart ? "#04140e" : C.muted, border: "none", borderRadius: 14, padding: "16px", fontWeight: 900, fontSize: 17, cursor: canStart ? "pointer" : "default" }}>
             COMMENCER →
@@ -532,10 +584,11 @@ export const ToucheCoule = ({ setPage, joueur }) => {
   if (phase === "b_attack") {
     const fleet = fleets[1 - attacker], sh = shots[attacker];
     const stateOf = (cell) => { const s = sh[cell.id]; if (!s) return null; if (s === "water") return "water"; const k = shipOf(fleet, cell.id); return (k && isSunk(fleet, sh, k)) ? "sunk" : "hit"; };
-    const left = shipsLeft(fleet, sh), done = turnShots.length >= 3, bt = bannerText(banner);
+    const left = shipsLeft(fleet, sh), done = turnShots.length >= 3;
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: C.bg, color: C.text, fontFamily: "Inter,sans-serif", display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {showQuit && <QuitModal onCancel={() => setShowQuit(false)} onQuit={() => setPage("jeux-flechettes")} />}
+        {anim && <AnimOverlay anim={anim} onDone={animDone} />}
         <div style={{ height: 46, display: "flex", alignItems: "center", padding: "0 12px", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
           <button onClick={() => setShowQuit(true)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", display: "inline-flex" }}><ArrowLeft size={20} /></button>
           <div style={{ flex: 1, textAlign: "center", fontWeight: 800, fontSize: 14 }}>🎯 {players[attacker].name.toUpperCase()} ATTAQUE</div>
@@ -547,11 +600,6 @@ export const ToucheCoule = ({ setPage, joueur }) => {
               Flotte ennemie : <b style={{ color: left === 1 ? C.red : C.text }}>{left} restant{left > 1 ? "s" : ""}</b>{left === 1 && <span style={{ color: C.red, fontWeight: 800 }}> · PLUS QU'UN NAVIRE !</span>}
             </div>
             <Board stateOf={stateOf} activeType={null} onTap={null} />
-            {bt && (
-              <div style={{ textAlign: "center", margin: "10px 0 2px", padding: "8px", borderRadius: 10, background: `${bt.col}22`, border: `1px solid ${bt.col}66` }}>
-                <span style={{ color: bt.col, fontWeight: 900, fontSize: 16 }}>{bt.label}</span>{bt.sub && <span style={{ color: C.muted, fontSize: 12, marginLeft: 8 }}>{bt.sub}</span>}
-              </div>
-            )}
             {done ? (
               <div style={{ marginTop: 12 }}>
                 <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, textAlign: "center" }}>
