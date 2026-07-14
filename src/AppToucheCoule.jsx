@@ -55,6 +55,12 @@ function orientationsFor(shipKey, num) {
   ];
 }
 
+// ── Bataille : helpers ──
+const shipOf = (fleet, z) => SHIP_KEYS.find(k => (fleet[k] || []).includes(z)) || null;
+const isSunk = (fleet, sh, k) => (fleet[k] || []).length > 0 && (fleet[k] || []).every(z => sh[z] === "hit");
+const shipsLeft = (fleet, sh) => SHIP_KEYS.filter(k => !isSunk(fleet, sh, k)).length;
+const vib = (pat) => { try { navigator.vibrate && navigator.vibrate(pat); } catch { /* */ } };
+
 // ── Géométrie de la cible (SVG) ──
 const VB = 260, CX = 130, CY = 130, R = 100;
 const RAD = { bullseye: 3.7, bull: 9.4, tripIn: 58.2, tripOut: 62.9, dblIn: 95.3, dblOut: 100, numRing: 116 };
@@ -84,6 +90,11 @@ function cellFill(cell, state, activeType) {
   if (state === "placed")return "#475569";                 // zone déjà occupée par un bateau
   if (state === "err")   return "#ef4444";                 // chevauchement
   if (state === "valid") return "rgba(34,197,94,0.28)";    // zone posable (type actif)
+  if (state === "own")   return "#0e7490";                 // mon bateau intact (vue défense)
+  if (state === "dmg")   return "#ef4444";                 // ma zone touchée
+  if (state === "water") return "#1e40af";                 // tir à l'eau (attaque)
+  if (state === "hit")   return "#f97316";                 // touché
+  if (state === "sunk")  return "#dc2626";                 // coulé
   const dimmed = activeType && activeType !== "*" && cell.type !== activeType;
   const idle = cell.type === "S"
     ? (ORDER.indexOf(cell.num) % 2 ? IDLE_S_B : IDLE_S_A)
@@ -179,6 +190,7 @@ function PlacementScreen({ playerName, onDone, onQuit }) {
   const [anchor, setAnchor] = useState(null);
   const [orient, setOrient] = useState(0);
   const [err, setErr] = useState(false);
+  const [showQ, setShowQ] = useState(false);
 
   const usedZones = new Set(Object.entries(placed).flatMap(([k, z]) => z)); // toutes les zones occupées
   const oris = selected && anchor != null ? orientationsFor(selected, anchor) : [];
@@ -221,8 +233,9 @@ function PlacementScreen({ playerName, onDone, onQuit }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: C.bg, color: C.text, fontFamily: "Inter,sans-serif", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {showQ && <QuitModal onCancel={() => setShowQ(false)} onQuit={onQuit} />}
       <div style={{ height: 46, display: "flex", alignItems: "center", padding: "0 12px", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
-        <button onClick={onQuit} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", display: "inline-flex" }}><ArrowLeft size={20} /></button>
+        <button onClick={() => setShowQ(true)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", display: "inline-flex" }}><ArrowLeft size={20} /></button>
         <div style={{ flex: 1, textAlign: "center", fontWeight: 800, fontSize: 14, letterSpacing: .5 }}>{playerName.toUpperCase()}, PLACE TA FLOTTE</div>
         <div style={{ width: 20 }} />
       </div>
@@ -274,6 +287,65 @@ function PlacementScreen({ playerName, onDone, onQuit }) {
 const btnMain = { background: `linear-gradient(135deg,${C.radar},#16a34a)`, border: "none", borderRadius: 12, padding: "12px 16px", color: "#04140e", fontWeight: 900, fontSize: 14, cursor: "pointer", touchAction: "manipulation" };
 const btnSec = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontWeight: 700, fontSize: 13, cursor: "pointer", touchAction: "manipulation" };
 
+// Texte + couleur du bandeau de résultat d'un tir
+function bannerText(b) {
+  if (!b) return null;
+  if (b.result === "off")     return { label: "TIR PERDU", col: C.muted, sub: "À côté de la cible" };
+  if (b.result === "already") return { label: "ZONE DÉJÀ VISÉE", col: C.orange, sub: "Aucun nouveau dégât" };
+  if (b.result === "water")   return { label: "À L'EAU", col: "#60a5fa", sub: b.zone === "bull" ? "Bull — pas de bateau" : null };
+  if (b.result === "hit")     return { label: "TOUCHÉ !", col: C.orange, sub: null };
+  if (b.result === "sunk")    return { label: SHIPS[b.ship].short.toUpperCase() + " COULÉ !", col: C.red, sub: null };
+  return null;
+}
+function turnSummary(ts) {
+  const h = ts.filter(s => s.result === "hit" || s.result === "sunk").length;
+  const w = ts.filter(s => s.result === "water").length;
+  const a = ts.filter(s => s.result === "already").length;
+  const o = ts.filter(s => s.result === "off").length;
+  const p = []; if (h) p.push(`${h} impact${h > 1 ? "s" : ""}`); if (w) p.push(`${w} à l'eau`); if (a) p.push(`${a} déjà visée${a > 1 ? "s" : ""}`); if (o) p.push(`${o} perdu${o > 1 ? "s" : ""}`);
+  return p.join(" · ") || "Aucun tir";
+}
+
+// Pavé de saisie d'une fléchette
+function DartInput({ mult, setMult, onFire, onUndo, canUndo }) {
+  const type = mult === 1 ? "S" : mult === 2 ? "D" : "T";
+  const mBtn = (m, label, col) => (
+    <button onClick={() => setMult(mult === m ? 1 : m)} style={{ flex: 1, padding: "11px 4px", borderRadius: 10, border: `2px solid ${mult === m ? col : C.border}`, background: mult === m ? col : C.card, color: mult === m ? "#08080e" : col, fontWeight: 900, fontSize: 13, cursor: "pointer", touchAction: "manipulation" }}>{label}</button>
+  );
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>{mBtn(1, "SIMPLE", "#94a3b8")}{mBtn(2, "DOUBLE", "#a78bfa")}{mBtn(3, "TRIPLE", "#f59e0b")}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 }}>
+        {Array.from({ length: 20 }, (_, i) => i + 1).map(n => (
+          <button key={n} onClick={() => onFire(type + n)} style={{ padding: "13px 0", borderRadius: 9, border: `1px solid ${C.border}`, background: "#14141e", color: C.text, fontWeight: 800, fontSize: 15, cursor: "pointer", touchAction: "manipulation" }}>{n}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+        <button onClick={() => onFire("bull")} style={{ flex: 1, padding: "12px 0", borderRadius: 9, border: `1px solid ${C.red}66`, background: "#14141e", color: "#fca5a5", fontWeight: 800, fontSize: 13, cursor: "pointer", touchAction: "manipulation" }}>BULL</button>
+        <button onClick={() => onFire("off")} style={{ flex: 1, padding: "12px 0", borderRadius: 9, border: `1px solid ${C.border}`, background: "#14141e", color: C.muted, fontWeight: 800, fontSize: 13, cursor: "pointer", touchAction: "manipulation" }}>HORS CIBLE</button>
+        <button onClick={onUndo} disabled={!canUndo} style={{ flex: 1, padding: "12px 0", borderRadius: 9, border: `1px solid ${canUndo ? "#f59e0b66" : C.border}`, background: "#14141e", color: canUndo ? "#f59e0b" : "#3a3a44", fontWeight: 800, fontSize: 13, cursor: canUndo ? "pointer" : "default", touchAction: "manipulation" }}>↩ Annuler</button>
+      </div>
+    </div>
+  );
+}
+
+// Confirmation d'abandon
+function QuitModal({ onCancel, onQuit }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 20, background: "#000c", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ background: C.card, border: `2px solid ${C.red}`, borderRadius: 16, padding: 24, maxWidth: 300, textAlign: "center" }}>
+        <div style={{ fontSize: 34, marginBottom: 8 }}>⚠️</div>
+        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 6 }}>Abandonner la bataille ?</div>
+        <p style={{ color: C.muted, fontSize: 12, marginBottom: 18 }}>La partie en cours sera arrêtée.</p>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: "12px", borderRadius: 10, border: `1px solid ${C.border}`, background: "#0b0b12", color: C.text, fontWeight: 700, cursor: "pointer" }}>Continuer</button>
+          <button onClick={onQuit} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", background: "#7f1d1d", color: "#fca5a5", fontWeight: 700, cursor: "pointer" }}>Abandonner</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Composant principal ──
 export const ToucheCoule = ({ setPage, joueur }) => {
   const [phase, setPhase] = useState("create"); // create | handoff | place | ready | battle
@@ -299,6 +371,74 @@ export const ToucheCoule = ({ setPage, joueur }) => {
     } else {
       setPhase("ready");
     }
+  };
+
+  // ── État bataille ──
+  const [attacker, setAttacker] = useState(0);       // joueur qui tire ce tour
+  const [firstAtt, setFirstAtt] = useState(0);
+  const [shots, setShots] = useState([{}, {}]);      // shots[att] = { zoneId: 'water'|'hit' } (tirs sur la flotte adverse)
+  const [off, setOff] = useState([0, 0]);            // tirs hors cible par joueur
+  const [log, setLog] = useState([[], []]);          // journal complet par attaquant (stats)
+  const [turnShots, setTurnShots] = useState([]);    // tour courant : [{zone,result,ship}]
+  const [mult, setMult] = useState(1);               // 1/2/3 pour la saisie
+  const [banner, setBanner] = useState(null);        // dernier résultat { result, ship, zone }
+  const [turnCount, setTurnCount] = useState(0);
+  const [winner, setWinner] = useState(null);
+
+  const startBattle = (starter) => {
+    const first = starter != null ? starter : Math.floor(Math.random() * 2);
+    setFirstAtt(first); setAttacker(first);
+    setShots([{}, {}]); setOff([0, 0]); setLog([[], []]); setTurnShots([]); setTurnCount(0); setWinner(null); setBanner(null); setMult(1);
+    setHandoff({ toName: players[first].name, subtitle: "L'écran suivant contient tes informations personnelles.", next: () => setPhase("b_ownfleet") });
+    setPhase("b_handoff");
+  };
+
+  // Un tir (zoneId : 'S19'|'D18'|'T20' | 'bull' | 'off')
+  const fire = (zoneId) => {
+    if (turnShots.length >= 3 || winner != null) return;
+    const att = attacker, fleet = fleets[1 - att], sh = shots[att];
+    let result, ship = null;
+    if (zoneId === "off") { result = "off"; setOff(o => o.map((v, i) => i === att ? v + 1 : v)); }
+    else if (zoneId === "bull") { result = "water"; }        // bull / bullseye = à l'eau
+    else if (sh[zoneId]) { result = "already"; }             // zone déjà visée
+    else {
+      ship = shipOf(fleet, zoneId);
+      if (!ship) { result = "water"; setShots(s => s.map((x, i) => i === att ? { ...x, [zoneId]: "water" } : x)); }
+      else {
+        const newSh = { ...sh, [zoneId]: "hit" };
+        setShots(s => s.map((x, i) => i === att ? newSh : x));
+        if (isSunk(fleet, newSh, ship)) {
+          result = "sunk";
+          if (shipsLeft(fleet, newSh) === 0) {              // dernier bateau → victoire immédiate
+            const shotW = { zone: zoneId, result, ship };
+            setTurnShots(t => [...t, shotW]); setLog(l => l.map((x, i) => i === att ? [...x, shotW] : x));
+            vib([60, 40, 60, 40, 140]); setWinner(att); setPhase("end"); return;
+          }
+        } else result = "hit";
+      }
+    }
+    vib(result === "sunk" ? [40, 30, 40] : result === "hit" ? [25] : result === "already" ? [10] : [18]);
+    const shot = { zone: zoneId, result, ship };
+    setTurnShots(t => [...t, shot]); setLog(l => l.map((x, i) => i === att ? [...x, shot] : x));
+    setBanner({ result, ship, zone: zoneId });
+  };
+
+  const undoLast = () => {
+    if (!turnShots.length || winner != null) return;
+    const last = turnShots[turnShots.length - 1], att = attacker;
+    setTurnShots(t => t.slice(0, -1)); setLog(l => l.map((x, i) => i === att ? x.slice(0, -1) : x));
+    if (last.result === "off") setOff(o => o.map((v, i) => i === att ? Math.max(0, v - 1) : v));
+    if (/^[SDT]/.test(last.zone) && ["water", "hit", "sunk"].includes(last.result))
+      setShots(s => s.map((x, i) => { if (i !== att) return x; const c = { ...x }; delete c[last.zone]; return c; }));
+    setBanner(null);
+  };
+
+  const endTurn = () => {
+    setTurnCount(c => c + 1);
+    const next = 1 - attacker;
+    setAttacker(next); setTurnShots([]); setBanner(null); setMult(1);
+    setHandoff({ toName: players[next].name, subtitle: "L'écran suivant contient tes informations personnelles.", next: () => setPhase("b_ownfleet") });
+    setPhase("b_handoff");
   };
 
   // ── Écran de création ──
@@ -333,25 +473,136 @@ export const ToucheCoule = ({ setPage, joueur }) => {
     );
   }
 
-  if (phase === "handoff" && handoff) {
+  if ((phase === "handoff" || phase === "b_handoff") && handoff) {
     return <HandoffScreen toName={handoff.toName} subtitle={handoff.subtitle} onReady={() => { const n = handoff.next; setHandoff(null); n(); }} />;
   }
 
   if (phase === "place") {
     return <PlacementScreen key={placerIdx} playerName={players[placerIdx].name}
-      onDone={(fleet) => onFleetPlaced(placerIdx, fleet)} onQuit={() => setShowQuit(true)} />;
+      onDone={(fleet) => onFleetPlaced(placerIdx, fleet)} onQuit={() => setPage("jeux-flechettes")} />;
   }
 
   if (phase === "ready") {
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: C.bg, color: C.text, fontFamily: "Inter,sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, textAlign: "center" }}>
-        <div style={{ fontSize: 52, marginBottom: 12 }}>🎯</div>
+        <div style={{ fontSize: 54, marginBottom: 12 }}>⚓</div>
         <div style={{ fontWeight: 900, fontSize: 24, color: C.radar, marginBottom: 8 }}>LES DEUX FLOTTES SONT PRÊTES</div>
-        <p style={{ color: C.muted, fontSize: 14, marginBottom: 28 }}>La bataille peut commencer.</p>
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 18px", marginBottom: 28, maxWidth: 320 }}>
-          <div style={{ fontSize: 12, color: C.muted }}>⚓ La <b style={{ color: C.text }}>bataille</b> (tirs, touché / coulé, statistiques) arrive à la <b style={{ color: C.text }}>prochaine étape</b>. Le placement des flottes, lui, est prêt et fonctionnel !</div>
+        <p style={{ color: C.muted, fontSize: 14, marginBottom: 30 }}>La bataille peut commencer !</p>
+        <button onClick={() => startBattle()} style={{ background: `linear-gradient(135deg,${C.radar},#16a34a)`, border: "none", borderRadius: 16, padding: "18px 44px", color: "#04140e", fontWeight: 900, fontSize: 18, cursor: "pointer" }}>
+          🎯 COMMENCER LA BATAILLE
+        </button>
+      </div>
+    );
+  }
+
+  // ── Consultation de sa propre flotte (avant de tirer) ──
+  if (phase === "b_ownfleet") {
+    const myFleet = fleets[attacker], enemy = shots[1 - attacker];
+    const stateOf = (cell) => { const k = shipOf(myFleet, cell.id); if (!k) return null; return enemy[cell.id] === "hit" ? "dmg" : "own"; };
+    const info = (k) => { const zs = myFleet[k] || []; const hits = zs.filter(z => enemy[z] === "hit").length;
+      const st = hits === 0 ? "Intact" : hits >= zs.length ? "Coulé" : (zs.length - hits === 1 ? "Gravement endommagé" : "Endommagé");
+      return { st, col: hits === 0 ? C.radar : hits >= zs.length ? C.red : C.orange, hits, total: zs.length }; };
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: C.bg, color: C.text, fontFamily: "Inter,sans-serif", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {showQuit && <QuitModal onCancel={() => setShowQuit(false)} onQuit={() => setPage("jeux-flechettes")} />}
+        <div style={{ height: 46, display: "flex", alignItems: "center", padding: "0 12px", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+          <button onClick={() => setShowQuit(true)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", display: "inline-flex" }}><ArrowLeft size={20} /></button>
+          <div style={{ flex: 1, textAlign: "center", fontWeight: 800, fontSize: 14 }}>🛡️ TA FLOTTE — {players[attacker].name.toUpperCase()}</div>
+          <div style={{ width: 20 }} />
         </div>
-        <button onClick={() => setPage("jeux-flechettes")} style={{ ...btnSec, padding: "14px 28px" }}>← Retour aux jeux</button>
+        <div style={{ flex: 1, overflowY: "auto", padding: "10px 12px 20px" }}>
+          <div style={{ maxWidth: 380, margin: "0 auto" }}>
+            <Board stateOf={stateOf} activeType={null} onTap={null} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 14 }}>
+              {SHIP_KEYS.map(k => { const s = SHIPS[k], nf = info(k); return (
+                <div key={k} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: s.col }} /><span style={{ fontWeight: 800, fontSize: 13 }}>{s.short}</span></div>
+                  <div style={{ fontSize: 11, color: nf.col, marginTop: 3, fontWeight: 700 }}>{nf.st} ({nf.hits}/{nf.total})</div>
+                </div>
+              ); })}
+            </div>
+            <button onClick={() => setPhase("b_attack")} style={{ ...btnMain, width: "100%", marginTop: 16, padding: "15px", fontSize: 16 }}>🎯 COMMENCER MON TOUR</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Écran d'attaque ──
+  if (phase === "b_attack") {
+    const fleet = fleets[1 - attacker], sh = shots[attacker];
+    const stateOf = (cell) => { const s = sh[cell.id]; if (!s) return null; if (s === "water") return "water"; const k = shipOf(fleet, cell.id); return (k && isSunk(fleet, sh, k)) ? "sunk" : "hit"; };
+    const left = shipsLeft(fleet, sh), done = turnShots.length >= 3, bt = bannerText(banner);
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: C.bg, color: C.text, fontFamily: "Inter,sans-serif", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {showQuit && <QuitModal onCancel={() => setShowQuit(false)} onQuit={() => setPage("jeux-flechettes")} />}
+        <div style={{ height: 46, display: "flex", alignItems: "center", padding: "0 12px", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+          <button onClick={() => setShowQuit(true)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", display: "inline-flex" }}><ArrowLeft size={20} /></button>
+          <div style={{ flex: 1, textAlign: "center", fontWeight: 800, fontSize: 14 }}>🎯 {players[attacker].name.toUpperCase()} ATTAQUE</div>
+          <div style={{ fontSize: 12, color: C.muted, fontWeight: 700 }}>{turnShots.length}/3</div>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px 14px" }}>
+          <div style={{ maxWidth: 380, margin: "0 auto" }}>
+            <div style={{ textAlign: "center", fontSize: 13, color: C.muted, marginBottom: 6 }}>
+              Flotte ennemie : <b style={{ color: left === 1 ? C.red : C.text }}>{left} restant{left > 1 ? "s" : ""}</b>{left === 1 && <span style={{ color: C.red, fontWeight: 800 }}> · PLUS QU'UN NAVIRE !</span>}
+            </div>
+            <Board stateOf={stateOf} activeType={null} onTap={null} />
+            {bt && (
+              <div style={{ textAlign: "center", margin: "10px 0 2px", padding: "8px", borderRadius: 10, background: `${bt.col}22`, border: `1px solid ${bt.col}66` }}>
+                <span style={{ color: bt.col, fontWeight: 900, fontSize: 16 }}>{bt.label}</span>{bt.sub && <span style={{ color: C.muted, fontSize: 12, marginLeft: 8 }}>{bt.sub}</span>}
+              </div>
+            )}
+            {done ? (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, textAlign: "center" }}>
+                  <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 6 }}>TOUR TERMINÉ</div>
+                  <div style={{ fontSize: 13, color: C.muted }}>{turnSummary(turnShots)}</div>
+                  <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Flotte ennemie restante : <b style={{ color: C.text }}>{left}</b></div>
+                </div>
+                <button onClick={endTurn} style={{ ...btnMain, width: "100%", marginTop: 12, padding: "15px", fontSize: 16 }}>TERMINER MON TOUR →</button>
+              </div>
+            ) : (
+              <DartInput mult={mult} setMult={setMult} onFire={fire} onUndo={undoLast} canUndo={turnShots.length > 0} />
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Fin de partie ──
+  if (phase === "end") {
+    const w = winner, wl = log[w] || [];
+    const darts = wl.length, hits = wl.filter(s => s.result === "hit" || s.result === "sunk").length;
+    const water = wl.filter(s => s.result === "water").length, already = wl.filter(s => s.result === "already").length;
+    const sunkList = wl.filter(s => s.result === "sunk").map(s => s.ship);
+    const precision = darts > 0 ? (hits / darts * 100) : 0;
+    const rows = [
+      ["Tours joués", turnCount + 1], ["Fléchettes lancées", darts], ["Impacts réussis", hits],
+      ["Tirs à l'eau", water], ["Zones déjà visées", already], ["Hors cible", off[w]],
+      ["Bateaux coulés", sunkList.length], ["Précision", precision.toFixed(1).replace(".", ",") + " %"],
+      ["Premier coulé", sunkList[0] ? SHIPS[sunkList[0]].short : "—"], ["Dernier coulé", sunkList.length ? SHIPS[sunkList[sunkList.length - 1]].short : "—"],
+    ];
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: C.bg, color: C.text, fontFamily: "Inter,sans-serif", overflowY: "auto" }}>
+        <div style={{ maxWidth: 380, margin: "0 auto", padding: "28px 16px 40px", textAlign: "center" }}>
+          <div style={{ fontSize: 56, marginBottom: 8 }}>🏆</div>
+          <div style={{ fontWeight: 900, fontSize: 14, color: C.red, letterSpacing: 1 }}>FLOTTE ENNEMIE ANÉANTIE</div>
+          <div style={{ fontWeight: 900, fontSize: 25, color: C.radar, margin: "8px 0" }}>{players[w].name} remporte la bataille !</div>
+          <div style={{ display: "inline-block", background: "#1a1206", border: `1px solid ${C.orange}55`, color: C.orange, fontWeight: 800, fontSize: 12, borderRadius: 20, padding: "5px 14px", marginBottom: 20 }}>⚓ AMIRAL DE LA PARTIE</div>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: "6px 16px", marginBottom: 20 }}>
+            {rows.map(([k, v], i) => (
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: i < rows.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                <span style={{ fontSize: 13, color: C.muted }}>{k}</span><span style={{ fontSize: 13, fontWeight: 800 }}>{v}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <button onClick={() => startBattle(1 - firstAtt)} style={{ ...btnMain, padding: "15px" }}>🔄 Revanche (mêmes flottes)</button>
+            <button onClick={() => { setFleets([null, null]); setPlacerIdx(0); setPhase("create"); }} style={{ ...btnSec, padding: "14px" }}>Nouvelle partie</button>
+            <button onClick={() => setPage("jeux-flechettes")} style={{ ...btnSec, padding: "14px" }}>← Retour aux jeux</button>
+          </div>
+        </div>
       </div>
     );
   }
