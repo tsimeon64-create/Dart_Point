@@ -62,6 +62,11 @@ const shipsLeft = (fleet, sh) => SHIP_KEYS.filter(k => !isSunk(fleet, sh, k)).le
 const vibOn = () => { try { return localStorage.getItem("tc_vib") !== "off"; } catch { return true; } };
 const vib = (pat) => { if (!vibOn()) return; try { navigator.vibrate && navigator.vibrate(pat); } catch { /* */ } };
 
+// ── Sauvegarde auto de la bataille (localStorage) ──
+const SAVE_KEY = "tc_save";
+const loadSave = () => { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY) || "null"); return (s && s.fleets && s.fleets[0] && s.fleets[1] && s.winner == null) ? s : null; } catch { return null; } };
+const clearSave = () => { try { localStorage.removeItem(SAVE_KEY); } catch { /* */ } };
+
 // ── Géométrie de la cible (SVG) ──
 const VB = 260, CX = 130, CY = 130, R = 100;
 const RAD = { bullseye: 3.7, bull: 9.4, tripIn: 58.2, tripOut: 62.9, dblIn: 95.3, dblOut: 100, numRing: 116 };
@@ -396,6 +401,46 @@ function VibToggle() {
   );
 }
 
+// ── Tutoriel de première utilisation (5 écrans) ──
+function Tutorial({ onClose }) {
+  const [step, setStep] = useState(0);
+  const [dontShow, setDontShow] = useState(false);
+  const steps = [
+    ["🚢", "Place ta flotte", "Chaque joueur place secrètement 4 bateaux sur la cible : simple, double, triple et Shanghai."],
+    ["🎯", "3 fléchettes par tour", "À ton tour, tu lances 3 vraies fléchettes sur la cible."],
+    ["👆", "Saisis la zone touchée", "Après chaque fléchette, appuie sur le téléphone sur la zone que tu as vraiment touchée."],
+    ["🎨", "Lis les couleurs", "Bleu = à l'eau · Orange = touché · Rouge = bateau coulé. La cible ne montre que tes tirs."],
+    ["🏆", "Coule toute la flotte", "Le premier à couler les 4 bateaux adverses gagne. Bonne chance, amiral !"],
+  ];
+  const [emo, title, text] = steps[step];
+  const last = step === steps.length - 1;
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "#000c", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: "26px 22px", maxWidth: 340, width: "100%", textAlign: "center" }}>
+        <div style={{ fontSize: 50, marginBottom: 10 }}>{emo}</div>
+        <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 8 }}>{title}</div>
+        <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6, marginBottom: 18, minHeight: 88 }}>{text}</p>
+        <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 18 }}>
+          {steps.map((_, i) => <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: i === step ? C.radar : "#334155" }} />)}
+        </div>
+        {last ? (
+          <>
+            <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 12, color: C.muted, marginBottom: 14, cursor: "pointer" }}>
+              <input type="checkbox" checked={dontShow} onChange={e => setDontShow(e.target.checked)} style={{ accentColor: C.radar, width: 16, height: 16 }} /> Ne plus afficher ce tutoriel
+            </label>
+            <button onClick={() => { if (dontShow) { try { localStorage.setItem("tc_tuto", "1"); } catch { /* */ } } onClose(); }} style={{ width: "100%", background: `linear-gradient(135deg,${C.radar},#16a34a)`, color: "#04140e", border: "none", borderRadius: 12, padding: "14px", fontWeight: 900, fontSize: 15, cursor: "pointer" }}>C'EST PARTI →</button>
+          </>
+        ) : (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={onClose} style={{ ...btnSec, padding: "13px 16px" }}>Passer</button>
+            <button onClick={() => setStep(s => s + 1)} style={{ ...btnMain, flex: 1, padding: "13px" }}>Suivant →</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Composant principal ──
 export const ToucheCoule = ({ setPage, joueur }) => {
   const [phase, setPhase] = useState("create"); // create | handoff | place | ready | battle
@@ -436,12 +481,50 @@ export const ToucheCoule = ({ setPage, joueur }) => {
   const [turnCount, setTurnCount] = useState(0);
   const [winner, setWinner] = useState(null);
 
+  // ── Phase 3b : reprise, tutoriel, revanche ──
+  const [resumable, setResumable] = useState(() => loadSave());               // partie sauvegardée retrouvée au démarrage
+  const [showTuto, setShowTuto] = useState(() => { try { return !localStorage.getItem("tc_tuto"); } catch { return true; } });
+  const [revStep, setRevStep] = useState(null);                              // null | 0 | 1 : joueur qui choisit garder/replacer en revanche
+
+  // Sauvegarde auto pendant la bataille (pour « Reprendre » après une fermeture accidentelle).
+  useEffect(() => {
+    if (["b_ownfleet", "b_attack", "b_handoff"].includes(phase) && fleets[0] && fleets[1] && winner == null) {
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify({ players, fleets, attacker, firstAtt, shots, off, log, turnShots, turnCount, winner: null })); } catch { /* */ }
+    }
+  }, [phase, shots, off, log, turnShots, attacker, turnCount, fleets, firstAtt, players, winner]);
+  useEffect(() => { if (winner != null) clearSave(); }, [winner]);          // partie finie → plus de reprise
+
   const startBattle = (starter) => {
     const first = starter != null ? starter : Math.floor(Math.random() * 2);
     setFirstAtt(first); setAttacker(first);
     setShots([{}, {}]); setOff([0, 0]); setLog([[], []]); setTurnShots([]); setTurnCount(0); setWinner(null); setAnim(null); setPendingWin(null); setMult(1);
     setHandoff({ toName: players[first].name, subtitle: "L'écran suivant contient tes informations personnelles.", next: () => setPhase("b_ownfleet") });
     setPhase("b_handoff");
+  };
+
+  // Reprendre une bataille sauvegardée (repasse par un écran de passage → secret préservé).
+  const resume = () => {
+    const s = resumable; if (!s) return;
+    setPlayers(s.players); setFleets(s.fleets); setAttacker(s.attacker); setFirstAtt(s.firstAtt);
+    setShots(s.shots); setOff(s.off); setLog(s.log); setTurnShots(s.turnShots || []); setTurnCount(s.turnCount || 0);
+    setWinner(null); setAnim(null); setPendingWin(null); setMult(1); setResumable(null);
+    setHandoff({ toName: s.players[s.attacker].name, subtitle: "Reprise de la partie — l'écran suivant contient tes infos.", next: () => setPhase("b_ownfleet") });
+    setPhase("b_handoff");
+  };
+  const quitToMenu = () => { clearSave(); setPage("jeux-flechettes"); };     // abandon volontaire → on efface la reprise
+
+  // Revanche : chaque joueur choisit EN SECRET de garder ou de replacer sa flotte.
+  const startRevanche = () => {
+    setRevStep(0);
+    setHandoff({ toName: players[0].name, subtitle: "Choisis en secret : garder ou replacer ta flotte.", next: () => setPhase("rev_choice") });
+    setPhase("b_handoff");
+  };
+  const revNext = () => {
+    if (revStep === 0) {
+      setRevStep(1);
+      setHandoff({ toName: players[1].name, subtitle: "Choisis en secret : garder ou replacer ta flotte.", next: () => setPhase("rev_choice") });
+      setPhase("b_handoff");
+    } else { setRevStep(null); startBattle(1 - firstAtt); }
   };
 
   // Un tir (zoneId : 'S19'|'D18'|'T20' | 'bull' | 'off')
@@ -503,6 +586,17 @@ export const ToucheCoule = ({ setPage, joueur }) => {
           <div style={{ width: 20 }} />
         </div>
         <div style={{ maxWidth: 420, margin: "0 auto", padding: "18px 16px 60px" }}>
+          {showTuto && <Tutorial onClose={() => setShowTuto(false)} />}
+          {resumable && (
+            <div style={{ background: "#0e1a14", border: `1px solid ${C.radar}55`, borderRadius: 14, padding: 14, marginBottom: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 900, color: C.radar, marginBottom: 3 }}>⚓ Bataille en cours retrouvée</div>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 11 }}>{resumable.players[0].name} contre {resumable.players[1].name}</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={resume} style={{ flex: 1, background: `linear-gradient(135deg,${C.radar},#16a34a)`, color: "#04140e", border: "none", borderRadius: 12, padding: "12px", fontWeight: 900, fontSize: 14, cursor: "pointer" }}>▶ Reprendre</button>
+                <button onClick={() => { clearSave(); setResumable(null); }} style={{ flex: 1, background: C.card, color: C.muted, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Abandonner</button>
+              </div>
+            </div>
+          )}
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16, marginBottom: 16 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <PlayerField index={0} value={players[0]} onChange={v => setPlayer(0, v)} col={C.cyan} />
@@ -556,7 +650,7 @@ export const ToucheCoule = ({ setPage, joueur }) => {
       return { st, col: hits === 0 ? C.radar : hits >= zs.length ? C.red : C.orange, hits, total: zs.length }; };
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: C.bg, color: C.text, fontFamily: "Inter,sans-serif", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {showQuit && <QuitModal onCancel={() => setShowQuit(false)} onQuit={() => setPage("jeux-flechettes")} />}
+        {showQuit && <QuitModal onCancel={() => setShowQuit(false)} onQuit={quitToMenu} />}
         <div style={{ height: 46, display: "flex", alignItems: "center", padding: "0 12px", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
           <button onClick={() => setShowQuit(true)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", display: "inline-flex" }}><ArrowLeft size={20} /></button>
           <div style={{ flex: 1, textAlign: "center", fontWeight: 800, fontSize: 14 }}>🛡️ TA FLOTTE — {players[attacker].name.toUpperCase()}</div>
@@ -587,7 +681,7 @@ export const ToucheCoule = ({ setPage, joueur }) => {
     const left = shipsLeft(fleet, sh), done = turnShots.length >= 3;
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: C.bg, color: C.text, fontFamily: "Inter,sans-serif", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {showQuit && <QuitModal onCancel={() => setShowQuit(false)} onQuit={() => setPage("jeux-flechettes")} />}
+        {showQuit && <QuitModal onCancel={() => setShowQuit(false)} onQuit={quitToMenu} />}
         {anim && <AnimOverlay anim={anim} onDone={animDone} />}
         <div style={{ height: 46, display: "flex", alignItems: "center", padding: "0 12px", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
           <button onClick={() => setShowQuit(true)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", display: "inline-flex" }}><ArrowLeft size={20} /></button>
@@ -618,6 +712,26 @@ export const ToucheCoule = ({ setPage, joueur }) => {
     );
   }
 
+  // ── Revanche : garder ou replacer sa flotte (en secret) ──
+  if (phase === "rev_choice") {
+    const p = players[revStep];
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: C.bg, color: C.text, fontFamily: "Inter,sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, textAlign: "center" }}>
+        <div style={{ fontSize: 48, marginBottom: 10 }}>🔄</div>
+        <div style={{ fontWeight: 900, fontSize: 22, marginBottom: 6 }}>{p.name}, ta flotte ?</div>
+        <p style={{ color: C.muted, fontSize: 14, marginBottom: 28, maxWidth: 300 }}>Personne ne voit ton choix. Tu peux garder la même flotte ou en placer une toute nouvelle.</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: 300 }}>
+          <button onClick={revNext} style={{ background: `linear-gradient(135deg,${C.radar},#16a34a)`, border: "none", borderRadius: 14, padding: "16px", color: "#04140e", fontWeight: 900, fontSize: 16, cursor: "pointer" }}>⚓ Garder ma flotte</button>
+          <button onClick={() => setPhase("rev_place")} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px", color: C.text, fontWeight: 800, fontSize: 16, cursor: "pointer" }}>🎯 Replacer ma flotte</button>
+        </div>
+      </div>
+    );
+  }
+  if (phase === "rev_place") {
+    return <PlacementScreen key={"rev" + revStep} playerName={players[revStep].name}
+      onDone={(fleet) => { setFleets(f => f.map((x, i) => i === revStep ? fleet : x)); revNext(); }} onQuit={quitToMenu} />;
+  }
+
   // ── Fin de partie ──
   if (phase === "end") {
     const w = winner, wl = log[w] || [];
@@ -646,8 +760,8 @@ export const ToucheCoule = ({ setPage, joueur }) => {
             ))}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <button onClick={() => startBattle(1 - firstAtt)} style={{ ...btnMain, padding: "15px" }}>🔄 Revanche (mêmes flottes)</button>
-            <button onClick={() => { setFleets([null, null]); setPlacerIdx(0); setPhase("create"); }} style={{ ...btnSec, padding: "14px" }}>Nouvelle partie</button>
+            <button onClick={startRevanche} style={{ ...btnMain, padding: "15px" }}>🔄 Revanche</button>
+            <button onClick={() => { clearSave(); setFleets([null, null]); setPlacerIdx(0); setPhase("create"); }} style={{ ...btnSec, padding: "14px" }}>Nouvelle partie</button>
             <button onClick={() => setPage("jeux-flechettes")} style={{ ...btnSec, padding: "14px" }}>← Retour aux jeux</button>
           </div>
         </div>
