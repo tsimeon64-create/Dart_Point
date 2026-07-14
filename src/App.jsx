@@ -17,6 +17,7 @@ import { Scoreur } from "./AppJeux";
 import { reduceGameOnline, buildFinalizationData, mergeVolleys } from "./onlineGame";
 import { ConfigCricket } from "./AppCricket";
 import { JeuCapital } from "./AppJeuDecalePoint";
+import { ToucheCoule } from "./AppToucheCoule";
 import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper } from "./AppTournoiPotes";
 import { EntrainementFinish } from "./AppEntrainementFinish";
 import { ChronoFinish, checkYesterdayReward } from "./AppChronoFinish";
@@ -6644,6 +6645,11 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
             badge="TECHNIQUE" badgeIcon="🎯" bgIcon="🏛"
             onClick={()=>setPage("jeux-capital")}/>
 
+          <GameCard icon={Target} label="Touché-Coulé" col="#22d3ee"
+            sub="🚢 Bataille navale sur cible : place ta flotte, coule celle de l'adversaire."
+            badge="NOUVEAU" badgeIcon="🚢" bgIcon="🚢"
+            onClick={()=>setPage("touche-coule")}/>
+
           <GameCard icon={Users} label="Tournoi entre potes" col="#60a5fa"
             sub="🏆 Organise ton propre tournoi privé entre amis."
             badge="MULTIJOUEUR" badgeIcon="👥" bgIcon="🏆"
@@ -12534,7 +12540,7 @@ export default function App() {
 
   const [pendingNav, setPendingNav] = useState(null);
   const isGamePage = (p) =>
-    p === "jeux-capital" || p === "scoreur" || p === "scoreur-bot" || p === "scoreur-libre" || p === "scoreur-doublette" ||
+    p === "jeux-capital" || p === "touche-coule" || p === "scoreur" || p === "scoreur-bot" || p === "scoreur-libre" || p === "scoreur-doublette" ||
     p === "cricket-config" || p === "rush-mode" || p === "chrono-finish" || p === "entrainement-finish" ||
     p === "chrono-scoreur" || p === "horloge-double" ||
     p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-") || p.startsWith("scoreur-bot-") || p.startsWith("scoreur-online-play-");
@@ -13019,6 +13025,7 @@ export default function App() {
         {page==="jeux-sans"             && <PageModeJeu joueur={joueur} setPage={nav} initCat="sans"/>}
         {page==="cricket-config"        && <ConfigCricket joueur={joueur} setPage={nav}/>}
         {page==="jeux-capital"          && <JeuCapital setPage={nav}/>}
+        {page==="touche-coule"          && <ToucheCoule setPage={nav} joueur={joueur}/>}
         {page==="entrainement-finish"   && <EntrainementFinish setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="chrono-finish"         && <ChronoFinish setPage={nav} joueur={joueur}/>}
         {page==="chrono-scoreur"        && <ChronoScoreur setPage={nav} joueur={joueur}/>}
