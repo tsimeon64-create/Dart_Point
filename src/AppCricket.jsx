@@ -266,7 +266,8 @@ const initJoueurs = (config) =>
     color: PLAYER_COLORS[i % PLAYER_COLORS.length],
     marks: initMarks(),
     score: 0,
-    legsGagnes: 0,
+    legsGagnes: 0,      // legs gagnés dans le SET en cours (remis à 0 à chaque set)
+    legsWonTotal: 0,    // legs gagnés sur TOUT le match (jamais remis à 0) → score affiché sur la carte
     setsGagnes: 0,
     roundsDone: 0,
   }));
@@ -400,7 +401,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
     const legsTarget = config.format === "bestOf" ? Math.ceil(config.legs / 2) : config.legs;
     const setsTarget = config.format === "bestOf" ? Math.ceil(config.sets / 2) : config.sets;
 
-    let newJs = js.map((j, i) => i === wi ? { ...j, legsGagnes: j.legsGagnes + 1 } : j);
+    let newJs = js.map((j, i) => i === wi ? { ...j, legsGagnes: j.legsGagnes + 1, legsWonTotal: (j.legsWonTotal || 0) + 1 } : j);
     const winner = newJs[wi];
 
     if (winner.legsGagnes >= legsTarget) {
@@ -554,15 +555,14 @@ export const ScoreurCricket = ({ config, setPage }) => {
       ]);
       const winnerPhoto = challengerWon ? jCFull?.photo : jDFull?.photo;
 
-      // Scores de manches (sets gagnés en Cricket)
+      // Score affiché sur la carte = LEGS gagnés / perdus (jamais les points, même en
+      // Cut-Throat). Sur un match à plusieurs sets, on montre plutôt les sets gagnés.
       const challengerJ = joueurs.find(j => j.id === d.challengerId);
       const defiJ       = joueurs.find(j => j.id === d.defiId);
-      const scoreChallenger = config.cutThroat
-        ? (challengerJ?.score || 0)
-        : (challengerJ?.setsGagnes || 0);
-      const scoreDefie = config.cutThroat
-        ? (defiJ?.score || 0)
-        : (defiJ?.setsGagnes || 0);
+      const setsTarget  = config.format === "bestOf" ? Math.ceil(config.sets / 2) : config.sets;
+      const scoreOf = (j) => setsTarget > 1 ? (j?.setsGagnes || 0) : (j?.legsWonTotal || 0);
+      const scoreChallenger = scoreOf(challengerJ);
+      const scoreDefie      = scoreOf(defiJ);
 
       // Préparation du post __DUEL__| pour la carte DuelPost premium
       const winNbManches  = challengerWon ? scoreChallenger : scoreDefie;
