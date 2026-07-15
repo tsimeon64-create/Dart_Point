@@ -9,6 +9,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft } from "lucide-react";
+import { ConfettiBurst } from "./DPLottie";
+import confettiData from "./lottie/confetti.json";
 
 const C = {
   bg: "#0a0a12", card: "#12121c", card2: "#0b0b12", border: "#26263a", text: "#f1f5f9", muted: "#8b93a7",
@@ -622,6 +624,7 @@ export const DoubleDown = ({ setPage, joueur }) => {
     const podium = rk.slice(0, 3);
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: C.bg, color: C.text, fontFamily: "Inter,sans-serif", overflowY: "auto" }}>
+        <ConfettiBurst data={confettiData} />
         <style>{`@keyframes ddPop{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}} @keyframes ddFall{0%{transform:translateY(-20px);opacity:0}100%{transform:translateY(0);opacity:1}}`}</style>
         <div style={{ maxWidth: 400, margin: "0 auto", padding: "26px 16px 44px", textAlign: "center" }}>
           <div style={{ fontSize: 54, marginBottom: 6, animation: "ddPop .5s ease" }}>🏆</div>

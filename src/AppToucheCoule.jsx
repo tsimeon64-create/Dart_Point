@@ -10,6 +10,8 @@
 import { useState, useEffect } from "react";
 import { EmoIcon } from "./icons";
 import { ArrowLeft } from "lucide-react";
+import { ConfettiBurst } from "./DPLottie";
+import confettiData from "./lottie/confetti.json";
 
 // Supabase (recherche de profils Dart Point — optionnel, lecture seule)
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -747,6 +749,7 @@ export const ToucheCoule = ({ setPage, joueur }) => {
     ];
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: C.bg, color: C.text, fontFamily: "Inter,sans-serif", overflowY: "auto" }}>
+        <ConfettiBurst data={confettiData} />
         <div style={{ maxWidth: 380, margin: "0 auto", padding: "28px 16px 40px", textAlign: "center" }}>
           <div style={{ fontSize: 56, marginBottom: 8 }}>🏆</div>
           <div style={{ fontWeight: 900, fontSize: 14, color: C.red, letterSpacing: 1 }}>FLOTTE ENNEMIE ANÉANTIE</div>
