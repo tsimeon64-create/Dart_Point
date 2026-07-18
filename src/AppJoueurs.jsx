@@ -3125,8 +3125,9 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
         n140 += (isW?m.winner_140plus:m.loser_140plus)||0;
         n100 += (isW?m.winner_100plus:m.loser_100plus)||0;
         n26  += (isW?m.winner_26:m.loser_26)||0;
-        coAttempts += (isW?m.winner_checkout_attempts:m.loser_checkout_attempts)||0;
-        if (isW){ coWon++; if ((m.winner_finish||0)>0) finishes.push(m.winner_finish); }
+        const coAtt = (isW?m.winner_checkout_attempts:m.loser_checkout_attempts)||0; coAttempts += coAtt;
+        // Checkout % = manches gagnées AVEC tentative / total tentatives (même population que PageProfilStats).
+        if (isW){ if (coAtt>0) coWon++; if ((m.winner_finish||0)>0) finishes.push(m.winner_finish); }
       });
       if (md.length>=1){ firstPlayed++; const f=md[0]; if (f.winner===myP||f.winner===j.pseudo) firstWon++; }
       if (md.length>=3){ decPlayed++; const last=md[md.length-1]; if (last.winner===myP||last.winner===j.pseudo) decWon++; }
@@ -4463,8 +4464,9 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
         n140 += (isW?m.winner_140plus:m.loser_140plus)||0;
         n100 += (isW?m.winner_100plus:m.loser_100plus)||0;
         n26  += (isW?m.winner_26:m.loser_26)||0;
-        coAttempts += (isW?m.winner_checkout_attempts:m.loser_checkout_attempts)||0;
-        if (isW){ coWon++; if ((m.winner_finish||0)>0) finishes.push(m.winner_finish); }
+        const coAtt = (isW?m.winner_checkout_attempts:m.loser_checkout_attempts)||0; coAttempts += coAtt;
+        // Checkout % = manches gagnées AVEC tentative / total tentatives (même population que PageProfilStats).
+        if (isW){ if (coAtt>0) coWon++; if ((m.winner_finish||0)>0) finishes.push(m.winner_finish); }
       });
       if (md.length>=1){ firstPlayed++; const f=md[0]; if (f.winner===myP||f.winner===j.pseudo) firstWon++; }
       if (md.length>=3){ decPlayed++; const last=md[md.length-1]; if (last.winner===myP||last.winner===j.pseudo) decWon++; }
