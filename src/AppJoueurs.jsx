@@ -1459,6 +1459,8 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
   const [classement, setClassement] = useState(null);
   const [extra, setExtra]         = useState({ tournois:0, bars:0 });
   const [loading, setLoading]     = useState(true);
+  const [finishsDbl, setFinishsDbl] = useState({}); // { "1":n, …, "20":n, "B":n } — stat « finish favori »
+  useEffect(() => { dbJ.getFinishs(joueur.id).then(setFinishsDbl).catch(() => {}); }, [joueur.id]);
 
   useEffect(() => {
     Promise.all([
@@ -1894,6 +1896,28 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
             {checkout30!=null && <StatCard i={4} label="Checkout 30j" value={`${checkout30}%`} color={CJ.accent}/>}
           </div>
         )}
+        {/* ── Finish favori + répartition par double (saisi au scoreur) ── */}
+        {(() => {
+          const entries = Object.entries(finishsDbl || {}).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+          if (!entries.length) return null;
+          const lbl = (k) => k === "B" ? "Bull" : "Double " + k;
+          const short = (k) => k === "B" ? "Bull" : "D" + k;
+          const total = entries.reduce((s, [, c]) => s + c, 0);
+          return (
+            <div style={{ marginTop:10 }}>
+              <WideStat icon={Target} label="Finish favori" value={lbl(entries[0][0])} color={CJ.green} sub={`${entries[0][1]} finish${entries[0][1]>1?"s":""} · ${total} au total`}/>
+              <div style={{ fontSize:10.5, color:CJ.muted, fontWeight:700, letterSpacing:.5, margin:"12px 2px 7px", textTransform:"uppercase" }}>Répartition par double</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:6 }}>
+                {entries.map(([k, n], i) => (
+                  <div key={k} style={{ background:CJ.card, border:`1px solid ${i===0?CJ.green+"66":"#ffffff10"}`, borderRadius:10, padding:"8px 2px", textAlign:"center", boxShadow:i===0?`0 0 10px ${CJ.green}22`:"none" }}>
+                    <div style={{ fontSize:13, fontWeight:900, color:i===0?CJ.green:CJ.text, lineHeight:1.1 }}>{short(k)}</div>
+                    <div style={{ fontSize:10, color:CJ.muted, marginTop:1 }}>{n}×</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── DUELS ── */}
