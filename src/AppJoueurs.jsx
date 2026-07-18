@@ -176,6 +176,9 @@ export const validerPseudo = (pseudo) => {
 // au client (permet de le verrouiller côté base sans casser ces requêtes).
 // NB : email/nom/prénom volontairement EXCLUS (PII non exposée à la clé publique). Le joueur
 // récupère SES propres infos au login (fonction `auth`) ; l'admin les lit via `admin-ops`.
+// NB : finishs_doubles n'est PAS dans JOUEUR_COLS exprès — la colonne peut ne pas
+// encore exister (SQL à lancer par l'utilisateur). On la lit à part via dbJ.getFinishs
+// (qui renvoie {} en cas d'erreur), pour ne JAMAIS casser login/profils/classement.
 const JOUEUR_COLS = "id,pseudo,bar_slug,asso_slug,date_inscription,actif,drix,photo,age,ville,style_jeu,bull_balance,last_daily_reward,bull_reserved,niveau,cgu_accepte,cgu_date,anonymise,anonymise_date,xp,xp_badges_credited";
 
 export const dbJ = {
@@ -185,6 +188,8 @@ export const dbJ = {
   getJoueurByPseudoIlike: (pseudo) => sbJ(`joueurs?pseudo=ilike.${encodeURIComponent(pseudo)}&select=id,pseudo`).then(r => r?.[0]),
   addJoueur: (d) => sbJ("joueurs", { method: "POST", body: JSON.stringify(d) }),
   updateJoueur: (id, d) => sbJ(`joueurs?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(d), prefer: "return=minimal" }),
+  // Compteur des doubles de finish (stat « finish favori ») — { "1":n, ..., "20":n, "B":n }
+  getFinishs: (id) => sbJ(`joueurs?id=eq.${id}&select=finishs_doubles`).then(r => r?.[0]?.finishs_doubles || {}).catch(() => ({})),
   getJoueursByBar: (slug) => sbJ(`joueurs?bar_slug=eq.${encodeURIComponent(slug)}&select=${JOUEUR_COLS}`),
   getStats: (joueur_id) => sbJ(`stats_joueurs?joueur_id=eq.${joueur_id}&select=*`).then(r => r?.[0]),
   addStats: (d) => sbJ("stats_joueurs", { method: "POST", body: JSON.stringify(d) }),
@@ -707,6 +712,8 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   const [badgeCount, setBadgeCount] = useState(getBadgesStored(joueur.id).size);
   const [amisCount, setAmisCount] = useState(0);
   const [cropImage, setCropImage] = useState(null);
+  const [finishsDbl, setFinishsDbl] = useState({}); // compteur des doubles de finish (stat « finish favori »)
+  useEffect(() => { dbJ.getFinishs(joueur.id).then(setFinishsDbl).catch(() => {}); }, [joueur.id]);
   const BADGES_SEEN_KEY = `dp_badges_seen_${joueur.id}`;
   const [badgesSeen, setBadgesSeen] = useState(() => parseInt(localStorage.getItem(`dp_badges_seen_${joueur.id}`) || "0"));
   const newBadgesCount = Math.max(0, badgeCount - badgesSeen);
@@ -959,6 +966,16 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
   for (const d of termines) for (const m of (d.manches_detail || [])) {
     if (m.winner === joueur.pseudo) plusGrosFinish = Math.max(plusGrosFinish, m.winner_finish || 0);
   }
+
+  // ── Finish favori (double sur lequel il finit le plus, saisi au scoreur) ──
+  const finishStats = (() => {
+    const map = finishsDbl || {};
+    const entries = Object.entries(map).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+    if (!entries.length) return null;
+    const lbl = (k) => k === "B" ? "Bull" : "Double " + k;
+    const total = entries.reduce((s, [, c]) => s + c, 0);
+    return { favLabel: lbl(entries[0][0]), favCount: entries[0][1], total, top: entries.slice(0, 4).map(([k, n]) => ({ k: k === "B" ? "Bull" : "D" + k, n })) };
+  })();
 
   return (
     <div style={{ maxWidth:600, margin:"0 auto", padding:"16px 16px 80px" }}>
@@ -1218,6 +1235,24 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
           </div>
         ))}
       </div>
+
+      {/* ── FINISH FAVORI (double le plus utilisé pour finir, saisi au scoreur) ── */}
+      {finishStats && (
+        <div style={{ display:"flex", alignItems:"center", gap:12, background:"linear-gradient(135deg,#0e1a14,#0a0f0c)", border:`1px solid ${CJ.green}44`, borderRadius:14, padding:"11px 13px", marginBottom:14 }}>
+          <div style={{ width:46, height:46, borderRadius:12, background:`${CJ.green}1f`, border:`1px solid ${CJ.green}66`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+            <span style={{ fontWeight:900, fontSize:14, color:CJ.green }}>{finishStats.top[0].k}</span>
+          </div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:9.5, color:CJ.green, fontWeight:800, letterSpacing:1 }}>🎯 FINISH FAVORI</div>
+            <div style={{ fontSize:15, fontWeight:900, color:CJ.text }}>{finishStats.favLabel} <span style={{ fontSize:12, fontWeight:700, color:CJ.muted }}>· {finishStats.favCount}×</span></div>
+            <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginTop:3 }}>
+              {finishStats.top.map((t,i)=>(
+                <span key={i} style={{ fontSize:10.5, color:i===0?CJ.green:CJ.muted, background:i===0?`${CJ.green}18`:"#ffffff08", border:`1px solid ${i===0?CJ.green+"55":CJ.border}`, borderRadius:6, padding:"1px 7px", fontWeight:700 }}>{t.k} : {t.n}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ⭐ Niveau XP + barre (échangé avec la progression de rang) */}
       <XpBlock xp={joueur.xp || 0} />

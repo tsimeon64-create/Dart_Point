@@ -989,6 +989,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // Valeurs cumulatives au début de la manche courante (tours/flechettes/points sont cumulatifs)
   const [mancheStart, setMancheStart] = useState(resume?.mancheStart || { vol:[0,0], pts:[0,0], nbtours:[0,0], flechettes:[0,0] }); // redimensionné au démarrage
   const [pendingVolee, setPendingVolee] = useState(null); // { val, type:"finish"|"zero" }
+  const [finishDblPrompt, setFinishDblPrompt] = useState(null); // { val, nb, name, profileId } → fenêtre « sur quel double as-tu fini ? »
   const [drixBreakdown, setDrixBreakdown] = useState(null); // breakdown détaillé post-match
   const [liveBadgeNotif, setLiveBadgeNotif] = useState(null); // { emoji, nom, desc, couleur }
   const [liveXpNotif, setLiveXpNotif] = useState(null); // célébration XP live { label, xp }
@@ -1655,6 +1656,54 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     }
   };
 
+  // Finalise réellement un FINISH. Extrait de confirmerVolee pour pouvoir être appelé
+  // APRÈS la fenêtre « sur quel double as-tu fini ? » — la logique de jeu est inchangée.
+  const finaliserFinish = (val, nbFlechettes) => {
+    const joueur = joueurs[actifIdx];
+    const newManches = joueur.manchesGagnees + 1;
+    const updated = joueurs.map((j, i) => i === actifIdx
+      ? { ...j, score: 0, manchesGagnees: newManches, tours: [...j.tours, val], flechettes: j.flechettes + nbFlechettes, totalPoints: j.totalPoints + val, scorePrecedent: val }
+      : j
+    );
+    const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
+    const startScore = modeDuel ? parseInt(duel?.mode || "501") : startVal;
+    // buildMancheDetail uniquement en mode duel (2 joueurs)
+    const mancheDetail = modeDuel ? buildMancheDetail(updated, actifIdx, mancheStart, startScore) : null;
+    if (newManches >= manchesTotal) {
+      const allManches = mancheDetail ? [...manchesHistory, mancheDetail] : manchesHistory;
+      setJoueurs(updated);
+      setManchesHistory(allManches);
+      const scoreC = actifIdx === 0 ? newManches : updated[0].manchesGagnees;
+      const scoreD = actifIdx === 1 ? newManches : updated[1].manchesGagnees;
+      const moyC = parseFloat(moyenneCalc(updated[0]));
+      const moyD = parseFloat(moyenneCalc(updated[1]));
+      setGagnant({ ...joueur, manchesGagnees:newManches, tours:[...joueur.tours,val], totalPoints:joueur.totalPoints+val, flechettes:joueur.flechettes+nbFlechettes });
+      pushLiveVolee(actifIdx, val, false, true, updated);
+      setEtape("fin");
+      if (modeDuel || onResultat) enregistrerResultatDuel(joueur.nom, scoreC, scoreD, moyC, moyD, allManches, updated);
+      return;
+    }
+    if (mancheDetail) setManchesHistory(h => [...h, mancheDetail]);
+    setMancheStart({
+      vol:      updated.map(j => Math.round(j.flechettes / 3)),
+      pts:      updated.map(j => j.totalPoints),
+      nbtours:  updated.map(j => j.tours.length),
+      flechettes: updated.map(j => j.flechettes),
+    });
+    const nextManche = mancheEnCours + 1;
+    const nextStart = (bulleStartIdx + nextManche) % updated.length;
+    setMancheEnCours(nextManche);
+    setJoueurs(updated.map(j => ({ ...j, score: modeDuel ? parseInt(duel?.mode||"501") : startVal, scorePrecedent: null })));
+    pushLiveVolee(actifIdx, val, false, true, updated);
+    // ⭐ Célébration XP live — gros finish ≥ 120 (XP de la volée + 30 du finish)
+    if (val >= 120 && modeDuel) {
+      const volXp = val >= 180 ? 180 : val >= 140 ? 20 : 10;
+      setLiveXpNotif({ label:`🏆 Finish ${val} !`, xp: volXp + 30 });
+      setTimeout(() => setLiveXpNotif(null), 2800);
+    }
+    setActifIdx(nextStart);
+  };
+
   // Appelé après sélection du nb de fléchettes dans la popup
   const confirmerVolee = (nbFlechettes) => {
     if (lockRef.current.confirm || !pendingVolee || !joueurs) return;
@@ -1666,48 +1715,17 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     setPendingVolee(null);
 
     if (type === "finish") {
-      const newManches = joueur.manchesGagnees + 1;
-      const updated = joueurs.map((j, i) => i === actifIdx
-        ? { ...j, score: 0, manchesGagnees: newManches, tours: [...j.tours, val], flechettes: j.flechettes + nbFlechettes, totalPoints: j.totalPoints + val, scorePrecedent: val }
-        : j
-      );
-      const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
-      const startScore = modeDuel ? parseInt(duel?.mode || "501") : startVal;
-      // buildMancheDetail uniquement en mode duel (2 joueurs)
-      const mancheDetail = modeDuel ? buildMancheDetail(updated, actifIdx, mancheStart, startScore) : null;
-      if (newManches >= manchesTotal) {
-        const allManches = mancheDetail ? [...manchesHistory, mancheDetail] : manchesHistory;
-        setJoueurs(updated);
-        setManchesHistory(allManches);
-        const scoreC = actifIdx === 0 ? newManches : updated[0].manchesGagnees;
-        const scoreD = actifIdx === 1 ? newManches : updated[1].manchesGagnees;
-        const moyC = parseFloat(moyenneCalc(updated[0]));
-        const moyD = parseFloat(moyenneCalc(updated[1]));
-        setGagnant({ ...joueur, manchesGagnees:newManches, tours:[...joueur.tours,val], totalPoints:joueur.totalPoints+val, flechettes:joueur.flechettes+nbFlechettes });
-        pushLiveVolee(actifIdx, val, false, true, updated);
-        setEtape("fin");
-        if (modeDuel || onResultat) enregistrerResultatDuel(joueur.nom, scoreC, scoreD, moyC, moyD, allManches, updated);
+      const isBotFin = botPseudo && joueur.nom === botPseudo;
+      if (!isBotFin) {
+        // Ouvre la fenêtre « sur quel double as-tu fini ? ». La partie N'AVANCE PAS
+        // tant qu'on n'a pas choisi (finalisation dans pickFinishDouble).
+        const pid = modeDuel ? (actifIdx === 0 ? duel?.challenger_id : duel?.defie_id) : null;
+        lockRef.current.finishDbl = false;
+        setFinishDblPrompt({ val, nb: nbFlechettes, name: joueur.nom, profileId: pid || null });
         return;
       }
-      if (mancheDetail) setManchesHistory(h => [...h, mancheDetail]);
-      setMancheStart({
-        vol:      updated.map(j => Math.round(j.flechettes / 3)),
-        pts:      updated.map(j => j.totalPoints),
-        nbtours:  updated.map(j => j.tours.length),
-        flechettes: updated.map(j => j.flechettes),
-      });
-      const nextManche = mancheEnCours + 1;
-      const nextStart = (bulleStartIdx + nextManche) % updated.length;
-      setMancheEnCours(nextManche);
-      setJoueurs(updated.map(j => ({ ...j, score: modeDuel ? parseInt(duel?.mode||"501") : startVal, scorePrecedent: null })));
-      pushLiveVolee(actifIdx, val, false, true, updated);
-      // ⭐ Célébration XP live — gros finish ≥ 120 (XP de la volée + 30 du finish)
-      if (val >= 120 && modeDuel) {
-        const volXp = val >= 180 ? 180 : val >= 140 ? 20 : 10;
-        setLiveXpNotif({ label:`🏆 Finish ${val} !`, xp: volXp + 30 });
-        setTimeout(() => setLiveXpNotif(null), 2800);
-      }
-      setActifIdx(nextStart); return;
+      finaliserFinish(val, nbFlechettes); // le bot : pas de fenêtre
+      return;
     }
 
     // type === "zero" : NO SCORE — volée à 0 point avec nb de fléchettes réel
@@ -1717,6 +1735,27 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     );
     setJoueurs(updatedZ); setActifIdx((actifIdx + 1) % joueurs.length);
     pushLiveVolee(actifIdx, 0, false, false, updatedZ);
+  };
+
+  // Choix du double de finish → finalise la partie + enregistre la stat sur le profil.
+  const pickFinishDouble = (dbl) => {
+    if (lockRef.current.finishDbl) return;
+    lockRef.current.finishDbl = true;
+    const pfd = finishDblPrompt;
+    setFinishDblPrompt(null);
+    if (!pfd) return;
+    finaliserFinish(pfd.val, pfd.nb);              // la partie avance MAINTENANT
+    if (dbl == null) return;                        // « Passer » → rien à enregistrer
+    (async () => {
+      try {
+        let id = pfd.profileId;
+        if (!id) { const prof = await dbJ.getJoueurByPseudo(pfd.name); id = prof?.id; } // partie libre : on retrouve le profil par le pseudo
+        if (!id) return;                            // joueur anonyme (« Joueur 1 ») → pas de profil, rien à noter
+        const m = { ...(await dbJ.getFinishs(id)) };
+        m[dbl] = (m[dbl] || 0) + 1;
+        await dbJ.updateJoueur(id, { finishs_doubles: m });
+      } catch { /* stat best-effort : n'impacte jamais la partie */ }
+    })();
   };
 
   // ── Mode bot : quand c'est au tour du bot, il joue tout seul (petit délai « suspense ») ──
@@ -2173,6 +2212,27 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
               style={{ width:"100%",padding:"12px",borderRadius:12,border:"1px solid #ef444466",background:"#1a0000",color:"#ef4444",fontWeight:700,fontSize:15,cursor:"pointer",touchAction:"manipulation",WebkitTapHighlightColor:"transparent" }}>
               <EmoIcon e="⬅" size={15} style={{verticalAlign:"-2px",marginRight:6}}/>Retour — j'ai fait une erreur
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── POPUP « SUR QUEL DOUBLE AS-TU TERMINÉ ? » — s'ouvre APRÈS la fenêtre fléchettes ── */}
+      {finishDblPrompt && (
+        <div style={{ position:"fixed",inset:0,background:"#000000e6",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}>
+          <div style={{ background:"#12121c",border:"2px solid #22c55e",borderRadius:20,padding:"20px 16px",maxWidth:360,width:"100%",textAlign:"center",maxHeight:"94vh",overflowY:"auto" }}>
+            <div style={{ marginBottom:6,display:"flex",justifyContent:"center" }}><EmoIcon e="🎯" size={38} color="#22c55e"/></div>
+            <h3 style={{ fontWeight:900,fontSize:18,color:"#f1f5f9",marginBottom:3 }}>Quel est ton finish ?</h3>
+            <p style={{ color:"#94a3b8",fontSize:13,marginBottom:14,lineHeight:1.5 }}>{finishDblPrompt.name} — tape le <b>double</b> sur lequel tu as terminé.</p>
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:7 }}>
+              {Array.from({length:20},(_,i)=>i+1).map(n => (
+                <button key={n} onPointerDown={e=>{ e.preventDefault(); pickFinishDouble(String(n)); }}
+                  style={{ padding:"14px 0",borderRadius:10,border:"1px solid #26263a",background:"#1a1a24",color:"#f1f5f9",fontWeight:800,fontSize:16,cursor:"pointer",touchAction:"manipulation",WebkitTapHighlightColor:"transparent" }}>{n}</button>
+              ))}
+            </div>
+            <button onPointerDown={e=>{ e.preventDefault(); pickFinishDouble("B"); }}
+              style={{ width:"100%",marginTop:8,padding:"14px 0",borderRadius:10,border:"1px solid #ef444466",background:"#1a0808",color:"#fca5a5",fontWeight:900,fontSize:15,cursor:"pointer",touchAction:"manipulation",WebkitTapHighlightColor:"transparent" }}>🎯 BULL</button>
+            <button onPointerDown={e=>{ e.preventDefault(); pickFinishDouble(null); }}
+              style={{ width:"100%",marginTop:8,padding:"11px 0",borderRadius:10,border:"1px solid #26263a",background:"transparent",color:"#64748b",fontWeight:700,fontSize:13,cursor:"pointer",touchAction:"manipulation" }}>Passer</button>
           </div>
         </div>
       )}
