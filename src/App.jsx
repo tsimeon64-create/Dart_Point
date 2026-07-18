@@ -11470,17 +11470,21 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
       <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", padding:"12px 10px", gap:8, alignItems:"stretch", background:"linear-gradient(180deg,#0a0a0a,#0f0f12)", borderBottom:"1px solid #1a1a1a", flexShrink:0 }}>
         {cards.map((c, ci) => {
           const isActif = c.id === activeId;
+          const fin = isFinishableScore(c.p.reste); // finish possible → FOND de la carte en rouge
           const el = (
             <div key={c.id} style={{ position:"relative", overflow:"hidden", borderRadius:14, padding:"10px 8px", textAlign:"center",
-              background: isActif ? "linear-gradient(135deg,#1a0a00,#100600)" : "linear-gradient(135deg,#0a0a14,#070710)",
-              animation: isActif ? "scActiveGlow 2.4s ease-in-out infinite" : "none",
-              border: isActif ? "1px solid transparent" : "1px solid #1a1a1a",
+              background: fin
+                ? (isActif ? "linear-gradient(135deg,#8f1d1d,#3a0808)" : "linear-gradient(135deg,#3a1010,#1a0707)")
+                : (isActif ? "linear-gradient(135deg,#1a0a00,#100600)" : "linear-gradient(135deg,#0a0a14,#070710)"),
+              animation: (isActif && !fin) ? "scActiveGlow 2.4s ease-in-out infinite" : "none",
+              border: fin ? `1px solid ${isActif ? "#ef4444" : "#ef444455"}` : (isActif ? "1px solid transparent" : "1px solid #1a1a1a"),
+              boxShadow: fin && isActif ? "0 0 22px #ef444466, inset 0 0 24px #ef444426" : "none",
               opacity: isActif ? 1 : .55, transform: isActif ? "scale(1)" : "scale(0.96)", transition:"all .3s" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:5, marginBottom:4 }}>
                 {isActif && <span style={{ width:6, height:6, borderRadius:"50%", background:"#f97316", boxShadow:"0 0 8px #f97316", animation:"scPulse 1.4s ease-in-out infinite" }}/>}
                 <span style={{ fontWeight:800, fontSize:11, color:isActif?"#fbbf24":"#64748b", letterSpacing:.5, textTransform:"uppercase", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.pseudo}{c.id===meId?" (toi)":""}</span>
               </div>
-              <div style={{ fontSize:64, fontWeight:900, lineHeight:.95, color:isFinishableScore(c.p.reste)?"#ef4444":(isActif?"#fff":"#475569"), textShadow:isFinishableScore(c.p.reste)&&isActif?"0 0 22px #ef444488":"none", margin:"2px 0", fontVariantNumeric:"tabular-nums" }}>{c.p.reste}</div>
+              <div style={{ fontSize:64, fontWeight:900, lineHeight:.95, color:isActif?"#fff":"#475569", margin:"2px 0", fontVariantNumeric:"tabular-nums" }}>{c.p.reste}</div>
               <div style={{ display:"flex", gap:4, justifyContent:"center", marginTop:4 }}>
                 {Array.from({length:manchesToWin}).map((_,mi)=>(
                   <div key={mi} style={{ width:8, height:8, borderRadius:"50%", background: mi<c.p.manches ? (isActif?"#fbbf24":"#f97316aa") : (isActif?"#ffffff15":"#1a1a1a"), boxShadow: mi<c.p.manches&&isActif?"0 0 8px #fbbf24":"none" }}/>

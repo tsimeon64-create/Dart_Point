@@ -2237,15 +2237,17 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         {displayOrder.map((realIdx, displayI) => {
           const j = joueurs[realIdx];
           const isActif = realIdx === actifIdx;
+          const fin = isFinishable(j.score); // finish possible → FOND de la carte en rouge
           const card = (
             <div key={displayI} ref={isActif ? activeCardRef : null} style={{
               position:"relative", overflow:"hidden",
               borderRadius:14, padding:"10px 8px",
-              background: isActif
-                ? "linear-gradient(135deg,#1a0a00,#100600)"
-                : "linear-gradient(135deg,#0a0a14,#070710)",
-              animation: isActif ? "scActiveGlow 2.4s ease-in-out infinite" : "none",
-              border: isActif ? "1px solid transparent" : "1px solid #1a1a1a",
+              background: fin
+                ? (isActif ? "linear-gradient(135deg,#8f1d1d,#3a0808)" : "linear-gradient(135deg,#3a1010,#1a0707)")
+                : (isActif ? "linear-gradient(135deg,#1a0a00,#100600)" : "linear-gradient(135deg,#0a0a14,#070710)"),
+              animation: (isActif && !fin) ? "scActiveGlow 2.4s ease-in-out infinite" : "none",
+              border: fin ? `1px solid ${isActif ? "#ef4444" : "#ef444455"}` : (isActif ? "1px solid transparent" : "1px solid #1a1a1a"),
+              boxShadow: fin && isActif ? "0 0 22px #ef444466, inset 0 0 24px #ef444426" : "none",
               transition:"all .3s",
               opacity: isActif ? 1 : .55,
               transform: isActif ? "scale(1)" : "scale(0.96)",
@@ -2259,13 +2261,11 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                 </span>
               </div>
 
-              {/* Score MASSIF — sans effet (lisibilité max en jeu).
-                  ROUGE quand on est sur un finish possible (checkout 2-170 hors bogey). */}
+              {/* Score MASSIF — sans effet (lisibilité max en jeu) */}
               <div style={{
                 fontSize: joueurs.length <= 2 ? 64 : joueurs.length <= 4 ? 42 : 30,
                 fontWeight:900, lineHeight:.95,
-                color: isFinishable(j.score) ? "#ef4444" : (isActif ? "#fff" : "#475569"),
-                textShadow: isFinishable(j.score) && isActif ? "0 0 22px #ef444488" : "none",
+                color: isActif ? "#fff" : "#475569",
                 textAlign:"center", margin:"2px 0",
                 fontVariantNumeric:"tabular-nums",
               }}>
