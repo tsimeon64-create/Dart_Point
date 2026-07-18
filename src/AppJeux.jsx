@@ -2257,12 +2257,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                 const fav = n===16 || n===18 || n===20;
                 return (
                   <button key={n} className="fin-btn" onPointerDown={e=>{ e.preventDefault(); pickFinishDouble(String(n)); }}
-                    style={{ padding:"15px 0",borderRadius:14,cursor:"pointer",fontWeight:800,fontSize:17,color:"#f1f5f9",touchAction:"manipulation",
+                    style={{ padding:"15px 0",borderRadius:14,cursor:"pointer",fontWeight:800,fontSize:15.5,color:"#f1f5f9",touchAction:"manipulation",
                       background:"linear-gradient(180deg,#282838,#161620)",
                       border:`1px solid ${fav?"rgba(34,197,94,.55)":"rgba(255,255,255,.10)"}`,
                       boxShadow:fav
                         ? "0 3px 7px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.10),0 0 13px rgba(34,197,94,.30)"
-                        : "0 3px 7px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.09)" }}>{n}</button>
+                        : "0 3px 7px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.09)" }}>D{n}</button>
                 );
               })}
             </div>
