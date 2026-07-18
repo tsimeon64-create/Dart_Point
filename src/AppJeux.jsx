@@ -2216,23 +2216,70 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         </div>
       )}
 
-      {/* ── POPUP « SUR QUEL DOUBLE AS-TU TERMINÉ ? » — s'ouvre APRÈS la fenêtre fléchettes ── */}
+      {/* ── POPUP « QUEL EST TON FINISH ? » — premium, s'ouvre APRÈS la fenêtre fléchettes ── */}
       {finishDblPrompt && (
-        <div style={{ position:"fixed",inset:0,background:"#000000e6",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}>
-          <div style={{ background:"#12121c",border:"2px solid #22c55e",borderRadius:20,padding:"20px 16px",maxWidth:360,width:"100%",textAlign:"center",maxHeight:"94vh",overflowY:"auto" }}>
-            <div style={{ marginBottom:6,display:"flex",justifyContent:"center" }}><EmoIcon e="🎯" size={38} color="#22c55e"/></div>
-            <h3 style={{ fontWeight:900,fontSize:18,color:"#f1f5f9",marginBottom:3 }}>Quel est ton finish ?</h3>
-            <p style={{ color:"#94a3b8",fontSize:13,marginBottom:14,lineHeight:1.5 }}>{finishDblPrompt.name} — tape le <b>double</b> sur lequel tu as terminé.</p>
-            <div style={{ display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:7 }}>
-              {Array.from({length:20},(_,i)=>i+1).map(n => (
-                <button key={n} onPointerDown={e=>{ e.preventDefault(); pickFinishDouble(String(n)); }}
-                  style={{ padding:"14px 0",borderRadius:10,border:"1px solid #26263a",background:"#1a1a24",color:"#f1f5f9",fontWeight:800,fontSize:16,cursor:"pointer",touchAction:"manipulation",WebkitTapHighlightColor:"transparent" }}>{n}</button>
-              ))}
+        <div style={{ position:"fixed",inset:0,zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:16,
+          background:"rgba(6,7,12,.72)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",animation:"finFade .18s ease both" }}>
+          <style>{`
+            @keyframes finFade{from{opacity:0}to{opacity:1}}
+            @keyframes finPop{from{opacity:0;transform:translateY(14px) scale(.93)}to{opacity:1;transform:translateY(0) scale(1)}}
+            @keyframes finBull{0%,100%{box-shadow:0 6px 22px rgba(239,68,68,.42),inset 0 1px 0 rgba(255,255,255,.30)}50%{box-shadow:0 6px 34px rgba(239,68,68,.75),inset 0 1px 0 rgba(255,255,255,.30)}}
+            .fin-btn{transition:transform .08s ease,box-shadow .15s ease,filter .15s ease;-webkit-tap-highlight-color:transparent}
+            .fin-btn:active{transform:scale(.9);filter:brightness(1.25)}
+            .fin-bull{animation:finBull 2.2s ease-in-out infinite;transition:transform .08s ease,filter .15s ease;-webkit-tap-highlight-color:transparent}
+            .fin-bull:active{transform:scale(.96);filter:brightness(1.12)}
+            .fin-pass{transition:transform .08s ease,opacity .15s;-webkit-tap-highlight-color:transparent}
+            .fin-pass:active{transform:scale(.97);opacity:.7}
+          `}</style>
+          <div style={{ maxWidth:366,width:"100%",maxHeight:"94vh",overflowY:"auto",textAlign:"center",
+            borderRadius:26,padding:"22px 18px 18px",
+            background:"linear-gradient(165deg,rgba(24,26,40,.94),rgba(9,10,18,.97))",
+            backdropFilter:"blur(18px)",WebkitBackdropFilter:"blur(18px)",
+            border:"1px solid rgba(255,255,255,.12)",
+            boxShadow:"0 26px 64px rgba(0,0,0,.62),0 0 46px rgba(34,197,94,.14),inset 0 1px 0 rgba(255,255,255,.12)",
+            animation:"finPop .26s cubic-bezier(.34,1.42,.5,1) both" }}>
+
+            {/* ── Hiérarchie : icône · NOM · titre · sous-titre ── */}
+            <div style={{ display:"flex",justifyContent:"center",marginBottom:6 }}>
+              <div style={{ width:52,height:52,borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",
+                background:"radial-gradient(circle at 50% 35%,rgba(34,197,94,.28),rgba(34,197,94,.05))",
+                border:"1px solid rgba(34,197,94,.45)",boxShadow:"0 0 22px rgba(34,197,94,.3),inset 0 1px 0 rgba(255,255,255,.15)" }}>
+                <EmoIcon e="🎯" size={28} color="#4ade80"/>
+              </div>
             </div>
-            <button onPointerDown={e=>{ e.preventDefault(); pickFinishDouble("B"); }}
-              style={{ width:"100%",marginTop:8,padding:"14px 0",borderRadius:10,border:"1px solid #ef444466",background:"#1a0808",color:"#fca5a5",fontWeight:900,fontSize:15,cursor:"pointer",touchAction:"manipulation",WebkitTapHighlightColor:"transparent" }}>🎯 BULL</button>
-            <button onPointerDown={e=>{ e.preventDefault(); pickFinishDouble(null); }}
-              style={{ width:"100%",marginTop:8,padding:"11px 0",borderRadius:10,border:"1px solid #26263a",background:"transparent",color:"#64748b",fontWeight:700,fontSize:13,cursor:"pointer",touchAction:"manipulation" }}>Passer</button>
+            <div style={{ fontWeight:900,fontSize:25,lineHeight:1.05,color:"#fff",letterSpacing:.3,textShadow:"0 0 20px rgba(34,197,94,.45)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",padding:"0 6px" }}>{finishDblPrompt.name}</div>
+            <div style={{ fontWeight:900,fontSize:20,color:"#4ade80",marginTop:3,letterSpacing:.2 }}>Quel est ton finish ?</div>
+            <p style={{ color:"#8b93a7",fontSize:12.5,marginTop:4,marginBottom:16,lineHeight:1.5 }}>Tape le <b style={{ color:"#cbd5e1" }}>double</b> sur lequel tu as terminé.</p>
+
+            {/* ── Grille des doubles 1-20 (16/18/20 = finishes fréquents, halo discret) ── */}
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:9 }}>
+              {Array.from({length:20},(_,i)=>i+1).map(n => {
+                const fav = n===16 || n===18 || n===20;
+                return (
+                  <button key={n} className="fin-btn" onPointerDown={e=>{ e.preventDefault(); pickFinishDouble(String(n)); }}
+                    style={{ padding:"15px 0",borderRadius:14,cursor:"pointer",fontWeight:800,fontSize:17,color:"#f1f5f9",touchAction:"manipulation",
+                      background:"linear-gradient(180deg,#282838,#161620)",
+                      border:`1px solid ${fav?"rgba(34,197,94,.55)":"rgba(255,255,255,.10)"}`,
+                      boxShadow:fav
+                        ? "0 3px 7px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.10),0 0 13px rgba(34,197,94,.30)"
+                        : "0 3px 7px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.09)" }}>{n}</button>
+                );
+              })}
+            </div>
+
+            {/* ── BULL — séparé, spectaculaire (finish fréquent) ── */}
+            <button className="fin-bull" onPointerDown={e=>{ e.preventDefault(); pickFinishDouble("B"); }}
+              style={{ width:"100%",marginTop:12,padding:"15px 0",borderRadius:15,cursor:"pointer",fontWeight:900,fontSize:16,letterSpacing:1,color:"#fff",touchAction:"manipulation",
+                display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+                background:"linear-gradient(135deg,#f0524a,#b91c1c)",
+                border:"1px solid rgba(255,150,150,.5)" }}>
+              <EmoIcon e="🎯" size={20} color="#fff"/>BULL
+            </button>
+
+            {/* ── Passer — secondaire, discret ── */}
+            <button className="fin-pass" onPointerDown={e=>{ e.preventDefault(); pickFinishDouble(null); }}
+              style={{ width:"100%",marginTop:11,padding:"11px 0",borderRadius:12,cursor:"pointer",fontWeight:600,fontSize:12.5,color:"#5b6472",touchAction:"manipulation",
+                background:"transparent",border:"1px solid rgba(255,255,255,.08)" }}>Passer</button>
           </div>
         </div>
       )}
