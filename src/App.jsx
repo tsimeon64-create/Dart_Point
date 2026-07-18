@@ -26,6 +26,9 @@ import { ChronoScoreur, checkYesterdayScoreurReward } from "./AppChronoScoreur";
 import { RushMode } from "./AppRushMode";
 import { HorlogeDouble } from "./AppHorlogeDouble";
 import { MessagesPage, dbM, BoutonMessage } from "./AppMessages";
+// Checkout possible (finish) : tous les scores de 2 à 170 SAUF les « bogey numbers »
+// 159, 162, 163, 165, 166, 168, 169 → le score restant s'affiche alors en rouge.
+const isFinishableScore = (s) => s >= 2 && s <= 170 && ![159, 162, 163, 165, 166, 168, 169].includes(s);
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
@@ -11477,7 +11480,7 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
                 {isActif && <span style={{ width:6, height:6, borderRadius:"50%", background:"#f97316", boxShadow:"0 0 8px #f97316", animation:"scPulse 1.4s ease-in-out infinite" }}/>}
                 <span style={{ fontWeight:800, fontSize:11, color:isActif?"#fbbf24":"#64748b", letterSpacing:.5, textTransform:"uppercase", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.pseudo}{c.id===meId?" (toi)":""}</span>
               </div>
-              <div style={{ fontSize:64, fontWeight:900, lineHeight:.95, color:isActif?"#fff":"#475569", margin:"2px 0", fontVariantNumeric:"tabular-nums" }}>{c.p.reste}</div>
+              <div style={{ fontSize:64, fontWeight:900, lineHeight:.95, color:isFinishableScore(c.p.reste)?"#ef4444":(isActif?"#fff":"#475569"), textShadow:isFinishableScore(c.p.reste)&&isActif?"0 0 22px #ef444488":"none", margin:"2px 0", fontVariantNumeric:"tabular-nums" }}>{c.p.reste}</div>
               <div style={{ display:"flex", gap:4, justifyContent:"center", marginTop:4 }}>
                 {Array.from({length:manchesToWin}).map((_,mi)=>(
                   <div key={mi} style={{ width:8, height:8, borderRadius:"50%", background: mi<c.p.manches ? (isActif?"#fbbf24":"#f97316aa") : (isActif?"#ffffff15":"#1a1a1a"), boxShadow: mi<c.p.manches&&isActif?"0 0 8px #fbbf24":"none" }}/>

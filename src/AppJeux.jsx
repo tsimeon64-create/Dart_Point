@@ -701,6 +701,11 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
 import { finaliserDuel, dbJ } from "./AppJoueurs";
 
 // ── AppJeux.jsx ───────────────────────────────────────────────────────────────
+// Scores depuis lesquels un checkout (finish) est possible : tous les scores de 2 à
+// 170, SAUF les « bogey numbers » 159, 162, 163, 165, 166, 168, 169.
+const BOGEY_FINISH = new Set([159, 162, 163, 165, 166, 168, 169]);
+const isFinishable = (s) => s >= 2 && s <= 170 && !BOGEY_FINISH.has(s);
+
 // Table de checkout exacte — source : darts501.com
 const CHECKOUTS = {
   // ── 3 fléchettes ──────────────────────────────────────────────────────────
@@ -2254,11 +2259,13 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                 </span>
               </div>
 
-              {/* Score MASSIF — sans effet (lisibilité max en jeu) */}
+              {/* Score MASSIF — sans effet (lisibilité max en jeu).
+                  ROUGE quand on est sur un finish possible (checkout 2-170 hors bogey). */}
               <div style={{
                 fontSize: joueurs.length <= 2 ? 64 : joueurs.length <= 4 ? 42 : 30,
                 fontWeight:900, lineHeight:.95,
-                color: isActif ? "#fff" : "#475569",
+                color: isFinishable(j.score) ? "#ef4444" : (isActif ? "#fff" : "#475569"),
+                textShadow: isFinishable(j.score) && isActif ? "0 0 22px #ef444488" : "none",
                 textAlign:"center", margin:"2px 0",
                 fontVariantNumeric:"tabular-nums",
               }}>
