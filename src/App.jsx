@@ -29,6 +29,8 @@ import { MessagesPage, dbM, BoutonMessage } from "./AppMessages";
 // Checkout possible (finish) : tous les scores de 2 à 170 SAUF les « bogey numbers »
 // 159, 162, 163, 165, 166, 168, 169 → le score restant s'affiche alors en rouge.
 const isFinishableScore = (s) => s >= 2 && s <= 170 && ![159, 162, 163, 165, 166, 168, 169].includes(s);
+// Moyenne (pts/volée) affichée AU CENTIÈME (2 décimales, virgule FR). "—" si absente.
+const fmtMoy = (m) => (m == null || m === "" ? "—" : Number(m).toFixed(2).replace(".", ","));
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
@@ -3730,12 +3732,12 @@ const MancheDetailList = ({ manches }) => (
           <div>
             <div style={{ fontWeight:700, color:"#10b981", marginBottom:2 }}>{m.winner}</div>
             <div style={{ color:C.muted }}>{m.winner_volees ?? "—"} volée{(m.winner_volees ?? 0)>1?"s":""}</div>
-            <div style={{ color:C.muted }}>moy. {m.winner_moy ?? "—"} pts/volée</div>
+            <div style={{ color:C.muted }}>moy. {fmtMoy(m.winner_moy)} pts/volée</div>
           </div>
           <div>
             <div style={{ fontWeight:700, color:"#ef4444", marginBottom:2 }}>{m.loser}</div>
             <div style={{ color:C.muted }}>{m.loser_volees ?? "—"} volée{(m.loser_volees ?? 0)>1?"s":""}</div>
-            <div style={{ color:C.muted }}>moy. {m.loser_moy ?? "—"} pts/volée</div>
+            <div style={{ color:C.muted }}>moy. {fmtMoy(m.loser_moy)} pts/volée</div>
             <div style={{ color:"#f59e0b", fontWeight:600 }}>reste : {m.reste_loser ?? "—"} pts</div>
           </div>
         </div>
@@ -11026,12 +11028,12 @@ const ScoreurLibre = ({ setPage }) => {
                 <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom: i<manchesDetail.length-1?`1px solid ${CL.border}`:"none" }}>
                   <div style={{ flex:1 }}>
                     <div style={{ fontWeight:700, fontSize:13, color:CL.green, display:"flex",alignItems:"center",gap:5 }}><Trophy size={12} color={CL.green}/> {m.winner}</div>
-                    <div style={{ fontSize:11, color:CL.sub }}>{m.winner_volees} volées · moy {m.winner_moy}</div>
+                    <div style={{ fontSize:11, color:CL.sub }}>{m.winner_volees} volées · moy {fmtMoy(m.winner_moy)}</div>
                   </div>
                   <div style={{ fontSize:11, color:CL.sub, padding:"0 12px" }}>Manche {i+1}</div>
                   <div style={{ flex:1, textAlign:"right" }}>
                     <div style={{ fontWeight:700, fontSize:13, color:CL.text }}>{m.loser}</div>
-                    <div style={{ fontSize:11, color:CL.sub }}>{m.loser_volees} volées · moy {m.loser_moy} · reste {m.reste_loser}</div>
+                    <div style={{ fontSize:11, color:CL.sub }}>{m.loser_volees} volées · moy {fmtMoy(m.loser_moy)} · reste {m.reste_loser}</div>
                   </div>
                 </div>
               ))}

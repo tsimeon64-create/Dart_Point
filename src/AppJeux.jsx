@@ -4,6 +4,9 @@ import { Search, Swords, Check, X } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
 import { calculerProfilBot, genererScoreBot, BOT_LUCKY_LITTLER } from "./botFleche";
 
+// Moyenne (pts/volée) affichée AU CENTIÈME (2 décimales, virgule FR). "—" si absente.
+const fmtMoy = (m) => (m == null || m === "" ? "—" : Number(m).toFixed(2).replace(".", ","));
+
 // ── Confetti ──────────────────────────────────────────────────────────────────
 const Confetti = () => {
   const canvasRef = useRef(null);
@@ -676,13 +679,13 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
                       <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:6 }}>
                         <div style={{ background:"#0a0a14",borderRadius:8,padding:"8px 10px" }}>
                           <div style={{ fontSize:11,color:"#22c55e",fontWeight:700,marginBottom:2 }}>{m.winner}</div>
-                          <div style={{ fontSize:12,color:"#94a3b8" }}>{m.winner_volees} volées · moy {m.winner_moy}</div>
+                          <div style={{ fontSize:12,color:"#94a3b8" }}>{m.winner_volees} volées · moy {fmtMoy(m.winner_moy)}</div>
                           {m.winner_180>0 && <div style={{ fontSize:11,color:"#f97316",display:"flex",alignItems:"center",gap:3 }}><EmoIcon e="💥" size={11} color="#f97316"/>{m.winner_180}×180</div>}
                           <div style={{ fontSize:11,color:"#64748b" }}>Finish : {m.winner_finish||"—"}</div>
                         </div>
                         <div style={{ background:"#0a0a14",borderRadius:8,padding:"8px 10px" }}>
                           <div style={{ fontSize:11,color:"#94a3b8",fontWeight:700,marginBottom:2 }}>{m.loser}</div>
-                          <div style={{ fontSize:12,color:"#94a3b8" }}>{m.loser_volees} volées · moy {m.loser_moy}</div>
+                          <div style={{ fontSize:12,color:"#94a3b8" }}>{m.loser_volees} volées · moy {fmtMoy(m.loser_moy)}</div>
                           {m.loser_180>0 && <div style={{ fontSize:11,color:"#f97316",display:"flex",alignItems:"center",gap:3 }}><EmoIcon e="💥" size={11} color="#f97316"/>{m.loser_180}×180</div>}
                           <div style={{ fontSize:11,color:"#64748b" }}>Reste : {m.reste_loser}</div>
                         </div>
@@ -1197,8 +1200,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     return {
       winner: w.nom, loser: l.nom,
       winner_volees: Math.round(wFlech/3), loser_volees: Math.round(lFlech/3),
-      winner_moy: wFlech > 0 ? Math.round((wPts/wFlech)*3) : 0,
-      loser_moy: lFlech > 0 ? Math.round((lPts/lFlech)*3) : 0,
+      winner_moy: wFlech > 0 ? Math.round((wPts/wFlech)*3*100)/100 : 0, // moyenne au centième
+      loser_moy: lFlech > 0 ? Math.round((lPts/lFlech)*3*100)/100 : 0,
       reste_loser: l.score,
       // Scoring stats par manche
       winner_180:    cnt(wTours, 180),
@@ -1674,8 +1677,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     );
     const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
     const startScore = modeDuel ? parseInt(duel?.mode || "501") : startVal;
-    // buildMancheDetail uniquement en mode duel (2 joueurs)
-    const mancheDetail = modeDuel ? buildMancheDetail(updated, actifIdx, mancheStart, startScore) : null;
+    // Détail par manche : en duel DRIX ET en partie bot (2 joueurs) → stats manche par manche.
+    const mancheDetail = (modeDuel || botPseudo) ? buildMancheDetail(updated, actifIdx, mancheStart, startScore) : null;
     if (newManches >= manchesTotal) {
       const allManches = mancheDetail ? [...manchesHistory, mancheDetail] : manchesHistory;
       setJoueurs(updated);
@@ -1810,12 +1813,16 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         const moyOf = (j) => (j && j.flechettes > 0) ? Math.round(j.totalPoints / j.flechettes * 3) : 0;
         // Photo de chaque côté : le bot = la photo de l'ami simulé (botAmi), l'humain = la sienne.
         const photoDe = (j) => j?.nom === botPseudo ? (botAmi?.photo || null) : (joueur.photo || null);
+        // Détail XP côté HUMAIN (le bot ne gagne pas d'XP) : match joué (+15) + victoire (+15).
+        const xpLinesHum = humainGagne
+          ? [{ label: "Match joué contre le bot", xp: 15 }, { label: "Victoire", xp: 15 }]
+          : [{ label: "Match joué contre le bot", xp: 15 }];
         const duelPost = {
           bot: true, botNom: botPseudo, mode: config.mode,
           headline: `🤖 ${winnerJ?.nom} bat ${loserJ?.nom} ${winnerJ?.manchesGagnees || 0}-${loserJ?.manchesGagnees || 0}`,
-          winner: { nom: winnerJ?.nom, nbManches: winnerJ?.manchesGagnees || 0, total: 0, elo: 0, xp: humainGagne ? delta : 0, xpLines: [], moy: moyOf(winnerJ), photo: photoDe(winnerJ) },
-          loser:  { nom: loserJ?.nom,  nbManches: loserJ?.manchesGagnees || 0,  total: 0, elo: 0, xp: humainGagne ? 0 : delta, xpLines: [], moy: moyOf(loserJ), photo: photoDe(loserJ) },
-          manches: [],
+          winner: { nom: winnerJ?.nom, nbManches: winnerJ?.manchesGagnees || 0, total: 0, elo: 0, xp: humainGagne ? delta : 0, xpLines: humainGagne ? xpLinesHum : [], moy: moyOf(winnerJ), photo: photoDe(winnerJ) },
+          loser:  { nom: loserJ?.nom,  nbManches: loserJ?.manchesGagnees || 0,  total: 0, elo: 0, xp: humainGagne ? 0 : delta, xpLines: humainGagne ? [] : xpLinesHum, moy: moyOf(loserJ), photo: photoDe(loserJ) },
+          manches: manchesHistory || [],
         };
         fetch(`${SB_URL}/rest/v1/wall_posts`, {
           method: "POST",

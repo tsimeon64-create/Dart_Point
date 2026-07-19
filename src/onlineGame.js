@@ -53,8 +53,8 @@ export function reduceGameOnline(volleys, opts) {
       manchesHistory.push({
         winnerId: pid, loserId: oppId, finish: val, manche,
         winner_180: cnt(wT, 180), winner_140plus: cnt(wT, 140, 179), winner_100plus: cnt(wT, 100, 139),
-        winner_max: wT.length ? Math.max(...wT) : 0, winner_moy: wFlech > 0 ? Math.round(wPts / wFlech * 3) : 0, winner_volees: Math.round(wFlech / 3),
-        loser_180: cnt(lT, 180), loser_max: lT.length ? Math.max(...lT) : 0, loser_moy: lFlech > 0 ? Math.round(lPts / lFlech * 3) : 0, loser_volees: Math.round(lFlech / 3), reste_loser: opp.reste,
+        winner_max: wT.length ? Math.max(...wT) : 0, winner_moy: wFlech > 0 ? Math.round(wPts / wFlech * 3 * 100) / 100 : 0, winner_volees: Math.round(wFlech / 3),
+        loser_180: cnt(lT, 180), loser_max: lT.length ? Math.max(...lT) : 0, loser_moy: lFlech > 0 ? Math.round(lPts / lFlech * 3 * 100) / 100 : 0, loser_volees: Math.round(lFlech / 3), reste_loser: opp.reste,
       });
       lastEvent = { type: "finish", joueur_id: pid, val };
       if (p.manches >= manchesToWin) { winnerId = pid; break; }
