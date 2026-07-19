@@ -6,6 +6,30 @@
 // 161 sorti de nulle part. À défaut d'historique : estimation prudente depuis le DRIX.
 // Le joueur choisit donc une PERSONNE, pas un « niveau de bot ». Pur calcul, zéro dépendance.
 
+// ── LEGEND : Lucky Tillter (bot special base sur les stats de Luke Littler) ────
+// Toujours propose dans la liste des amis a affronter, meme si le joueur n'a pas
+// d'ami. Ses stats viennent de dartsorakel.com/darts-nerd (12 derniers mois +
+// carriere) : moyenne 101.1, best finish 170, 180s ~55% des legs, checkout 43.4%.
+export const LUCKY_TILLTER_ID = "b07-1111-1111-1111-lucky-tillter";
+export const LUCKY_TILLTER_INFO = {
+  id: LUCKY_TILLTER_ID,
+  pseudo: "Lucky Tillter",
+  drix: 2900,          // Mythique (>2500) — au-dessus de tout le monde
+  photo: null,
+  isLegend: true,      // pour affichage special dans le picker
+  bio: "Hillbilly, 101 de moyenne, 8× nine-darter",
+};
+export const LUCKY_TILLTER_PROFIL = {
+  moyenne: 101,        // 101.17 sur 12 mois
+  plafondFinish: 170,  // meilleur checkout en carriere
+  plafondVolee: 180,   // il sort des 180 sans probleme
+  rate180: 0.055,      // ~5.5% de 180 par volee (elite PDC)
+  source: "stats",
+  volees: 21000,       // ~1428 legs x 15 volees pour crediblite du 'joue a son vrai niveau'
+  maxFinish: 170,
+  maxVisit: 180,
+};
+
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
 // Numéros impossibles à finir aux fléchettes (« bogey numbers ») + hors plage.

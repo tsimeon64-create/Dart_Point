@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { SCORER } from "./theme";
 import { Search, Swords, Check, X } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
-import { calculerProfilBot, genererScoreBot } from "./botFleche";
+import { calculerProfilBot, genererScoreBot, LUCKY_TILLTER_INFO, LUCKY_TILLTER_PROFIL, LUCKY_TILLTER_ID } from "./botFleche";
 
 // ── Confetti ──────────────────────────────────────────────────────────────────
 const Confetti = () => {
@@ -1129,8 +1129,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const demarrer = () => { setBotPseudo(null); setBotAmi(null); setOrdreBulle([]); setEtape("bulle"); };
 
   // ── Mode bot : charger la liste d'amis (le bot s'ouvre depuis la page Défis) ──
+  // Lucky Tillter est TOUJOURS ajoute en tete de liste (meme sans amis), c'est le
+  // 'legend bot' base sur les stats reelles de Luke Littler.
   const chargerAmis = async () => {
-    if (!joueur?.id) { setAmisListe([]); setLoadingAmis(false); return; }
+    if (!joueur?.id) { setAmisListe([LUCKY_TILLTER_INFO]); setLoadingAmis(false); return; }
     setLoadingAmis(true); setAmisListe([]);
     try {
       const liens = (await dbJ.getAmis(joueur.id)) || [];
@@ -1140,12 +1142,13 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         pseudoMap[fid] = l.joueur_id === joueur.id ? l.ami_pseudo : l.joueur_pseudo;
         return fid;
       });
-      const profils = (await dbJ.getJoueursByIds(ids)) || [];
-      const liste = profils
+      const profils = ids.length ? ((await dbJ.getJoueursByIds(ids)) || []) : [];
+      const amisReels = profils
         .map((p) => ({ id: p.id, pseudo: p.pseudo || pseudoMap[p.id] || "Ami", photo: p.photo || null, drix: p.drix ?? 1000 }))
         .sort((a, b) => (b.drix || 0) - (a.drix || 0));
-      setAmisListe(liste);
-    } catch { setAmisListe([]); }
+      // Lucky Tillter d'abord (LEGEND), puis les amis reels tries par DRIX
+      setAmisListe([LUCKY_TILLTER_INFO, ...amisReels]);
+    } catch { setAmisListe([LUCKY_TILLTER_INFO]); }
     setLoadingAmis(false);
   };
   // Au montage en mode bot (entrée depuis la page Défis), on charge directement les amis.
@@ -1155,11 +1158,17 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   }, []);
 
   // Choisir un ami → calculer le profil du bot (stats réelles ou DRIX) → écran réglages.
+  // Cas special : Lucky Tillter -> profil fige (stats de Luke Littler), pas de fetch.
   const choisirAmiBot = async (ami) => {
     setLoadingBot(ami.id);
     try {
-      const duels = await dbJ.getDuels(ami.id).catch(() => []);
-      const profil = calculerProfilBot({ drix: ami.drix, duels, amiPseudo: ami.pseudo });
+      let profil;
+      if (ami.id === LUCKY_TILLTER_ID) {
+        profil = LUCKY_TILLTER_PROFIL;
+      } else {
+        const duels = await dbJ.getDuels(ami.id).catch(() => []);
+        profil = calculerProfilBot({ drix: ami.drix, duels, amiPseudo: ami.pseudo });
+      }
       botXpRef.current = false;
       botPostRef.current = false;
       setBotPseudo(ami.pseudo);
@@ -1812,28 +1821,82 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       </p>
       {loadingAmis ? (
         <p style={{ color:"#64748b", textAlign:"center", padding:"30px 0" }}>Chargement de tes amis…</p>
-      ) : amisListe.length === 0 ? (
-        <div style={{ textAlign:"center", padding:"24px 16px", color:"#94a3b8" }}>
-          <div style={{ fontSize:42, marginBottom:10 }}>🫂</div>
-          <p style={{ fontSize:14, lineHeight:1.6 }}>Tu n'as pas encore d'amis dans l'app.<br/>Ajoutes-en pour pouvoir les affronter en bot !</p>
-        </div>
+      ) : amisListe.length === 1 && amisListe[0].isLegend ? (
+        <>
+          <p style={{ fontSize:12, color:"#94a3b8", textAlign:"center", marginBottom:10, lineHeight:1.5 }}>
+            Tu n'as pas encore d'amis dans l'app, mais tu peux deja affronter la <b style={{color:"#fbbf24"}}>LEGEND</b> :
+          </p>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {amisListe.map((ami) => {
+              const enCours = loadingBot===ami.id;
+              return (
+                <button key={ami.id} onClick={()=>choisirAmiBot(ami)} disabled={!!loadingBot}
+                  style={{
+                    display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderRadius:14,
+                    border: "2px solid #fbbf2488",
+                    background: "linear-gradient(135deg,#2a1c00,#1a1200)",
+                    boxShadow: "0 0 24px #fbbf2422, inset 0 1px 0 #fbbf2422",
+                    cursor: loadingBot?"default":"pointer", textAlign:"left", opacity: loadingBot && !enCours ? 0.5 : 1,
+                  }}>
+                  <div style={{ width:46, height:46, borderRadius:"50%",
+                      background: "linear-gradient(135deg,#fbbf24,#f59e0b)",
+                      display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+                      boxShadow: "0 0 16px #fbbf2466",
+                    }}>
+                      <EmoIcon e="👑" size={22} color="#0a0a0a"/>
+                    </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
+                      <div style={{ fontWeight:800, fontSize:16, color:"#f1f5f9" }}>{ami.pseudo}</div>
+                      <span style={{ fontSize:9, fontWeight:900, color:"#0a0a0a", background:"#fbbf24", padding:"2px 6px", borderRadius:6, letterSpacing:.5 }}>LEGEND</span>
+                    </div>
+                    <div style={{ fontSize:12, color:"#fbbf24", fontWeight:700 }}>
+                      {ami.drix} DRIX{ami.bio ? ` · ${ami.bio}` : ""}
+                    </div>
+                  </div>
+                  <span style={{ color:"#fbbf24", fontWeight:900, fontSize:18 }}>{enCours ? "…" : "→"}</span>
+                </button>
+              );
+            })}
+          </div>
+        </>
       ) : (
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           {amisListe.map((ami) => {
             const couleur = ami.drix>=1800?"#fbbf24":ami.drix>=1400?"#a78bfa":ami.drix>=1100?"#60a5fa":"#94a3b8";
             const enCours = loadingBot===ami.id;
+            const isLegend = !!ami.isLegend;
             return (
               <button key={ami.id} onClick={()=>choisirAmiBot(ami)} disabled={!!loadingBot}
-                style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderRadius:14, border:"1px solid #2a2a2a", background:"#1a1a1a",
-                  cursor: loadingBot?"default":"pointer", textAlign:"left", opacity: loadingBot && !enCours ? 0.5 : 1 }}>
+                style={{
+                  display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderRadius:14,
+                  border: isLegend ? "2px solid #fbbf2488" : "1px solid #2a2a2a",
+                  background: isLegend ? "linear-gradient(135deg,#2a1c00,#1a1200)" : "#1a1a1a",
+                  boxShadow: isLegend ? "0 0 24px #fbbf2422, inset 0 1px 0 #fbbf2422" : "none",
+                  cursor: loadingBot?"default":"pointer", textAlign:"left", opacity: loadingBot && !enCours ? 0.5 : 1,
+                  position:"relative",
+                }}>
                 {ami.photo
                   ? <img src={ami.photo} alt="" style={{ width:46, height:46, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
-                  : <div style={{ width:46, height:46, borderRadius:"50%", background:"#f9731633", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><EmoIcon e="🎯" size={20} color="#f97316"/></div>}
+                  : <div style={{ width:46, height:46, borderRadius:"50%",
+                      background: isLegend ? "linear-gradient(135deg,#fbbf24,#f59e0b)" : "#f9731633",
+                      display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+                      boxShadow: isLegend ? "0 0 16px #fbbf2466" : "none",
+                    }}>
+                      <EmoIcon e={isLegend ? "👑" : "🎯"} size={22} color={isLegend ? "#0a0a0a" : "#f97316"}/>
+                    </div>}
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontWeight:800, fontSize:16, color:"#f1f5f9", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{ami.pseudo}</div>
-                  <div style={{ fontSize:12, color:couleur, fontWeight:700 }}>{ami.drix} DRIX</div>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
+                    <div style={{ fontWeight:800, fontSize:16, color:"#f1f5f9", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{ami.pseudo}</div>
+                    {isLegend && (
+                      <span style={{ fontSize:9, fontWeight:900, color:"#0a0a0a", background:"#fbbf24", padding:"2px 6px", borderRadius:6, letterSpacing:.5, flexShrink:0 }}>LEGEND</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize:12, color:couleur, fontWeight:700 }}>
+                    {ami.drix} DRIX{isLegend && ami.bio ? ` · ${ami.bio}` : ""}
+                  </div>
                 </div>
-                <span style={{ color:"#a78bfa", fontWeight:900, fontSize:18 }}>{enCours ? "…" : "→"}</span>
+                <span style={{ color: isLegend ? "#fbbf24" : "#a78bfa", fontWeight:900, fontSize:18 }}>{enCours ? "…" : "→"}</span>
               </button>
             );
           })}
