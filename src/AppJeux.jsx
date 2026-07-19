@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { SCORER } from "./theme";
 import { Search, Swords, Check, X } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
-import { calculerProfilBot, genererScoreBot } from "./botFleche";
+import { calculerProfilBot, genererScoreBot, BOT_LUCKY_LITTLER } from "./botFleche";
 
 // ── Confetti ──────────────────────────────────────────────────────────────────
 const Confetti = () => {
@@ -1066,8 +1066,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Live session : démarre quand etape passe à "jeu" ──
   useEffect(() => {
-    if (etape === "jeu" && !liveIdRef.current && ((modeDuel && duel?.id) || (botPseudo && !botSelf))) {
-      createLiveSession();
+    if (etape === "jeu" && !liveIdRef.current && ((modeDuel && duel?.id) || (botPseudo && !botSelf && !botAmi?.champion))) {
+      createLiveSession(); // pas de session live pour le bot champion (id fictif, pas un vrai joueur à diffuser)
     }
     if (etape === "fin" || etape === "config") {
       closeLiveSession();
@@ -1244,9 +1244,11 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       const amis = profils
         .map((p) => ({ id: p.id, pseudo: p.pseudo || pseudoMap[p.id] || "Ami", photo: p.photo || null, drix: p.drix ?? 1000 }))
         .sort((a, b) => (b.drix || 0) - (a.drix || 0)); // amis triés par DRIX décroissant
-      // « Toi-même » toujours en tête : jouer contre ton propre bot.
+      // Bot CHAMPION « Lucky Littler » en tête de liste (calé sur les vraies stats de Luke Littler).
+      const luckyLittler = { id: "__lucky_littler__", pseudo: "Lucky Littler", photo: null, drix: 3000, champion: true };
+      // « Toi-même » ensuite : jouer contre ton propre bot.
       const moi = { id: joueur.id, pseudo: joueur.pseudo, photo: joueur.photo || null, drix: joueur.drix ?? 1000, self: true };
-      setAmisListe([moi, ...amis]);
+      setAmisListe([luckyLittler, moi, ...amis]);
     } catch { setAmisListe([]); }
     setLoadingAmis(false);
   };
@@ -1263,11 +1265,16 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const choisirAmiBot = async (ami) => {
     setLoadingBot(ami.id);
     try {
-      const [duels, volees] = await Promise.all([
-        dbJ.getDuels(ami.id).catch(() => []),
-        dbJ.getVoleesReelles(ami.id).catch(() => []),
-      ]);
-      const profil = calculerProfilBot({ drix: ami.drix, duels, amiPseudo: ami.pseudo, volees });
+      let profil;
+      if (ami.champion) {
+        profil = { ...BOT_LUCKY_LITTLER };   // profil FIXE du champion — aucun historique à charger
+      } else {
+        const [duels, volees] = await Promise.all([
+          dbJ.getDuels(ami.id).catch(() => []),
+          dbJ.getVoleesReelles(ami.id).catch(() => []),
+        ]);
+        profil = calculerProfilBot({ drix: ami.drix, duels, amiPseudo: ami.pseudo, volees });
+      }
       const botNom = ami.self ? `${ami.pseudo} (bot)` : ami.pseudo; // « contre soi-même » : nom distinct pour ne pas confondre les 2 joueurs
       botXpRef.current = false;
       setBotSelf(!!ami.self);
@@ -1966,24 +1973,30 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       ) : (
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           {amisListe.map((ami) => {
-            const couleur = ami.drix>=1800?"#fbbf24":ami.drix>=1400?"#a78bfa":ami.drix>=1100?"#60a5fa":"#94a3b8";
+            const champ = !!ami.champion;
+            const couleur = champ ? "#fbbf24" : ami.drix>=1800?"#fbbf24":ami.drix>=1400?"#a78bfa":ami.drix>=1100?"#60a5fa":"#94a3b8";
             const enCours = loadingBot===ami.id;
             return (
-              <button key={ami.self ? "self" : ami.id} onClick={()=>choisirAmiBot(ami)} disabled={!!loadingBot}
+              <button key={champ ? "champ" : ami.self ? "self" : ami.id} onClick={()=>choisirAmiBot(ami)} disabled={!!loadingBot}
                 style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderRadius:14,
-                  border: ami.self ? "1px solid #f9731566" : "1px solid #2a2a2a", background: ami.self ? "#f9731610" : "#1a1a1a",
+                  border: champ ? "1px solid #fbbf2488" : ami.self ? "1px solid #f9731566" : "1px solid #2a2a2a",
+                  background: champ ? "linear-gradient(135deg,#2a1e05,#1a1200)" : ami.self ? "#f9731610" : "#1a1a1a",
+                  boxShadow: champ ? "0 0 22px #fbbf2426, inset 0 1px 0 #fbbf2422" : "none",
                   cursor: loadingBot?"default":"pointer", textAlign:"left", opacity: loadingBot && !enCours ? 0.5 : 1 }}>
-                {ami.photo
-                  ? <img src={ami.photo} alt="" style={{ width:46, height:46, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
-                  : <div style={{ width:46, height:46, borderRadius:"50%", background:"#f9731633", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><EmoIcon e="🎯" size={20} color="#f97316"/></div>}
+                {champ
+                  ? <div style={{ width:46, height:46, borderRadius:"50%", background:"radial-gradient(circle,#fbbf2455,#7c2d1233)", border:"1px solid #fbbf24aa", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:"0 0 14px #fbbf2455" }}><EmoIcon e="👑" size={22} color="#fbbf24"/></div>
+                  : ami.photo
+                    ? <img src={ami.photo} alt="" style={{ width:46, height:46, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
+                    : <div style={{ width:46, height:46, borderRadius:"50%", background:"#f9731633", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><EmoIcon e="🎯" size={20} color="#f97316"/></div>}
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontWeight:800, fontSize:16, color:"#f1f5f9", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", display:"flex", alignItems:"center", gap:6 }}>
-                    {ami.self ? "Toi-même" : ami.pseudo}
+                    {champ ? "Lucky Littler" : ami.self ? "Toi-même" : ami.pseudo}
+                    {champ && <span style={{ fontSize:9, fontWeight:900, color:"#fbbf24", background:"#fbbf2422", border:"1px solid #fbbf2488", borderRadius:5, padding:"1px 6px", letterSpacing:.5, flexShrink:0, display:"inline-flex", alignItems:"center", gap:3 }}><EmoIcon e="👑" size={9}/>CHAMPION</span>}
                     {ami.self && <span style={{ fontSize:9, fontWeight:900, color:"#f97316", background:"#f9731622", border:"1px solid #f9731566", borderRadius:5, padding:"1px 5px", letterSpacing:.5, flexShrink:0 }}>TON BOT</span>}
                   </div>
-                  <div style={{ fontSize:12, color:couleur, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{ami.self ? `${ami.drix} DRIX · affronte ton propre niveau` : `${ami.drix} DRIX`}</div>
+                  <div style={{ fontSize:12, color:couleur, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{champ ? "Le prodige · sort des 180 · checkout 43%" : ami.self ? `${ami.drix} DRIX · affronte ton propre niveau` : `${ami.drix} DRIX`}</div>
                 </div>
-                <span style={{ color:"#a78bfa", fontWeight:900, fontSize:18 }}>{enCours ? "…" : "→"}</span>
+                <span style={{ color: champ ? "#fbbf24" : "#a78bfa", fontWeight:900, fontSize:18 }}>{enCours ? "…" : "→"}</span>
               </button>
             );
           })}
@@ -2038,7 +2051,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:11, color:"#a78bfa", fontWeight:800, letterSpacing:.5 }}>🤖 ADVERSAIRE (BOT)</div>
                 <div style={{ fontWeight:800, fontSize:17, color:"#f1f5f9", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{botPseudo}</div>
-                <div style={{ fontSize:12, color:"#94a3b8" }}>{botAmi?.drix} DRIX · {botProfil?.source==="stats" ? "joue à son vrai niveau" : "niveau estimé (DRIX)"}</div>
+                <div style={{ fontSize:12, color:"#94a3b8" }}>{botProfil?.source==="champion" ? "👑 Champion · calé sur les vraies stats d'un pro" : `${botAmi?.drix} DRIX · ${botProfil?.source==="stats" ? "joue à son vrai niveau" : "niveau estimé (DRIX)"}`}</div>
               </div>
             </div>
             <button onClick={()=>{ setOrdreBulle([]); setEtape("bulle"); }}

@@ -131,6 +131,23 @@ export function calculerProfilBot({ drix, duels, amiPseudo, volees }) {
   };
 }
 
+// ── Bots « CHAMPIONS » : profils FIXES calés sur de vraies stats de pros (pas d'historique).
+// Le générateur générique respecte alors checkoutRate (VRAI % de checkout) et moyenneOuverture
+// (les 3 premières volées d'un leg sont plus hautes). Réglé pour un vrai niveau, zéro score farfelu.
+// Valeurs de scoring CALÉES par simulation (4000+ legs) pour que le jeu RÉALISÉ colle à
+// Luke Littler : moyenne 3 fléch. ≈ 96 (≈101 « papier », Dart Point compte par fléchette),
+// checkout ≈ 43 %, ~4,4 % de 180, finish jusqu'à 170, ~15,7 fléch./leg. Zéro score farfelu.
+export const BOT_LUCKY_LITTLER = {
+  source: "champion",
+  moyenne: 122,          // scoring calé → moy. réalisée ≈ 96 (Littler 101,1 « papier »)
+  moyenneOuverture: 134, // les 3 premières volées plus hautes (moy. 9 fléch. ~111)
+  checkoutRate: 0.43,    // checkout réel 43,4 %
+  plafondFinish: 170,    // plus haut checkout : 170
+  plafondVolee: 180,     // il sort des 180
+  rate180: 0.075,        // fréquence de 180 très élevée (783 sur 12 mois)
+  bustRate: 0.03,
+};
+
 // Probabilité que le bot réussisse son checkout (finir sur un double) ce tour-ci.
 function probaCheckout(remaining, moy) {
   let p = clamp((moy - 24) / 120, 0.06, 0.6);     // niveau global (plancher 6 %)
@@ -214,15 +231,25 @@ export function genererScoreBot(remaining, profil) {
   const plafondFinish = profil?.plafondFinish ?? 100;
   const plafondVolee  = profil?.plafondVolee ?? 140;
   const rate180 = profil?.rate180 ?? 0;
+  // Les 3 premières volées d'un leg sont plus hautes chez les pros (moy. 9 fléchettes).
+  const moyEff = (remaining > 250 && profil?.moyenneOuverture) ? clamp(profil.moyenneOuverture, 18, 130) : moy;
 
-  // 1) Checkout — UNIQUEMENT dans la limite réaliste du joueur (jamais au-dessus de son meilleur finish réel).
-  if (estFinissable(remaining) && remaining <= plafondFinish && Math.random() < probaCheckout(remaining, moy)) {
+  // 1) Checkout — soit un VRAI % imposé (bots champions, modulé par la distance au double),
+  //    soit dérivé de la moyenne. Jamais au-dessus du meilleur finish réaliste.
+  const pCheck = profil?.checkoutRate != null
+    ? clamp(profil.checkoutRate * (remaining <= 40 ? 1.3 : remaining <= 60 ? 1.1 : remaining <= 100 ? 0.85 : 0.4), 0.03, 0.9)
+    : probaCheckout(remaining, moy);
+  if (estFinissable(remaining) && remaining <= plafondFinish && Math.random() < pCheck) {
     return remaining;
   }
 
   // 2) Fin de leg (score bas) : « poser » pour laisser un bon double — JAMAIS de bust-loop.
   if (remaining <= 70) {
-    const laisse = DOUBLES.find((d) => d <= remaining - 2);
+    // Plus le joueur est fort, plus il SCORE en posant (laisse un petit double 16/8) au lieu
+    // de laisser D20 tranquille → une pose de champion enlève beaucoup plus de points.
+    const fort = profil?.checkoutRate != null && profil.checkoutRate >= 0.35;
+    const table = fort ? [16, 8, 32, 24, 40, 20, 12, 4, 2] : DOUBLES;
+    const laisse = table.find((d) => d <= remaining - 2);
     if (laisse == null) return remaining <= plafondFinish ? remaining : 1; // remaining <= 3
     let score = remaining - laisse;
     if (Math.random() < 0.35) score = Math.max(1, score - (1 + Math.floor(Math.random() * 8))); // rate un peu sa cible
@@ -230,7 +257,7 @@ export function genererScoreBot(remaining, profil) {
   }
 
   // 3) Volée « normale », loin de la fin.
-  let score = tirerVolee(moy, plafondVolee, rate180);
+  let score = tirerVolee(moyEff, plafondVolee, rate180);
   if (score > remaining - 2) {
     if (Math.random() < 0.06) return remaining + 1 + Math.floor(Math.random() * 10); // bust occasionnel réaliste
     score = Math.max(2, remaining - 2 - Math.floor(Math.random() * 30));              // sinon, rester prudent
