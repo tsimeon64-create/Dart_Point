@@ -13140,6 +13140,14 @@ export default function App() {
 
       {/* ── Barre de navigation fixe (mobile), style Dart Point ── */}
       {joueur && !isGamePage(page) && (<>
+        <style>{`
+          @keyframes jouerNeon {
+            0%,100% { box-shadow:0 0 6px #ffb01f, 0 0 15px #ff8a00cc, 0 0 28px #ff6a0088, 0 0 42px #ff5a0044, inset 0 0 10px #ff8a0055, 0 5px 14px rgba(0,0,0,0.6); }
+            50%     { box-shadow:0 0 9px #ffc23f, 0 0 22px #ff8a00, 0 0 38px #ff6a00aa, 0 0 60px #ff5a0055, inset 0 0 14px #ff8a0077, 0 5px 14px rgba(0,0,0,0.6); }
+          }
+          .jouer-neon { animation:jouerNeon 1.8s ease-in-out infinite; }
+          @media (prefers-reduced-motion: reduce) { .jouer-neon { animation:none; } }
+        `}</style>
         <div style={{ height:"calc(58px + env(safe-area-inset-bottom))" }} aria-hidden="true"/>
         <nav style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:300,
           background:"rgba(8,8,13,0.97)", borderTop:"1px solid #1a1a26",
@@ -13181,17 +13189,17 @@ export default function App() {
               transform:"translateX(-50%)", zIndex:2,
               background:"none", border:"none", padding:0, margin:0, cursor:"pointer", touchAction:"manipulation",
               display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
-            <div style={{
+            <div className="jouer-neon" style={{
               width:58, height:58, borderRadius:"50%",
               display:"flex", alignItems:"center", justifyContent:"center",
-              background:"linear-gradient(135deg,#fbbf24 0%,#f59e0b 50%,#f97316 100%)",
-              color:"#1a1206",
-              border:"3px solid rgba(8,8,13,0.97)",
-              boxShadow:"0 0 20px #f9731688, 0 6px 16px rgba(0,0,0,0.55), inset 0 1px 0 #ffffff66, inset 0 -3px 8px #7c2d1244",
+              background:"radial-gradient(circle at 50% 40%,#1c1204 0%,#0c0800 68%,#070506 100%)",
+              border:"2.5px solid #ffb01f",
+              color:"#ffd766",
+              boxShadow:"0 0 6px #ffb01f, 0 0 15px #ff8a00cc, 0 0 28px #ff6a0088, 0 0 42px #ff5a0044, inset 0 0 10px #ff8a0055, 0 5px 14px rgba(0,0,0,0.6)",
             }}>
-              <Gamepad2 size={26} strokeWidth={2.4}/>
+              <Target size={28} strokeWidth={2.6} style={{ filter:"drop-shadow(0 0 3px #ffb01f) drop-shadow(0 0 7px #ff8a00cc)" }}/>
             </div>
-            <span style={{ fontSize:10, fontWeight:800, letterSpacing:.3, color:"#fbbf24" }}>JOUER</span>
+            <span style={{ fontSize:10, fontWeight:800, letterSpacing:.5, color:"#ffca3a", textShadow:"0 0 6px #ff8a00cc, 0 0 11px #ff6a0088" }}>JOUER</span>
           </button>
         </nav>
       </>)}
