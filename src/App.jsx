@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback, Component } from "react";
 import { C, Z } from "./theme";
-import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell, Users, RefreshCw, Swords, TrendingUp, TrendingDown, Medal, Check, AlertCircle, ThumbsUp, MessageCircle, MapPin, Flame, Zap, Target, Clock, ChevronRight, ChevronDown, Map, List, Phone, Share2, Eye, Info, Calendar, Home as HomeIcon, Lock, ExternalLink, Crown, Gem, Pencil, Navigation, Camera, Link2, Building2, Skull, Gamepad2, HelpCircle, Brain, Timer } from "lucide-react";
+import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell, Users, RefreshCw, Swords, TrendingUp, TrendingDown, Medal, Check, AlertCircle, ThumbsUp, MessageCircle, MapPin, Flame, Zap, Target, Clock, ChevronRight, ChevronDown, Map, List, Phone, Share2, Eye, Info, Calendar, Home as HomeIcon, Lock, ExternalLink, Crown, Gem, Pencil, Navigation, Camera, Link2, Building2, Skull, Gamepad2, HelpCircle, Brain, Timer, Bot } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
 import {
   Connexion, MonProfil, PageJoueurs, FicheJoueur, RankIcon,
@@ -6628,6 +6628,49 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
             </div>
           </div>
         )}
+
+        {/* ═══ AFFRONTE UN BOT ═══ */}
+        <div className="mj-card" onClick={()=>setPage("scoreur-bot")} style={{
+          position:"relative", overflow:"hidden",
+          background:"linear-gradient(135deg,#1c1405 0%,#12100a 55%,#0a0a10 100%)",
+          border:"1.5px solid #fbbf2477",
+          borderRadius:16, padding:"12px 14px",
+          cursor:"pointer", userSelect:"none", marginBottom:12,
+          boxShadow:"0 0 18px #fbbf2433, inset 0 1px 0 #ffffff0a",
+          "--mjShadow":"#fbbf2477",
+        }}>
+          <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:70,background:"linear-gradient(90deg,transparent,#ffffff14,transparent)",animation:"mjShine 3.2s ease-in-out infinite",pointerEvents:"none" }}/>
+          <div style={{ display:"flex",alignItems:"center",gap:12,position:"relative" }}>
+            <div style={{
+              flexShrink:0, width:46, height:46, borderRadius:12,
+              background:"linear-gradient(135deg,#fbbf2440,#fbbf2411)",
+              border:"1px solid #fbbf24aa",
+              display:"flex",alignItems:"center",justifyContent:"center",
+              boxShadow:"0 0 12px #fbbf2455, inset 0 1px 0 #ffffff15",
+            }}>
+              <Bot size={24} color="#fbbf24" style={{ filter:"drop-shadow(0 0 4px #fbbf24)" }}/>
+            </div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2 }}>
+                <span style={{ fontWeight:900,fontSize:19,color:"#f1f5f9",letterSpacing:.3 }}>Affronte un bot</span>
+                <span style={{
+                  background:"linear-gradient(135deg,#fbbf2433,#fbbf2411)",
+                  border:"1px solid #fbbf2477", color:"#fbbf24",
+                  fontSize:9, fontWeight:900, borderRadius:5, padding:"2px 6px",
+                  letterSpacing:1, textShadow:"0 0 6px #fbbf2488",
+                }}>👑 SOLO</span>
+              </div>
+              <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.45 }}>🤖 Joue seul contre l'ordi — ou défie le champion Lucky Tillter.</div>
+            </div>
+            <span style={{
+              flexShrink:0,
+              padding:"6px 12px",borderRadius:8,
+              background:"linear-gradient(135deg,#fbbf24,#f59e0b)",
+              color:"#3b1f00",fontSize:11,fontWeight:900,letterSpacing:1,
+              boxShadow:"0 2px 8px #fbbf2488, inset 0 1px 0 #ffffff44",
+            }}>▶ JOUER</span>
+          </div>
+        </div>
 
         {/* ═══ TOUS LES MODES ═══ */}
         <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
