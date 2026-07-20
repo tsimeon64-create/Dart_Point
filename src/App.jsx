@@ -13129,7 +13129,7 @@ export default function App() {
 
       {/* ── Bouton flottant : reprendre le tournoi en cours ── */}
       {activeTournoi && !isGamePage(page) && page !== "tournoi-potes-"+activeTournoi.id && page !== "tournoi-live-"+activeTournoi.id && (
-        <div style={{ position:"fixed", left:"50%", transform:"translateX(-50%)", bottom: joueur ? "calc(58px + env(safe-area-inset-bottom) + 12px)" : "calc(env(safe-area-inset-bottom) + 16px)", zIndex:250, display:"flex", alignItems:"stretch", maxWidth:"calc(100% - 24px)", boxShadow:"0 8px 28px #000000bb", borderRadius:26, overflow:"hidden", border:"1px solid #f9731566" }}>
+        <div style={{ position:"fixed", left:"50%", transform:"translateX(-50%)", bottom: joueur ? "calc(58px + env(safe-area-inset-bottom) + 34px)" : "calc(env(safe-area-inset-bottom) + 16px)", zIndex:250, display:"flex", alignItems:"stretch", maxWidth:"calc(100% - 24px)", boxShadow:"0 8px 28px #000000bb", borderRadius:26, overflow:"hidden", border:"1px solid #f9731566" }}>
           <button onClick={()=>nav("tournoi-potes-"+activeTournoi.id)} style={{ background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", border:"none", padding:"11px 18px", fontWeight:800, fontSize:14, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:8, touchAction:"manipulation", overflow:"hidden" }}>
             <span style={{ fontSize:16, flexShrink:0 }}>🏆</span>
             <span style={{ whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:220 }}>Reprendre : {activeTournoi.nom}</span>
@@ -13143,8 +13143,9 @@ export default function App() {
         <div style={{ height:"calc(58px + env(safe-area-inset-bottom))" }} aria-hidden="true"/>
         <nav style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:300,
           background:"rgba(8,8,13,0.97)", borderTop:"1px solid #1a1a26",
-          backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
+          backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", overflow:"visible",
           display:"flex", paddingBottom:"env(safe-area-inset-bottom)", boxShadow:"0 -4px 22px rgba(0,0,0,0.5)" }}>
+          {/* 6 onglets normaux : TOUJOURS 6× flex:1 (le bouton JOUER est hors flux, donc les labels — dont « Classement » — restent intacts). */}
           {[
             { key:"home",         label:"Accueil",    icon:<HomeIcon size={20}/>,   badge:0 },
             { key:"defi",         label:"Défi",       icon:<Swords size={20}/>,     badge:notifCount },
@@ -13154,10 +13155,14 @@ export default function App() {
             { key:"mon-profil",   label:"Profil",     icon:<User size={20}/>,       badge:0 },
           ].map(t => {
             const actif = page === t.key;
+            // Couloir central : on écarte légèrement le contenu de « Amis » (gauche) et « Stats » (droite) pour laisser respirer le disque JOUER.
+            const pad = t.key === "profil-amis"  ? "8px 20px 9px 2px"
+                      : t.key === "profil-stats" ? "8px 2px 9px 20px"
+                      :                            "8px 2px 9px";
             return (
               <button key={t.key} onClick={()=>navSafe(t.key)} aria-label={t.label}
                 style={{ flex:1, background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column",
-                  alignItems:"center", justifyContent:"center", gap:3, padding:"8px 2px 9px",
+                  alignItems:"center", justifyContent:"center", gap:3, padding:pad,
                   color: actif ? "#f97316" : "#64748b", position:"relative", touchAction:"manipulation", minHeight:54, transition:"color .15s" }}>
                 {actif && <div style={{ position:"absolute", top:0, left:"50%", transform:"translateX(-50%)", width:26, height:3, borderRadius:"0 0 4px 4px", background:"#f97316", boxShadow:"0 0 10px #f97316" }}/>}
                 <div style={{ position:"relative", display:"flex" }}>
@@ -13168,6 +13173,26 @@ export default function App() {
               </button>
             );
           })}
+
+          {/* ═══ BOUTON JOUER : disque doré flottant, centré (entre Amis et Stats) ═══ */}
+          {/* Hors flux (position:absolute) → ne vole pas de largeur aux onglets. Clé unique « jouer », navigue vers la page Défi DRIX. */}
+          <button key="jouer" onClick={()=>navSafe("defi")} aria-label="Jouer"
+            style={{ position:"absolute", left:"50%", bottom:"calc(6px + env(safe-area-inset-bottom, 0px))",
+              transform:"translateX(-50%)", zIndex:2,
+              background:"none", border:"none", padding:0, margin:0, cursor:"pointer", touchAction:"manipulation",
+              display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+            <div style={{
+              width:58, height:58, borderRadius:"50%",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              background:"linear-gradient(135deg,#fbbf24 0%,#f59e0b 50%,#f97316 100%)",
+              color:"#1a1206",
+              border:"3px solid rgba(8,8,13,0.97)",
+              boxShadow:"0 0 20px #f9731688, 0 6px 16px rgba(0,0,0,0.55), inset 0 1px 0 #ffffff66, inset 0 -3px 8px #7c2d1244",
+            }}>
+              <Gamepad2 size={26} strokeWidth={2.4}/>
+            </div>
+            <span style={{ fontSize:10, fontWeight:800, letterSpacing:.3, color:"#fbbf24" }}>JOUER</span>
+          </button>
         </nav>
       </>)}
     </div>
