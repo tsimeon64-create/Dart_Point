@@ -1247,8 +1247,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       const amis = profils
         .map((p) => ({ id: p.id, pseudo: p.pseudo || pseudoMap[p.id] || "Ami", photo: p.photo || null, drix: p.drix ?? 1000 }))
         .sort((a, b) => (b.drix || 0) - (a.drix || 0)); // amis triés par DRIX décroissant
-      // Bot CHAMPION « Lucky Littler » en tête de liste (calé sur les vraies stats de Luke Littler).
-      const luckyLittler = { id: "__lucky_littler__", pseudo: "Lucky Littler", photo: null, drix: 3000, champion: true };
+      // Bot CHAMPION « Lucku Tillter » en tête de liste (calé sur les vraies stats de Luke Littler).
+      const luckyLittler = { id: "__lucky_littler__", pseudo: "Lucku Tillter", photo: null, drix: 3000, champion: true };
       // « Toi-même » ensuite : jouer contre ton propre bot.
       const moi = { id: joueur.id, pseudo: joueur.pseudo, photo: joueur.photo || null, drix: joueur.drix ?? 1000, self: true };
       setAmisListe([luckyLittler, moi, ...amis]);
@@ -1997,7 +1997,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                     : <div style={{ width:46, height:46, borderRadius:"50%", background:"#f9731633", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><EmoIcon e="🎯" size={20} color="#f97316"/></div>}
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontWeight:800, fontSize:16, color:"#f1f5f9", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", display:"flex", alignItems:"center", gap:6 }}>
-                    {champ ? "Lucky Littler" : ami.self ? "Toi-même" : ami.pseudo}
+                    {champ ? "Lucku Tillter" : ami.self ? "Toi-même" : ami.pseudo}
                     {champ && <span style={{ fontSize:9, fontWeight:900, color:"#fbbf24", background:"#fbbf2422", border:"1px solid #fbbf2488", borderRadius:5, padding:"1px 6px", letterSpacing:.5, flexShrink:0, display:"inline-flex", alignItems:"center", gap:3 }}><EmoIcon e="👑" size={9}/>CHAMPION</span>}
                     {ami.self && <span style={{ fontSize:9, fontWeight:900, color:"#f97316", background:"#f9731622", border:"1px solid #f9731566", borderRadius:5, padding:"1px 5px", letterSpacing:.5, flexShrink:0 }}>TON BOT</span>}
                   </div>
