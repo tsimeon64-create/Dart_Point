@@ -2504,14 +2504,8 @@ const PageDefi = ({ joueur, setPage }) => {
         }}><Users size={14}/>Doublette 2v2</button>
       </div>
 
-      {/* ── Affronter un bot : entraînement contre le « fantôme » d'un ami (sans DRIX) ── */}
-      <button className="defi-press" onClick={()=>setPage("scoreur-bot")} style={{
-        width:"100%", padding:"14px 0", marginBottom:22, border:"1px solid #a78bfa70", cursor:"pointer",
-        fontWeight:800, fontSize:14, borderRadius:13,
-        background:"linear-gradient(160deg,#a78bfa22,#a78bfa0a)", color:"#ddd6fe",
-        boxShadow:"0 10px 22px -14px #000000e6, 0 0 16px rgba(168,85,247,0.16), inset 0 1px 0 #ffffff1a",
-        display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-      }}>🤖 Affronter un bot</button>
+      {/* « Affronter un bot » a été retiré d'ici : le mode reste accessible depuis
+          la Salle de jeux (carte « Affronte un bot » → page scoreur-bot). */}
 
       {tab==="doublette" && <DoubletteFlow joueur={joueur} amis={amis} amisData={amisData} setPage={setPage}/>}
 
