@@ -13190,8 +13190,8 @@ export default function App() {
       {joueur && !isGamePage(page) && (<>
         <style>{`
           @keyframes rivaliteGlow {
-            0%,100% { box-shadow:0 0 10px #f9731688, 0 0 22px #f9731555, 0 6px 16px rgba(0,0,0,0.6), inset 0 1px 0 #ffffff66, inset 0 -3px 8px #7c2d1255; }
-            50%     { box-shadow:0 0 14px #f97316aa, 0 0 34px #f9731577, 0 6px 16px rgba(0,0,0,0.6), inset 0 1px 0 #ffffff66, inset 0 -3px 8px #7c2d1255; }
+            0%,100% { box-shadow:0 0 10px #a78bfa88, 0 0 22px #a78bfa55, 0 6px 16px rgba(0,0,0,0.6), inset 0 1px 0 #ffffff66, inset 0 -3px 8px #4c1d9555; }
+            50%     { box-shadow:0 0 14px #a78bfaaa, 0 0 34px #a78bfa77, 0 6px 16px rgba(0,0,0,0.6), inset 0 1px 0 #ffffff66, inset 0 -3px 8px #4c1d9555; }
           }
           .rivalite-fab { animation:rivaliteGlow 2.2s ease-in-out infinite; }
           @media (prefers-reduced-motion: reduce) { .rivalite-fab { animation:none; } }
@@ -13241,15 +13241,15 @@ export default function App() {
               position:"relative",
               width:60, height:60, borderRadius:"50%",
               display:"flex", alignItems:"center", justifyContent:"center",
-              background:"linear-gradient(135deg,#fbbf24 0%,#f97316 55%,#ea580c 100%)",
-              color:"#2a1004",
+              background:"linear-gradient(135deg,#c4b5fd 0%,#a78bfa 45%,#7c3aed 100%)",
+              color:"#1e0b3a",
               border:"3px solid rgba(8,8,13,0.97)",
-              boxShadow:"0 0 10px #f9731688, 0 0 22px #f9731555, 0 6px 16px rgba(0,0,0,0.6), inset 0 1px 0 #ffffff66, inset 0 -3px 8px #7c2d1255",
+              boxShadow:"0 0 10px #a78bfa88, 0 0 22px #a78bfa55, 0 6px 16px rgba(0,0,0,0.6), inset 0 1px 0 #ffffff66, inset 0 -3px 8px #4c1d9555",
             }}>
               <Swords size={27} strokeWidth={2.5} style={{ filter:"drop-shadow(0 1px 1px #00000055)" }}/>
               {notifCount > 0 && <span style={{ position:"absolute", top:-2, right:-2, minWidth:18, height:18, padding:"0 4px", borderRadius:9, background:"#ef4444", color:"#fff", fontSize:10, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 0 8px #ef4444aa", border:"2px solid rgba(8,8,13,0.97)" }}>{notifCount > 9 ? "9+" : notifCount}</span>}
             </div>
-            <span style={{ fontSize:10, fontWeight:800, letterSpacing:.3, color:"#fbbf24", textShadow:"0 0 6px #f9731688" }}>RIVALITÉ</span>
+            <span style={{ fontSize:10, fontWeight:800, letterSpacing:.3, color:"#c4b5fd", textShadow:"0 0 6px #a78bfa88" }}>RIVALITÉ</span>
           </button>
         </nav>
       </>)}
