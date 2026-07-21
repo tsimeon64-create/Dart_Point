@@ -13156,10 +13156,10 @@ export default function App() {
           {/* 2 onglets + un espace central invisible + 2 onglets = 5 slots égaux.
               Le slot 3 (vide) est PILE au centre : le gros bouton RIVALITÉ (hors flux) s'y pose
               avec exactement le même espace à gauche et à droite, sans jamais recouvrir un label.
-              (« Profil » reste accessible via l'avatar en haut à droite → « Mon profil ».) */}
+              (« Amis » reste accessible via l'avatar en haut à droite → « Mes amis ».) */}
           {[
             { key:"home",         label:"Accueil",    icon:<HomeIcon size={20}/>,   badge:0 },
-            { key:"profil-amis",  label:"Amis",       icon:<Users size={20}/>,      badge:demandesAmisCount },
+            { key:"mon-profil",   label:"Profil",     icon:<User size={20}/>,       badge:newBadgesCount },
             { key:"__spacer__",   spacer:true },
             { key:"profil-stats", label:"Stats",      icon:<TrendingUp size={20}/>, badge:0 },
             { key:"drix",         label:"Classement", icon:<Trophy size={20}/>,     badge:0 },
