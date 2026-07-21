@@ -6427,60 +6427,68 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
       <div onClick={onClick} className="mj-card"
         style={{
           position:"relative", overflow:"hidden",
-          // Fond nettement coloré, propre à chaque jeu
-          background:`linear-gradient(135deg,${col}45 0%,${col}20 50%,#0d0d15 100%)`,
-          border:`1.5px solid ${col}66`,
-          borderRadius:18, padding:"14px 14px 12px",
+          // Dégradé raffiné : la couleur du jeu s'éteint en profondeur vers le noir
+          background:`linear-gradient(158deg,${col}3d 0%,${col}1c 34%,#0e0e17 78%,#0b0b12 100%)`,
+          border:`1px solid ${col}59`,
+          borderRadius:22, padding:"16px 16px 14px",
           cursor:"pointer", userSelect:"none",
-          transition:"all .2s cubic-bezier(.4,1,.6,1)",
-          boxShadow:`0 0 16px ${col}22, inset 0 1px 0 #ffffff0a`,
+          transition:"transform .18s cubic-bezier(.22,.61,.36,1), box-shadow .18s ease",
+          // Ombre réaliste à 2 couches (contact court + ambiante large) + halo coloré
+          boxShadow:`0 10px 24px -14px #000000e6, 0 2px 6px -3px #00000099, 0 0 18px ${col}1f`,
+          "--mjGlow": `${col}33`,
         }}>
-        {/* Illustration de fond très discrète */}
+        {/* Illustration de fond (inchangée) — mieux intégrée : plus nette et posée en profondeur */}
         {bgIcon && (
           <div aria-hidden style={{
-            position:"absolute", right:-12, bottom:-12,
-            fontSize:96, opacity:.04, lineHeight:1,
-            pointerEvents:"none", filter:`drop-shadow(0 0 10px ${col})`,
+            position:"absolute", right:-10, bottom:-14,
+            fontSize:96, opacity:.07, lineHeight:1,
+            pointerEvents:"none",
+            filter:`drop-shadow(0 2px 6px #000000cc) drop-shadow(0 0 14px ${col}66)`,
           }}>{bgIcon}</div>
         )}
-        {/* Glow halo */}
-        <div aria-hidden style={{ position:"absolute",top:-30,right:-30,width:140,height:140,borderRadius:"50%",background:`radial-gradient(circle,${col}1a 0%,transparent 65%)`,pointerEvents:"none" }}/>
+        {/* Halo extérieur diffus */}
+        <div aria-hidden style={{ position:"absolute",top:-34,right:-34,width:150,height:150,borderRadius:"50%",background:`radial-gradient(circle,${col}26 0%,transparent 66%)`,pointerEvents:"none" }}/>
 
         {/* Top row : icon + badge */}
-        <div style={{ display:"flex",alignItems:"flex-start",gap:12,marginBottom:8,position:"relative" }}>
+        <div style={{ display:"flex",alignItems:"flex-start",gap:13,marginBottom:10,position:"relative" }}>
           <div style={{
-            flexShrink:0, width:46, height:46, borderRadius:12,
-            background:`linear-gradient(135deg,${col}33,${col}11)`,
-            border:`1px solid ${col}66`,
+            flexShrink:0, width:46, height:46, borderRadius:14,
+            background:`linear-gradient(150deg,${col}42,${col}12)`,
+            border:`1px solid ${col}70`,
             display:"flex",alignItems:"center",justifyContent:"center",
-            boxShadow:`0 0 12px ${col}44, inset 0 1px 0 #ffffff15`,
+            boxShadow:`0 4px 12px -6px #000000d9, 0 0 14px ${col}33, inset 0 1px 0 #ffffff24`,
           }}>
-            <IconComp size={24} color={col} style={{ filter:`drop-shadow(0 0 4px ${col})` }}/>
+            <IconComp size={24} color={col} style={{ filter:`drop-shadow(0 1px 1px #00000099) drop-shadow(0 0 5px ${col}5c)` }}/>
           </div>
           <div style={{ flex:1,minWidth:0 }}>
-            <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:2,flexWrap:"wrap" }}>
-              <span style={{ fontWeight:900,fontSize:21,color:"#f1f5f9",letterSpacing:.3 }}>{label}</span>
+            {/* Hauteur figée : garantit que les cartes restent toutes égales */}
+            <div style={{ display:"flex",alignItems:"center",gap:7,marginBottom:4,flexWrap:"wrap",height:28,overflow:"hidden" }}>
+              <span className="mj-title" style={{ fontWeight:900,color:"#f8fafc",lineHeight:1.15,textShadow:"0 1px 2px #00000080" }}>{label}</span>
               {badge && (
-                <span style={{
-                  background:`linear-gradient(135deg,${col}33,${col}11)`,
-                  border:`1px solid ${col}77`,
-                  color:col, fontSize:9, fontWeight:900,
-                  borderRadius:5, padding:"2px 6px",
-                  letterSpacing:1, textShadow:`0 0 6px ${col}88`,
+                <span className="mj-badge" style={{
+                  background:`linear-gradient(150deg,${col}3d,${col}14)`,
+                  border:`1px solid ${col}7a`,
+                  color:col, fontWeight:900,
+                  borderRadius:999,
+                  textShadow:`0 0 7px ${col}99`,
+                  boxShadow:`inset 0 1px 0 #ffffff2b, 0 1px 5px -2px ${col}80`,
+                  whiteSpace:"nowrap",
                 }}>{badgeIcon} {badge}</span>
               )}
               {played && (
-                <span style={{
-                  background:"#052e1655", border:"1px solid #22c55e88",
-                  color:"#22c55e", fontSize:9, fontWeight:900,
-                  borderRadius:5, padding:"2px 6px", letterSpacing:.5,
+                <span className="mj-badge" style={{
+                  background:"linear-gradient(150deg,#22c55e3d,#22c55e14)", border:"1px solid #22c55e7a",
+                  color:"#4ade80", fontWeight:900,
+                  borderRadius:999,
+                  boxShadow:"inset 0 1px 0 #ffffff2b, 0 1px 5px -2px #22c55e80",
+                  whiteSpace:"nowrap",
                 }}><EmoText s="✓ FAIT" size={9} gap={3}/></span>
               )}
             </div>
             {/* Hauteur figée à 2 lignes → toutes les cartes ont exactement la même taille */}
             <div style={{
-              fontSize:12, color:"#cbd5e1", lineHeight:1.45,
-              height:"2.9em", display:"-webkit-box", WebkitLineClamp:2,
+              fontSize:12, color:"#d3dbe6", lineHeight:1.5,
+              height:"3em", display:"-webkit-box", WebkitLineClamp:2,
               WebkitBoxOrient:"vertical", overflow:"hidden",
             }}>{sub}</div>
           </div>
@@ -6488,13 +6496,13 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
 
         {/* Bottom : bouton Jouer */}
         <div style={{ display:"flex",justifyContent:"flex-end",position:"relative" }}>
-          <span style={{
-            display:"inline-flex",alignItems:"center",gap:5,
-            padding:"5px 12px",borderRadius:8,
-            background:`linear-gradient(135deg,${col},${col}cc)`,
-            color:"#fff", fontSize:11, fontWeight:900, letterSpacing:1,
-            boxShadow:`0 2px 10px ${col}66, inset 0 1px 0 #ffffff44, inset 0 -2px 0 #00000033`,
-            textShadow:"0 1px 1px #00000055",
+          <span className="mj-play" style={{
+            display:"inline-flex",alignItems:"center",gap:6,
+            padding:"7px 15px",borderRadius:11,
+            background:`linear-gradient(150deg,${col},${col}d0 55%,${col}b0 100%)`,
+            color:"#fff", fontSize:11, fontWeight:900, letterSpacing:1.1,
+            boxShadow:`0 6px 16px -8px ${col}cc, 0 0 14px ${col}3d, inset 0 1px 0 #ffffff5e, inset 0 -2px 6px -2px #00000073`,
+            textShadow:"0 1px 2px #00000073",
           }}>
             ▶ JOUER
           </span>
@@ -6566,12 +6574,57 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
     return (
       <div style={{ maxWidth:700,margin:"0 auto",padding:"18px 14px 32px" }}>
         <style>{`
-          @keyframes mjCardIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-          @keyframes mjHeroGlow { 0%,100%{box-shadow:0 0 24px #f9731633,inset 0 0 40px #f9731611} 50%{box-shadow:0 0 40px #f9731655,inset 0 0 60px #f9731622} }
-          @keyframes mjShine { 0%{transform:translateX(-150%) skewX(-22deg)} 100%{transform:translateX(280%) skewX(-22deg)} }
+          @keyframes mjCardIn { from{opacity:0;transform:translateY(12px) scale(.985)} to{opacity:1;transform:none} }
+          /* Halo orange sobre : on n'anime qu'une ombre légère (pas de gros flou intérieur = pas de repaint coûteux) */
+          @keyframes mjHeroGlow {
+            0%,100% { box-shadow:0 14px 34px -18px #000000e6, 0 0 20px #f9731614, inset 0 1px 0 #ffffff12; }
+            50%     { box-shadow:0 16px 38px -18px #000000e6, 0 0 32px #f9731628, inset 0 1px 0 #ffffff18; }
+          }
+          @keyframes mjShine { 0%{transform:translateX(-160%) skewX(-20deg)} 100%{transform:translateX(300%) skewX(-20deg)} }
           @keyframes mjPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.04)} }
-          .mj-card { animation: mjCardIn .35s cubic-bezier(.34,1.2,.64,1) both; }
-          .mj-card:hover, .mj-card:active { transform:translateY(-3px) !important; box-shadow:0 8px 28px var(--mjShadow,#0006), inset 0 1px 0 #ffffff15 !important; }
+
+          .mj-card { animation: mjCardIn .5s cubic-bezier(.22,.61,.36,1) both; -webkit-tap-highlight-color: transparent; transform: translateZ(0); }
+
+          /* Effet verre : voile de lumière très léger en haut de la carte */
+          .mj-card::before {
+            content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+            background:linear-gradient(180deg,#ffffff0e 0%,#ffffff06 16%,#ffffff00 46%);
+          }
+          /* Reflet de bordure + assise sombre en bas = profondeur */
+          .mj-card::after {
+            content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+            box-shadow: inset 0 1px 0 #ffffff26, inset 0 0 0 1px #ffffff0a, inset 0 -18px 28px -22px #000000a6;
+          }
+
+          /* Apparition en cascade — uniquement les cartes de la liste (le hero garde son propre délai) */
+          .mj-list > .mj-card:nth-child(2){ animation-delay:.05s }
+          .mj-list > .mj-card:nth-child(3){ animation-delay:.10s }
+          .mj-list > .mj-card:nth-child(4){ animation-delay:.15s }
+          .mj-list > .mj-card:nth-child(5){ animation-delay:.20s }
+          .mj-list > .mj-card:nth-child(6){ animation-delay:.25s }
+          .mj-list > .mj-card:nth-child(7){ animation-delay:.30s }
+
+          /* !important OBLIGATOIRE : une animation en fill-mode "both" bat une déclaration normale. */
+          @media (hover:hover) {
+            .mj-card:hover { transform:translateY(-2px) !important; box-shadow:0 16px 30px -16px #000000f2, 0 0 22px var(--mjGlow,#00000000), inset 0 1px 0 #ffffff1f !important; }
+            .mj-card:hover .mj-play { transform:translateY(-1px); }
+          }
+          .mj-card:active { transform:translateY(-1px) scale(.985) !important; transition-duration:.1s !important; }
+          .mj-card:active .mj-play { transform:scale(.965); }
+          .mj-play { transition: transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s ease; }
+
+          .mj-title { font-size:20px; letter-spacing:.2px; }
+          .mj-badge { font-size:9px; padding:3px 8px; letter-spacing:.9px; }
+          /* Très petits écrans : on resserre titre ET badge pour que le badge ne soit jamais coupé */
+          @media (max-width:359px){
+            .mj-title { font-size:15px; letter-spacing:0; }
+            .mj-badge { font-size:8px; padding:2px 6px; letter-spacing:.3px; }
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            .mj-card, .mj-card * { animation:none !important; transition:none !important; }
+            .mj-card { opacity:1 !important; transform:none !important; }
+          }
         `}</style>
 
         <button onClick={()=>initCat ? setPage("home") : setCategorie(null)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:14,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:0 }}>
@@ -6581,18 +6634,21 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
         {/* ═══ HERO HEADER ═══ */}
         <div className="mj-card" style={{
           position:"relative", overflow:"hidden",
-          background:"radial-gradient(ellipse at center,#1a0a00 0%,#0f0500 60%,#0a0306 100%)",
-          border:"1.5px solid #f9731677",
-          borderRadius:18, padding:"16px 14px 14px",
-          textAlign:"center", marginBottom:12,
-          animation:"mjHeroGlow 3.5s ease-in-out infinite, mjCardIn .35s cubic-bezier(.34,1.2,.64,1) both",
+          background:"radial-gradient(120% 95% at 50% -20%,#f9731622 0%,#f9731608 38%,#00000000 72%),"
+                    +"radial-gradient(ellipse at center,#1a0a00 0%,#0f0500 60%,#0a0306 100%)",
+          border:"1px solid #f9731647",
+          borderRadius:22, padding:"24px 18px 21px",
+          textAlign:"center", marginBottom:16,
+          animation:"mjHeroGlow 6.5s ease-in-out infinite, mjCardIn .55s cubic-bezier(.22,.61,.36,1) both",
         }}>
-          <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:100,background:"linear-gradient(90deg,transparent,#ffffff10,transparent)",animation:"mjShine 4s ease-in-out infinite",pointerEvents:"none" }}/>
+          {/* Reflet balayant : dégradé déjà doux (pas de filter animé) */}
+          <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:120,background:"linear-gradient(90deg,#ffffff00 0%,#ffffff05 30%,#ffffff0d 50%,#ffffff05 70%,#ffffff00 100%)",animation:"mjShine 7s ease-in-out infinite",pointerEvents:"none" }}/>
           <div style={{
-            fontSize:"clamp(20px,5.5vw,26px)",fontWeight:900,lineHeight:1.1,
-            background:"linear-gradient(135deg,#fbbf24 0%,#f97316 50%,#ef4444 100%)",
-            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
-            letterSpacing:1.5,
+            fontSize:"clamp(20px,5.6vw,26px)",fontWeight:900,lineHeight:1.18,
+            background:"linear-gradient(135deg,#fbbf24 0%,#f97316 52%,#ef4444 100%)",
+            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text",
+            letterSpacing:2, position:"relative",
+            filter:"drop-shadow(0 1px 0 #00000073) drop-shadow(0 0 14px #f9731630)",
           }}>
             LA SALLE DE JEUX DART POINT
           </div>
@@ -6636,7 +6692,7 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
         )}
 
         {/* ═══ TOUS LES MODES ═══ */}
-        <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+        <div className="mj-list" style={{ display:"flex",flexDirection:"column",gap:14 }}>
           {/* 1. 501 ou 301 — le choix du mode se fait ensuite dans le scoreur */}
           <GameCard icon={Target} label="501 ou 301" col="#f97316"
             sub="🎯 Le grand classique. Choisis 501 ou 301, descends à 0 et termine sur un double."
