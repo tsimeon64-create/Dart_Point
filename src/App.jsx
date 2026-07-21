@@ -6629,85 +6629,86 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           </div>
         )}
 
-        {/* ═══ AFFRONTE UN BOT ═══ */}
-        <div className="mj-card" onClick={()=>setPage("scoreur-bot")} style={{
-          position:"relative", overflow:"hidden",
-          background:"linear-gradient(135deg,#1c1405 0%,#12100a 55%,#0a0a10 100%)",
-          border:"1.5px solid #fbbf2477",
-          borderRadius:16, padding:"12px 14px",
-          cursor:"pointer", userSelect:"none", marginBottom:12,
-          boxShadow:"0 0 18px #fbbf2433, inset 0 1px 0 #ffffff0a",
-          "--mjShadow":"#fbbf2477",
-        }}>
-          <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:70,background:"linear-gradient(90deg,transparent,#ffffff14,transparent)",animation:"mjShine 3.2s ease-in-out infinite",pointerEvents:"none" }}/>
-          <div style={{ display:"flex",alignItems:"center",gap:12,position:"relative" }}>
-            <div style={{
-              flexShrink:0, width:46, height:46, borderRadius:12,
-              background:"linear-gradient(135deg,#fbbf2440,#fbbf2411)",
-              border:"1px solid #fbbf24aa",
-              display:"flex",alignItems:"center",justifyContent:"center",
-              boxShadow:"0 0 12px #fbbf2455, inset 0 1px 0 #ffffff15",
-            }}>
-              <Bot size={24} color="#fbbf24" style={{ filter:"drop-shadow(0 0 4px #fbbf24)" }}/>
-            </div>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2 }}>
-                <span style={{ fontWeight:900,fontSize:19,color:"#f1f5f9",letterSpacing:.3 }}>Affronte un bot</span>
-                <span style={{
-                  background:"linear-gradient(135deg,#fbbf2433,#fbbf2411)",
-                  border:"1px solid #fbbf2477", color:"#fbbf24",
-                  fontSize:9, fontWeight:900, borderRadius:5, padding:"2px 6px",
-                  letterSpacing:1, textShadow:"0 0 6px #fbbf2488",
-                }}>👑 SOLO</span>
-              </div>
-              <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.45 }}>🤖 Joue seul contre l'ordi — ou défie le champion Lucky Tillter.</div>
-            </div>
-            <span style={{
-              flexShrink:0,
-              padding:"6px 12px",borderRadius:8,
-              background:"linear-gradient(135deg,#fbbf24,#f59e0b)",
-              color:"#3b1f00",fontSize:11,fontWeight:900,letterSpacing:1,
-              boxShadow:"0 2px 8px #fbbf2488, inset 0 1px 0 #ffffff44",
-            }}>▶ JOUER</span>
-          </div>
-        </div>
-
         {/* ═══ TOUS LES MODES ═══ */}
         <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-          <GameCard icon={Target} label="501" col="#f97316"
-            sub="🎯 Le grand classique. Descends de 501 à 0 et termine sur un double."
+          {/* 1. 501 ou 301 — le choix du mode se fait ensuite dans le scoreur */}
+          <GameCard icon={Target} label="501 ou 301" col="#f97316"
+            sub="🎯 Le grand classique. Choisis 501 ou 301, descends à 0 et termine sur un double."
             badge="CLASSIQUE" badgeIcon="🥇" bgIcon="501"
             onClick={()=>setPage("scoreur")}/>
 
-          <GameCard icon={Target} label="301" col="#f59e0b"
-            sub="⚡ Version rapide du 501. Parties courtes et nerveuses."
-            badge="RAPIDE" badgeIcon="⚡" bgIcon="301"
-            onClick={()=>setPage("scoreur")}/>
+          {/* 2. Affronte un bot (carte spéciale) */}
+          <div className="mj-card" onClick={()=>setPage("scoreur-bot")} style={{
+            position:"relative", overflow:"hidden",
+            background:"linear-gradient(135deg,#1c1405 0%,#12100a 55%,#0a0a10 100%)",
+            border:"1.5px solid #fbbf2477",
+            borderRadius:16, padding:"12px 14px",
+            cursor:"pointer", userSelect:"none",
+            boxShadow:"0 0 18px #fbbf2433, inset 0 1px 0 #ffffff0a",
+            "--mjShadow":"#fbbf2477",
+          }}>
+            <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:70,background:"linear-gradient(90deg,transparent,#ffffff14,transparent)",animation:"mjShine 3.2s ease-in-out infinite",pointerEvents:"none" }}/>
+            <div style={{ display:"flex",alignItems:"center",gap:12,position:"relative" }}>
+              <div style={{
+                flexShrink:0, width:46, height:46, borderRadius:12,
+                background:"linear-gradient(135deg,#fbbf2440,#fbbf2411)",
+                border:"1px solid #fbbf24aa",
+                display:"flex",alignItems:"center",justifyContent:"center",
+                boxShadow:"0 0 12px #fbbf2455, inset 0 1px 0 #ffffff15",
+              }}>
+                <Bot size={24} color="#fbbf24" style={{ filter:"drop-shadow(0 0 4px #fbbf24)" }}/>
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2 }}>
+                  <span style={{ fontWeight:900,fontSize:19,color:"#f1f5f9",letterSpacing:.3 }}>Affronte un bot</span>
+                  <span style={{
+                    background:"linear-gradient(135deg,#fbbf2433,#fbbf2411)",
+                    border:"1px solid #fbbf2477", color:"#fbbf24",
+                    fontSize:9, fontWeight:900, borderRadius:5, padding:"2px 6px",
+                    letterSpacing:1, textShadow:"0 0 6px #fbbf2488",
+                  }}>👑 SOLO</span>
+                </div>
+                <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.45 }}>🤖 Joue seul contre l'ordi — ou défie le champion Lucky Tillter.</div>
+              </div>
+              <span style={{
+                flexShrink:0,
+                padding:"6px 12px",borderRadius:8,
+                background:"linear-gradient(135deg,#fbbf24,#f59e0b)",
+                color:"#3b1f00",fontSize:11,fontWeight:900,letterSpacing:1,
+                boxShadow:"0 2px 8px #fbbf2488, inset 0 1px 0 #ffffff44",
+              }}>▶ JOUER</span>
+            </div>
+          </div>
 
+          {/* 3. Cricket */}
           <GameCard icon={Swords} label="Cricket" col="#22c55e"
             sub="⚔ Ferme les zones 15-20 + Bull avant ton adversaire."
             badge="POPULAIRE" badgeIcon="🔥" bgIcon="🎯"
             onClick={()=>setPage("cricket-config")}/>
 
-          <GameCard icon={Building2} label="Capital" col="#a78bfa"
-            sub="🎯 Précision et stratégie. Chaque cible compte."
-            badge="TECHNIQUE" badgeIcon="🎯" bgIcon="🏛"
-            onClick={()=>setPage("jeux-capital")}/>
+          {/* 4. Tournoi */}
+          <GameCard icon={Users} label="Tournoi" col="#60a5fa"
+            sub="🏆 Organise ton propre tournoi privé entre amis."
+            badge="MULTIJOUEUR" badgeIcon="👥" bgIcon="🏆"
+            onClick={()=>setPage("tournois-potes")}/>
 
-          <GameCard icon={Target} label="Touché-Coulé" col="#22d3ee"
-            sub="🚢 Bataille navale sur cible : place ta flotte, coule celle de l'adversaire."
-            badge="NOUVEAU" badgeIcon="🚢" bgIcon="🚢"
-            onClick={()=>setPage("touche-coule")}/>
-
+          {/* 5. Double Down */}
           <GameCard icon={Target} label="Double Down" col="#f97316"
             sub="➗ Atteins la cible imposée sur 9 manches. Rate-la et ton score est divisé par deux !"
             badge="NOUVEAU" badgeIcon="➗" bgIcon="➗"
             onClick={()=>setPage("double-down")}/>
 
-          <GameCard icon={Users} label="Tournoi entre potes" col="#60a5fa"
-            sub="🏆 Organise ton propre tournoi privé entre amis."
-            badge="MULTIJOUEUR" badgeIcon="👥" bgIcon="🏆"
-            onClick={()=>setPage("tournois-potes")}/>
+          {/* 6. Capital */}
+          <GameCard icon={Building2} label="Capital" col="#a78bfa"
+            sub="🎯 Précision et stratégie. Chaque cible compte."
+            badge="TECHNIQUE" badgeIcon="🎯" bgIcon="🏛"
+            onClick={()=>setPage("jeux-capital")}/>
+
+          {/* 7. Touché-Coulé */}
+          <GameCard icon={Target} label="Touché-Coulé" col="#22d3ee"
+            sub="🚢 Bataille navale sur cible : place ta flotte, coule celle de l'adversaire."
+            badge="NOUVEAU" badgeIcon="🚢" bgIcon="🚢"
+            onClick={()=>setPage("touche-coule")}/>
         </div>
       </div>
     );
