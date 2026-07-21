@@ -13141,32 +13141,32 @@ export default function App() {
       {/* ── Barre de navigation fixe (mobile), style Dart Point ── */}
       {joueur && !isGamePage(page) && (<>
         <style>{`
-          @keyframes jouerNeon {
-            0%,100% { box-shadow:0 0 6px #ffb01f, 0 0 15px #ff8a00cc, 0 0 28px #ff6a0088, 0 0 42px #ff5a0044, inset 0 0 10px #ff8a0055, 0 5px 14px rgba(0,0,0,0.6); }
-            50%     { box-shadow:0 0 9px #ffc23f, 0 0 22px #ff8a00, 0 0 38px #ff6a00aa, 0 0 60px #ff5a0055, inset 0 0 14px #ff8a0077, 0 5px 14px rgba(0,0,0,0.6); }
+          @keyframes rivaliteGlow {
+            0%,100% { box-shadow:0 0 10px #f9731688, 0 0 22px #f9731555, 0 6px 16px rgba(0,0,0,0.6), inset 0 1px 0 #ffffff66, inset 0 -3px 8px #7c2d1255; }
+            50%     { box-shadow:0 0 14px #f97316aa, 0 0 34px #f9731577, 0 6px 16px rgba(0,0,0,0.6), inset 0 1px 0 #ffffff66, inset 0 -3px 8px #7c2d1255; }
           }
-          .jouer-neon { animation:jouerNeon 1.8s ease-in-out infinite; }
-          @media (prefers-reduced-motion: reduce) { .jouer-neon { animation:none; } }
+          .rivalite-fab { animation:rivaliteGlow 2.2s ease-in-out infinite; }
+          @media (prefers-reduced-motion: reduce) { .rivalite-fab { animation:none; } }
         `}</style>
         <div style={{ height:"calc(58px + env(safe-area-inset-bottom))" }} aria-hidden="true"/>
         <nav style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:300,
           background:"rgba(8,8,13,0.97)", borderTop:"1px solid #1a1a26",
           backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", overflow:"visible",
           display:"flex", paddingBottom:"env(safe-area-inset-bottom)", boxShadow:"0 -4px 22px rgba(0,0,0,0.5)" }}>
-          {/* 6 onglets normaux : TOUJOURS 6× flex:1 (le bouton JOUER est hors flux, donc les labels — dont « Classement » — restent intacts). */}
+          {/* 2 onglets + un espace central invisible + 2 onglets = 5 slots égaux.
+              Le slot 3 (vide) est PILE au centre : le gros bouton RIVALITÉ (hors flux) s'y pose
+              avec exactement le même espace à gauche et à droite, sans jamais recouvrir un label.
+              (« Profil » reste accessible via l'avatar en haut à droite → « Mon profil ».) */}
           {[
             { key:"home",         label:"Accueil",    icon:<HomeIcon size={20}/>,   badge:0 },
-            { key:"defi",         label:"Défi",       icon:<Swords size={20}/>,     badge:notifCount },
             { key:"profil-amis",  label:"Amis",       icon:<Users size={20}/>,      badge:demandesAmisCount },
+            { key:"__spacer__",   spacer:true },
             { key:"profil-stats", label:"Stats",      icon:<TrendingUp size={20}/>, badge:0 },
             { key:"drix",         label:"Classement", icon:<Trophy size={20}/>,     badge:0 },
-            { key:"mon-profil",   label:"Profil",     icon:<User size={20}/>,       badge:0 },
           ].map(t => {
+            if (t.spacer) return <div key={t.key} aria-hidden="true" style={{ flex:1 }}/>;
             const actif = page === t.key;
-            // Couloir central : on écarte légèrement le contenu de « Amis » (gauche) et « Stats » (droite) pour laisser respirer le disque JOUER.
-            const pad = t.key === "profil-amis"  ? "8px 20px 9px 2px"
-                      : t.key === "profil-stats" ? "8px 2px 9px 20px"
-                      :                            "8px 2px 9px";
+            const pad = "8px 2px 9px";
             return (
               <button key={t.key} onClick={()=>navSafe(t.key)} aria-label={t.label}
                 style={{ flex:1, background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column",
@@ -13182,24 +13182,26 @@ export default function App() {
             );
           })}
 
-          {/* ═══ BOUTON JOUER : disque doré flottant, centré (entre Amis et Stats) ═══ */}
-          {/* Hors flux (position:absolute) → ne vole pas de largeur aux onglets. Clé unique « jouer », navigue vers la page Défi DRIX. */}
-          <button key="jouer" onClick={()=>navSafe("defi")} aria-label="Jouer"
+          {/* ═══ BOUTON RIVALITÉ : gros disque central « en avant » (épées) → page Défi DRIX ═══ */}
+          {/* Hors flux (position:absolute) : posé pile au centre grâce à l'espace invisible (slot 3). */}
+          <button key="rivalite" onClick={()=>navSafe("defi")} aria-label="Rivalité"
             style={{ position:"absolute", left:"50%", bottom:"calc(6px + env(safe-area-inset-bottom, 0px))",
               transform:"translateX(-50%)", zIndex:2,
               background:"none", border:"none", padding:0, margin:0, cursor:"pointer", touchAction:"manipulation",
               display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
-            <div className="jouer-neon" style={{
-              width:58, height:58, borderRadius:"50%",
+            <div className="rivalite-fab" style={{
+              position:"relative",
+              width:60, height:60, borderRadius:"50%",
               display:"flex", alignItems:"center", justifyContent:"center",
-              background:"radial-gradient(circle at 50% 40%,#1c1204 0%,#0c0800 68%,#070506 100%)",
-              border:"2.5px solid #ffb01f",
-              color:"#ffd766",
-              boxShadow:"0 0 6px #ffb01f, 0 0 15px #ff8a00cc, 0 0 28px #ff6a0088, 0 0 42px #ff5a0044, inset 0 0 10px #ff8a0055, 0 5px 14px rgba(0,0,0,0.6)",
+              background:"linear-gradient(135deg,#fbbf24 0%,#f97316 55%,#ea580c 100%)",
+              color:"#2a1004",
+              border:"3px solid rgba(8,8,13,0.97)",
+              boxShadow:"0 0 10px #f9731688, 0 0 22px #f9731555, 0 6px 16px rgba(0,0,0,0.6), inset 0 1px 0 #ffffff66, inset 0 -3px 8px #7c2d1255",
             }}>
-              <Target size={28} strokeWidth={2.6} style={{ filter:"drop-shadow(0 0 3px #ffb01f) drop-shadow(0 0 7px #ff8a00cc)" }}/>
+              <Swords size={27} strokeWidth={2.5} style={{ filter:"drop-shadow(0 1px 1px #00000055)" }}/>
+              {notifCount > 0 && <span style={{ position:"absolute", top:-2, right:-2, minWidth:18, height:18, padding:"0 4px", borderRadius:9, background:"#ef4444", color:"#fff", fontSize:10, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 0 8px #ef4444aa", border:"2px solid rgba(8,8,13,0.97)" }}>{notifCount > 9 ? "9+" : notifCount}</span>}
             </div>
-            <span style={{ fontSize:10, fontWeight:800, letterSpacing:.5, color:"#ffca3a", textShadow:"0 0 6px #ff8a00cc, 0 0 11px #ff6a0088" }}>JOUER</span>
+            <span style={{ fontSize:10, fontWeight:800, letterSpacing:.3, color:"#fbbf24", textShadow:"0 0 6px #f9731688" }}>RIVALITÉ</span>
           </button>
         </nav>
       </>)}
