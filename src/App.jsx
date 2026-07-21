@@ -6427,12 +6427,13 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
       <div onClick={onClick} className="mj-card"
         style={{
           position:"relative", overflow:"hidden",
-          background:`linear-gradient(135deg,${col}14 0%,#121218 50%,#0a0a10 100%)`,
-          border:`1.5px solid ${col}55`,
+          // Fond nettement coloré, propre à chaque jeu
+          background:`linear-gradient(135deg,${col}45 0%,${col}20 50%,#0d0d15 100%)`,
+          border:`1.5px solid ${col}66`,
           borderRadius:18, padding:"14px 14px 12px",
           cursor:"pointer", userSelect:"none",
           transition:"all .2s cubic-bezier(.4,1,.6,1)",
-          boxShadow:`0 0 16px ${col}1a, inset 0 1px 0 #ffffff0a`,
+          boxShadow:`0 0 16px ${col}22, inset 0 1px 0 #ffffff0a`,
         }}>
         {/* Illustration de fond très discrète */}
         {bgIcon && (
@@ -6476,7 +6477,12 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
                 }}><EmoText s="✓ FAIT" size={9} gap={3}/></span>
               )}
             </div>
-            <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.45 }}>{sub}</div>
+            {/* Hauteur figée à 2 lignes → toutes les cartes ont exactement la même taille */}
+            <div style={{
+              fontSize:12, color:"#cbd5e1", lineHeight:1.45,
+              height:"2.9em", display:"-webkit-box", WebkitLineClamp:2,
+              WebkitBoxOrient:"vertical", overflow:"hidden",
+            }}>{sub}</div>
           </div>
         </div>
 
@@ -6637,48 +6643,11 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
             badge="CLASSIQUE" badgeIcon="🥇" bgIcon="501"
             onClick={()=>setPage("scoreur")}/>
 
-          {/* 2. Affronte un bot (carte spéciale) */}
-          <div className="mj-card" onClick={()=>setPage("scoreur-bot")} style={{
-            position:"relative", overflow:"hidden",
-            background:"linear-gradient(135deg,#1c1405 0%,#12100a 55%,#0a0a10 100%)",
-            border:"1.5px solid #fbbf2477",
-            borderRadius:16, padding:"12px 14px",
-            cursor:"pointer", userSelect:"none",
-            boxShadow:"0 0 18px #fbbf2433, inset 0 1px 0 #ffffff0a",
-            "--mjShadow":"#fbbf2477",
-          }}>
-            <div aria-hidden style={{ position:"absolute",top:0,left:0,bottom:0,width:70,background:"linear-gradient(90deg,transparent,#ffffff14,transparent)",animation:"mjShine 3.2s ease-in-out infinite",pointerEvents:"none" }}/>
-            <div style={{ display:"flex",alignItems:"center",gap:12,position:"relative" }}>
-              <div style={{
-                flexShrink:0, width:46, height:46, borderRadius:12,
-                background:"linear-gradient(135deg,#fbbf2440,#fbbf2411)",
-                border:"1px solid #fbbf24aa",
-                display:"flex",alignItems:"center",justifyContent:"center",
-                boxShadow:"0 0 12px #fbbf2455, inset 0 1px 0 #ffffff15",
-              }}>
-                <Bot size={24} color="#fbbf24" style={{ filter:"drop-shadow(0 0 4px #fbbf24)" }}/>
-              </div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2 }}>
-                  <span style={{ fontWeight:900,fontSize:19,color:"#f1f5f9",letterSpacing:.3 }}>Affronte un bot</span>
-                  <span style={{
-                    background:"linear-gradient(135deg,#fbbf2433,#fbbf2411)",
-                    border:"1px solid #fbbf2477", color:"#fbbf24",
-                    fontSize:9, fontWeight:900, borderRadius:5, padding:"2px 6px",
-                    letterSpacing:1, textShadow:"0 0 6px #fbbf2488",
-                  }}>👑 SOLO</span>
-                </div>
-                <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.45 }}>🤖 Joue seul contre l'ordi — ou défie le champion Lucky Tillter.</div>
-              </div>
-              <span style={{
-                flexShrink:0,
-                padding:"6px 12px",borderRadius:8,
-                background:"linear-gradient(135deg,#fbbf24,#f59e0b)",
-                color:"#3b1f00",fontSize:11,fontWeight:900,letterSpacing:1,
-                boxShadow:"0 2px 8px #fbbf2488, inset 0 1px 0 #ffffff44",
-              }}>▶ JOUER</span>
-            </div>
-          </div>
+          {/* 2. Affronte un bot */}
+          <GameCard icon={Bot} label="Affronte un bot" col="#fbbf24"
+            sub="🤖 Joue seul contre l'ordi — ou défie le champion Lucky Tillter."
+            badge="SOLO" badgeIcon="👑" bgIcon="🤖"
+            onClick={()=>setPage("scoreur-bot")}/>
 
           {/* 3. Cricket */}
           <GameCard icon={Swords} label="Cricket" col="#22c55e"
@@ -6692,8 +6661,8 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
             badge="MULTIJOUEUR" badgeIcon="👥" bgIcon="🏆"
             onClick={()=>setPage("tournois-potes")}/>
 
-          {/* 5. Double Down */}
-          <GameCard icon={Target} label="Double Down" col="#f97316"
+          {/* 5. Double Down — rouge, pour ne pas doublonner l'orange du 501 */}
+          <GameCard icon={Target} label="Double Down" col="#ef4444"
             sub="➗ Atteins la cible imposée sur 9 manches. Rate-la et ton score est divisé par deux !"
             badge="NOUVEAU" badgeIcon="➗" bgIcon="➗"
             onClick={()=>setPage("double-down")}/>
