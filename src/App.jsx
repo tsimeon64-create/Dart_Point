@@ -2406,6 +2406,17 @@ const PageDefi = ({ joueur, setPage }) => {
         @keyframes defisShine { 0%{transform:translateX(-120%) skewX(-12deg)} 100%{transform:translateX(320%) skewX(-12deg)} }
         @keyframes defisPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.85;transform:scale(1.01)} }
         @keyframes defisTimerBlink { 0%,100%{opacity:1} 50%{opacity:.45} }
+        /* Halo lumineux qui respire autour du VS */
+        @keyframes defisVsHalo { 0%,100%{transform:scale(1);opacity:.5} 50%{transform:scale(1.22);opacity:.12} }
+        /* Micro-appui premium (transform uniquement → aucun coût de rendu).
+           !important obligatoire : certains boutons portent une animation (defisPulse)
+           qui piloterait sinon le transform et neutraliserait l'appui. */
+        .defi-press { transition: transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .18s ease; }
+        .defi-press:active { transform: scale(.972) !important; }
+        @media (prefers-reduced-motion: reduce){
+          .defi-press { transition:none; }
+          .defi-vs-halo { animation:none !important; }
+        }
       `}</style>
 
       <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:8,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:"10px 6px",minHeight:44,touchAction:"manipulation" }}><ArrowLeft size={16}/> Accueil</button>
@@ -2469,12 +2480,12 @@ const PageDefi = ({ joueur, setPage }) => {
           flex:1, padding:"13px 0", border:"none", cursor:"pointer", fontWeight:800, fontSize:14, borderRadius:12,
           transition:"all .15s",
           background: tab==="1v1"
-            ? "linear-gradient(135deg,#f97316,#ea580c)"
-            : "#1a1a1a",
+            ? "linear-gradient(150deg,#fb923c 0%,#f97316 45%,#ea580c 100%)"
+            : "linear-gradient(160deg,#1c1c24,#141419)",
           color: tab==="1v1" ? "#fff" : C.muted,
           boxShadow: tab==="1v1"
-            ? "0 6px 0 #9a3412, 0 8px 16px rgba(249,115,22,0.35)"
-            : "0 4px 0 #0a0a0a, 0 6px 12px rgba(0,0,0,0.4)",
+            ? "0 4px 0 -1px #9a3412, 0 12px 24px -12px rgba(249,115,22,0.7), 0 0 18px rgba(249,115,22,0.26), inset 0 1px 0 #ffffff5e"
+            : "0 3px 0 -1px #0a0a0a, 0 8px 18px -10px #000000e6, inset 0 1px 0 #ffffff12",
           transform: tab==="1v1" ? "translateY(0)" : "translateY(-2px)",
           letterSpacing:.3, display:"flex", alignItems:"center", justifyContent:"center", gap:7,
         }}><Swords size={14}/>Défier un ami</button>
@@ -2482,21 +2493,23 @@ const PageDefi = ({ joueur, setPage }) => {
           flex:1, padding:"13px 0", border:"none", cursor:"pointer", fontWeight:800, fontSize:14, borderRadius:12,
           transition:"all .15s",
           background: tab==="doublette"
-            ? "linear-gradient(135deg,#a78bfa,#7c3aed)"
-            : "#1a1a1a",
+            ? "linear-gradient(150deg,#c4b5fd 0%,#a78bfa 45%,#7c3aed 100%)"
+            : "linear-gradient(160deg,#1c1c24,#141419)",
           color: tab==="doublette" ? "#fff" : C.muted,
           boxShadow: tab==="doublette"
-            ? "0 6px 0 #4c1d95, 0 8px 16px rgba(168,85,247,0.35)"
-            : "0 4px 0 #0a0a0a, 0 6px 12px rgba(0,0,0,0.4)",
+            ? "0 4px 0 -1px #4c1d95, 0 12px 24px -12px rgba(124,58,237,0.7), 0 0 18px rgba(168,85,247,0.26), inset 0 1px 0 #ffffff5e"
+            : "0 3px 0 -1px #0a0a0a, 0 8px 18px -10px #000000e6, inset 0 1px 0 #ffffff12",
           transform: tab==="doublette" ? "translateY(0)" : "translateY(-2px)",
           letterSpacing:.3, display:"flex", alignItems:"center", justifyContent:"center", gap:7,
         }}><Users size={14}/>Doublette 2v2</button>
       </div>
 
       {/* ── Affronter un bot : entraînement contre le « fantôme » d'un ami (sans DRIX) ── */}
-      <button onClick={()=>setPage("scoreur-bot")} style={{
-        width:"100%", padding:"13px 0", marginBottom:20, border:"1px solid #a78bfa55", cursor:"pointer",
-        fontWeight:800, fontSize:14, borderRadius:12, background:"#a78bfa14", color:"#c4b5fd",
+      <button className="defi-press" onClick={()=>setPage("scoreur-bot")} style={{
+        width:"100%", padding:"14px 0", marginBottom:22, border:"1px solid #a78bfa70", cursor:"pointer",
+        fontWeight:800, fontSize:14, borderRadius:13,
+        background:"linear-gradient(160deg,#a78bfa22,#a78bfa0a)", color:"#ddd6fe",
+        boxShadow:"0 10px 22px -14px #000000e6, 0 0 16px rgba(168,85,247,0.16), inset 0 1px 0 #ffffff1a",
         display:"flex", alignItems:"center", justifyContent:"center", gap:8,
       }}>🤖 Affronter un bot</button>
 
@@ -2641,15 +2654,17 @@ const PageDefi = ({ joueur, setPage }) => {
               onClick={()=>setShowRivaliteHebdo(true)}
               style={{
                 position:"relative",overflow:"hidden",cursor:"pointer",
-                background:"linear-gradient(135deg,#0d0010,#0a0018,#100010)",
-                border:"2px solid rgba(168,85,247,0.35)",
-                borderRadius:22,padding:"22px 18px",marginBottom:12,
-                boxShadow:"0 8px 40px rgba(168,85,247,0.1)",
-                transition:"border-color .15s,box-shadow .15s",
+                // Dégradé plus profond + liseré de lumière en haut
+                background:"linear-gradient(160deg,#120220 0%,#0b0018 46%,#0d0014 100%)",
+                border:"1.5px solid rgba(168,85,247,0.42)",
+                borderRadius:24,padding:"24px 18px",marginBottom:14,
+                // Ombre réaliste à 2 couches + halo violet diffus
+                boxShadow:"0 18px 44px -22px #000000f2, 0 4px 12px -6px #00000099, 0 0 34px rgba(168,85,247,0.14), inset 0 1px 0 #ffffff1f",
+                transition:"border-color .18s ease, box-shadow .18s ease",
                 animation:"defisIn .35s ease both",
               }}
-              onMouseEnter={e=>{ e.currentTarget.style.borderColor="rgba(168,85,247,0.7)"; e.currentTarget.style.boxShadow="0 8px 50px rgba(168,85,247,0.2)"; }}
-              onMouseLeave={e=>{ e.currentTarget.style.borderColor="rgba(168,85,247,0.35)"; e.currentTarget.style.boxShadow="0 8px 40px rgba(168,85,247,0.1)"; }}
+              onMouseEnter={e=>{ e.currentTarget.style.borderColor="rgba(168,85,247,0.72)"; e.currentTarget.style.boxShadow="0 22px 52px -22px #000000f2, 0 4px 12px -6px #00000099, 0 0 48px rgba(168,85,247,0.26), inset 0 1px 0 #ffffff2b"; }}
+              onMouseLeave={e=>{ e.currentTarget.style.borderColor="rgba(168,85,247,0.42)"; e.currentTarget.style.boxShadow="0 18px 44px -22px #000000f2, 0 4px 12px -6px #00000099, 0 0 34px rgba(168,85,247,0.14), inset 0 1px 0 #ffffff1f"; }}
             >
               <div style={{ position:"absolute",top:-50,left:-30,width:180,height:180,borderRadius:"50%",background:`radial-gradient(circle,${myColor}12 0%,transparent 70%)`,pointerEvents:"none" }}/>
               <div style={{ position:"absolute",top:-50,right:-30,width:180,height:180,borderRadius:"50%",background:`radial-gradient(circle,${rColor}12 0%,transparent 70%)`,pointerEvents:"none" }}/>
@@ -2683,64 +2698,71 @@ const PageDefi = ({ joueur, setPage }) => {
                     <div style={{ width:60,height:60,borderRadius:"50%",background:`${myColor}20`,border:`3px solid ${myColor}`,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",boxShadow:`0 0 22px ${myColor}40` }}>
                       {joueur.photo ? <img src={joueur.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <RankIcon drix={joueur.drix||1000} size={24}/>}
                     </div>
-                    <div style={{ position:"absolute",bottom:-5,left:"50%",transform:"translateX(-50%)",background:myColor,borderRadius:6,padding:"1px 6px",fontSize:8,fontWeight:900,color:"#000",whiteSpace:"nowrap" }}>MOI</div>
+                    <div style={{ position:"absolute",bottom:-6,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(160deg,${myColor},${myColor}cc)`,borderRadius:999,padding:"2px 8px",fontSize:8,fontWeight:900,color:"#000",whiteSpace:"nowrap",boxShadow:`0 2px 8px -3px #000000cc, 0 0 10px ${myColor}59, inset 0 1px 0 #ffffff6b` }}>MOI</div>
                   </div>
                   <div style={{ textAlign:"center" }}>
-                    <div style={{ fontWeight:800,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:82 }}>{joueur.pseudo}</div>
-                    <div style={{ fontSize:17,fontWeight:900,color:"#f97316",lineHeight:1.1 }}>{joueur.drix||1000}</div>
-                    <div style={{ fontSize:9,color:C.muted }}>DRIX</div>
+                    <div style={{ fontWeight:800,fontSize:13,color:"#e8edf5",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:82 }}>{joueur.pseudo}</div>
+                    <div style={{ fontSize:20,fontWeight:900,color:"#fb923c",lineHeight:1.1,textShadow:"0 0 14px #f9731666" }}>{joueur.drix||1000}</div>
+                    <div style={{ fontSize:9,color:"#94a3b8",fontWeight:700,letterSpacing:.6 }}>DRIX</div>
                   </div>
                 </div>
-                <div style={{ textAlign:"center",padding:"0 10px",flexShrink:0 }}>
-                  <div style={{ width:46,height:46,borderRadius:"50%",background:"linear-gradient(135deg,#a78bfa,#f97316)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 6px",boxShadow:"0 0 22px rgba(168,85,247,0.4)",animation:"defisPulse 2.5s ease infinite" }}>
-                    <Swords size={18} color="#fff"/>
+                <div style={{ textAlign:"center",padding:"0 12px",flexShrink:0 }}>
+                  <div style={{ position:"relative",width:52,height:52,margin:"0 auto 8px" }}>
+                    {/* Halo qui respire autour du VS */}
+                    <div aria-hidden className="defi-vs-halo" style={{ position:"absolute",inset:-9,borderRadius:"50%",background:"radial-gradient(circle,rgba(168,85,247,0.55) 0%,rgba(168,85,247,0) 70%)",animation:"defisVsHalo 2.8s ease-in-out infinite",pointerEvents:"none" }}/>
+                    <div style={{ position:"relative",width:52,height:52,borderRadius:"50%",background:"linear-gradient(140deg,#a78bfa 0%,#8b5cf6 45%,#f97316 100%)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 20px -8px #000000d9, 0 0 26px rgba(168,85,247,0.5), inset 0 1px 0 #ffffff6b",animation:"defisPulse 2.5s ease infinite" }}>
+                      <Swords size={20} color="#fff" style={{ filter:"drop-shadow(0 1px 2px #00000080)" }}/>
+                    </div>
                   </div>
-                  <div style={{ fontSize:11,fontWeight:900,color:"#a78bfa",letterSpacing:3 }}>VS</div>
+                  {/* textIndent compense l'espace que letterSpacing ajoute après le "S" → VS vraiment centré */}
+                  <div style={{ fontSize:12,fontWeight:900,color:"#c4b5fd",letterSpacing:3.5,textIndent:"3.5px",textShadow:"0 0 12px rgba(168,85,247,0.75)" }}>VS</div>
                 </div>
                 <div style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8 }}>
                   <div style={{ position:"relative" }}>
                     <div style={{ width:60,height:60,borderRadius:"50%",background:`${rColor}20`,border:`3px solid ${rColor}`,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",boxShadow:`0 0 22px ${rColor}40` }}>
                       {rival.photo ? <img src={rival.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <RankIcon drix={rival.drix||1000} size={24}/>}
                     </div>
-                    <div style={{ position:"absolute",bottom:-5,left:"50%",transform:"translateX(-50%)",background:rColor,borderRadius:6,padding:"1px 6px",fontSize:8,fontWeight:900,color:"#000",whiteSpace:"nowrap" }}>RIVAL</div>
+                    <div style={{ position:"absolute",bottom:-6,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(160deg,${rColor},${rColor}cc)`,borderRadius:999,padding:"2px 8px",fontSize:8,fontWeight:900,color:"#000",whiteSpace:"nowrap",boxShadow:`0 2px 8px -3px #000000cc, 0 0 10px ${rColor}59, inset 0 1px 0 #ffffff6b` }}>RIVAL</div>
                   </div>
                   <div style={{ textAlign:"center" }}>
-                    <div style={{ fontWeight:800,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:82 }}>{rival.pseudo}</div>
-                    <div style={{ fontSize:17,fontWeight:900,color:rColor,lineHeight:1.1 }}>{rival.drix||1000}</div>
-                    <div style={{ fontSize:9,color:C.muted }}>DRIX</div>
+                    <div style={{ fontWeight:800,fontSize:13,color:"#e8edf5",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:82 }}>{rival.pseudo}</div>
+                    <div style={{ fontSize:20,fontWeight:900,color:rColor,lineHeight:1.1,textShadow:`0 0 14px ${rColor}66` }}>{rival.drix||1000}</div>
+                    <div style={{ fontSize:9,color:"#94a3b8",fontWeight:700,letterSpacing:.6 }}>DRIX</div>
                   </div>
                 </div>
               </div>
 
               {/* Récompenses */}
-              <div style={{ display:"flex",gap:8,marginBottom:16 }}>
-                <div style={{ flex:1,background:"#22c55e14",border:"1px solid #22c55e30",borderRadius:12,padding:"11px 8px",textAlign:"center" }}>
-                  <div style={{ fontSize:10,color:"#4ade80",fontWeight:700,marginBottom:4 }}><EmoText s="🏆 VICTOIRE" size={10} gap={4}/></div>
-                  <div style={{ fontSize:26,fontWeight:900,color:"#22c55e",lineHeight:1 }}>+50</div>
-                  <div style={{ fontSize:9,color:"#4ade80",marginTop:2 }}>DRIX</div>
+              <div style={{ display:"flex",gap:10,marginBottom:18 }}>
+                <div style={{ flex:1,background:"linear-gradient(160deg,#22c55e1f,#22c55e0a)",border:"1px solid #22c55e3d",borderRadius:14,padding:"12px 8px",textAlign:"center",boxShadow:"0 6px 16px -10px #000000cc, inset 0 1px 0 #ffffff17" }}>
+                  <div style={{ fontSize:10,color:"#6ee7a0",fontWeight:700,marginBottom:4 }}><EmoText s="🏆 VICTOIRE" size={10} gap={4}/></div>
+                  <div style={{ fontSize:27,fontWeight:900,color:"#34d399",lineHeight:1,textShadow:"0 0 14px #22c55e59" }}>+50</div>
+                  <div style={{ fontSize:9,color:"#6ee7a0",marginTop:2 }}>DRIX</div>
                 </div>
-                <div style={{ flex:1,background:"#ffffff06",border:"1px solid #ffffff0d",borderRadius:12,padding:"11px 8px",textAlign:"center" }}>
-                  <div style={{ fontSize:10,color:"#475569",fontWeight:700,marginBottom:4 }}><EmoText s="❌ DÉFAITE" size={10} gap={4}/></div>
-                  <div style={{ fontSize:26,fontWeight:900,color:"#334155",lineHeight:1 }}>0</div>
-                  <div style={{ fontSize:9,color:"#475569",marginTop:2 }}>perte</div>
+                <div style={{ flex:1,background:"linear-gradient(160deg,#ffffff0d,#ffffff05)",border:"1px solid #ffffff1a",borderRadius:14,padding:"12px 8px",textAlign:"center",boxShadow:"0 6px 16px -10px #000000cc, inset 0 1px 0 #ffffff12" }}>
+                  <div style={{ fontSize:10,color:"#64748b",fontWeight:700,marginBottom:4 }}><EmoText s="❌ DÉFAITE" size={10} gap={4}/></div>
+                  <div style={{ fontSize:27,fontWeight:900,color:"#475569",lineHeight:1 }}>0</div>
+                  <div style={{ fontSize:9,color:"#64748b",marginTop:2 }}>perte</div>
                 </div>
-                <div style={{ flex:1.4,background:"rgba(168,85,247,0.07)",border:"1px solid rgba(168,85,247,0.18)",borderRadius:12,padding:"11px 8px",textAlign:"center" }}>
-                  <div style={{ fontSize:10,color:"#d8b4fe",fontWeight:700,marginBottom:4 }}><EmoText s="⚡ CHANCES" size={10} gap={4}/></div>
-                  <div style={{ fontSize:26,fontWeight:900,color:"#a78bfa",lineHeight:1 }}>{probMoi}%</div>
-                  <div style={{ fontSize:9,color:"#d8b4fe",marginTop:2 }}>victoire</div>
+                <div style={{ flex:1.4,background:"linear-gradient(160deg,rgba(168,85,247,0.16),rgba(168,85,247,0.05))",border:"1px solid rgba(168,85,247,0.3)",borderRadius:14,padding:"12px 8px",textAlign:"center",boxShadow:"0 6px 16px -10px #000000cc, 0 0 18px rgba(168,85,247,0.12), inset 0 1px 0 #ffffff1a" }}>
+                  <div style={{ fontSize:10,color:"#e9d5ff",fontWeight:700,marginBottom:4 }}><EmoText s="⚡ CHANCES" size={10} gap={4}/></div>
+                  <div style={{ fontSize:27,fontWeight:900,color:"#c4b5fd",lineHeight:1,textShadow:"0 0 14px rgba(168,85,247,0.55)" }}>{probMoi}%</div>
+                  <div style={{ fontSize:9,color:"#e9d5ff",marginTop:2 }}>victoire</div>
                 </div>
               </div>
 
               {/* CTA */}
               <button
+                className="defi-press"
                 onClick={e=>{ e.stopPropagation(); setShowRivaliteHebdo(true); }}
                 style={{
-                  width:"100%",padding:"14px 0",border:"none",borderRadius:14,
-                  background:"linear-gradient(135deg,#a78bfa,#7c3aed)",
+                  width:"100%",padding:"15px 0",border:"none",borderRadius:15,
+                  background:"linear-gradient(150deg,#c4b5fd 0%,#a78bfa 42%,#7c3aed 100%)",
                   color:"#fff",fontWeight:900,fontSize:15,cursor:"pointer",
-                  boxShadow:"0 6px 28px rgba(168,85,247,0.38)",
+                  boxShadow:"0 12px 28px -12px rgba(124,58,237,0.85), 0 0 22px rgba(168,85,247,0.3), inset 0 1px 0 #ffffff5e, inset 0 -2px 7px -2px #00000073",
                   display:"flex",alignItems:"center",justifyContent:"center",gap:8,
                   letterSpacing:.3,position:"relative",overflow:"hidden",
+                  textShadow:"0 1px 2px #00000073",
                   animation:"defisPulse 3s ease infinite",
                 }}>
                 <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.1) 50%,transparent 60%)",animation:"defisShine 5s ease infinite 2s",pointerEvents:"none" }}/>
@@ -2824,9 +2846,9 @@ const PageDefi = ({ joueur, setPage }) => {
             `}</style>
 
             {/* ── Recherche + Tri ── */}
-            <div style={{ display:"flex", gap:8, marginBottom:14 }}>
-              <div style={{ flex:1, display:"flex", alignItems:"center", gap:10, background:"linear-gradient(135deg,#111118,#13131f)", border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 16px", minWidth:0, boxShadow:"0 2px 20px rgba(0,0,0,0.25)" }}>
-                <Search size={16} color={C.muted} style={{ flexShrink:0 }}/>
+            <div style={{ display:"flex", gap:10, marginBottom:16 }}>
+              <div style={{ flex:1, display:"flex", alignItems:"center", gap:11, background:"linear-gradient(160deg,#16161f,#101018)", border:"1px solid #2a2a38", borderRadius:16, padding:"13px 16px", minWidth:0, boxShadow:"0 10px 24px -16px #000000f2, 0 2px 6px -3px #00000080, inset 0 1px 0 #ffffff14" }}>
+                <Search size={17} color={C.accent} style={{ flexShrink:0, filter:`drop-shadow(0 0 6px ${C.accent}66)` }}/>
                 <input
                   value={searchDefi}
                   onChange={e=>{ setSearchDefi(e.target.value); setSearchGlobal([]); setSearchLoading(false); }}
@@ -2838,7 +2860,7 @@ const PageDefi = ({ joueur, setPage }) => {
                 )}
               </div>
               <div style={{ position:"relative", flexShrink:0 }}>
-                <button onClick={()=>setTriOpen(o=>!o)} style={{ height:"100%", display:"flex", alignItems:"center", gap:5, background:"linear-gradient(135deg,#111118,#13131f)", border:`1px solid ${triOpen?C.accent:C.border}`, borderRadius:14, padding:"0 12px", color:C.text, fontWeight:800, fontSize:12.5, cursor:"pointer", whiteSpace:"nowrap", touchAction:"manipulation" }}>
+                <button className="defi-press" onClick={()=>setTriOpen(o=>!o)} style={{ height:"100%", display:"flex", alignItems:"center", gap:5, background:"linear-gradient(160deg,#16161f,#101018)", border:`1px solid ${triOpen?C.accent:"#2a2a38"}`, borderRadius:16, padding:"0 13px", color:C.text, fontWeight:800, fontSize:12.5, cursor:"pointer", whiteSpace:"nowrap", touchAction:"manipulation", boxShadow:triOpen?`0 0 18px ${C.accent}3d, inset 0 1px 0 #ffffff14`:"0 10px 24px -16px #000000f2, inset 0 1px 0 #ffffff14" }}>
                   <span style={{ color:C.accent, fontSize:14 }}>⇅</span>{TRI_LABELS[tri]}
                 </button>
                 {triOpen && (
@@ -2869,22 +2891,22 @@ const PageDefi = ({ joueur, setPage }) => {
                   const glow = a.fav ? `0 0 16px ${C.yellow}26` : isRival ? `0 0 14px ${C.red}22` : isClose ? `0 0 12px ${C.blue}1c` : "none";
                   return (
                     <div key={a.key} className="defi-ami-card" onClick={()=>ouvrirModal(a.raw)}
-                      style={{ position:"relative", overflow:"hidden", background:"#16161c", border:`1.5px solid ${bCol}`, borderRadius:16, padding:"12px 14px", marginBottom:9, cursor:"pointer", boxShadow:`0 3px 12px #00000035${glow!=="none"?", "+glow:""}`, animation:"dpFadeUp .4s ease both", animationDelay:`${Math.min(idx*0.03,0.3).toFixed(2)}s` }}>
-                      <div aria-hidden style={{ position:"absolute", top:-30, right:-25, width:120, height:120, borderRadius:"50%", background:`radial-gradient(circle, ${rang.color}18 0%, transparent 65%)`, pointerEvents:"none" }}/>
-                      <div style={{ display:"flex", alignItems:"center", gap:13, position:"relative" }}>
+                      style={{ position:"relative", overflow:"hidden", background:"linear-gradient(160deg,#1a1a24,#141419)", border:`1.5px solid ${bCol}`, borderRadius:18, padding:"14px 15px", marginBottom:11, cursor:"pointer", boxShadow:`0 12px 26px -18px #000000f2, 0 2px 6px -3px #00000080, inset 0 1px 0 #ffffff14${glow!=="none"?", "+glow:""}`, animation:"dpFadeUp .4s ease both", animationDelay:`${Math.min(idx*0.03,0.3).toFixed(2)}s` }}>
+                      <div aria-hidden style={{ position:"absolute", top:-30, right:-25, width:120, height:120, borderRadius:"50%", background:`radial-gradient(circle, ${rang.color}22 0%, transparent 65%)`, pointerEvents:"none" }}/>
+                      <div style={{ display:"flex", alignItems:"center", gap:14, position:"relative" }}>
                         {/* Avatar */}
-                        <div style={{ width:54, height:54, borderRadius:"50%", overflow:"hidden", flexShrink:0, border:`2.5px solid ${rang.color}`, background:`${rang.color}22`, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 0 12px ${rang.color}44` }}>
-                          {a.photo ? <img src={a.photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <RankIcon drix={a.drix} size={24}/>}
+                        <div style={{ width:58, height:58, borderRadius:"50%", overflow:"hidden", flexShrink:0, border:`2.5px solid ${rang.color}`, background:`${rang.color}22`, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 6px 16px -8px #000000e6, 0 0 16px ${rang.color}4d, inset 0 1px 0 #ffffff1f` }}>
+                          {a.photo ? <img src={a.photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <RankIcon drix={a.drix} size={26}/>}
                         </div>
                         {/* Infos */}
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                            <span style={{ fontWeight:800, fontSize:16, color:C.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{a.pseudo}</span>
-                            {isRival && <span style={{ flexShrink:0, fontSize:8.5, fontWeight:900, color:C.red, background:`${C.red}1e`, border:`1px solid ${C.red}55`, borderRadius:5, padding:"1px 5px", letterSpacing:.5 }}>RIVAL</span>}
+                            <span style={{ fontWeight:800, fontSize:16, color:"#f1f5f9", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", textShadow:"0 1px 2px #00000073" }}>{a.pseudo}</span>
+                            {isRival && <span style={{ flexShrink:0, fontSize:8.5, fontWeight:900, color:"#fca5a5", background:`linear-gradient(160deg,${C.red}33,${C.red}12)`, border:`1px solid ${C.red}70`, borderRadius:999, padding:"2px 7px", letterSpacing:.5, boxShadow:`inset 0 1px 0 #ffffff26, 0 1px 5px -2px ${C.red}80` }}>RIVAL</span>}
                           </div>
-                          <div style={{ display:"inline-flex", alignItems:"center", gap:4, marginTop:4, background:`${rang.color}18`, border:`1px solid ${rang.color}44`, borderRadius:6, padding:"2px 7px" }}>
+                          <div style={{ display:"inline-flex", alignItems:"center", gap:5, marginTop:5, background:`linear-gradient(160deg,${rang.color}2b,${rang.color}0f)`, border:`1px solid ${rang.color}59`, borderRadius:999, padding:"3px 9px", boxShadow:`inset 0 1px 0 #ffffff26, 0 1px 6px -3px ${rang.color}99` }}>
                             <RankIcon drix={a.drix} size={11}/>
-                            <span style={{ fontSize:10.5, fontWeight:800, color:rang.color }}>{rang.titre}</span>
+                            <span style={{ fontSize:10.5, fontWeight:800, color:rang.color, textShadow:`0 0 8px ${rang.color}66` }}>{rang.titre}</span>
                           </div>
                           {a.mu.m>0 && (
                             <div style={{ fontSize:11, color:C.muted, marginTop:5, display:"flex", alignItems:"center", gap:7 }}>
@@ -2899,13 +2921,13 @@ const PageDefi = ({ joueur, setPage }) => {
                         <div style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"flex-end", gap:1 }}>
                           <button onClick={(e)=>toggleFav(a.id, e)} title={a.fav?"Retirer des favoris":"Ajouter aux favoris"}
                             style={{ background:"none", border:"none", cursor:"pointer", fontSize:17, padding:"0 0 2px", lineHeight:1, opacity:a.fav?1:.3, touchAction:"manipulation" }}>⭐</button>
-                          <div style={{ fontSize:23, fontWeight:900, color:rang.color, lineHeight:1 }}>{a.drix}</div>
-                          <div style={{ fontSize:9, color:C.muted, fontWeight:700, letterSpacing:.5 }}>DRIX</div>
-                          {a.diff!==0 && <div style={{ fontSize:11.5, fontWeight:900, color:a.diff>0?C.accent:C.green, marginTop:1 }}>{a.diff>0?`▲ +${a.diff}`:`▼ ${a.diff}`}</div>}
+                          <div style={{ fontSize:26, fontWeight:900, color:rang.color, lineHeight:1, textShadow:`0 0 16px ${rang.color}59, 0 1px 2px #00000080` }}>{a.drix}</div>
+                          <div style={{ fontSize:9, color:"#94a3b8", fontWeight:700, letterSpacing:.7, marginTop:1 }}>DRIX</div>
+                          {a.diff!==0 && <div style={{ fontSize:11.5, fontWeight:900, color:a.diff>0?C.accent:C.green, marginTop:2 }}>{a.diff>0?`▲ +${a.diff}`:`▼ ${a.diff}`}</div>}
                         </div>
                       </div>
                       {/* Bandeau Défier */}
-                      <div style={{ marginTop:11, display:"flex", alignItems:"center", justifyContent:"center", gap:7, background:`${C.accent}14`, border:`1px solid ${C.accent}33`, borderRadius:10, padding:"7px 0", color:C.accent, fontWeight:800, fontSize:12.5, letterSpacing:.4 }}>
+                      <div className="defi-press" style={{ marginTop:13, display:"flex", alignItems:"center", justifyContent:"center", gap:7, background:`linear-gradient(160deg,${C.accent}2b,${C.accent}10)`, border:`1px solid ${C.accent}4d`, borderRadius:12, padding:"9px 0", color:C.accent, fontWeight:800, fontSize:12.5, letterSpacing:.4, boxShadow:`0 6px 16px -10px ${C.accent}b3, 0 0 14px ${C.accent}1f, inset 0 1px 0 #ffffff21`, textShadow:`0 0 10px ${C.accent}66` }}>
                         <Swords size={14} color={C.accent}/> Défier
                       </div>
                     </div>
