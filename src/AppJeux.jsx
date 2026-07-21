@@ -1191,7 +1191,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       let remaining = startScore;
       let attempts = 0;
       for (const t of tours) {
-        if (remaining <= 170) attempts++;
+        // On ne compte que les volées RÉELLEMENT finissables : les « bogey numbers »
+        // (159, 162, 163, 165, 166, 168, 169) sont ≤ 170 mais impossibles à terminer,
+        // les compter ferait baisser le checkout % à tort.
+        if (isFinishable(remaining)) attempts++;
         remaining -= t;
       }
       return attempts;
@@ -1219,7 +1222,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       loser_max:      lTours.length > 0 ? Math.max(...lTours) : 0,
       winner_26:      cnt(wTours, 26, 26),
       loser_26:       cnt(lTours, 26, 26),
-      // Checkout % réel : tentatives (score ≤ 170 en début de volée) vs. succès (leg gagnée = 1)
+      // Checkout % réel : tentatives (score RÉELLEMENT finissable en début de volée,
+      // donc 2→170 hors bogey numbers) vs. succès (leg gagnée = 1)
       winner_checkout_attempts: countCheckoutAttempts(wTours),
       loser_checkout_attempts:  countCheckoutAttempts(lTours),
     };
