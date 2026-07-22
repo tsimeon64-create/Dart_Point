@@ -3637,11 +3637,12 @@ const FeedAvatar = ({ photo, pseudo, size=40, onClick, status }) => {
 
 // Bouton like
 const LikeButton = ({ refId, joueur, initialCount=0, initialMyLike=false }) => {
+  const synth = String(refId||"").startsWith("__syn"); // carte d'annonce synthétisée (pas de vrai post)
   const [count, setCount] = useState(initialCount);
   const [liked, setLiked] = useState(initialMyLike);
   const [busy, setBusy] = useState(false);
   const toggle = async () => {
-    if (!joueur || busy) return;
+    if (!joueur || busy || synth) return;
     setBusy(true);
     try {
       if (liked) {
@@ -3654,6 +3655,7 @@ const LikeButton = ({ refId, joueur, initialCount=0, initialMyLike=false }) => {
     } catch{}
     setBusy(false);
   };
+  if (synth) return null; // annonce synthétisée → pas d'interaction (id non réel)
   return (
     <button onClick={toggle} style={{ background:"none", border:`1px solid ${liked?"#f97316":"#2a2a2a"}`, borderRadius:20, padding:"4px 14px", color:liked?"#f97316":"#94a3b8", fontSize:12, fontWeight:600, cursor:joueur?"pointer":"default", display:"flex", alignItems:"center", gap:5, touchAction:"manipulation", transition:"all .15s" }}>
       <ThumbsUp size={13}/> {count>0?count:""}
@@ -3663,6 +3665,7 @@ const LikeButton = ({ refId, joueur, initialCount=0, initialMyLike=false }) => {
 
 // Section commentaires
 const CommentSection = ({ refId, joueur, initialComments=[] }) => {
+  const synth = String(refId||"").startsWith("__syn"); // carte d'annonce synthétisée (pas de vrai post)
   const [open, setOpen] = useState(false);
   const [comments, setComments] = useState(initialComments);
   const [texte, setTexte] = useState("");
@@ -3681,6 +3684,7 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
 
   const totalComments = comments.length;
   const hasComments = totalComments > 0;
+  if (synth) return null; // annonce synthétisée → pas de commentaires (id non réel)
   return (
     <div style={{ marginTop:10, borderTop:`1px solid ${C.border}`, paddingTop:8 }}>
       {/* Commentaires affichés directement si présents */}
@@ -5598,17 +5602,55 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
       (joueursData||[]).forEach(j => { if (j.photo) pMap[j.id] = j.photo; });
       setPhotosMap(pMap);
 
+      // ── Vainqueurs du jour (Finish + Scoreur) : ce sont des annonces COMMUNAUTAIRES,
+      // à afficher pour tout le monde. Deux causes les rendaient invisibles : (1) le fil
+      // ne charge que les posts des amis, (2) le post « vainqueur » n'était parfois PAS créé
+      // (le générateur réclame la récompense puis crée le post dans un .catch() qui avale
+      // les échecs → post perdu, jamais recréé car les scores sont déjà rewarded).
+      // Fix robuste : on calcule le vainqueur d'HIER depuis les tables de scores (source sûre)
+      // et on SYNTHÉTISE la carte si elle manque au fil (id « __syn… » → carte en lecture seule).
+      let postsAll = posts || [];
+      try {
+        const fmtChrono = (ms) => { const t=Math.floor(ms/100), d=t%10, s=Math.floor(t/10)%60, mn=Math.floor(t/600); return mn>0?`${mn}:${String(s).padStart(2,"0")}.${d}`:`${s}.${d}s`; };
+        const yj = new Date(Date.now()-86400000).toISOString().split("T")[0];
+        const td = new Date().toISOString().split("T")[0];
+        const [yy,mo,da] = yj.split("-");
+        const yLabel = `${da}/${mo}/${yy}`;
+        const stamp = new Date(td+"T00:01:00").getTime();
+        const [finW, scoW] = await Promise.all([
+          sb(`chrono_finish_scores?date_jour=eq.${yj}&statut=eq.termine&temps_ms=gt.0&order=temps_ms.asc&limit=1&select=joueur_id,joueur_pseudo,temps_ms`).catch(()=>[]),
+          sb(`chrono_scoreur_scores?date_jour=eq.${yj}&statut=eq.termine&temps_ms=gt.0&order=temps_ms.asc&limit=1&select=joueur_id,joueur_pseudo,temps_ms`).catch(()=>[]),
+        ]);
+        const winIds = [...new Set([finW?.[0]?.joueur_id, scoW?.[0]?.joueur_id].filter(Boolean))];
+        const photoWin = {};
+        if (winIds.length) {
+          const jw = await sb(`joueurs?id=in.(${winIds.join(",")})&select=id,photo`).catch(()=>[]);
+          (jw||[]).forEach(j => { if (j.photo) photoWin[j.id] = j.photo; });
+        }
+        // La carte existe-t-elle déjà dans le fil (post réel d'un ami) ? → ne pas dupliquer.
+        const dejaFinish  = postsAll.some(p => { const ci=parseChronoFinishContent(p.contenu); return ci && ci.type==="vainqueur" && ci.date_label===yLabel; });
+        const dejaScoreur = postsAll.some(p => { const ci=parseChronoScoreurContent(p.contenu); return ci && ci.date_label===yLabel; });
+        if (finW?.[0] && !dejaFinish) {
+          const w = finW[0];
+          postsAll = [...postsAll, { id:`__syn_fin_${yj}`, joueur_id:w.joueur_id, joueur_pseudo:w.joueur_pseudo, joueur_photo:photoWin[w.joueur_id]||null,
+            contenu:`🏆 Finish Speedrun — Vainqueur du ${yLabel}\n👑 ${w.joueur_pseudo} remporte le défi du jour en ${fmtChrono(w.temps_ms)} !\n🥇 +5 DRIX`, date:stamp }];
+        }
+        if (scoW?.[0] && !dejaScoreur) {
+          const w = scoW[0];
+          postsAll = [...postsAll, { id:`__syn_sco_${yj}`, joueur_id:w.joueur_id, joueur_pseudo:w.joueur_pseudo, joueur_photo:photoWin[w.joueur_id]||null,
+            contenu:`__CHRONO_SCOREUR__|${JSON.stringify({type:"chrono_scoreur_vainqueur",temps_ms:w.temps_ms,drix:5,date_jour:yj})}`, date:stamp }];
+        }
+      } catch {}
+
       const items = [];
 
-      // Posts texte. On garde : les « vainqueurs du jour » (de tout le monde dans le fil),
-      // ET le Finish Speedrun individuel DU JOUEUR (le sien → il voit sa propre perf).
-      // Les temps individuels des AUTRES restent masqués pour ne pas noyer le comptoir.
-      (posts||[]).forEach(p => {
+      // Posts texte — seuls les « vainqueurs du jour » de speedrun restent (les temps
+      // individuels sont masqués). postsAll inclut les vainqueurs synthétisés au besoin.
+      postsAll.forEach(p => {
         if (!p?.date) return;
         const ci = parseChronoFinishContent(p.contenu);
-        if (ci && ci.type !== "vainqueur" && p.joueur_id !== joueur.id) return;
-        // post Scoreur qui n'est pas un vainqueur (temps individuel / autre) → masqué, sauf le sien
-        if (p.contenu?.startsWith("__CHRONO_SCOREUR__|") && !parseChronoScoreurContent(p.contenu) && p.joueur_id !== joueur.id) return;
+        if (ci && ci.type !== "vainqueur") return;   // temps individuel Finish Speedrun → masqué
+        if (p.contenu?.startsWith("__CHRONO_SCOREUR__|") && !parseChronoScoreurContent(p.contenu)) return;
         items.push({ type:"post", date:p.date, data:p });
       });
 
