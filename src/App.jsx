@@ -5600,13 +5600,15 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
 
       const items = [];
 
-      // Posts texte — on masque les temps individuels de speedrun (seuls les vainqueurs du jour restent)
+      // Posts texte. On garde : les « vainqueurs du jour » (de tout le monde dans le fil),
+      // ET le Finish Speedrun individuel DU JOUEUR (le sien → il voit sa propre perf).
+      // Les temps individuels des AUTRES restent masqués pour ne pas noyer le comptoir.
       (posts||[]).forEach(p => {
         if (!p?.date) return;
         const ci = parseChronoFinishContent(p.contenu);
-        if (ci && ci.type !== "vainqueur") return;   // temps individuel Finish Speedrun → masqué du comptoir
-        // post Scoreur qui n'est pas un vainqueur (temps individuel / autre) → masqué
-        if (p.contenu?.startsWith("__CHRONO_SCOREUR__|") && !parseChronoScoreurContent(p.contenu)) return;
+        if (ci && ci.type !== "vainqueur" && p.joueur_id !== joueur.id) return;
+        // post Scoreur qui n'est pas un vainqueur (temps individuel / autre) → masqué, sauf le sien
+        if (p.contenu?.startsWith("__CHRONO_SCOREUR__|") && !parseChronoScoreurContent(p.contenu) && p.joueur_id !== joueur.id) return;
         items.push({ type:"post", date:p.date, data:p });
       });
 
