@@ -1258,7 +1258,8 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       <XpBlock xp={joueur.xp || 0} />
 
       {/* ── ONGLETS : Stats · Amis · Badges · Historique (le haut reste fixe ; le contenu change dessous ; barre collante) ── */}
-      <div style={{ position:"sticky", top:0, zIndex:6, background:"#0f0f0f", display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, padding:"8px 0 10px", marginBottom:6 }}>
+      <style>{`.mp-tab{transition:transform .12s cubic-bezier(.22,.61,.36,1), box-shadow .15s ease, background .15s ease, border-color .15s ease;} .mp-tab:active{transform:scale(.955);}`}</style>
+      <div style={{ position:"sticky", top:0, zIndex:6, background:"#0f0f0f", display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:7, padding:"8px 0 10px", marginBottom:6 }}>
         {[
           { key:"stats",      icon:<BarChart2 size={15}/>, label:"Analyse",    color:CJ.blue },
           { key:"amis",       icon:<Users size={15}/>,     label:"Amis",       color:CJ.green,  badge:demandesAmisCount },
@@ -1267,11 +1268,17 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
         ].map(({ key, icon, label, color: col, badge }) => {
           const actif = onglet === key;
           return (
-          <button key={key} onClick={()=>{ if(key==="badges"){ const n=badgeCount; localStorage.setItem(BADGES_SEEN_KEY,String(n)); setBadgesSeen(n); } setOnglet(key); }}
-            style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"center", gap:5, background: actif ? col+"22" : "#ffffff07", border:`1px solid ${actif ? col : CJ.border}`, borderRadius:10, padding:"9px 4px", cursor:"pointer", touchAction:"manipulation", transition:"all .15s", minWidth:0 }}>
-            {actif && <span style={{ position:"absolute", top:0, left:"50%", transform:"translateX(-50%)", width:22, height:3, borderRadius:"0 0 3px 3px", background:col }}/>}
-            <span style={{ color:col, display:"flex", flexShrink:0 }}>{icon}</span>
-            <span style={{ fontSize:11, fontWeight: actif?800:600, color: actif?col:CJ.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{label}</span>
+          <button key={key} className="mp-tab" onClick={()=>{ if(key==="badges"){ const n=badgeCount; localStorage.setItem(BADGES_SEEN_KEY,String(n)); setBadgesSeen(n); } setOnglet(key); }}
+            style={{ position:"relative", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:4, minWidth:0,
+              // Look de vrai bouton : dégradé + bordure visible + relief (ombre portée + reflet haut)
+              background: actif ? `linear-gradient(160deg,${col}3a,${col}16)` : "linear-gradient(160deg,#23232e,#17171f)",
+              border:`1px solid ${actif ? col : "#3a3a46"}`, borderRadius:12, padding:"9px 4px", cursor:"pointer", touchAction:"manipulation",
+              boxShadow: actif
+                ? `0 6px 16px -7px ${col}b3, 0 0 14px ${col}33, inset 0 1px 0 #ffffff2e`
+                : "0 4px 10px -5px #000000e6, inset 0 1px 0 #ffffff16" }}>
+            {actif && <span style={{ position:"absolute", top:0, left:"50%", transform:"translateX(-50%)", width:26, height:3, borderRadius:"0 0 3px 3px", background:col, boxShadow:`0 0 8px ${col}` }}/>}
+            <span style={{ color:col, display:"flex", flexShrink:0, filter: actif?`drop-shadow(0 0 4px ${col}88)`:"none" }}>{icon}</span>
+            <span style={{ fontSize:11, fontWeight: actif?800:700, color: actif?col:CJ.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"100%" }}>{label}</span>
             {badge > 0 && <span style={{ position:"absolute", top:-5, right:-5, background:CJ.green, color:"#fff", borderRadius:"50%", minWidth:16, height:16, padding:"0 3px", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:900, border:"2px solid #0f0f0f" }}>{badge>9?"9+":badge}</span>}
           </button>
           );
