@@ -2707,50 +2707,73 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             </div>
           </div>
 
-          {/* ── Grille 1-20 + 25 — cases CARRÉES (aspect-ratio), centrées ── */}
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(7, 1fr)", gap:5, flex:1, minHeight:0, alignContent:"center" }}>
-            {[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,25].map(n => {
-              const interdit = !combinaisonAutorisee(n, mult); // T25
-              return (
-                <button key={n} disabled={interdit}
+          {/* ── Pavé 5×5 : 1-20 sur 4 lignes, puis 25 · MISS · DOUBLE · TRIPLE · RETOUR ──
+              25 cases exactement, toutes CARRÉES. La grille est plafonnée en largeur
+              pour que ses 5 lignes tiennent toujours dans la hauteur d'un téléphone. */}
+          <div style={{ flex:1, minHeight:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(5, 1fr)", gap:6, width:"100%", maxWidth:340 }}>
+              {[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20].map(n => (
+                <button key={n}
                   onPointerDown={e=>{ e.preventDefault(); poserFlechette(n); }}
-                  style={{ aspectRatio:"1 / 1", width:"100%", borderRadius:10,
-                    border:`1px solid ${n===25 ? "#22c55e55" : "#2a2a2a"}`,
-                    background: n===25 ? "linear-gradient(135deg,#0d2417,#0a1a10)" : "linear-gradient(135deg,#1f1f25,#0f0f15)",
-                    color: interdit ? "#3a3a46" : n===25 ? "#4ade80" : "#f1f5f9",
-                    fontSize:17, fontWeight:800, cursor: interdit ? "not-allowed" : "pointer",
-                    opacity: interdit ? .35 : 1, padding:0,
+                  style={{ aspectRatio:"1 / 1", width:"100%", borderRadius:12,
+                    border:"1px solid #2a2a2a",
+                    background:"linear-gradient(135deg,#1f1f25,#0f0f15)", color:"#f1f5f9",
+                    fontSize:26, fontWeight:800, cursor:"pointer", padding:0,
                     display:"flex", alignItems:"center", justifyContent:"center",
                     WebkitTapHighlightColor:"transparent", touchAction:"manipulation",
                     boxShadow:"inset 0 1px 0 #ffffff10, 0 1px 3px #00000055", fontVariantNumeric:"tabular-nums" }}>
                   {n}
                 </button>
-              );
-            })}
-          </div>
-
-          {/* ── MISS (rouge) · DOUBLE / TRIPLE (verts, orange quand armés) · RETOUR ── */}
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:5, flexShrink:0 }}>
-            <button onPointerDown={e=>{ e.preventDefault(); poserFlechette(0); }}
-              style={{ borderRadius:10, border:"1px solid #ef444477", background:"linear-gradient(135deg,#2a0a0a,#1a0608)",
-                color:"#ef4444", fontSize:12, fontWeight:900, minHeight:46, cursor:"pointer", touchAction:"manipulation",
-                boxShadow:"inset 0 1px 0 #ffffff10, 0 0 10px #ef444422" }}>MISS</button>
-            {[[2,"DOUBLE"],[3,"TRIPLE"]].map(([m,lab]) => {
-              const arme = mult === m;
-              const col  = arme ? "#f97316" : "#22c55e";   // vert au repos, ORANGE quand sélectionné
-              return (
-                <button key={m} onPointerDown={e=>{ e.preventDefault(); setMult(arme ? 1 : m); }}
-                  style={{ borderRadius:10, border:`1px solid ${arme ? col : "#22c55e55"}`,
-                    background: arme ? `linear-gradient(135deg,${col}44,${col}14)` : "linear-gradient(135deg,#0d2417,#0a1a10)",
-                    color: col, fontSize:12, fontWeight:900, minHeight:46, cursor:"pointer",
-                    touchAction:"manipulation",
-                    boxShadow: arme ? `0 0 14px ${col}66, inset 0 1px 0 #ffffff26` : "inset 0 1px 0 #ffffff10" }}>
-                  {lab}
-                </button>
-              );
-            })}
-            <button onPointerDown={e=>{ e.preventDefault(); retourFlechette(); }}
-              style={{ borderRadius:10, border:"1px solid #7f1d1d55", background:"linear-gradient(135deg,#241018,#160a0e)", color:"#fca5a5", fontSize:17, fontWeight:900, minHeight:46, cursor:"pointer", touchAction:"manipulation" }}>⬅</button>
+              ))}
+              {/* 25 (bull) — interdit si TRIPLE est armé */}
+              {(() => {
+                const interdit = !combinaisonAutorisee(25, mult);
+                return (
+                  <button disabled={interdit}
+                    onPointerDown={e=>{ e.preventDefault(); poserFlechette(25); }}
+                    style={{ aspectRatio:"1 / 1", width:"100%", borderRadius:12,
+                      border:"1px solid #22c55e66", background:"linear-gradient(135deg,#0d2417,#0a1a10)",
+                      color: interdit ? "#3a3a46" : "#4ade80", opacity: interdit ? .35 : 1,
+                      fontSize:26, fontWeight:800, cursor: interdit ? "not-allowed" : "pointer", padding:0,
+                      display:"flex", alignItems:"center", justifyContent:"center",
+                      WebkitTapHighlightColor:"transparent", touchAction:"manipulation",
+                      boxShadow:"inset 0 1px 0 #ffffff10, 0 1px 3px #00000055", fontVariantNumeric:"tabular-nums" }}>
+                    25
+                  </button>
+                );
+              })()}
+              {/* MISS — rouge */}
+              <button onPointerDown={e=>{ e.preventDefault(); poserFlechette(0); }}
+                style={{ aspectRatio:"1 / 1", width:"100%", borderRadius:12,
+                  border:"1px solid #ef444477", background:"linear-gradient(135deg,#2a0a0a,#1a0608)",
+                  color:"#ef4444", fontSize:13, fontWeight:900, cursor:"pointer", padding:0,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  touchAction:"manipulation", boxShadow:"inset 0 1px 0 #ffffff10, 0 0 10px #ef444422" }}>MISS</button>
+              {/* DOUBLE / TRIPLE — verts, ORANGE quand armés */}
+              {[[2,"DOUBLE"],[3,"TRIPLE"]].map(([m,lab]) => {
+                const arme = mult === m;
+                const col  = arme ? "#f97316" : "#22c55e";
+                return (
+                  <button key={m} onPointerDown={e=>{ e.preventDefault(); setMult(arme ? 1 : m); }}
+                    style={{ aspectRatio:"1 / 1", width:"100%", borderRadius:12,
+                      border:`1px solid ${arme ? col : "#22c55e55"}`,
+                      background: arme ? `linear-gradient(135deg,${col}44,${col}14)` : "linear-gradient(135deg,#0d2417,#0a1a10)",
+                      color: col, fontSize:12, fontWeight:900, cursor:"pointer", padding:0,
+                      display:"flex", alignItems:"center", justifyContent:"center",
+                      touchAction:"manipulation",
+                      boxShadow: arme ? `0 0 14px ${col}66, inset 0 1px 0 #ffffff26` : "inset 0 1px 0 #ffffff10" }}>
+                    {lab}
+                  </button>
+                );
+              })}
+              {/* RETOUR */}
+              <button onPointerDown={e=>{ e.preventDefault(); retourFlechette(); }}
+                style={{ aspectRatio:"1 / 1", width:"100%", borderRadius:12,
+                  border:"1px solid #7f1d1d55", background:"linear-gradient(135deg,#241018,#160a0e)",
+                  color:"#fca5a5", fontSize:22, fontWeight:900, cursor:"pointer", padding:0,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  touchAction:"manipulation" }}>⬅</button>
+            </div>
           </div>
         </>) : (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:6, flex:1 }}>
