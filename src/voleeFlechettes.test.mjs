@@ -2,6 +2,7 @@
 // Objectif n°1 : PROUVER qu'elle donne le même résultat que le mode « score total ».
 // Lancer : node src/voleeFlechettes.test.mjs
 import {
+  finitSurDouble,
   creerFlechette, totalVolee, verdictApresFlechette, doubleDuFinish,
   multEffectif, libelleFlechette, pointsFlechette,
 } from "./voleeFlechettes.js";
@@ -109,6 +110,58 @@ eq("libellé MISS", libelleFlechette(0,1), "MISS");
     }
   }
   eq("balayage 2→60 × toutes volées simples : 0 divergence", divergences, 0);
+}
+
+// ── 7. DOUBLE OUT ──────────────────────────────────────────────────────────
+// Rejoue une volée avec la règle Double Out active.
+const jouerDO = (resteAvant, coups) => {
+  const fl = [];
+  for (const [s, m] of coups) {
+    fl.push(creerFlechette(s, m));
+    const v = verdictApresFlechette(resteAvant, fl, true);
+    if (v !== "continue") return { verdict: v, total: totalVolee(fl), darts: fl.length, fl };
+  }
+  return { verdict: "valider", total: totalVolee(fl), darts: fl.length, fl };
+};
+{
+  // Finir sur un SIMPLE devient un BUST
+  const r = jouerDO(20, [[20,1]]);
+  eq("DO : 20 → S20 = BUST (pas un double)", { v:r.verdict, d:r.darts }, { v:"bust", d:1 });
+}
+{
+  // Finir sur un TRIPLE devient un BUST
+  const r = jouerDO(60, [[20,3]]);
+  eq("DO : 60 → T20 = BUST (triple interdit pour finir)", r.verdict, "bust");
+}
+{
+  // Finir sur un DOUBLE reste valide
+  const r = jouerDO(40, [[20,2]]);
+  eq("DO : 40 → D20 = finish", { v:r.verdict, d:r.darts }, { v:"finish", d:1 });
+}
+{
+  // Double-bull valide
+  const r = jouerDO(50, [[25,2]]);
+  eq("DO : 50 → D25 (bull) = finish", r.verdict, "finish");
+}
+{
+  // Simple bull ne finit PAS
+  const r = jouerDO(25, [[25,1]]);
+  eq("DO : 25 → S25 = BUST (bull simple)", r.verdict, "bust");
+}
+{
+  // On peut passer par un simple puis finir sur un double
+  const r = jouerDO(60, [[20,1],[20,2]]);
+  eq("DO : 60 → S20 puis D20 = finish en 2", { v:r.verdict, d:r.darts, t:r.total }, { v:"finish", d:2, t:60 });
+}
+{
+  // Le bust classique (reste 1) reste un bust
+  const r = jouerDO(41, [[20,1],[20,1]]);
+  eq("DO : 41 → 20+20 laisse 1 → volée continue puis reste 1", r.verdict, "valider");
+}
+// Sans Double Out, tout reste comme avant (non-régression)
+{
+  const r = jouer(20, [[20,1]]);
+  eq("sans DO : 20 → S20 = finish (inchangé)", r.verdict, "finish");
 }
 
 console.log(`\n${ko === 0 ? "✅" : "⚠️"} ${ok} test(s) OK, ${ko} échec(s)`);

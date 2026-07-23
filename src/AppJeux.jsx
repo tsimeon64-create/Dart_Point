@@ -970,6 +970,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     manches: duel?.manches || 1,
     // Libre mode : tableau dynamique (2-6 joueurs). Duel mode utilise duel.challenger_pseudo / defie_pseudo.
     noms: [duel?.challenger_pseudo || "Joueur 1", duel?.defie_pseudo || "Joueur 2"],
+    // Double Out : il faut finir sur un double. Applicable seulement au pavé
+    // « fléchette par fléchette » (au pavé total, l'appli ne connaît pas la dernière fléchette).
+    doubleOut: true,
   });
   const [input, setInput] = useState("");
   const [joueurs, setJoueurs] = useState(resume ? resume.joueurs : null);
@@ -1016,6 +1019,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [mult, setMult] = useState(1);      // multiplicateur armé : 1 simple, 2 double, 3 triple
   const [rienAAnnuler, setRienAAnnuler] = useState(false); // message « rien à annuler »
   const [confirmBascule, setConfirmBascule] = useState(false); // volée en cours → confirmer le changement de pavé
+  const [bustDouble, setBustDouble] = useState(false); // message « il faut finir sur un double »
   // Bulle d'aide « change de pavé » : montrée UNE SEULE FOIS, puis plus jamais.
   const [aidePave, setAidePave] = useState(() => {
     try { return localStorage.getItem("dp_aide_pave") !== "1"; } catch { return false; }
@@ -1674,11 +1678,14 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     lockRef.current.envoi = true; // verrou anti double-tap : relâché par l'effet quand joueurs/actifIdx/pendingVolee change
 
     const nbReel = opts && opts.darts >= 1 && opts.darts <= 3 ? opts.darts : null;
+    // bust forcé : Double Out non respecté (le total est valide, mais la manche ne
+    // peut pas se terminer sur autre chose qu'un double) → on garde le VRAI total.
+    const bustForce = !!(opts && opts.bust);
     const joueur = joueurs[actifIdx];
     const nouveau = joueur.score - val;
 
     // Bust → 3 fléchettes assumées, ou le nombre réel si on le connaît
-    if (nouveau < 0 || nouveau === 1) {
+    if (bustForce || nouveau < 0 || nouveau === 1) {
       pushHistorique();
       const updated = joueurs.map((j, i) => i === actifIdx ? { ...j, scorePrecedent: val, flechettes: j.flechettes + (nbReel ?? 3) } : j);
       setJoueurs(updated); setActifIdx((actifIdx + 1) % joueurs.length); setInput(""); setVolee([]); setMult(1);
@@ -2115,6 +2122,30 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             ))}
           </div>
         </div>
+
+        {/* ── Règle de sortie ── */}
+        <div>
+          <label style={{ fontSize:13, fontWeight:600, color:"#94a3b8", display:"block", marginBottom:10 }}>RÈGLE DE SORTIE</label>
+          <div style={{ display:"flex", gap:8 }}>
+            {[[true,"Double out","Finir sur un double"],[false,"Simple out","Finir comme on veut"]].map(([v,lab,sub])=>{
+              const on = (config.doubleOut !== false) === v;
+              return (
+                <button key={lab} onClick={()=>setConfig(c=>({...c,doubleOut:v}))}
+                  style={{ flex:1, padding:"11px 8px", borderRadius:10, border:"none", cursor:"pointer",
+                    background: on ? "linear-gradient(135deg,#22c55e,#16a34a)" : "#111",
+                    color: on ? "#fff" : "#94a3b8" }}>
+                  <div style={{ fontWeight:800, fontSize:14 }}>{lab}</div>
+                  <div style={{ fontSize:10.5, opacity:.85, marginTop:2 }}>{sub}</div>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize:11, color:"#64748b", marginTop:8, lineHeight:1.5 }}>
+            Le Double out est vérifié automatiquement avec le pavé <strong style={{color:"#94a3b8"}}>fléchette par fléchette</strong>.
+            Au clavier « score total », l'appli ne connaît pas ta dernière fléchette : c'est à toi d'appliquer la règle.
+          </div>
+        </div>
+
         {botPseudo ? (
           <>
             {/* Adversaire bot choisi */}
@@ -2202,8 +2233,11 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const cumulVolee  = sommeVolee(volee);
   const resteVirtuel = Math.max(0, actif.score - cumulVolee);
   const saisieFigee = botJoue || !!pendingVolee || !!finishDblPrompt || !!gagnant;
+  // Double Out : appliqué UNIQUEMENT au pavé fléchette (au pavé total, on ne connaît
+  // pas la dernière fléchette lancée — c'est le joueur qui applique la règle au mur).
+  const doubleOut = config.doubleOut !== false;
   // Volée close (bust/finish/3 fléchettes) → on n'accepte plus de fléchette parasite.
-  const voleeFermee = volee.length > 0 && verdictApresFlechette(actif.score, volee) !== "continue";
+  const voleeFermee = volee.length > 0 && verdictApresFlechette(actif.score, volee, doubleOut) !== "continue";
 
   // Pose une fléchette. Ferme et envoie la volée dès que la règle l'impose.
   const poserFlechette = (secteur) => {
@@ -2212,10 +2246,18 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     const suite = [...volee, mkFlechette(secteur, mult)];
     setMult(1);                                          // retour auto au SIMPLE
     const total = sommeVolee(suite);
-    const v = verdictApresFlechette(actif.score, suite);
+    const v = verdictApresFlechette(actif.score, suite, doubleOut);
     if (v === "continue") { setVolee(suite); return; }
-    // bust / finish / 3e fléchette → on envoie avec le nb RÉEL de fléchettes
     setVolee(suite);
+    // Double Out : tomber pile à 0 sans double final = BUST → on prévient clairement,
+    // et on envoie 0 point (le score du début de volée est conservé par envoyer()).
+    if (v === "bust" && doubleOut && actif.score - total === 0) {
+      setBustDouble(true);
+      setTimeout(() => setBustDouble(false), 2200);
+      envoyer(total, { darts: suite.length, bust: true }); // vrai total, mais bust
+      return;
+    }
+    // bust / finish / 3e fléchette → on envoie avec le nb RÉEL de fléchettes
     envoyer(total, { darts: suite.length, dbl: v === "finish" ? doubleDuFinish(suite) : null });
   };
 
@@ -2454,7 +2496,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             Premier à {manchesTotal} manche{manchesTotal > 1 ? "s" : ""}
           </span>
           <span style={{ color:"#475569", fontSize:10 }}>·</span>
-          <span style={{ fontWeight:600, fontSize:10, color:"#64748b" }}>Double out</span>
+          <span style={{ fontWeight:600, fontSize:10, color: doubleOut ? "#4ade80" : "#64748b" }}>
+            {doubleOut ? "Double out" : "Simple out"}
+          </span>
         </div>
         <button
           onClick={()=>setShowHistorique(true)}
@@ -2707,7 +2751,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
               })}
             </div>
             <div style={{ textAlign:"right", flexShrink:0, minWidth:62 }}>
-              {rienAAnnuler ? (
+              {bustDouble ? (
+                <div style={{ fontSize:10.5, fontWeight:900, color:"#ef4444", lineHeight:1.3 }}>BUST<br/>finis sur<br/>un double</div>
+              ) : rienAAnnuler ? (
                 <div style={{ fontSize:11, fontWeight:800, color:"#ef4444", lineHeight:1.3 }}>Rien<br/>à annuler</div>
               ) : (<>
                 <div style={{ fontSize:9, color:"#64748b", fontWeight:700, letterSpacing:.6 }}>TOTAL</div>

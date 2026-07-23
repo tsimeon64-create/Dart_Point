@@ -40,24 +40,34 @@ export const creerFlechette = (secteur, mult) => {
 
 export const totalVolee = (flechettes) => (flechettes || []).reduce((s, f) => s + f.points, 0);
 
+/** La dernière fléchette est-elle un double (D1..D20 ou D25) ? */
+export const finitSurDouble = (flechettes) => {
+  const d = (flechettes || [])[(flechettes || []).length - 1];
+  return !!d && d.mult === 2;
+};
+
 /**
  * Que faire APRÈS avoir posé une fléchette ?
  *  - "bust"     → reste < 0 : irrattrapable, on ferme et on envoie (0 point compté)
+ *                 (ou, en Double Out, reste === 0 sans double final : manche NON terminée)
  *  - "finish"   → reste === 0 : manche gagnée, on ferme et on envoie
  *  - "valider"  → 3 fléchettes posées sans bust ni finish : on ferme et on envoie
  *  - "continue" → il reste des fléchettes à lancer (Y COMPRIS si reste === 1)
+ *
+ * `doubleOut` (défaut false = comportement historique) : quand il est actif, on ne peut
+ * terminer que sur un double ; tomber à 0 avec un simple ou un triple est un BUST.
  */
-export const verdictApresFlechette = (resteAvant, flechettes) => {
+export const verdictApresFlechette = (resteAvant, flechettes, doubleOut = false) => {
   const reste = resteAvant - totalVolee(flechettes);
   if (reste < 0) return "bust";
-  if (reste === 0) return "finish";
+  if (reste === 0) return doubleOut && !finitSurDouble(flechettes) ? "bust" : "finish";
   if ((flechettes || []).length >= MAX_FLECHETTES) return "valider";
   return "continue";
 };
 
 /** La volée est-elle close (plus aucune fléchette saisissable) ? */
-export const voleeClose = (resteAvant, flechettes) =>
-  verdictApresFlechette(resteAvant, flechettes) !== "continue";
+export const voleeClose = (resteAvant, flechettes, doubleOut = false) =>
+  verdictApresFlechette(resteAvant, flechettes, doubleOut) !== "continue";
 
 /**
  * Double sur lequel la manche s'est terminée, pour la stat « finish favori ».
