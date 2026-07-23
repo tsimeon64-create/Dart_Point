@@ -3,6 +3,11 @@ import { SCORER } from "./theme";
 import { Search, Swords, Check, X } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
 import { calculerProfilBot, genererScoreBot, BOT_LUCKY_LITTLER } from "./botFleche";
+// Logique PURE du pavé « fléchette par fléchette » (testée : src/voleeFlechettes.test.mjs)
+import {
+  creerFlechette as mkFlechette, totalVolee as sommeVolee,
+  verdictApresFlechette, doubleDuFinish, combinaisonAutorisee,
+} from "./voleeFlechettes";
 
 // Moyenne (pts/volée) affichée AU CENTIÈME (2 décimales, virgule FR). "—" si absente.
 const fmtMoy = (m) => (m == null || m === "" ? "—" : Number(m).toFixed(2).replace(".", ","));
@@ -992,6 +997,15 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // Valeurs cumulatives au début de la manche courante (tours/flechettes/points sont cumulatifs)
   const [mancheStart, setMancheStart] = useState(resume?.mancheStart || { vol:[0,0], pts:[0,0], nbtours:[0,0], flechettes:[0,0] }); // redimensionné au démarrage
   const [pendingVolee, setPendingVolee] = useState(null); // { val, type:"finish"|"zero" }
+  // ── Mode de saisie : "total" (clavier historique) | "flech" (fléchette par fléchette) ──
+  // Hooks déclarés ICI, au-dessus des sorties anticipées du composant (règle des hooks).
+  const [inputMode, setInputMode] = useState(() => {
+    try { return localStorage.getItem("dp_pave_saisie") === "flech" ? "flech" : "total"; } catch { return "total"; }
+  });
+  const [volee, setVolee] = useState([]);   // fléchettes de la volée EN COURS (mode "flech")
+  const [mult, setMult] = useState(1);      // multiplicateur armé : 1 simple, 2 double, 3 triple
+  const [rienAAnnuler, setRienAAnnuler] = useState(false); // message « rien à annuler »
+  const [confirmBascule, setConfirmBascule] = useState(false); // volée en cours → confirmer le changement de pavé
   const [finishDblPrompt, setFinishDblPrompt] = useState(null); // { val, nb, name, profileId } → fenêtre « sur quel double as-tu fini ? »
   const [drixBreakdown, setDrixBreakdown] = useState(null); // breakdown détaillé post-match
   const [liveBadgeNotif, setLiveBadgeNotif] = useState(null); // { emoji, nom, desc, couleur }
@@ -1626,7 +1640,11 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   const pushHistorique = () => setHistorique(h => [...h.slice(-14), snapshot()]);
 
-  const envoyer = (overrideVal) => {
+  // opts (mode « fléchette par fléchette » uniquement) : { darts, dbl }
+  //   darts = nombre RÉEL de fléchettes lancées (1..3) au lieu des 3 assumées
+  //   dbl   = double du finish déjà connu ("1".."20" | "B" | null) → aucune popup
+  // Sans opts, le comportement est STRICTEMENT identique à avant (mode « score total »).
+  const envoyer = (overrideVal, opts) => {
     if (!joueurs || lockRef.current.envoi) return;
     const val = overrideVal !== undefined ? overrideVal : parseInt(input);
     // overrideVal autorise val=0 (bouton NO SCORE) sans avoir tapé "0"
@@ -1634,29 +1652,47 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     if (overrideVal !== undefined && (isNaN(val) || val < 0 || val > 180)) return;
     lockRef.current.envoi = true; // verrou anti double-tap : relâché par l'effet quand joueurs/actifIdx/pendingVolee change
 
+    const nbReel = opts && opts.darts >= 1 && opts.darts <= 3 ? opts.darts : null;
     const joueur = joueurs[actifIdx];
     const nouveau = joueur.score - val;
 
-    // Bust → on garde 3 fléchettes
+    // Bust → 3 fléchettes assumées, ou le nombre réel si on le connaît
     if (nouveau < 0 || nouveau === 1) {
       pushHistorique();
-      const updated = joueurs.map((j, i) => i === actifIdx ? { ...j, scorePrecedent: val, flechettes: j.flechettes + 3 } : j);
-      setJoueurs(updated); setActifIdx((actifIdx + 1) % joueurs.length); setInput("");
+      const updated = joueurs.map((j, i) => i === actifIdx ? { ...j, scorePrecedent: val, flechettes: j.flechettes + (nbReel ?? 3) } : j);
+      setJoueurs(updated); setActifIdx((actifIdx + 1) % joueurs.length); setInput(""); setVolee([]); setMult(1);
       pushLiveVolee(actifIdx, val, true, false, updated);
       return;
     }
 
-    // Finish (score → 0) ou zéro pointé (NO SCORE) → popup nb fléchettes
+    // Finish (score → 0) ou zéro pointé (NO SCORE)
     if (nouveau === 0 || val === 0) {
       pushHistorique();
+      setInput("");
+      if (nbReel) {
+        // Mode fléchette : on connaît déjà le nombre de fléchettes ET le double →
+        // aucune des deux popups, on finalise directement.
+        setVolee([]); setMult(1);
+        if (nouveau === 0) {
+          finaliserFinish(val, nbReel);
+          enregistrerFinishDouble(opts?.dbl ?? null, joueur.nom);
+        } else {
+          const updatedZ = joueurs.map((j, i) => i === actifIdx
+            ? { ...j, tours: [...j.tours, 0], flechettes: j.flechettes + nbReel, scorePrecedent: 0 } : j);
+          setJoueurs(updatedZ); setActifIdx((actifIdx + 1) % joueurs.length);
+          pushLiveVolee(actifIdx, 0, false, false, updatedZ);
+        }
+        return;
+      }
       setPendingVolee({ val, type: nouveau === 0 ? "finish" : "zero" });
-      setInput(""); return;
+      return;
     }
 
-    // Volée normale — 3 fléchettes assumées
+    // Volée normale — 3 fléchettes assumées, ou le nombre réel si on le connaît
     pushHistorique();
+    setVolee([]); setMult(1);
     const updatedN = joueurs.map((j, i) => i === actifIdx
-      ? { ...j, score: nouveau, tours: [...j.tours, val], flechettes: j.flechettes + 3, totalPoints: j.totalPoints + val, scorePrecedent: val }
+      ? { ...j, score: nouveau, tours: [...j.tours, val], flechettes: j.flechettes + (nbReel ?? 3), totalPoints: j.totalPoints + val, scorePrecedent: val }
       : j
     );
     setJoueurs(updatedN);
@@ -1751,6 +1787,22 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     pushLiveVolee(actifIdx, 0, false, false, updatedZ);
   };
 
+  // Enregistre la stat « finish favori » sur le profil. Best-effort : n'impacte JAMAIS la partie.
+  // Partagé par la popup (mode total) et par le mode fléchette (où le double est déduit tout seul).
+  const enregistrerFinishDouble = (dbl, nomJoueur, profileIdConnu) => {
+    if (dbl == null) return;                        // pas un double (autorisé) ou « Passer »
+    (async () => {
+      try {
+        let id = profileIdConnu ?? (modeDuel ? (actifIdx === 0 ? duel?.challenger_id : duel?.defie_id) : null);
+        if (!id) { const prof = await dbJ.getJoueurByPseudo(nomJoueur); id = prof?.id; } // partie libre : profil retrouvé par pseudo
+        if (!id) return;                            // joueur anonyme (« Joueur 1 ») → rien à noter
+        const m = { ...(await dbJ.getFinishs(id)) };
+        m[dbl] = (m[dbl] || 0) + 1;
+        await dbJ.updateJoueur(id, { finishs_doubles: m });
+      } catch { /* stat best-effort */ }
+    })();
+  };
+
   // Choix du double de finish → finalise la partie + enregistre la stat sur le profil.
   const pickFinishDouble = (dbl) => {
     if (lockRef.current.finishDbl) return;
@@ -1759,17 +1811,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     setFinishDblPrompt(null);
     if (!pfd) return;
     finaliserFinish(pfd.val, pfd.nb);              // la partie avance MAINTENANT
-    if (dbl == null) return;                        // « Passer » → rien à enregistrer
-    (async () => {
-      try {
-        let id = pfd.profileId;
-        if (!id) { const prof = await dbJ.getJoueurByPseudo(pfd.name); id = prof?.id; } // partie libre : on retrouve le profil par le pseudo
-        if (!id) return;                            // joueur anonyme (« Joueur 1 ») → pas de profil, rien à noter
-        const m = { ...(await dbJ.getFinishs(id)) };
-        m[dbl] = (m[dbl] || 0) + 1;
-        await dbJ.updateJoueur(id, { finishs_doubles: m });
-      } catch { /* stat best-effort : n'impacte jamais la partie */ }
-    })();
+    enregistrerFinishDouble(dbl, pfd.name, pfd.profileId);
   };
 
   // ── Mode bot : quand c'est au tour du bot, il joue tout seul (petit délai « suspense ») ──
@@ -2122,6 +2164,56 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const botJoue = botIdxJeu >= 0 && actifIdx === botIdxJeu && !gagnant; // c'est au bot de jouer
   const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
 
+  // ── PAVÉ « FLÉCHETTE PAR FLÉCHETTE » ─────────────────────────────────────
+  // ⚠️ Déclaré ICI, APRÈS `actif`/`botJoue` : ces consts sont évaluées au rendu,
+  // les placer plus haut provoquerait un ReferenceError (écran noir).
+  const modeFlech   = inputMode === "flech";
+  const cumulVolee  = sommeVolee(volee);
+  const resteVirtuel = Math.max(0, actif.score - cumulVolee);
+  const saisieFigee = botJoue || !!pendingVolee || !!finishDblPrompt || !!gagnant;
+  // Volée close (bust/finish/3 fléchettes) → on n'accepte plus de fléchette parasite.
+  const voleeFermee = volee.length > 0 && verdictApresFlechette(actif.score, volee) !== "continue";
+
+  // Pose une fléchette. Ferme et envoie la volée dès que la règle l'impose.
+  const poserFlechette = (secteur) => {
+    if (saisieFigee || voleeFermee || volee.length >= 3) return;
+    if (!combinaisonAutorisee(secteur, mult)) return;   // T25 interdit
+    const suite = [...volee, mkFlechette(secteur, mult)];
+    setMult(1);                                          // retour auto au SIMPLE
+    const total = sommeVolee(suite);
+    const v = verdictApresFlechette(actif.score, suite);
+    if (v === "continue") { setVolee(suite); return; }
+    // bust / finish / 3e fléchette → on envoie avec le nb RÉEL de fléchettes
+    setVolee(suite);
+    envoyer(total, { darts: suite.length, dbl: v === "finish" ? doubleDuFinish(suite) : null });
+  };
+
+  // Valider manuellement une volée de 1 ou 2 fléchettes (ex. finish anticipé impossible).
+  const validerVolee = () => {
+    if (saisieFigee || volee.length === 0) return;
+    const total = sommeVolee(volee);
+    const v = verdictApresFlechette(actif.score, volee);
+    envoyer(total, { darts: volee.length, dbl: v === "finish" ? doubleDuFinish(volee) : null });
+  };
+
+  // RETOUR : enlève la dernière fléchette ; si la volée est vide → annule la volée précédente.
+  const retourFlechette = () => {
+    if (saisieFigee) return;
+    if (volee.length > 0) { setVolee(volee.slice(0, -1)); setMult(1); return; }
+    if (historique.length === 0) { setRienAAnnuler(true); setTimeout(() => setRienAAnnuler(false), 1600); return; }
+    annulerDernierCoup();
+  };
+
+  // Bascule de pavé : ne touche JAMAIS la partie, vide seulement la volée en cours.
+  const appliquerBascule = () => {
+    const suivant = modeFlech ? "total" : "flech";
+    setInputMode(suivant);
+    setVolee([]); setMult(1); setInput(""); setConfirmBascule(false);
+    try { localStorage.setItem("dp_pave_saisie", suivant); } catch { /* stockage indispo */ }
+  };
+  // Une volée est commencée → on demande confirmation (les volées VALIDÉES ne bougent jamais).
+  const basculerPave = () => { if (volee.length > 0) setConfirmBascule(true); else appliquerBascule(); };
+
   return (
     <div className="scoreur-wrap" style={{
       position: "fixed",
@@ -2456,11 +2548,23 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             <span style={{ fontSize:11, color:"#fbbf24", fontWeight:900,display:"inline-flex",alignItems:"center",gap:3 }}><EmoIcon e="🎯" size={11}/>{checkout}</span>
           </div>
         )}
+        {/* Bascule de pavé — TOUJOURS visible (hors du bloc checkout), tout à droite */}
+        <button onPointerDown={e=>{ e.preventDefault(); basculerPave(); }}
+          aria-label="Changer le mode de saisie" title="Changer le mode de saisie"
+          style={{ marginLeft: checkout ? 6 : "auto", flexShrink:0, width:32, height:28, borderRadius:8,
+            border:`1px solid ${modeFlech ? "#a78bfa77" : "#2a2a2a"}`,
+            background: modeFlech ? "linear-gradient(135deg,#241a3a,#15101f)" : "linear-gradient(135deg,#1f1f25,#0f0f15)",
+            color: modeFlech ? "#c4b5fd" : "#94a3b8", fontSize:14, cursor:"pointer",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            boxShadow:"inset 0 1px 0 #ffffff12, 0 2px 5px #00000055" }}>
+          {modeFlech ? "⌨" : <EmoIcon e="🎯" size={14}/>}
+        </button>
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* RACCOURCIS RAPIDES — scores fréquents                            */}
       {/* ═══════════════════════════════════════════════════════════════ */}
+      {!modeFlech && (<>
       <div style={{ display:"flex", gap:5, padding:"6px 10px", background:"#0a0a0a", overflowX:"auto", flexShrink:0, borderBottom:"1px solid #1a1a1a" }}>
         {[26, 45, 60, 81, 100, 121, 140, 180].map(qs => (
           <button key={qs}
@@ -2515,11 +2619,83 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           </button>
         </div>
       </div>
+      </>)}
 
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* CLAVIER PREMIUM                                                  */}
       {/* ═══════════════════════════════════════════════════════════════ */}
-      <div style={{ padding:"8px 10px 10px", background:"#0a0a0a", flex:1, display:"flex", flexDirection:"column", gap:6 }}>
+      <div style={{ padding:"8px 10px 10px", background:"#0a0a0a", flex:1, display:"flex", flexDirection:"column", gap:6, minHeight:0 }}>
+        {modeFlech ? (<>
+          {/* ── Aperçu de la volée en cours ── */}
+          <div style={{ display:"flex", alignItems:"center", gap:8, background:"linear-gradient(135deg,#12121a,#0b0b11)", border:"1px solid #24243040", borderRadius:12, padding:"6px 10px", flexShrink:0 }}>
+            <div style={{ display:"flex", gap:6, flex:1 }}>
+              {[0,1,2].map(i => {
+                const f = volee[i];
+                return (
+                  <div key={i} style={{ flex:1, textAlign:"center", padding:"4px 2px", borderRadius:8,
+                    background: f ? "linear-gradient(135deg,#2a1a00,#1a1200)" : "#0f0f15",
+                    border:`1px solid ${f ? "#fbbf2466" : "#22222c"}` }}>
+                    <div style={{ fontSize:14, fontWeight:900, color: f ? "#fbbf24" : "#3a3a46", lineHeight:1.15 }}>{f ? f.label : "—"}</div>
+                    <div style={{ fontSize:9, color: f ? "#94a3b8" : "#2f2f3a", lineHeight:1.2 }}>{f ? f.points : ""}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ textAlign:"right", flexShrink:0, minWidth:62 }}>
+              <div style={{ fontSize:9, color:"#64748b", fontWeight:700, letterSpacing:.6 }}>TOTAL</div>
+              <div style={{ fontSize:17, fontWeight:900, color:"#22c55e", lineHeight:1 }}>{cumulVolee}</div>
+              <div style={{ fontSize:9, color:"#64748b" }}>reste {resteVirtuel}</div>
+            </div>
+          </div>
+
+          {/* ── Grille 1-20 + 25 ── */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(7, 1fr)", gap:4, flex:1, minHeight:0 }}>
+            {[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,25].map(n => {
+              const interdit = !combinaisonAutorisee(n, mult); // T25
+              return (
+                <button key={n} disabled={interdit}
+                  onPointerDown={e=>{ e.preventDefault(); poserFlechette(n); }}
+                  style={{ borderRadius:9, border:`1px solid ${n===25 ? "#22c55e55" : "#2a2a2a"}`,
+                    background: n===25 ? "linear-gradient(135deg,#0d2417,#0a1a10)" : "linear-gradient(135deg,#1f1f25,#0f0f15)",
+                    color: interdit ? "#3a3a46" : n===25 ? "#4ade80" : "#f1f5f9",
+                    fontSize:16, fontWeight:800, minHeight:40, cursor: interdit ? "not-allowed" : "pointer",
+                    opacity: interdit ? .35 : 1, padding:0,
+                    WebkitTapHighlightColor:"transparent", touchAction:"manipulation",
+                    boxShadow:"inset 0 1px 0 #ffffff10, 0 1px 3px #00000055", fontVariantNumeric:"tabular-nums" }}>
+                  {n}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ── MISS · DOUBLE · TRIPLE · RETOUR ── */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:5, flexShrink:0 }}>
+            <button onPointerDown={e=>{ e.preventDefault(); poserFlechette(0); }}
+              style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"linear-gradient(135deg,#1f1f25,#0f0f15)", color:"#94a3b8", fontSize:12, fontWeight:900, minHeight:44, cursor:"pointer", touchAction:"manipulation" }}>MISS</button>
+            {[[2,"DOUBLE","#a78bfa"],[3,"TRIPLE","#60a5fa"]].map(([m,lab,col]) => (
+              <button key={m} onPointerDown={e=>{ e.preventDefault(); setMult(mult===m?1:m); }}
+                style={{ borderRadius:10, border:`1px solid ${mult===m?col:"#2a2a2a"}`,
+                  background: mult===m ? `linear-gradient(135deg,${col}3a,${col}12)` : "linear-gradient(135deg,#1f1f25,#0f0f15)",
+                  color: mult===m ? col : "#94a3b8", fontSize:12, fontWeight:900, minHeight:44, cursor:"pointer",
+                  touchAction:"manipulation", boxShadow: mult===m ? `0 0 12px ${col}44, inset 0 1px 0 #ffffff1a` : "inset 0 1px 0 #ffffff10" }}>
+                {lab}
+              </button>
+            ))}
+            <button onPointerDown={e=>{ e.preventDefault(); retourFlechette(); }}
+              style={{ borderRadius:10, border:"1px solid #7f1d1d55", background:"linear-gradient(135deg,#2a0a0a,#1a0608)", color:"#ef4444", fontSize:16, fontWeight:900, minHeight:44, cursor:"pointer", touchAction:"manipulation" }}>⬅</button>
+          </div>
+
+          {/* ── Valider la volée ── */}
+          <button onPointerDown={e=>{ e.preventDefault(); validerVolee(); }}
+            disabled={volee.length === 0 || saisieFigee}
+            style={{ flexShrink:0, minHeight:46, borderRadius:12, border:"none",
+              background: volee.length ? "linear-gradient(135deg,#22c55e,#16a34a)" : "linear-gradient(135deg,#1a1a1f,#121218)",
+              color: volee.length ? "#fff" : "#3a3a46", fontSize:14, fontWeight:900, letterSpacing:.6,
+              cursor: volee.length ? "pointer" : "not-allowed", touchAction:"manipulation",
+              boxShadow: volee.length ? "0 0 18px #22c55e66, inset 0 1px 0 #ffffff33" : "none" }}>
+            {rienAAnnuler ? "Rien à annuler" : "✓ VALIDER LA VOLÉE"}
+          </button>
+        </>) : (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:6, flex:1 }}>
           {["1","2","3","4","5","6","7","8","9"].map(n=>(
             <button key={n}
@@ -2585,7 +2761,27 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             {input ? <EmoIcon e="✓" size={20} strokeWidth={3}/> : <><span style={{fontSize:18}}>0</span><span style={{fontSize:9,fontWeight:900,letterSpacing:1}}>NO SCORE</span></>}
           </button>
         </div>
+        )}
       </div>
+
+      {/* ── Confirmation : changer de pavé alors qu'une volée est commencée ── */}
+      {confirmBascule && (
+        <div style={{ position:"fixed", inset:0, background:"#000c", zIndex:9998, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div style={{ width:"100%", maxWidth:340, background:"linear-gradient(180deg,#14141c,#0b0b11)", border:"1px solid #2a2a3e", borderRadius:18, padding:"18px 16px", boxShadow:"0 20px 60px #000c" }}>
+            <div style={{ fontWeight:900, fontSize:15, color:"#fbbf24", marginBottom:8 }}>Une volée est en cours</div>
+            <div style={{ fontSize:13, color:"#cbd5e1", lineHeight:1.5, marginBottom:16 }}>
+              Changer de mode annulera uniquement les fléchettes actuellement saisies ({volee.map(f=>f.label).join(" · ")}).<br/>
+              Les volées déjà validées ne bougent pas.
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onPointerDown={e=>{ e.preventDefault(); setConfirmBascule(false); }}
+                style={{ flex:1, minHeight:44, borderRadius:11, border:"1px solid #2a2a3e", background:"#15151d", color:"#94a3b8", fontWeight:800, fontSize:13, cursor:"pointer" }}>Annuler</button>
+              <button onPointerDown={e=>{ e.preventDefault(); appliquerBascule(); }}
+                style={{ flex:1, minHeight:44, borderRadius:11, border:"none", background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", fontWeight:900, fontSize:13, cursor:"pointer" }}>Changer de mode</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* DRAWER VOLÉES                                                    */}
