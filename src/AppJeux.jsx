@@ -2525,6 +2525,16 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                 {j.score}
               </div>
 
+              {/* Dernière volée du joueur, en petit sous le reste */}
+              <div style={{
+                textAlign:"center", marginTop:1, marginBottom:3,
+                fontSize:10.5, fontWeight:800, letterSpacing:.3,
+                fontVariantNumeric:"tabular-nums",
+                color: j.scorePrecedent == null ? "#3a3a46" : isActif ? "#fbbf24" : "#64748b",
+              }}>
+                {j.scorePrecedent == null ? "—" : `▸ ${j.scorePrecedent}`}
+              </div>
+
               {/* Manches : dots compactes */}
               <div style={{ display:"flex", gap:4, justifyContent:"center", marginBottom:6 }}>
                 {Array.from({length: manchesTotal}).map((_,mi)=>(
