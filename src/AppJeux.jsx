@@ -1016,6 +1016,14 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [mult, setMult] = useState(1);      // multiplicateur armé : 1 simple, 2 double, 3 triple
   const [rienAAnnuler, setRienAAnnuler] = useState(false); // message « rien à annuler »
   const [confirmBascule, setConfirmBascule] = useState(false); // volée en cours → confirmer le changement de pavé
+  // Bulle d'aide « change de pavé » : montrée UNE SEULE FOIS, puis plus jamais.
+  const [aidePave, setAidePave] = useState(() => {
+    try { return localStorage.getItem("dp_aide_pave") !== "1"; } catch { return false; }
+  });
+  const fermerAidePave = () => {
+    setAidePave(false);
+    try { localStorage.setItem("dp_aide_pave", "1"); } catch { /* stockage indispo */ }
+  };
   // Sécurité : une volée en cours appartient au joueur qui l'a commencée — elle ne
   // doit jamais « suivre » le joueur suivant (qui peut d'ailleurs utiliser l'autre pavé).
   useEffect(() => { setVolee([]); setMult(1); }, [actifIdx, mancheEnCours]);
@@ -2211,13 +2219,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     envoyer(total, { darts: suite.length, dbl: v === "finish" ? doubleDuFinish(suite) : null });
   };
 
-  // Valider manuellement une volée de 1 ou 2 fléchettes (ex. finish anticipé impossible).
-  const validerVolee = () => {
-    if (saisieFigee || volee.length === 0) return;
-    const total = sommeVolee(volee);
-    const v = verdictApresFlechette(actif.score, volee);
-    envoyer(total, { darts: volee.length, dbl: v === "finish" ? doubleDuFinish(volee) : null });
-  };
+  // Pas de bouton « valider » : la volée part TOUTE SEULE à la 3e fléchette,
+  // et plus tôt encore si c'est un finish ou un bust.
 
   // RETOUR : enlève la dernière fléchette ; si la volée est vide → annule la volée précédente.
   const retourFlechette = () => {
@@ -2564,7 +2567,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* STATS LIVE COMPACTES + FINISH HELPER (1 ligne)                   */}
       {/* ═══════════════════════════════════════════════════════════════ */}
-      <div style={{ padding:"6px 12px", background:"#0a0a0a", borderBottom:"1px solid #1a1a1a", flexShrink:0, display:"flex", alignItems:"center", gap:8, fontSize:11 }}>
+      <div style={{ padding:"6px 12px", background:"#0a0a0a", borderBottom:"1px solid #1a1a1a", flexShrink:0, display:"flex", alignItems:"center", gap:8, fontSize:11, position:"relative" }}>
         <span style={{ color:"#64748b", fontWeight:700 }}><EmoIcon e="🎯" size={11} style={{verticalAlign:"-1px",marginRight:3}}/>Moy <strong style={{ color:"#94a3b8" }}>{moyenneManche(actif, actifIdx)}</strong></span>
         <span style={{ color:"#475569" }}>·</span>
         <span style={{ color:"#64748b", fontWeight:700 }}>Préc <strong style={{ color:"#94a3b8" }}>{actif.scorePrecedent ?? "—"}</strong></span>
@@ -2587,6 +2590,30 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             boxShadow:"inset 0 1px 0 #ffffff12, 0 2px 5px #00000055" }}>
           {modeFlech ? "⌨" : <EmoIcon e="🎯" size={14}/>}
         </button>
+
+        {/* Bulle d'aide — une seule fois dans la vie du joueur */}
+        {aidePave && (
+          <div style={{ position:"absolute", top:"calc(100% + 10px)", right:8, zIndex:9990, width:246,
+            background:"linear-gradient(180deg,#1a1426,#100b18)", border:"1px solid #a78bfa66",
+            borderRadius:14, padding:"12px 13px", boxShadow:"0 16px 40px #000d, 0 0 22px #a78bfa22" }}>
+            {/* petite flèche qui pointe vers le bouton, juste au-dessus */}
+            <div style={{ position:"absolute", top:-7, right:12, width:12, height:12, transform:"rotate(45deg)",
+              background:"#1a1426", borderLeft:"1px solid #a78bfa66", borderTop:"1px solid #a78bfa66" }}/>
+            <div style={{ fontSize:12.5, fontWeight:900, color:"#c4b5fd", marginBottom:5, display:"flex", alignItems:"center", gap:5 }}>
+              <span style={{ fontSize:14 }}>☝️</span> Ce bouton change ton pavé
+            </div>
+            <div style={{ fontSize:11.5, color:"#cbd5e1", lineHeight:1.5, marginBottom:10 }}>
+              Saisis ton <strong style={{color:"#fff"}}>score total</strong> au clavier, ou <strong style={{color:"#fff"}}>fléchette par fléchette</strong>.
+              Chaque joueur garde son propre pavé : il change tout seul quand la main passe.
+            </div>
+            <button onPointerDown={e=>{ e.preventDefault(); fermerAidePave(); }}
+              style={{ width:"100%", minHeight:38, borderRadius:10, border:"none",
+                background:"linear-gradient(135deg,#a78bfa,#7c3aed)", color:"#fff",
+                fontWeight:900, fontSize:12.5, cursor:"pointer", touchAction:"manipulation" }}>
+              Compris
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════ */}
@@ -2670,24 +2697,30 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
               })}
             </div>
             <div style={{ textAlign:"right", flexShrink:0, minWidth:62 }}>
-              <div style={{ fontSize:9, color:"#64748b", fontWeight:700, letterSpacing:.6 }}>TOTAL</div>
-              <div style={{ fontSize:17, fontWeight:900, color:"#22c55e", lineHeight:1 }}>{cumulVolee}</div>
-              <div style={{ fontSize:9, color:"#64748b" }}>reste {resteVirtuel}</div>
+              {rienAAnnuler ? (
+                <div style={{ fontSize:11, fontWeight:800, color:"#ef4444", lineHeight:1.3 }}>Rien<br/>à annuler</div>
+              ) : (<>
+                <div style={{ fontSize:9, color:"#64748b", fontWeight:700, letterSpacing:.6 }}>TOTAL</div>
+                <div style={{ fontSize:17, fontWeight:900, color:"#22c55e", lineHeight:1 }}>{cumulVolee}</div>
+                <div style={{ fontSize:9, color:"#64748b" }}>reste {resteVirtuel}</div>
+              </>)}
             </div>
           </div>
 
-          {/* ── Grille 1-20 + 25 ── */}
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(7, 1fr)", gap:4, flex:1, minHeight:0 }}>
+          {/* ── Grille 1-20 + 25 — cases CARRÉES (aspect-ratio), centrées ── */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(7, 1fr)", gap:5, flex:1, minHeight:0, alignContent:"center" }}>
             {[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,25].map(n => {
               const interdit = !combinaisonAutorisee(n, mult); // T25
               return (
                 <button key={n} disabled={interdit}
                   onPointerDown={e=>{ e.preventDefault(); poserFlechette(n); }}
-                  style={{ borderRadius:9, border:`1px solid ${n===25 ? "#22c55e55" : "#2a2a2a"}`,
+                  style={{ aspectRatio:"1 / 1", width:"100%", borderRadius:10,
+                    border:`1px solid ${n===25 ? "#22c55e55" : "#2a2a2a"}`,
                     background: n===25 ? "linear-gradient(135deg,#0d2417,#0a1a10)" : "linear-gradient(135deg,#1f1f25,#0f0f15)",
                     color: interdit ? "#3a3a46" : n===25 ? "#4ade80" : "#f1f5f9",
-                    fontSize:16, fontWeight:800, minHeight:40, cursor: interdit ? "not-allowed" : "pointer",
+                    fontSize:17, fontWeight:800, cursor: interdit ? "not-allowed" : "pointer",
                     opacity: interdit ? .35 : 1, padding:0,
+                    display:"flex", alignItems:"center", justifyContent:"center",
                     WebkitTapHighlightColor:"transparent", touchAction:"manipulation",
                     boxShadow:"inset 0 1px 0 #ffffff10, 0 1px 3px #00000055", fontVariantNumeric:"tabular-nums" }}>
                   {n}
@@ -2696,33 +2729,29 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             })}
           </div>
 
-          {/* ── MISS · DOUBLE · TRIPLE · RETOUR ── */}
+          {/* ── MISS (rouge) · DOUBLE / TRIPLE (verts, orange quand armés) · RETOUR ── */}
           <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:5, flexShrink:0 }}>
             <button onPointerDown={e=>{ e.preventDefault(); poserFlechette(0); }}
-              style={{ borderRadius:10, border:"1px solid #2a2a2a", background:"linear-gradient(135deg,#1f1f25,#0f0f15)", color:"#94a3b8", fontSize:12, fontWeight:900, minHeight:44, cursor:"pointer", touchAction:"manipulation" }}>MISS</button>
-            {[[2,"DOUBLE","#a78bfa"],[3,"TRIPLE","#60a5fa"]].map(([m,lab,col]) => (
-              <button key={m} onPointerDown={e=>{ e.preventDefault(); setMult(mult===m?1:m); }}
-                style={{ borderRadius:10, border:`1px solid ${mult===m?col:"#2a2a2a"}`,
-                  background: mult===m ? `linear-gradient(135deg,${col}3a,${col}12)` : "linear-gradient(135deg,#1f1f25,#0f0f15)",
-                  color: mult===m ? col : "#94a3b8", fontSize:12, fontWeight:900, minHeight:44, cursor:"pointer",
-                  touchAction:"manipulation", boxShadow: mult===m ? `0 0 12px ${col}44, inset 0 1px 0 #ffffff1a` : "inset 0 1px 0 #ffffff10" }}>
-                {lab}
-              </button>
-            ))}
+              style={{ borderRadius:10, border:"1px solid #ef444477", background:"linear-gradient(135deg,#2a0a0a,#1a0608)",
+                color:"#ef4444", fontSize:12, fontWeight:900, minHeight:46, cursor:"pointer", touchAction:"manipulation",
+                boxShadow:"inset 0 1px 0 #ffffff10, 0 0 10px #ef444422" }}>MISS</button>
+            {[[2,"DOUBLE"],[3,"TRIPLE"]].map(([m,lab]) => {
+              const arme = mult === m;
+              const col  = arme ? "#f97316" : "#22c55e";   // vert au repos, ORANGE quand sélectionné
+              return (
+                <button key={m} onPointerDown={e=>{ e.preventDefault(); setMult(arme ? 1 : m); }}
+                  style={{ borderRadius:10, border:`1px solid ${arme ? col : "#22c55e55"}`,
+                    background: arme ? `linear-gradient(135deg,${col}44,${col}14)` : "linear-gradient(135deg,#0d2417,#0a1a10)",
+                    color: col, fontSize:12, fontWeight:900, minHeight:46, cursor:"pointer",
+                    touchAction:"manipulation",
+                    boxShadow: arme ? `0 0 14px ${col}66, inset 0 1px 0 #ffffff26` : "inset 0 1px 0 #ffffff10" }}>
+                  {lab}
+                </button>
+              );
+            })}
             <button onPointerDown={e=>{ e.preventDefault(); retourFlechette(); }}
-              style={{ borderRadius:10, border:"1px solid #7f1d1d55", background:"linear-gradient(135deg,#2a0a0a,#1a0608)", color:"#ef4444", fontSize:16, fontWeight:900, minHeight:44, cursor:"pointer", touchAction:"manipulation" }}>⬅</button>
+              style={{ borderRadius:10, border:"1px solid #7f1d1d55", background:"linear-gradient(135deg,#241018,#160a0e)", color:"#fca5a5", fontSize:17, fontWeight:900, minHeight:46, cursor:"pointer", touchAction:"manipulation" }}>⬅</button>
           </div>
-
-          {/* ── Valider la volée ── */}
-          <button onPointerDown={e=>{ e.preventDefault(); validerVolee(); }}
-            disabled={volee.length === 0 || saisieFigee}
-            style={{ flexShrink:0, minHeight:46, borderRadius:12, border:"none",
-              background: volee.length ? "linear-gradient(135deg,#22c55e,#16a34a)" : "linear-gradient(135deg,#1a1a1f,#121218)",
-              color: volee.length ? "#fff" : "#3a3a46", fontSize:14, fontWeight:900, letterSpacing:.6,
-              cursor: volee.length ? "pointer" : "not-allowed", touchAction:"manipulation",
-              boxShadow: volee.length ? "0 0 18px #22c55e66, inset 0 1px 0 #ffffff33" : "none" }}>
-            {rienAAnnuler ? "Rien à annuler" : "✓ VALIDER LA VOLÉE"}
-          </button>
         </>) : (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:6, flex:1 }}>
           {["1","2","3","4","5","6","7","8","9"].map(n=>(
