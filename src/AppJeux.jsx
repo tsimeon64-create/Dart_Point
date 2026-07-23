@@ -999,13 +999,26 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [pendingVolee, setPendingVolee] = useState(null); // { val, type:"finish"|"zero" }
   // ── Mode de saisie : "total" (clavier historique) | "flech" (fléchette par fléchette) ──
   // Hooks déclarés ICI, au-dessus des sorties anticipées du composant (règle des hooks).
-  const [inputMode, setInputMode] = useState(() => {
-    try { return localStorage.getItem("dp_pave_saisie") === "flech" ? "flech" : "total"; } catch { return "total"; }
+  // Le pavé est une préférence PAR JOUEUR : en doublette/tournoi, chacun garde le sien
+  // et le pavé affiché suit automatiquement celui qui a la main.
+  // Stocké dans une map { clé joueur → "total"|"flech" } (localStorage "dp_paves").
+  const [paves, setPaves] = useState(() => {
+    try {
+      const m = JSON.parse(localStorage.getItem("dp_paves") || "{}");
+      return m && typeof m === "object" ? m : {};
+    } catch { return {}; }
   });
+  // Ancien réglage global (avant la préférence par joueur) → sert de valeur par défaut.
+  const paveParDefaut = (() => {
+    try { return localStorage.getItem("dp_pave_saisie") === "flech" ? "flech" : "total"; } catch { return "total"; }
+  })();
   const [volee, setVolee] = useState([]);   // fléchettes de la volée EN COURS (mode "flech")
   const [mult, setMult] = useState(1);      // multiplicateur armé : 1 simple, 2 double, 3 triple
   const [rienAAnnuler, setRienAAnnuler] = useState(false); // message « rien à annuler »
   const [confirmBascule, setConfirmBascule] = useState(false); // volée en cours → confirmer le changement de pavé
+  // Sécurité : une volée en cours appartient au joueur qui l'a commencée — elle ne
+  // doit jamais « suivre » le joueur suivant (qui peut d'ailleurs utiliser l'autre pavé).
+  useEffect(() => { setVolee([]); setMult(1); }, [actifIdx, mancheEnCours]);
   const [finishDblPrompt, setFinishDblPrompt] = useState(null); // { val, nb, name, profileId } → fenêtre « sur quel double as-tu fini ? »
   const [drixBreakdown, setDrixBreakdown] = useState(null); // breakdown détaillé post-match
   const [liveBadgeNotif, setLiveBadgeNotif] = useState(null); // { emoji, nom, desc, couleur }
@@ -2167,7 +2180,17 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // ── PAVÉ « FLÉCHETTE PAR FLÉCHETTE » ─────────────────────────────────────
   // ⚠️ Déclaré ICI, APRÈS `actif`/`botJoue` : ces consts sont évaluées au rendu,
   // les placer plus haut provoquerait un ReferenceError (écran noir).
-  const modeFlech   = inputMode === "flech";
+  // Clé stable d'un joueur : son profil s'il est identifié (duel), sinon son pseudo.
+  const clePave = (idx) => {
+    if (modeDuel) {
+      const id = idx === 0 ? duel?.challenger_id : duel?.defie_id;
+      if (id) return "id:" + id;
+    }
+    const j = joueurs[idx];
+    return "nom:" + ((j?.nom || "").trim().toLowerCase() || idx);
+  };
+  // Le pavé affiché est TOUJOURS celui du joueur qui a la main.
+  const modeFlech   = (paves[clePave(actifIdx)] ?? paveParDefaut) === "flech";
   const cumulVolee  = sommeVolee(volee);
   const resteVirtuel = Math.max(0, actif.score - cumulVolee);
   const saisieFigee = botJoue || !!pendingVolee || !!finishDblPrompt || !!gagnant;
@@ -2204,12 +2227,16 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     annulerDernierCoup();
   };
 
-  // Bascule de pavé : ne touche JAMAIS la partie, vide seulement la volée en cours.
+  // Bascule de pavé : ne change QUE la préférence du joueur qui a la main,
+  // ne touche JAMAIS la partie, et vide seulement la volée en cours.
   const appliquerBascule = () => {
     const suivant = modeFlech ? "total" : "flech";
-    setInputMode(suivant);
+    const maj = { ...paves, [clePave(actifIdx)]: suivant };
+    setPaves(maj);
     setVolee([]); setMult(1); setInput(""); setConfirmBascule(false);
-    try { localStorage.setItem("dp_pave_saisie", suivant); } catch { /* stockage indispo */ }
+    // On n'écrit QUE la préférence de ce joueur : un autre joueur ne doit jamais
+    // hériter du choix de son adversaire (l'ancienne clé globale n'est plus écrite).
+    try { localStorage.setItem("dp_paves", JSON.stringify(maj)); } catch { /* stockage indispo */ }
   };
   // Une volée est commencée → on demande confirmation (les volées VALIDÉES ne bougent jamais).
   const basculerPave = () => { if (volee.length > 0) setConfirmBascule(true); else appliquerBascule(); };
@@ -2550,7 +2577,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         )}
         {/* Bascule de pavé — TOUJOURS visible (hors du bloc checkout), tout à droite */}
         <button onPointerDown={e=>{ e.preventDefault(); basculerPave(); }}
-          aria-label="Changer le mode de saisie" title="Changer le mode de saisie"
+          aria-label="Changer le mode de saisie"
+          title={`Mode de saisie de ${actif.nom} — chaque joueur garde le sien`}
           style={{ marginLeft: checkout ? 6 : "auto", flexShrink:0, width:32, height:28, borderRadius:8,
             border:`1px solid ${modeFlech ? "#a78bfa77" : "#2a2a2a"}`,
             background: modeFlech ? "linear-gradient(135deg,#241a3a,#15101f)" : "linear-gradient(135deg,#1f1f25,#0f0f15)",
