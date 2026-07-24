@@ -10,6 +10,7 @@
 import { useState, useEffect } from "react";
 import { EmoIcon } from "./icons";
 import { ArrowLeft } from "lucide-react";
+import { FriendNameInput } from "./FriendPicker";
 import { ConfettiBurst } from "./DPLottie";
 import confettiData from "./lottie/confetti.json";
 
@@ -138,39 +139,20 @@ function Board({ stateOf, activeType, onTap, shake }) {
   );
 }
 
-// ── Champ « nom OU profil Dart Point » ──
-function PlayerField({ index, value, onChange, col }) {
-  const [q, setQ] = useState(value.name || "");
-  const [res, setRes] = useState([]);
-  useEffect(() => {
-    const s = q.trim();
-    if (s.length < 2 || (value.profileId && s === value.name)) { setRes([]); return; }
-    const t = setTimeout(async () => {
-      const r = await sbTC(`joueurs?pseudo=ilike.*${encodeURIComponent(s)}*&select=id,pseudo,photo&limit=5`);
-      setRes(Array.isArray(r) ? r : []);
-    }, 300);
-    return () => clearTimeout(t);
-  }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
-  const inp = { width: "100%", background: "#0b0b12", border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", color: C.text, fontSize: 15, boxSizing: "border-box" };
+// ── Champ « nom » avec sélecteur d'AMIS (icône ami à l'intérieur) ──
+// Choisir un ami relie ses stats à son profil (profileId) ; taper à la main = nom libre.
+function PlayerField({ index, value, onChange, col, joueurId }) {
   return (
     <div>
       <label style={{ fontSize: 12, color: col, fontWeight: 800, display: "block", marginBottom: 6, letterSpacing: .4 }}>JOUEUR {index + 1}</label>
-      <input value={q} onChange={e => { setQ(e.target.value); onChange({ name: e.target.value, profileId: null, photo: null }); }}
-        placeholder="Nom du joueur…" style={inp} />
-      {res.length > 0 && (
-        <div style={{ marginTop: 6, background: "#0b0b12", border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
-          <div style={{ fontSize: 10, color: C.muted, padding: "6px 12px 2px", fontWeight: 700 }}>PROFILS DART POINT</div>
-          {res.map(p => (
-            <div key={p.id} onClick={() => { setQ(p.pseudo); setRes([]); onChange({ name: p.pseudo, profileId: p.id, photo: p.photo || null }); }}
-              style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", cursor: "pointer", borderTop: `1px solid ${C.border}` }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: `${col}33`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {p.photo ? <img src={p.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <EmoIcon e="🎯" size={13} color={col} />}
-              </div>
-              <span style={{ fontWeight: 700, fontSize: 14 }}>{p.pseudo}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      <FriendNameInput
+        value={value.name || ""}
+        onChange={v => onChange({ name: v, profileId: null, photo: null })}
+        onPickFriend={a => onChange({ name: a.pseudo, profileId: a.id, photo: null })}
+        placeholder="Nom du joueur…"
+        joueurId={joueurId}
+        theme={{ bg: "#0b0b12", border: C.border, text: C.text, muted: C.muted, accent: col }}
+      />
       {value.profileId && <div style={{ fontSize: 11, color: C.radar, marginTop: 5 }}>✓ Profil Dart Point relié</div>}
     </div>
   );
@@ -601,8 +583,8 @@ export const ToucheCoule = ({ setPage, joueur }) => {
           )}
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16, marginBottom: 16 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <PlayerField index={0} value={players[0]} onChange={v => setPlayer(0, v)} col={C.cyan} />
-              <PlayerField index={1} value={players[1]} onChange={v => setPlayer(1, v)} col={C.orange} />
+              <PlayerField index={0} value={players[0]} onChange={v => setPlayer(0, v)} col={C.cyan} joueurId={joueur?.id} />
+              <PlayerField index={1} value={players[1]} onChange={v => setPlayer(1, v)} col={C.orange} joueurId={joueur?.id} />
             </div>
           </div>
           <div style={{ background: "#0e1a14", border: `1px solid ${C.radar}33`, borderRadius: 14, padding: 14, marginBottom: 18 }}>

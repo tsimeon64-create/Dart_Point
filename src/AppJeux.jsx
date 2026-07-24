@@ -8,6 +8,7 @@ import {
   creerFlechette as mkFlechette, totalVolee as sommeVolee,
   verdictApresFlechette, doubleDuFinish, combinaisonAutorisee,
 } from "./voleeFlechettes";
+import { FriendNameInput } from "./FriendPicker";
 
 // Moyenne (pts/volée) affichée AU CENTIÈME (2 décimales, virgule FR). "—" si absente.
 const fmtMoy = (m) => (m == null || m === "" ? "—" : Number(m).toFixed(2).replace(".", ","));
@@ -792,39 +793,7 @@ const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 
 // ── Composant : section JOUEURS de la config (dynamique 2-6 joueurs + recherche) ─
-const JoueursConfigSection = ({ config, setConfig, modeDuel }) => {
-  const [openSearch, setOpenSearch] = useState(null); // index du joueur dont la recherche est ouverte
-  const [searchQ, setSearchQ] = useState("");
-  const [results, setResults] = useState([]);
-  const [loadingSearch, setLoadingSearch] = useState(false);
-  const searchRef = useRef(null);
-
-  // Fermer dropdown si clic extérieur
-  useEffect(() => {
-    if (openSearch === null) return;
-    const handler = (e) => {
-      if (searchRef.current && !searchRef.current.contains(e.target)) {
-        setOpenSearch(null); setSearchQ(""); setResults([]);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    document.addEventListener("touchstart", handler);
-    return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("touchstart", handler); };
-  }, [openSearch]);
-
-  // Recherche Supabase joueurs
-  useEffect(() => {
-    if (openSearch === null || searchQ.trim().length < 2) { setResults([]); return; }
-    setLoadingSearch(true);
-    const q = encodeURIComponent(searchQ.trim());
-    fetch(`${SB_URL}/rest/v1/joueurs?pseudo=ilike.*${q}*&select=id,pseudo,photo&limit=8`, {
-      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
-    })
-      .then(r => r.json())
-      .then(data => { setResults(Array.isArray(data) ? data : []); setLoadingSearch(false); })
-      .catch(() => { setResults([]); setLoadingSearch(false); });
-  }, [searchQ, openSearch]);
-
+const JoueursConfigSection = ({ config, setConfig, modeDuel, joueur }) => {
   const setNom = (idx, val) => setConfig(c => {
     const noms = [...c.noms];
     noms[idx] = val;
@@ -841,10 +810,6 @@ const JoueursConfigSection = ({ config, setConfig, modeDuel }) => {
     setConfig(c => { const noms = c.noms.filter((_, i) => i !== idx); return { ...c, noms }; });
   };
 
-  const selectResult = (idx, pseudo) => {
-    setNom(idx, pseudo);
-    setOpenSearch(null); setSearchQ(""); setResults([]);
-  };
 
   return (
     <div>
@@ -853,71 +818,34 @@ const JoueursConfigSection = ({ config, setConfig, modeDuel }) => {
           JOUEURS <span style={{ color:"#f97316", fontWeight:700 }}>{config.noms.length}</span>
         </label>
       </div>
-      <div style={{ display:"flex", flexDirection:"column", gap:10 }} ref={searchRef}>
+      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
         {config.noms.map((nom, idx) => (
-          <div key={idx} style={{ position:"relative" }}>
-            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-              {/* Numéro joueur */}
-              <div style={{ width:28, height:28, borderRadius:"50%", background:"#f97316", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:"#fff", flexShrink:0 }}>
-                {idx + 1}
-              </div>
-              {/* Champ nom */}
-              <input
-                value={nom}
-                onChange={e => setNom(idx, e.target.value)}
-                placeholder={`Joueur ${idx + 1}`}
-                style={{ flex:1, background:"#111", border:"1px solid #2a2a2a", borderRadius:10, padding:"13px 14px", color:"#f1f5f9", fontSize:16, fontWeight:600 }}
-              />
-              {/* Bouton recherche */}
-              {!modeDuel && (
-                <button
-                  onClick={() => { setOpenSearch(openSearch === idx ? null : idx); setSearchQ(""); setResults([]); }}
-                  style={{ background: openSearch === idx ? "linear-gradient(135deg,#f97316,#ea580c)" : "#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, padding:"13px 12px", color: openSearch === idx ? "#fff" : "#94a3b8", cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <Search size={18}/>
-                </button>
-              )}
-              {/* Supprimer joueur 3+ */}
-              {!modeDuel && idx >= 2 && (
-                <button onClick={() => removeJoueur(idx)}
-                  style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, padding:"13px 10px", color:"#ef4444", cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <X size={16}/>
-                </button>
-              )}
+          <div key={idx} style={{ display:"flex", gap:8, alignItems:"center" }}>
+            {/* Numéro joueur */}
+            <div style={{ width:28, height:28, borderRadius:"50%", background:"#f97316", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:"#fff", flexShrink:0 }}>
+              {idx + 1}
             </div>
-            {/* Dropdown recherche */}
-            {openSearch === idx && (
-              <div style={{ position:"absolute", top:"calc(100% + 6px)", left:0, right:0, background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:12, zIndex:200, boxShadow:"0 8px 32px #000a", overflow:"hidden" }}>
-                <div style={{ padding:"10px 12px", borderBottom:"1px solid #2a2a2a" }}>
-                  <input
-                    autoFocus
-                    value={searchQ}
-                    onChange={e => setSearchQ(e.target.value)}
-                    placeholder="Rechercher un joueur…"
-                    style={{ width:"100%", background:"#111", border:"1px solid #333", borderRadius:8, padding:"10px 12px", color:"#f1f5f9", fontSize:15, fontWeight:600, boxSizing:"border-box" }}
-                  />
-                </div>
-                {loadingSearch && (
-                  <div style={{ padding:"12px 16px", color:"#94a3b8", fontSize:13, textAlign:"center" }}>Recherche…</div>
-                )}
-                {!loadingSearch && searchQ.length >= 2 && results.length === 0 && (
-                  <div style={{ padding:"12px 16px", color:"#555", fontSize:13, textAlign:"center" }}>Aucun joueur trouvé</div>
-                )}
-                {!loadingSearch && searchQ.length < 2 && (
-                  <div style={{ padding:"12px 16px", color:"#555", fontSize:12, textAlign:"center" }}>Tape au moins 2 lettres…</div>
-                )}
-                {results.map(j => (
-                  <button key={j.id} onClick={() => selectResult(idx, j.pseudo)}
-                    style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:"transparent", border:"none", borderBottom:"1px solid #2a2a2a22", cursor:"pointer", textAlign:"left" }}
-                    onMouseEnter={e => e.currentTarget.style.background="#2a2a2a"}
-                    onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-                    {j.photo
-                      ? <img src={j.photo} alt={j.pseudo} style={{ width:32, height:32, borderRadius:"50%", objectFit:"cover", flexShrink:0 }} />
-                      : <div style={{ width:32, height:32, borderRadius:"50%", background:"#f9731644", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><EmoIcon e="🎯" size={14}/></div>
-                    }
-                    <span style={{ color:"#f1f5f9", fontWeight:700, fontSize:15 }}>{j.pseudo}</span>
-                  </button>
-                ))}
-              </div>
+            {/* Champ nom + sélecteur d'amis (icône ami à l'intérieur) */}
+            {modeDuel ? (
+              <input value={nom} onChange={e => setNom(idx, e.target.value)} placeholder={`Joueur ${idx + 1}`}
+                style={{ flex:1, background:"#111", border:"1px solid #2a2a2a", borderRadius:10, padding:"13px 14px", color:"#f1f5f9", fontSize:16, fontWeight:600, boxSizing:"border-box" }} />
+            ) : (
+              <FriendNameInput
+                value={nom}
+                onChange={v => setNom(idx, v)}
+                placeholder={`Joueur ${idx + 1}`}
+                joueurId={joueur?.id}
+                fontSize={16}
+                inputStyle={{ fontWeight:600, padding:"13px 40px 13px 14px" }}
+                theme={{ bg:"#111", border:"#2a2a2a", text:"#f1f5f9", muted:"#94a3b8", accent:"#f97316" }}
+              />
+            )}
+            {/* Supprimer joueur 3+ */}
+            {!modeDuel && idx >= 2 && (
+              <button onClick={() => removeJoueur(idx)}
+                style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:10, padding:"13px 10px", color:"#ef4444", cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <X size={16}/>
+              </button>
             )}
           </div>
         ))}
@@ -2171,7 +2099,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           </>
         ) : (
           <>
-            <JoueursConfigSection config={config} setConfig={setConfig} modeDuel={modeDuel} />
+            <JoueursConfigSection config={config} setConfig={setConfig} modeDuel={modeDuel} joueur={joueur} />
             <button onClick={demarrer}
               style={{ width:"100%", padding:"18px", borderRadius:14, border:"none", fontWeight:900, fontSize:18, cursor:"pointer",
                 background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", marginTop:4 }}>

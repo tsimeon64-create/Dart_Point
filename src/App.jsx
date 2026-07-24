@@ -13168,7 +13168,7 @@ export default function App() {
         {page==="jeux-flechettes"       && <PageModeJeu joueur={joueur} setPage={nav} initCat="fleche"/>}
         {page==="jeux-sans"             && <PageModeJeu joueur={joueur} setPage={nav} initCat="sans"/>}
         {page==="cricket-config"        && <ConfigCricket joueur={joueur} setPage={nav}/>}
-        {page==="jeux-capital"          && <JeuCapital setPage={nav}/>}
+        {page==="jeux-capital"          && <JeuCapital setPage={nav} joueur={joueur}/>}
         {page==="touche-coule"          && <ToucheCoule setPage={nav} joueur={joueur}/>}
         {page==="double-down"           && <DoubleDown setPage={nav} joueur={joueur}/>}
         {page==="entrainement-finish"   && <EntrainementFinish setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}

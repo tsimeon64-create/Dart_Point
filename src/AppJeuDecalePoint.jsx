@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { EmoIcon, EmoText } from "./icons";
+import { FriendNameInput } from "./FriendPicker";
 
 const C = {
   bg:"#0f0f0f", card:"#1a1a1a", border:"#2a2a2a",
@@ -48,8 +49,8 @@ function calculerTotaux(scores, nbJoueurs) {
 }
 
 // ── SETUP ─────────────────────────────────────────────────────────────────────
-function Setup({ onStart }) {
-  const [joueurs, setJoueurs] = useState(["", ""]);
+function Setup({ onStart, joueur }) {
+  const [joueurs, setJoueurs] = useState(() => [joueur?.pseudo || "", ""]);
   const valid = joueurs.every(j => j.trim().length > 0);
   return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"40px 20px" }}>
@@ -63,11 +64,13 @@ function Setup({ onStart }) {
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           {joueurs.map((nom, i) => (
             <div key={i} style={{ display:"flex", gap:8, alignItems:"center" }}>
-              <input
+              <FriendNameInput
                 value={nom}
-                onChange={e => setJoueurs(j => j.map((n,idx) => idx===i ? e.target.value : n))}
+                onChange={v => setJoueurs(j => j.map((n,idx) => idx===i ? v : n))}
                 placeholder={`Joueur ${i+1}`}
-                style={{ flex:1, background:"#111", border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 14px", color:C.text, fontSize:14 }}
+                joueurId={joueur?.id}
+                fontSize={14}
+                theme={{ bg:"#111", border:C.border, text:C.text, muted:C.muted, accent:C.accent }}
               />
               {joueurs.length > 1 && (
                 <button onClick={() => setJoueurs(j => j.filter((_,idx) => idx!==i))}
@@ -398,9 +401,9 @@ function Capital({ joueurs, onFin }) {
 }
 
 // ── EXPORT ────────────────────────────────────────────────────────────────────
-export function JeuCapital({ setPage }) {
+export function JeuCapital({ setPage, joueur }) {
   const [phase, setPhase] = useState("setup");
   const [joueurs, setJoueurs] = useState([]);
-  if (phase === "setup") return <Setup onStart={j => { setJoueurs(j); setPhase("jeu"); }}/>;
+  if (phase === "setup") return <Setup onStart={j => { setJoueurs(j); setPhase("jeu"); }} joueur={joueur}/>;
   return <Capital joueurs={joueurs} onFin={() => setPhase("setup")}/>;
 }

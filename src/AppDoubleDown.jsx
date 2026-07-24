@@ -8,8 +8,8 @@
 // Style Dart Point sombre + néon. Pas de son (voulu), vibrations optionnelles.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Search, X } from "lucide-react";
-import { dbJ } from "./AppJoueurs";
+import { ArrowLeft } from "lucide-react";
+import { FriendNameInput } from "./FriendPicker";
 import { ConfettiBurst } from "./DPLottie";
 import confettiData from "./lottie/confetti.json";
 
@@ -397,41 +397,6 @@ export const DoubleDown = ({ setPage, joueur }) => {
   const [names, setNames] = useState(() => { const a = Array(8).fill(""); if (joueur?.pseudo) a[0] = joueur.pseudo; return a; });
   const [orderMode, setOrderMode] = useState("manual");
 
-  // ── Sélecteur d'amis (loupe dans le champ de nom) ──
-  const [openAmis, setOpenAmis] = useState(null);  // index du champ ouvert, ou null
-  const [amisQ, setAmisQ] = useState("");
-  const [amis, setAmis] = useState(null);          // null = pas encore chargé
-  const [amisLoading, setAmisLoading] = useState(false);
-  const amisRef = useRef(null);
-
-  // Chargement des amis à la 1re ouverture seulement
-  useEffect(() => {
-    if (openAmis === null || amis !== null || !joueur?.id) return;
-    setAmisLoading(true);
-    dbJ.getAmis(joueur.id)
-      .then(rows => {
-        const liste = (rows || []).map(a => {
-          const estMoiCote1 = a.joueur_id === joueur.id;
-          return { id: estMoiCote1 ? a.ami_id : a.joueur_id, pseudo: (estMoiCote1 ? a.ami_pseudo : a.joueur_pseudo) || "Joueur" };
-        });
-        // dédoublonnage + tri alphabétique
-        const vus = new Set();
-        setAmis(liste.filter(x => !vus.has(x.id) && vus.add(x.id))
-                     .sort((x, y) => x.pseudo.localeCompare(y.pseudo, "fr", { sensitivity: "base" })));
-      })
-      .catch(() => setAmis([]))
-      .finally(() => setAmisLoading(false));
-  }, [openAmis, amis, joueur?.id]);
-
-  // Fermer si clic à l'extérieur
-  useEffect(() => {
-    if (openAmis === null) return;
-    const h = (e) => { if (amisRef.current && !amisRef.current.contains(e.target)) { setOpenAmis(null); setAmisQ(""); } };
-    document.addEventListener("mousedown", h);
-    document.addEventListener("touchstart", h);
-    return () => { document.removeEventListener("mousedown", h); document.removeEventListener("touchstart", h); };
-  }, [openAmis]);
-
   // Partie
   const [players, setPlayers] = useState([]);      // { name, rounds:[null×9] }
   const [roundIdx, setRoundIdx] = useState(0);
@@ -563,55 +528,19 @@ export const DoubleDown = ({ setPage, joueur }) => {
           {/* Noms */}
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16, marginBottom: 14 }}>
             <div style={{ fontSize: 12, color: C.muted, fontWeight: 800, letterSpacing: .4, marginBottom: 10 }}>NOMS DES JOUEURS</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 9 }} ref={amisRef}>
-              {Array.from({ length: count }, (_, i) => {
-                const ouvert = openAmis === i;
-                const filtres = (amis || []).filter(a => a.pseudo.toLowerCase().includes(amisQ.trim().toLowerCase()));
-                return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              {Array.from({ length: count }, (_, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 6, background: C.card2, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 900, color: C.orange }}>{i + 1}</span>
-                  {/* Champ + loupe À L'INTÉRIEUR, à droite */}
-                  <div style={{ flex: 1, position: "relative" }}>
-                    <input value={names[i]} onChange={e => setNames(ns => ns.map((x, k) => k === i ? e.target.value : x))}
-                      placeholder={`Joueur ${i + 1}`} style={{ width: "100%", background: C.card2, border: `1px solid ${ouvert ? C.orange : C.border}`, borderRadius: 10, padding: "11px 40px 11px 13px", color: C.text, fontSize: 15, boxSizing: "border-box" }} />
-                    <button
-                      onClick={() => { setOpenAmis(ouvert ? null : i); setAmisQ(""); }}
-                      aria-label="Choisir un ami"
-                      title="Choisir un ami"
-                      style={{ position: "absolute", right: 5, top: "50%", transform: "translateY(-50%)", width: 30, height: 30, borderRadius: 8, border: "none", background: ouvert ? C.orange : "transparent", color: ouvert ? "#fff" : C.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", touchAction: "manipulation" }}>
-                      <Search size={16} />
-                    </button>
-
-                    {/* Liste des amis */}
-                    {ouvert && (
-                      <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 300, background: "#14141c", border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: "0 12px 34px #000c", overflow: "hidden" }}>
-                        <div style={{ padding: 8, borderBottom: `1px solid ${C.border}` }}>
-                          <input autoFocus value={amisQ} onChange={e => setAmisQ(e.target.value)} placeholder="Filtrer mes amis…"
-                            style={{ width: "100%", background: C.card2, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 11px", color: C.text, fontSize: 14, boxSizing: "border-box" }} />
-                        </div>
-                        <div style={{ maxHeight: 210, overflowY: "auto" }}>
-                          {!joueur?.id ? (
-                            <div style={{ padding: "14px 12px", fontSize: 12.5, color: C.muted, textAlign: "center" }}>Connecte-toi pour retrouver tes amis.</div>
-                          ) : amisLoading ? (
-                            <div style={{ padding: "14px 12px", fontSize: 12.5, color: C.muted, textAlign: "center" }}>Chargement…</div>
-                          ) : filtres.length === 0 ? (
-                            <div style={{ padding: "14px 12px", fontSize: 12.5, color: C.muted, textAlign: "center" }}>
-                              {(amis || []).length === 0 ? "Tu n'as pas encore d'amis." : "Aucun ami à ce nom."}
-                            </div>
-                          ) : filtres.map(a => (
-                            <button key={a.id}
-                              onClick={() => { setNames(ns => ns.map((x, k) => k === i ? a.pseudo : x)); setOpenAmis(null); setAmisQ(""); }}
-                              style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", borderBottom: `1px solid ${C.border}55`, color: C.text, padding: "11px 13px", fontSize: 14, fontWeight: 700, cursor: "pointer", touchAction: "manipulation" }}>
-                              {a.pseudo}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <FriendNameInput
+                    value={names[i]}
+                    onChange={v => setNames(ns => ns.map((x, k) => k === i ? v : x))}
+                    placeholder={`Joueur ${i + 1}`}
+                    joueurId={joueur?.id}
+                    theme={{ bg: C.card2, border: C.border, text: C.text, muted: C.muted, accent: C.orange }}
+                  />
                 </div>
-                );
-              })}
+              ))}
             </div>
           </div>
 
