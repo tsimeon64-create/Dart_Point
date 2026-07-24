@@ -6794,6 +6794,12 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
             sub="🚢 Bataille navale sur cible : place ta flotte, coule celle de l'adversaire."
             badge="NOUVEAU" badgeIcon="🚢" bgIcon="🚢"
             onClick={()=>setPage("touche-coule")}/>
+
+          {/* 8. Horloge Double (Around the Clock) */}
+          <GameCard icon={Clock} label="Horloge Double" col="#a78bfa"
+            sub="🕐 Enchaîne D1 à D20, Bull et Double Bull. Chrono par cible."
+            badge="ENTRAÎNEMENT" badgeIcon="🎯" bgIcon="🕐"
+            onClick={()=>setPage("horloge-double")}/>
         </div>
       </div>
     );
@@ -6978,11 +6984,6 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
           sub="Entraîne-toi à construire tes finishes en 1, 2 ou 3 fléchettes."
           badge="ENTRAÎNEMENT" badgeIcon="🎯" bgIcon="🎯"
           onClick={()=>setPage("entrainement-finish")}/>
-
-        <GameCard icon={Clock} label="Horloge Double" col="#a78bfa"
-          sub="Enchaîne D1 à D20, Bull et Double Bull. Chrono par cible."
-          badge="ENTRAÎNEMENT" badgeIcon="🎯" bgIcon="🕐"
-          onClick={()=>setPage("horloge-double")}/>
       </div>
     </div>
   );
