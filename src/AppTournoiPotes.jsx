@@ -604,6 +604,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
   const [amis,setAmis]=useState([]);
   const [addingAmi,setAddingAmi]=useState(null); // id de l'ami en cours d'ajout
   const [scanOpen,setScanOpen]=useState(false);
+  const [amisOuvert,setAmisOuvert]=useState(false); // liste d'amis repliée par défaut (menu déroulant)
 
   // Charger la liste d'amis (créateur : pour inviter ; joueur : pour choisir son binôme)
   useEffect(()=>{
@@ -797,8 +798,13 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
       {/* Inviter mes amis (si créateur connecté) — solo uniquement, masqué en doublette */}
       {isCreateur&&!isDoublette&&amis.length>0&&(
         <Card style={{marginBottom:16}}>
-          <h3 style={{fontWeight:700,fontSize:14,marginBottom:12,color:CT.blue}}><EmoText s="👥 Inviter mes amis" size={14}/></h3>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <button onClick={()=>setAmisOuvert(o=>!o)}
+            style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,background:"none",border:"none",padding:0,cursor:"pointer",touchAction:"manipulation"}}>
+            <h3 style={{fontWeight:700,fontSize:14,margin:0,color:CT.blue}}><EmoText s={`👥 Inviter mes amis (${amis.length})`} size={14}/></h3>
+            <span style={{fontSize:13,color:CT.blue,fontWeight:900,transform:amisOuvert?"rotate(90deg)":"none",transition:"transform .18s",display:"inline-block"}}>▸</span>
+          </button>
+          {amisOuvert&&(
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:12}}>
             {amis.map(ami=>{
               const deja=amiDejaAjoute(ami.id);
               return(
@@ -815,6 +821,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
               );
             })}
           </div>
+          )}
         </Card>
       )}
 
