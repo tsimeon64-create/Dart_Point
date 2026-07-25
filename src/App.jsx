@@ -3751,12 +3751,12 @@ const MancheDetailList = ({ manches }) => (
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, fontSize:12 }}>
           <div>
             <div style={{ fontWeight:700, color:"#10b981", marginBottom:2 }}>{m.winner}</div>
-            <div style={{ color:C.muted }}>{m.winner_volees ?? "—"} volée{(m.winner_volees ?? 0)>1?"s":""}</div>
+            <div style={{ color:C.muted }}>{(m.winner_flech ?? (m.winner_volees!=null ? m.winner_volees*3 : null)) ?? "—"} fléchettes <span style={{ color:"#64748b" }}>({m.winner_volees ?? "—"} volée{(m.winner_volees ?? 0)>1?"s":""})</span></div>
             <div style={{ color:C.muted }}>moy. {fmtMoy(m.winner_moy)} pts/volée</div>
           </div>
           <div>
             <div style={{ fontWeight:700, color:"#ef4444", marginBottom:2 }}>{m.loser}</div>
-            <div style={{ color:C.muted }}>{m.loser_volees ?? "—"} volée{(m.loser_volees ?? 0)>1?"s":""}</div>
+            <div style={{ color:C.muted }}>{(m.loser_flech ?? (m.loser_volees!=null ? m.loser_volees*3 : null)) ?? "—"} fléchettes <span style={{ color:"#64748b" }}>({m.loser_volees ?? "—"} volée{(m.loser_volees ?? 0)>1?"s":""})</span></div>
             <div style={{ color:C.muted }}>moy. {fmtMoy(m.loser_moy)} pts/volée</div>
             <div style={{ color:"#f59e0b", fontWeight:600 }}>reste : {m.reste_loser ?? "—"} pts</div>
           </div>

@@ -1170,6 +1170,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     return {
       winner: w.nom, loser: l.nom,
       winner_volees: Math.round(wFlech/3), loser_volees: Math.round(lFlech/3),
+      winner_flech: wFlech, loser_flech: lFlech, // nb EXACT de fléchettes tirées (pour affichage du détail)
       winner_moy: wFlech > 0 ? Math.round((wPts/wFlech)*3*100)/100 : 0, // moyenne au centième
       loser_moy: lFlech > 0 ? Math.round((lPts/lFlech)*3*100)/100 : 0,
       reste_loser: l.score,
