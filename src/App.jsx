@@ -31,6 +31,8 @@ import { MessagesPage, dbM, BoutonMessage } from "./AppMessages";
 const isFinishableScore = (s) => s >= 2 && s <= 170 && ![159, 162, 163, 165, 166, 168, 169].includes(s);
 // Moyenne (pts/volée) affichée AU CENTIÈME (2 décimales, virgule FR). "—" si absente.
 const fmtMoy = (m) => (m == null || m === "" ? "—" : Number(m).toFixed(2).replace(".", ","));
+// Moyenne PAR FLÉCHETTE = pts/volée ÷ 3 (≈ 3 fléchettes par volée). Au centième, virgule FR. "—" si absente.
+const fmtMoyFlech = (m) => (m == null || m === "" ? "—" : (Number(m) / 3).toFixed(2).replace(".", ","));
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
@@ -3752,12 +3754,12 @@ const MancheDetailList = ({ manches }) => (
           <div>
             <div style={{ fontWeight:700, color:"#10b981", marginBottom:2 }}>{m.winner}</div>
             <div style={{ color:C.muted }}>{m.winner_volees ?? "—"} volée{(m.winner_volees ?? 0)>1?"s":""}</div>
-            <div style={{ color:C.muted }}>moy. {fmtMoy(m.winner_moy)} pts/volée</div>
+            <div style={{ color:C.muted }}>moy. {fmtMoyFlech(m.winner_moy)} pts/fléchette</div>
           </div>
           <div>
             <div style={{ fontWeight:700, color:"#ef4444", marginBottom:2 }}>{m.loser}</div>
             <div style={{ color:C.muted }}>{m.loser_volees ?? "—"} volée{(m.loser_volees ?? 0)>1?"s":""}</div>
-            <div style={{ color:C.muted }}>moy. {fmtMoy(m.loser_moy)} pts/volée</div>
+            <div style={{ color:C.muted }}>moy. {fmtMoyFlech(m.loser_moy)} pts/fléchette</div>
             <div style={{ color:"#f59e0b", fontWeight:600 }}>reste : {m.reste_loser ?? "—"} pts</div>
           </div>
         </div>
