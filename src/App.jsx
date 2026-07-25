@@ -12031,6 +12031,8 @@ const Onboarding = ({ onDone, setPage, hasAccount = false }) => {
       body:"Le réseau social des joueurs de fléchettes. Ici, tout se passe en vrai : dans les bars, entre potes. Voici ce qui t'attend 👇", visual:"logo" },
     { key:"communaute", emoji:"👥", accent:"#60a5fa", title:"Rejoins la communauté",
       body:"Crée ton profil, affilie-toi à ton bar ou ton asso, ajoute tes amis et vois qui joue près de chez toi.", benefit:"Tu ne joues plus jamais tout seul" },
+    { key:"profil", emoji:"🪪", accent:"#60a5fa", title:"Regarde le profil de tes amis",
+      body:"Niveau DRIX, rang, forme du moment, stats détaillées… ouvre le profil de chaque joueur, et suis le tien.", visual:"profil", benefit:"Connais tes adversaires avant de jouer" },
     { key:"drix", emoji:"💎", accent:"#a78bfa", title:"Découvre ton VRAI niveau",
       body:"Le DRIX, c'est ton classement fléchettes (comme aux échecs). Chaque duel réel te fait monter ou descendre. Grimpe les rangs : Débutant → Élite.", visual:"drix", benefit:"Un vrai niveau, rien qu'à toi" },
     { key:"stats", emoji:"📊", accent:"#22c55e", title:"Tes stats et celles des autres",
@@ -12059,6 +12061,41 @@ const Onboarding = ({ onDone, setPage, hasAccount = false }) => {
       return <img src="/logo dart point/logo bandeau.png" alt="Dart Point" style={{ height:54, objectFit:"contain", filter:"drop-shadow(0 0 22px rgba(249,115,22,.6))" }}/>;
     if (s.visual === "drix")
       return <div style={{ width:"100%" }}><StatsPreviewBlock gradientIdSuffix="-onb"/></div>;
+    if (s.visual === "profil")
+      return (
+        <div style={{ width:"100%", maxWidth:330, textAlign:"left" }}>
+          <div style={{ background:"linear-gradient(135deg,#1a1206,#0e0e14)", border:"1px solid #f9731640", borderRadius:16, padding:"14px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ position:"relative", flexShrink:0 }}>
+                <div style={{ width:54, height:54, borderRadius:"50%", border:"2.5px solid #f97316", background:"#20160a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:23, fontWeight:900, color:"#f97316" }}>A</div>
+                <div style={{ position:"absolute", top:-4, right:-4, width:21, height:21, borderRadius:"50%", background:"#f97316", color:"#160a02", fontSize:11, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", border:"2px solid #0e0e14" }}>18</div>
+                <div style={{ position:"absolute", bottom:1, right:1, width:11, height:11, borderRadius:"50%", background:"#22c55e", border:"2px solid #0e0e14" }}/>
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:19, fontWeight:900, color:"#fff", lineHeight:1 }}>Alex</div>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:4, background:"#f9731618", border:"1px solid #f9731640", borderRadius:8, padding:"3px 8px", marginTop:6, fontSize:11, fontWeight:800, color:"#f97316" }}><EmoIcon e="🏆" size={11} color="#f97316"/> LÉGENDE</div>
+              </div>
+            </div>
+            <div style={{ display:"flex", alignItems:"baseline", gap:8, marginTop:12 }}>
+              <span style={{ fontSize:37, fontWeight:900, color:"#fff", lineHeight:1 }}>1839</span>
+              <span style={{ fontSize:14, fontWeight:800, color:"#94a3b8" }}>DRIX</span>
+            </div>
+            <div style={{ display:"flex", gap:6, marginTop:9 }}>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:4, background:"#12121a", border:"1px solid #2a2a33", borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:700, color:"#f59e0b" }}><EmoIcon e="🏆" size={11} color="#f59e0b"/> #7/41</span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:4, background:"#12121a", border:"1px solid #2a2a33", borderRadius:8, padding:"3px 9px", fontSize:11, fontWeight:700, color:"#22c55e" }}><EmoIcon e="🔥" size={11} color="#22c55e"/> 2 de suite</span>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:7, marginTop:8 }}>
+            {[["🔥","En feu","Forme","#22c55e"],["🏆","51%","Win","#f59e0b"],["⚡","+38","7 j","#22c55e"],["🎯","73","Finish","#f97316"]].map(([e,v,l,c]) => (
+              <div key={l} style={{ flex:1, background:"#111118", border:"1px solid #22222c", borderRadius:11, padding:"9px 4px", textAlign:"center" }}>
+                <EmoIcon e={e} size={15} color={c}/>
+                <div style={{ fontSize:14, fontWeight:900, color:c, marginTop:2 }}>{v}</div>
+                <div style={{ fontSize:9, color:"#94a3b8", fontWeight:600 }}>{l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
     if (s.visual === "stats")
       return (
         <div style={{ display:"flex", gap:10, width:"100%", justifyContent:"center" }}>
