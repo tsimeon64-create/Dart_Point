@@ -3641,25 +3641,83 @@ const LikeButton = ({ refId, joueur, initialCount=0, initialMyLike=false }) => {
   const [count, setCount] = useState(initialCount);
   const [liked, setLiked] = useState(initialMyLike);
   const [busy, setBusy] = useState(false);
+  const [likers, setLikers] = useState([]);       // [{joueur_id, joueur_pseudo, joueur_photo}]
+  const [loaded, setLoaded] = useState(false);
+  const [showList, setShowList] = useState(false);
+
+  // Charge la liste (avec photos) des joueurs qui ont aimé — seulement s'il y a des likes.
+  // wall_likes n'a pas de colonne photo → on récupère les photos via la table joueurs.
+  useEffect(() => {
+    if (synth || initialCount <= 0) { setLoaded(true); return; }
+    let alive = true;
+    (async () => {
+      try {
+        const rows = await sb(`wall_likes?ref_id=eq.${refId}&select=joueur_id,joueur_pseudo,date&order=date.asc`);
+        const ids = [...new Set((rows||[]).map(l=>l.joueur_id).filter(Boolean))];
+        const photoMap = {};
+        if (ids.length) {
+          const ph = await sb(`joueurs?id=in.(${ids.join(",")})&select=id,photo`).catch(()=>[]);
+          (ph||[]).forEach(p => { photoMap[p.id] = p.photo; });
+        }
+        if (alive) {
+          setLikers((rows||[]).map(l => ({ joueur_id:l.joueur_id, joueur_pseudo:l.joueur_pseudo, photo: photoMap[l.joueur_id]||null })));
+          setLoaded(true);
+        }
+      } catch { if (alive) setLoaded(true); }
+    })();
+    return () => { alive = false; };
+  }, [refId]); // eslint-disable-line
+
   const toggle = async () => {
     if (!joueur || busy || synth) return;
     setBusy(true);
     try {
       if (liked) {
         await sb(`wall_likes?ref_id=eq.${refId}&joueur_id=eq.${joueur.id}`, { method:"DELETE", prefer:"return=minimal" });
-        setCount(c=>c-1); setLiked(false);
+        setCount(c=>Math.max(0,c-1)); setLiked(false);
+        setLikers(ls => ls.filter(l => l.joueur_id !== joueur.id));
       } else {
         await sb("wall_likes", { method:"POST", body:JSON.stringify({ ref_id:refId, joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, date:Date.now() }) });
         setCount(c=>c+1); setLiked(true);
+        setLikers(ls => [...ls.filter(l=>l.joueur_id!==joueur.id), { joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, photo: joueur.photo||null }]);
       }
     } catch{}
     setBusy(false);
   };
   if (synth) return null; // annonce synthétisée → pas d'interaction (id non réel)
+  const apercu = likers.slice(0, 3);
   return (
-    <button onClick={toggle} style={{ background:"none", border:`1px solid ${liked?"#f97316":"#2a2a2a"}`, borderRadius:20, padding:"4px 14px", color:liked?"#f97316":"#94a3b8", fontSize:12, fontWeight:600, cursor:joueur?"pointer":"default", display:"flex", alignItems:"center", gap:5, touchAction:"manipulation", transition:"all .15s" }}>
-      <ThumbsUp size={13}/> {count>0?count:""}
-    </button>
+    <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+      <button onClick={toggle} style={{ background:"none", border:`1px solid ${liked?"#f97316":"#2a2a2a"}`, borderRadius:20, padding:"4px 14px", color:liked?"#f97316":"#94a3b8", fontSize:12, fontWeight:600, cursor:joueur?"pointer":"default", display:"flex", alignItems:"center", gap:5, touchAction:"manipulation", transition:"all .15s" }}>
+        <ThumbsUp size={13}/> J'aime
+      </button>
+      {count > 0 && (
+        <div onClick={()=>setShowList(true)} style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", padding:"2px 4px" }} title="Voir qui a aimé">
+          <div style={{ display:"flex", alignItems:"center" }}>
+            {apercu.map((l,i)=>(
+              <div key={l.joueur_id||i} style={{ marginLeft:i?-9:0, borderRadius:"50%", border:"2px solid #0a0a0a", display:"flex", zIndex:apercu.length-i }}>
+                <FeedAvatar photo={l.photo} pseudo={l.joueur_pseudo} size={22}/>
+              </div>
+            ))}
+          </div>
+          <span style={{ fontSize:12, color:"#94a3b8", fontWeight:700 }}>{count}</span>
+        </div>
+      )}
+      {showList && (
+        <div onClick={()=>setShowList(false)} style={{ position:"fixed", inset:0, background:"#000000d8", zIndex:99999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ background:"#15151c", border:"1px solid #2a2a2a", borderRadius:16, padding:18, maxWidth:360, width:"100%", maxHeight:"72vh", overflowY:"auto" }}>
+            <div style={{ fontWeight:800, fontSize:15, color:"#f1f5f9", marginBottom:12, display:"flex", alignItems:"center", gap:7 }}><ThumbsUp size={16} color="#f97316"/> {count} j'aime</div>
+            {likers.length > 0 ? likers.slice().reverse().map((l,i)=>(
+              <div key={l.joueur_id||i} onClick={()=>{ if(l.joueur_id){ setShowList(false); window.setPageGlobal && window.setPageGlobal("profil-joueur-"+l.joueur_id); } }} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:"1px solid #2a2a2a", cursor:l.joueur_id?"pointer":"default" }}>
+                <FeedAvatar photo={l.photo} pseudo={l.joueur_pseudo} size={34}/>
+                <span style={{ fontWeight:700, fontSize:14, color:"#f1f5f9" }}>{l.joueur_pseudo}</span>
+              </div>
+            )) : <div style={{ color:"#94a3b8", fontSize:13, padding:"8px 0" }}>{loaded?"Personne pour l'instant.":"Chargement…"}</div>}
+            <button onClick={()=>setShowList(false)} style={{ width:"100%", marginTop:14, background:"none", border:"none", color:"#94a3b8", fontSize:13, cursor:"pointer", padding:8, touchAction:"manipulation" }}>Fermer</button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
