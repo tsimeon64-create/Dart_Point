@@ -2070,10 +2070,37 @@ export const PageProfilAmis = ({ joueur, setPage }) => (
 );
 
 // ── PAGE HISTORIQUE ────────────────────────────────────────────────────────────
+// Détail manche par manche (même présentation que le Comptoir). Autonome (couleurs en dur)
+// pour éviter un import circulaire avec App.jsx où vit le MancheDetailList d'origine.
+const fmtMoyJ = (m) => (m == null || m === "" ? "—" : Number(m).toFixed(2).replace(".", ","));
+const MancheDetailListJ = ({ manches }) => (
+  <div style={{ marginTop:10, display:"flex", flexDirection:"column", gap:6 }}>
+    {(manches||[]).map((m, i) => (
+      <div key={i} style={{ background:"#0f0f0f", borderRadius:10, padding:"10px 12px" }}>
+        <div style={{ fontWeight:700, fontSize:12, color:"#f97316", marginBottom:6 }}>🏆 Manche {i+1} — {m.winner}</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, fontSize:12 }}>
+          <div>
+            <div style={{ fontWeight:700, color:"#10b981", marginBottom:2 }}>{m.winner}</div>
+            <div style={{ color:"#94a3b8" }}>{(m.winner_flech ?? (m.winner_volees!=null ? m.winner_volees*3 : null)) ?? "—"} fléchettes <span style={{ color:"#64748b" }}>({m.winner_volees ?? "—"} volée{(m.winner_volees ?? 0)>1?"s":""})</span></div>
+            <div style={{ color:"#94a3b8" }}>moy. {fmtMoyJ(m.winner_moy)} pts/volée</div>
+          </div>
+          <div>
+            <div style={{ fontWeight:700, color:"#ef4444", marginBottom:2 }}>{m.loser}</div>
+            <div style={{ color:"#94a3b8" }}>{(m.loser_flech ?? (m.loser_volees!=null ? m.loser_volees*3 : null)) ?? "—"} fléchettes <span style={{ color:"#64748b" }}>({m.loser_volees ?? "—"} volée{(m.loser_volees ?? 0)>1?"s":""})</span></div>
+            <div style={{ color:"#94a3b8" }}>moy. {fmtMoyJ(m.loser_moy)} pts/volée</div>
+            <div style={{ color:"#f59e0b", fontWeight:600 }}>reste : {m.reste_loser ?? "—"} pts</div>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 export const PageProfilHistorique = ({ joueur, setPage, embedded = false }) => {
   const [duels, setDuels]       = useState([]);
   const [drixMvtMap, setDrixMvtMap] = useState({});
   const [loading, setLoading]   = useState(true);
+  const [openId, setOpenId]     = useState(null); // duel dont le détail manche par manche est ouvert
 
   useEffect(() => {
     Promise.all([
@@ -2109,12 +2136,13 @@ export const PageProfilHistorique = ({ joueur, setPage, embedded = false }) => {
               const monMoy = isC?d.score_challenger:d.score_defie;
               const gagne = d.gagnant_id === joueur.id;
               const variation = drixMvtMap[d.id];
+              const ouvert = openId === d.id;
               return (
-                <div key={d.id} style={{ background:"#ffffff0a", border:`1px solid ${gagne?CJ.green+"33":CJ.red+"33"}`, borderRadius:10, padding:12, marginBottom:8 }}>
+                <div key={d.id} onClick={()=>setOpenId(o=>o===d.id?null:d.id)} style={{ background:"#ffffff0a", border:`1px solid ${gagne?CJ.green+"33":CJ.red+"33"}`, borderRadius:10, padding:12, marginBottom:8, cursor:"pointer" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8 }}>
                     <div>
                       <span style={{ fontWeight:700, fontSize:14 }}>vs{" "}
-                        <span onClick={()=>setPage("profil-joueur-"+advId)} style={{ color:CJ.accent, cursor:"pointer", textDecoration:"underline" }}>{adv}</span>
+                        <span onClick={(e)=>{ e.stopPropagation(); setPage("profil-joueur-"+advId); }} style={{ color:CJ.accent, cursor:"pointer", textDecoration:"underline" }}>{adv}</span>
                       </span>
                       <div style={{ color:CJ.muted, fontSize:12, marginTop:2 }}>{d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""} · {new Date(d.date).toLocaleDateString("fr-FR")}</div>
                     </div>
@@ -2132,6 +2160,16 @@ export const PageProfilHistorique = ({ joueur, setPage, embedded = false }) => {
                       )}
                     </div>
                   </div>
+                  <div style={{ color:CJ.muted, fontSize:11, marginTop:8, fontWeight:600 }}>
+                    {ouvert ? "▴ Masquer le détail" : "▾ Voir le détail manche par manche"}
+                  </div>
+                  {ouvert && (
+                    <div onClick={(e)=>e.stopPropagation()}>
+                      {Array.isArray(d.manches_detail) && d.manches_detail.length
+                        ? <MancheDetailListJ manches={d.manches_detail}/>
+                        : <div style={{ marginTop:8, color:CJ.muted, fontSize:12, fontStyle:"italic" }}>Détail manche par manche indisponible pour ce match.</div>}
+                    </div>
+                  )}
                 </div>
               );
             })
