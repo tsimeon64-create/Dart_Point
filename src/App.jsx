@@ -12142,8 +12142,8 @@ const Onboarding = ({ onDone, setPage, hasAccount = false }) => {
               {hasAccount ? "C'est parti ! 🎯" : "Créer mon compte 🚀"}
             </button>
             {!hasAccount && (
-              <button onClick={done} style={{ width:"100%", marginTop:10, background:"none", border:"none", color:"#6b7280", fontSize:13, fontWeight:700, cursor:"pointer", padding:8, touchAction:"manipulation" }}>
-                Découvrir d'abord sans compte
+              <button onClick={done} style={{ width:"100%", marginTop:10, background:"none", border:"none", color:"#94a3b8", fontSize:13.5, fontWeight:700, cursor:"pointer", padding:10, touchAction:"manipulation" }}>
+                J'ai lu, fermer
               </button>
             )}
           </>
