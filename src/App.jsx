@@ -12021,100 +12021,138 @@ const ONBOARDING_SECTIONS = [
   },
 ];
 
-const Onboarding = ({ onDone }) => {
-  const [btnVisible, setBtnVisible] = useState(false);
-  const scrollRef = useRef(null);
 
-  const onScroll = () => {
-    const el = scrollRef.current;
-    if (!el) return;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 60) setBtnVisible(true);
-  };
+// ── APP ───────────────────────────────────────────────────────────────────────
+// ── HELP CONTENT par page ─────────────────────────────────────────────────────
+// ── Écran d'accueil / onboarding : carrousel multi-pages « donne envie de créer un compte » ──
+const Onboarding = ({ onDone, setPage, hasAccount = false }) => {
+  const SLIDES = [
+    { key:"welcome", emoji:"🎯", accent:"#f97316", title:"Bienvenue sur Dart Point",
+      body:"Le réseau social des joueurs de fléchettes. Ici, tout se passe en vrai : dans les bars, entre potes. Voici ce qui t'attend 👇", visual:"logo" },
+    { key:"communaute", emoji:"👥", accent:"#60a5fa", title:"Rejoins la communauté",
+      body:"Crée ton profil, affilie-toi à ton bar ou ton asso, ajoute tes amis et vois qui joue près de chez toi.", benefit:"Tu ne joues plus jamais tout seul" },
+    { key:"drix", emoji:"💎", accent:"#a78bfa", title:"Découvre ton VRAI niveau",
+      body:"Le DRIX, c'est ton classement fléchettes (comme aux échecs). Chaque duel réel te fait monter ou descendre. Grimpe les rangs : Débutant → Élite.", visual:"drix", benefit:"Un vrai niveau, rien qu'à toi" },
+    { key:"stats", emoji:"📊", accent:"#22c55e", title:"Tes stats et celles des autres",
+      body:"Ta moyenne, ton pourcentage de finish, ton historique de matchs… et compare-toi aux autres joueurs.", visual:"stats", benefit:"Suis tes progrès match après match" },
+    { key:"jeux", emoji:"🎮", accent:"#34d399", title:"Joue et progresse",
+      body:"Scoreur 501/301, Le Capital, Touché-Coulé, Double Down, entraînement au finish… plein de mini-jeux pour t'améliorer.", visual:"games" },
+    { key:"tournois", emoji:"🏆", accent:"#f59e0b", title:"Organise et défie",
+      body:"Monte des tournois entre potes, lance des défis et suis tes rivalités de la semaine.", benefit:"Des soirées fléchettes mémorables" },
+    { key:"final", emoji:"🚀", accent:"#f97316", title:"Prêt à te lancer ?",
+      body: hasAccount ? "Te revoilà ! Tout est prêt, à toi de jouer." : "Crée ton compte gratuit et rejoins la communauté Dart Point.", visual:"recap" },
+  ];
+  const last = SLIDES.length - 1;
+  const [idx, setIdx] = useState(0);
+  const touchX = useRef(null);
+  const s = SLIDES[idx];
 
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    if (el.scrollHeight <= el.clientHeight + 60) setBtnVisible(true);
-  }, []);
+  const done = () => { try { localStorage.setItem("dp_onboarding_done", "true"); } catch(e){ /* ignore */ } onDone && onDone(); };
+  const creerCompte = () => { done(); setPage && setPage("connexion"); };
+  const next = () => setIdx(i => Math.min(last, i + 1));
+  const prev = () => setIdx(i => Math.max(0, i - 1));
+  const onTS = e => { touchX.current = e.touches[0].clientX; };
+  const onTE = e => { if (touchX.current == null) return; const dx = e.changedTouches[0].clientX - touchX.current; touchX.current = null; if (dx < -45) next(); else if (dx > 45) prev(); };
 
-  const done = () => {
-    localStorage.setItem("dp_onboarding_done", "true");
-    onDone();
-  };
-
-  // ── Section card helper ───────────────────────────────────────────────────
-  const SCard = ({ s }) => (
-    <div style={{ marginBottom:16, borderRadius:18,
-      background: s.highlight
-        ? `linear-gradient(135deg,${s.accent}18,#12120a)`
-        : "linear-gradient(135deg,#111118,#0e0e14)",
-      border:`1px solid ${s.accent}${s.highlight?"44":"25"}`,
-      padding:"18px 16px",
-      boxShadow: s.highlight ? `0 0 32px ${s.accent}14` : "none",
-    }}>
-      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:10 }}>
-        <div style={{ width:44, height:44, borderRadius:13, background:`${s.accent}18`, border:`1px solid ${s.accent}33`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:21, flexShrink:0 }}>
-          <EmoIcon e={s.emoji} size={22} color={s.accent}/>
+  const Visual = () => {
+    if (s.visual === "logo")
+      return <img src="/logo dart point/logo bandeau.png" alt="Dart Point" style={{ height:54, objectFit:"contain", filter:"drop-shadow(0 0 22px rgba(249,115,22,.6))" }}/>;
+    if (s.visual === "drix")
+      return <div style={{ width:"100%" }}><StatsPreviewBlock gradientIdSuffix="-onb"/></div>;
+    if (s.visual === "stats")
+      return (
+        <div style={{ display:"flex", gap:10, width:"100%", justifyContent:"center" }}>
+          {[["Moyenne","45.2"],["Finish","38%"],["Meilleur","140"]].map(([l,v]) => (
+            <div key={l} style={{ flex:1, maxWidth:112, background:"#12121a", border:"1px solid #22c55e33", borderRadius:14, padding:"12px 8px", textAlign:"center" }}>
+              <div style={{ fontSize:22, fontWeight:900, color:"#22c55e" }}>{v}</div>
+              <div style={{ fontSize:11, color:"#94a3b8", fontWeight:600, marginTop:2 }}>{l}</div>
+            </div>
+          ))}
         </div>
-        <h2 style={{ fontWeight:800, fontSize:16, color:"#f1f5f9", margin:0, lineHeight:1.3 }}>{s.title}</h2>
+      );
+    if (s.visual === "games")
+      return (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center" }}>
+          {[["🎯","Scoreur"],["🃏","Capital"],["🚢","Touché-Coulé"],["🎲","Double Down"],["🏹","Finish"]].map(([e,l]) => (
+            <div key={l} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:5, background:"#12121a", border:"1px solid #34d39933", borderRadius:14, padding:"10px 12px", minWidth:78 }}>
+              <EmoIcon e={e} size={24}/>
+              <span style={{ fontSize:11, color:"#cbd5e1", fontWeight:700 }}>{l}</span>
+            </div>
+          ))}
+        </div>
+      );
+    if (s.visual === "recap")
+      return (
+        <div style={{ display:"flex", flexDirection:"column", gap:8, width:"100%" }}>
+          {[["👥","Une communauté de joueurs"],["💎","Ton classement DRIX"],["📊","Tes stats détaillées"],["🎮","Tous les mini-jeux"],["🏆","Tournois & défis"]].map(([e,l]) => (
+            <div key={l} style={{ display:"flex", alignItems:"center", gap:10, background:"#111118", border:"1px solid #f9731625", borderRadius:12, padding:"10px 14px" }}>
+              <EmoIcon e={e} size={18}/>
+              <span style={{ fontSize:13.5, color:"#f1f5f9", fontWeight:700, flex:1 }}>{l}</span>
+              <span style={{ color:"#22c55e", fontSize:15, fontWeight:900 }}>✓</span>
+            </div>
+          ))}
+        </div>
+      );
+    return (
+      <div style={{ width:96, height:96, borderRadius:28, background:`${s.accent}16`, border:`1px solid ${s.accent}40`, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 0 40px ${s.accent}22` }}>
+        <EmoIcon e={s.emoji} size={46} color={s.accent}/>
       </div>
-      <p style={{ color:"#94a3b8", fontSize:13.5, lineHeight:1.75, margin:0, marginBottom: s.sub ? 10 : 0 }}>{s.body}</p>
-      {s.sub && (
-        <div style={{ marginTop:10, background:`${s.accent}12`, border:`1px solid ${s.accent}30`, borderRadius:10, padding:"8px 13px", fontSize:12.5, fontWeight:700, color:s.accent }}>
-          {s.sub}
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
     <div style={{ position:"fixed", inset:0, zIndex:9999, background:"#090909", display:"flex", flexDirection:"column" }}>
-      {/* ── Header ── */}
-      <div style={{ flexShrink:0, padding:"18px 20px 16px", textAlign:"center", borderBottom:"1px solid #161616" }}>
-        <img src="/logo dart point/logo bandeau.png" alt="DartPoint"
-          style={{ height:36, objectFit:"contain", filter:"drop-shadow(0 0 16px rgba(249,115,22,.55))" }}/>
+      <style>{`@keyframes obIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}`}</style>
+
+      {/* Progression + Passer */}
+      <div style={{ flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 18px 10px" }}>
+        <div style={{ display:"flex", gap:6 }}>
+          {SLIDES.map((_, i) => (
+            <div key={i} style={{ width:i===idx?22:7, height:7, borderRadius:4, background:i===idx?s.accent:(i<idx?"#3a3a44":"#26262e"), transition:"all .25s" }}/>
+          ))}
+        </div>
+        <button onClick={done} style={{ background:"none", border:"none", color:"#6b7280", fontSize:13, fontWeight:700, cursor:"pointer", padding:6, touchAction:"manipulation" }}>Passer</button>
       </div>
 
-      {/* ── Scroll area ── */}
-      <div ref={scrollRef} onScroll={onScroll}
-        style={{ flex:1, overflowY:"auto", overflowX:"hidden", padding:"20px 18px 28px", WebkitOverflowScrolling:"touch" }}>
-
-        {/* Sections 0 & 1 */}
-        {ONBOARDING_SECTIONS.slice(0, 2).map((s, i) => <SCard key={i} s={s}/>)}
-
-        {/* Section DRIX */}
-        <SCard s={ONBOARDING_SECTIONS[2]}/>
-
-        {/* ── BLOC VISUEL : Courbe + Dangerosité ── */}
-        <StatsPreviewBlock gradientIdSuffix="-ob"/>
-
-        {/* Sections 3, 4, 5 */}
-        {ONBOARDING_SECTIONS.slice(3).map((s, i) => <SCard key={i+3} s={s}/>)}
-
-        {/* Indicateur de scroll */}
-        {!btnVisible && (
-          <div style={{ textAlign:"center", color:"#222230", fontSize:12, marginBottom:10 }}>
-            ↓ continue à défiler
+      {/* Slide (swipe) */}
+      <div onTouchStart={onTS} onTouchEnd={onTE} style={{ flex:1, overflowY:"auto", overflowX:"hidden", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"10px 24px 20px", textAlign:"center", WebkitOverflowScrolling:"touch" }}>
+        <div key={idx} style={{ animation:"obIn .35s ease", display:"flex", flexDirection:"column", alignItems:"center", gap:22, maxWidth:440, width:"100%" }}>
+          <div style={{ minHeight:96, display:"flex", alignItems:"center", justifyContent:"center", width:"100%" }}><Visual/></div>
+          <div>
+            <h2 style={{ fontSize:23, fontWeight:900, color:"#fff", margin:"0 0 10px", lineHeight:1.25 }}>{s.title}</h2>
+            <p style={{ fontSize:15, color:"#b6c0cd", lineHeight:1.65, margin:0 }}>{s.body}</p>
           </div>
-        )}
-
-        {/* Bouton CTA révélé après scroll */}
-        <div style={{ transition:"opacity .45s, transform .45s", opacity: btnVisible?1:0, transform: btnVisible?"translateY(0)":"translateY(18px)", pointerEvents: btnVisible?"auto":"none" }}>
-          <button onClick={done}
-            style={{ width:"100%", padding:"17px 0", background:"linear-gradient(135deg,#f97316,#dc4e08)", color:"#fff", border:"none", borderRadius:16, fontWeight:900, fontSize:17, cursor:"pointer", boxShadow:"0 8px 32px #f9731460", touchAction:"manipulation", letterSpacing:.4 }}>
-            J'ai compris, je me lance ! 🎯
-          </button>
-          <p style={{ textAlign:"center", color:"#2a2a3a", fontSize:11, marginTop:12 }}>
-            Tu peux retrouver ces infos dans "À propos" à tout moment.
-          </p>
+          {s.benefit && (
+            <div style={{ display:"inline-flex", alignItems:"center", gap:7, background:`${s.accent}14`, border:`1px solid ${s.accent}40`, borderRadius:20, padding:"7px 15px", color:s.accent, fontSize:13, fontWeight:800 }}>
+              <span>⭐</span>{s.benefit}
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Bouton bas */}
+      <div style={{ flexShrink:0, padding:"12px 20px calc(18px + env(safe-area-inset-bottom))" }}>
+        {idx < last ? (
+          <button onClick={next} style={{ width:"100%", padding:"16px 0", background:"linear-gradient(135deg,#f97316,#dc4e08)", color:"#fff", border:"none", borderRadius:16, fontWeight:900, fontSize:16, cursor:"pointer", boxShadow:"0 8px 28px #f9731650", touchAction:"manipulation" }}>
+            Suivant →
+          </button>
+        ) : (
+          <>
+            <button onClick={hasAccount ? done : creerCompte} style={{ width:"100%", padding:"17px 0", background:"linear-gradient(135deg,#f97316,#dc4e08)", color:"#fff", border:"none", borderRadius:16, fontWeight:900, fontSize:17, cursor:"pointer", boxShadow:"0 8px 32px #f9731660", touchAction:"manipulation", letterSpacing:.3 }}>
+              {hasAccount ? "C'est parti ! 🎯" : "Créer mon compte 🚀"}
+            </button>
+            {!hasAccount && (
+              <button onClick={done} style={{ width:"100%", marginTop:10, background:"none", border:"none", color:"#6b7280", fontSize:13, fontWeight:700, cursor:"pointer", padding:8, touchAction:"manipulation" }}>
+                Découvrir d'abord sans compte
+              </button>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
 };
 
-// ── APP ───────────────────────────────────────────────────────────────────────
-// ── HELP CONTENT par page ─────────────────────────────────────────────────────
 const HELP_CONTENT = {
   home:           { emoji:"🏠", title:"Tableau de bord", items:[
     {icon:"💬",label:"Le Comptoir",text:"Le Comptoir, c'est le fil social de DartPoint. Retrouve les posts, victoires et présences de tes amis. Tu peux aussi publier un message ou partager un résultat depuis cette section."},
@@ -12758,7 +12796,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight:"100vh",display:"flex",flexDirection:"column",background:C.bg,color:C.text }}>
-      {showOnboarding && <Onboarding onDone={()=>setShowOnboarding(false)}/>}
+      {showOnboarding && <Onboarding onDone={()=>setShowOnboarding(false)} setPage={nav} hasAccount={!!joueur}/>}
 
       {/* ── Popup email obligatoire (anciens comptes sans email) ── */}
       {showEmailRequired && (
