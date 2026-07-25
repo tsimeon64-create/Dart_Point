@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import { Scoreur } from "./AppJeux";
 import { EmoIcon, EmoText } from "./icons";
 import { rankGroup, egalitesADepartager } from "./barrage";
+import { TournoiSetupWizard } from "./TournoiSetupWizard";
 
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -514,86 +515,6 @@ const ShareTournoiModal=({tournoi,canPlay,onUnlock,onClose})=>{
   );
 };
 
-// ── Réglages des poules (avant lancement) ──
-// Plus petite puissance de 2 ≥ x (taille de tableau)
-const nextPow2=(x)=>Math.max(2,Math.pow(2,Math.ceil(Math.log2(Math.max(2,x)))));
-// Évalue une taille de poule : nb de poules, qualifiés (les 2 premiers), tableau, exempts
-const evalTaillePoule=(nbJoueurs,t)=>{
-  const np=Math.max(1,Math.round(nbJoueurs/t));
-  const q=Math.min(nbJoueurs,np*2);
-  const bs=nextPow2(q);
-  return{np,q,bs,exempts:bs-q};
-};
-const PoolConfigModal=({nbJoueurs,onValider,onClose,saving})=>{
-  // Tailles de poule proposées : on génère tous les nombres de poules possibles (2 → nb/2, sans doublon) pour
-  // offrir plus de choix (ex. 24 équipes → 3,4,5,6,8,12 joueurs/poule = 8,6,5,4,3,2 poules).
-  const taillesPoule=(()=>{
-    const seen=new Set(), res=[];
-    for(let np=2;np<=Math.floor(nbJoueurs/2);np++){
-      const size=Math.round(nbJoueurs/np);
-      if(size<3)continue;                                        // au moins 3 joueurs par poule
-      if(Math.max(1,Math.round(nbJoueurs/size))!==np)continue;   // cohérent avec le calcul réel de lancerTournoi
-      if(seen.has(size))continue;
-      seen.add(size); res.push(size);
-    }
-    if(!res.length)res.push(Math.min(nbJoueurs,3));              // filet pour les tout petits tournois
-    return res.sort((a,b)=>a-b);
-  })();
-  // Réglage conseillé = celui qui ne laisse AUCUN exempt (sinon le moins d'exempts), en privilégiant le plus de qualifiés
-  const reco=taillesPoule.map(t=>({t,...evalTaillePoule(nbJoueurs,t)})).sort((a,b)=>(a.exempts-b.exempts)||(b.q-a.q))[0].t;
-  const [taille,setTaille]=useState(reco);
-  const [manches,setManches]=useState(2);
-  const [cibles,setCibles]=useState(2);
-  const [nbQualifies,setNbQualifies]=useState(2); // combien de joueurs sortent de chaque poule (1 ou 2)
-  const ev=evalTaillePoule(nbJoueurs,taille);
-  const base=Math.floor(nbJoueurs/ev.np), reste=nbJoueurs%ev.np;
-  const apercu=reste===0?`${ev.np} poule${ev.np>1?"s":""} de ${base} joueurs`:`${ev.np} poules de ${base} à ${base+1} joueurs`;
-  const clean=ev.exempts===0;
-  const opt=(val,sel,onPick)=>(
-    <button key={val} onClick={()=>onPick(val)} style={{flex:1,padding:"10px 4px",borderRadius:10,border:`1px solid ${sel?CT.accent:CT.border}`,background:sel?CT.accent+"22":CT.card,color:sel?CT.accent:CT.text,fontWeight:sel?800:600,fontSize:15,cursor:"pointer",touchAction:"manipulation"}}>{val}</button>
-  );
-  return(
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000000e6",zIndex:99999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"#15151c",border:`1px solid ${CT.border}`,borderRadius:18,padding:22,maxWidth:400,width:"100%"}}>
-        <h3 style={{fontWeight:800,fontSize:18,marginBottom:4,color:"#fff",textAlign:"center"}}><EmoText s="⚙️ Réglages des poules" size={17}/></h3>
-        <p style={{color:CT.muted,fontSize:12,textAlign:"center",marginBottom:18}}>{nbJoueurs} joueurs inscrits</p>
-        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Joueurs par poule <span style={{color:CT.muted,fontWeight:500}}>(conseillé : {reco} — sans exempt)</span></div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>{taillesPoule.map(t=>{
-          const e=evalTaillePoule(nbJoueurs,t), sel=taille===t;
-          return(
-            <button key={t} onClick={()=>setTaille(t)} style={{flex:"1 1 52px",padding:"8px 4px",borderRadius:10,border:`1px solid ${sel?CT.accent:CT.border}`,background:sel?CT.accent+"22":CT.card,cursor:"pointer",touchAction:"manipulation",display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-              <span style={{fontWeight:800,fontSize:16,color:sel?CT.accent:CT.text}}>{t}</span>
-              <span style={{fontSize:9.5,color:CT.muted,fontWeight:600}}>{e.np} poule{e.np>1?"s":""}</span>
-              <span style={{fontSize:11}}>{e.exempts===0?"✅":"⚠️"}</span>
-            </button>
-          );
-        })}</div>
-        <div style={{background:(clean?CT.green:"#eab308")+"15",border:`1px solid ${(clean?CT.green:"#eab308")}55`,borderRadius:10,padding:"10px 12px",fontSize:12.5,color:clean?CT.green:"#eab308",fontWeight:700,textAlign:"center",marginBottom:6,lineHeight:1.45}}>
-          → {apercu}<br/>{Math.min(nbJoueurs,ev.np*nbQualifies)} qualifiés ({nbQualifies===1?"le 1er de chaque poule":"les 2 premiers"}) → tableau de {nextPow2(Math.min(nbJoueurs,ev.np*nbQualifies))}
-        </div>
-        <div style={{fontSize:11.5,color:clean?CT.green:"#eab308",textAlign:"center",fontWeight:700,marginBottom:18}}>
-          {clean?"✅ Tout le monde joue son 1er match (aucun exempt)":`⚠️ ${ev.exempts} joueur(s) exempté(s) — choisis un réglage ✅ pour que tout le monde joue`}
-        </div>
-        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Qualifiés par poule <span style={{color:CT.muted,fontWeight:500}}>(qui passe au tableau)</span></div>
-        <div style={{display:"flex",gap:8,marginBottom:16}}>
-          <button onClick={()=>setNbQualifies(1)} style={{flex:1,padding:"10px 4px",borderRadius:10,border:`1px solid ${nbQualifies===1?CT.accent:CT.border}`,background:nbQualifies===1?CT.accent+"22":CT.card,color:nbQualifies===1?CT.accent:CT.text,fontWeight:nbQualifies===1?800:600,fontSize:14,cursor:"pointer",touchAction:"manipulation"}}>🥇 Le 1er</button>
-          <button onClick={()=>setNbQualifies(2)} style={{flex:1,padding:"10px 4px",borderRadius:10,border:`1px solid ${nbQualifies===2?CT.accent:CT.border}`,background:nbQualifies===2?CT.accent+"22":CT.card,color:nbQualifies===2?CT.accent:CT.text,fontWeight:nbQualifies===2?800:600,fontSize:14,cursor:"pointer",touchAction:"manipulation"}}>🥇🥈 Les 2 premiers</button>
-        </div>
-        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Manches par match <span style={{color:CT.muted,fontWeight:500}}>(premier à…)</span></div>
-        <div style={{display:"flex",gap:6,marginBottom:16}}>{[1,2,3,4,5].map(m=>opt(m,manches===m,setManches))}</div>
-        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Cibles disponibles <span style={{color:CT.muted,fontWeight:500}}>(jeux de fléchettes)</span></div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:16,marginBottom:8}}>
-          <button onClick={()=>setCibles(c=>Math.max(1,c-1))} style={{width:42,height:42,borderRadius:12,border:`1px solid ${CT.border}`,background:CT.card,color:CT.text,fontSize:22,fontWeight:800,cursor:"pointer",touchAction:"manipulation"}}>−</button>
-          <span style={{fontWeight:800,fontSize:26,color:CT.accent,minWidth:36,textAlign:"center"}}>{cibles}</span>
-          <button onClick={()=>setCibles(c=>Math.min(12,c+1))} style={{width:42,height:42,borderRadius:12,border:`1px solid ${CT.border}`,background:CT.card,color:CT.text,fontSize:22,fontWeight:800,cursor:"pointer",touchAction:"manipulation"}}>+</button>
-        </div>
-        <div style={{fontSize:11.5,color:CT.muted,textAlign:"center",marginBottom:20,lineHeight:1.4}}>🎯 L'appli allumera en vert {cibles===1?"le match":`jusqu'à ${cibles} matchs`} à jouer en même temps (un par cible), pour que personne n'attende trop. Réglable pendant le tournoi.</div>
-        <Btn onClick={()=>onValider(taille,manches,cibles,nbQualifies)} disabled={saving} style={{width:"100%",fontSize:15,padding:"13px"}}>{saving?"Lancement…":"✅ Valider et lancer les poules"}</Btn>
-        <button onClick={onClose} style={{width:"100%",marginTop:8,background:"none",border:"none",color:CT.muted,fontSize:13,cursor:"pointer",padding:8}}>Annuler</button>
-      </div>
-    </div>
-  );
-};
 
 // ── VUE LOBBY ─────────────────────────────────────────────────────────────────
 const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,joueurConnecte,onRejoindre})=>{
@@ -885,99 +806,6 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
   );
 };
 
-// ── Réglages du tableau (après les poules) ──
-const BracketConfigModal=({joueurs,onValider,onClose,saving})=>{
-  const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
-  const [nbQual,setNbQual]=useState(2);
-  const totalQual=Math.min(joueurs.length,nbQual*nbGroupes);
-  const minSize=nextPow2(totalQual);
-  const sizeOptions=[...new Set([minSize,Math.min(32,minSize*2)])];
-  const [bracketSize,setBracketSize]=useState(minSize);
-  useEffect(()=>{ setBracketSize(s=>sizeOptions.includes(s)?s:minSize); },[nbQual]); // eslint-disable-line
-  const rounds=roundsForBracket(bracketSize);
-  const [manchesMap,setManchesMap]=useState({seizieme:2,huitieme:2,quart:2,demi:3,finale:5,petite_finale:2,consolante:2});
-  const exempts=bracketSize-totalQual;
-  // Options : petite finale (3e place) dès qu'il y a des demies ; consolante = les nbConso premières équipes non qualifiées de chaque poule
-  const peutPetite=bracketSize>=4;
-  const [nbConso,setNbConso]=useState(2); // repêchage : nb d'équipes NON qualifiées prises par poule (2 ou 3)
-  // Nombre d'équipes en consolante pour un choix donné (n premières non qualifiées par poule)
-  const consoCountFor=(n)=>{ let c=0; for(let g=1;g<=nbGroupes;g++){ const sz=joueurs.filter(j=>j.groupe===g).length; c+=Math.max(0,Math.min(n,sz-nbQual)); } return c; };
-  // Exempts (byes) du tableau consolante « greedy » : un exempt à chaque tour où le nb d'équipes est impair. 0 = tableau plein.
-  const exemptsConso=(cnt)=>{ let b=0,x=cnt; while(x>1){ if(x%2)b++; x=Math.ceil(x/2); } return b; };
-  const consoCount=consoCountFor(nbConso);
-  const peutConso=consoCount>=2;
-  const [consolante,setConsolante]=useState(true);
-  const [petiteFinale,setPetiteFinale]=useState(true);
-  useEffect(()=>{ if(!peutPetite&&petiteFinale)setPetiteFinale(false); },[peutPetite,petiteFinale]);
-  useEffect(()=>{ if(!peutConso&&consolante)setConsolante(false); },[peutConso,consolante]);
-  const manchePhases=[...rounds,...(petiteFinale&&peutPetite?["petite_finale"]:[]),...(consolante&&peutConso?["consolante"]:[])];
-  const toggleRow=(on,setOn,can,label,sub,offReason)=>(
-    <button onClick={can?()=>setOn(v=>!v):undefined} disabled={!can} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,border:`1px solid ${on&&can?CT.accent:CT.border}`,background:on&&can?CT.accent+"18":CT.card,cursor:can?"pointer":"not-allowed",opacity:can?1:0.55,touchAction:"manipulation",textAlign:"left",marginBottom:8}}>
-      <div style={{width:38,height:22,borderRadius:11,background:on&&can?CT.accent:CT.border,position:"relative",flexShrink:0,transition:"background .2s"}}><div style={{width:18,height:18,borderRadius:9,background:"#fff",position:"absolute",top:2,left:on&&can?18:2,transition:"left .2s"}}/></div>
-      <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:CT.text}}>{label}</div><div style={{fontSize:11,color:CT.muted,lineHeight:1.3}}>{can?sub:offReason}</div></div>
-    </button>
-  );
-  return(
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000000e6",zIndex:99999,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:16,overflowY:"auto"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"#15151c",border:`1px solid ${CT.border}`,borderRadius:18,padding:22,maxWidth:420,width:"100%",margin:"auto"}}>
-        <h3 style={{fontWeight:800,fontSize:18,marginBottom:4,color:"#fff",textAlign:"center"}}><EmoText s="🏆 Réglages du tableau" size={17}/></h3>
-        <p style={{color:CT.muted,fontSize:12,textAlign:"center",marginBottom:18}}>{nbGroupes} poule{nbGroupes>1?"s":""}</p>
-        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Qualifiés par poule</div>
-        <div style={{display:"flex",gap:8,marginBottom:16}}>{[1,2].map(q=>{
-          const tq=Math.min(joueurs.length,q*nbGroupes), ex=nextPow2(tq)-tq, sel=nbQual===q;
-          return(
-            <button key={q} onClick={()=>setNbQual(q)} style={{flex:1,padding:"9px 6px",borderRadius:10,border:`1px solid ${sel?CT.accent:CT.border}`,background:sel?CT.accent+"22":CT.card,cursor:"pointer",touchAction:"manipulation",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-              <span style={{fontWeight:sel?800:600,fontSize:13,color:sel?CT.accent:CT.text}}>{q>1?"Les 2 premiers":"Le 1er"}</span>
-              <span style={{fontSize:10,color:CT.muted,fontWeight:600}}>{tq} qualifiés {ex===0?"✅":"⚠️"}</span>
-            </button>
-          );
-        })}</div>
-        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Départ du tableau <span style={{color:CT.muted,fontWeight:500}}>({totalQual} qualifiés)</span></div>
-        <div style={{display:"flex",gap:8,marginBottom:exempts>0?8:18}}>{sizeOptions.map(s=>{
-          const ex=s-totalQual, sel=bracketSize===s;
-          return(
-            <button key={s} onClick={()=>setBracketSize(s)} style={{flex:1,padding:"9px 6px",borderRadius:10,border:`1px solid ${sel?CT.accent:CT.border}`,background:sel?CT.accent+"22":CT.card,cursor:"pointer",touchAction:"manipulation",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-              <span style={{fontWeight:sel?800:600,fontSize:13,color:sel?CT.accent:CT.text}}>{ROUND_LABEL[roundsForBracket(s)[0]]}</span>
-              <span style={{fontSize:10,fontWeight:700,color:ex===0?CT.green:CT.yellow}}>{ex===0?"✅ sans exempt":`⚠️ ${ex} exempt${ex>1?"s":""}`}</span>
-            </button>
-          );
-        })}</div>
-        {exempts>0&&<div style={{fontSize:11,color:CT.yellow,marginBottom:18,lineHeight:1.4}}>ℹ️ {exempts} joueur{exempts>1?"s":""} exempté{exempts>1?"s":""} : ils passent directement le 1er tour. Choisis « {ROUND_LABEL[roundsForBracket(minSize)[0]]} » pour que <b>tout le monde joue</b>.</div>}
-        <div style={{fontSize:13,fontWeight:700,color:CT.text,marginBottom:8}}>Options</div>
-        {toggleRow(petiteFinale,setPetiteFinale,peutPetite,"🥉 Petite finale (3e place)","Les 2 perdants des demies jouent pour la 3e place.","Dispo dès 4 qualifiés (il faut des demies).")}
-        {toggleRow(consolante,setConsolante,peutConso,"🎖️ Consolante (repêchage)",`Les ${nbConso} premières équipes non qualifiées de chaque poule (${consoCount} au total) jouent un 2e tableau.`,"Dispo s'il y a au moins 2 équipes concernées (poules assez grandes).")}
-        {consolante&&peutConso&&(
-          <div style={{margin:"-2px 0 10px",padding:"0 2px"}}>
-            <div style={{fontSize:11.5,color:CT.muted,marginBottom:6}}>Combien d'équipes non qualifiées par poule ?</div>
-            <div style={{display:"flex",gap:8}}>{[2,3].map(n=>{ const sel=nbConso===n; const cc=consoCountFor(n); const ex=exemptsConso(cc); return(
-              <button key={n} onClick={()=>setNbConso(n)} style={{flex:1,padding:"8px 6px",borderRadius:10,border:`1px solid ${sel?CT.accent:CT.border}`,background:sel?CT.accent+"22":CT.card,cursor:"pointer",touchAction:"manipulation",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                <span style={{fontWeight:sel?800:600,fontSize:12.5,color:sel?CT.accent:CT.text}}>Les {n} premières</span>
-                <span style={{fontSize:10,fontWeight:700,color:ex===0?CT.green:CT.yellow}}>{cc} équipes · {ex===0?"✅ sans exempt":`⚠️ ${ex} exempt${ex>1?"s":""}`}</span>
-              </button>
-            );})}</div>
-          </div>
-        )}
-        <div style={{fontSize:13,fontWeight:700,color:CT.text,margin:"6px 0 8px"}}>Manches par tour <span style={{color:CT.muted,fontWeight:500}}>(premier à…)</span></div>
-        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:8}}>
-          {manchePhases.map(ph=>(
-            <div key={ph} style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{flex:1,fontSize:13,color:CT.text}}>{ROUND_LABEL[ph]}</span>
-              <div style={{display:"flex",gap:4}}>{[1,2,3,4,5].map(m=>(
-                <button key={m} onClick={()=>setManchesMap(mm=>({...mm,[ph]:m}))} style={{width:30,height:32,borderRadius:8,border:`1px solid ${manchesMap[ph]===m?CT.accent:CT.border}`,background:manchesMap[ph]===m?CT.accent+"22":CT.card,color:manchesMap[ph]===m?CT.accent:CT.text,fontWeight:manchesMap[ph]===m?800:600,fontSize:13,cursor:"pointer",touchAction:"manipulation"}}>{m}</button>
-              ))}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{fontSize:11,color:CT.muted,marginBottom:18,lineHeight:1.4}}>💡 Conseillé : des matchs plus longs vers la fin (ex. 2 → 3 → 5). Plus c'est long, plus le résultat est juste.</div>
-        <div style={{background:(exempts===0?CT.green:CT.yellow)+"18",border:`1px solid ${(exempts===0?CT.green:CT.yellow)}55`,borderRadius:10,padding:"10px 12px",fontSize:12.5,fontWeight:700,color:exempts===0?CT.green:CT.yellow,textAlign:"center",marginBottom:14,lineHeight:1.5}}>
-          🏆 Tableau de {bracketSize} → {totalQual} qualifiés<br/>{exempts===0?"✅ Tout le monde joue son 1er match":`⚠️ ${exempts} exempté${exempts>1?"s":""} (passe${exempts>1?"nt":""} le 1er tour)`}
-        </div>
-        <Btn onClick={()=>onValider({nbQual,bracketSize,manchesMap,consolante:consolante&&peutConso,petiteFinale:petiteFinale&&peutPetite,nbConso})} disabled={saving} style={{width:"100%",fontSize:15,padding:"13px"}}>{saving?"Lancement…":"✅ Valider et lancer le tableau"}</Btn>
-        <button onClick={onClose} style={{width:"100%",marginTop:8,background:"none",border:"none",color:CT.muted,fontSize:13,cursor:"pointer",padding:8}}>Annuler</button>
-      </div>
-    </div>
-  );
-};
 
 // ── ALERTE "C'EST A TOI DE JOUER" (composant reutilisable, monte dans TOUTES les phases) ──
 // Pourquoi un composant separe ? Avant, cette alerte vivait DANS PoulesView, qui n'est affiche
@@ -2402,7 +2230,21 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           onStart={()=>setShowPoolConfig(true)} onAddJoueur={addJoueur} onRemoveJoueur={removeJoueur}
           joueurConnecte={joueurConnecte} onRejoindre={rejoindre}/>
       )}
-      {showPoolConfig&&<PoolConfigModal nbJoueurs={joueurs.length} saving={saving} onValider={lancerTournoi} onClose={()=>setShowPoolConfig(false)}/>}
+      {showPoolConfig&&<TournoiSetupWizard
+        phase="poules"
+        participants={joueurs}
+        initialConfig={{mode:tournoi.mode||"501",format:tournoi.format||"simple"}}
+        matchsExistent={matchs.length>0}
+        saving={saving}
+        onCancel={()=>setShowPoolConfig(false)}
+        onLaunchPoules={async(cfg)=>{
+          const patch={};
+          if(cfg.mode&&cfg.mode!==tournoi.mode)patch.mode=cfg.mode;
+          if(cfg.format&&cfg.format!==tournoi.format)patch.format=cfg.format;
+          if(Object.keys(patch).length){ try{ await dbTP.updateTournoi(tournoiId,patch); setTournoi(t=>t?{...t,...patch}:t); }catch(e){} }
+          await lancerTournoi(cfg.playersPerPool,cfg.manches,cfg.availableTargets,cfg.qualifiersPerPool);
+        }}
+      />}
       {tournoi.statut==="poules"&&(
         <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} isCreateur={isCreateur}
           nbCibles={cibles} nbQual={tournoi.nb_qualifies!=null?tournoi.nb_qualifies:nbQualLocal} onSetCibles={changerCibles} canPlay={canPlay} onOpenShare={()=>setShowShare(true)} onModifier={retourLobby}
@@ -2411,7 +2253,24 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           onLancerEliminatoires={()=>setShowBracketConfig(true)}
           onCreerBarrages={creerBarrages} saving={saving} joueurConnecte={joueurConnecte} live={liveInfo} stats={statsTournoi}/>
       )}
-      {showBracketConfig&&<BracketConfigModal joueurs={joueurs} saving={saving} onValider={lancerEliminatoires} onClose={()=>setShowBracketConfig(false)}/>}
+      {showBracketConfig&&(()=>{
+        const nbGroupesW=Math.max(...joueurs.map(j=>j.groupe),1);
+        const nbQualW=tournoi.nb_qualifies!=null?tournoi.nb_qualifies:nbQualLocal;
+        const poolGroups=[]; for(let g=1;g<=nbGroupesW;g++)poolGroups.push(joueurs.filter(j=>j.groupe===g).length);
+        const qualifiedCount=poolGroups.reduce((t,sz)=>t+Math.min(nbQualW,sz),0);
+        return <TournoiSetupWizard
+          phase="tableau"
+          participants={joueurs}
+          initialConfig={{mode:tournoi.mode||"501",format:tournoi.format||"simple"}}
+          tableauContext={{qualifiedCount,nbGroupes:nbGroupesW,nbQual:nbQualW,poolGroups,poolTargets:cibles,format:tournoi.format||"simple",crossings:null}}
+          saving={saving}
+          onCancel={()=>setShowBracketConfig(false)}
+          onLaunchBracket={async(cfg)=>{
+            if(cfg.finalTargets&&cfg.finalTargets!==cibles){ try{ await changerCibles(cfg.finalTargets); }catch(e){} }
+            await lancerEliminatoires({nbQual:nbQualW,bracketSize:cfg.bracketSize,manchesMap:cfg.manchesMap,consolante:cfg.consolante,petiteFinale:cfg.petiteFinale,nbConso:cfg.nbConso});
+          }}
+        />;
+      })()}
       {tournoi.statut==="eliminatoires"&&(<>
         {/* Onglets : naviguer entre les poules (consultation/correction) et le tableau final, SANS rien supprimer */}
         <div style={{display:"flex",gap:6,marginBottom:16,background:"#16161d",borderRadius:12,padding:5,border:`1px solid ${CT.border}`}}>
