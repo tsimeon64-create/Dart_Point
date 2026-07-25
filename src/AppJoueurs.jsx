@@ -5468,12 +5468,6 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
   const joueurAvant = monRangGlobal && monRangGlobal > 1 ? classement[monRangGlobal - 2] : null;
   const joueurApres = monRangGlobal ? classement[monRangGlobal] : null;
 
-  const aPortee = useMemo(() => {
-    if (!monRangGlobal) return [];
-    const start = Math.max(0, monRangGlobal - 6);
-    return classement.slice(start, monRangGlobal - 1).reverse();
-  }, [classement, monRangGlobal]);
-
   const voisinage = useMemo(() => {
     if (!monRangGlobal) return [];
     const start = Math.max(0, monRangGlobal - 4);
@@ -5864,45 +5858,6 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
           </div>
         )}
 
-        {/* ── CIBLES PRIORITAIRES ── */}
-        {joueur && aPortee.length > 0 && (
-          <div style={{ background:CJ.card, border:`1px solid ${CJ.accent}55`, borderRadius:16, padding:16, marginBottom:12, position:"relative", overflow:"hidden" }}>
-            <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${CJ.accent},${CJ.yellow})` }}/>
-            <div onClick={() => toggleCard("cibles")} style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
-              <Swords size={18} color={CJ.accent}/>
-              <span style={{ fontWeight:900, fontSize:14, color:CJ.accent, letterSpacing:.5 }}>CIBLES PRIORITAIRES</span>
-              <ChevronDown size={16} color={CJ.accent} style={{ marginLeft:"auto", transition:"transform .2s", transform: cardsOpen.cibles?"none":"rotate(-90deg)" }}/>
-            </div>
-            {cardsOpen.cibles && (<>
-            <div style={{ fontSize:12, color:CJ.muted, margin:"6px 0 12px" }}>Les joueurs juste au-dessus — bats-les pour grimper.</div>
-            {aPortee.slice(0, 5).map(j => {
-              const rang  = classement.findIndex(x => x.id === j.id) + 1;
-              const ecart = (j.drix || 1000) - monDrix;
-              const r     = getDrixTitreLocal(j.drix || 1000);
-              const s     = statsMap[j.id];
-              return (
-                <div key={j.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom:`1px solid ${CJ.border}` }}>
-                  <span style={{ width:30, fontWeight:800, fontSize:13, color:CJ.muted, textAlign:"center", flexShrink:0 }}>#{rang}</span>
-                  <div style={{ width:40, height:40, borderRadius:"50%", background:`${r.color}22`, border:`2px solid ${r.color}55`, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", flexShrink:0 }}>
-                    {j.photo ? <img src={j.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/> : <RankIcon drix={j.drix||1000} size={18}/>}
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                      <span style={{ fontWeight:700, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{j.pseudo}</span>
-                      <StreakBadge stats={s} compact/>
-                    </div>
-                    <div style={{ fontSize:11.5, color:CJ.muted, display:"flex", alignItems:"center", gap:6, marginTop:1 }}>
-                      <span style={{ color:r.color, fontWeight:700 }}>{j.drix||1000} DRIX</span>
-                      <span style={{ color:CJ.accent, fontWeight:800 }}>+{ecart} à combler</span>
-                    </div>
-                  </div>
-                  <button onClick={() => { setJoueurId && setJoueurId(j.id); setPage("profil-joueur-"+j.id); }} style={{ background:`${CJ.accent}22`, border:`1px solid ${CJ.accent}66`, borderRadius:8, padding:"8px 12px", color:CJ.accent, fontWeight:800, fontSize:12, cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", gap:5 }}><Swords size={13}/>DÉFIER</button>
-                </div>
-              );
-            })}
-            </>)}
-          </div>
-        )}
 
         {/* ── FILTRES ── */}
         <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:14, marginBottom:14 }}>
