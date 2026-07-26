@@ -40,7 +40,11 @@ export const dbTP = {
   getMatchs:(tid)=>sbTP(`tournois_potes_matchs?tournoi_id=eq.${tid}&order=round_bracket.asc,position_bracket.asc&select=*`),
   addMatchs:(arr)=>sbTP("tournois_potes_matchs",{method:"POST",body:JSON.stringify(arr)}),
   updateMatch:(id,d)=>sbTP(`tournois_potes_matchs?id=eq.${id}`,{method:"PATCH",body:JSON.stringify(d),prefer:"return=minimal"}),
-  deleteMatchsTableau:(tid)=>sbTP(`tournois_potes_matchs?tournoi_id=eq.${tid}&phase=neq.poules`,{method:"DELETE",prefer:"return=minimal"}),
+  // Supprime le TABLEAU seulement. On garde les poules ET les barrages 701 : ces 701 ont été joués
+  // pour de vrai par les équipes, et "Revenir aux poules" est justement la porte de sortie quand le
+  // tableau pose problème — les effacer obligeait à refaire jouer les barrages devant tout le club,
+  // avec un résultat possiblement différent et donc d'autres qualifiés.
+  deleteMatchsTableau:(tid)=>sbTP(`tournois_potes_matchs?tournoi_id=eq.${tid}&phase=not.in.(poules,barrage)`,{method:"DELETE",prefer:"return=minimal"}),
   getAmis:(id)=>sbTP(`amis?or=(joueur_id.eq.${id},ami_id.eq.${id})&statut=eq.accepte&select=*`),
   deleteTournoi:(id)=>sbTP(`tournois_potes?id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
 };
@@ -1946,6 +1950,15 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           await dbTP.updateMatch(c.target.id,{...patch,statut:otherFilled?"en_attente":"attente_avancement"});
         }
         if(match.phase==="consolante")await propagerByes(tournoiId); // au cas où l'inversion recrée un exempt
+      }else if(estBracket&&dejaTermine){
+        // AUTO-RÉPARATION : le match est déjà terminé avec le MÊME vainqueur, mais l'avancement n'a
+        // peut-être jamais eu lieu — réseau coupé entre le "claim" (match passé à terminé) et l'écriture
+        // de la case suivante. Avant, re-saisir le même score ne réparait rien (on ne rentrait dans
+        // aucune branche) et le tableau restait figé pour toujours, sans que personne puisse le savoir.
+        // Si la case attendue est encore VIDE, on rejoue l'avancement : l'opération est idempotente.
+        const attendues=ciblesAvancement(match,gagnant_id,fraisMatchs);
+        const caseVide=attendues.some(c=>c.target&&!(c.slotJ1?c.target.joueur1_id:c.target.joueur2_id));
+        if(caseVide)await advancerBracket(match,gagnant_id);
       }
 
       await reload();
@@ -1965,12 +1978,39 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     const {nbQual=defQual,bracketSize:bsChoisi,manchesMap={},consolante=false,petiteFinale=false,nbConso=2}=config;
     setSaving(true);
     try{
-      const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
+      // ── Lecture FRAÎCHE + classement recalculé depuis les MATCHS (source unique de vérité) ──
+      // L'état React peut avoir jusqu'à quelques secondes de retard : saisir le dernier score de poule
+      // déclenche une rafale d'écritures, et si on appuie sur "Lancer les éliminatoires" pendant ce
+      // laps de temps, on classait sur des stats périmées. Une vraie égalité devenait invisible, le
+      // tableau partait sans barrage, et l'équipe écartée n'avait aucun moyen de comprendre.
+      const joueursFrais=await dbTP.getJoueurs(tournoiId);
+      const matchsFrais=await dbTP.getMatchs(tournoiId);
+      const stP={}; joueursFrais.forEach(j=>{ stP[j.id]={victoires:0,defaites:0,points:0,manches_pour:0,manches_contre:0}; });
+      matchsFrais.filter(m=>m.phase==="poules"&&m.statut==="termine"&&m.gagnant_id).forEach(m=>{
+        const w=m.gagnant_id, l=m.gagnant_id===m.joueur1_id?m.joueur2_id:m.joueur1_id;
+        const ws=m.gagnant_id===m.joueur1_id?m.score1:m.score2, ls=m.gagnant_id===m.joueur1_id?m.score2:m.score1;
+        if(stP[w]){ stP[w].victoires++; stP[w].points+=2; stP[w].manches_pour+=ws; stP[w].manches_contre+=ls; }
+        if(stP[l]){ stP[l].defaites++; stP[l].manches_pour+=ls; stP[l].manches_contre+=ws; }
+      });
+      const joueursClasse=joueursFrais.map(j=>({...j,...(stP[j.id]||{})}));
+      const nbGroupes=Math.max(...joueursClasse.map(j=>j.groupe),1);
+      const barragesTP=matchsFrais.filter(m=>m.phase==="barrage");
+      // Garde-fou : une égalité qui exige un barrage 701 doit être jouée AVANT de lancer le tableau.
+      const restantes=[];
+      for(let g=1;g<=nbGroupes;g++){
+        const jG=joueursClasse.filter(j=>j.groupe===g);
+        if(jG.length>1)egalitesADepartager(jG,barragesTP,nbQual).forEach(s=>restantes.push({g,s}));
+      }
+      if(restantes.length>0){
+        setSaving(false);
+        alert(`⏸️ Il reste ${restantes.length} barrage(s) 701 à jouer pour départager des égalités (poule ${[...new Set(restantes.map(r=>groupLetter(r.g)))].join(", ")}).\n\nJoue-les d'abord : sans ça, le tableau partirait sur un classement incomplet et une équipe serait écartée sans avoir pu se départager.`);
+        await reload();
+        return;
+      }
       // Qualifiés : les N premiers de chaque poule (N réglable), taggés par rang de poule
       const topParGroupe=[];
-      const barragesTP=matchs.filter(m=>m.phase==="barrage");
       for(let g=1;g<=nbGroupes;g++){
-        const jG=rankGroup(joueurs.filter(j=>j.groupe===g),barragesTP,matchs);
+        const jG=rankGroup(joueursClasse.filter(j=>j.groupe===g),barragesTP,matchsFrais);
         jG.slice(0,nbQual).forEach((j,idx)=>topParGroupe.push({...j,poolRank:idx+1}));
       }
       // Taille du tableau — 2 garde-fous, même si un réglage ancien/erroné arrive :
@@ -1988,7 +2028,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       if(consolante){
         const consoTeams=[];
         for(let g=1;g<=nbGroupes;g++){
-          const jG=rankGroup(joueurs.filter(j=>j.groupe===g),barragesTP,matchs);
+          const jG=rankGroup(joueursClasse.filter(j=>j.groupe===g),barragesTP,matchsFrais);
           // Repêchage : les nbConso PREMIÈRES équipes non qualifiées de la poule (2 ou 3, réglable).
           jG.slice(nbQual,nbQual+nbConso).forEach((j,idx)=>consoTeams.push({...j,consoRank:nbQual+idx+1}));
         }
@@ -2043,7 +2083,9 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
 
   // ── Retour aux poules (annule le tableau, en cas d'erreur de réglage)
   const retourPoules=async()=>{
-    if(!window.confirm("Revenir à la phase de poules ?\n\nLe tableau actuel sera supprimé. Les poules et leurs résultats sont conservés."))return;
+    const nbBarrages=matchs.filter(m=>m.phase==="barrage"&&m.statut==="termine").length;
+    const ligneBarrages=nbBarrages>0?`\n✅ Les ${nbBarrages} match(s) de barrage 701 déjà joué(s) sont CONSERVÉS.`:"";
+    if(!window.confirm(`Revenir à la phase de poules ?\n\nLe tableau actuel sera supprimé.\n✅ Les poules et leurs résultats sont conservés.${ligneBarrages}`))return;
     setSaving(true);
     try{
       await dbTP.deleteMatchsTableau(tournoiId);
