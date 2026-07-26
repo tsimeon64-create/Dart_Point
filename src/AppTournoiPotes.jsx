@@ -831,7 +831,17 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
 // Mémoire de SESSION : ids des matchs déjà "buzzés". Vit au niveau module → survit au démontage/remontage
 // du composant (navigation). Sans ça, l'alerte re-sonnait à CHAQUE retour sur la page tournoi pour le même
 // match non joué. Se réinitialise seulement au rechargement complet de l'appli (nouvelle session).
-const matchsDejaAlertes=new Set();
+// id du match → horodatage du dernier buzz. AVANT c'était un simple Set « déjà sonné » qu'on ne vidait
+// jamais : dès qu'un match devenait mon match actif il était marqué, et si la rotation des cibles le
+// désélectionnait juste après (une autre paire passe devant), la convocation était consommée POUR RIEN —
+// le match redevenait actif plus tard et le téléphone restait muet. Mesuré : 102 convocations annulées,
+// 93 matchs qui ne re-sonnaient jamais.
+const dernierBuzzParMatch=new Map();
+// Matchs qui ont CESSÉ d'être mon match actif : ils redeviennent « sonnables ».
+const matchsRelachables=new Set();
+// Anti-rebond : on ne re-sonne pas pour le même match avant ce délai (la rotation peut osciller entre
+// deux paires de priorité identique d'un rafraîchissement à l'autre).
+const BUZZ_COOLDOWN_MS=60000;
 const TurnAlert=({monMatch,joueurs})=>{
   // Qui suis-je ? (compte lie OU ligne memorisee dans localStorage, meme sans compte)
   const isMine=(id)=>false; // (non utilise ici : le parent a deja filtre sur mon match)
@@ -869,14 +879,29 @@ const TurnAlert=({monMatch,joueurs})=>{
   const scoreurAffiche=()=>{ try{ return !!window.__dpScoreurTs && (Date.now()-window.__dpScoreurTs)<12000; }catch(e){ return false; } };
   // Adversaire = l'AUTRE joueur de mon match (le parent m'a deja marque via monMatch.__moiEstJ1).
   const advId=monMatch?(monMatch.__moiEstJ1?monMatch.joueur2_id:monMatch.joueur1_id):null;
+  const dernierAlerteRef=useRef(null);
   useEffect(()=>{
-    if(monMatch&&!matchsDejaAlertes.has(monMatch.id)){
-      if(scoreurAffiche())return; // je suis deja en train de scorer → pas d'alerte (elle sonnera au retour)
-      matchsDejaAlertes.add(monMatch.id); // on ne re-sonnera plus pour CE match, même après un retour sur la page
-      setAlerteMatch(monMatch);
-      startBuzz();
-      showSystemNotif((joueurs.find(j=>j.id===advId)||{}).nom);
+    const id=monMatch?monMatch.id:null;
+    // Mon match actif a changé (ou j'en ai perdu un) → l'ancien redevient sonnable : la cible s'était
+    // libérée pour quelqu'un d'autre, il reviendra plus tard et il faudra bien me prévenir.
+    if(dernierAlerteRef.current&&dernierAlerteRef.current!==id){
+      matchsRelachables.add(dernierAlerteRef.current);
+      dernierAlerteRef.current=null;
     }
+    if(!monMatch)return;
+    const ts=dernierBuzzParMatch.get(id);
+    const jamaisSonne=ts===undefined;
+    // On re-sonne UNIQUEMENT si le match avait cessé d'être le mien ET que l'anti-rebond est écoulé.
+    // (Sans la condition « relâchable », l'alerte re-sonnerait à chaque retour sur la page tournoi.)
+    const peutResonner=!jamaisSonne&&matchsRelachables.has(id)&&(Date.now()-ts)>=BUZZ_COOLDOWN_MS;
+    if(!jamaisSonne&&!peutResonner){ dernierAlerteRef.current=id; return; }
+    if(scoreurAffiche())return; // je suis deja en train de scorer → pas d'alerte (elle sonnera au retour)
+    matchsRelachables.delete(id);
+    dernierBuzzParMatch.set(id,Date.now());
+    dernierAlerteRef.current=id;
+    setAlerteMatch(monMatch);
+    startBuzz();
+    showSystemNotif((joueurs.find(j=>j.id===advId)||{}).nom);
   },[monMatch&&monMatch.id]); // eslint-disable-line
   useEffect(()=>()=>stopBuzz(),[]); // eslint-disable-line
   // L'alerte NE LANCE PLUS le scoreur (pour éviter tout scoreur lancé par erreur) : elle ferme juste.
