@@ -770,7 +770,14 @@ export const StepTableau = ({ config, onChange, context = {} }) => {
   const uniteQ = format === "doublette" ? "équipes qualifiées" : "qualifiés";
 
   const minSize = getNextBracketSize(qualifiedCount);
-  const sizeOptions = [...new Set([minSize, Math.min(32, minSize * 2)])];
+  // Taille DOUBLÉE : on ne la propose que si elle ne crée aucune "case morte". Les slots sont appariés
+  // (graine s contre graine taille+1-s), donc une paire est vide des DEUX côtés dès que le nombre de
+  // qualifiés est < taille/2 → le match ne peut jamais se jouer, le tableau se fige et il n'y a pas de
+  // champion. La condition "aucune case morte" revient à qualifiedCount >= taille/2, c.-à-d. minSize*2
+  // seulement quand le nombre de qualifiés est déjà une puissance de 2.
+  const doubleSize = minSize * 2;
+  const doubleEstSain = qualifiedCount >= doubleSize / 2;
+  const sizeOptions = [...new Set(doubleEstSain ? [minSize, doubleSize] : [minSize])];
   const bracketSize = config.bracketSize && sizeOptions.includes(config.bracketSize) ? config.bracketSize : minSize;
 
   const manchesMap = config.manchesMap || { seizieme: 2, huitieme: 2, quart: 2, demi: 3, finale: 5, petite_finale: 2, consolante: 2 };
@@ -1207,8 +1214,27 @@ export const TournoiSetupWizard = ({
     if (!isLast) return setStep((s) => s + 1);
     setConfirming(true); // dernière étape → confirmation (§11)
   };
+  // Valeurs EFFECTIVES du tableau, avec les mêmes règles que l'affichage (StepTableau l.781-782 et
+  // StepResume l.1073-1074). Les interrupteurs "petite finale" / "consolante" sont peints ON par défaut,
+  // mais tant qu'on n'y touchait pas `config` ne portait RIEN : le lancement recevait undefined et
+  // lancerEliminatoires retombait sur false → l'écran promettait une consolante qui n'était jamais créée.
+  const resolveBracketConfig = () => {
+    const qc = tableauContext.qualifiedCount || 0;
+    const nbConso = config.nbConso || 2;
+    const consoCount = computeConsolationCount(tableauContext.poolGroups || [], tableauContext.nbQual ?? 2, nbConso);
+    const bracketSize = config.bracketSize || getNextBracketSize(qc);
+    return {
+      ...config,
+      bracketSize,
+      nbConso,
+      petiteFinale: config.petiteFinale !== false && bracketSize >= 4,
+      consolante: config.consolante !== false && consoCount >= 2,
+      manchesMap: config.manchesMap || { seizieme: 2, huitieme: 2, quart: 2, demi: 3, finale: 5, petite_finale: 2, consolante: 2 },
+      finalTargets: config.finalTargets || tableauContext.poolTargets || 2,
+    };
+  };
   const doLaunch = () => {
-    if (phase === "tableau") onLaunchBracket && onLaunchBracket(config);
+    if (phase === "tableau") onLaunchBracket && onLaunchBracket(resolveBracketConfig());
     else onLaunchPoules && onLaunchPoules(config);
   };
 

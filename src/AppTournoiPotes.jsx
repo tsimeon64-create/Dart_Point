@@ -156,7 +156,16 @@ const genBracketMatchs=(seeded,tournoi_id,manchesMap={},opts={})=>{
     }
   }
   // Petite finale (3e place) : remplie par les 2 perdants des demies. Même colonne que la finale (position 1).
-  if(opts.petiteFinale&&totalRounds>=2){
+  // On ne la crée QUE si les deux demies auront un VRAI perdant : un exempt n'a pas de perdant, donc la case
+  // resterait vide à vie et "Terminer le tournoi" répondrait éternellement "tous les matchs ne sont pas finis".
+  const demiesAurontDeuxPerdants=(()=>{
+    if(totalRounds<2)return false;
+    const r1=matchs.filter(m=>m.round_bracket===1);
+    if(r1.some(m=>m.statut==="vide"))return false;                  // case morte : un tour n'aura pas 2 alimentateurs
+    if(totalRounds===2)return r1.every(m=>m.statut==="en_attente"); // les demies SONT le 1er tour → aucun exempt admis
+    return true;                                                     // demies alimentées par des vainqueurs → 2 perdants
+  })();
+  if(opts.petiteFinale&&demiesAurontDeuxPerdants){
     matchs.push({tournoi_id,joueur1_id:null,joueur2_id:null,score1:0,score2:0,gagnant_id:null,phase:"petite_finale",groupe:0,statut:"attente_avancement",round_bracket:totalRounds,position_bracket:1,manches_max:mm("petite_finale")});
   }
   // (La consolante n'est PLUS générée ici : c'est un tableau séparé alimenté par les milieux de poule — voir genConsolanteMatchs.)
@@ -1402,6 +1411,13 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch,can
           </div>
         </div>
       )}
+      {/* Match TERMINÉ : le créateur doit pouvoir corriger une faute de frappe (2-1 saisi au lieu de 1-2).
+          Sans ce bouton, une erreur de saisie envoyait définitivement la mauvaise équipe au tour suivant. */}
+      {done&&!bye&&isCreateur&&j1&&j2&&(
+        <div style={{padding:hero?"0 11px 12px":"0 9px 9px",display:"flex",justifyContent:"center"}}>
+          <Btn onClick={()=>onSaisirScore(match)} variant="dark" small style={{fontSize:12,padding:"7px 14px"}}><EmoText s="✏️ Corriger le score" size={12}/></Btn>
+        </div>
+      )}
     </div>
   );
 };
@@ -1864,7 +1880,10 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       // corriger proprement (il faudrait défaire un match déjà terminé) → on bloque avec un message clair.
       const cibles=inversion?ciblesAvancement(match,gagnant_id,fraisMatchs):[];
       if(inversion&&cibles.some(c=>c.target&&c.target.statut==="termine")){
-        alert("⚠️ Impossible de corriger le vainqueur : le match SUIVANT de ce joueur dans le tableau a déjà été joué.\n\nCorrige d'abord ce match-là (le plus avancé dans le tableau), puis reviens corriger celui-ci.");
+        // On ne peut pas défaire un match déjà joué en aval. L'ancien message conseillait de "corriger d'abord
+        // le match le plus avancé puis revenir" : impossible, corriger ne le remet pas en "à jouer" — on
+        // restait donc bloqué à vie. On dit maintenant la vérité, avec les deux seules issues réelles.
+        alert("⚠️ Impossible d'inverser le vainqueur : le match SUIVANT de ce joueur a déjà été joué.\n\nLe tableau est construit sur ce résultat, on ne peut plus le défaire d'ici.\n\nDeux solutions :\n• garder ce résultat et corriger seulement le SCORE (sans changer le vainqueur) ;\n• ou « Revenir à la phase de poules » pour refaire le tableau (⚠️ tous les matchs du tableau seront à rejouer).");
         return;
       }
       // ── Écriture anti-double-comptage (2 téléphones sur le même match) ──
@@ -1954,8 +1973,14 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         const jG=rankGroup(joueurs.filter(j=>j.groupe===g),barragesTP);
         jG.slice(0,nbQual).forEach((j,idx)=>topParGroupe.push({...j,poolRank:idx+1}));
       }
-      const sizes=[2,4,8,16,32];
-      const bracketSize=bsChoisi||sizes.find(s=>s>=topParGroupe.length)||32;
+      // Taille du tableau — 2 garde-fous, même si un réglage ancien/erroné arrive :
+      //  (1) jamais PLUS PETITE que le nombre de qualifiés → seedBracket en perdrait en silence ;
+      //  (2) jamais plus du DOUBLE → les slots sont appariés (graine s contre taille+1-s), donc en dessous
+      //      de la moitié certaines paires sont vides des deux côtés : le tableau se fige sans champion.
+      const nextPow2TP=(n)=>{ let s=2; while(s<n)s*=2; return s; };
+      const minSizeTP=nextPow2TP(Math.max(2,topParGroupe.length));
+      let bracketSize=bsChoisi||minSizeTP;
+      if(bracketSize<topParGroupe.length||topParGroupe.length<bracketSize/2)bracketSize=minSizeTP;
       const seededFlat=seedPoolAware(topParGroupe,bracketSize);
       const bracketMatchs=genBracketMatchs(seededFlat,tournoiId,manchesMap,{consolante,petiteFinale});
       // Consolante = les nbConso PREMIÈRES équipes non qualifiées de chaque poule (réglable : 2 ou 3 ; tableau séparé).
