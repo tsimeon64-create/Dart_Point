@@ -22,13 +22,34 @@ export const statBarrageTour = (id, r, bg) => {
 // A-t-il joué au moins un match de barrage à ce tour ?
 const aJoueTour = (id, r, bg) => bg.some(m => (m.round_bracket || 0) === r && (m.joueur1_id === id || m.joueur2_id === id));
 
-// Classe les joueurs d'un groupe. Départage : victoires → défaites → goal average → barrages.
+// CONFRONTATION DIRECTE : qui a gagné le match de poule entre a et b ?
+// Renvoie -1 si a l'a emporté (a devant), 1 si b l'a emporté, 0 si pas de match trouvé (ou nul).
+// C'est le dernier recours AVANT de laisser l'ordre du tirage au sort trancher : deux équipes
+// strictement à égalité (mêmes victoires, défaites, goal average, et aucun barrage) étaient
+// jusqu'ici départagées par l'index du mélange Fisher-Yates — donc au hasard, et sans que
+// personne puisse l'expliquer. La confrontation directe est gratuite (le match a déjà été joué)
+// et c'est la règle standard en compétition.
+const confrontationDirecte = (a, b, matchsPoule) => {
+  const m = matchsPoule.find(x =>
+    x.statut === "termine" && x.gagnant_id &&
+    ((x.joueur1_id === a.id && x.joueur2_id === b.id) || (x.joueur1_id === b.id && x.joueur2_id === a.id)));
+  if (!m) return 0;
+  if (m.gagnant_id === a.id) return -1;
+  if (m.gagnant_id === b.id) return 1;
+  return 0;
+};
+
+// Classe les joueurs d'un groupe. Départage : victoires → défaites → goal average → barrages →
+// confrontation directe.
 // Pour les barrages, on compare du tour le plus RÉCENT au plus ancien, MAIS on saute les tours
 // qu'un des deux joueurs n'a pas joués (ex. une équipe déjà qualifiée qui ne rejoue pas les tours
 // suivants ne doit pas être pénalisée d'un « 0 » qui la ferait passer derrière). ← correctif barrages imbriqués.
-export const rankGroup = (joueurs, barrages = []) => {
+// `matchsPoule` (optionnel) : les matchs de poule, pour la confrontation directe. Sans lui, le
+// comportement est exactement celui d'avant.
+export const rankGroup = (joueurs, barrages = [], matchsPoule = []) => {
   const idsGroupe = new Set(joueurs.map(j => j.id));
   const bg = barrages.filter(m => m.statut === "termine" && m.gagnant_id && idsGroupe.has(m.joueur1_id) && idsGroupe.has(m.joueur2_id));
+  const mp = matchsPoule.filter(m => m.phase === "poules" && idsGroupe.has(m.joueur1_id) && idsGroupe.has(m.joueur2_id));
   const maxRound = bg.reduce((mx, m) => Math.max(mx, m.round_bracket || 0), 0);
   return [...joueurs].sort((a, b) => {
     if (b.victoires !== a.victoires) return b.victoires - a.victoires; // 1) VICTOIRES d'abord
@@ -40,7 +61,7 @@ export const rankGroup = (joueurs, barrages = []) => {
       const ka = statBarrageTour(a.id, r, bg), kb = statBarrageTour(b.id, r, bg);
       if (kb !== ka) return kb - ka;
     }
-    return 0;
+    return confrontationDirecte(a, b, mp);                             // 5) confrontation directe (plutôt que le hasard)
   });
 };
 

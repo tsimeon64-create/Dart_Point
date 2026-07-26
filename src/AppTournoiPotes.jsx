@@ -1113,7 +1113,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
 
       {/* Poule sélectionnée */}
       {groupes.filter(g=>g===activeTab).map(g=>{
-        const jG=rankGroup(joueursPoule.filter(j=>j.groupe===g),barrages);
+        const jG=rankGroup(joueursPoule.filter(j=>j.groupe===g),barrages,matchs);
         const barrageG=barrages.filter(m=>m.groupe===g).sort((a,b)=>(a.position_bracket||0)-(b.position_bracket||0));
         // Stats des barrages (701) d'une équipe DANS cette poule → ajoutées au récap V/D/manches/points AFFICHÉ,
         // pour que les barrages joués soient bien comptabilisés à l'écran. (Le classement, lui, reste géré par
@@ -1612,7 +1612,7 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer,onQuitter})=>{
   const hasPalmares=!!palmares&&(palmares.moyenne!=null||palmares.finish>0||palmares.nb180>0);
 
   // Best stats
-  const bestPoules=rankGroup(joueurs)[0];
+  const bestPoules=rankGroup(joueurs,[],matchs)[0];
 
   return(
     <div>
@@ -1660,7 +1660,7 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer,onQuitter})=>{
       {/* Classement par points (poules + tableau) */}
       <Card style={{marginBottom:16}}>
         <h3 style={{fontWeight:700,fontSize:15,marginBottom:12}}><EmoText s="📋 Classement par points" size={15}/></h3>
-        {rankGroup(joueurs).map((j,i)=>(
+        {rankGroup(joueurs,[],matchs).map((j,i)=>(
           <div key={j.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:i===0?"#f9731614":i===1?"#94a3b814":i===2?"#f59e0b14":"transparent",borderRadius:8,marginBottom:4}}>
             <span style={{fontSize:18,display:"inline-flex",justifyContent:"center",width:20}}>{i<3&&(j.victoires+j.defaites)>0?<EmoIcon e={i===0?"🥇":i===1?"🥈":"🥉"} size={18}/>:"·"}</span>
             <span style={{flex:1,fontWeight:i<3?700:400,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{j.nom}</span>
@@ -1970,7 +1970,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       const topParGroupe=[];
       const barragesTP=matchs.filter(m=>m.phase==="barrage");
       for(let g=1;g<=nbGroupes;g++){
-        const jG=rankGroup(joueurs.filter(j=>j.groupe===g),barragesTP);
+        const jG=rankGroup(joueurs.filter(j=>j.groupe===g),barragesTP,matchs);
         jG.slice(0,nbQual).forEach((j,idx)=>topParGroupe.push({...j,poolRank:idx+1}));
       }
       // Taille du tableau — 2 garde-fous, même si un réglage ancien/erroné arrive :
@@ -1988,7 +1988,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       if(consolante){
         const consoTeams=[];
         for(let g=1;g<=nbGroupes;g++){
-          const jG=rankGroup(joueurs.filter(j=>j.groupe===g),barragesTP);
+          const jG=rankGroup(joueurs.filter(j=>j.groupe===g),barragesTP,matchs);
           // Repêchage : les nbConso PREMIÈRES équipes non qualifiées de la poule (2 ou 3, réglable).
           jG.slice(nbQual,nbQual+nbConso).forEach((j,idx)=>consoTeams.push({...j,consoRank:nbQual+idx+1}));
         }
