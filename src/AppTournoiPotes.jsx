@@ -1270,7 +1270,9 @@ const BktStatusBanner=({label,color,bg,hero})=>(
 // ============================================================================
 //  Carte de match du tableau (Match Card e-sport)
 // ============================================================================
-const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch,canPlay=false,hero=false,live=null,stats=null})=>{
+// `actif` = ce match est élu par le planning des cibles (matchsSurCibles). null = pas de planning
+// (rétrocompatible : tout est jouable, comportement d'avant).
+const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch,canPlay=false,hero=false,live=null,stats=null,actif=null})=>{
   const j1=joueurs.find(j=>j.id===match.joueur1_id);
   const j2=joueurs.find(j=>j.id===match.joueur2_id);
   const done=match.statut==="termine";
@@ -1279,6 +1281,7 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch,can
   // même si le statut est resté bloqué sur "attente_avancement" (course entre 2 téléphones qui valident 2 demies en même temps).
   const waiting=(match.statut==="attente_avancement"||match.statut==="vide")&&(!j1||!j2);
   const playable=!done&&!bye&&!waiting&&j1&&j2;
+  const surCible=actif===null||actif===true; // pas de planning fourni → jouable (comportement d'avant)
   // Match "en cours" = quelqu'un a lancé le scoreur (live_sessions en_cours) → on n'affiche plus "Jouer".
   const enCours=playable&&!!live&&!!live.pairs&&live.pairs.has([String(match.joueur1_id),String(match.joueur2_id)].sort().join("|"));
   const roundCol=bktRoundColor(match.phase);
@@ -1391,16 +1394,26 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch,can
           {isCreateur&&<Btn onClick={()=>onSaisirScore(match)} variant="dark" small style={{fontSize:12,padding:"7px 12px"}}><EmoText s="✏️" size={12}/></Btn>}
         </div>
       )}
-      {playable&&!enCours&&canPlay&&(
+      {playable&&!enCours&&canPlay&&surCible&&(
         <div style={{padding:hero?"0 11px 12px":"0 9px 9px",display:"flex",gap:8,justifyContent:"center"}}>
           <Btn onClick={()=>onJouerMatch(match)} variant="primary" small style={{fontSize:12,padding:"7px 16px",boxShadow:`0 3px 10px ${CT.accent}55`}}><EmoText s="▶️ Jouer" size={12} color="#fff"/></Btn>
           {isCreateur&&<Btn onClick={()=>onSaisirScore(match)} variant="dark" small style={{fontSize:12,padding:"7px 12px"}}><EmoText s="✏️ Modifier" size={12}/></Btn>}
         </div>
       )}
+      {/* Match jouable mais la cible n'est pas libre : on N'AFFICHE PAS "Jouer", sinon tout un tour de
+          tableau (8 à 14 équipes) se lève en même temps pour 2 cibles. Le créateur garde le crayon. */}
+      {playable&&!enCours&&canPlay&&!surCible&&(
+        <div style={{padding:"0 9px 9px",display:"flex",gap:8,justifyContent:"center",alignItems:"center"}}>
+          <div style={{flex:1,padding:"6px 8px",fontSize:10.5,color:CT.muted,fontWeight:700,textAlign:"center",background:"#ffffff08",borderRadius:8,border:`1px dashed ${CT.border}`}}>
+            <EmoText s="⏳ En attente d'une cible" size={10.5} color={CT.muted}/>
+          </div>
+          {isCreateur&&<Btn onClick={()=>onSaisirScore(match)} variant="dark" small style={{fontSize:12,padding:"7px 12px"}}><EmoText s="✏️" size={12}/></Btn>}
+        </div>
+      )}
       {playable&&!enCours&&!canPlay&&(
         <div style={{padding:"0 9px 9px"}}>
-          <div style={{padding:"6px 8px",fontSize:10.5,color:roundCol,fontWeight:700,textAlign:"center",background:roundCol+"12",borderRadius:8,border:`1px solid ${roundCol}33`}}>
-            <EmoText s="🎯 Match à jouer" size={10.5} color={roundCol}/>
+          <div style={{padding:"6px 8px",fontSize:10.5,color:surCible?roundCol:CT.muted,fontWeight:700,textAlign:"center",background:(surCible?roundCol:"#ffffff")+"12",borderRadius:8,border:`1px solid ${surCible?roundCol+"33":CT.border}`}}>
+            <EmoText s={surCible?"🎯 Match à jouer":"⏳ En attente d'une cible"} size={10.5} color={surCible?roundCol:CT.muted}/>
           </div>
         </div>
       )}
@@ -1453,7 +1466,7 @@ const BktGutter=({pairs,color})=>(
 // ============================================================================
 //  VUE ÉLIMINATOIRES (arbre de championnat)
 // ============================================================================
-const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJouerMatch,onRetourPoules,onTerminer,canPlay=false,onOpenShare,live=null,stats=null})=>{
+const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSaisirScore,onJouerMatch,onRetourPoules,onTerminer,canPlay=false,onOpenShare,live=null,stats=null})=>{
   const bracketM=matchs.filter(m=>m.phase!=="poules");
   const mainM=bracketM.filter(m=>MAIN_PHASES.includes(m.phase));
   const petiteM=bracketM.find(m=>m.phase==="petite_finale");
@@ -1464,6 +1477,14 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
   const finale=mainM.find(m=>m.phase==="finale");
   const champion=finale&&finale.statut==="termine"&&finale.gagnant_id?joueurs.find(j=>j.id===finale.gagnant_id):null;
   const finaleRoundNum=rounds.length?Math.max(...rounds):0;
+
+  // PLANNING DES CIBLES — même moteur qu'en poules (matchsSurCibles). Sans lui, au lancement des quarts
+  // les 8 (jusqu'à 14) équipes encore en lice recevaient toutes « c'est à toi de jouer » en même temps
+  // pour 2 cibles : embouteillage au pas de tir. Tableau principal, petite finale et consolante se
+  // partagent les MÊMES cibles physiques → un seul planning commun.
+  const jouables=bracketM.filter(m=>m.statut!=="termine"&&!(m.statut&&m.statut.startsWith("bye"))&&m.statut!=="vide"&&m.joueur1_id&&m.joueur2_id);
+  const actifsBracket=matchsSurCibles(jouables,nbCibles,matchs,live);
+  const enAttenteCible=Math.max(0,jouables.length-actifsBracket.size);
 
   const colHeaderH=30;
 
@@ -1491,7 +1512,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
           {colLabel(phase,r)}
           <div style={{flex:1,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-around",alignItems:"center",gap:24}}>
             {rm.map(m=>(
-              <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} hero={isFinaleCol} live={live} stats={stats}/>
+              <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} hero={isFinaleCol} live={live} stats={stats} actif={actifsBracket.has(m.id)}/>
             ))}
           </div>
         </div>
@@ -1507,7 +1528,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
   const petiteCol=()=>(
     <div key="petite-finale" style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",gap:24,flexShrink:0}}>
       {colLabel("petite_finale",0)}
-      <BracketMatchCard match={petiteM} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live} stats={stats}/>
+      <BracketMatchCard match={petiteM} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live} stats={stats} actif={actifsBracket.has(petiteM.id)}/>
     </div>
   );
 
@@ -1538,6 +1559,15 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
         </Card>
       )}
 
+      {/* Compteur du planning des cibles — même repère qu'en poules */}
+      {!allDone&&jouables.length>0&&(
+        <div style={{marginTop:10,fontSize:12.5,textAlign:"center"}}>
+          <span style={{color:CT.green,fontWeight:800}}>🟢 {actifsBracket.size} à jouer maintenant</span>
+          <span style={{color:CT.muted}}> · 🎯 {nbCibles} cible{nbCibles>1?"s":""}</span>
+          {enAttenteCible>0&&<span style={{color:CT.muted}}> · ⏳ {enAttenteCible} en attente</span>}
+        </div>
+      )}
+
       {/* Tableau principal — arbre de championnat */}
       <div style={{overflowX:"auto",paddingBottom:16,WebkitOverflowScrolling:"touch"}}>
         <div style={{display:"flex",gap:0,alignItems:"stretch",minWidth:"max-content",padding:"30px 4px 8px"}}>
@@ -1565,7 +1595,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,onSaisirScore,onJoue
                       </div>
                       <div style={{flex:1,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-around",alignItems:"center",gap:24}}>
                         {rm.map(m=>(
-                          <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live} stats={stats}/>
+                          <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live} stats={stats} actif={actifsBracket.has(m.id)}/>
                         ))}
                       </div>
                     </div>
@@ -2256,17 +2286,21 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       return null;
     }
     // 3) Eliminatoires : un match du tableau est jouable = pas fini, pas bye, pas en attente, 2 joueurs connus.
+    //    ET il doit être élu par la rotation des cibles, comme en poules — sinon tout un tour de tableau
+    //    (8 à 14 équipes) recevait l'alerte en même temps pour 2 cibles, et depuis la correction du
+    //    planning le bouton "Jouer" n'apparaît même pas : l'alerte enverrait les gens pour rien.
     if(tournoi.statut==="eliminatoires"){
-      const me=matchs.find(m=>{
+      const jouablesElim=matchs.filter(m=>{
         if(m.phase==="poules"||m.phase==="barrage")return false; // barrage = sous-phase des poules, jamais "à jouer" en éliminatoires
         const done=m.statut==="termine";
         const bye=m.statut&&m.statut.startsWith("bye");
         // Un match du tableau n'est JOUABLE que s'il est "en_attente" avec 2 joueurs. "attente_avancement"/"vide"
         // = il attend encore le vainqueur d'un tour précédent → jamais d'alerte (même si les 2 cases semblent remplies).
         const waiting=m.statut==="attente_avancement"||m.statut==="vide"||!m.joueur1_id||!m.joueur2_id;
-        const playable=!done&&!bye&&!waiting;
-        return playable&&!estEnCours(m)&&(estMoi(m.joueur1_id)||estMoi(m.joueur2_id));
+        return !done&&!bye&&!waiting;
       });
+      const actifsE=matchsSurCibles(jouablesElim,cibles,matchs,liveInfo);
+      const me=jouablesElim.find(m=>actifsE.has(m.id)&&!estEnCours(m)&&(estMoi(m.joueur1_id)||estMoi(m.joueur2_id)));
       if(me)return{...me,__moiEstJ1:estMoi(me.joueur1_id)};
     }
     return null;
@@ -2367,7 +2401,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
               onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
               saving={saving} joueurConnecte={joueurConnecte} live={liveInfo} bracketLance={true} stats={statsTournoi}/>
           : <EliminatoiresView tournoi={tournoi} joueurs={joueurs} live={liveInfo}
-              matchs={matchs.filter(m=>m.phase!=="poules")} isCreateur={isCreateur} canPlay={canPlay} onOpenShare={()=>setShowShare(true)}
+              matchs={matchs.filter(m=>m.phase!=="poules")} isCreateur={isCreateur} canPlay={canPlay} nbCibles={cibles} onOpenShare={()=>setShowShare(true)}
               onSaisirScore={m=>setMatchModal(m)}
               onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
               onRetourPoules={retourPoules} onTerminer={terminerTournoi} stats={statsTournoi}/>}
