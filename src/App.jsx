@@ -6090,98 +6090,63 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     );
   };
 
+  // Duel terminé SANS post « __DUEL__ » disponible dans le fil. Ça arrive quand le VAINQUEUR n'est pas
+  // dans mes amis : le post est publié par le gagnant (joueur_id = gagnantId), or le fil ne charge que
+  // les posts de mes amis, alors qu'il charge les duels dès qu'UN SEUL des deux joueurs est mon ami.
+  // Résultat : quand mon ami gagnait j'avais la belle carte, quand il perdait j'avais une carte pauvre.
+  // On reconstruit donc EXACTEMENT le même objet que le post à partir de la ligne de duel (qui contient
+  // déjà tout : scores, moyennes, détail des manches) et on réutilise le composant DuelPost. Un seul
+  // rendu pour un duel, quel qu'en soit le vainqueur.
   const renderMatch = (item) => {
     const d = item.data;
     const drixMap = item.drixMvts || {};
-    const cScore = d.score_manches_challenger ?? 0;
-    const dScore = d.score_manches_defie ?? 0;
-    const moyC = d.score_challenger ? Math.round(d.score_challenger) : null;
-    const moyD = d.score_defie ? Math.round(d.score_defie) : null;
-    const cWin = cScore > dScore;
-    const dWin = dScore > cScore;
-    const vC = drixMap[d.challenger_id];
-    const vD = drixMap[d.defie_id];
+    const gagnantEstChallenger = d.gagnant_id ? d.gagnant_id === d.challenger_id
+      : (d.score_manches_challenger ?? 0) >= (d.score_manches_defie ?? 0);
+    const wId = gagnantEstChallenger ? d.challenger_id : d.defie_id;
+    const lId = gagnantEstChallenger ? d.defie_id : d.challenger_id;
+    const wNom = (gagnantEstChallenger ? d.challenger_pseudo : d.defie_pseudo) || "?";
+    const lNom = (gagnantEstChallenger ? d.defie_pseudo : d.challenger_pseudo) || "?";
+    const wM = (gagnantEstChallenger ? d.score_manches_challenger : d.score_manches_defie) ?? 0;
+    const lM = (gagnantEstChallenger ? d.score_manches_defie : d.score_manches_challenger) ?? 0;
+    const moy = (v) => (v ? Math.round(v * 100) / 100 : 0);
+    const wMoy = moy(gagnantEstChallenger ? d.score_challenger : d.score_defie);
+    const lMoy = moy(gagnantEstChallenger ? d.score_defie : d.score_challenger);
+    const manches = Array.isArray(d.manches_detail) ? d.manches_detail : [];
+    // Highlights : mêmes règles que le post publié par le scoreur.
+    const all180 = manches.reduce((s, m) => s + (m.winner_180 || 0) + (m.loser_180 || 0), 0);
+    const bestFinish = Math.max(0, ...manches.map(m => m.winner_finish || 0));
+    const highlights = [
+      all180 > 0 ? `💥 ${all180}×180` : "",
+      bestFinish >= 100 ? `🎯 Finish ${bestFinish}` : "",
+    ].filter(Boolean).join("  ") || null;
+    // DRIX : le mouvement réel de chaque joueur (le bonus de performance est désactivé → ELO pur).
+    const wTot = drixMap[wId] ?? 0, lTot = drixMap[lId] ?? 0;
+    const cote = (nom, nbManches, m, total) => ({
+      nom, nbManches, moy: m, elo: total, total,
+      bonusManches: 0, bonusVolees: 0, nbVolees: 0, bonusFinish: 0, nbFinish: 0,
+      xp: 0, xpLines: [],
+    });
+    const post = {
+      duel_id: d.id,
+      isAmical: d.type === "amical",
+      isRivalite: d.type === "rivalite",
+      isEnLigne: false,
+      mode: d.mode || "501",
+      headline: `🏆 ${wNom} bat ${lNom} ${wM}-${lM}`,
+      highlights,
+      winner: cote(wNom, wM, wMoy, wTot),
+      loser: cote(lNom, lM, lMoy, lTot),
+      manches,
+    };
+    // Pseudo-post : l'id reste celui du DUEL → les j'aime et commentaires déjà posés sont conservés.
+    const pseudoPost = {
+      id: d.id, joueur_id: wId, joueur_pseudo: wNom,
+      joueur_photo: photosMap[wId] || null, date: item.date,
+    };
     return (
-      <div key={`match-${d.id}`} style={{
-        ...cardBase,
-        background:"linear-gradient(160deg,#0d0800,#090600)",
-        border:"1px solid #f9731622",
-        boxShadow:"0 4px 20px rgba(249,115,22,0.08)",
-      }}>
-        {/* Animated top stripe orange */}
-        <div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,#ea580c,#f97316,#fbbf24,#f97316,#ea580c)",backgroundSize:"300% 100%",animation:"feedGlow 4s ease infinite" }}/>
-        <div style={{ padding:"4px 0 0" }}>
-          {/* Header */}
-          <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:12 }}>
-            <div style={{ display:"flex",alignItems:"center",gap:5,background:"#f9731618",border:"1px solid #f9731628",borderRadius:8,padding:"3px 10px" }}>
-              <Swords size={11} color="#f97316"/>
-              <span style={{ fontSize:11,fontWeight:800,color:"#f97316",letterSpacing:.5 }}>DUEL TERMINÉ</span>
-            </div>
-            <span style={{ fontSize:11,color:C.muted,marginLeft:"auto" }}>{tempsDepuis(item.date)}</span>
-          </div>
-          {/* Esport score block */}
-          <div style={{ background:"#0a0500",border:"1px solid #f9731620",borderRadius:14,padding:"16px 10px",marginBottom:10,position:"relative",overflow:"hidden" }}>
-            <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 35%,rgba(255,255,255,0.025) 50%,transparent 65%)",animation:"feedShine 7s ease infinite 1s",pointerEvents:"none" }}/>
-            <div style={{ display:"flex",alignItems:"center",gap:4 }}>
-              {/* Challenger */}
-              <div style={{ flex:1,textAlign:"center" }}>
-                <div style={{ marginBottom:6 }}>
-                  <FeedAvatar photo={photosMap[d.challenger_id]||null} pseudo={d.challenger_pseudo} size={40} onClick={()=>setPage("profil-joueur-"+d.challenger_id)}/>
-                </div>
-                <div style={{ fontWeight:800,fontSize:12,color:cWin?"#22c55e":"#ef4444",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:4 }}>{d.challenger_pseudo}</div>
-                <div style={{ fontSize:38,fontWeight:900,lineHeight:1,color:cWin?"#22c55e":"#ef4444",textShadow:cWin?"0 0 20px rgba(34,197,94,.35)":"0 0 20px rgba(239,68,68,.25)" }}>{cScore}</div>
-                {moyC !== null && <div style={{ fontSize:10,color:C.muted,marginTop:4 }}>{moyC} moy.</div>}
-                <div style={{ display:"flex",justifyContent:"center",marginTop:6 }}>
-                  <div style={{ background:cWin?"#22c55e22":"#ef444420",border:`1px solid ${cWin?"#22c55e44":"#ef444440"}`,borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:800,color:cWin?"#22c55e":"#ef4444",display:"flex",alignItems:"center",gap:3 }}>
-                    {cWin ? <><Trophy size={9} color="#22c55e"/> WIN</> : <><X size={9} color="#ef4444"/> DEF</>}
-                  </div>
-                </div>
-              </div>
-              {/* VS */}
-              <div style={{ flexShrink:0,textAlign:"center",padding:"0 6px" }}>
-                <div style={{ width:38,height:38,borderRadius:"50%",background:"linear-gradient(135deg,#f97316,#ea580c)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 4px",boxShadow:"0 0 14px rgba(249,115,22,0.45)" }}>
-                  <Swords size={16} color="#fff"/>
-                </div>
-                <div style={{ fontSize:9,fontWeight:900,color:"#f97316",letterSpacing:2 }}>VS</div>
-              </div>
-              {/* Defié */}
-              <div style={{ flex:1,textAlign:"center" }}>
-                <div style={{ marginBottom:6 }}>
-                  <FeedAvatar photo={photosMap[d.defie_id]||null} pseudo={d.defie_pseudo} size={40} onClick={()=>setPage("profil-joueur-"+d.defie_id)}/>
-                </div>
-                <div style={{ fontWeight:800,fontSize:12,color:dWin?"#22c55e":"#ef4444",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:4 }}>{d.defie_pseudo}</div>
-                <div style={{ fontSize:38,fontWeight:900,lineHeight:1,color:dWin?"#22c55e":"#ef4444",textShadow:dWin?"0 0 20px rgba(34,197,94,.35)":"0 0 20px rgba(239,68,68,.25)" }}>{dScore}</div>
-                {moyD !== null && <div style={{ fontSize:10,color:C.muted,marginTop:4 }}>{moyD} moy.</div>}
-                <div style={{ display:"flex",justifyContent:"center",marginTop:6 }}>
-                  <div style={{ background:dWin?"#22c55e22":"#ef444420",border:`1px solid ${dWin?"#22c55e44":"#ef444440"}`,borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:800,color:dWin?"#22c55e":"#ef4444",display:"flex",alignItems:"center",gap:3 }}>
-                    {dWin ? <><Trophy size={9} color="#22c55e"/> WIN</> : <><X size={9} color="#ef4444"/> DEF</>}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          {/* DRIX boxes */}
-          {(vC !== undefined || vD !== undefined) && (
-            <div style={{ display:"flex",gap:8,marginBottom:10 }}>
-              {[
-                { pseudo:d.challenger_pseudo, val:vC, win:cWin },
-                { pseudo:d.defie_pseudo,      val:vD, win:dWin },
-              ].map((r,i) => r.val !== undefined ? (
-                <div key={i} style={{ flex:1,background:r.win?"#22c55e12":"#ef444412",border:`1px solid ${r.win?"#22c55e33":"#ef444433"}`,borderRadius:10,padding:"8px",textAlign:"center" }}>
-                  <div style={{ fontSize:10,color:r.win?"#4ade80":"#fca5a5",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{r.pseudo.split(" ")[0]}</div>
-                  <div style={{ fontSize:22,fontWeight:900,color:r.win?"#22c55e":"#ef4444",lineHeight:1.2,animation:"drixPop .4s ease-out both" }}>{r.val>0?"+":""}{r.val}</div>
-                  <div style={{ fontSize:9,color:r.win?"#4ade80":"#fca5a5",fontWeight:700 }}>DRIX</div>
-                </div>
-              ) : null)}
-            </div>
-          )}
-          <MancheDetail manches={d.manches_detail}/>
-          <div style={{ display:"flex",gap:8,marginTop:8 }}>
-            <LikeButton refId={d.id} joueur={joueur} initialCount={likesMap[d.id]?.count||0} initialMyLike={likesMap[d.id]?.myLike||false}/>
-          </div>
-          <CommentSection refId={d.id} joueur={joueur} initialComments={commentsMap[d.id]||[]}/>
-        </div>
-      </div>
+      <DuelPost key={`match-${d.id}`} p={pseudoPost} d={post} C={C} cardBase={cardBase}
+        joueur={joueur} likesMap={likesMap} commentsMap={commentsMap}
+        tempsDepuis={tempsDepuis} setPage={setPage}/>
     );
   };
 
