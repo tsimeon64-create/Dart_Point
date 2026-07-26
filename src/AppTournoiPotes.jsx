@@ -177,26 +177,29 @@ const genBracketMatchs=(seeded,tournoi_id,manchesMap={},opts={})=>{
 };
 
 // Consolante = tableau séparé pour les équipes NON qualifiées (sauf la dernière de chaque poule).
-// APPARIEMENT MAXIMAL : tout le monde joue au 1er tour ; un exempt n'apparaît QUE si un joueur ne peut
-// pas être apparié (nombre impair à un tour). Les exempts émergents sont résorbés par propagerByes.
+// VRAI TABLEAU à taille puissance de 2, comme le tableau principal : TOUS les exempts sont au 1er tour
+// et vont aux MIEUX classés (seedBracket). Chaque branche demande donc le même nombre de victoires.
+// Avant, on appariait au maximum au 1er tour puis on réduisait par ceil(cases/2) : les exempts
+// apparaissaient aux tours SUIVANTS, au petit bonheur, et une branche pouvait gagner la consolante en
+// 2 victoires là où les autres en demandaient 4 (mesuré sur 13 tirages sur 20).
 const genConsolanteMatchs=(teams,tournoi_id,manches=2)=>{
   const N=teams.length; // vraies équipes ordonnées (meilleures d'abord), SANS null
   if(N<2)return [];
+  let size=2; while(size<N)size*=2;              // taille du tableau = puissance de 2 immédiatement ≥ N
+  const seeded=seedBracket(teams,size);          // exempts (slots manquants) attribués aux mieux classés
+  const totalRounds=Math.log2(size);
   const matchs=[];
-  // Tour 1 : pos p = teams[p] vs teams[N-1-p] (mieux classé vs moins bien). Si N impair, le milieu est exempt.
-  const r1=Math.ceil(N/2);
-  for(let pos=0;pos<r1;pos++){
-    const j1=teams[pos], j2b=teams[N-1-pos];
-    const j2=(j2b&&j1&&j2b.id===j1.id)?null:j2b; // milieu (N impair) → un seul joueur = exempt
+  // Tour 1 : paires (graine s contre graine size+1-s). Comme size/2 < N ≤ size, aucune paire n'est vide
+  // des deux côtés → aucune case morte, et le tableau va toujours jusqu'au bout.
+  for(let pos=0;pos<size/2;pos++){
+    const j1=seeded[pos*2], j2=seeded[pos*2+1];
     const statut=j1&&j2?"en_attente":j1?"bye_j2":j2?"bye_j1":"vide";
     matchs.push({tournoi_id,joueur1_id:j1?.id||null,joueur2_id:j2?.id||null,score1:0,score2:0,gagnant_id:j1&&!j2?j1.id:j2&&!j1?j2.id:null,phase:"consolante",groupe:0,statut,round_bracket:1,position_bracket:pos,manches_max:manches});
   }
-  // Tours suivants : ceil(cases/2) cases vides (avancement par floor(pos/2)). Une case à UN SEUL alimentateur
-  // (nombre impair de matchs au tour précédent) deviendra un exempt, géré automatiquement par propagerByes.
-  let slots=r1, r=1;
-  while(slots>1){
-    slots=Math.ceil(slots/2); r++;
-    for(let pos=0;pos<slots;pos++){
+  // Tours suivants : cases vides, alimentées par floor(pos/2) — exactement 2 alimentateurs chacune.
+  for(let r=2;r<=totalRounds;r++){
+    const nb=size/Math.pow(2,r);
+    for(let pos=0;pos<nb;pos++){
       matchs.push({tournoi_id,joueur1_id:null,joueur2_id:null,score1:0,score2:0,gagnant_id:null,phase:"consolante",groupe:0,statut:"attente_avancement",round_bracket:r,position_bracket:pos,manches_max:manches});
     }
   }
@@ -1859,8 +1862,20 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       if(allMatchs.length>0)await dbTP.addMatchs(allMatchs);
       await dbTP.updateTournoi(tournoiId,{statut:"poules"});
       setCibles(nbCibles);
-      try{ await dbTP.updateTournoi(tournoiId,{nb_cibles:nbCibles}); }catch(e){ /* colonne nb_cibles pas encore créée */ }
-      try{ await dbTP.updateTournoi(tournoiId,{nb_qualifies:nbQualif}); }catch(e){ /* colonne nb_qualifies pas encore créée : on garde l'état local */ }
+      // Réglages persistés en base. On ne fait PLUS échouer en silence : si l'écriture n'arrive pas
+      // (colonne absente, réseau, permissions), le réglage n'existe que sur CE téléphone — un autre
+      // appareil, ou un simple rechargement, repartirait sur la valeur par défaut (2 qualifiés) et des
+      // équipes qualifiées disparaîtraient sans un mot. On vérifie donc que la valeur a bien atterri.
+      try{ await dbTP.updateTournoi(tournoiId,{nb_cibles:nbCibles}); }catch(e){ /* colonne nb_cibles absente : sans effet sur les qualifiés */ }
+      let qualifPersiste=false;
+      try{
+        await dbTP.updateTournoi(tournoiId,{nb_qualifies:nbQualif});
+        const relu=await dbTP.getTournoi(tournoiId);
+        qualifPersiste=!!relu&&relu.nb_qualifies===nbQualif;
+      }catch(e){ qualifPersiste=false; }
+      if(!qualifPersiste){
+        alert(`⚠️ Le réglage « ${nbQualif} qualifié(s) par poule » n'a pas pu être enregistré sur le serveur.\n\nIl ne vaut que sur CE téléphone : si quelqu'un d'autre lance le tableau, ou si tu recharges la page, l'appli repartira sur 2 qualifiés par poule.\n\n👉 Lance le tableau depuis CE téléphone, sans recharger.`);
+      }
       setShowPoolConfig(false);
       await reload();
     }catch(e){alert("Erreur : "+e.message);}
