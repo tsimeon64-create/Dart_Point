@@ -4139,19 +4139,30 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
   const isEnLigne  = !!d.isEnLigne; // partie amicale jouée À DISTANCE (2 téléphones)
   const isBot      = !!d.bot; // match contre un bot (le « fantôme » d'un ami) — pas de DRIX
 
-  // Fetch photos des 2 joueurs (gagnant + perdant) en une seule requête
+  // Fetch photos ET ids des 2 joueurs (gagnant + perdant) en une seule requête.
+  // L'id du perdant n'est pas stocké dans le post (`d.loser` ne porte que le nom) : on le résout ici
+  // par pseudo, ce qui marche aussi pour les cartes déjà publiées. Sans lui, seul le vainqueur était
+  // cliquable et on ne pouvait pas ouvrir le profil de son adversaire depuis le Comptoir.
+  const [loserId, setLoserId] = useState(null);
+  const [winnerId, setWinnerId] = useState(null);
   useEffect(() => {
     if (!w?.nom || !l?.nom) return;
-    sb(`joueurs?pseudo=in.("${encodeURIComponent(w.nom)}","${encodeURIComponent(l.nom)}")&select=pseudo,photo`)
+    sb(`joueurs?pseudo=in.("${encodeURIComponent(w.nom)}","${encodeURIComponent(l.nom)}")&select=id,pseudo,photo`)
       .then(r => {
         const arr = r || [];
-        const wp = arr.find(x => x.pseudo === w.nom)?.photo;
-        const lp = arr.find(x => x.pseudo === l.nom)?.photo;
-        if (wp) setWinnerPhoto(wp);
-        if (lp) setLoserPhoto(lp);
+        const wj = arr.find(x => x.pseudo === w.nom);
+        const lj = arr.find(x => x.pseudo === l.nom);
+        if (wj?.photo) setWinnerPhoto(wj.photo);
+        if (lj?.photo) setLoserPhoto(lj.photo);
+        if (wj?.id) setWinnerId(wj.id);
+        if (lj?.id) setLoserId(lj.id);
       })
       .catch(()=>{});
   }, [w?.nom, l?.nom]);
+  // Un bot n'a pas de profil : on ne rend cliquable que les vrais joueurs retrouvés en base.
+  const ouvrirProfil = (id) => { if (id) setPage("profil-joueur-" + id); };
+  const idGagnant = isBot && d.botNom === w?.nom ? null : (winnerId || p.joueur_id || null);
+  const idPerdant = isBot && d.botNom === l?.nom ? null : loserId;
   const scoreW = w?.nbManches ?? (() => { const m = d.headline?.match(/(\d+)-(\d+)/); return m ? parseInt(m[1]) : null; })();
   const scoreL = l?.nbManches ?? (() => { const m = d.headline?.match(/(\d+)-(\d+)/); return m ? parseInt(m[2]) : null; })();
   const totalManches = (scoreW||0) + (scoreL||0);
@@ -4280,9 +4291,9 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
             <div style={{ flex:1, textAlign:"center", minWidth:0, animation:"duelScoreReveal .6s cubic-bezier(.34,1.56,.64,1) both" }}>
               {/* Avatar */}
               <div style={{ display:"flex", justifyContent:"center", marginBottom:8 }}>
-                <FeedAvatar photo={winnerPhoto} pseudo={w.nom} size={42} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
+                <FeedAvatar photo={winnerPhoto} pseudo={w.nom} size={42} onClick={idGagnant?()=>ouvrirProfil(idGagnant):undefined}/>
               </div>
-              <div title={w.nom} style={{ fontWeight:900, fontSize:12, color:winColor, marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textShadow:`0 0 10px ${winColor}66` }}>
+              <div title={w.nom} onClick={idGagnant?()=>ouvrirProfil(idGagnant):undefined} style={{ fontWeight:900, fontSize:12, color:winColor, marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textShadow:`0 0 10px ${winColor}66`, cursor:idGagnant?"pointer":"default" }}>
                 {w.nom}
               </div>
               {isBot && d.botNom===w.nom && <div style={{ display:"inline-block", fontSize:8.5, fontWeight:800, color:"#c4b5fd", background:"#a78bfa1f", border:"1px solid #a78bfa44", borderRadius:5, padding:"0 5px", letterSpacing:.5, marginBottom:2 }}>🤖 BOT</div>}
@@ -4319,9 +4330,9 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
             {/* LOSER */}
             <div style={{ flex:1, textAlign:"center", minWidth:0, animation:"duelScoreReveal .6s .1s cubic-bezier(.34,1.56,.64,1) both" }}>
               <div style={{ display:"flex", justifyContent:"center", marginBottom:8 }}>
-                <FeedAvatar photo={loserPhoto} pseudo={l.nom} size={42}/>
+                <FeedAvatar photo={loserPhoto} pseudo={l.nom} size={42} onClick={idPerdant?()=>ouvrirProfil(idPerdant):undefined}/>
               </div>
-              <div title={l.nom} style={{ fontWeight:900, fontSize:12, color:"#94a3b8", marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+              <div title={l.nom} onClick={idPerdant?()=>ouvrirProfil(idPerdant):undefined} style={{ fontWeight:900, fontSize:12, color:"#94a3b8", marginBottom:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", cursor:idPerdant?"pointer":"default" }}>
                 {l.nom}
               </div>
               {isBot && d.botNom===l.nom && <div style={{ display:"inline-block", fontSize:8.5, fontWeight:800, color:"#c4b5fd", background:"#a78bfa1f", border:"1px solid #a78bfa44", borderRadius:5, padding:"0 5px", letterSpacing:.5, marginBottom:2 }}>🤖 BOT</div>}
