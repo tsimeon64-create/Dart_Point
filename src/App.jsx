@@ -1525,18 +1525,25 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
   const prog = getDrixProgression(j.drix || 1000);
 
   // Bouton image générique
-  const ImgBtn = ({ src, onClick, badge=0 }) => (
-    <div onClick={onClick}
-      style={{ position:"relative",cursor:"pointer",borderRadius:16,overflow:"hidden",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s",width:"100%",paddingTop:"100%" }}
+  // Bouton-image de l'accueil. Le libellé est dessiné DANS l'image : sans `label`, un
+  // lecteur d'écran (et le clavier) ne verraient qu'un carré muet — d'où le <button>
+  // et l'aria-label. `priorite` = visible d'emblée, on ne diffère pas son chargement.
+  const ImgBtn = ({ src, onClick, badge=0, label, priorite=false }) => (
+    <button type="button" onClick={onClick} aria-label={label}
+      /* ⚠️ `padding:0` DOIT rester avant `paddingTop` : sinon il l'écrase (dernière clé gagne)
+         et le carré s'aplatit à zéro — c'est `paddingTop:"100%"` qui donne sa hauteur au bouton. */
+      style={{ position:"relative",cursor:"pointer",borderRadius:16,overflow:"hidden",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s",padding:0,border:"none",background:"none",display:"block",width:"100%",paddingTop:"100%" }}
       onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 12px 32px #00000088";}}
       onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
-      <img src={src} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",display:"block",borderRadius:16,objectFit:"cover" }}/>
+      <img src={src} alt="" width={900} height={900}
+        loading={priorite ? "eager" : "lazy"} decoding="async"
+        style={{ position:"absolute",inset:0,width:"100%",height:"100%",display:"block",borderRadius:16,objectFit:"cover" }}/>
       {badge>0 && (
         <div style={{ position:"absolute",top:10,right:10,background:"#ef4444",color:"#fff",borderRadius:"50%",minWidth:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,boxShadow:"0 2px 8px #00000066",zIndex:2 }}>
           {badge>9?"9+":badge}
         </div>
       )}
-    </div>
+    </button>
   );
 
   return (
@@ -1656,12 +1663,21 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
 
       {/* ── Grille 2×3 — tous boutons même taille ── */}
       <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
-        <ImgBtn src="/lecomptoir3.png"      onClick={()=>setPage("communaute")}/>
-        <ImgBtn src="/defi2.png"            onClick={()=>setPage("defi")} badge={defisCount}/>
-        <ImgBtn src="/classement.png"       onClick={()=>setPage("drix")}/>
-        <ImgBtn src="/minijeux2.png"        onClick={()=>setPage("jeux-sans")}/>
-        <ImgBtn src="/scoreur2.png"         onClick={()=>setPage("jeux-flechettes")}/>
-        <ImgBtn src="/trouve ton spot.png"  onClick={()=>setPage("bars")}/>
+        {/* Boutons fournis par l'utilisateur, convertis en WebP dans public/accueil/
+            (11 Mo de PNG → 689 Ko). Le texte est dessiné dans l'image : `label` porte
+            ce qu'il faut lire à voix haute. Les 2 premiers sont visibles d'emblée. */}
+        <ImgBtn src="/accueil/comptoir.webp"        label="Le Comptoir — scores, discussions et actus" priorite
+          onClick={()=>setPage("communaute")}/>
+        <ImgBtn src="/accueil/defi.webp"            label="Défi — défie un ami, gère tes matchs et gagne des DRIX" priorite
+          onClick={()=>setPage("defi")} badge={defisCount}/>
+        <ImgBtn src="/accueil/classement.webp"      label="Classement DRIX — découvre les meilleurs joueurs et grimpe dans le classement"
+          onClick={()=>setPage("drix")}/>
+        <ImgBtn src="/accueil/mini-jeux.webp"       label="Mini jeux et défi quotidien — pour jouer, progresser et s'amuser"
+          onClick={()=>setPage("jeux-sans")}/>
+        <ImgBtn src="/accueil/scoreur.webp"         label="Scoreur et jeux libres"
+          onClick={()=>setPage("jeux-flechettes")}/>
+        <ImgBtn src="/accueil/trouve-ton-spot.webp" label="Trouve ton spot — les bars à fléchettes près de chez toi"
+          onClick={()=>setPage("bars")}/>
       </div>
 
       {/* ── Feedback CTA esport — signaler bug / améliorations ── */}
