@@ -5,7 +5,7 @@ import { EmoIcon, EmoText } from "./icons";
 import { rankGroup, egalitesADepartager } from "./barrage";
 import { optimizePoolMatchOrder } from "./tournoiConfig";
 import { TournoiSetupWizard } from "./TournoiSetupWizard";
-import { confirmer } from "./uiConfirm.jsx";
+import { confirmer, alerter } from "./uiConfirm.jsx";
 
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -657,7 +657,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
         if(created&&created.id)localStorage.setItem("dp_tp_myrow_"+tournoi.id,String(created.id)); // pour la notif "c'est à toi de jouer" (même sans compte)
       }catch(e){}
       try{ if("Notification" in window&&Notification.permission==="default"){ Notification.requestPermission().then(p=>setNotifOk(p==="granted")); } }catch(e){}
-    }catch(e){ alert("Erreur : "+(e&&e.message||e)); }
+    }catch(e){ await alerter("Erreur : "+(e&&e.message||e)); }
     finally{ setRejoining(false); }
   };
 
@@ -1931,7 +1931,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         }catch(e){}
         if(pollRef.current)clearInterval(pollRef.current);
         setLoading(false);
-        alert("Ce tournoi a été supprimé par son organisateur.");
+        await alerter("Ce tournoi a été supprimé par son organisateur.");
         setPage("tournois-potes");
         return;
       }
@@ -2071,7 +2071,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         qualifPersiste=!!relu&&relu.nb_qualifies===nbQualif;
       }catch(e){ qualifPersiste=false; }
       if(!qualifPersiste){
-        alert(`⚠️ Le réglage « ${nbQualif} qualifié(s) par poule » n'a pas pu être enregistré sur le serveur.\n\nIl ne vaut que sur CE téléphone : si quelqu'un d'autre lance le tableau, ou si tu recharges la page, l'appli repartira sur 2 qualifiés par poule.\n\n👉 Lance le tableau depuis CE téléphone, sans recharger.`);
+        await alerter(`⚠️ Le réglage « ${nbQualif} qualifié(s) par poule » n'a pas pu être enregistré sur le serveur.\n\nIl ne vaut que sur CE téléphone : si quelqu'un d'autre lance le tableau, ou si tu recharges la page, l'appli repartira sur 2 qualifiés par poule.\n\n👉 Lance le tableau depuis CE téléphone, sans recharger.`);
       }
       setShowPoolConfig(false);
       await reload();
@@ -2079,7 +2079,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       // Si ça a cassé AVANT que les matchs existent, on ROUVRE le lobby : sinon le tournoi resterait
       // affiché « en poules » sans un seul match, et plus personne ne pourrait s'inscrire.
       if(lobbyFerme&&!matchsCrees){ try{ await dbTP.updateTournoi(tournoiId,{statut:"attente"}); }catch(e2){} }
-      alert("Erreur : "+e.message);
+      await alerter("Erreur : "+e.message);
     }
     setSaving(false);
   };
@@ -2102,7 +2102,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         await sbTP(`live_sessions?id=eq.${s.id}`,{method:"PATCH",prefer:"return=minimal",body:JSON.stringify({statut:"termine"})}).catch(()=>{});
       }
       await reload();
-    }catch(e){alert("Erreur : "+e.message);}
+    }catch(e){await alerter("Erreur : "+e.message);}
     setSaving(false);
   };
 
@@ -2126,7 +2126,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         // On ne peut pas défaire un match déjà joué en aval. L'ancien message conseillait de "corriger d'abord
         // le match le plus avancé puis revenir" : impossible, corriger ne le remet pas en "à jouer" — on
         // restait donc bloqué à vie. On dit maintenant la vérité, avec les deux seules issues réelles.
-        alert("⚠️ Impossible d'inverser le vainqueur : le match SUIVANT de ce joueur a déjà été joué.\n\nLe tableau est construit sur ce résultat, on ne peut plus le défaire d'ici.\n\nDeux solutions :\n• garder ce résultat et corriger seulement le SCORE (sans changer le vainqueur) ;\n• ou « Revenir à la phase de poules » pour refaire le tableau (⚠️ tous les matchs du tableau seront à rejouer).");
+        await alerter("⚠️ Impossible d'inverser le vainqueur : le match SUIVANT de ce joueur a déjà été joué.\n\nLe tableau est construit sur ce résultat, on ne peut plus le défaire d'ici.\n\nDeux solutions :\n• garder ce résultat et corriger seulement le SCORE (sans changer le vainqueur) ;\n• ou « Revenir à la phase de poules » pour refaire le tableau (⚠️ tous les matchs du tableau seront à rejouer).");
         return;
       }
       // ── Écriture anti-double-comptage (2 téléphones sur le même match) ──
@@ -2213,7 +2213,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       }
 
       await reload();
-    }catch(e){alert("Erreur : "+e.message);}
+    }catch(e){await alerter("Erreur : "+e.message);}
   };
 
   // Advance winner + route loser (consolante / petite finale)
@@ -2254,7 +2254,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       }
       if(restantes.length>0){
         setSaving(false);
-        alert(`⏸️ Il reste ${restantes.length} barrage(s) 701 à jouer pour départager des égalités (poule ${[...new Set(restantes.map(r=>groupLetter(r.g)))].join(", ")}).\n\nJoue-les d'abord : sans ça, le tableau partirait sur un classement incomplet et une équipe serait écartée sans avoir pu se départager.`);
+        await alerter(`⏸️ Il reste ${restantes.length} barrage(s) 701 à jouer pour départager des égalités (poule ${[...new Set(restantes.map(r=>groupLetter(r.g)))].join(", ")}).\n\nJoue-les d'abord : sans ça, le tableau partirait sur un classement incomplet et une équipe serait écartée sans avoir pu se départager.`);
         await reload();
         return;
       }
@@ -2297,7 +2297,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       await dbTP.updateTournoi(tournoiId,{statut:"eliminatoires"});
       setShowBracketConfig(false);
       await reload();
-    }catch(e){alert("Erreur : "+e.message);}
+    }catch(e){await alerter("Erreur : "+e.message);}
     setSaving(false);
   };
 
@@ -2318,7 +2318,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       const news=paires.map((p,i)=>({tournoi_id:tournoiId,joueur1_id:p.a,joueur2_id:p.b,score1:0,score2:0,gagnant_id:null,phase:"barrage",groupe:p.groupe,statut:"en_attente",round_bracket:p.round||0,position_bracket:basePos+i,manches_max:1}));
       await dbTP.addMatchs(news);
       await reload();
-    }catch(e){alert("Erreur : "+e.message);}
+    }catch(e){await alerter("Erreur : "+e.message);}
     setSaving(false);
   };
 
@@ -2335,7 +2335,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       await Promise.all(joueurs.map(j=>dbTP.updateJoueur(j.id,{groupe:0,ordre:0,points:0,victoires:0,defaites:0,manches_pour:0,manches_contre:0}))); // reset stats, on GARDE les joueurs
       await dbTP.updateTournoi(tournoiId,{statut:"attente"});
       await reload();
-    }catch(e){alert("Erreur : "+e.message);}
+    }catch(e){await alerter("Erreur : "+e.message);}
     setSaving(false);
   };
 
@@ -2358,7 +2358,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       await Promise.all(joueurs.map(j=>dbTP.updateJoueur(j.id,st[j.id])));
       await dbTP.updateTournoi(tournoiId,{statut:"poules"});
       await reload();
-    }catch(e){alert("Erreur : "+e.message);}
+    }catch(e){await alerter("Erreur : "+e.message);}
     setSaving(false);
   };
 
@@ -2372,7 +2372,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     try{
       await dbTP.updateTournoi(tournoiId,{statut:"termine"});
       await reload();
-    }catch(e){alert("Erreur : "+e.message);}
+    }catch(e){await alerter("Erreur : "+e.message);}
     setSaving(false);
   };
 
@@ -2410,7 +2410,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         })
       );
       setPage("tournoi-potes-"+nt.id);
-    }catch(e){alert("Erreur : "+e.message);}
+    }catch(e){await alerter("Erreur : "+e.message);}
     setSaving(false);
   };
 
@@ -2426,7 +2426,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         if(cur&&cur.id===tournoiId)localStorage.removeItem("dp_active_tournoi");
       }catch(e){}
       setPage("tournois-potes");
-    }catch(e){alert("Erreur lors de la suppression : "+e.message);}
+    }catch(e){await alerter("Erreur lors de la suppression : "+e.message);}
   };
 
   const addJoueur=async(nom,joueur_id=null,membres=null)=>{
@@ -2435,7 +2435,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     const frais=await dbTP.getTournoi(tournoiId).catch(()=>null);
     if(frais&&frais.statut!=="attente"){
       if(frais.statut!==tournoi?.statut)setTournoi(frais); // on rattrape l'écran tout de suite
-      alert("Le tournoi est déjà lancé — impossible d'ajouter un joueur maintenant.");
+      await alerter("Le tournoi est déjà lancé — impossible d'ajouter un joueur maintenant.");
       return;
     }
     const base={tournoi_id:tournoiId,nom,joueur_id,groupe:1,ordre:joueurs.length,points:0,victoires:0,defaites:0,manches_pour:0,manches_contre:0};
@@ -2718,7 +2718,7 @@ export const TournoiPotesPage=({joueur,setPage})=>{
       // deux choses différentes. S'il veut jouer, il s'inscrit comme tout le monde (bouton
       // « Je participe » dans le lobby). Sinon il apparaissait dans les poules sans l'avoir voulu.
       setPage("tournoi-potes-"+t.id);
-    }catch(e){alert("Erreur : "+e.message);}
+    }catch(e){await alerter("Erreur : "+e.message);}
     setSaving(false);
   };
 
@@ -2862,7 +2862,7 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
       // GARDE anti-recreation : si l'organisateur a annule/relance le tournoi sur un autre telephone,
       // le match n'existe plus. On ne DOIT pas le recreer via updateMatch ni compter de stats fantomes.
       if(!_matchFrais){
-        alert("Ce match a été annulé par l'organisateur.");
+        await alerter("Ce match a été annulé par l'organisateur.");
         if(setPage)setPage("tournoi-potes-"+match.tournoi_id);
         return;
       }
@@ -2872,7 +2872,7 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
       const inversion=dejaTermine&&estBracket&&ancienGagnant&&ancienGagnant!==gagnant_id; // re-jeu qui change le vainqueur
       const cibles=inversion?ciblesAvancement(match,gagnant_id,_fraisMatchs):[];
       if(inversion&&cibles.some(c=>c.target&&c.target.statut==="termine")){
-        alert("⚠️ Impossible de changer le vainqueur : le match SUIVANT de ce joueur dans le tableau a déjà été joué. Corrige-le d'abord.");
+        await alerter("⚠️ Impossible de changer le vainqueur : le match SUIVANT de ce joueur dans le tableau a déjà été joué. Corrige-le d'abord.");
         return;
       }
       // ── Écriture anti-double-comptage (2 téléphones sur le même match) ──
@@ -2906,7 +2906,7 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
         const _tFrais=await dbTP.getTournoi(match.tournoi_id).catch(()=>null); // .catch → si le réseau tombe, on garde le comportement d'avant
         const _tableauLance=!!_tFrais&&(_tFrais.statut==="eliminatoires"||_tFrais.statut==="termine");
         if(_tableauLance){
-          alert("✅ Score enregistré.\n\nLe tableau final est déjà lancé : le classement des poules n'est plus mis à jour, mais ton résultat est bien gardé.");
+          await alerter("✅ Score enregistré.\n\nLe tableau final est déjà lancé : le classement des poules n'est plus mis à jour, mais ton résultat est bien gardé.");
         }else{
           await Promise.all(joueurs.filter(j=>st[j.id]).map(j=>dbTP.updateJoueur(j.id,st[j.id])));
         }
@@ -2950,7 +2950,7 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
     }catch(e){
       // On PREVIENT l'organisateur au lieu d'echouer en silence : sinon il croit que le score est enregistre.
       console.error("Erreur save match:",e);
-      alert("⚠️ Le résultat n'a PAS pu être enregistré (réseau ?). Note le score et re-saisis-le avec le crayon quand la connexion revient.");
+      await alerter("⚠️ Le résultat n'a PAS pu être enregistré (réseau ?). Note le score et re-saisis-le avec le crayon quand la connexion revient.");
     }
   };
 

@@ -33,6 +33,25 @@ export function confirmer(message, options = {}) {
   return _ouvrir(String(message), options);
 }
 
+// Un message est rouge s'il annonce un problème. Détecté tout seul pour que les 41
+// appels restent de simples alerter("…") : la couleur ne change rien au fonctionnement.
+const ROUGE = /erreur|impossible|échec|echec|❌|⚠|n'a pas|invalide|introuvable|trop lourde|trop long/i;
+
+/**
+ * Affiche un message à l'utilisateur (un seul bouton). Remplace alert().
+ * @param {string} message   1re ligne = titre, lignes suivantes = corps.
+ * @param {object} [options] { danger:true|false } force la couleur ; { ok:"…" } libellé du bouton.
+ * @returns {Promise<void>} résolue quand l'utilisateur ferme la fenêtre.
+ *          À utiliser avec `await` si la fonction appelante est async (on garde alors
+ *          exactement le comportement bloquant de alert()).
+ */
+export function alerter(message, options = {}) {
+  const txt = String(message);
+  if (typeof _ouvrir !== "function") { window.alert(txt); return Promise.resolve(); }
+  const danger = options.danger !== undefined ? options.danger : ROUGE.test(txt);
+  return _ouvrir(txt, { ...options, danger, seulOk: true }).then(() => undefined);
+}
+
 const CC = {
   fond: "#13131f", bord: "#1e1e2e", texte: "#e2e8f0", doux: "#94a3b8",
   accent: "#f97316", danger: "#ef4444",
@@ -117,6 +136,8 @@ export function ConfirmHost() {
         ))}
 
         <div style={{ display: "flex", gap: 10 }}>
+          {/* Un simple message (alerter) n'a qu'un bouton : pas de choix à faire. */}
+          {!options.seulOk && (
           <button
             ref={boutonRef} onClick={() => repondre(false)}
             style={{
@@ -125,14 +146,16 @@ export function ConfirmHost() {
               cursor: "pointer", touchAction: "manipulation",
             }}
           >{options.annuler || "Annuler"}</button>
+          )}
           <button
+            ref={options.seulOk ? boutonRef : undefined}
             onClick={() => repondre(true)}
             style={{
               flex: 1, minHeight: 46, background: couleur, border: "none",
               color: danger ? "#fff" : "#1a0d00", borderRadius: 11, fontSize: 14, fontWeight: 800,
               cursor: "pointer", touchAction: "manipulation", boxShadow: `0 4px 16px ${couleur}55`,
             }}
-          >{options.ok || (danger ? "Supprimer" : "Confirmer")}</button>
+          >{options.ok || (options.seulOk ? "OK" : danger ? "Supprimer" : "Confirmer")}</button>
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback, Component } from "re
 import { C, Z } from "./theme";
 import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell, Users, RefreshCw, Swords, TrendingUp, TrendingDown, Medal, Check, AlertCircle, ThumbsUp, MessageCircle, MapPin, Flame, Zap, Target, Clock, ChevronRight, ChevronDown, Map, List, Phone, Share2, Eye, Info, Calendar, Home as HomeIcon, Lock, ExternalLink, Crown, Gem, Pencil, Navigation, Camera, Link2, Building2, Skull, Gamepad2, HelpCircle, Brain, Timer, Bot } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
-import { ConfirmHost, confirmer } from "./uiConfirm.jsx";
+import { ConfirmHost, confirmer, alerter } from "./uiConfirm.jsx";
 import {
   Connexion, MonProfil, PageJoueurs, FicheJoueur, RankIcon,
   PageProfilStats, PageProfilAmis, PageProfilBadges, PageProfilHistorique, BadgeVisual,
@@ -1085,8 +1085,8 @@ const AdminPhotos = () => {
       }).catch(()=>setLoading(false));
   }, []);
   const drop = (ph) => setPhotos(x => x.filter(y => !(y.id===ph.id && y._kind===ph._kind)));
-  const valider = async (ph) => { try { await (ph._kind==="asso"?db.validatePhotoAsso(ph.id):db.validatePhoto(ph.id)); drop(ph); } catch(e){ alert("Erreur : "+e.message); } };
-  const rejeter = async (ph) => { if(!(await confirmer("Rejeter (supprimer) cette photo ?")))return; try { await (ph._kind==="asso"?db.deletePhotoAsso(ph.id):db.deletePhoto(ph.id)); drop(ph); } catch(e){ alert("Erreur : "+e.message); } };
+  const valider = async (ph) => { try { await (ph._kind==="asso"?db.validatePhotoAsso(ph.id):db.validatePhoto(ph.id)); drop(ph); } catch(e){ await alerter("Erreur : "+e.message); } };
+  const rejeter = async (ph) => { if(!(await confirmer("Rejeter (supprimer) cette photo ?")))return; try { await (ph._kind==="asso"?db.deletePhotoAsso(ph.id):db.deletePhoto(ph.id)); drop(ph); } catch(e){ await alerter("Erreur : "+e.message); } };
   return (
     <div>
       <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:C.yellow }}><EmoText s="📸 Photos en attente" size={15}/> ({photos.length})</h3>
@@ -5626,7 +5626,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
   const handlePhotoPick = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) { alert("Choisis une image."); return; }
+    if (!file.type.startsWith("image/")) { alerter("Choisis une image."); return; }
     const reader = new FileReader();
     reader.onload = (ev) => {
       const img = new Image();
@@ -5642,7 +5642,7 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         canvas.getContext("2d").drawImage(img, 0, 0, w, h);
         const data = canvas.toDataURL("image/jpeg", 0.82);
         // ~2MB max après compression (sinon refuse)
-        if (data.length > 2 * 1024 * 1024 * 1.4) { alert("Image trop lourde, choisis une plus petite."); return; }
+        if (data.length > 2 * 1024 * 1024 * 1.4) { alerter("Image trop lourde, choisis une plus petite."); return; }
         setPhotoData(data);
       };
       img.src = ev.target.result;
@@ -9451,7 +9451,7 @@ const AdminJoueurs = ({ addLog }) => {
       addLog?.("Compte supprimé", j.pseudo, "danger");
       setMsg(m=>({...m,[j.id]:"✅ Compte et données associées supprimés."}));
     } catch(e) {
-      alert(`❌ Erreur lors de la suppression de ${j.pseudo} :\n${e.message}`);
+      await alerter(`❌ Erreur lors de la suppression de ${j.pseudo} :\n${e.message}`);
       setSaving(s=>({...s,[j.id]:false}));
     }
   };
@@ -9471,7 +9471,7 @@ const AdminJoueurs = ({ addLog }) => {
       addLog?.("Compte anonymisé (RGPD)", j.pseudo, "warning");
       setMsg(m=>({...m,[j.id]:"✅ Compte anonymisé. Stats des autres joueurs préservées."}));
     } catch(e) {
-      alert(`❌ Erreur lors de l'anonymisation de ${j.pseudo} :\n${e.message}`);
+      await alerter(`❌ Erreur lors de l'anonymisation de ${j.pseudo} :\n${e.message}`);
       setSaving(s=>({...s,[j.id]:false}));
     }
   };
@@ -9486,7 +9486,7 @@ const AdminJoueurs = ({ addLog }) => {
       setTous(x=>x.filter(p=>p.id!==j.id));
       addLog?.("Joueur banni", j.pseudo, "danger");
     } catch(e) {
-      alert(`❌ Erreur ban ${j.pseudo} :\n${e.message}`);
+      await alerter(`❌ Erreur ban ${j.pseudo} :\n${e.message}`);
       setSaving(s=>({...s,[j.id]:false}));
     }
   };
@@ -9736,7 +9736,7 @@ const AdminDuels = ({ addLog }) => {
     setWorking(w=>({...w,[d.id]:true}));
     try {
       const ids = [d.challenger_id, d.defie_id].filter(Boolean);
-      if (ids.length === 0) { alert("IDs joueurs manquants"); return; }
+      if (ids.length === 0) { await alerter("IDs joueurs manquants"); return; }
 
       // Mouvements DRIX du duel : par duel_id (fiable) ; repli fenêtre temporelle pour les anciens duels sans duel_id
       let mvts = await sb(`drix_mouvements?duel_id=eq.${d.id}&select=*`).catch(()=>[]);
@@ -9778,7 +9778,7 @@ const AdminDuels = ({ addLog }) => {
       addLog?.(`Duel annulé (rollback DRIX + stats)`, `${d.challenger_pseudo} vs ${d.defie_pseudo}`, "danger");
       await fetchDuels();
     } catch(e) {
-      alert("Erreur annulation : " + e.message);
+      await alerter("Erreur annulation : " + e.message);
     }
     setWorking(w=>({...w,[d.id]:false}));
   };
@@ -9791,7 +9791,7 @@ const AdminDuels = ({ addLog }) => {
     setWorking(w=>({...w,[d.id]:true}));
     try {
       const scC = parseInt(editScore.sc); const scD = parseInt(editScore.sd);
-      if (isNaN(scC)||isNaN(scD)) { alert("Scores invalides"); return; }
+      if (isNaN(scC)||isNaN(scD)) { await alerter("Scores invalides"); return; }
       const gagnant_id = scC>scD ? d.challenger_id : d.defie_id;
       await sb(`duels?id=eq.${d.id}`, { method:"PATCH", body:JSON.stringify({
         manches_challenger: scC, manches_defie: scD, gagnant_id,
@@ -9801,7 +9801,7 @@ const AdminDuels = ({ addLog }) => {
       setEditScore(null);
       await fetchDuels();
     } catch(e) {
-      alert("Erreur correction : " + e.message);
+      await alerter("Erreur correction : " + e.message);
     }
     setWorking(w=>({...w,[d.id]:false}));
   };
@@ -9982,7 +9982,7 @@ const AdminTournois = ({ tournois, setTournois, setEditTournoi, setTournoiSlug, 
       setTournois(arr=>arr.filter(x=>x.slug!==t.slug));
       addLog?.("Tournoi supprimé", t.nom, "danger");
     } catch(e) {
-      alert("Erreur : " + e.message);
+      await alerter("Erreur : " + e.message);
     }
     setWorking(w=>({...w,[t.id]:false}));
   };
@@ -10012,7 +10012,7 @@ const AdminTournois = ({ tournois, setTournois, setEditTournoi, setTournoiSlug, 
       addLog?.("Résultats tournoi publiés", `${t.nom} — ${podiumTxt}`, "success");
       setShowResultats(null);
     } catch(e) {
-      alert("Erreur publication : " + e.message);
+      await alerter("Erreur publication : " + e.message);
     }
     setWorking(w=>({...w,[t.id]:false}));
   };
@@ -10287,7 +10287,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
       await db.updateProposition(p.id,{statut:"publie"});
       setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));
       addLog("Bar validé",p.nom,"success");
-    }catch(e){ addLog("Échec validation bar",p.nom,"danger"); alert(`❌ Échec de la validation de « ${p.nom} » : ${String(e?.message||e).slice(0,200)}`); }
+    }catch(e){ addLog("Échec validation bar",p.nom,"danger"); await alerter(`❌ Échec de la validation de « ${p.nom} » : ${String(e?.message||e).slice(0,200)}`); }
   };
   const validerAsso=async p=>{
     const base=slugify(p.nom+"-"+p.ville); let slug=base,n=2;
@@ -10302,7 +10302,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
       await db.updateProposition(p.id,{statut:"publie"});
       setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));
       addLog("Association validée",p.nom,"success");
-    }catch(e){ addLog("Échec validation asso",p.nom,"danger"); alert(`❌ Échec de la validation de « ${p.nom} » : ${String(e?.message||e).slice(0,200)}`); }
+    }catch(e){ addLog("Échec validation asso",p.nom,"danger"); await alerter(`❌ Échec de la validation de « ${p.nom} » : ${String(e?.message||e).slice(0,200)}`); }
   };
   const validerTournoi=async p=>{
     const base=slugify(p.nom+"-"+p.ville+"-"+(p.date||"")); let slug=base,n=2;
@@ -10317,7 +10317,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
       await db.updateProposition(p.id,{statut:"publie"});
       setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));
       addLog("Tournoi validé",p.nom,"success");
-    }catch(e){ addLog("Échec validation tournoi",p.nom,"danger"); alert(`❌ Échec de la validation de « ${p.nom} » : ${String(e?.message||e).slice(0,200)}`); }
+    }catch(e){ addLog("Échec validation tournoi",p.nom,"danger"); await alerter(`❌ Échec de la validation de « ${p.nom} » : ${String(e?.message||e).slice(0,200)}`); }
   };
   const refuser=async(id,nom)=>{await db.updateProposition(id,{statut:"refuse"});setPropositions(x=>x.map(y=>y.id===id?{...y,statut:"refuse"}:y));addLog("Proposition refusée",nom||id,"warning");};
 
@@ -10394,7 +10394,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
           <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
             <button onClick={()=>db.toggleVerifie(b.slug,!b.verifie).then(()=>{setBars(x=>x.map(y=>y.slug===b.slug?{...y,verifie:!y.verifie}:y));addLog(b.verifie?"Bar dévérifié":"Bar vérifié",b.nom,"info");})} style={{background:b.verifie?"#14532d":"#111",border:`1px solid ${b.verifie?C.green:C.border}`,borderRadius:6,color:b.verifie?C.green:C.muted,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>{b.verifie?<EmoText s="✅ Vérifié" size={11}/>:"Vérifier"}</button>
             <button onClick={()=>setEditBar(b)} style={{background:"#1a1200",border:`1px solid ${C.yellow}44`,borderRadius:6,color:C.yellow,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="✏️" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>Éditer</button>
-            <button onClick={async()=>{let lat=null,lng=null;try{const q=encodeURIComponent(`${b.adresse||b.nom}, ${b.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const gd=await geo.json();if(gd?.[0]){lat=parseFloat(gd[0].lat);lng=parseFloat(gd[0].lon);}if(!lat){const q2=encodeURIComponent(`${b.ville}, France`);const geo2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);const gd2=await geo2.json();if(gd2?.[0]){lat=parseFloat(gd2[0].lat);lng=parseFloat(gd2[0].lon);}}}catch(e){}if(lat){await db.updateBar(b.slug,{lat,lng});setBars(x=>x.map(y=>y.slug===b.slug?{...y,lat,lng}:y));alert("✅ GPS mis à jour!");}else{alert("❌ Adresse introuvable");}}} style={{background:"#0f1a0f",border:`1px solid ${C.green}44`,borderRadius:6,color:C.green,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="📍" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>GPS</button>
+            <button onClick={async()=>{let lat=null,lng=null;try{const q=encodeURIComponent(`${b.adresse||b.nom}, ${b.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const gd=await geo.json();if(gd?.[0]){lat=parseFloat(gd[0].lat);lng=parseFloat(gd[0].lon);}if(!lat){const q2=encodeURIComponent(`${b.ville}, France`);const geo2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);const gd2=await geo2.json();if(gd2?.[0]){lat=parseFloat(gd2[0].lat);lng=parseFloat(gd2[0].lon);}}}catch(e){}if(lat){await db.updateBar(b.slug,{lat,lng});setBars(x=>x.map(y=>y.slug===b.slug?{...y,lat,lng}:y));await alerter("✅ GPS mis à jour!");}else{await alerter("❌ Adresse introuvable");}}} style={{background:"#0f1a0f",border:`1px solid ${C.green}44`,borderRadius:6,color:C.green,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="📍" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>GPS</button>
             <button onClick={async()=>{if(!(await confirmer("Supprimer ce bar ?", { danger:true })))return;await db.deleteBar(b.slug);setBars(x=>x.filter(y=>y.slug!==b.slug));addLog("Bar supprimé",b.nom,"danger");}} style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="🗑" size={12}/></button>
           </div>
         </div>
@@ -10849,7 +10849,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
                       setPropositions(arr => arr.filter(x => x.id !== p.id));
                       addLog?.("Message supprimé", p.nom, "danger");
                     } catch(e) {
-                      alert("Erreur : " + e.message);
+                      await alerter("Erreur : " + e.message);
                     }
                   }}
                     style={{ marginLeft:"auto", background:"#1a0000", border:`1px solid ${C.red}44`, borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, color:C.red, cursor:"pointer" }}>

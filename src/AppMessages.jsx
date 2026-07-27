@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { EmoIcon, EmoText } from "./icons";
+import { alerter } from "./uiConfirm.jsx";
 
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -117,7 +118,7 @@ const ConversationView=({joueur,autreId,autrePseudo,onBack})=>{
     if(!texte.trim()||sending)return;
     // 🔒 Validation longueur (évite payload trop lourd, lag, et risque 414)
     if (texte.length > MAX_LEN) {
-      alert(`Message trop long (${texte.length} caractères, max ${MAX_LEN}).`);
+      await alerter(`Message trop long (${texte.length} caractères, max ${MAX_LEN}).`);
       return;
     }
     setSending(true);
