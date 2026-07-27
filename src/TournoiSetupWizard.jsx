@@ -35,6 +35,13 @@ import {
   buildBracketConfigurationSummary,
 } from "./tournoiConfig";
 
+// Durée d'un match, en minutes. C'est une CONSTANTE, plus un réglage : le chiffre vient
+// de l'expérience réelle du club (25 min en moyenne, arbitrage compris). On le demandait
+// avant sur deux écrans (poules et tableau) avec un choix 10/15/20 — une question de plus
+// à chaque tournoi, pour une valeur qui ne change jamais et dont les 3 options étaient
+// toutes fausses. Toutes les estimations de durée de l'assistant partent d'ici.
+const DUREE_MATCH_MIN = 25;
+
 // Palette identique à AppTournoiPotes / Dart Point (identité premium sombre).
 const CT = {
   bg: "#0f0f0f",
@@ -464,7 +471,7 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
     qualifiersPerPool: qpp,
     manches: config.manches || 2,
     availableTargets: config.availableTargets || 1,
-    averageMatchDuration: config.averageMatchDuration || null,
+    averageMatchDuration: DUREE_MATCH_MIN,
     format: config.format,
   });
   const validation = validatePoolConfiguration({
@@ -472,7 +479,7 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
     groups,
     qualifiersPerPool: qpp,
     availableTargets: config.availableTargets || 1,
-    averageMatchDuration: config.averageMatchDuration || 15,
+    averageMatchDuration: DUREE_MATCH_MIN,
   });
 
   // Conséquences d'un choix de « qualifiés par poule » (pour l'affichage).
@@ -492,11 +499,27 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
   const ciblesMode = config.ciblesMode === "par_poule" ? "par_poule" : "optimise";
   // Durée annoncée sur la carte « Optimisé ». `summary` ne porte pas la valeur brute (seulement une
   // ligne de texte), on la recalcule donc ici — sinon la carte affichait « environ 0 min ».
-  const dureeMoyenne = config.averageMatchDuration || 15;
-  // ⚠️ À déclarer APRÈS `cibles` et `dureeMoyenne` : en JS, lire un const avant sa ligne de
-  // déclaration plante la page entière ("Cannot access before initialization").
-  const dureeOptimisee = estimatePoolDuration({ groups, availableTargets: cibles, averageMatchDuration: dureeMoyenne });
-  const avgDur = config.averageMatchDuration || 15;
+  // ⚠️ À déclarer APRÈS `cibles` : en JS, lire un const avant sa ligne de déclaration
+  // plante la page entière ("Cannot access before initialization").
+  const dureeOptimisee = estimatePoolDuration({ groups, availableTargets: cibles, averageMatchDuration: DUREE_MATCH_MIN });
+  // En « une poule par cible », une poule ne peut PAS être découpée : elle occupe une cible du
+  // début à la fin. Donc :
+  //  · plus de cibles que de poules ne sert à rien (les cibles en trop restent vides) ;
+  //  · moins de cibles que de poules → une même cible enchaîne plusieurs poules.
+  // La soirée se termine quand la cible la PLUS CHARGÉE a fini. On répartit les poules en
+  // commençant par la plus grosse (règle « la plus longue d'abord », celle qui équilibre le
+  // mieux), puis on prend le temps de la cible la plus chargée.
+  const ciblesUtiles = Math.max(1, Math.min(cibles, groups.length));
+  const dureeParPoule = (() => {
+    const matchsDeChaquePoule = groups.map((n) => (n * (n - 1)) / 2).sort((a, b) => b - a);
+    const charge = new Array(ciblesUtiles).fill(0);
+    for (const m of matchsDeChaquePoule) {
+      let plusLibre = 0;
+      for (let k = 1; k < charge.length; k++) if (charge[k] < charge[plusLibre]) plusLibre = k;
+      charge[plusLibre] += m;
+    }
+    return Math.max(...charge) * DUREE_MATCH_MIN;
+  })();
 
   return (
     <div>
@@ -606,40 +629,9 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
         Le premier {config.format === "doublette" ? "équipe" : "joueur"} à atteindre <b style={{ color: CT.text }}>{manches} manche{manches > 1 ? "s" : ""}</b> remporte le match.
       </div>
 
-      {/* Deux façons d'occuper les cibles. « Optimisé » = l'appli répartit et annonce qui joue.
-          « Une poule par cible » = chaque poule s'installe sur sa cible et joue dans l'ordre qu'elle
-          veut ; l'appli propose juste un ordre pour qu'un joueur n'enchaîne pas deux matchs de suite. */}
-      <SectionLabel>Organisation des cibles</SectionLabel>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <ChoiceCard
-          emoji="⚡"
-          title="Optimisé"
-          subtitle="L'appli répartit les matchs sur les cibles et annonce qui joue maintenant."
-          selected={ciblesMode !== "par_poule"}
-          recommended
-          ariaLabel="Organisation optimisée"
-          onClick={() => set({ ciblesMode: "optimise" })}
-          lines={[
-            { icon: "⏱️", text: `Le plus rapide : environ ${formatDuration(dureeOptimisee)}`, strong: true },
-            { icon: "🔔", text: "Chacun est prévenu sur son téléphone quand c'est à lui." },
-          ]}
-        />
-        <ChoiceCard
-          emoji="🏟️"
-          title="Une poule par cible"
-          subtitle="Chaque poule s'installe sur sa cible et joue à son rythme."
-          selected={ciblesMode === "par_poule"}
-          ariaLabel="Une poule par cible"
-          onClick={() => set({ ciblesMode: "par_poule", availableTargets: groups.length })}
-          lines={[
-            { icon: "🎯", text: `${groups.length} poule${groups.length > 1 ? "s" : ""} → ${groups.length} cible${groups.length > 1 ? "s" : ""} conseillée${groups.length > 1 ? "s" : ""}`, strong: true },
-            { icon: "🙌", text: "Les joueurs choisissent l'ordre de leurs matchs eux-mêmes." },
-            { icon: "💡", text: "L'appli affiche un ordre conseillé (personne n'enchaîne 2 matchs)." },
-            { icon: "🔕", text: "Pas d'alerte « c'est à toi » : vous êtes déjà autour de la cible." },
-          ]}
-        />
-      </div>
-
+      {/* ORDRE VOULU : on demande D'ABORD combien de cibles existent dans le bar, ENSUITE comment
+          les occuper. L'inverse n'a pas de sens : les durées annoncées sur les deux cartes
+          dépendent justement de ce nombre. */}
       <SectionLabel hint="(jeux de fléchettes en parallèle)">Cibles disponibles</SectionLabel>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 18 }}>
         <button
@@ -664,11 +656,44 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
           : <>🎯 Jusqu'à {cibles === 1 ? "1 match" : `${cibles} matchs`} en même temps (un par cible). Réglable pendant le tournoi.</>}
       </div>
 
-      <SectionLabel hint="(indicative)">Durée moyenne par match</SectionLabel>
-      <NumberPills values={[10, 15, 20]} value={avgDur} onPick={(d) => set({ averageMatchDuration: d })} suffix=" min" />
+      {/* Deux façons d'occuper les cibles. « Optimisé » = l'appli répartit et annonce qui joue.
+          « Une poule par cible » = chaque poule s'installe sur sa cible et joue dans l'ordre qu'elle
+          veut ; l'appli propose juste un ordre pour qu'un joueur n'enchaîne pas deux matchs de suite. */}
+      <SectionLabel>Organisation des cibles</SectionLabel>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <ChoiceCard
+          emoji="⚡"
+          title="Optimisé"
+          subtitle="L'appli répartit les matchs sur les cibles et annonce qui joue maintenant."
+          selected={ciblesMode !== "par_poule"}
+          recommended
+          ariaLabel="Organisation optimisée"
+          onClick={() => set({ ciblesMode: "optimise" })}
+          lines={[
+            { icon: "⏱️", text: `Le plus rapide : environ ${formatDuration(dureeOptimisee)}`, strong: true },
+            { icon: "🔔", text: "Chacun est prévenu sur son téléphone quand c'est à lui." },
+          ]}
+        />
+        <ChoiceCard
+          emoji="🏟️"
+          title="Une poule par cible"
+          subtitle="Chaque poule s'installe sur sa cible et joue à son rythme."
+          selected={ciblesMode === "par_poule"}
+          ariaLabel="Une poule par cible"
+          onClick={() => set({ ciblesMode: "par_poule" })}
+          lines={[
+            { icon: "🎯", text: `${groups.length} poule${groups.length > 1 ? "s" : ""} → ${groups.length} cible${groups.length > 1 ? "s" : ""} conseillée${groups.length > 1 ? "s" : ""}`, strong: true },
+            { icon: "⏱️", text: `Environ ${formatDuration(dureeParPoule)} avec ${ciblesUtiles} cible${ciblesUtiles > 1 ? "s" : ""}${cibles > groups.length ? ` (${cibles - groups.length} inutile${cibles - groups.length > 1 ? "s" : ""} ici)` : ""}`, strong: true },
+            { icon: "🙌", text: "Les joueurs choisissent l'ordre de leurs matchs eux-mêmes." },
+            { icon: "💡", text: "L'appli affiche un ordre conseillé (personne n'enchaîne 2 matchs)." },
+            { icon: "🔕", text: "Pas d'alerte « c'est à toi » : vous êtes déjà autour de la cible." },
+          ]}
+        />
+      </div>
+
       <div
         style={{
-          marginTop: 10,
+          marginTop: 18,
           background: CT.blue + "12",
           border: `1px solid ${CT.blue}44`,
           borderRadius: 10,
@@ -678,8 +703,8 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
           fontWeight: 700,
         }}
       >
-        ⏱️ Durée estimée des poules : environ {formatDuration(estimatePoolDuration({ groups, availableTargets: cibles, averageMatchDuration: avgDur }))}
-        <div style={{ fontSize: 10.5, color: CT.muted, fontWeight: 500, marginTop: 2 }}>Estimation indicative selon la durée moyenne choisie. En cas d'égalité parfaite, 1 à 3 matchs de barrage en 701 peuvent s'ajouter à la fin des poules.</div>
+        ⏱️ Durée estimée des poules : environ {formatDuration(ciblesMode === "par_poule" ? dureeParPoule : dureeOptimisee)}
+        <div style={{ fontSize: 10.5, color: CT.muted, fontWeight: 500, marginTop: 2 }}>Estimation indicative, sur une base de {DUREE_MATCH_MIN} min par match. En cas d'égalité parfaite, 1 à 3 matchs de barrage en 701 peuvent s'ajouter à la fin des poules.</div>
       </div>
 
       {/* Note : la répartition se fait par tirage au sort équilibré (poules de tailles proches). */}
@@ -1009,17 +1034,9 @@ export const StepTableau = ({ config, onChange, context = {} }) => {
         </button>
       </div>
 
-      {/* ⚠️ La durée moyenne par match n'était réglable que sur l'écran des POULES, et
-          ce choix n'arrivait jamais jusqu'ici (l'assistant du tableau est un composant
-          neuf, avec un état neuf) : l'estimation ci-dessous repartait toujours sur
-          15 min, sans le dire, et l'organisateur n'avait aucun moyen de la corriger.
-          On remet donc le réglage LÀ où le chiffre est affiché. */}
-      <SectionLabel hint="(indicative)">Durée moyenne par match</SectionLabel>
-      <NumberPills values={[10, 15, 20]} value={config.averageMatchDuration || 15} onPick={(d) => set({ averageMatchDuration: d })} suffix=" min" />
-
       <div
         style={{
-          marginTop: 10,
+          marginTop: 18,
           background: CT.blue + "12",
           border: `1px solid ${CT.blue}44`,
           borderRadius: 10,
@@ -1036,13 +1053,13 @@ export const StepTableau = ({ config, onChange, context = {} }) => {
             bracketSize, // sinon les 2 cartes de taille annoncent la même durée
             availableTargets: finalTargets,
             manchesMap,
-            averageMatchDuration: config.averageMatchDuration || 15,
+            averageMatchDuration: DUREE_MATCH_MIN,
             petiteFinale,
             consolante,
             consolationTeams: consoCount,
           })
         )}
-        <div style={{ fontSize: 10.5, color: CT.muted, fontWeight: 500, marginTop: 2 }}>Estimation indicative, sur une base de {config.averageMatchDuration || 15} min par match.</div>
+        <div style={{ fontSize: 10.5, color: CT.muted, fontWeight: 500, marginTop: 2 }}>Estimation indicative, sur une base de {DUREE_MATCH_MIN} min par match.</div>
       </div>
 
       {/* Note : placement intelligent (têtes de série séparées, pas de retrouvailles trop tôt). */}
@@ -1088,7 +1105,7 @@ export const StepResume = ({ phase, config, participantCount, context = {}, onEd
       consolante: config.consolante !== false && consoCount >= 2,
       consolationTeams: consoCount,
       availableTargets: config.finalTargets || context.poolTargets || 2,
-      averageMatchDuration: config.averageMatchDuration || 15,
+      averageMatchDuration: DUREE_MATCH_MIN,
       format,
     });
     return (
@@ -1113,7 +1130,7 @@ export const StepResume = ({ phase, config, participantCount, context = {}, onEd
     qualifiersPerPool: config.qualifiersPerPool || 2,
     manches: config.manches || 2,
     availableTargets: config.availableTargets || 1,
-    averageMatchDuration: config.averageMatchDuration || 15,
+    averageMatchDuration: DUREE_MATCH_MIN,
     format: config.format,
   });
   return (
@@ -1203,7 +1220,7 @@ export const TournoiSetupWizard = ({
     qualifiersPerPool: 2,
     manches: 2,
     availableTargets: 2,
-    averageMatchDuration: 15,
+    averageMatchDuration: DUREE_MATCH_MIN,
     ...initialConfig,
   });
 
