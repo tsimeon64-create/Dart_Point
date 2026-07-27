@@ -969,7 +969,7 @@ const useStatsTournoi=(joueurs,refreshKey=0)=>{
   return stats;
 };
 
-const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,joueurConnecte,canPlay=false,onOpenShare,onModifier,saving=false,live=null,bracketLance=false,stats=null})=>{
+const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,onLibererCibles,joueurConnecte,canPlay=false,onOpenShare,onModifier,saving=false,live=null,bracketLance=false,stats=null})=>{
   const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
   const groupes=Array.from({length:nbGroupes},(_,i)=>i+1);
   // Ma poule (celle du joueur connecté) → pour l'⭐ sur l'onglet.
@@ -1093,6 +1093,19 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
           </div>
         )}
         {!allDone&&<div style={{marginTop:10,fontSize:12.5,textAlign:"center"}}><span style={{color:CT.green,fontWeight:800}}>🟢 {actifs.size} à jouer maintenant</span>{enAttente>0&&<span style={{color:CT.muted}}> · ⏳ {enAttente} en attente</span>}</div>}
+        {/* Aucun match jouable alors qu'il en reste : des scoreurs sont restés ouverts et bloquent les
+            cibles. Avant, l'écran affichait juste « 0 à jouer maintenant » sans rien expliquer. */}
+        {!allDone&&actifs.size===0&&enAttente>0&&(
+          <div style={{marginTop:10,padding:"10px 12px",background:RED_TP+"12",border:`1px solid ${RED_TP}44`,borderRadius:10,textAlign:"center"}}>
+            <div style={{fontSize:12,color:"#fca5a5",fontWeight:700,marginBottom:onLibererCibles&&isCreateur?8:0}}>
+              <EmoText s="⏳ Toutes les cibles sont occupées" size={12} color="#fca5a5"/>
+              <div style={{fontSize:11,color:CT.muted,fontWeight:600,marginTop:3}}>Un scoreur est peut-être resté ouvert (téléphone déchargé).</div>
+            </div>
+            {onLibererCibles&&isCreateur&&(
+              <Btn onClick={onLibererCibles} variant="dark" small disabled={saving} style={{fontSize:12}}><EmoText s="🔓 Débloquer les cibles" size={12}/></Btn>
+            )}
+          </div>
+        )}
         {!canPlay&&(
           <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${CT.border}`,textAlign:"center"}}>
             <div style={{fontSize:12.5,color:CT.text,fontWeight:600,marginBottom:8}}>👀 Tu es en mode spectateur (lecture seule)</div>
@@ -1300,8 +1313,14 @@ const BktStatusBanner=({label,color,bg,hero})=>(
 const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch,canPlay=false,hero=false,live=null,stats=null,actif=null})=>{
   const j1=joueurs.find(j=>j.id===match.joueur1_id);
   const j2=joueurs.find(j=>j.id===match.joueur2_id);
-  const done=match.statut==="termine";
-  const bye=match.statut&&match.statut.startsWith("bye");
+  const doneBrut=match.statut==="termine";
+  // Un exempt qu'on a fait avancer passe au statut "termine" en base (propagerByes) — c'est VOULU :
+  // allDone, les stats et le planning des cibles s'appuient dessus. Mais à l'écran il s'affichait alors
+  // comme un vrai match « Terminé 0-0 » contre « À définir », et les joueurs demandaient qui avait joué.
+  // On le reconnaît ici sans toucher à la base : un seul des deux joueurs est renseigné.
+  const exemptAvance=doneBrut&&((match.joueur1_id&&!match.joueur2_id)||(match.joueur2_id&&!match.joueur1_id));
+  const done=doneBrut&&!exemptAvance;
+  const bye=(match.statut&&match.statut.startsWith("bye"))||exemptAvance;
   // "en attente" seulement si un des deux joueurs manque encore. Si les DEUX sont connus, le match est jouable
   // même si le statut est resté bloqué sur "attente_avancement" (course entre 2 téléphones qui valident 2 demies en même temps).
   const waiting=(match.statut==="attente_avancement"||match.statut==="vide")&&(!j1||!j2);
@@ -1491,7 +1510,7 @@ const BktGutter=({pairs,color})=>(
 // ============================================================================
 //  VUE ÉLIMINATOIRES (arbre de championnat)
 // ============================================================================
-const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSaisirScore,onJouerMatch,onRetourPoules,onTerminer,canPlay=false,onOpenShare,live=null,stats=null})=>{
+const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSaisirScore,onJouerMatch,onRetourPoules,onTerminer,onLibererCibles,canPlay=false,onOpenShare,live=null,stats=null})=>{
   const bracketM=matchs.filter(m=>m.phase!=="poules");
   const mainM=bracketM.filter(m=>MAIN_PHASES.includes(m.phase));
   const petiteM=bracketM.find(m=>m.phase==="petite_finale");
@@ -1590,6 +1609,18 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSaisirS
           <span style={{color:CT.green,fontWeight:800}}>🟢 {actifsBracket.size} à jouer maintenant</span>
           <span style={{color:CT.muted}}> · 🎯 {nbCibles} cible{nbCibles>1?"s":""}</span>
           {enAttenteCible>0&&<span style={{color:CT.muted}}> · ⏳ {enAttenteCible} en attente</span>}
+        </div>
+      )}
+      {/* Cibles toutes occupées alors qu'il reste des matchs : un scoreur est resté ouvert. */}
+      {!allDone&&jouables.length>0&&actifsBracket.size===0&&(
+        <div style={{marginTop:10,padding:"10px 12px",background:RED_TP+"12",border:`1px solid ${RED_TP}44`,borderRadius:10,textAlign:"center"}}>
+          <div style={{fontSize:12,color:"#fca5a5",fontWeight:700,marginBottom:onLibererCibles&&isCreateur?8:0}}>
+            <EmoText s="⏳ Toutes les cibles sont occupées" size={12} color="#fca5a5"/>
+            <div style={{fontSize:11,color:CT.muted,fontWeight:600,marginTop:3}}>Un scoreur est peut-être resté ouvert (téléphone déchargé).</div>
+          </div>
+          {onLibererCibles&&isCreateur&&(
+            <Btn onClick={onLibererCibles} variant="dark" small style={{fontSize:12}}><EmoText s="🔓 Débloquer les cibles" size={12}/></Btn>
+          )}
         </div>
       )}
 
@@ -1932,6 +1963,28 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         alert(`⚠️ Le réglage « ${nbQualif} qualifié(s) par poule » n'a pas pu être enregistré sur le serveur.\n\nIl ne vaut que sur CE téléphone : si quelqu'un d'autre lance le tableau, ou si tu recharges la page, l'appli repartira sur 2 qualifiés par poule.\n\n👉 Lance le tableau depuis CE téléphone, sans recharger.`);
       }
       setShowPoolConfig(false);
+      await reload();
+    }catch(e){alert("Erreur : "+e.message);}
+    setSaving(false);
+  };
+
+  // ── Libérer les cibles bloquées par une session de scoreur restée ouverte ──
+  // Un téléphone déchargé (ou une coupure) laisse une live_session "en_cours" : ses 2 joueurs restent
+  // considérés comme occupés, donc plus aucun match ne devient jouable — jusqu'à 45 min, sans que rien
+  // à l'écran n'explique pourquoi. On ne baisse PAS ce délai (un vrai 501 peut durer longtemps, et le
+  // verrou sert à éviter qu'un même match soit scoré 2 fois) : on donne la main à l'organisateur.
+  const libererCibles=async()=>{
+    const ids=joueurs.map(j=>j.id).filter(Boolean);
+    if(!ids.length)return;
+    if(!window.confirm("Débloquer les cibles ?\n\nÇa ferme les scoreurs restés ouverts (téléphone déchargé, appli fermée en plein match).\n\n⚠️ Si quelqu'un est VRAIMENT en train de scorer, son scoreur ne sera plus reconnu : il devra saisir le score à la main."))return;
+    setSaving(true);
+    try{
+      const seuil=Date.now()-45*60*1000;
+      const list=ids.join(",");
+      const zombies=await sbTP(`live_sessions?statut=eq.en_cours&debut=gt.${seuil}&or=(joueur1_id.in.(${list}),joueur2_id.in.(${list}))&select=id`).catch(()=>[]);
+      for(const s of (zombies||[])){
+        await sbTP(`live_sessions?id=eq.${s.id}`,{method:"PATCH",prefer:"return=minimal",body:JSON.stringify({statut:"termine"})}).catch(()=>{});
+      }
       await reload();
     }catch(e){alert("Erreur : "+e.message);}
     setSaving(false);
@@ -2392,7 +2445,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           onSaisirScore={m=>setMatchModal(m)}
           onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
           onLancerEliminatoires={()=>setShowBracketConfig(true)}
-          onCreerBarrages={creerBarrages} saving={saving} joueurConnecte={joueurConnecte} live={liveInfo} stats={statsTournoi}/>
+          onCreerBarrages={creerBarrages} onLibererCibles={libererCibles} saving={saving} joueurConnecte={joueurConnecte} live={liveInfo} stats={statsTournoi}/>
       )}
       {showBracketConfig&&(()=>{
         const nbGroupesW=Math.max(...joueurs.map(j=>j.groupe),1);
@@ -2429,7 +2482,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
               matchs={matchs.filter(m=>m.phase!=="poules")} isCreateur={isCreateur} canPlay={canPlay} nbCibles={cibles} onOpenShare={()=>setShowShare(true)}
               onSaisirScore={m=>setMatchModal(m)}
               onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
-              onRetourPoules={retourPoules} onTerminer={terminerTournoi} stats={statsTournoi}/>}
+              onRetourPoules={retourPoules} onTerminer={terminerTournoi} onLibererCibles={libererCibles} stats={statsTournoi}/>}
       </>)}
       {tournoi.statut==="termine"&&(
         <ResultatsView tournoi={tournoi} joueurs={joueurs} matchs={matchs} onRejouer={rejouer} onQuitter={()=>setPage("tournois-potes")}/>
