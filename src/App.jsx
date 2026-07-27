@@ -6683,6 +6683,32 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
     );
   };
 
+  // ─── Carte jeu IMAGE (bannières fournies : la carte entière est dessinée dans le PNG) ───
+  // Tout est dans l'image (icône, titre, badge, texte, bouton JOUER) : on ne rajoute donc
+  // AUCUN cadre ni fond autour, sinon on doublonnerait la bordure déjà dessinée.
+  // C'est un <button> et pas un <div> : accessible au clavier, et surtout `aria-label` porte
+  // le texte que les lecteurs d'écran ne peuvent pas lire dans une image.
+  const GameCardImg = ({ img, label, sub, onClick, priorite = false }) => (
+    <button
+      type="button" onClick={onClick} className="mj-card mj-card-img"
+      aria-label={`${label} — ${sub}`}
+      style={{
+        display:"block", width:"100%", padding:0, border:"none", background:"none",
+        cursor:"pointer", touchAction:"manipulation", borderRadius:22,
+        transition:"transform .18s cubic-bezier(.22,.61,.36,1), filter .18s ease",
+      }}
+    >
+      <img
+        src={`/jeux/${img}.webp`} alt=""
+        width={1600} height={360}
+        // Les 2 premières cartes sont visibles d'emblée → chargement immédiat.
+        // Les suivantes attendent le défilement (moins de données au bar, ouverture plus rapide).
+        loading={priorite ? "eager" : "lazy"} decoding="async"
+        style={{ display:"block", width:"100%", height:"auto", borderRadius:22 }}
+      />
+    </button>
+  );
+
   // Carte jeu active (ancienne version, encore utilisée pour fléchettes)
   const ModeBtn = ({ icon: IconComp, label, sub, onClick, col, badge }) => (
     <div onClick={onClick}
@@ -6767,6 +6793,15 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
             content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
             box-shadow: inset 0 1px 0 #ffffff26, inset 0 0 0 1px #ffffff0a, inset 0 -18px 28px -22px #000000a6;
           }
+
+          /* Cartes-image : tout le décor (cadre, reflet, ombre) est DÉJÀ dessiné dans le PNG.
+             On coupe donc le voile de verre et le liseré interne de .mj-card, sinon ils se
+             superposent à l'illustration — et comme le bouton n'est pas positionné, ils
+             iraient même se coller ailleurs sur la page. */
+          .mj-card-img::before, .mj-card-img::after { content:none; }
+          .mj-card-img:active { transform: scale(.985); }
+          .mj-card-img:focus-visible { outline:3px solid #f97316; outline-offset:3px; }
+          @media (hover:hover) { .mj-card-img:hover { filter:brightness(1.07); } }
 
           /* Apparition en cascade — uniquement les cartes de la liste (le hero garde son propre délai) */
           .mj-list > .mj-card:nth-child(2){ animation-delay:.05s }
@@ -6865,52 +6900,48 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
 
         {/* ═══ TOUS LES MODES ═══ */}
         <div className="mj-list" style={{ display:"flex",flexDirection:"column",gap:14 }}>
+          {/* Bannières fournies par l'utilisateur (public/jeux/*.webp). Le libellé et le texte
+              restent ici : ils ne s'affichent plus à l'écran (ils sont dessinés dans l'image)
+              mais servent d'aria-label pour les lecteurs d'écran. */}
+
           {/* 1. 501 ou 301 — le choix du mode se fait ensuite dans le scoreur */}
-          <GameCard icon={Target} label="501 ou 301" col="#f97316"
-            sub="🎯 Le grand classique. Choisis 501 ou 301, descends à 0 et termine sur un double."
-            badge="CLASSIQUE" badgeIcon="🥇" bgIcon="501"
+          <GameCardImg img="501-301" label="501 ou 301" priorite
+            sub="Le grand classique. Choisis 501 ou 301, descends à 0 et termine sur un double."
             onClick={()=>setPage("scoreur")}/>
 
           {/* 2. Affronte un bot */}
-          <GameCard icon={Bot} label="Affronte un bot" col="#fbbf24"
-            sub="🤖 Joue seul contre l'ordi — ou défie le champion Lucky Tillter."
-            badge="SOLO" badgeIcon="👑" bgIcon="🤖"
+          <GameCardImg img="bot" label="Affronte un bot" priorite
+            sub="Joue seul contre l'ordi — ou défie le champion Lucky Tillter."
             onClick={()=>setPage("scoreur-bot")}/>
 
           {/* 3. Cricket */}
-          <GameCard icon={Swords} label="Cricket" col="#22c55e"
-            sub="⚔ Ferme les zones 15-20 + Bull avant ton adversaire."
-            badge="POPULAIRE" badgeIcon="🔥" bgIcon="🎯"
+          <GameCardImg img="cricket" label="Cricket"
+            sub="Ferme les zones 15-20 + Bull avant ton adversaire."
             onClick={()=>setPage("cricket-config")}/>
 
           {/* 4. Tournoi */}
-          <GameCard icon={Users} label="Tournoi" col="#60a5fa"
-            sub="🏆 Organise ton propre tournoi privé entre amis."
-            badge="MULTIJOUEUR" badgeIcon="👥" bgIcon="🏆"
+          <GameCardImg img="tournoi" label="Tournoi"
+            sub="Organise ton propre tournoi privé entre amis."
             onClick={()=>setPage("tournois-potes")}/>
 
-          {/* 5. Double Down — rouge, pour ne pas doublonner l'orange du 501 */}
-          <GameCard icon={Target} label="Double Down" col="#ef4444"
-            sub="➗ Atteins la cible imposée sur 9 manches. Rate-la et ton score est divisé par deux !"
-            badge="NOUVEAU" badgeIcon="➗" bgIcon="➗"
+          {/* 5. Double Down */}
+          <GameCardImg img="double-down" label="Double Down"
+            sub="Atteins la cible imposée sur 9 manches. Rate-la et ton score est divisé par deux !"
             onClick={()=>setPage("double-down")}/>
 
           {/* 6. Capital */}
-          <GameCard icon={Building2} label="Capital" col="#a78bfa"
-            sub="🎯 Précision et stratégie. Chaque cible compte."
-            badge="TECHNIQUE" badgeIcon="🎯" bgIcon="🏛"
+          <GameCardImg img="capital" label="Capital"
+            sub="Précision et stratégie. Chaque cible compte."
             onClick={()=>setPage("jeux-capital")}/>
 
           {/* 7. Touché-Coulé */}
-          <GameCard icon={Target} label="Touché-Coulé" col="#22d3ee"
-            sub="🚢 Bataille navale sur cible : place ta flotte, coule celle de l'adversaire."
-            badge="NOUVEAU" badgeIcon="🚢" bgIcon="🚢"
+          <GameCardImg img="touche-coule" label="Touché-Coulé"
+            sub="Bataille navale sur cible : place ta flotte, coule celle de l'adversaire."
             onClick={()=>setPage("touche-coule")}/>
 
           {/* 8. Horloge Double (Around the Clock) */}
-          <GameCard icon={Clock} label="Horloge Double" col="#a78bfa"
-            sub="🕐 Enchaîne D1 à D20, Bull et Double Bull. Chrono par cible."
-            badge="ENTRAÎNEMENT" badgeIcon="🎯" bgIcon="🕐"
+          <GameCardImg img="horloge-double" label="Horloge Double"
+            sub="Enchaîne D1 à D20, Bull et Double Bull. Chrono par cible."
             onClick={()=>setPage("horloge-double")}/>
         </div>
       </div>
