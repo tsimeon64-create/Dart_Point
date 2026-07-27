@@ -284,6 +284,49 @@ eq("calculateQualifiedCount([5,5,5,5],3)", calculateQualifiedCount([5, 5, 5, 5],
   ok("résumé tableau: petite finale", b.lines.some((l) => l.text.includes("Petite finale")));
   ok("résumé tableau: consolante 8", b.lines.some((l) => l.text.includes("Consolante de 8")));
   ok("résumé tableau: finale à 5", b.lines.some((l) => l.text.includes("Finale : premier à 5")));
+
+  // Avec des EXEMPTS : un tableau de 8 pour 5 qualifiés ne fait jouer que 4 matchs
+  // (les 3 exempts passent sans jouer), même s'il y a bien 7 cases dans le tableau.
+  const bEx = buildBracketConfigurationSummary({
+    qualifiedCount: 5,
+    manchesMap: { quart: 2, demi: 3, finale: 5 },
+    availableTargets: 2,
+  });
+  ok(
+    "résumé tableau: 5 qualifiés → 4 matchs à jouer",
+    bEx.lines.some((l) => l.text === "4 matchs à jouer dans le tableau principal (7 cases, dont 3 sans match)")
+  );
+
+  // Durée : la taille de tableau CHOISIE est prise en compte, et les exempts ne sont pas facturés.
+  const dRef = estimateBracketDuration({
+    qualifiedCount: 8,
+    availableTargets: 2,
+    manchesMap: { quart: 2, demi: 3, finale: 5 },
+    averageMatchDuration: 15,
+  });
+  // 8 qualifiés dans un tableau de 16 : le 1er tour n'est QUE des exempts → même durée réelle.
+  eq(
+    "durée tableau 16 pour 8 qualifiés = durée tableau 8",
+    estimateBracketDuration({
+      qualifiedCount: 8,
+      bracketSize: 16,
+      availableTargets: 2,
+      manchesMap: { quart: 2, demi: 3, finale: 5, huitieme: 2 },
+      averageMatchDuration: 15,
+    }),
+    dRef
+  );
+  // 5 qualifiés (3 exempts) : strictement plus court qu'un tableau de 8 complet.
+  ok(
+    "durée tableau: les exempts ne comptent pas",
+    estimateBracketDuration({
+      qualifiedCount: 5,
+      bracketSize: 8,
+      availableTargets: 2,
+      manchesMap: { quart: 2, demi: 3, finale: 5 },
+      averageMatchDuration: 15,
+    }) < dRef
+  );
 }
 
 // ── 12) Ordre des matchs : mêmes matchs, moins d'enchaînements ──────────────

@@ -563,6 +563,11 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
     return { qc, bs, bye: Math.max(0, bs - qc) };
   };
 
+  // Une poule de 2, c'est UN SEUL match : la perdante est éliminée après une seule partie de la soirée.
+  // La répartition round(n / taille) peut en fabriquer une sans le dire (ex. 20 équipes en « 3 par poule »
+  // → 6 poules de 3 + 1 poule de 2). On les compte pour prévenir sur la carte, AVANT le clic.
+  const nbPoulesDe2 = (gs) => (gs || []).filter((g) => g < 3).length;
+
   const manches = config.manches || 2;
   const cibles = config.availableTargets || 1;
   const avgDur = config.averageMatchDuration || 15;
@@ -580,22 +585,42 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
         {config.format === "doublette" ? "Équipes" : "Joueurs"} par poule
       </SectionLabel>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {options.map((o) => (
-          <ChoiceCard
-            key={o.playersPerPool}
-            title={`${o.playersPerPool} ${unite} par poule`}
-            selected={o.playersPerPool === sel}
-            recommended={o.recommended}
-            ariaLabel={`${o.playersPerPool} ${unite} par poule`}
-            onClick={() => set({ playersPerPool: o.playersPerPool })}
-            lines={[
-              { icon: "🏟️", text: o.balanced ? `${o.poolCount} poules de ${o.groups[0]}` : `${o.poolCount} poules de ${Math.min(...o.groups)} à ${Math.max(...o.groups)}`, strong: true },
-              { icon: "📋", text: `${o.totalPoolMatches} matchs au total${o.balanced ? ` (${o.matchesPerPool}/poule)` : ""}` },
-              { icon: "✅", text: `${o.qualifiedCount} ${uniteQ} → tableau de ${o.bracketSize}` },
-              o.clean ? { icon: "👍", text: "Aucun exempt" } : { icon: "⚠️", text: `${o.byeCount} exempt${o.byeCount > 1 ? "s" : ""}` },
-            ]}
-          />
-        ))}
+        {options.map((o) => {
+          // ⚠️ La carte doit annoncer ce qui sera VRAIMENT appliqué.
+          // Si la plus petite poule de CETTE option est trop petite pour le nombre de qualifiés
+          // demandé (ex. 20 joueurs en poules de 3 → il reste une poule de 2), le useEffect plus
+          // bas ramène automatiquement « qualifiés par poule » à (plus petite poule − 1). Sans
+          // anticiper ce clamp ici, la carte promettait « 14 qualifiés → tableau de 16 » et on
+          // obtenait « 7 → tableau de 8 » : les chiffres changeaient sous les yeux de
+          // l'organisateur au moment même du clic.
+          const mp = o.groups.length ? Math.min(...o.groups) : 0;
+          const qEff = mp >= 2 && qpp >= mp ? Math.max(1, mp - 1) : qpp;
+          const qc = calculateQualifiedCount(o.groups, qEff);
+          const bs = getNextBracketSize(qc);
+          const bye = Math.max(0, bs - qc);
+          return (
+            <ChoiceCard
+              key={o.playersPerPool}
+              title={`${o.playersPerPool} ${unite} par poule`}
+              selected={o.playersPerPool === sel}
+              recommended={o.recommended}
+              ariaLabel={`${o.playersPerPool} ${unite} par poule`}
+              onClick={() => set({ playersPerPool: o.playersPerPool })}
+              lines={[
+                { icon: "🏟️", text: o.balanced ? `${o.poolCount} poules de ${o.groups[0]}` : `${o.poolCount} poules de ${Math.min(...o.groups)} à ${Math.max(...o.groups)}`, strong: true },
+                ...(nbPoulesDe2(o.groups) > 0
+                  ? [{ icon: "⚠️", text: `${nbPoulesDe2(o.groups)} poule${nbPoulesDe2(o.groups) > 1 ? "s" : ""} de 2 ${unite} : 1 seul match, la perdante est éliminée aussitôt.` }]
+                  : []),
+                { icon: "📋", text: `${o.totalPoolMatches} matchs au total${o.balanced ? ` (${o.matchesPerPool}/poule)` : ""}` },
+                { icon: "✅", text: `${qc} ${uniteQ} → tableau de ${bs}` },
+                bye === 0 ? { icon: "👍", text: "Aucun exempt" } : { icon: "⚠️", text: `${bye} exempt${bye > 1 ? "s" : ""}` },
+                ...(qEff !== qpp
+                  ? [{ icon: "ℹ️", text: `La plus petite poule n'a que ${mp} ${unite} → ${qEff} qualifié${qEff > 1 ? "s" : ""} par poule (au lieu de ${qpp})` }]
+                  : []),
+              ]}
+            />
+          );
+        })}
       </div>
 
       <SummaryBanner summary={summary} />
@@ -688,7 +713,7 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
         }}
       >
         ⏱️ Durée estimée des poules : environ {formatDuration(estimatePoolDuration({ groups, availableTargets: cibles, averageMatchDuration: avgDur }))}
-        <div style={{ fontSize: 10.5, color: CT.muted, fontWeight: 500, marginTop: 2 }}>Estimation indicative selon la durée moyenne choisie.</div>
+        <div style={{ fontSize: 10.5, color: CT.muted, fontWeight: 500, marginTop: 2 }}>Estimation indicative selon la durée moyenne choisie. En cas d'égalité parfaite, 1 à 3 matchs de barrage en 701 peuvent s'ajouter à la fin des poules.</div>
       </div>
 
       {/* Note : la répartition se fait par tirage au sort équilibré (poules de tailles proches). */}
@@ -763,7 +788,7 @@ export const StepTableau = ({ config, onChange, context = {} }) => {
     nbGroupes = 0,
     nbQual = 2,
     poolGroups = [],
-    crossings = null,
+    makeCrossings = null,
     format = "simple",
   } = context;
   const unite = format === "doublette" ? "équipes" : "joueurs";
@@ -779,6 +804,10 @@ export const StepTableau = ({ config, onChange, context = {} }) => {
   const doubleEstSain = qualifiedCount >= doubleSize / 2;
   const sizeOptions = [...new Set(doubleEstSain ? [minSize, doubleSize] : [minSize])];
   const bracketSize = config.bracketSize && sizeOptions.includes(config.bracketSize) ? config.bracketSize : minSize;
+  // §9.4 — l'aperçu des croisements se calcule ICI, une fois la taille de tableau connue : c'est
+  // justement parce que le parent ne pouvait pas la connaître que `crossings` valait toujours null
+  // et que le bloc d'aperçu (plus bas) n'était jamais affiché.
+  const crossings = typeof makeCrossings === "function" ? makeCrossings(bracketSize) : null;
 
   const manchesMap = config.manchesMap || { seizieme: 2, huitieme: 2, quart: 2, demi: 3, finale: 5, petite_finale: 2, consolante: 2 };
   const nbConso = config.nbConso || 2;
@@ -860,7 +889,9 @@ export const StepTableau = ({ config, onChange, context = {} }) => {
               ariaLabel={`Tableau de ${s}`}
               onClick={() => set({ bracketSize: s })}
               lines={[
-                { icon: "🎯", text: `Tableau de ${s} · ${s - 1} matchs`, strong: true },
+                // Un tableau de N a N−1 CASES mais les exempts ne se jouent pas : le nombre de matchs
+                // réellement joués vaut (qualifiés − 1). Sans exempt, les deux chiffres sont identiques.
+                { icon: "🎯", text: `Tableau de ${s} · ${ex > 0 ? `${Math.max(0, qualifiedCount - 1)} matchs à jouer` : `${s - 1} matchs`}`, strong: true },
                 ex === 0 ? { icon: "👍", text: "Tout le monde joue (aucun exempt)" } : { icon: "⚠️", text: `${ex} exempt${ex > 1 ? "s" : ""} au 1er tour` },
               ]}
             />
@@ -1011,6 +1042,15 @@ export const StepTableau = ({ config, onChange, context = {} }) => {
           +
         </button>
       </div>
+
+      {/* ⚠️ La durée moyenne par match n'était réglable que sur l'écran des POULES, et
+          ce choix n'arrivait jamais jusqu'ici (l'assistant du tableau est un composant
+          neuf, avec un état neuf) : l'estimation ci-dessous repartait toujours sur
+          15 min, sans le dire, et l'organisateur n'avait aucun moyen de la corriger.
+          On remet donc le réglage LÀ où le chiffre est affiché. */}
+      <SectionLabel hint="(indicative)">Durée moyenne par match</SectionLabel>
+      <NumberPills values={[10, 15, 20]} value={config.averageMatchDuration || 15} onPick={(d) => set({ averageMatchDuration: d })} suffix=" min" />
+
       <div
         style={{
           marginTop: 10,
@@ -1027,6 +1067,7 @@ export const StepTableau = ({ config, onChange, context = {} }) => {
         {formatDuration(
           estimateBracketDuration({
             qualifiedCount,
+            bracketSize, // sinon les 2 cartes de taille annoncent la même durée
             availableTargets: finalTargets,
             manchesMap,
             averageMatchDuration: config.averageMatchDuration || 15,
@@ -1035,7 +1076,7 @@ export const StepTableau = ({ config, onChange, context = {} }) => {
             consolationTeams: consoCount,
           })
         )}
-        <div style={{ fontSize: 10.5, color: CT.muted, fontWeight: 500, marginTop: 2 }}>Estimation indicative.</div>
+        <div style={{ fontSize: 10.5, color: CT.muted, fontWeight: 500, marginTop: 2 }}>Estimation indicative, sur une base de {config.averageMatchDuration || 15} min par match.</div>
       </div>
 
       {/* Note : placement intelligent (têtes de série séparées, pas de retrouvailles trop tôt). */}
@@ -1197,7 +1238,6 @@ export const TournoiSetupWizard = ({
     manches: 2,
     availableTargets: 2,
     averageMatchDuration: 15,
-    repartition: "aleatoire",
     ...initialConfig,
   });
 

@@ -16,7 +16,15 @@ export const statBarrageTour = (id, r, bg) => {
     if (m.gagnant_id === id) vic++;
     diff += (m.joueur1_id === id) ? (s1 - s2) : (s2 - s1);
   });
-  return vic * 10000 + diff; // clé comparable (victoires priment, puis diff de points)
+  // Clé comparable : les VICTOIRES priment (x10000).
+  // ATTENTION : aujourd'hui `diff` ne départage RIEN. Un barrage est créé avec manches_max:1
+  // (creerBarrages, AppTournoiPotes.jsx), donc le score d'un 701 vaut toujours 1-0 : sur un tour
+  // COMPLET, diff = 2*victoires - (nb de matchs du tour), c'est-à-dire une redondance de `vic`.
+  // On conserve le terme au cas où un barrage se jouerait un jour en plusieurs manches — mais ce
+  // n'est PAS souhaité : passer les barrages en 2 manches gagnantes doublerait le temps de 701 au
+  // club. (Et surtout : ne pas ranger les points 701 restants dans score1/score2, ils sont
+  // additionnés au récap "manches" affiché de la poule, AppTournoiPotes.jsx.)
+  return vic * 10000 + diff;
 };
 
 // A-t-il joué au moins un match de barrage à ce tour ?

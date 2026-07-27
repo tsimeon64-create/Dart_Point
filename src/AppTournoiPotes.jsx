@@ -176,7 +176,9 @@ const genBracketMatchs=(seeded,tournoi_id,manchesMap={},opts={})=>{
   return matchs;
 };
 
-// Consolante = tableau séparé pour les équipes NON qualifiées (sauf la dernière de chaque poule).
+// Consolante = tableau séparé pour les nbConso PREMIÈRES équipes NON qualifiées de chaque poule
+// (voir lancerEliminatoires : jG.slice(nbQual,nbQual+nbConso)). ATTENTION : il n'y a AUCUNE exclusion
+// de la dernière de poule — avec des poules de 4, 2 qualifiés et 2 repêchés, la dernière rejoue ici.
 // VRAI TABLEAU à taille puissance de 2, comme le tableau principal : TOUS les exempts sont au 1er tour
 // et vont aux MIEUX classés (seedBracket). Chaque branche demande donc le même nombre de victoires.
 // Avant, on appariait au maximum au 1er tour puis on réduisait par ceil(cases/2) : les exempts
@@ -333,6 +335,16 @@ const matchsSurCibles=(pending,nbCibles,allMatchs,live=null)=>{
     actifs.add(m.id); busy.add(m.joueur1_id); busy.add(m.joueur2_id);
   }
   return actifs;
+};
+
+// Combien des matchs élus par le planning sont DÉJÀ EN COURS (un scoreur est ouvert sur un téléphone).
+// Sert UNIQUEMENT à l'affichage : la boucle 0 ci-dessus verrouille volontairement les matchs commencés
+// SANS plafond (un match commencé ne doit pas disparaître de l'écran). Du coup, si l'organisateur baisse
+// le nombre de cibles pendant une partie, actifs.size peut dépasser le nombre de cibles et l'écran
+// annonçait « 3 à jouer maintenant » avec 2 cibles. On sépare donc « à lancer » et « en cours ».
+const compterEnCours=(liste,actifs,live)=>{
+  if(!live||!live.pairs)return 0;
+  return liste.filter(m=>actifs.has(m.id)&&live.pairs.has([String(m.joueur1_id),String(m.joueur2_id)].sort().join("|"))).length;
 };
 
 // Vrai tirage au sort (Fisher-Yates) : mélange UNIFORME.
@@ -984,6 +996,11 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
   const pending=matchs.filter(m=>m.phase==="poules"&&m.statut!=="termine"&&m.joueur1_id&&m.joueur2_id);
   const actifs=matchsSurCibles(pending,nbCibles,matchs,live);
   const enAttente=Math.max(0,pending.length-actifs.size);
+  // Affichage : on distingue les matchs À LANCER de ceux DÉJÀ EN COURS (voir compterEnCours).
+  // Avant, le compteur vert additionnait les deux : il invitait à lancer des matchs déjà commencés,
+  // et il pouvait annoncer plus de matchs qu'il n'y a de cibles.
+  const nbEnCours=compterEnCours(pending,actifs,live);
+  const nbALancer=Math.max(0,actifs.size-nbEnCours);
   // Classement de poule = UNIQUEMENT sur les matchs de poule. (Les V-D stockées sur le joueur incluent aussi
   // les matchs du TABLEAU une fois les éliminatoires lancées → ça faussait l'affichage « 5 vs 4 matchs ».)
   // On recalcule donc ici, à partir des seuls matchs de poule terminés, des équipes avec V/D/manches « poule seule ».
@@ -1001,11 +1018,18 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
   const barrages=matchs.filter(m=>m.phase==="barrage");
   // Planning des barrages : MEME logique que les poules (matchsSurCibles) → jamais 2 fois le même joueur, au plus nbCibles à la fois.
   const actifsBarrages=matchsSurCibles(barrages.filter(m=>m.statut!=="termine"),nbCibles,matchs,live);
+  // Les barrages 701 ne sont PAS comptés dans le "X/Y matchs" (ce compteur ne suit que la phase "poules") :
+  // le badge restait donc VERT à 40/40 alors qu'il restait des barrages à jouer juste en dessous.
+  const barragesRestants=barrages.filter(m=>m.statut!=="termine").length;
   const barrageExiste=(a,b,round=0)=>barrages.some(m=>(m.round_bracket||0)===round&&((m.joueur1_id===a&&m.joueur2_id===b)||(m.joueur1_id===b&&m.joueur2_id===a)));
   const aCreer=[]; let tieNonTranchee=false;
   if(allDone){
     groupes.forEach(g=>{
-      egalitesADepartager(joueurs.filter(j=>j.groupe===g),barrages,nbQual).forEach(({a,b,round})=>{
+      // On départage sur joueursPoule (V/D/manches recalculés SUR LA POULE SEULE, juste au-dessus), et non
+      // sur les stats stockées en base : une fois le tableau lancé, celles-ci contiennent AUSSI les
+      // victoires du tableau et de la consolante → elles inventaient des égalités qui n'existaient pas
+      // dans le classement affiché juste en dessous (lui utilise déjà joueursPoule).
+      egalitesADepartager(joueursPoule.filter(j=>j.groupe===g),barrages,nbQual).forEach(({a,b,round})=>{
         tieNonTranchee=true;
         if(!barrageExiste(a.id,b.id,round))aCreer.push({a:a.id,b:b.id,groupe:g,round});
       });
@@ -1075,7 +1099,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
       <Card style={{marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <span style={{fontWeight:600,fontSize:14}}>Phase de poules</span>
-          <Badge color={allDone?CT.green:CT.yellow}>{termines.length}/{total} matchs</Badge>
+          <Badge color={allDone&&barragesRestants===0?CT.green:CT.yellow}>{termines.length}/{total} matchs{barragesRestants>0?` + ${barragesRestants} barrage${barragesRestants>1?"s":""}`:""}</Badge>
         </div>
         <div style={{background:"#111",borderRadius:6,height:8,overflow:"hidden"}}>
           <div style={{background:allDone?CT.green:CT.accent,height:"100%",width:`${total?termines.length/total*100:0}%`,transition:"width .4s",borderRadius:6}}/>
@@ -1092,7 +1116,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
             ):<span style={{fontWeight:800,fontSize:16,color:CT.accent}}>{nbCibles}</span>}
           </div>
         )}
-        {!allDone&&<div style={{marginTop:10,fontSize:12.5,textAlign:"center"}}><span style={{color:CT.green,fontWeight:800}}>🟢 {actifs.size} à jouer maintenant</span>{enAttente>0&&<span style={{color:CT.muted}}> · ⏳ {enAttente} en attente</span>}</div>}
+        {!allDone&&<div style={{marginTop:10,fontSize:12.5,textAlign:"center"}}><span style={{color:CT.green,fontWeight:800}}>🟢 {nbALancer} à lancer maintenant</span>{nbEnCours>0&&<span style={{color:RED_TP}}> · 🔴 {nbEnCours} en cours</span>}{enAttente>0&&<span style={{color:CT.muted}}> · ⏳ {enAttente} en attente</span>}</div>}
         {/* Aucun match jouable alors qu'il en reste : des scoreurs sont restés ouverts et bloquent les
             cibles. Avant, l'écran affichait juste « 0 à jouer maintenant » sans rien expliquer. */}
         {!allDone&&actifs.size===0&&enAttente>0&&(
@@ -1117,8 +1141,11 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
         )}
       </Card>
 
-      {/* Avertissement égalité → barrage en 701 */}
-      {allDone&&tieNonTranchee&&(
+      {/* Avertissement égalité → barrage en 701. VERROUILLÉ pendant le tableau (!bracketLance), comme les
+          messages jumeaux plus bas : une fois les éliminatoires lancées, un barrage de poule n'a plus de
+          sens, et le bouton ci-dessous serait de toute façon inerte (cette vue-là ne reçoit pas la prop
+          onCreerBarrages) → alerte rouge alarmante + bouton qui ne répond pas. */}
+      {allDone&&!bracketLance&&tieNonTranchee&&(
         <Card style={{marginBottom:16,background:RED_TP+"14",border:`1px solid ${RED_TP}66`}}>
           <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
             <EmoIcon e="⚠️" size={20}/>
@@ -1169,6 +1196,9 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
         const mG=matchs.filter(m=>m.phase==="poules"&&m.groupe===g).sort((a,b)=>(a.position_bracket||0)-(b.position_bracket||0));
         const gc=groupCol(g);
         const termG=mG.filter(m=>m.statut==="termine").length, totG=mG.length;
+        // Barrages 701 restant à jouer dans CETTE poule : ils ne sont pas dans mG (phase "barrage"),
+        // donc sans ça la poule affichait "6/6 matchs" alors qu'un barrage l'attendait juste en dessous.
+        const barrRestG=barrageG.filter(m=>m.statut!=="termine").length;
         const groupeFini=totG>0&&termG===totG; // qualifiés affichés SEULEMENT quand la poule est finie
         return(
           <Card key={g} style={{marginBottom:16,border:`1.5px solid ${gc}66`}}>
@@ -1176,7 +1206,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
               <span style={{width:11,height:11,borderRadius:"50%",background:gc,flexShrink:0}}/>
               <span style={{fontWeight:700,fontSize:16}}>Poule {groupLetter(g)}</span>
-              <span style={{marginLeft:"auto",fontSize:12,color:CT.muted}}>{termG}/{totG} matchs</span>
+              <span style={{marginLeft:"auto",fontSize:12,color:CT.muted}}>{termG}/{totG} matchs{barrRestG>0&&<span style={{color:RED_TP,fontWeight:700}}> + {barrRestG} barrage{barrRestG>1?"s":""}</span>}</span>
             </div>
             <div style={{height:6,borderRadius:6,background:"#26262e",overflow:"hidden",marginBottom:16}}>
               <div style={{width:`${totG?termG/totG*100:0}%`,height:"100%",background:gc,borderRadius:6,transition:"width .4s"}}/>
@@ -1517,6 +1547,11 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSaisirS
   const consoM=bracketM.filter(m=>m.phase==="consolante");
   const rounds=[...new Set(mainM.map(m=>m.round_bracket))].sort((a,b)=>a-b);
   const consoRounds=[...new Set(consoM.map(m=>m.round_bracket))].sort((a,b)=>a-b);
+  // Nombre RÉEL d'équipes repêchées = équipes distinctes présentes au 1er tour de la consolante
+  // (exempts compris). Sert à afficher un chiffre juste sous le titre « Consolante » : le texte
+  // affirmait avant que la dernière de chaque poule était exclue, ce qui est faux (elle y joue dès
+  // que nbQual + nbConso ≥ taille de la poule, c.-à-d. la config par défaut du club).
+  const nbConsoTeams=new Set(consoM.filter(m=>(m.round_bracket||0)===1).flatMap(m=>[m.joueur1_id,m.joueur2_id]).filter(Boolean)).size;
   const allDone=bracketM.length>0&&bracketM.every(m=>m.statut==="termine"||(m.statut&&m.statut.startsWith("bye"))||m.statut==="vide");
   const finale=mainM.find(m=>m.phase==="finale");
   const champion=finale&&finale.statut==="termine"&&finale.gagnant_id?joueurs.find(j=>j.id===finale.gagnant_id):null;
@@ -1529,6 +1564,10 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSaisirS
   const jouables=bracketM.filter(m=>m.statut!=="termine"&&!(m.statut&&m.statut.startsWith("bye"))&&m.statut!=="vide"&&m.joueur1_id&&m.joueur2_id);
   const actifsBracket=matchsSurCibles(jouables,nbCibles,matchs,live);
   const enAttenteCible=Math.max(0,jouables.length-actifsBracket.size);
+  // Même découpage qu'en poules : « à lancer » vs « en cours ». Ici c'était encore plus visible, car le
+  // nombre de cibles est affiché juste à côté : l'écran pouvait annoncer 3 matchs pour 2 cibles.
+  const nbEnCoursBracket=compterEnCours(jouables,actifsBracket,live);
+  const nbALancerBracket=Math.max(0,actifsBracket.size-nbEnCoursBracket);
 
   const colHeaderH=30;
 
@@ -1606,7 +1645,8 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSaisirS
       {/* Compteur du planning des cibles — même repère qu'en poules */}
       {!allDone&&jouables.length>0&&(
         <div style={{marginTop:10,fontSize:12.5,textAlign:"center"}}>
-          <span style={{color:CT.green,fontWeight:800}}>🟢 {actifsBracket.size} à jouer maintenant</span>
+          <span style={{color:CT.green,fontWeight:800}}>🟢 {nbALancerBracket} à lancer maintenant</span>
+          {nbEnCoursBracket>0&&<span style={{color:RED_TP}}> · 🔴 {nbEnCoursBracket} en cours</span>}
           <span style={{color:CT.muted}}> · 🎯 {nbCibles} cible{nbCibles>1?"s":""}</span>
           {enAttenteCible>0&&<span style={{color:CT.muted}}> · ⏳ {enAttenteCible} en attente</span>}
         </div>
@@ -1637,7 +1677,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSaisirS
       {consoM.length>0&&(
         <div style={{marginTop:10,borderTop:`1px solid ${CT.border}`,paddingTop:14}}>
           <div style={{fontWeight:800,fontSize:15,color:CT.purple,marginBottom:2,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🎖️" size={15} color={CT.purple}/>Consolante</div>
-          <div style={{fontSize:11.5,color:CT.muted,marginBottom:10}}>Les équipes non qualifiées (sauf la dernière de chaque poule) jouent ici pour le lot de consolation.</div>
+          <div style={{fontSize:11.5,color:CT.muted,marginBottom:10}}>{nbConsoTeams>1?`Les ${nbConsoTeams} équipes repêchées`:"Les équipes repêchées"} (les meilleures non qualifiées de chaque poule) jouent ici pour le lot de consolation.</div>
           <div style={{overflowX:"auto",paddingBottom:16,WebkitOverflowScrolling:"touch"}}>
             <div style={{display:"flex",gap:0,alignItems:"stretch",minWidth:"max-content",padding:"8px 4px"}}>
               {consoRounds.map((r,idx)=>{
@@ -1931,10 +1971,26 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     if(joueurs.length<2)return;
     setSaving(true);
     setNbQualLocal(nbQualif); // affichage immediat (avant meme la relecture du tournoi)
+    // Repères pour le repli en cas d'erreur (voir le catch en bas de la fonction).
+    let lobbyFerme=false, matchsCrees=false;
     try{
-      const nb=Math.max(1,Math.round(joueurs.length/poolSize)); // nb de poules d'après la taille choisie
+      // ── On FERME LE LOBBY EN PREMIER, avant même le tirage au sort. ──
+      // POURQUOI : écrire les groupes prend plusieurs secondes (une requête réseau PAR équipe). Tant que
+      // le tournoi restait en « attente » pendant ce temps, un copain qui scannait le QR passait quand
+      // même la garde de rejoindre() et atterrissait dans la poule 1 (le groupe par défaut) : soit une
+      // poule à 5 avec des matchs en plus, soit — s'il arrivait après la création des matchs — un inscrit
+      // fantôme SANS AUCUN match à jouer, qui attend toute la soirée sans que rien ne le signale.
+      // Lobby fermé d'abord ⇒ rejoindre() refuse proprement et la liste des inscrits est figée.
+      await dbTP.updateTournoi(tournoiId,{statut:"poules"});
+      lobbyFerme=true;
+      // Relecture FRAÎCHE des inscrits : celui qui s'est inscrit une seconde avant la fermeture doit être
+      // dans le tirage (cet écran peut avoir jusqu'à 5 s de retard). Repli sur la liste locale si la
+      // relecture échoue — on ne tire jamais les poules sur une liste vide.
+      const frais=await dbTP.getJoueurs(tournoiId).catch(()=>null);
+      const inscrits=(frais&&frais.length>=2)?frais:joueurs;
+      const nb=Math.max(1,Math.round(inscrits.length/poolSize)); // nb de poules d'après la taille choisie
       // Vrai tirage au sort (Fisher-Yates) puis répartition round-robin → poules équilibrées et aléatoires
-      const shuffled=melangerAleatoire(joueurs);
+      const shuffled=melangerAleatoire(inscrits);
       for(let i=0;i<shuffled.length;i++){
         await dbTP.updateJoueur(shuffled[i].id,{groupe:(i%nb)+1,ordre:i});
       }
@@ -1946,7 +2002,8 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         allMatchs.push(...genPouleMatchs(jG,g,tournoiId,poolManches));
       }
       if(allMatchs.length>0)await dbTP.addMatchs(allMatchs);
-      await dbTP.updateTournoi(tournoiId,{statut:"poules"});
+      matchsCrees=true; // à partir d'ici le tournoi existe vraiment : plus de retour en arrière automatique
+      // (le passage en statut "poules" a déjà été fait tout en haut, pour fermer le lobby avant le tirage)
       setCibles(nbCibles);
       // Réglages persistés en base. On ne fait PLUS échouer en silence : si l'écriture n'arrive pas
       // (colonne absente, réseau, permissions), le réglage n'existe que sur CE téléphone — un autre
@@ -1964,7 +2021,12 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       }
       setShowPoolConfig(false);
       await reload();
-    }catch(e){alert("Erreur : "+e.message);}
+    }catch(e){
+      // Si ça a cassé AVANT que les matchs existent, on ROUVRE le lobby : sinon le tournoi resterait
+      // affiché « en poules » sans un seul match, et plus personne ne pourrait s'inscrire.
+      if(lobbyFerme&&!matchsCrees){ try{ await dbTP.updateTournoi(tournoiId,{statut:"attente"}); }catch(e2){} }
+      alert("Erreur : "+e.message);
+    }
     setSaving(false);
   };
 
@@ -2036,13 +2098,25 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           if(st[w]){ st[w].victoires++; st[w].points+=2; st[w].manches_pour+=ws; st[w].manches_contre+=ls; } // 2 pts / victoire
           if(st[l]){ st[l].defaites++; st[l].manches_pour+=ls; st[l].manches_contre+=ws; }                   // défaite = 0 pt (plus de point bonus)
         });
-        await Promise.all(joueurs.filter(j=>st[j.id]).map(j=>dbTP.updateJoueur(j.id,st[j.id])));
+        // Même garde que dans le scoreur (voir handleResultat) : une fois le tableau lancé, ce recalcul
+        // « poules seules » remettrait à zéro les victoires du tableau de TOUT LE MONDE. Le crayon des
+        // poules est déjà masqué à ce moment-là (l'écran des poules passe en lecture seule), mais le
+        // tableau peut être lancé depuis un AUTRE téléphone pendant que la fenêtre de saisie est ouverte ici.
+        const tableauLance=!!tournoi&&(tournoi.statut==="eliminatoires"||tournoi.statut==="termine");
+        if(!tableauLance){
+          await Promise.all(joueurs.filter(j=>st[j.id]).map(j=>dbTP.updateJoueur(j.id,st[j.id])));
+        }
       }else if(match.phase!=="barrage"){
         // Tableau (bracket) : contribution de CE match aux stats. 1re saisie → on AJOUTE le résultat.
         // Correction → on RETIRE d'abord l'ancien résultat puis on applique le nouveau (gère l'inversion
         // de vainqueur ET le changement de score, sans jamais compter en double).
-        const j1=joueurs.find(j=>j.id===match.joueur1_id);
-        const j2=joueurs.find(j=>j.id===match.joueur2_id);
+        // On relit les joueurs FRAIS en base, exactement comme le fait déjà le scoreur (handleResultat) :
+        // l'état React n'est rafraîchi que toutes les 5 s, et plus du tout quand le téléphone est en veille.
+        // Écrire « ancienne valeur + delta » à partir d'une photo périmée écrase le résultat qu'un autre
+        // appareil vient d'enregistrer (le classement par points final devient faux, sans aucun signal).
+        const jFrais=await dbTP.getJoueurs(tournoiId);
+        const j1=jFrais.find(j=>j.id===match.joueur1_id);
+        const j2=jFrais.find(j=>j.id===match.joueur2_id);
         if(j1&&j2){
           const pts_win=2,pts_lose=1;
           const d1={victoires:0,defaites:0,points:0,manches_pour:0,manches_contre:0};
@@ -2179,8 +2253,15 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     if(!paires||!paires.length)return;
     setSaving(true);
     try{
-      // round_bracket = tour de barrage (0 = round-robin ; ≥1 = tour décisif). position unique par tour.
-      const news=paires.map((p,i)=>({tournoi_id:tournoiId,joueur1_id:p.a,joueur2_id:p.b,score1:0,score2:0,gagnant_id:null,phase:"barrage",groupe:p.groupe,statut:"en_attente",round_bracket:p.round||0,position_bracket:9000+(p.round||0)*100+i,manches_max:1}));
+      // round_bracket = tour de barrage (0 = round-robin ; ≥1 = tour décisif).
+      // position_bracket ne sert QU'À l'affichage pour un barrage (aucun avancement de tableau ne
+      // s'applique aux barrages : saisirScore les exclut de estBracket). On repart donc du plus grand
+      // numéro déjà utilisé au lieu de recommencer à 9000+tour*100 : sinon deux clics successifs sur
+      // « Créer les barrages » (2e poule qui se départage plus tard, ou égalité apparue après une
+      // correction de score) réattribuent les mêmes numéros, et l'ordre des cartes d'une même poule
+      // peut sauter d'un rafraîchissement à l'autre. Le plancher 8999 gère le cas "aucun barrage".
+      const basePos=Math.max(8999,...matchs.filter(m=>m.phase==="barrage").map(m=>m.position_bracket||0))+1;
+      const news=paires.map((p,i)=>({tournoi_id:tournoiId,joueur1_id:p.a,joueur2_id:p.b,score1:0,score2:0,gagnant_id:null,phase:"barrage",groupe:p.groupe,statut:"en_attente",round_bracket:p.round||0,position_bracket:basePos+i,manches_max:1}));
       await dbTP.addMatchs(news);
       await reload();
     }catch(e){alert("Erreur : "+e.message);}
@@ -2456,7 +2537,24 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           phase="tableau"
           participants={joueurs}
           initialConfig={{mode:tournoi.mode||"501",format:tournoi.format||"simple"}}
-          tableauContext={{qualifiedCount,nbGroupes:nbGroupesW,nbQual:nbQualW,poolGroups,poolTargets:cibles,format:tournoi.format||"simple",crossings:null}}
+          tableauContext={{qualifiedCount,nbGroupes:nbGroupesW,nbQual:nbQualW,poolGroups,poolTargets:cibles,format:tournoi.format||"simple",
+            // Aperçu des 1ers croisements : il dépend de la TAILLE DE TABLEAU choisie DANS l'assistant,
+            // donc impossible de le calculer ici une fois pour toutes (c'est pourquoi on envoyait
+            // crossings:null et que le bloc d'aperçu n'était jamais affiché) → on passe une FONCTION.
+            // On refait exactement ce que fera lancerEliminatoires (classement de poule + seedPoolAware)
+            // sur les données déjà à l'écran : à ce moment les poules sont finies, le classement est figé.
+            makeCrossings:(bs)=>{
+              try{
+                const barragesW=matchs.filter(m=>m.phase==="barrage");
+                const top=[];
+                for(let g=1;g<=nbGroupesW;g++)rankGroup(joueurs.filter(j=>j.groupe===g),barragesW,matchs).slice(0,nbQualW).forEach((j,idx)=>top.push({...j,poolRank:idx+1}));
+                const flat=seedPoolAware(top,bs);
+                const paires=[];
+                for(let i=0;i<flat.length;i+=2)paires.push({a:flat[i]?flat[i].nom:"— exempt —",b:flat[i+1]?flat[i+1].nom:"— exempt —"});
+                return paires;
+              }catch(e){ return []; } // un aperçu décoratif ne doit JAMAIS faire planter l'écran de réglage
+            }
+          }}
           saving={saving}
           onCancel={()=>setShowBracketConfig(false)}
           onLaunchBracket={async(cfg)=>{
@@ -2466,7 +2564,12 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         />;
       })()}
       {tournoi.statut==="eliminatoires"&&(<>
-        {/* Onglets : naviguer entre les poules (consultation/correction) et le tableau final, SANS rien supprimer */}
+        {/* Onglets : revenir CONSULTER les poules, ou voir le tableau final. Cette navigation ne
+            supprime rien (contrairement au bouton « Retour aux poules », retourPoules).
+            NB : ici les scores de poule sont VERROUILLÉS — ce PoulesView est monté avec
+            bracketLance={true}, et carteMatch masque le crayon (isCreateur && !bracketLance).
+            C'est VOULU : corriger une poule maintenant changerait le classement qui a servi à
+            composer le tableau. Ne pas retirer ce verrou. */}
         <div style={{display:"flex",gap:6,marginBottom:16,background:"#16161d",borderRadius:12,padding:5,border:`1px solid ${CT.border}`}}>
           {[["poules","🏟️ Poules"],["elim","🏆 Éliminatoires"]].map(([k,lab])=>(
             <button key={k} onClick={()=>setVuePhase(k)} style={{flex:1,background:vuePhase===k?CT.accent:"transparent",color:vuePhase===k?"#0f0f0f":CT.muted,border:"none",cursor:"pointer",padding:"9px 12px",borderRadius:9,fontSize:13.5,fontWeight:800,transition:"all .15s",touchAction:"manipulation"}}>{lab}</button>
@@ -2733,7 +2836,21 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
           if(st[w]){ st[w].victoires++; st[w].points+=2; st[w].manches_pour+=ws; st[w].manches_contre+=ls; } // 2 pts / victoire
           if(st[l]){ st[l].defaites++; st[l].manches_pour+=ls; st[l].manches_contre+=ws; }                   // défaite = 0 pt (plus de point bonus)
         });
-        await Promise.all(joueurs.filter(j=>st[j.id]).map(j=>dbTP.updateJoueur(j.id,st[j.id])));
+        // GARDE : ce recalcul repart de ZÉRO pour tout le monde et ne compte QUE les matchs de poules.
+        // Si le tableau final est déjà lancé, l'appliquer EFFACERAIT toutes les victoires du tableau
+        // (elles ne sont comptées nulle part ailleurs : elles s'ajoutent au fil de l'eau, match par match).
+        // Cas réel : un joueur termine tard, sur son téléphone, un match de poule repris depuis le
+        // brouillon du scoreur, alors que le tableau tourne déjà → le classement général retombait à
+        // celui des poules, sans un mot. On garde donc le SCORE du match (déjà écrit plus haut) mais on
+        // ne retouche plus aux stats stockées ; le classement des poules affiché est de toute façon
+        // recalculé depuis les matchs, il reste donc juste à l'écran.
+        const _tFrais=await dbTP.getTournoi(match.tournoi_id).catch(()=>null); // .catch → si le réseau tombe, on garde le comportement d'avant
+        const _tableauLance=!!_tFrais&&(_tFrais.statut==="eliminatoires"||_tFrais.statut==="termine");
+        if(_tableauLance){
+          alert("✅ Score enregistré.\n\nLe tableau final est déjà lancé : le classement des poules n'est plus mis à jour, mais ton résultat est bien gardé.");
+        }else{
+          await Promise.all(joueurs.filter(j=>st[j.id]).map(j=>dbTP.updateJoueur(j.id,st[j.id])));
+        }
       }else if(match.phase!=="barrage"){
         // Tableau : on relit les joueurs FRAIS (le snapshot du montage peut être périmé), puis on RETIRE
         // l'ancien résultat (si re-jeu/correction) et on APPLIQUE le nouveau → jamais de double comptage.

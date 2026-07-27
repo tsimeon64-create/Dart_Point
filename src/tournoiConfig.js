@@ -229,6 +229,7 @@ export const estimatePoolDuration = ({ groups, availableTargets, averageMatchDur
 // La durée d'un match est pondérée par son format (manches / 2, base = « premier à 2 »).
 export const estimateBracketDuration = ({
   qualifiedCount,
+  bracketSize: bracketSizeChoisi,
   availableTargets,
   manchesMap = {},
   averageMatchDuration = 15,
@@ -237,7 +238,11 @@ export const estimateBracketDuration = ({
   consolationTeams = 0,
 }) => {
   const targets = Math.max(1, availableTargets || 1);
-  const bracketSize = getNextBracketSize(qualifiedCount);
+  // La taille de tableau CHOISIE par l'organisateur (2e carte « Départ du tableau ») doit compter :
+  // sinon un tableau de 32 annonce exactement la même durée qu'un tableau de 16, et le chiffre ne
+  // sert plus à choisir. On ne descend jamais sous la taille minimale nécessaire, et getNextBracketSize
+  // garantit une puissance de 2 même si on nous passe une valeur farfelue.
+  const bracketSize = getNextBracketSize(Math.max(bracketSizeChoisi || 0, qualifiedCount || 0));
   const totalRounds = Math.log2(bracketSize);
   const timeForMatches = (matchCount, manches) =>
     Math.ceil(matchCount / targets) * averageMatchDuration * (manches / 2);
@@ -245,7 +250,12 @@ export const estimateBracketDuration = ({
   let total = 0;
   for (let r = 1; r <= totalRounds; r++) {
     const phase = phaseName(r, totalRounds);
-    const matchCount = bracketSize / Math.pow(2, r);
+    // Un exempt ne joue pas : au 1er tour, seuls les croisements où DEUX qualifiés se rencontrent
+    // prennent du temps (= qualifiés − moitié du tableau). Les tours suivants sont toujours pleins.
+    const matchCount =
+      r === 1
+        ? Math.max(0, Math.min(bracketSize / 2, Math.round(qualifiedCount || 0) - bracketSize / 2))
+        : bracketSize / Math.pow(2, r);
     total += timeForMatches(matchCount, manchesForPhase(phase, manchesMap));
   }
   if (petiteFinale && bracketSize >= 4) {
@@ -459,7 +469,12 @@ export const buildBracketConfigurationSummary = (config = {}) => {
   const lines = [
     { icon: "🏆", text: `${qualifiedCount} ${uniteQ}` },
     { icon: "🎬", text: `Départ en ${ROUND_LABEL[rounds[0]] || "finale"}` },
-    { icon: "📋", text: `${bracketSize - 1} matchs dans le tableau principal` },
+    // Un tableau de N a N−1 CASES, mais les exempts ne se jouent pas : le nombre de matchs
+    // réellement joués vaut toujours (qualifiés − 1). Quand il n'y a aucun exempt les deux
+    // chiffres sont identiques, donc le libellé habituel ne change pas.
+    byeCount > 0 && qualifiedCount >= 2
+      ? { icon: "📋", text: `${qualifiedCount - 1} matchs à jouer dans le tableau principal (${bracketSize - 1} cases, dont ${byeCount} sans match)` }
+      : { icon: "📋", text: `${bracketSize - 1} matchs dans le tableau principal` },
     byeCount === 0
       ? { icon: "👍", text: "Aucun exempt" }
       : { icon: "⚠️", text: `${byeCount} exempt${byeCount > 1 ? "s" : ""} au 1er tour` },
@@ -488,6 +503,7 @@ export const buildBracketConfigurationSummary = (config = {}) => {
   if (averageMatchDuration) {
     const dur = estimateBracketDuration({
       qualifiedCount,
+      bracketSize, // sinon la durée ignore la taille de tableau choisie plus haut
       availableTargets,
       manchesMap,
       averageMatchDuration,
