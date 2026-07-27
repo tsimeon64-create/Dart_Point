@@ -1,21 +1,21 @@
 # Audit du mode « Tournoi entre potes » — simulation 20 équipes
 
-**Date :** 26 juillet 2026 · **Appli :** Dart Point (`Dart_Point/src/`)
-**État :** ✅ **AUDIT COMPLET — 38 défauts sur 38 vérifiés** · **6 corrections déployées** (versions 60 et 61)
+**Audit :** 26 juillet 2026 · **Corrections terminées :** 27 juillet 2026 · **Appli :** Dart Point (`Dart_Point/src/`)
+**État :** ✅ **TERMINÉ — 38 défauts vérifiés · 34 confirmés · 32 corrigés et déployés** (versions 60 → 69)
 
 ---
 
 ## 1. VERDICT
 
-🟢 **Oui, tu peux organiser ton tournoi de 20 équipes.**
+🟢 **Le mode Tournoi est prêt pour un vrai tournoi de 20 équipes.**
 
-Avant les corrections, le verdict était orange : trois pièges pouvaient figer un tournoi en cours devant tout le club. Ils sont corrigés et déployés. Il reste 27 défauts confirmés, tous **mineurs ou contournables** — aucun ne bloque un tournoi.
+Au départ le verdict était orange : trois pièges pouvaient figer un tournoi en cours devant tout le club. Tout ce qui bloquait, faussait un classement ou trompait l'organisateur est corrigé. Les 2 défauts restants sont laissés **volontairement** (§6).
 
-La mécanique de fond (poules, classement, tirage, tableau, consolante, barrages) est **saine**. Les défauts venaient presque tous de l'écran de configuration.
+⚠️ **Seule réserve** : ces corrections sont validées par simulation et par les tests, mais **n'ont pas encore tourné lors d'un vrai tournoi** au club (§7).
 
 ---
 
-## 2. CE QUI A ÉTÉ TESTÉ
+## 2. CE QUI A ÉTÉ FAIT
 
 | | |
 |---|---|
@@ -23,97 +23,91 @@ La mécanique de fond (poules, classement, tirage, tableau, consolante, barrages
 | Tournois simulés | **plus de 2 000**, joués de bout en bout (poules → barrages → tableau → consolante → champion) |
 | Scénarios | 9 : config nominale, poules inégales, qualifiés/taille de tableau, consolante, égalités/barrages 701, corrections de score, planning des cibles, wizard vs runtime, balayage 2→64 équipes |
 | Invariants | 12 (I1–I12) : pas de joueur en double, byes cohérents, aucun match orphelin, champion unique, comptes de matchs, cibles… |
-| Vérification | 52 anomalies brutes → **38 défauts canoniques**, chacun attaqué par des vérificateurs adverses chargés de le démolir (3 angles pour D1–D21, 2 pour D22–D38) |
-| **Résultat** | **34 confirmés · 4 faux positifs · 0 non vérifié** |
-
-**Note de méthode :** l'exécution a heurté deux fois la limite de session. Les vérificateurs interrompus ont tous été relancés (reprise du 26/07 8h28, puis étape 4). Le rapport de synthèse automatique a échoué : **ce document a été rédigé à la main** à partir des verdicts bruts.
+| Vérification | 52 anomalies brutes → **38 défauts canoniques**, chacun attaqué par des vérificateurs adverses chargés de le démolir |
+| **Résultat de l'audit** | **34 confirmés · 4 faux positifs · 0 non vérifié** |
+| **Corrections** | **32 déployées** · 2 écartées volontairement |
 
 ---
 
-## 3. CE QUI MARCHE (solide)
+## 3. CE QUI MARCHE (validé)
 
-- ✅ **Le cœur du moteur est juste.** 30 seeds sur 30 en config nominale : classement correct, tirage correct, champion désigné, zéro violation.
-- ✅ **Classement de poule et barrages 701** : 64 vérifications directes sur `barrage.js`, 0 échec.
-- ✅ **Planning des cibles en poules** : 0 écart avec l'appariement optimal sur 84 phases testées.
-- ✅ **Verrou anti-double-comptage** (2 téléphones sur le même match) : fonctionne.
+- ✅ **Le cœur du moteur est juste** : classement, tirage, barrages 701, planning des cibles, verrou anti-double-comptage.
 - ✅ **Aucun crash** sur 3 024 configurations balayées de 2 à 64 équipes.
+- ✅ **360 configurations** rejouées après chaque correction : 0 crash, 0 blocage, 0 violation d'invariant.
+- ✅ **7 suites de tests** + 5 tests de simulation dédiés aux correctifs, tous verts.
 
 ---
 
-## 4. LES 6 CORRECTIONS DÉPLOYÉES
+## 4. LES 32 CORRECTIONS DÉPLOYÉES
 
-| | Défaut | Ce qui a changé | Commit |
+### 🔴 Bloquant
+| id | Défaut | Correction | Version |
 |---|---|---|---|
-| 🟠 | **D3** consolante et petite finale affichées « activées » mais jamais créées (13 options sur 13) | `resolveBracketConfig()` dans `doLaunch()` : ce que l'écran promet est ce qui est créé | `eed0bc0` v60 |
-| 🟡 | **D4** petite finale bloquée quand une demi est un exempt | elle n'est créée que s'il y aura deux vrais perdants | `eed0bc0` v60 |
-| 🟠 | **D1 + D5 + D18** la 2ᵉ carte de taille de tableau fabriquait des cases mortes | proposée seulement si `qualifiés >= taille/2` ; plafond 32 retiré ; 2 garde-fous runtime | `eed0bc0` v60 |
-| 🔴 | **D2** (partiel) un score du tableau ne pouvait jamais être corrigé | bouton « ✏️ Corriger le score » sur les matchs terminés ; message de blocage réécrit | `eed0bc0` v60 |
-| 🟠 | **D24** les égalités parfaites départagées par le tirage au sort | **confrontation directe** ajoutée comme dernier critère, après le barrage 701 | `89428a5` v61 |
+| **D2** | Un score du tableau ne pouvait **jamais** être corrigé | Bouton « Corriger le score » + message de blocage réécrit ⚠️ *l'inversion en cascade reste bloquée si le match suivant est déjà joué* | v60 |
 
-**Preuves :** 360 configurations → **0 blocage** (il y en avait **20**) · 20 équipes en 5×4 et 4×5 → champion 25/25, 3ᵉ place 25/25, consolante 25/25 · 7 suites de tests · build · lint · chargement vérifié dans le vrai navigateur.
-
-⚠️ **Reste de D2 :** si le match SUIVANT a déjà été joué, l'inversion reste bloquée (défaire une cascade est trop risqué pour être bricolé). Le message dit maintenant la vérité au lieu d'envoyer sur une manœuvre impossible.
-
----
-
-## 5. LES 27 DÉFAUTS CONFIRMÉS RESTANTS
-
-### 🟠 Majeurs (5)
-
-| id | défaut | ce que tu verrais | lieu |
+### 🟠 Majeurs (8)
+| id | Défaut | Correction | Version |
 |---|---|---|---|
-| **D6** | Lecture « déchirée » dans `reload()` | Lancer les éliminatoires dans la seconde qui suit le dernier score → une égalité à 3 passe inaperçue, pas de barrage. 44-53 % des tournois ont au moins une égalité | `AppTournoiPotes.jsx:1726` |
-| **D8** | « Les 3 premiers » redevient « les 2 premiers » | Des équipes qualifiées disparaissent sans un mot (15 → 10 mesuré). Dépend d'une colonne absente en base | `AppTournoiPotes.jsx:1843` |
-| **D10** | Coupure réseau pendant une saisie du tableau | « Erreur », tu re-saisis, l'appli dit OK, mais le gagnant ne monte jamais. Contournement non documenté : saisir le score inverse puis re-corriger | `AppTournoiPotes.jsx:1917` |
-| **D13** | « Revenir aux poules » efface les barrages 701 joués | Il faut les rejouer devant le club — et le résultat peut différer | `AppTournoiPotes.jsx:43` |
-| **D14** | Consolante inéquitable | Le vainqueur a joué moins de matchs que les autres dans 13 seeds sur 20 (config par défaut à 10 repêchés) | `AppTournoiPotes.jsx:185` |
+| **D1 / D5 / D18** | La 2ᵉ carte de taille de tableau fabriquait des cases mortes → aucun champion | Proposée seulement si `qualifiés ≥ taille/2` ; plafond 32 retiré ; 2 garde-fous runtime | v60 |
+| **D3** | Consolante et petite finale affichées ACTIVÉES mais jamais créées (13 options sur 13) | `resolveBracketConfig()` dans `doLaunch()` | v60 |
+| **D24** | Les égalités parfaites départagées par le **tirage au sort** | **Confrontation directe** ajoutée comme dernier critère, après le barrage 701 | v61 |
+| **D6** | Une vraie égalité pouvait devenir invisible au lancement | Relecture fraîche + classement recalculé depuis les matchs + refus de lancer s'il reste un barrage | v62 |
+| **D10** | Coupure réseau pendant une saisie → tableau figé | Avancement auto-réparé si la case suivante est vide | v62 |
+| **D13** | « Revenir aux poules » effaçait les barrages 701 joués | `phase=not.in.(poules,barrage)` | v62 |
+| **D14** | Consolante inéquitable (vainqueur avec 1 seul match) | Vrai tableau puissance de 2, tous les exempts au 1ᵉʳ tour | v63 |
+| **D8** | Le réglage « qualifiés par poule » pouvait être perdu en silence | Relecture après écriture + alerte si échec | v63 |
 
-### 🟡 Mineurs (14)
-D7 corriger un score de poule pendant les finales efface les stats du tableau (course à 2 téléphones) · D9 inscrit de dernière minute toujours en poule 1, parfois sans match · D11 session live zombie gèle les cibles jusqu'à 45 min · D15 aucun planning de cibles en éliminatoires (8 à 14 équipes convoquées pour 2 cibles) · D16 l'alerte « c'est à toi de jouer » consommée pour rien, ne re-sonne jamais · D17 la carte « 3 joueurs par poule » promet 14 qualifiés et en donne 7 · D19 les garde-fous du wizard n'empêchent rien · D20 répartition par arrondi → poule de 2 (élimination après un seul match) · D21 la durée estimée ignore la taille de tableau · D28 `saisirScore` calcule depuis l'état React périmé · D31 fausse bannière « Égalité à départager » avec bouton mort · D33 un exempt s'affiche « Terminé 0-0 contre À définir » · D34 texte faux sous « Consolante » · D37 deux réglages fantômes
-
-### ⚪ Cosmétiques (8)
-D22 exempts comptés comme des matchs à jouer · D23 barrages 701 absents des compteurs et de la durée · D25 2ᵉ critère de départage des barrages inopérant (commentaire mensonger) · D30 le compteur « à jouer » peut dépasser le nombre de cibles · D32 21 écritures Supabase par score de poule · D35 aperçu des croisements jamais affiché (code mort) · D36 collision de `position_bracket` entre barrages · D38 commentaire trompeur
-
-### ❌ Écartés après vérification (4)
-**D12** barrage orphelin · **D26** abandon silencieux au 30ᵉ tour de barrage · **D27** doublons de barrage (déclencheur principal déjà bloqué) · **D29** corriger un barrage ne recalcule rien (ligne citée fausse, chemin inatteignable)
+### 🟡 Mineurs et cosmétiques (23)
+| Version | Corrections |
+|---|---|
+| v60 | **D4** petite finale plus jamais bloquée quand une demi est un exempt |
+| v64 | **D15** planning des cibles en phase finale (**18 équipes convoquées → 4**) |
+| v65 | **D16** l'alerte « c'est à toi de jouer » re-sonne quand il faut (anti-rebond 60 s) |
+| v68 | **D33** un exempt ne s'affiche plus « Terminé 0-0 » · **D11** bouton « Débloquer les cibles » |
+| v69 | **D9** lobby fermé avant le tirage · **D20** alerte poule de 2 · **D31** fausse bannière d'égalité · **D7** correction de poule refusée pendant le tableau · **D28** lecture fraîche dans `saisirScore` · **D17** cartes annonçant le vrai nombre de qualifiés · **D21/D22/D23** durées et compteurs justes · **D37** réglages qui survivent · **D30** compteur ≤ nombre de cibles · **D34** texte consolante exact · **D35** aperçu des croisements enfin affiché · **D36** collision `position_bracket` · **D25/D38** commentaires trompeurs |
 
 ---
 
-## 6. LA CONFIG RECOMMANDÉE
+## 5. FAUX POSITIFS ÉCARTÉS (4)
+**D12** barrage orphelin · **D26** abandon silencieux au 30ᵉ tour · **D27** doublons de barrage · **D29** correction de barrage sans recalcul.
 
-Vérifiée sur **25 tournois** : 25/25 champions, **0 violation, 0 case morte, 0 exempt**.
+---
 
-> **4 poules de 5 joueurs** · **les 2 premiers qualifiés** · **taille de tableau par défaut** · **consolante 2 repêchés**
+## 6. ⛔ LES 2 DÉFAUTS LAISSÉS VOLONTAIREMENT
 
-→ 40 matchs de poule → 8 qualifiés → tableau de 8 **sans aucun exempt** → consolante à 8 équipes **équitable**.
+**Ne pas les « réparer » sans relire ces raisons.**
 
-**Précautions restantes le jour J :**
-1. ⏳ **Attendre 2-3 secondes** après le dernier score de poule avant « Lancer les éliminatoires » → évite D6
-2. ✍️ **Relire chaque score du tableau** avant de valider — corrigeable, mais pas si le match suivant est déjà joué → D2
-3. 📵 En cas d'« Erreur » réseau pendant une saisie du tableau : vérifier que le gagnant est bien monté → D10
-4. 🔁 Éviter « Revenir aux poules » si des barrages 701 ont été joués → D13
+### D32 — 21 écritures Supabase par score de poule
+L'upsert groupé proposé (`Prefer: resolution=merge-duplicates`) est un vrai `INSERT … ON CONFLICT` : un `id` inconnu **créerait une ligne joueur fantôme** visible dans les poules et le classement, et une colonne `NOT NULL` absente ferait **échouer chaque saisie de score**.
+Or : les `PATCH` partent **en parallèle** (`Promise.all`, ~6 aller-retours réels), le bouton est déjà désactivé pendant l'attente, l'egress n'est plus un sujet (plan Supabase Pro), et ce bloc est le **cœur auto-guérissant du classement** — il réécrit tout depuis la vérité des matchs à chaque saisie, ce qui répare tout seul une écriture perdue.
+→ **Risque de corruption ≫ gain invisible.**
+
+### D19 — Garde-fous du wizard non appliqués
+Le constat est exact (le bouton n'est jamais grisé, `validateBracketConfiguration` n'est branché nulle part), mais **aucune erreur n'est plus atteignable** : le lobby bloque déjà moins de 2 participants, le clamp de D17 absorbe les qualifiés trop nombreux, et `sizeOptions` + `nextPow2TP` ont supprimé les configurations mortelles.
+Griser le bouton n'attraperait donc plus rien, mais **bloquerait un cas légitime** : un petit tournoi à 1 qualifié par poule, qui fonctionne aujourd'hui (tableau de 2 + `propagerByes`). Et un bouton grisé sans explication est le pire scénario pour un non-technicien un soir de tournoi.
+→ **Défaut latent, à laisser tel quel.**
 
 ---
 
 ## 7. CE QUI N'A PAS ÉTÉ COUVERT
 
-- ❌ **Aucun test sur de vrais téléphones** ni sur le vrai Supabase. Les problèmes de concurrence et de réseau sont **déduits du code**, pas observés en conditions réelles.
-- ❌ **L'interface n'a pas été parcourue visuellement** dans un navigateur (seuls le chargement des modules et la logique pure ont été vérifiés). Rien sur les débordements, la lisibilité mobile à 20 équipes, les listes longues.
-- ❌ La partie React de `saisirScore` / `lancerEliminatoires` est **portée ligne à ligne** dans le simulateur (le reste est extrait automatiquement) — une divergence reste possible. Resynchronisée à la main le 26/07.
-- ❌ Les corrections déployées n'ont **pas encore été éprouvées sur un vrai tournoi** au club.
+- ❌ **Aucun test sur de vrais téléphones** ni sur le vrai Supabase : tout est simulé en mémoire. Les problèmes de concurrence et de réseau sont **déduits du code**, pas observés.
+- ❌ **L'interface n'a pas été parcourue visuellement** : seuls le chargement des modules, l'absence d'erreur console et la logique pure ont été vérifiés.
+- ❌ La partie React de `saisirScore` / `lancerEliminatoires` est **portée ligne à ligne** dans le simulateur (le reste est extrait automatiquement) — une divergence reste possible.
+- ❌ **Les 32 corrections n'ont pas encore servi lors d'un vrai tournoi.**
+
+👉 **La prochaine étape la plus utile n'est plus du code : c'est un tournoi d'essai à 4-6 joueurs.** Une heure suffit pour éprouver en conditions réelles ce qu'aucune simulation ne peut confirmer.
 
 ---
 
-## 8. ORDRE DE CORRECTION RECOMMANDÉ POUR LA SUITE
+## 8. LA CONFIG RECOMMANDÉE POUR 20 ÉQUIPES
 
-1. **D13** — ne plus effacer les barrages au retour aux poules (*correctif d'une ligne*)
-2. **D6 + D10 + D28** — fiabiliser les écritures (recalcul depuis les matchs, avancement idempotent, lecture fraîche)
-3. **D14** — consolante équitable (byes au 1ᵉʳ tour au lieu de la réduction par moitié)
-4. **D15 + D16** — planning des cibles en éliminatoires et alerte « c'est à toi de jouer »
-5. **D8 + D17 + D19 + D20** — garde-fous et libellés du wizard
-6. **D2 (suite)** — inversion en cascade, si le besoin se confirme à l'usage
-7. Le reste (D7, D9, D11, D21, D31, D33, D34, D37 + cosmétiques) au fil de l'eau
+Vérifiée sur **25 tournois** : 25/25 champions, 0 violation, 0 case morte, 0 exempt.
 
----
+> **4 poules de 5 joueurs** · **les 2 premiers qualifiés** · **taille de tableau par défaut** · **consolante 2 repêchés**
 
-*Fichiers de l'audit : `NOTICE-SIMULATEUR.md`, `cartes/*.md`, `rapports/*.md`, `sorties/*.txt`, `defauts-canoniques.md`, `anomalies-etape2.json`, `non-verifies.json`.*
+→ 40 matchs de poule → 8 qualifiés → tableau de 8 **sans aucun exempt** → consolante à 8 équipes **équitable**.
+
+**Seule précaution qui reste :** faire relire chaque score du tableau avant de valider — il est corrigeable, sauf si le match suivant a déjà été joué.
+
+*(Les précautions d'origine sur l'égalité invisible, la 2ᵉ carte de tableau, la coupure réseau et les barrages effacés ne sont plus nécessaires : elles sont corrigées dans le code.)*
