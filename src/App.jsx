@@ -6909,9 +6909,9 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
             sub="Le grand classique. Choisis 501 ou 301, descends à 0 et termine sur un double."
             onClick={()=>setPage("scoreur")}/>
 
-          {/* 2. Affronte un bot */}
-          <GameCardImg img="bot" label="Affronte un bot" priorite
-            sub="Joue seul contre l'ordi — ou défie le champion Lucky Tillter."
+          {/* 2. Affronte le bot d'un pote — libellé recopié de la bannière (v2 des images) */}
+          <GameCardImg img="bot" label="Affronte le bot d'un pote" priorite
+            sub="Joue contre le bot de ton pote comme s'il était à côté de toi, avec son véritable niveau et son style de jeu."
             onClick={()=>setPage("scoreur-bot")}/>
 
           {/* 3. Cricket */}
