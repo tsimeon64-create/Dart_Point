@@ -6415,27 +6415,20 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         @keyframes livePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.35)} }
       `}</style>
 
-      <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:10,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:"10px 6px",minHeight:44,touchAction:"manipulation" }}><ArrowLeft size={16}/> Accueil</button>
-
-      {/* ── Hero header ── */}
-      <div style={{ position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#0a0014,#050010,#000814)",border:"1px solid rgba(168,85,247,0.15)",borderRadius:20,padding:"20px 20px 18px",marginBottom:20 }}>
-        <div style={{ position:"absolute",top:-30,right:-20,width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,rgba(168,85,247,.12),transparent 70%)",pointerEvents:"none" }}/>
-        <div style={{ position:"absolute",bottom:-20,left:40,width:80,height:80,borderRadius:"50%",background:"radial-gradient(circle,rgba(249,115,22,.08),transparent 70%)",pointerEvents:"none" }}/>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",position:"relative" }}>
-          <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-            <div style={{ width:52,height:52,borderRadius:14,background:"linear-gradient(135deg,#7c3aed,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 20px rgba(168,85,247,0.4)",flexShrink:0 }}>
-              <Users size={26} color="#fff"/>
-            </div>
-            <div>
-              <h1 style={{ fontWeight:900,fontSize:22,margin:0,color:"#f1f5f9",letterSpacing:-.3 }}>Le Comptoir</h1>
-              <p style={{ color:"#64748b",fontSize:12,margin:0,marginTop:3 }}>L'actualité de tes amis</p>
-            </div>
-          </div>
-          <button onClick={()=>{ setLoading(true); setRefreshTick(t=>t+1); }} style={{ background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",color:C.muted,cursor:"pointer",borderRadius:10,padding:"8px",display:"flex",touchAction:"manipulation",transition:"all .15s" }} title="Rafraîchir">
-            <RefreshCw size={16}/>
-          </button>
-        </div>
+      {/* Ligne du haut : retour à gauche, rafraîchir à droite (il était dans le bandeau,
+          qui est maintenant une image et ne peut donc plus rien contenir de cliquable). */}
+      <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,gap:8 }}>
+        <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",gap:6,padding:"10px 6px",minHeight:44,touchAction:"manipulation" }}><ArrowLeft size={16}/> Accueil</button>
+        <button onClick={()=>{ setLoading(true); setRefreshTick(t=>t+1); }} title="Rafraîchir" aria-label="Rafraîchir le fil"
+          style={{ background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",color:C.muted,cursor:"pointer",borderRadius:10,minWidth:44,minHeight:44,display:"flex",alignItems:"center",justifyContent:"center",touchAction:"manipulation",transition:"all .15s",flexShrink:0 }}>
+          <RefreshCw size={16}/>
+        </button>
       </div>
+
+      {/* ── Bandeau (image fournie : titre et sous-titre sont dessinés dedans) ── */}
+      <img src="/comptoir/bandeau.webp" alt="Le Comptoir — l'actualité de tes amis"
+        width={1600} height={420} decoding="async"
+        style={{ display:"block",width:"100%",height:"auto",borderRadius:20,marginBottom:20 }}/>
 
       {/* ── Onglets ── */}
       <div style={{ display:"flex",background:"#0d0d12",border:"1px solid #ffffff08",borderRadius:14,padding:4,gap:4,marginBottom:20 }}>
