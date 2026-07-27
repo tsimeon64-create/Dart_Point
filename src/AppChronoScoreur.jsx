@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { ArrowLeft, Timer, Trophy, Zap, Target } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
+import { confirmer } from "./uiConfirm.jsx";
 
 const C = {
   bg:"#0f0f0f", card:"#1a1a1a", card2:"#141414", border:"#2a2a2a",
@@ -498,7 +499,7 @@ export const ChronoScoreur = ({ joueur, setPage }) => {
 
   const abandonner = async () => {
     // Confirmation : l'abandon consomme la vie du jour, pas de rejeu possible
-    if (!window.confirm("⚠ Abandonner ?\n\nC'est ta seule vie du jour. Tu ne pourras pas recommencer avant demain.\n\n0 DRIX gagné si tu abandonnes.")) return;
+    if (!(await confirmer("⚠ Abandonner ?\n\nC'est ta seule vie du jour. Tu ne pourras pas recommencer avant demain.\n\n0 DRIX gagné si tu abandonnes.", { danger: true, ok: "Abandonner" }))) return;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     const finalMs = Math.round(performance.now() - startTimeRef.current + penaltyMsRef.current);
     if (runIdRef.current) {

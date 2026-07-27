@@ -3,7 +3,9 @@ import QRCode from "qrcode";
 import { Scoreur } from "./AppJeux";
 import { EmoIcon, EmoText } from "./icons";
 import { rankGroup, egalitesADepartager } from "./barrage";
+import { optimizePoolMatchOrder } from "./tournoiConfig";
 import { TournoiSetupWizard } from "./TournoiSetupWizard";
+import { confirmer } from "./uiConfirm.jsx";
 
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -664,8 +666,12 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
       {/* Rejoindre le tournoi (joueur non inscrit) */}
       {peutRejoindre&&(
         <Card style={{marginBottom:16,background:CT.accent+"11",border:`1px solid ${CT.accent}66`}}>
-          <h3 style={{fontWeight:800,fontSize:16,marginBottom:4,color:CT.accent,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🙋" size={16}/>Rejoindre le tournoi</h3>
-          <p style={{fontSize:12.5,color:CT.muted,marginBottom:14}}>{isDoublette?"Tournoi en doublette — inscris ton équipe (2 joueurs).":"Inscris-toi à ce tournoi."}{!estConnecte&&" Pas besoin de compte."}</p>
+          {/* Le créateur voit la même carte, mais « Rejoindre » n'a pas de sens pour son propre
+              tournoi : on lui parle de PARTICIPER, puisqu'il peut très bien se contenter d'arbitrer. */}
+          <h3 style={{fontWeight:800,fontSize:16,marginBottom:4,color:CT.accent,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🙋" size={16}/>{isCreateur?"Participer au tournoi":"Rejoindre le tournoi"}</h3>
+          <p style={{fontSize:12.5,color:CT.muted,marginBottom:14}}>{isCreateur
+            ? (isDoublette?"Tu organises ce tournoi. Tu peux aussi y jouer : inscris ton équipe (2 joueurs).":"Tu organises ce tournoi. Tu peux aussi y jouer — sinon, laisse simplement les autres s'inscrire.")
+            : (isDoublette?"Tournoi en doublette — inscris ton équipe (2 joueurs).":"Inscris-toi à ce tournoi.")}{!estConnecte&&" Pas besoin de compte."}</p>
           {estConnecte
             ? <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:"#111",borderRadius:8,marginBottom:isDoublette?12:14}}>
                 <EmoIcon e="👤" size={18} color={CT.accent}/>
@@ -773,6 +779,23 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
           )}
         </Card>
       )}
+
+      {/* Organisateur — il n'est PAS inscrit d'office comme joueur : organiser et jouer sont deux
+          choses différentes. On le montre ici pour qu'on sache qui mène le tournoi, et s'il veut
+          jouer il s'inscrit avec le bouton « Rejoindre le tournoi » comme tout le monde. */}
+      <Card style={{marginBottom:16,background:CT.blue+"0d",border:`1px solid ${CT.blue}33`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <span style={{width:30,height:30,borderRadius:"50%",background:CT.blue+"22",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><EmoIcon e="👑" size={15} color={CT.blue}/></span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:11,color:CT.muted,fontWeight:700,letterSpacing:.5,textTransform:"uppercase"}}>Créateur du tournoi</div>
+            <div style={{fontWeight:800,fontSize:15,color:CT.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tournoi.createur_pseudo||"—"}</div>
+          </div>
+          {(() => {
+            const createurJoue=joueurs.some(j=>j.joueur_id===tournoi.createur_id||(Array.isArray(j.membres)&&j.membres.some(m=>m&&m.id===tournoi.createur_id)));
+            return <Badge color={createurJoue?CT.green:CT.muted}>{createurJoue?"joue aussi":"ne joue pas"}</Badge>;
+          })()}
+        </div>
+      </Card>
 
       {/* Players list */}
       <Card style={{marginBottom:16}}>
@@ -981,7 +1004,7 @@ const useStatsTournoi=(joueurs,refreshKey=0)=>{
   return stats;
 };
 
-const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,onLibererCibles,joueurConnecte,canPlay=false,onOpenShare,onModifier,saving=false,live=null,bracketLance=false,stats=null})=>{
+const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,ciblesMode="optimise",onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,onLibererCibles,joueurConnecte,canPlay=false,onOpenShare,onModifier,saving=false,live=null,bracketLance=false,stats=null})=>{
   const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
   const groupes=Array.from({length:nbGroupes},(_,i)=>i+1);
   // Ma poule (celle du joueur connecté) → pour l'⭐ sur l'onglet.
@@ -994,8 +1017,22 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
   const allDone=total>0&&termines.length===total;
   // Planning des cibles : quels matchs jouer maintenant (vert) vs en attente
   const pending=matchs.filter(m=>m.phase==="poules"&&m.statut!=="termine"&&m.joueur1_id&&m.joueur2_id);
-  const actifs=matchsSurCibles(pending,nbCibles,matchs,live);
-  const enAttente=Math.max(0,pending.length-actifs.size);
+  // Mode « une poule par cible » : chaque poule est installée sur sa cible et s'organise seule.
+  // TOUS ses matchs restants sont donc lançables — on n'impose aucune rotation, on propose juste
+  // un ordre conseillé (voir ordreConseille) pour que personne n'enchaîne deux matchs de suite.
+  const parPoule=ciblesMode==="par_poule";
+  const actifs=parPoule?new Set(pending.map(m=>m.id)):matchsSurCibles(pending,nbCibles,matchs,live);
+  const enAttente=parPoule?0:Math.max(0,pending.length-actifs.size);
+  // Ordre conseillé DANS chaque poule (1, 2, 3…) : id du match → numéro. Uniquement en mode par poule.
+  const ordreConseille=(()=>{
+    if(!parPoule)return {};
+    const par={};
+    for(const g of [...new Set(pending.map(m=>m.groupe))]){
+      const ordonne=optimizePoolMatchOrder(pending.filter(m=>m.groupe===g),1);
+      ordonne.forEach((m,i)=>{ par[m.id]=i+1; });
+    }
+    return par;
+  })();
   // Affichage : on distingue les matchs À LANCER de ceux DÉJÀ EN COURS (voir compterEnCours).
   // Avant, le compteur vert additionnait les deux : il invitait à lancer des matchs déjà commencés,
   // et il pouvait annoncer plus de matchs qu'il n'y a de cibles.
@@ -1056,6 +1093,14 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,onSetCi
     return(
       <div key={m.id} style={{borderRadius:12,padding:"11px 13px",marginBottom:8,background:bg,border:`1px solid ${bordC}`,opacity:attente?0.62:1}}>
         {barrage&&<div style={{fontSize:8.5,fontWeight:800,color:RED_TP,letterSpacing:.6,marginBottom:7}}>BARRAGE · 701</div>}
+        {/* Ordre CONSEILLÉ (mode une poule par cible) : les joueurs restent libres de choisir, mais
+            suivre ces numéros évite qu'un même joueur enchaîne deux matchs de suite. */}
+        {!barrage&&!done&&ordreConseille[m.id]&&(
+          <div style={{fontSize:9.5,fontWeight:800,color:ordreConseille[m.id]===1?CT.accent:CT.muted,letterSpacing:.5,marginBottom:7,display:"flex",alignItems:"center",gap:4}}>
+            <span style={{width:16,height:16,borderRadius:"50%",background:(ordreConseille[m.id]===1?CT.accent:CT.muted)+"22",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:9}}>{ordreConseille[m.id]}</span>
+            {ordreConseille[m.id]===1?"CONSEILLÉ MAINTENANT":"ORDRE CONSEILLÉ"}
+          </div>
+        )}
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:9}}>
           <div style={{flex:1,display:"flex",alignItems:"center",gap:8,minWidth:0}}>
             {av(j1?.nom,col,g1)}
@@ -1864,6 +1909,11 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   const [saving,setSaving]=useState(false);
   const [cibles,setCibles]=useState(2);
   const [nbQualLocal,setNbQualLocal]=useState(2); // repli d'affichage si la colonne nb_qualifies n'existe pas encore
+  // Organisation des cibles : "optimise" (l'appli répartit et convoque) ou "par_poule" (chaque poule
+  // sur sa cible, les joueurs s'organisent). Repli local si la colonne cibles_mode n'existe pas encore.
+  const [ciblesModeLocal,setCiblesModeLocal]=useState("optimise");
+  // Source de vérité : la colonne si elle existe, sinon le réglage de CE téléphone.
+  const ciblesMode=(tournoi&&tournoi.cibles_mode)||ciblesModeLocal;
   const [showShare,setShowShare]=useState(false);
   const [codeUnlocked,setCodeUnlocked]=useState(()=>{ try{return localStorage.getItem("dp_tp_player_"+tournoiId)==="1";}catch(e){return false;} });
   const [liveInfo,setLiveInfo]=useState(()=>({occ:new Set(),pairs:new Set()})); // joueurs/matchs en train de scorer maintenant (live_sessions en_cours)
@@ -1967,10 +2017,11 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   },[tournoi?.statut,isCreateur,matchs,tournoiId,reload]);
 
   // ── Lancer le tournoi (phase poules)
-  const lancerTournoi=async(poolSize=4,poolManches=2,nbCibles=2,nbQualif=2)=>{
+  const lancerTournoi=async(poolSize=4,poolManches=2,nbCibles=2,nbQualif=2,ciblesMode="optimise")=>{
     if(joueurs.length<2)return;
     setSaving(true);
     setNbQualLocal(nbQualif); // affichage immediat (avant meme la relecture du tournoi)
+    setCiblesModeLocal(ciblesMode); // idem : le mode s'applique tout de suite, même si la colonne manque
     // Repères pour le repli en cas d'erreur (voir le catch en bas de la fonction).
     let lobbyFerme=false, matchsCrees=false;
     try{
@@ -2010,6 +2061,9 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       // appareil, ou un simple rechargement, repartirait sur la valeur par défaut (2 qualifiés) et des
       // équipes qualifiées disparaîtraient sans un mot. On vérifie donc que la valeur a bien atterri.
       try{ await dbTP.updateTournoi(tournoiId,{nb_cibles:nbCibles}); }catch(e){ /* colonne nb_cibles absente : sans effet sur les qualifiés */ }
+      // Colonne cibles_mode facultative : si elle n'existe pas encore, le mode reste valable sur CE
+      // téléphone (ciblesModeLocal) et l'appli retombe simplement sur "optimisé" ailleurs.
+      try{ await dbTP.updateTournoi(tournoiId,{cibles_mode:ciblesMode}); }catch(e){ /* colonne cibles_mode pas encore créée */ }
       let qualifPersiste=false;
       try{
         await dbTP.updateTournoi(tournoiId,{nb_qualifies:nbQualif});
@@ -2038,7 +2092,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   const libererCibles=async()=>{
     const ids=joueurs.map(j=>j.id).filter(Boolean);
     if(!ids.length)return;
-    if(!window.confirm("Débloquer les cibles ?\n\nÇa ferme les scoreurs restés ouverts (téléphone déchargé, appli fermée en plein match).\n\n⚠️ Si quelqu'un est VRAIMENT en train de scorer, son scoreur ne sera plus reconnu : il devra saisir le score à la main."))return;
+    if(!(await confirmer("Débloquer les cibles ?\n\nÇa ferme les scoreurs restés ouverts (téléphone déchargé, appli fermée en plein match).\n\n⚠️ Si quelqu'un est VRAIMENT en train de scorer, son scoreur ne sera plus reconnu : il devra saisir le score à la main.")))return;
     setSaving(true);
     try{
       const seuil=Date.now()-45*60*1000;
@@ -2274,7 +2328,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     const msg=nbJoues>0
       ? `Revenir aux réglages du tournoi ?\n\n⚠️ ${nbJoues} match(s) déjà joué(s) : les résultats des poules seront effacés.\n\n✅ Les ${joueurs.length} joueur(s) inscrit(s) sont CONSERVÉS.`
       : `Revenir aux réglages du tournoi ?\n\nLes poules seront annulées (aucun match joué).\n✅ Les ${joueurs.length} joueur(s) inscrit(s) sont CONSERVÉS.`;
-    if(!window.confirm(msg))return;
+    if(!(await confirmer(msg)))return;
     setSaving(true);
     try{
       await sbTP(`tournois_potes_matchs?tournoi_id=eq.${tournoiId}`,{method:"DELETE",prefer:"return=minimal"}); // supprime TOUS les matchs
@@ -2289,7 +2343,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   const retourPoules=async()=>{
     const nbBarrages=matchs.filter(m=>m.phase==="barrage"&&m.statut==="termine").length;
     const ligneBarrages=nbBarrages>0?`\n✅ Les ${nbBarrages} match(s) de barrage 701 déjà joué(s) sont CONSERVÉS.`:"";
-    if(!window.confirm(`Revenir à la phase de poules ?\n\nLe tableau actuel sera supprimé.\n✅ Les poules et leurs résultats sont conservés.${ligneBarrages}`))return;
+    if(!(await confirmer(`Revenir à la phase de poules ?\n\nLe tableau actuel sera supprimé.\n✅ Les poules et leurs résultats sont conservés.${ligneBarrages}`)))return;
     setSaving(true);
     try{
       await dbTP.deleteMatchsTableau(tournoiId);
@@ -2313,7 +2367,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     const msg=allDone
       ? "Terminer le tournoi ?\n\nTu verras le champion et le classement final."
       : "⚠️ Tous les matchs ne sont pas encore terminés.\n\nTerminer le tournoi quand même maintenant ?";
-    if(!window.confirm(msg))return;
+    if(!(await confirmer(msg)))return;
     setSaving(true);
     try{
       await dbTP.updateTournoi(tournoiId,{statut:"termine"});
@@ -2362,7 +2416,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
 
   // ── Supprimer le tournoi
   const supprimerTournoi=async()=>{
-    const ok=window.confirm(`⚠️ Supprimer "${tournoi.nom}" ?\n\nTous les matchs et résultats seront perdus. Cette action est irréversible.`);
+    const ok=await confirmer(`⚠️ Supprimer "${tournoi.nom}" ?\n\nTous les matchs et résultats seront perdus. Cette action est irréversible.`,{danger:true});
     if(!ok)return;
     try{
       await dbTP.deleteTournoi(tournoiId);
@@ -2431,6 +2485,9 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
     const estMoi=(id)=>id!=null&&String(id)===String(myRowId);
     // Un match "en cours" (scoreur déjà lancé sur un appareil) ne doit PLUS déclencher l'alerte "c'est à toi de jouer" → on ne lance pas un 2e scoreur.
     const estEnCours=(m)=>!!liveInfo&&!!liveInfo.pairs&&liveInfo.pairs.has([String(m.joueur1_id),String(m.joueur2_id)].sort().join("|"));
+    // Mode « une poule par cible » : chaque poule est autour de sa cible et s'organise seule.
+    // Aucune convocation n'a de sens (elle sonnerait chez toute la poule à la fois) → silence.
+    if(ciblesMode==="par_poule"&&tournoi.statut==="poules")return null;
     // 1) Poule active : meme regle que PoulesView (rotation des cibles).
     if(tournoi.statut==="poules"){
       const pending=matchs.filter(m=>m.phase==="poules"&&m.statut!=="termine"&&m.joueur1_id&&m.joueur2_id);
@@ -2517,12 +2574,12 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           if(cfg.mode&&cfg.mode!==tournoi.mode)patch.mode=cfg.mode;
           if(cfg.format&&cfg.format!==tournoi.format)patch.format=cfg.format;
           if(Object.keys(patch).length){ try{ await dbTP.updateTournoi(tournoiId,patch); setTournoi(t=>t?{...t,...patch}:t); }catch(e){} }
-          await lancerTournoi(cfg.playersPerPool,cfg.manches,cfg.availableTargets,cfg.qualifiersPerPool);
+          await lancerTournoi(cfg.playersPerPool,cfg.manches,cfg.availableTargets,cfg.qualifiersPerPool,cfg.ciblesMode);
         }}
       />}
       {tournoi.statut==="poules"&&(
         <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} isCreateur={isCreateur}
-          nbCibles={cibles} nbQual={tournoi.nb_qualifies!=null?tournoi.nb_qualifies:nbQualLocal} onSetCibles={changerCibles} canPlay={canPlay} onOpenShare={()=>setShowShare(true)} onModifier={retourLobby}
+          nbCibles={cibles} nbQual={tournoi.nb_qualifies!=null?tournoi.nb_qualifies:nbQualLocal} ciblesMode={ciblesMode} onSetCibles={changerCibles} canPlay={canPlay} onOpenShare={()=>setShowShare(true)} onModifier={retourLobby}
           onSaisirScore={m=>setMatchModal(m)}
           onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
           onLancerEliminatoires={()=>setShowBracketConfig(true)}
@@ -2577,7 +2634,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         </div>
         {vuePhase==="poules"
           ? <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} isCreateur={isCreateur}
-              nbCibles={cibles} nbQual={tournoi.nb_qualifies!=null?tournoi.nb_qualifies:nbQualLocal} canPlay={canPlay} onOpenShare={()=>setShowShare(true)}
+              nbCibles={cibles} nbQual={tournoi.nb_qualifies!=null?tournoi.nb_qualifies:nbQualLocal} ciblesMode={ciblesMode} canPlay={canPlay} onOpenShare={()=>setShowShare(true)}
               onSaisirScore={m=>setMatchModal(m)}
               onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
               saving={saving} joueurConnecte={joueurConnecte} live={liveInfo} bracketLance={true} stats={statsTournoi}/>
@@ -2657,7 +2714,9 @@ export const TournoiPotesPage=({joueur,setPage})=>{
       try{ t=await dbTP.createTournoi({...base,format:form.format}); }
       catch(err){ t=await dbTP.createTournoi(base); } // repli si la colonne "format" n'existe pas encore
       if(!t)throw new Error("Création échouée");
-      await dbTP.addJoueur({tournoi_id:t.id,nom:joueur.pseudo,joueur_id:joueur.id,groupe:1,ordre:0,points:0,victoires:0,defaites:0,manches_pour:0,manches_contre:0});
+      // Le créateur n'est PLUS inscrit d'office comme joueur : organiser un tournoi et y jouer sont
+      // deux choses différentes. S'il veut jouer, il s'inscrit comme tout le monde (bouton
+      // « Je participe » dans le lobby). Sinon il apparaissait dans les poules sans l'avoir voulu.
       setPage("tournoi-potes-"+t.id);
     }catch(e){alert("Erreur : "+e.message);}
     setSaving(false);

@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback, Component } from "re
 import { C, Z } from "./theme";
 import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell, Users, RefreshCw, Swords, TrendingUp, TrendingDown, Medal, Check, AlertCircle, ThumbsUp, MessageCircle, MapPin, Flame, Zap, Target, Clock, ChevronRight, ChevronDown, Map, List, Phone, Share2, Eye, Info, Calendar, Home as HomeIcon, Lock, ExternalLink, Crown, Gem, Pencil, Navigation, Camera, Link2, Building2, Skull, Gamepad2, HelpCircle, Brain, Timer, Bot } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
+import { ConfirmHost, confirmer } from "./uiConfirm.jsx";
 import {
   Connexion, MonProfil, PageJoueurs, FicheJoueur, RankIcon,
   PageProfilStats, PageProfilAmis, PageProfilBadges, PageProfilHistorique, BadgeVisual,
@@ -1085,7 +1086,7 @@ const AdminPhotos = () => {
   }, []);
   const drop = (ph) => setPhotos(x => x.filter(y => !(y.id===ph.id && y._kind===ph._kind)));
   const valider = async (ph) => { try { await (ph._kind==="asso"?db.validatePhotoAsso(ph.id):db.validatePhoto(ph.id)); drop(ph); } catch(e){ alert("Erreur : "+e.message); } };
-  const rejeter = async (ph) => { if(!window.confirm("Rejeter (supprimer) cette photo ?"))return; try { await (ph._kind==="asso"?db.deletePhotoAsso(ph.id):db.deletePhoto(ph.id)); drop(ph); } catch(e){ alert("Erreur : "+e.message); } };
+  const rejeter = async (ph) => { if(!(await confirmer("Rejeter (supprimer) cette photo ?")))return; try { await (ph._kind==="asso"?db.deletePhotoAsso(ph.id):db.deletePhoto(ph.id)); drop(ph); } catch(e){ alert("Erreur : "+e.message); } };
   return (
     <div>
       <h3 style={{ fontWeight:700,fontSize:16,marginBottom:14,color:C.yellow }}><EmoText s="📸 Photos en attente" size={15}/> ({photos.length})</h3>
@@ -9440,7 +9441,7 @@ const AdminJoueurs = ({ addLog }) => {
   //  par admin-ops — ops supprimeJoueur / banJoueur, clé service-role.)
 
   const supprimerCompte = async (j) => {
-    if (!window.confirm(`⚠️ Supprimer définitivement ${j.pseudo} ?\n\nCela supprimera aussi :\n• Ses liens d'amitié\n• Son historique DRIX\n• Ses présences\n\nCette action est irréversible.\n\n⚠️ Préférable : utiliser "Anonymiser (RGPD)" pour conserver l'intégrité des stats des autres joueurs.`)) return;
+    if (!(await confirmer(`⚠️ Supprimer définitivement ${j.pseudo} ?\n\nCela supprimera aussi :\n• Ses liens d'amitié\n• Son historique DRIX\n• Ses présences\n\nCette action est irréversible.\n\n⚠️ Préférable : utiliser "Anonymiser (RGPD)" pour conserver l'intégrité des stats des autres joueurs.`, { danger:true }))) return;
     setSaving(s=>({...s,[j.id]:true}));
     try {
       // Suppression complète côté serveur (service-role) : tables liées + joueur.
@@ -9459,7 +9460,7 @@ const AdminJoueurs = ({ addLog }) => {
   // Conforme article 17 RGPD. Garde l'historique des matchs intact pour ne pas
   // fausser les stats des autres joueurs.
   const anonymiserCompte = async (j) => {
-    if (!window.confirm(`🕵️ Anonymiser le compte de ${j.pseudo} (RGPD) ?\n\n• Le pseudo devient "Joueur supprimé #${j.id}"\n• Email, nom, prénom, photo, ville → effacés\n• Amis, messages, présences → supprimés\n• Historique des matchs et DRIX → CONSERVÉS (intégrité des stats des autres joueurs)\n\nLe joueur ne pourra plus se connecter.`)) return;
+    if (!(await confirmer(`🕵️ Anonymiser le compte de ${j.pseudo} (RGPD) ?\n\n• Le pseudo devient "Joueur supprimé #${j.id}"\n• Email, nom, prénom, photo, ville → effacés\n• Amis, messages, présences → supprimés\n• Historique des matchs et DRIX → CONSERVÉS (intégrité des stats des autres joueurs)\n\nLe joueur ne pourra plus se connecter.`, { danger:true, ok:"Anonymiser" }))) return;
     setSaving(s=>({...s,[j.id]:true}));
     try {
       // Anonymisation complète côté serveur (service-role) : password_hash sentinelle (NOT
@@ -9476,7 +9477,7 @@ const AdminJoueurs = ({ addLog }) => {
   };
 
   const banirJoueur = async (j) => {
-    if (!window.confirm(`🚫 BANNIR ${j.pseudo} ?\n\nCela va :\n• Remettre ses DRIX à 0\n• Supprimer son compte et toutes ses données\n\nIrréversible.`)) return;
+    if (!(await confirmer(`🚫 BANNIR ${j.pseudo} ?\n\nCela va :\n• Remettre ses DRIX à 0\n• Supprimer son compte et toutes ses données\n\nIrréversible.`, { danger:true, ok:"Bannir" }))) return;
     setSaving(s=>({...s,[j.id]:true}));
     try {
       // Ban complet côté serveur (service-role) : DRIX à 0 + log + nettoyage + suppression.
@@ -9491,7 +9492,7 @@ const AdminJoueurs = ({ addLog }) => {
   };
 
   const resetDrix = async (j) => {
-    if (!window.confirm(`🔄 Remettre les DRIX de ${j.pseudo} à 1000 ?`)) return;
+    if (!(await confirmer(`🔄 Remettre les DRIX de ${j.pseudo} à 1000 ?`, { danger:true, ok:"Réinitialiser" }))) return;
     await appliquerDrix(j, 1000-(j.drix||1000));
     addLog?.("DRIX réinitialisé", j.pseudo, "warning");
   };
@@ -9946,14 +9947,14 @@ const AdminTournois = ({ tournois, setTournois, setEditTournoi, setTournoiSlug, 
   };
 
   const retirerJoueur = async (t, joueur_id, pseudo) => {
-    if (!window.confirm(`Retirer ${pseudo} du tournoi ?`)) return;
+    if (!(await confirmer(`Retirer ${pseudo} du tournoi ?`, { danger:true, ok:"Retirer" }))) return;
     await db.deleteInscription(t.slug, joueur_id).catch(()=>{});
     await loadInscrits(t.slug);
     addLog?.("Joueur retiré du tournoi", `${pseudo} - ${t.nom}`, "warning");
   };
 
   const cloturerTournoi = async (t) => {
-    if (!window.confirm(`Clôturer "${t.nom}" ?\n\nLes inscriptions seront bloquées.`)) return;
+    if (!(await confirmer(`Clôturer "${t.nom}" ?\n\nLes inscriptions seront bloquées.`))) return;
     setWorking(w=>({...w,[t.id]:true}));
     await db.updateTournoi(t.slug, { statut:"termine" }).catch(()=>{});
     setTournois(arr=>arr.map(x=>x.slug===t.slug?{...x,statut:"termine"}:x));
@@ -9972,7 +9973,7 @@ const AdminTournois = ({ tournois, setTournois, setEditTournoi, setTournoiSlug, 
   };
 
   const supprimerTournoi = async (t) => {
-    if (!window.confirm(`🗑 Supprimer définitivement "${t.nom}" ?\n\nToutes les inscriptions seront supprimées. Irréversible.`)) return;
+    if (!(await confirmer(`🗑 Supprimer définitivement "${t.nom}" ?\n\nToutes les inscriptions seront supprimées. Irréversible.`, { danger:true }))) return;
     setWorking(w=>({...w,[t.id]:true}));
     try {
       // Supprime les inscriptions liées
@@ -10209,7 +10210,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
   };
 
   const viderLogs = async () => {
-    if (!window.confirm("⚠️ Supprimer définitivement tous les logs admin ?")) return;
+    if (!(await confirmer("⚠️ Supprimer définitivement tous les logs admin ?", { danger:true }))) return;
     await sbAdmin("purge", "admin_logs").catch(()=>{});
     setAdminLogs([]);
   };
@@ -10394,7 +10395,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
             <button onClick={()=>db.toggleVerifie(b.slug,!b.verifie).then(()=>{setBars(x=>x.map(y=>y.slug===b.slug?{...y,verifie:!y.verifie}:y));addLog(b.verifie?"Bar dévérifié":"Bar vérifié",b.nom,"info");})} style={{background:b.verifie?"#14532d":"#111",border:`1px solid ${b.verifie?C.green:C.border}`,borderRadius:6,color:b.verifie?C.green:C.muted,cursor:"pointer",fontSize:11,padding:"4px 8px"}}>{b.verifie?<EmoText s="✅ Vérifié" size={11}/>:"Vérifier"}</button>
             <button onClick={()=>setEditBar(b)} style={{background:"#1a1200",border:`1px solid ${C.yellow}44`,borderRadius:6,color:C.yellow,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="✏️" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>Éditer</button>
             <button onClick={async()=>{let lat=null,lng=null;try{const q=encodeURIComponent(`${b.adresse||b.nom}, ${b.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const gd=await geo.json();if(gd?.[0]){lat=parseFloat(gd[0].lat);lng=parseFloat(gd[0].lon);}if(!lat){const q2=encodeURIComponent(`${b.ville}, France`);const geo2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);const gd2=await geo2.json();if(gd2?.[0]){lat=parseFloat(gd2[0].lat);lng=parseFloat(gd2[0].lon);}}}catch(e){}if(lat){await db.updateBar(b.slug,{lat,lng});setBars(x=>x.map(y=>y.slug===b.slug?{...y,lat,lng}:y));alert("✅ GPS mis à jour!");}else{alert("❌ Adresse introuvable");}}} style={{background:"#0f1a0f",border:`1px solid ${C.green}44`,borderRadius:6,color:C.green,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="📍" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>GPS</button>
-            <button onClick={async()=>{if(!window.confirm("Supprimer ce bar ?"))return;await db.deleteBar(b.slug);setBars(x=>x.filter(y=>y.slug!==b.slug));addLog("Bar supprimé",b.nom,"danger");}} style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="🗑" size={12}/></button>
+            <button onClick={async()=>{if(!(await confirmer("Supprimer ce bar ?", { danger:true })))return;await db.deleteBar(b.slug);setBars(x=>x.filter(y=>y.slug!==b.slug));addLog("Bar supprimé",b.nom,"danger");}} style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="🗑" size={12}/></button>
           </div>
         </div>
       ))}
@@ -10411,7 +10412,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
           </div>
           <div style={{display:"flex",gap:5}}>
             <button onClick={()=>setEditAsso(a)} style={{background:"#1a1200",border:`1px solid ${C.yellow}44`,borderRadius:6,color:C.yellow,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="✏️" size={11} style={{verticalAlign:"-2px",marginRight:4}}/>Éditer</button>
-            <button onClick={async()=>{if(!window.confirm("Supprimer ?"))return;await db.deleteAssociation(a.slug);setAssociations(x=>x.filter(y=>y.slug!==a.slug));addLog("Asso supprimée",a.nom,"danger");}} style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="🗑" size={12}/></button>
+            <button onClick={async()=>{if(!(await confirmer("Supprimer ?", { danger:true })))return;await db.deleteAssociation(a.slug);setAssociations(x=>x.filter(y=>y.slug!==a.slug));addLog("Asso supprimée",a.nom,"danger");}} style={{background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:6,color:C.red,cursor:"pointer",fontSize:11,padding:"4px 8px"}}><EmoIcon e="🗑" size={12}/></button>
           </div>
         </div>
       ))}
@@ -10842,7 +10843,7 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
                     </button>
                   )}
                   <button onClick={async()=>{
-                    if(!window.confirm(`Supprimer définitivement ce message de ${p.nom} ?`)) return;
+                    if(!(await confirmer(`Supprimer définitivement ce message de ${p.nom} ?`, { danger:true }))) return;
                     try {
                       await sb(`propositions?id=eq.${p.id}`, { method:"DELETE", prefer:"return=minimal" });
                       setPropositions(arr => arr.filter(x => x.id !== p.id));
@@ -13494,6 +13495,10 @@ export default function App() {
           </button>
         </nav>
       </>)}
+
+      {/* Fenêtre de confirmation Dart Point — montée une seule fois, tout en haut de la pile.
+          Sans elle, confirmer() retombe sur la boîte grise du navigateur (cf. uiConfirm.jsx). */}
+      <ConfirmHost/>
     </div>
   );
 }

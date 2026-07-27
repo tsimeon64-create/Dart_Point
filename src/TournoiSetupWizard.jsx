@@ -2,18 +2,16 @@
 // TournoiSetupWizard.jsx — Nouvel assistant de configuration du mode
 // « Tournoi entre potes » (refonte, cahier des charges 2026-07-24).
 //
-// Assistant guidé en étapes, remplace à terme PoolConfigModal + BracketConfigModal.
-// - Phase "poules"  (avant lancement) : Format → Poules → Résumé → Lancer les poules
+// Assistant guidé en étapes, remplace PoolConfigModal + BracketConfigModal.
+// - Phase "poules"  (avant lancement) : Poules → Résumé → Lancer les poules
 // - Phase "tableau" (après les poules) : Tableau → Résumé → Lancer le tableau
+//
+// Il n'y a PLUS d'étape « Format » : le mode (501/301) et le format (simple/doublette) sont
+// choisis à la CRÉATION du tournoi (fenêtre « Nouveau tournoi », AppTournoiPotes.jsx). Les
+// redemander ici faisait doublon ; ils sont seulement rappelés en haut de l'étape Poules.
 //
 // TOUTE la logique de calcul vient de ./tournoiConfig.js (le « cerveau », testé).
 // Ce fichier ne fait qu'AFFICHER et laisser l'utilisateur choisir.
-//
-// ⚠️ Construction EN COURS (étape par étape). Cette version contient :
-//   • la coquille (stepper + navigation + bouton collant)
-//   • l'ÉTAPE 1 « Format » complète
-//   • un aperçu de test autonome (TournoiSetupWizardPreview) — sans Supabase
-//   Les étapes Poules / Tableau / Résumé arrivent ensuite.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect } from "react";
 import { EmoText } from "./icons";
@@ -271,85 +269,6 @@ const RecapParticipants = ({ count, mode, format }) => {
   );
 };
 
-// ── ÉTAPE 1 : Format général ─────────────────────────────────────────────────
-export const StepFormat = ({ config, participantCount, locked, onChange }) => {
-  const set = (patch) => onChange({ ...config, ...patch });
-  return (
-    <div>
-      <h2 style={{ fontSize: 19, fontWeight: 800, color: CT.text, margin: "0 0 4px" }}>
-        <EmoText s="⚙️" size={18} /> Format général
-      </h2>
-      <p style={{ fontSize: 13, color: CT.muted, margin: "0 0 16px" }}>
-        Le type de jeu et la composition des participants.
-      </p>
-
-      <RecapParticipants count={participantCount} mode={config.mode} format={config.format} />
-
-      {locked && (
-        <div
-          style={{
-            background: CT.yellow + "14",
-            border: `1px solid ${CT.yellow}44`,
-            borderRadius: 10,
-            padding: "10px 12px",
-            fontSize: 12.5,
-            color: CT.yellow,
-            fontWeight: 700,
-            marginBottom: 16,
-            lineHeight: 1.4,
-          }}
-        >
-          🔒 Le tournoi a commencé : le mode et le format ne peuvent plus être changés.
-        </div>
-      )}
-
-      <div style={{ fontSize: 13.5, fontWeight: 800, color: CT.text, marginBottom: 8 }}>
-        Mode de jeu
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-        <ChoiceCard
-          emoji="🎯"
-          title="501"
-          subtitle="Le classique. On part de 501 et on descend à zéro."
-          selected={config.mode === "501"}
-          disabled={locked}
-          onClick={() => set({ mode: "501" })}
-        />
-        <ChoiceCard
-          emoji="🎯"
-          title="301"
-          subtitle="Plus court et plus rapide. On part de 301."
-          selected={config.mode === "301"}
-          disabled={locked}
-          onClick={() => set({ mode: "301" })}
-        />
-      </div>
-
-      <div style={{ fontSize: 13.5, fontWeight: 800, color: CT.text, marginBottom: 8 }}>
-        Format
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <ChoiceCard
-          emoji="🙋"
-          title="Simple"
-          subtitle="Chacun pour soi : un participant = un joueur."
-          selected={config.format === "simple"}
-          disabled={locked}
-          onClick={() => set({ format: "simple" })}
-        />
-        <ChoiceCard
-          emoji="🤝"
-          title="Doublette"
-          subtitle="Par équipes de 2 : un participant = une équipe."
-          selected={config.format === "doublette"}
-          disabled={locked}
-          onClick={() => set({ format: "doublette" })}
-        />
-      </div>
-    </div>
-  );
-};
-
 // ── Petits blocs réutilisables ───────────────────────────────────────────────
 const SectionLabel = ({ children, hint }) => (
   <div style={{ fontSize: 13.5, fontWeight: 800, color: CT.text, margin: "18px 0 8px" }}>
@@ -570,6 +489,13 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
 
   const manches = config.manches || 2;
   const cibles = config.availableTargets || 1;
+  const ciblesMode = config.ciblesMode === "par_poule" ? "par_poule" : "optimise";
+  // Durée annoncée sur la carte « Optimisé ». `summary` ne porte pas la valeur brute (seulement une
+  // ligne de texte), on la recalcule donc ici — sinon la carte affichait « environ 0 min ».
+  const dureeMoyenne = config.averageMatchDuration || 15;
+  // ⚠️ À déclarer APRÈS `cibles` et `dureeMoyenne` : en JS, lire un const avant sa ligne de
+  // déclaration plante la page entière ("Cannot access before initialization").
+  const dureeOptimisee = estimatePoolDuration({ groups, availableTargets: cibles, averageMatchDuration: dureeMoyenne });
   const avgDur = config.averageMatchDuration || 15;
 
   return (
@@ -580,6 +506,10 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
       <p style={{ fontSize: 13, color: CT.muted, margin: "0 0 4px" }}>
         {participantCount} {unite} · tout le monde joue contre tout le monde dans sa poule.
       </p>
+
+      {/* Rappel de ce qui a été choisi à la CRÉATION du tournoi. L'assistant ne le redemande plus
+          (c'était un doublon), mais l'organisateur doit garder l'info sous les yeux ici. */}
+      <RecapParticipants count={participantCount} mode={config.mode} format={config.format} />
 
       <SectionLabel hint={recommended ? `(conseillé : ${recommended.playersPerPool}/poule)` : ""}>
         {config.format === "doublette" ? "Équipes" : "Joueurs"} par poule
@@ -676,6 +606,40 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
         Le premier {config.format === "doublette" ? "équipe" : "joueur"} à atteindre <b style={{ color: CT.text }}>{manches} manche{manches > 1 ? "s" : ""}</b> remporte le match.
       </div>
 
+      {/* Deux façons d'occuper les cibles. « Optimisé » = l'appli répartit et annonce qui joue.
+          « Une poule par cible » = chaque poule s'installe sur sa cible et joue dans l'ordre qu'elle
+          veut ; l'appli propose juste un ordre pour qu'un joueur n'enchaîne pas deux matchs de suite. */}
+      <SectionLabel>Organisation des cibles</SectionLabel>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <ChoiceCard
+          emoji="⚡"
+          title="Optimisé"
+          subtitle="L'appli répartit les matchs sur les cibles et annonce qui joue maintenant."
+          selected={ciblesMode !== "par_poule"}
+          recommended
+          ariaLabel="Organisation optimisée"
+          onClick={() => set({ ciblesMode: "optimise" })}
+          lines={[
+            { icon: "⏱️", text: `Le plus rapide : environ ${formatDuration(dureeOptimisee)}`, strong: true },
+            { icon: "🔔", text: "Chacun est prévenu sur son téléphone quand c'est à lui." },
+          ]}
+        />
+        <ChoiceCard
+          emoji="🏟️"
+          title="Une poule par cible"
+          subtitle="Chaque poule s'installe sur sa cible et joue à son rythme."
+          selected={ciblesMode === "par_poule"}
+          ariaLabel="Une poule par cible"
+          onClick={() => set({ ciblesMode: "par_poule", availableTargets: groups.length })}
+          lines={[
+            { icon: "🎯", text: `${groups.length} poule${groups.length > 1 ? "s" : ""} → ${groups.length} cible${groups.length > 1 ? "s" : ""} conseillée${groups.length > 1 ? "s" : ""}`, strong: true },
+            { icon: "🙌", text: "Les joueurs choisissent l'ordre de leurs matchs eux-mêmes." },
+            { icon: "💡", text: "L'appli affiche un ordre conseillé (personne n'enchaîne 2 matchs)." },
+            { icon: "🔕", text: "Pas d'alerte « c'est à toi » : vous êtes déjà autour de la cible." },
+          ]}
+        />
+      </div>
+
       <SectionLabel hint="(jeux de fléchettes en parallèle)">Cibles disponibles</SectionLabel>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 18 }}>
         <button
@@ -695,7 +659,9 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
         </button>
       </div>
       <div style={{ fontSize: 11.5, color: CT.muted, textAlign: "center", marginTop: 8, lineHeight: 1.4 }}>
-        🎯 Jusqu'à {cibles === 1 ? "1 match" : `${cibles} matchs`} en même temps (un par cible). Réglable pendant le tournoi.
+        {ciblesMode === "par_poule"
+          ? <>🎯 {cibles} cible{cibles > 1 ? "s" : ""} pour {groups.length} poule{groups.length > 1 ? "s" : ""}.{cibles < groups.length ? ` ${groups.length - cibles} poule${groups.length - cibles > 1 ? "s devront" : " devra"} partager.` : cibles > groups.length ? " Il en restera de libres." : " Chaque poule a la sienne 👍"} Réglable pendant le tournoi.</>
+          : <>🎯 Jusqu'à {cibles === 1 ? "1 match" : `${cibles} matchs`} en même temps (un par cible). Réglable pendant le tournoi.</>}
       </div>
 
       <SectionLabel hint="(indicative)">Durée moyenne par match</SectionLabel>
@@ -1242,8 +1208,11 @@ export const TournoiSetupWizard = ({
   });
 
   // Étapes selon la phase.
+  // Plus d'étape « Format » : le mode (501/301) ET le format (simple/doublette) sont déjà choisis
+  // à la création du tournoi (fenêtre « Nouveau tournoi »). Les redemander ici faisait doublon et
+  // rallongeait l'assistant pour rien. Ils restent visibles en rappel en haut de l'étape Poules.
   const steps =
-    phase === "tableau" ? ["Tableau", "Résumé"] : ["Format", "Poules", "Résumé"];
+    phase === "tableau" ? ["Tableau", "Résumé"] : ["Poules", "Résumé"];
   const [step, setStep] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const isLast = step === steps.length - 1;
@@ -1304,15 +1273,6 @@ export const TournoiSetupWizard = ({
       return <StepResume phase="tableau" config={config} participantCount={participantCount} context={tableauContext} onEditStep={setStep} />;
     }
     if (step === 0)
-      return (
-        <StepFormat
-          config={config}
-          participantCount={participantCount}
-          locked={matchsExistent}
-          onChange={setConfig}
-        />
-      );
-    if (step === 1)
       return <StepPoules config={config} participantCount={participantCount} onChange={setConfig} />;
     return <StepResume phase="poules" config={config} participantCount={participantCount} onEditStep={setStep} />;
   };

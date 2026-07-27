@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Crosshair, Star, Zap, Flame, Sparkles, Snowflake, Minus, ArrowUp, ArrowDown, Gamepad2, Dices, Scale, Beer, Cake, HeartCrack, Circle, Bomb, Sprout, List, Cog, Hand, Rocket, QrCode } from "lucide-react";
 import QRCode from "qrcode";
 import { EmoIcon } from "./icons";
+import { confirmer } from "./uiConfirm.jsx";
 
 // ── Modal de crop circulaire (zoom + drag) — réutilisable ─────────────────────
 const CropPhotoModal = ({ imageDataUrl, onSave, onClose, label="Cadrer la photo" }) => {
@@ -1414,7 +1415,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
         </p>
         <button
           onClick={async()=>{
-            if(!window.confirm("⚠️ Supprimer DÉFINITIVEMENT ton compte DartPoint ?\n\nTon profil, tes amis et tes messages seront effacés.\nC'est IRRÉVERSIBLE.")) return;
+            if(!(await confirmer("⚠️ Supprimer DÉFINITIVEMENT ton compte DartPoint ?\n\nTon profil, tes amis et tes messages seront effacés.\nC'est IRRÉVERSIBLE.", { danger:true }))) return;
             const tape = window.prompt("Pour confirmer, écris SUPPRIMER (en majuscules) :");
             if((tape||"").trim().toUpperCase() !== "SUPPRIMER"){ window.dpToast?.("Suppression annulée","info"); return; }
             try {
