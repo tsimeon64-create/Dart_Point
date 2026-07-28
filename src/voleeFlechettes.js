@@ -81,3 +81,40 @@ export const doubleDuFinish = (flechettes) => {
   if (d.secteur >= 1 && d.secteur <= 20) return String(d.secteur);
   return null;
 };
+
+// ── Quels doubles pouvaient VRAIMENT terminer cette volée ? ───────────────────
+// Signalé par un testeur : il finissait à 3 points, l'appli lui a laissé valider
+// « D2 » (= 4 points, impossible) au lieu de « D1 ». Seul le double réellement
+// jouable doit être proposé.
+// La dernière fléchette est forcément un double (2×D, ou 50 au Bull) ; les autres
+// fléchettes de la volée doivent pouvoir faire exactement le reste.
+const SCORES_1_FLECHETTE = (() => {
+  const s = new Set([0, 25, 50]);                       // raté, simple bull, double bull
+  for (let i = 1; i <= 20; i++) { s.add(i); s.add(2*i); s.add(3*i); }
+  return s;
+})();
+const SCORES_2_FLECHETTES = (() => {
+  const s = new Set();
+  for (const a of SCORES_1_FLECHETTE) for (const b of SCORES_1_FLECHETTE) s.add(a + b);
+  return s;
+})();
+
+// val = points de la volée qui a fini · nb = nombre de fléchettes utilisées (1 à 3).
+// Renvoie l'ensemble des doubles possibles, en clés d'affichage : "1".."20" et "B".
+export const doublesPossiblesFinish = (val, nb) => {
+  const ok = new Set();
+  const candidats = [...Array.from({ length: 20 }, (_, i) => [String(i + 1), 2 * (i + 1)]), ["B", 50]];
+  for (const [cle, points] of candidats) {
+    const reste = val - points;
+    if (reste < 0) continue;
+    if (nb <= 1) { if (reste === 0) ok.add(cle); }
+    else if (nb === 2) { if (SCORES_1_FLECHETTE.has(reste)) ok.add(cle); }
+    else if (SCORES_2_FLECHETTES.has(reste)) ok.add(cle);
+  }
+  // On renvoie l'ensemble RÉEL, quitte à ce qu'il soit vide (volée incohérente :
+  // 1 point, ou un nombre impair en une seule fléchette…). C'est l'affichage qui
+  // décide alors de tout réactiver plutôt que de bloquer la partie.
+  // ⚠️ Ne pas « sécuriser » ici en renvoyant les 21 candidats : un vrai finish peut
+  // légitimement autoriser les 21 doubles, les deux cas seraient indiscernables.
+  return ok;
+};

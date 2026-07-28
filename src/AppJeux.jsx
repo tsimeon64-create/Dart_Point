@@ -6,12 +6,13 @@ import { calculerProfilBot, genererScoreBot, BOT_LUCKY_LITTLER } from "./botFlec
 // Logique PURE du pavé « fléchette par fléchette » (testée : src/voleeFlechettes.test.mjs)
 import {
   creerFlechette as mkFlechette, totalVolee as sommeVolee,
-  verdictApresFlechette, doubleDuFinish, combinaisonAutorisee,
+  verdictApresFlechette, doubleDuFinish, combinaisonAutorisee, doublesPossiblesFinish,
 } from "./voleeFlechettes";
 import { FriendNameInput } from "./FriendPicker";
 
 // Moyenne (pts/volée) affichée AU CENTIÈME (2 décimales, virgule FR). "—" si absente.
 const fmtMoy = (m) => (m == null || m === "" ? "—" : Number(m).toFixed(2).replace(".", ","));
+
 
 // ── Confetti ──────────────────────────────────────────────────────────────────
 const Confetti = () => {
@@ -959,7 +960,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // Sécurité : une volée en cours appartient au joueur qui l'a commencée — elle ne
   // doit jamais « suivre » le joueur suivant (qui peut d'ailleurs utiliser l'autre pavé).
   useEffect(() => { setVolee([]); setMult(1); }, [actifIdx, mancheEnCours]);
-  const [finishDblPrompt, setFinishDblPrompt] = useState(null); // { val, nb, name, profileId } → fenêtre « sur quel double as-tu fini ? »
+  const [finishDblPrompt, setFinishDblPrompt] = useState(null);
+  // Double choisi mais PAS encore valide. Le testeur ne pouvait pas revenir en arriere :
+  // un simple appui finalisait tout. Il faut maintenant confirmer, donc on peut se raviser.
+  const [finishSel, setFinishSel] = useState(null); // { val, nb, name, profileId } → fenêtre « sur quel double as-tu fini ? »
   const [drixBreakdown, setDrixBreakdown] = useState(null); // breakdown détaillé post-match
   const [liveBadgeNotif, setLiveBadgeNotif] = useState(null); // { emoji, nom, desc, couleur }
   const [liveXpNotif, setLiveXpNotif] = useState(null); // célébration XP live { label, xp }
@@ -1728,6 +1732,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         // tant qu'on n'a pas choisi (finalisation dans pickFinishDouble).
         const pid = modeDuel ? (actifIdx === 0 ? duel?.challenger_id : duel?.defie_id) : null;
         lockRef.current.finishDbl = false;
+        setFinishSel(null);
         setFinishDblPrompt({ val, nb: nbFlechettes, name: joueur.nom, profileId: pid || null });
         return;
       }
@@ -1766,6 +1771,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     lockRef.current.finishDbl = true;
     const pfd = finishDblPrompt;
     setFinishDblPrompt(null);
+    setFinishSel(null);
     if (!pfd) return;
     finaliserFinish(pfd.val, pfd.nb);              // la partie avance MAINTENANT
     enregistrerFinishDouble(dbl, pfd.name, pfd.profileId);
@@ -2334,7 +2340,11 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       )}
 
       {/* ── POPUP « QUEL EST TON FINISH ? » — premium, s'ouvre APRÈS la fenêtre fléchettes ── */}
-      {finishDblPrompt && (
+      {/* Les doubles réellement jouables pour CETTE volée. Si l'ensemble est vide (volée
+          incohérente), on réactive tout plutôt que de bloquer la partie. */}
+      {finishDblPrompt && (() => { const _p = doublesPossiblesFinish(finishDblPrompt.val, finishDblPrompt.nb);
+        const finishPossibles = _p.size ? _p : new Set([...Array.from({length:20},(_,i)=>String(i+1)),"B"]);
+        return (
         <div style={{ position:"fixed",inset:0,zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:16,
           background:"rgba(6,7,12,.72)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",animation:"finFade .18s ease both" }}>
           <style>{`
@@ -2366,31 +2376,59 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             </div>
             <div style={{ fontWeight:900,fontSize:25,lineHeight:1.05,color:"#fff",letterSpacing:.3,textShadow:"0 0 20px rgba(34,197,94,.45)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",padding:"0 6px" }}>{finishDblPrompt.name}</div>
             <div style={{ fontWeight:900,fontSize:20,color:"#4ade80",marginTop:3,letterSpacing:.2 }}>Quel est ton finish ?</div>
-            <p style={{ color:"#8b93a7",fontSize:12.5,marginTop:4,marginBottom:16,lineHeight:1.5 }}>Tape le <b style={{ color:"#cbd5e1" }}>double</b> sur lequel tu as terminé.</p>
+            <p style={{ color:"#8b93a7",fontSize:12.5,marginTop:4,marginBottom:4,lineHeight:1.5 }}>Choisis le <b style={{ color:"#cbd5e1" }}>double</b> sur lequel tu as terminé, puis valide.</p>
+            <p style={{ color:"#5b6472",fontSize:11.5,marginTop:0,marginBottom:14 }}>
+              Finish de <b style={{ color:"#94a3b8" }}>{finishDblPrompt.val}</b> en {finishDblPrompt.nb} fléchette{finishDblPrompt.nb>1?"s":""} · seuls les doubles jouables sont actifs
+            </p>
 
-            {/* ── Grille des doubles 1-20 (16/18/20 = finishes fréquents, halo discret) ── */}
+            {/* ── Grille des doubles 1-20. Les doubles IMPOSSIBLES pour ce finish sont
+                   grisés : un testeur avait pu valider « D2 » sur un finish à 3 points. ── */}
             <div style={{ display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:9 }}>
               {Array.from({length:20},(_,i)=>i+1).map(n => {
                 const fav = n===16 || n===18 || n===20;
+                const dispo = finishPossibles.has(String(n));
+                const choisi = finishSel === String(n);
                 return (
-                  <button key={n} className="fin-btn" onPointerDown={e=>{ e.preventDefault(); pickFinishDouble(String(n)); }}
-                    style={{ padding:"15px 0",borderRadius:14,cursor:"pointer",fontWeight:800,fontSize:15.5,color:"#f1f5f9",touchAction:"manipulation",
-                      background:"linear-gradient(180deg,#282838,#161620)",
-                      border:`1px solid ${fav?"rgba(34,197,94,.55)":"rgba(255,255,255,.10)"}`,
-                      boxShadow:fav
-                        ? "0 3px 7px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.10),0 0 13px rgba(34,197,94,.30)"
-                        : "0 3px 7px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.09)" }}>D{n}</button>
+                  <button key={n} className={dispo?"fin-btn":undefined} disabled={!dispo}
+                    aria-pressed={choisi}
+                    onPointerDown={dispo ? (e=>{ e.preventDefault(); setFinishSel(String(n)); }) : undefined}
+                    style={{ padding:"15px 0",borderRadius:14,cursor:dispo?"pointer":"not-allowed",fontWeight:800,fontSize:15.5,touchAction:"manipulation",
+                      color: dispo ? "#f1f5f9" : "#3a3f4c", opacity: dispo ? 1 : .45,
+                      background: choisi ? "linear-gradient(180deg,#22c55e,#15803d)" : "linear-gradient(180deg,#282838,#161620)",
+                      border:`1px solid ${choisi?"#4ade80":(dispo&&fav)?"rgba(34,197,94,.55)":"rgba(255,255,255,.08)"}`,
+                      boxShadow: choisi
+                        ? "0 0 0 2px rgba(74,222,128,.45),0 4px 14px rgba(34,197,94,.5)"
+                        : (dispo&&fav)
+                          ? "0 3px 7px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.10),0 0 13px rgba(34,197,94,.30)"
+                          : "0 3px 7px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.09)" }}>D{n}</button>
                 );
               })}
             </div>
 
             {/* ── BULL — séparé, spectaculaire (finish fréquent) ── */}
-            <button className="fin-bull" onPointerDown={e=>{ e.preventDefault(); pickFinishDouble("B"); }}
-              style={{ width:"100%",marginTop:12,padding:"15px 0",borderRadius:15,cursor:"pointer",fontWeight:900,fontSize:16,letterSpacing:1,color:"#fff",touchAction:"manipulation",
+            <button className={finishPossibles.has("B")?"fin-bull":undefined} disabled={!finishPossibles.has("B")}
+              aria-pressed={finishSel==="B"}
+              onPointerDown={finishPossibles.has("B") ? (e=>{ e.preventDefault(); setFinishSel("B"); }) : undefined}
+              style={{ width:"100%",marginTop:12,padding:"15px 0",borderRadius:15,fontWeight:900,fontSize:16,letterSpacing:1,touchAction:"manipulation",
+                cursor:finishPossibles.has("B")?"pointer":"not-allowed",
+                opacity:finishPossibles.has("B")?1:.4, color:finishPossibles.has("B")?"#fff":"#6b7280",
                 display:"flex",alignItems:"center",justifyContent:"center",gap:8,
-                background:"linear-gradient(135deg,#f0524a,#b91c1c)",
-                border:"1px solid rgba(255,150,150,.5)" }}>
-              <EmoIcon e="🎯" size={20} color="#fff"/>BULL
+                background: finishSel==="B" ? "linear-gradient(135deg,#22c55e,#15803d)" : "linear-gradient(135deg,#f0524a,#b91c1c)",
+                border:finishSel==="B"?"1px solid #4ade80":"1px solid rgba(255,150,150,.5)",
+                boxShadow: finishSel==="B" ? "0 0 0 2px rgba(74,222,128,.45),0 4px 14px rgba(34,197,94,.5)" : "none" }}>
+              <EmoIcon e="🎯" size={20} color={finishPossibles.has("B")?"#fff":"#6b7280"}/>BULL
+            </button>
+
+            {/* ── Valider — rien n'est enregistre avant cet appui, on peut donc changer d'avis ── */}
+            <button disabled={!finishSel}
+              onPointerDown={finishSel ? (e=>{ e.preventDefault(); pickFinishDouble(finishSel); }) : undefined}
+              style={{ width:"100%",marginTop:14,padding:"15px 0",borderRadius:14,fontWeight:900,fontSize:15.5,letterSpacing:.6,touchAction:"manipulation",
+                cursor:finishSel?"pointer":"not-allowed",
+                color: finishSel ? "#04140a" : "#4b5563",
+                background: finishSel ? "linear-gradient(135deg,#4ade80,#16a34a)" : "rgba(255,255,255,.05)",
+                border: finishSel ? "1px solid #86efac" : "1px solid rgba(255,255,255,.08)",
+                boxShadow: finishSel ? "0 6px 20px rgba(34,197,94,.45)" : "none" }}>
+              {finishSel ? `Valider ${finishSel==="B" ? "BULL" : "D"+finishSel}` : "Choisis ton double"}
             </button>
 
             {/* ── Passer — secondaire, discret ── */}
@@ -2399,7 +2437,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                 background:"transparent",border:"1px solid rgba(255,255,255,.08)" }}>Passer</button>
           </div>
         </div>
-      )}
+      ); })()}
 
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* HEADER COMPACT — 1 ligne                                          */}
