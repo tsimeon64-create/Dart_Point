@@ -58,6 +58,79 @@ const CT = {
   blue: "#60a5fa",
 };
 
+// ── Socle graphique de l'assistant ───────────────────────────────────────────
+// Uniquement du style : mêmes couleurs Dart Point, mais de la profondeur (ombres
+// en 2 couches : contact court + ambiante large), des dégradés très légers et des
+// rayons plus généreux. Regroupé ici pour que les 4 écrans restent cohérents.
+const D = {
+  r: { s: 12, m: 16, l: 20, xl: 24 },                    // rayons
+  // Ombre « posée sur la table » : une ombre nette et courte, une douce et large.
+  ombre: "0 1px 2px rgba(0,0,0,.5), 0 8px 24px -12px rgba(0,0,0,.75)",
+  ombreHaute: "0 2px 4px rgba(0,0,0,.55), 0 16px 40px -16px rgba(0,0,0,.85)",
+  liseré: "inset 0 1px 0 rgba(255,255,255,.06)",         // arête haute, effet verre
+  // Fond de carte : très léger éclaircissement en haut, comme une lumière rasante.
+  fondCarte: "linear-gradient(168deg, #1e1e26 0%, #17171e 46%, #131319 100%)",
+  fondPanneau: "linear-gradient(168deg, #16161d 0%, #121218 100%)",
+  // Halo colore pour une carte choisie / un encart
+  halo: (c, f = 0.22) => `0 0 0 1px ${c}55, 0 0 28px -6px ${c}${Math.round(f * 255).toString(16).padStart(2, "0")}`,
+  teinte: (c, a = "14") => `linear-gradient(168deg, ${c}${a} 0%, ${c}0a 55%, transparent 100%)`,
+};
+
+// Feuille de style de l'assistant. Montée UNE fois par la coquille.
+// Toutes les animations sont courtes (≤ .28s) et desactivees si l'utilisateur a
+// demande a son telephone de reduire les animations.
+const WizardStyles = () => (
+  <style>{`
+    @keyframes tswIn    { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:none } }
+    @keyframes tswPop   { 0% { transform:scale(.6); opacity:0 } 60% { transform:scale(1.15) } 100% { transform:scale(1); opacity:1 } }
+    @keyframes tswGlow  { 0%,100% { box-shadow:0 0 0 0 ${CT.accent}00 } 50% { box-shadow:0 0 0 5px ${CT.accent}1a } }
+    @keyframes tswSweep { 0% { transform:translateX(-120%) } 100% { transform:translateX(320%) } }
+
+    .tsw-anim      { animation: tswIn .26s cubic-bezier(.22,.61,.36,1) both; }
+    .tsw-anim-1    { animation-delay:.03s } .tsw-anim-2 { animation-delay:.06s }
+    .tsw-anim-3    { animation-delay:.09s } .tsw-anim-4 { animation-delay:.12s }
+    .tsw-anim-5    { animation-delay:.15s } .tsw-anim-6 { animation-delay:.18s }
+
+    /* Cartes de choix : léger enfoncement au doigt, remontée discrète à la souris */
+    .tsw-card      { transition: transform .16s cubic-bezier(.22,.61,.36,1), border-color .16s, box-shadow .2s, background .2s; }
+    .tsw-card:active:not(:disabled)  { transform: scale(.985); }
+    @media (hover:hover) { .tsw-card:not(:disabled):hover { transform: translateY(-2px); } }
+    .tsw-card:focus-visible { outline:2px solid ${CT.accent}; outline-offset:3px; }
+
+    /* Coche d'une carte sélectionnée : elle éclot au lieu d'apparaître d'un coup */
+    .tsw-check     { animation: tswPop .24s cubic-bezier(.34,1.56,.64,1) both; }
+
+    /* Boutons : reflet interne + enfoncement */
+    .tsw-btn       { transition: transform .14s, filter .18s, box-shadow .18s; }
+    .tsw-btn:active:not(:disabled) { transform: scale(.97); }
+    @media (hover:hover) { .tsw-btn:not(:disabled):hover { filter: brightness(1.08); } }
+    .tsw-btn:focus-visible { outline:2px solid ${CT.accent}; outline-offset:3px; }
+
+    /* Étape en cours : halo qui respire, très léger */
+    .tsw-dot-actif { animation: tswGlow 2.4s ease-in-out infinite; }
+    .tsw-dot-fait  { animation: tswPop .3s cubic-bezier(.34,1.56,.64,1) both; }
+
+    /* Balayage lumineux sur la carte de récapitulatif */
+    .tsw-sweep::after {
+      content:""; position:absolute; top:0; bottom:0; left:0; width:70px; pointer-events:none;
+      background:linear-gradient(90deg, transparent, rgba(255,255,255,.05), transparent);
+      animation: tswSweep 6s ease-in-out infinite;
+    }
+
+    /* Le fil d'étapes défile horizontalement sur les petits écrans : on masque la
+       barre de défilement, qui apparaissait comme un rectangle gris sous les étapes. */
+    .tsw-steps { scrollbar-width: none; -ms-overflow-style: none; }
+    .tsw-steps::-webkit-scrollbar { display: none; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .tsw-anim, .tsw-check, .tsw-dot-actif, .tsw-dot-fait { animation: none !important; }
+      .tsw-sweep::after { display: none; }
+      .tsw-card, .tsw-btn { transition: none !important; }
+      .tsw-card:hover, .tsw-card:active, .tsw-btn:active { transform: none !important; }
+    }
+  `}</style>
+);
+
 // ── Carte de choix réutilisable (4 états visuels du §12) ─────────────────────
 // selected | recommended | invalid | disabled. Contenu libre (title/subtitle/lines).
 export const ChoiceCard = ({
@@ -74,18 +147,16 @@ export const ChoiceCard = ({
   ariaLabel,
   style = {},
 }) => {
+  const teinteEtat = invalid ? CT.red : selected ? CT.accent : recommended ? CT.green : null;
   const borderColor = invalid
     ? CT.red
     : selected
     ? CT.accent
     : recommended
     ? CT.green + "88"
-    : CT.border;
-  const bg = invalid
-    ? CT.red + "11"
-    : selected
-    ? CT.accent + "1f"
-    : CT.card;
+    : "rgba(255,255,255,.09)";
+  // Fond en 2 couches : la teinte de l'état par-dessus le dégradé de carte.
+  const bg = teinteEtat ? `${D.teinte(teinteEtat, invalid ? "16" : selected ? "26" : "10")}, ${D.fondCarte}` : D.fondCarte;
   return (
     <button
       type="button"
@@ -93,20 +164,22 @@ export const ChoiceCard = ({
       disabled={disabled}
       aria-label={ariaLabel || title}
       aria-pressed={selected}
+      className="tsw-card tsw-anim"
       style={{
         position: "relative",
         width: "100%",
         textAlign: "left",
         border: `1.5px solid ${borderColor}`,
         background: bg,
-        borderRadius: 14,
-        padding: "14px 14px",
+        borderRadius: D.r.l,
+        padding: "16px 16px",
         cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.5 : 1,
-        boxShadow: selected ? `0 0 0 3px ${CT.accent}22` : "none",
-        transition: "border-color .15s, background .15s, box-shadow .15s",
+        opacity: disabled ? 0.45 : 1,
+        boxShadow: selected
+          ? `${D.halo(CT.accent, 0.3)}, ${D.ombreHaute}, ${D.liseré}`
+          : `${D.ombre}, ${D.liseré}`,
         touchAction: "manipulation",
-        minHeight: 56,
+        minHeight: 60,
         ...style,
       }}
     >
@@ -114,43 +187,64 @@ export const ChoiceCard = ({
         <span
           style={{
             position: "absolute",
-            top: -10,
-            right: 10,
-            background: CT.green,
+            top: -11,
+            right: 12,
+            background: `linear-gradient(180deg, #4ade80, ${CT.green})`,
             color: "#04120a",
             fontSize: 10.5,
-            fontWeight: 800,
-            padding: "2px 8px",
+            fontWeight: 900,
+            padding: "3px 10px",
             borderRadius: 20,
-            letterSpacing: 0.2,
+            letterSpacing: 0.3,
+            boxShadow: `0 3px 10px -2px ${CT.green}88, inset 0 1px 0 rgba(255,255,255,.45)`,
+            whiteSpace: "nowrap",
           }}
         >
           ⭐ Recommandé
         </span>
       )}
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      {/* alignItems flex-start : sur une carte haute (texte qui passe à la ligne),
+          « center » faisait descendre l'icône et la coche au milieu de la carte. */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 13 }}>
         {emoji != null && (
-          <div style={{ fontSize: 24, lineHeight: 1, flexShrink: 0 }}>
-            <EmoText s={emoji} size={24} />
+          /* L'icône vit dans une pastille : même gabarit pour toutes les cartes. */
+          <div
+            style={{
+              flexShrink: 0,
+              width: 46,
+              height: 46,
+              borderRadius: 14,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: teinteEtat
+                ? `linear-gradient(150deg, ${teinteEtat}33, ${teinteEtat}0f)`
+                : "linear-gradient(150deg, rgba(255,255,255,.07), rgba(255,255,255,.02))",
+              border: `1px solid ${teinteEtat ? teinteEtat + "55" : "rgba(255,255,255,.08)"}`,
+              boxShadow: `${D.liseré}, 0 4px 10px -6px rgba(0,0,0,.9)`,
+            }}
+          >
+            <EmoText s={emoji} size={23} />
           </div>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
-              fontSize: 15,
+              fontSize: 15.5,
               fontWeight: 800,
+              letterSpacing: -0.2,
               color: selected ? CT.accent : CT.text,
             }}
           >
             {title}
           </div>
           {subtitle && (
-            <div style={{ fontSize: 12.5, color: CT.muted, marginTop: 2, lineHeight: 1.35 }}>
+            <div style={{ fontSize: 12.5, color: CT.muted, marginTop: 3, lineHeight: 1.45 }}>
               {subtitle}
             </div>
           )}
           {lines.length > 0 && (
-            <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={{ marginTop: 9, display: "flex", flexDirection: "column", gap: 4 }}>
               {lines.map((l, i) => (
                 <div
                   key={i}
@@ -158,16 +252,20 @@ export const ChoiceCard = ({
                     fontSize: 12,
                     color: l.strong ? CT.text : CT.muted,
                     fontWeight: l.strong ? 700 : 500,
-                    lineHeight: 1.4,
+                    lineHeight: 1.45,
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 7,
                   }}
                 >
-                  {l.icon ? <EmoText s={l.icon} size={12} /> : null} {l.text}
+                  {l.icon ? <span style={{ flexShrink: 0, opacity: l.strong ? 1 : 0.75 }}><EmoText s={l.icon} size={12} /></span> : null}
+                  <span>{l.text}</span>
                 </div>
               ))}
             </div>
           )}
           {invalid && invalidReason && (
-            <div style={{ fontSize: 11.5, color: CT.red, fontWeight: 700, marginTop: 6 }}>
+            <div style={{ fontSize: 11.5, color: CT.red, fontWeight: 700, marginTop: 8, lineHeight: 1.45 }}>
               ⚠️ {invalidReason}
             </div>
           )}
@@ -176,20 +274,23 @@ export const ChoiceCard = ({
         <div
           style={{
             flexShrink: 0,
-            width: 22,
-            height: 22,
+            width: 24,
+            height: 24,
+            marginTop: 11,
             borderRadius: "50%",
-            border: `2px solid ${selected ? CT.accent : CT.border}`,
-            background: selected ? CT.accent : "transparent",
+            border: `2px solid ${selected ? CT.accent : "rgba(255,255,255,.16)"}`,
+            background: selected ? `linear-gradient(180deg, #fb923c, ${CT.accent})` : "rgba(255,255,255,.02)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             color: "#fff",
             fontSize: 13,
             fontWeight: 900,
+            boxShadow: selected ? `0 3px 10px -3px ${CT.accent}cc, inset 0 1px 0 rgba(255,255,255,.4)` : "none",
+            transition: "background .18s, border-color .18s, box-shadow .18s",
           }}
         >
-          {selected ? "✓" : ""}
+          {selected ? <span className="tsw-check">✓</span> : ""}
         </div>
       </div>
     </button>
@@ -200,6 +301,7 @@ export const ChoiceCard = ({
 export const TournamentSetupStepper = ({ steps, current }) => (
   <div style={{ marginBottom: 18 }}>
     <div
+      className="tsw-steps"
       style={{
         display: "flex",
         alignItems: "center",
@@ -214,35 +316,67 @@ export const TournamentSetupStepper = ({ steps, current }) => (
         const active = i === current;
         const color = active ? CT.accent : done ? CT.green : CT.muted;
         return (
-          <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div key={label} style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <div
+                className={active ? "tsw-dot-actif" : done ? "tsw-dot-fait" : undefined}
                 style={{
-                  width: 22,
-                  height: 22,
+                  width: 24,
+                  height: 24,
                   borderRadius: "50%",
-                  border: `2px solid ${color}`,
-                  background: active ? CT.accent : done ? CT.green : "transparent",
+                  border: `2px solid ${done || active ? color : "rgba(255,255,255,.16)"}`,
+                  background: active
+                    ? `linear-gradient(180deg, #fb923c, ${CT.accent})`
+                    : done
+                    ? `linear-gradient(180deg, #4ade80, ${CT.green})`
+                    : "rgba(255,255,255,.02)",
                   color: active || done ? "#0b0b0b" : CT.muted,
                   fontSize: 12,
-                  fontWeight: 800,
+                  fontWeight: 900,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  flexShrink: 0,
+                  boxShadow: active || done ? `0 3px 10px -3px ${color}cc, inset 0 1px 0 rgba(255,255,255,.4)` : "none",
+                  transition: "background .22s, border-color .22s, box-shadow .22s",
                 }}
               >
                 {done ? "✓" : i + 1}
               </div>
-              <span style={{ fontSize: 12.5, fontWeight: active ? 800 : 600, color }}>{label}</span>
+              <span style={{ fontSize: 12.5, fontWeight: active ? 800 : 600, color, letterSpacing: active ? 0 : 0.1, transition: "color .22s" }}>{label}</span>
             </div>
             {i < steps.length - 1 && (
-              <span style={{ color: CT.border, fontSize: 13, margin: "0 2px" }}>›</span>
+              /* Trait de liaison : il se colore une fois l'étape franchie. */
+              <span
+                aria-hidden
+                style={{
+                  width: 18,
+                  height: 2,
+                  borderRadius: 2,
+                  margin: "0 1px",
+                  background: done ? CT.green : "rgba(255,255,255,.10)",
+                  transition: "background .3s ease",
+                }}
+              />
             )}
           </div>
         );
       })}
     </div>
-    <div style={{ fontSize: 11, color: CT.muted, marginTop: 6, fontWeight: 600 }}>
+    {/* Barre de progression globale, sous les pastilles */}
+    <div style={{ height: 3, borderRadius: 3, background: "rgba(255,255,255,.07)", marginTop: 12, overflow: "hidden" }}>
+      <div
+        style={{
+          height: "100%",
+          width: `${((current + 1) / steps.length) * 100}%`,
+          borderRadius: 3,
+          background: `linear-gradient(90deg, ${CT.green}, ${CT.accent})`,
+          boxShadow: `0 0 12px -2px ${CT.accent}aa`,
+          transition: "width .35s cubic-bezier(.22,.61,.36,1)",
+        }}
+      />
+    </div>
+    <div style={{ fontSize: 11, color: CT.muted, marginTop: 7, fontWeight: 600, letterSpacing: 0.2 }}>
       Étape {current + 1} sur {steps.length}
     </div>
   </div>
@@ -254,14 +388,15 @@ const RecapParticipants = ({ count, mode, format }) => {
   return (
     <div
       style={{
-        background: CT.accent + "11",
-        border: `1px solid ${CT.accent}33`,
-        borderRadius: 12,
-        padding: "12px 14px",
+        background: `${D.teinte(CT.accent, "18")}, ${D.fondPanneau}`,
+        border: `1px solid ${CT.accent}3d`,
+        borderRadius: D.r.l,
+        padding: "14px 16px",
         display: "flex",
         flexDirection: "column",
-        gap: 4,
-        marginBottom: 18,
+        gap: 5,
+        marginBottom: 22,
+        boxShadow: `${D.ombre}, ${D.liseré}, 0 0 26px -14px ${CT.accent}88`,
       }}
     >
       <div style={{ fontSize: 14, fontWeight: 800, color: CT.text }}>
@@ -278,9 +413,13 @@ const RecapParticipants = ({ count, mode, format }) => {
 
 // ── Petits blocs réutilisables ───────────────────────────────────────────────
 const SectionLabel = ({ children, hint }) => (
-  <div style={{ fontSize: 13.5, fontWeight: 800, color: CT.text, margin: "18px 0 8px" }}>
-    {children}
-    {hint && <span style={{ color: CT.muted, fontWeight: 500 }}> {hint}</span>}
+  <div style={{ fontSize: 13.5, fontWeight: 800, color: CT.text, margin: "26px 0 11px", letterSpacing: -0.1, display: "flex", alignItems: "baseline", gap: 7, flexWrap: "wrap" }}>
+    <span style={{ position: "relative", paddingLeft: 11 }}>
+      {/* Petit trait vertical accent : repère l'œil au début de chaque section */}
+      <span aria-hidden style={{ position: "absolute", left: 0, top: 1, bottom: 1, width: 3, borderRadius: 3, background: `linear-gradient(180deg, ${CT.accent}, ${CT.accent}44)` }} />
+      {children}
+    </span>
+    {hint && <span style={{ color: CT.muted, fontWeight: 500, fontSize: 12 }}>{hint}</span>}
   </div>
 );
 
@@ -290,11 +429,12 @@ const Collapsible = ({ title, emoji, children, defaultOpen = false }) => {
   return (
     <div
       style={{
-        border: `1px solid ${CT.border}`,
-        borderRadius: 12,
-        marginTop: 16,
+        border: "1px solid rgba(255,255,255,.08)",
+        borderRadius: D.r.m,
+        marginTop: 22,
         overflow: "hidden",
-        background: CT.cardHi,
+        background: D.fondPanneau,
+        boxShadow: `${D.ombre}, ${D.liseré}`,
       }}
     >
       <button
@@ -332,21 +472,55 @@ const SummaryBanner = ({ summary, title = "Configuration proposée" }) => {
   const color = summary.clean ? CT.green : CT.yellow;
   return (
     <div
+      className="tsw-sweep"
       style={{
-        border: `1px solid ${color}55`,
-        background: color + "12",
-        borderRadius: 14,
-        padding: "14px 16px",
-        marginTop: 18,
+        position: "relative",
+        overflow: "hidden",
+        border: `1px solid ${color}44`,
+        background: `${D.teinte(color, "16")}, ${D.fondPanneau}`,
+        borderRadius: D.r.l,
+        padding: "16px 18px 18px",
+        marginTop: 22,
+        boxShadow: `${D.ombreHaute}, ${D.liseré}, 0 0 34px -14px ${color}66`,
       }}
     >
-      <div style={{ fontSize: 12.5, fontWeight: 800, color, letterSpacing: 0.3, marginBottom: 8 }}>
-        <EmoText s="🏟️" size={13} /> {title.toUpperCase()}
+      {/* En-tête : pastille d'icône + titre, pour poser la hiérarchie */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 13 }}>
+        <span
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 10,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            background: `linear-gradient(150deg, ${color}3d, ${color}12)`,
+            border: `1px solid ${color}66`,
+            boxShadow: D.liseré,
+          }}
+        >
+          <EmoText s="🏟️" size={15} />
+        </span>
+        <span style={{ fontSize: 12, fontWeight: 900, color, letterSpacing: 1.1 }}>{title.toUpperCase()}</span>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {/* Chaque ligne sur sa propre rangée, icône alignée à gauche : l'œil descend tout droit */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {summary.lines.map((l, i) => (
-          <div key={i} style={{ fontSize: 13, color: CT.text, fontWeight: 600, lineHeight: 1.4 }}>
-            {l.icon ? <EmoText s={l.icon} size={13} /> : null} {l.text}
+          <div
+            key={i}
+            style={{
+              fontSize: 13.5,
+              color: CT.text,
+              fontWeight: 600,
+              lineHeight: 1.45,
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 10,
+            }}
+          >
+            {l.icon ? <span style={{ flexShrink: 0, width: 16, textAlign: "center" }}><EmoText s={l.icon} size={13} /></span> : null}
+            <span>{l.text}</span>
           </div>
         ))}
       </div>
@@ -354,43 +528,50 @@ const SummaryBanner = ({ summary, title = "Configuration proposée" }) => {
   );
 };
 
+// ── Encart d'information : un seul style pour durée estimée, alertes, conseils ──
+// Pastille d'icône à gauche + texte : même rythme visuel partout dans l'assistant.
+const encartStyle = (c) => ({
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 11,
+  background: `${D.teinte(c, "14")}, ${D.fondPanneau}`,
+  border: `1px solid ${c}3d`,
+  borderRadius: D.r.m,
+  padding: "12px 14px",
+  fontSize: 12.5,
+  color: c,
+  lineHeight: 1.5,
+  boxShadow: `${D.ombre}, ${D.liseré}`,
+});
+const pastilleEncart = (c) => ({
+  flexShrink: 0,
+  width: 26,
+  height: 26,
+  borderRadius: 9,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 13,
+  background: `linear-gradient(150deg, ${c}33, ${c}0f)`,
+  border: `1px solid ${c}55`,
+  boxShadow: D.liseré,
+});
+
 // Messages de validation : erreurs (bloquantes) + avertissements.
 const ValidationMessages = ({ result }) => {
   if (!result || (!result.errors.length && !result.warnings.length)) return null;
   return (
     <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
       {result.errors.map((e, i) => (
-        <div
-          key={"e" + i}
-          style={{
-            background: CT.red + "14",
-            border: `1px solid ${CT.red}55`,
-            borderRadius: 10,
-            padding: "9px 12px",
-            fontSize: 12.5,
-            color: CT.red,
-            fontWeight: 700,
-            lineHeight: 1.4,
-          }}
-        >
-          ⛔ {e}
+        <div key={"e" + i} style={encartStyle(CT.red)}>
+          <span style={pastilleEncart(CT.red)}>⛔</span>
+          <span style={{ fontWeight: 700 }}>{e}</span>
         </div>
       ))}
       {result.warnings.map((w, i) => (
-        <div
-          key={"w" + i}
-          style={{
-            background: CT.yellow + "12",
-            border: `1px solid ${CT.yellow}44`,
-            borderRadius: 10,
-            padding: "9px 12px",
-            fontSize: 12.5,
-            color: CT.yellow,
-            fontWeight: 600,
-            lineHeight: 1.4,
-          }}
-        >
-          ⚠️ {w}
+        <div key={"w" + i} style={encartStyle(CT.yellow)}>
+          <span style={pastilleEncart(CT.yellow)}>⚠️</span>
+          <span style={{ fontWeight: 600 }}>{w}</span>
         </div>
       ))}
     </div>
@@ -399,25 +580,32 @@ const ValidationMessages = ({ result }) => {
 
 // Petit sélecteur horizontal de nombres (manches, durée…).
 const NumberPills = ({ values, value, onPick, suffix }) => (
-  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+  // Grille à colonnes égales plutôt que flex-wrap : à 349 px de large, le dernier
+  // choix passait seul à la ligne et occupait toute la largeur.
+  <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(values.length, 6)}, 1fr)`, gap: 8 }}>
     {values.map((v) => {
       const sel = value === v;
       return (
         <button
           key={v}
           onClick={() => onPick(v)}
+          className="tsw-btn"
           style={{
-            flex: "1 1 44px",
-            minWidth: 44,
-            minHeight: 44,
-            borderRadius: 10,
-            border: `1.5px solid ${sel ? CT.accent : CT.border}`,
-            background: sel ? CT.accent + "1f" : CT.card,
+            minWidth: 0,
+            minHeight: 48,
+            borderRadius: D.r.s,
+            border: `1.5px solid ${sel ? CT.accent : "rgba(255,255,255,.09)"}`,
+            background: sel
+              ? `linear-gradient(168deg, ${CT.accent}33, ${CT.accent}14)`
+              : D.fondCarte,
             color: sel ? CT.accent : CT.text,
-            fontWeight: sel ? 800 : 600,
-            fontSize: 15,
+            fontWeight: sel ? 900 : 600,
+            fontSize: 15.5,
             cursor: "pointer",
             touchAction: "manipulation",
+            boxShadow: sel
+              ? `${D.halo(CT.accent, 0.26)}, ${D.liseré}`
+              : `${D.ombre}, ${D.liseré}`,
           }}
         >
           {v}
@@ -690,15 +878,17 @@ export const StepCibles = ({ config, participantCount, onChange }) => {
         <button
           onClick={() => set({ availableTargets: Math.max(1, cibles - 1) })}
           aria-label="Une cible de moins"
-          style={{ width: 46, height: 46, borderRadius: 12, border: `1px solid ${CT.border}`, background: CT.card, color: CT.text, fontSize: 24, fontWeight: 800, cursor: "pointer", touchAction: "manipulation" }}
+          className="tsw-btn"
+          style={{ width: 52, height: 52, borderRadius: 15, border: "1px solid rgba(255,255,255,.10)", background: D.fondCarte, color: CT.text, fontSize: 25, fontWeight: 800, cursor: "pointer", touchAction: "manipulation", boxShadow: `${D.ombre}, ${D.liseré}`, display: "flex", alignItems: "center", justifyContent: "center" }}
         >
           −
         </button>
-        <span style={{ fontWeight: 800, fontSize: 28, color: CT.accent, minWidth: 40, textAlign: "center" }}>{cibles}</span>
+        <span style={{ fontWeight: 900, fontSize: 34, color: CT.accent, minWidth: 52, textAlign: "center", letterSpacing: -1, textShadow: `0 0 22px ${CT.accent}55` }}>{cibles}</span>
         <button
           onClick={() => set({ availableTargets: Math.min(12, cibles + 1) })}
           aria-label="Une cible de plus"
-          style={{ width: 46, height: 46, borderRadius: 12, border: `1px solid ${CT.border}`, background: CT.card, color: CT.text, fontSize: 24, fontWeight: 800, cursor: "pointer", touchAction: "manipulation" }}
+          className="tsw-btn"
+          style={{ width: 52, height: 52, borderRadius: 15, border: "1px solid rgba(255,255,255,.10)", background: D.fondCarte, color: CT.text, fontSize: 25, fontWeight: 800, cursor: "pointer", touchAction: "manipulation", boxShadow: `${D.ombre}, ${D.liseré}`, display: "flex", alignItems: "center", justifyContent: "center" }}
         >
           +
         </button>
@@ -1041,7 +1231,8 @@ export const StepTableau = ({ config, onChange, context = {} }) => {
         <button
           onClick={() => set({ finalTargets: Math.max(1, finalTargets - 1) })}
           aria-label="Une cible de moins (tableau)"
-          style={{ width: 46, height: 46, borderRadius: 12, border: `1px solid ${CT.border}`, background: CT.card, color: CT.text, fontSize: 24, fontWeight: 800, cursor: "pointer", touchAction: "manipulation" }}
+          className="tsw-btn"
+          style={{ width: 52, height: 52, borderRadius: 15, border: "1px solid rgba(255,255,255,.10)", background: D.fondCarte, color: CT.text, fontSize: 25, fontWeight: 800, cursor: "pointer", touchAction: "manipulation", boxShadow: `${D.ombre}, ${D.liseré}`, display: "flex", alignItems: "center", justifyContent: "center" }}
         >
           −
         </button>
@@ -1049,7 +1240,8 @@ export const StepTableau = ({ config, onChange, context = {} }) => {
         <button
           onClick={() => set({ finalTargets: Math.min(12, finalTargets + 1) })}
           aria-label="Une cible de plus (tableau)"
-          style={{ width: 46, height: 46, borderRadius: 12, border: `1px solid ${CT.border}`, background: CT.card, color: CT.text, fontSize: 24, fontWeight: 800, cursor: "pointer", touchAction: "manipulation" }}
+          className="tsw-btn"
+          style={{ width: 52, height: 52, borderRadius: 15, border: "1px solid rgba(255,255,255,.10)", background: D.fondCarte, color: CT.text, fontSize: 25, fontWeight: 800, cursor: "pointer", touchAction: "manipulation", boxShadow: `${D.ombre}, ${D.liseré}`, display: "flex", alignItems: "center", justifyContent: "center" }}
         >
           +
         </button>
@@ -1096,15 +1288,17 @@ const EditBtn = ({ label, onClick }) => (
   <button
     onClick={onClick}
     style={{
-      background: "transparent",
-      border: `1px solid ${CT.border}`,
+      background: D.fondCarte,
+      border: "1px solid rgba(255,255,255,.10)",
       color: CT.muted,
-      borderRadius: 8,
-      padding: "6px 12px",
+      borderRadius: 10,
+      padding: "9px 14px",
       fontSize: 12,
       fontWeight: 700,
       cursor: "pointer",
       touchAction: "manipulation",
+      minHeight: 38,
+      boxShadow: `${D.ombre}, ${D.liseré}`,
     }}
   >
     ✏️ {label}
@@ -1186,20 +1380,12 @@ export const StepResume = ({ phase, config, participantCount, context = {}, onEd
 
       <SummaryBanner summary={summary} title="Résumé des poules" />
 
-      <div
-        style={{
-          marginTop: 18,
-          background: CT.blue + "12",
-          border: `1px solid ${CT.blue}44`,
-          borderRadius: 10,
-          padding: "10px 12px",
-          fontSize: 12.5,
-          color: CT.blue,
-          fontWeight: 700,
-        }}
-      >
-        ⏱️ Durée estimée des poules : environ {formatDuration(ciblesMode === "par_poule" ? dureeParPoule : dureeOptimisee)}
-        <div style={{ fontSize: 10.5, color: CT.muted, fontWeight: 500, marginTop: 2 }}>Estimation indicative, sur une base de {DUREE_MATCH_MIN} min par match. En cas d'égalité parfaite, 1 à 3 matchs de barrage en 701 peuvent s'ajouter à la fin des poules.</div>
+      <div style={{ ...encartStyle(CT.blue), marginTop: 22 }}>
+        <span style={pastilleEncart(CT.blue)}>⏱️</span>
+        <span>
+          <span style={{ fontWeight: 800, fontSize: 13.5 }}>Durée estimée des poules : environ {formatDuration(ciblesMode === "par_poule" ? dureeParPoule : dureeOptimisee)}</span>
+          <div style={{ fontSize: 11, color: CT.muted, fontWeight: 500, marginTop: 4, lineHeight: 1.5 }}>Estimation indicative, sur une base de {DUREE_MATCH_MIN} min par match. En cas d'égalité parfaite, 1 à 3 matchs de barrage en 701 peuvent s'ajouter à la fin des poules.</div>
+        </span>
       </div>
 
 
@@ -1386,21 +1572,33 @@ export const TournoiSetupWizard = ({
           flexShrink: 0,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: CT.text }}>
-            <EmoText s="🍺" size={16} /> Nouveau tournoi
+        <WizardStyles />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+          <div style={{ fontSize: 17, fontWeight: 900, color: CT.text, letterSpacing: -0.3, display: "flex", alignItems: "center", gap: 9 }}>
+            <span style={{ width: 32, height: 32, borderRadius: 11, display: "inline-flex", alignItems: "center", justifyContent: "center",
+              background: `linear-gradient(150deg, ${CT.accent}3d, ${CT.accent}12)`, border: `1px solid ${CT.accent}55`, boxShadow: D.liseré }}>
+              <EmoText s="🍺" size={16} />
+            </span>
+            Nouveau tournoi
           </div>
           <button
             onClick={onCancel}
             aria-label="Fermer l'assistant"
+            className="tsw-btn"
             style={{
-              background: "none",
-              border: "none",
+              background: D.fondCarte,
+              border: "1px solid rgba(255,255,255,.10)",
               color: CT.muted,
-              fontSize: 22,
+              fontSize: 17,
               lineHeight: 1,
               cursor: "pointer",
-              padding: 4,
+              width: 38,
+              height: 38,
+              borderRadius: 11,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: `${D.ombre}, ${D.liseré}`,
             }}
           >
             ✕
@@ -1437,18 +1635,20 @@ export const TournoiSetupWizard = ({
           <button
             onClick={back}
             disabled={saving}
+            className="tsw-btn"
             style={{
               flexShrink: 0,
-              background: "transparent",
-              border: `1px solid ${CT.border}`,
+              background: D.fondCarte,
+              border: "1px solid rgba(255,255,255,.10)",
               color: CT.muted,
-              borderRadius: 12,
-              padding: "13px 16px",
+              borderRadius: D.r.m,
+              padding: "14px 16px",
               fontSize: 13.5,
               fontWeight: 700,
               cursor: saving ? "not-allowed" : "pointer",
-              minHeight: 48,
+              minHeight: 52,
               touchAction: "manipulation",
+              boxShadow: `${D.ombre}, ${D.liseré}`,
             }}
           >
             {isFirst ? "Annuler" : "‹ Retour"}
@@ -1456,19 +1656,23 @@ export const TournoiSetupWizard = ({
           <button
             onClick={next}
             disabled={saving}
+            className="tsw-btn"
             style={{
               flex: 1,
-              background: CT.accent,
+              background: `linear-gradient(180deg, #fb923c 0%, ${CT.accent} 55%, #ea580c 100%)`,
               border: "none",
               color: "#fff",
-              borderRadius: 12,
-              padding: "13px 16px",
+              borderRadius: D.r.m,
+              padding: "14px 16px",
               fontSize: 15,
               fontWeight: 800,
+              letterSpacing: 0.1,
               cursor: saving ? "not-allowed" : "pointer",
               opacity: saving ? 0.6 : 1,
-              minHeight: 48,
+              minHeight: 52,
               touchAction: "manipulation",
+              textShadow: "0 1px 2px rgba(0,0,0,.35)",
+              boxShadow: `0 8px 22px -10px ${CT.accent}, inset 0 1px 0 rgba(255,255,255,.35), inset 0 -2px 6px -2px rgba(0,0,0,.45)`,
             }}
           >
             {saving ? "…" : primaryLabel}
