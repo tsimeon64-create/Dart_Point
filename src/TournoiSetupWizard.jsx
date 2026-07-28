@@ -429,7 +429,13 @@ const NumberPills = ({ values, value, onPick, suffix }) => (
 );
 
 // ── ÉTAPE 2 : Configuration des poules ───────────────────────────────────────
-export const StepPoules = ({ config, participantCount, onChange }) => {
+// ── Calculs partagés par les 3 écrans de configuration des poules ────────────
+// Ils étaient dans StepPoules quand tout tenait sur un seul écran. Découpés en
+// plusieurs étapes, les 3 écrans ont besoin des mêmes valeurs (répartition,
+// durées, garde-fous) : on les calcule ici une fois pour toutes.
+// ⚠️ Les deux useEffect corrigent d'eux-mêmes une config devenue invalide. Un seul
+// écran est monté à la fois, ils ne peuvent donc pas se marcher dessus.
+const usePoulesCalculs = (config, participantCount, onChange) => {
   const set = (patch) => onChange({ ...config, ...patch });
   const unite = config.format === "doublette" ? "équipes" : "joueurs";
   const uniteQ = config.format === "doublette" ? "équipes qualifiées" : "qualifiés";
@@ -521,6 +527,15 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
     return Math.max(...charge) * DUREE_MATCH_MIN;
   })();
 
+  return { set, unite, uniteQ, qpp, options, recommended, sel, groups, minPool,
+    summary, validation, conseqQual, nbPoulesDe2, manches, cibles, ciblesMode,
+    dureeOptimisee, ciblesUtiles, dureeParPoule };
+};
+
+// ── ÉTAPE 1 : combien d'équipes par poule ────────────────────────────────────
+export const StepPoules = ({ config, participantCount, onChange }) => {
+  const { unite, uniteQ, qpp, recommended, options, sel, set, conseqQual, nbPoulesDe2,
+    summary, validation } = usePoulesCalculs(config, participantCount, onChange);
   return (
     <div>
       <h2 style={{ fontSize: 19, fontWeight: 800, color: CT.text, margin: "0 0 4px" }}>
@@ -579,6 +594,28 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
       <SummaryBanner summary={summary} />
       <ValidationMessages result={validation} />
 
+      {/* Note : la répartition se fait par tirage au sort équilibré (poules de tailles proches). */}
+      <div style={{ fontSize: 11.5, color: CT.muted, marginTop: 16, lineHeight: 1.4 }}>
+        🎲 Les poules sont formées par <b style={{ color: CT.text }}>tirage au sort</b> (tailles équilibrées), au moment du lancement.
+      </div>
+
+    </div>
+  );
+};
+
+// ── ÉTAPE 2 : qui se qualifie, et en combien de manches ──────────────────────
+export const StepQualifies = ({ config, participantCount, onChange }) => {
+  const { uniteQ, qpp, set, minPool, conseqQual, manches, groups } =
+    usePoulesCalculs(config, participantCount, onChange);
+  void groups;
+  return (
+    <div>
+      <h2 style={{ fontSize: 19, fontWeight: 800, color: CT.text, margin: "0 0 4px" }}>
+        <EmoText s="🎯" size={18} /> Qualification
+      </h2>
+      <p style={{ fontSize: 13, color: CT.muted, margin: "0 0 14px" }}>
+        Qui passe au tableau final, et combien de manches pour gagner un match.
+      </p>
       <SectionLabel hint="(qui passe au tableau)">
         {config.format === "doublette" ? "Équipes qualifiées" : "Qualifiés"} par poule
       </SectionLabel>
@@ -629,6 +666,22 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
         Le premier {config.format === "doublette" ? "équipe" : "joueur"} à atteindre <b style={{ color: CT.text }}>{manches} manche{manches > 1 ? "s" : ""}</b> remporte le match.
       </div>
 
+    </div>
+  );
+};
+
+// ── ÉTAPE 3 : les cibles et la façon de les occuper ──────────────────────────
+export const StepCibles = ({ config, participantCount, onChange }) => {
+  const { set, cibles, ciblesMode, groups, dureeOptimisee, dureeParPoule, ciblesUtiles } =
+    usePoulesCalculs(config, participantCount, onChange);
+  return (
+    <div>
+      <h2 style={{ fontSize: 19, fontWeight: 800, color: CT.text, margin: "0 0 4px" }}>
+        <EmoText s="🎯" size={18} /> Les cibles
+      </h2>
+      <p style={{ fontSize: 13, color: CT.muted, margin: "0 0 14px" }}>
+        Combien de cibles tu as, et comment les occuper.
+      </p>
       {/* ORDRE VOULU : on demande D'ABORD combien de cibles existent dans le bar, ENSUITE comment
           les occuper. L'inverse n'a pas de sens : les durées annoncées sur les deux cartes
           dépendent justement de ce nombre. */}
@@ -666,7 +719,6 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
           title="Optimisé"
           subtitle="L'appli répartit les matchs sur les cibles et annonce qui joue maintenant."
           selected={ciblesMode !== "par_poule"}
-          recommended
           ariaLabel="Organisation optimisée"
           onClick={() => set({ ciblesMode: "optimise" })}
           lines={[
@@ -691,41 +743,10 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
         />
       </div>
 
-      <div
-        style={{
-          marginTop: 18,
-          background: CT.blue + "12",
-          border: `1px solid ${CT.blue}44`,
-          borderRadius: 10,
-          padding: "10px 12px",
-          fontSize: 12.5,
-          color: CT.blue,
-          fontWeight: 700,
-        }}
-      >
-        ⏱️ Durée estimée des poules : environ {formatDuration(ciblesMode === "par_poule" ? dureeParPoule : dureeOptimisee)}
-        <div style={{ fontSize: 10.5, color: CT.muted, fontWeight: 500, marginTop: 2 }}>Estimation indicative, sur une base de {DUREE_MATCH_MIN} min par match. En cas d'égalité parfaite, 1 à 3 matchs de barrage en 701 peuvent s'ajouter à la fin des poules.</div>
-      </div>
-
-      {/* Note : la répartition se fait par tirage au sort équilibré (poules de tailles proches). */}
-      <div style={{ fontSize: 11.5, color: CT.muted, marginTop: 16, lineHeight: 1.4 }}>
-        🎲 Les poules sont formées par <b style={{ color: CT.text }}>tirage au sort</b> (tailles équilibrées), au moment du lancement.
-      </div>
-
-      <Collapsible title="Comment les équipes sont-elles classées ?" emoji="📊">
-        <ol style={{ margin: "8px 0 0", paddingLeft: 20, color: CT.text, fontSize: 12.5, lineHeight: 1.6 }}>
-          <li>Nombre de victoires</li>
-          <li>Nombre de défaites</li>
-          <li>Différence de manches (manches gagnées − perdues)</li>
-          <li>Match de barrage en 701 en cas d'égalité persistante</li>
-        </ol>
-        <div style={{ fontSize: 11, color: CT.muted, marginTop: 8, lineHeight: 1.4 }}>
-          Le barrage en 701 est une règle propre à Dart Point pour départager équitablement.
-        </div>
-      </Collapsible>
     </div>
   );
 };
+
 
 // ── Carte toggle (petite finale / consolante) ───────────────────────────────
 const ToggleRow = ({ on, disabled, emoji, title, subtitle, offReason, onToggle }) => (
@@ -1122,8 +1143,22 @@ export const StepResume = ({ phase, config, participantCount, context = {}, onEd
     );
   }
 
-  // Phase poules : combine Format + Poules.
+  // Phase poules : récapitulatif de tout ce qui a été choisi sur les 3 écrans.
   const groups = distributePools(participantCount, poolCountFromSize(participantCount, config.playersPerPool || 4));
+  const ciblesMode = config.ciblesMode === "par_poule" ? "par_poule" : "optimise";
+  const ciblesR = config.availableTargets || 1;
+  const dureeOptimisee = estimatePoolDuration({ groups, availableTargets: ciblesR, averageMatchDuration: DUREE_MATCH_MIN });
+  // Même règle qu'à l'étape Cibles : une poule occupe UNE cible du début à la fin.
+  const dureeParPoule = (() => {
+    const parPoule = groups.map((n) => (n * (n - 1)) / 2).sort((a, b) => b - a);
+    const charge = new Array(Math.max(1, Math.min(ciblesR, groups.length))).fill(0);
+    for (const m of parPoule) {
+      let libre = 0;
+      for (let k = 1; k < charge.length; k++) if (charge[k] < charge[libre]) libre = k;
+      charge[libre] += m;
+    }
+    return Math.max(...charge) * DUREE_MATCH_MIN;
+  })();
   const summary = buildPoolConfigurationSummary({
     playerCount: participantCount,
     groups,
@@ -1144,12 +1179,47 @@ export const StepResume = ({ phase, config, participantCount, context = {}, onEd
         <span style={{ fontSize: 13, color: CT.text, fontWeight: 700, flex: 1 }}>
           <EmoText s="🎯" size={13} /> Mode {config.mode} · {config.format === "doublette" ? "Doublette" : "Simple"}
         </span>
-        <EditBtn label="Format" onClick={() => onEditStep(0)} />
+        {/* Plus de bouton « Format » ici : le mode et le format sont choisis à la CRÉATION
+            du tournoi, l'assistant ne les redemande plus. Le bouton renvoyait vers les
+            poules, ce qui n'avait plus de sens. */}
       </div>
 
       <SummaryBanner summary={summary} title="Résumé des poules" />
-      <div style={{ marginTop: 12 }}>
-        <EditBtn label="Modifier les poules" onClick={() => onEditStep(1)} />
+
+      <div
+        style={{
+          marginTop: 18,
+          background: CT.blue + "12",
+          border: `1px solid ${CT.blue}44`,
+          borderRadius: 10,
+          padding: "10px 12px",
+          fontSize: 12.5,
+          color: CT.blue,
+          fontWeight: 700,
+        }}
+      >
+        ⏱️ Durée estimée des poules : environ {formatDuration(ciblesMode === "par_poule" ? dureeParPoule : dureeOptimisee)}
+        <div style={{ fontSize: 10.5, color: CT.muted, fontWeight: 500, marginTop: 2 }}>Estimation indicative, sur une base de {DUREE_MATCH_MIN} min par match. En cas d'égalité parfaite, 1 à 3 matchs de barrage en 701 peuvent s'ajouter à la fin des poules.</div>
+      </div>
+
+
+      <Collapsible title="Comment les équipes sont-elles classées ?" emoji="📊">
+        <ol style={{ margin: "8px 0 0", paddingLeft: 20, color: CT.text, fontSize: 12.5, lineHeight: 1.6 }}>
+          <li>Nombre de victoires</li>
+          <li>Nombre de défaites</li>
+          <li>Différence de manches (manches gagnées − perdues)</li>
+          <li>Match de barrage en 701 en cas d'égalité persistante</li>
+        </ol>
+        <div style={{ fontSize: 11, color: CT.muted, marginTop: 8, lineHeight: 1.4 }}>
+          Le barrage en 701 est une règle propre à Dart Point pour départager équitablement.
+        </div>
+      </Collapsible>
+
+      {/* Un bouton par écran : on revient corriger exactement ce qu'on veut. */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+        <EditBtn label="Poules" onClick={() => onEditStep(0)} />
+        <EditBtn label="Qualification" onClick={() => onEditStep(1)} />
+        <EditBtn label="Cibles" onClick={() => onEditStep(2)} />
       </div>
     </div>
   );
@@ -1229,7 +1299,7 @@ export const TournoiSetupWizard = ({
   // à la création du tournoi (fenêtre « Nouveau tournoi »). Les redemander ici faisait doublon et
   // rallongeait l'assistant pour rien. Ils restent visibles en rappel en haut de l'étape Poules.
   const steps =
-    phase === "tableau" ? ["Tableau", "Résumé"] : ["Poules", "Résumé"];
+    phase === "tableau" ? ["Tableau", "Résumé"] : ["Poules", "Qualification", "Cibles", "Résumé"];
   const [step, setStep] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const isLast = step === steps.length - 1;
@@ -1279,8 +1349,8 @@ export const TournoiSetupWizard = ({
 
   const primaryLabel = (() => {
     if (isLast) return phase === "tableau" ? "🏆 Lancer le tableau" : "✅ Lancer les poules";
-    if (phase === "poules" && step === 0) return "Continuer vers les poules";
-    if (phase === "poules" && step === 1) return "Voir le résumé";
+    // Le bouton annonce l'écran SUIVANT : on sait où on va avant d'appuyer.
+    if (phase === "poules") return ["Continuer vers la qualification", "Continuer vers les cibles", "Voir le résumé"][step] || "Continuer";
     return "Continuer";
   })();
 
@@ -1289,8 +1359,9 @@ export const TournoiSetupWizard = ({
       if (step === 0) return <StepTableau config={config} onChange={setConfig} context={tableauContext} />;
       return <StepResume phase="tableau" config={config} participantCount={participantCount} context={tableauContext} onEditStep={setStep} />;
     }
-    if (step === 0)
-      return <StepPoules config={config} participantCount={participantCount} onChange={setConfig} />;
+    if (step === 0) return <StepPoules      config={config} participantCount={participantCount} onChange={setConfig} />;
+    if (step === 1) return <StepQualifies   config={config} participantCount={participantCount} onChange={setConfig} />;
+    if (step === 2) return <StepCibles      config={config} participantCount={participantCount} onChange={setConfig} />;
     return <StepResume phase="poules" config={config} participantCount={participantCount} onEditStep={setStep} />;
   };
 
