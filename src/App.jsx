@@ -7290,14 +7290,12 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
         <EmoIcon e="🎮" size={11} color="#64748b" style={{verticalAlign:"-2px",marginRight:5}}/>TOUS LES MODES
       </div>
       <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-        <GameCard icon={Zap} label="Rush Mode" col="#ef4444"
+        <GameCardImg img="rush-mode" label="Rush Mode" priorite
           sub="Calcul mental sous pression : score, finishes, bust, routes."
-          badge="POPULAIRE" badgeIcon="🔥" bgIcon="⚡"
           onClick={()=>setPage("rush-mode")}/>
 
-        <GameCard icon={Target} label="Calcul Finish" col="#f97316"
+        <GameCardImg img="calcul-finish" label="Calcul Finish" priorite
           sub="Entraîne-toi à construire tes finishes en 1, 2 ou 3 fléchettes."
-          badge="ENTRAÎNEMENT" badgeIcon="🎯" bgIcon="🎯"
           onClick={()=>setPage("entrainement-finish")}/>
       </div>
     </div>
