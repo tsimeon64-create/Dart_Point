@@ -5548,25 +5548,122 @@ const PageLive = ({ joueur, setPage }) => {
 };
 
 // ── PAGE COMMUNAUTÉ ────────────────────────────────────────────────────────────
-// ── ACTUALITÉ : j'aime + commentaires REÇUS sur mes matchs ──────────────────
-// Déduit à partir de mes duels + wall_likes/wall_comments (aucune table dédiée).
-const fetchActuNotifs = async (joueurId) => {
+// ── ACTUALITÉ : j'aime + commentaires REÇUS sur MES cartes du Comptoir ───────
+// Rien n'est stocké : on relit wall_likes / wall_comments et, pour chaque carte
+// touchée, on regarde si elle me concerne. Conséquence heureuse : aimer, retirer
+// son j'aime puis re-aimer ne fabrique JAMAIS 3 notifications — il n'y a qu'une
+// ligne en base, donc qu'une notification.
+//
+// ⚠️ `ref_id` désigne une carte du fil, mais il peut venir de 4 TABLES différentes
+// et AUCUNE colonne ne dit laquelle. On sonde donc dans l'ordre, et on ne redemande
+// que ce qui n'a pas encore été résolu (le sondage tourne toutes les 45 s).
+// ⚠️ PIÈGE : ne PAS écrire `new Map()` dans ce fichier. L'icône `Map` de lucide-react est
+// importée en haut (ligne 3) et masque le Map natif → « Map is not a constructor », page
+// blanche au chargement, que ni le build ni le lint ne voient. On utilise donc des objets.
+const _cacheCartes = {};   // "joueurId|refId" → { kind, label } ou null (= pas à moi)
+
+// Le vrai type d'une publication est caché dans le préfixe de `contenu`.
+const kindDuContenu = (contenu) => {
+  const c = contenu || "";
+  if (c.startsWith("__CHRONO_SCOREUR__|") || c.startsWith("__CHRONO__|")) return "speedrun";
+  if (c.startsWith("__BADGE__|")) return "badge";
+  return "post";
+};
+
+const resoudreCartes = async (refIds, joueurId) => {
+  const cle = (id) => joueurId + "|" + id;
+  const inconnus = [...new Set(refIds)].filter(id => !(cle(id) in _cacheCartes));
+  if (inconnus.length) {
+    const reste = new Set(inconnus);
+    const liste = () => [...reste].join(",");
+    const poseMatch = (id, d) => _cacheCartes[cle(id)] = (
+      (d.challenger_id === joueurId || d.defie_id === joueurId)
+        ? { kind:"match", label: d.challenger_id === joueurId ? d.defie_pseudo : d.challenger_pseudo }
+        : null);
+
+    // a) carte de match reconstruite directement depuis la table duels
+    if (reste.size) {
+      const duels = await sb(`duels?id=in.(${liste()})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`).catch(()=>[]);
+      (duels||[]).forEach(d => { reste.delete(d.id); poseMatch(d.id, d); });
+    }
+
+    // b) publication du mur. Les cartes « __DUEL__ » sont mises de côté : le post
+    //    appartient au VAINQUEUR, mais le perdant est concerné par le match lui aussi.
+    const postsDuel = [];
+    if (reste.size) {
+      // surtout PAS select=* : la colonne image_url contient des photos en base64.
+      const posts = await sb(`wall_posts?id=in.(${liste()})&select=id,joueur_id,contenu`).catch(()=>[]);
+      (posts||[]).forEach(p => {
+        reste.delete(p.id);
+        if ((p.contenu||"").startsWith("__DUEL__|")) postsDuel.push(p);
+        else _cacheCartes[cle(p.id)] = (p.joueur_id === joueurId ? { kind:kindDuContenu(p.contenu), label:"" } : null);
+      });
+    }
+
+    // c) les deux joueurs d'un match. On passe par le duel_id du JSON, JAMAIS par les
+    //    pseudos : un joueur qui se renomme casserait la reconnaissance.
+    if (postsDuel.length) {
+      const parDuel = {};
+      postsDuel.forEach(p => {
+        try {
+          const d = JSON.parse(p.contenu.slice(9));
+          // un match contre un bot n'a pas de duel_id : seul l'auteur est concerné
+          if (d && d.duel_id) parDuel[d.duel_id] = p.id;
+          else _cacheCartes[cle(p.id)] = (p.joueur_id === joueurId ? { kind:"match", label:(d && d.botNom) || "" } : null);
+        } catch(e) { _cacheCartes[cle(p.id)] = (p.joueur_id === joueurId ? { kind:"match", label:"" } : null); }
+      });
+      if (Object.keys(parDuel).length) {
+        const ds = await sb(`duels?id=in.(${Object.keys(parDuel).join(",")})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`).catch(()=>[]);
+        const vus = new Set();
+        (ds||[]).forEach(d => { vus.add(d.id); poseMatch(parDuel[d.id], d); });
+        Object.entries(parDuel).forEach(([duelId, postId]) => { if (!vus.has(duelId)) _cacheCartes[cle(postId)] = null; });
+      }
+    }
+
+    // d) palier DRIX / entraînement, puis présence au bar
+    if (reste.size) {
+      const mv = await sb(`drix_mouvements?id=in.(${liste()})&joueur_id=eq.${joueurId}&select=id,adversaire_pseudo`).catch(()=>[]);
+      (mv||[]).forEach(m => { reste.delete(m.id); _cacheCartes[cle(m.id)] = ({ kind: m.adversaire_pseudo === "Comptage de finish" ? "training" : "drix", label:"" }); });
+    }
+    if (reste.size) {
+      const pr = await sb(`presences?id=in.(${liste()})&joueur_id=eq.${joueurId}&select=id`).catch(()=>[]);
+      (pr||[]).forEach(p => { reste.delete(p.id); _cacheCartes[cle(p.id)] = ({ kind:"presence", label:"" }); });
+    }
+
+    // Tout ce qui reste ne me concerne pas (ou la carte a été supprimée) : on le
+    // mémorise aussi, sinon on la redemanderait à chaque sondage.
+    reste.forEach(id => _cacheCartes[cle(id)] = (null));
+  }
+  const out = {};
+  [...new Set(refIds)].forEach(id => { out[id] = _cacheCartes[cle(id)] || null; });
+  return out;
+};
+
+// `leger` : le sondage de fond ne compte que des dates, il n'a pas besoin des photos
+// des commentateurs (du base64 entier à chaque fois).
+const fetchActuNotifs = async (joueurId, { leger = false } = {}) => {
   if (!joueurId) return [];
-  const duels = await sb(`duels?or=(challenger_id.eq.${joueurId},defie_id.eq.${joueurId})&statut=eq.termine&order=date.desc&limit=80&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`).catch(()=>[]);
-  if (!duels || !duels.length) return [];
-  const labelById = {};
-  duels.forEach(d => { labelById[d.id] = d.challenger_id === joueurId ? d.defie_pseudo : d.challenger_pseudo; });
-  const idList = duels.map(d=>d.id).join(",");
+  const depuis = Date.now() - 30*24*3600*1000;   // au-delà de 30 jours ce n'est plus une « actualité »
+  const champsCom = `id,ref_id,joueur_id,joueur_pseudo,contenu,date${leger ? "" : ",joueur_photo"}`;
   const [likes, comments] = await Promise.all([
-    sb(`wall_likes?ref_id=in.(${idList})&order=date.desc&select=ref_id,joueur_id,joueur_pseudo,date`).catch(()=>[]),
-    sb(`wall_comments?ref_id=in.(${idList})&order=date.desc&select=id,ref_id,joueur_id,joueur_pseudo,joueur_photo,contenu,date`).catch(()=>[]),
+    sb(`wall_likes?date=gt.${depuis}&order=date.desc&limit=200&select=ref_id,joueur_id,joueur_pseudo,date`).catch(()=>[]),
+    sb(`wall_comments?date=gt.${depuis}&order=date.desc&limit=200&select=${champsCom}`).catch(()=>[]),
   ]);
+  // On écarte d'emblée ses propres actions (on ne se notifie pas soi-même) et les
+  // cartes synthétiques « __syn… », qui ne sont ni aimables ni retrouvables.
+  const garde = (x) => x && x.joueur_id && x.joueur_id !== joueurId && x.ref_id && !String(x.ref_id).startsWith("__syn");
+  const ls = (likes||[]).filter(garde), cs = (comments||[]).filter(garde);
+  if (!ls.length && !cs.length) return [];
+  const cartes = await resoudreCartes([...ls, ...cs].map(x => x.ref_id), joueurId);
   const notifs = [];
-  (likes||[]).forEach(l => { if (l.joueur_id && l.joueur_id !== joueurId) notifs.push({ id:"l_"+l.ref_id+"_"+l.joueur_id, type:"like", from_id:l.joueur_id, from_pseudo:l.joueur_pseudo, date:l.date, label:labelById[l.ref_id]||"?" }); });
-  (comments||[]).forEach(c => { if (c.joueur_id && c.joueur_id !== joueurId) notifs.push({ id:"c_"+(c.id||c.ref_id+"_"+c.joueur_id+"_"+c.date), type:"comment", from_id:c.joueur_id, from_pseudo:c.joueur_pseudo, from_photo:c.joueur_photo, contenu:c.contenu, date:c.date, label:labelById[c.ref_id]||"?" }); });
+  ls.forEach(l => { const c = cartes[l.ref_id]; if (c) notifs.push({ id:"l_"+l.ref_id+"_"+l.joueur_id, type:"like", from_id:l.joueur_id, from_pseudo:l.joueur_pseudo, date:l.date, ref_id:l.ref_id, kind:c.kind, label:c.label }); });
+  cs.forEach(c0 => { const c = cartes[c0.ref_id]; if (c) notifs.push({ id:"c_"+(c0.id||c0.ref_id+"_"+c0.joueur_id+"_"+c0.date), type:"comment", from_id:c0.joueur_id, from_pseudo:c0.joueur_pseudo, from_photo:c0.joueur_photo, contenu:c0.contenu, date:c0.date, ref_id:c0.ref_id, kind:c.kind, label:c.label }); });
   notifs.sort((a,b) => (b.date||0) - (a.date||0));
   return notifs;
 };
+
+// Ce qu'on lit dans « X a aimé … ». `label` n'est utilisé que pour un match.
+const NOM_CARTE = { match:"ton match", speedrun:"ton speed run", badge:"ton badge", post:"ta publication", drix:"ton palier DRIX", training:"ton entraînement", presence:"ta présence au bar" };
 
 const PageActualite = ({ joueur, setPage }) => {
   const [notifs, setNotifs] = useState([]);
@@ -5596,13 +5693,13 @@ const PageActualite = ({ joueur, setPage }) => {
   return (
     <div style={{ maxWidth:640, margin:"0 auto", padding:"16px 16px 40px" }}>
       <h1 style={{ fontWeight:900, fontSize:22, marginBottom:4, display:"flex", alignItems:"center", gap:8 }}><Bell size={20} color={C.accent}/> Actualité</h1>
-      <p style={{ color:C.muted, fontSize:13, marginBottom:20 }}>Les j'aime et commentaires reçus sur tes matchs.</p>
+      <p style={{ color:C.muted, fontSize:13, marginBottom:20 }}>Les j'aime et commentaires reçus sur tes cartes du Comptoir. Touche une ligne pour aller voir.</p>
       {loading ? <div style={{ textAlign:"center", padding:40, color:C.muted, fontSize:13 }}>Chargement…</div>
        : notifs.length === 0 ? <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:24, textAlign:"center", color:C.muted, fontSize:14, lineHeight:1.6 }}>Rien pour l'instant.<br/>Joue des matchs : ils apparaissent dans le Comptoir et tes amis pourront les aimer et les commenter. 🎯</div>
        : (
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
           {notifs.map(n => (
-            <div key={n.id} onClick={()=>n.from_id&&setPage("profil-joueur-"+n.from_id)} style={{ display:"flex", gap:12, alignItems:"flex-start", background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px", cursor:n.from_id?"pointer":"default" }}>
+            <div key={n.id} onClick={()=>{ if (n.ref_id) setPage("communaute-"+n.ref_id); else if (n.from_id) setPage("profil-joueur-"+n.from_id); }} style={{ display:"flex", gap:12, alignItems:"flex-start", background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px", cursor:(n.ref_id||n.from_id)?"pointer":"default" }}>
               <div style={{ position:"relative", flexShrink:0 }}>
                 <FeedAvatar photo={n.type==="comment"?n.from_photo:photos[n.from_id]} pseudo={n.from_pseudo} size={40}/>
                 <div style={{ position:"absolute", bottom:-3, right:-3, width:20, height:20, borderRadius:"50%", background:n.type==="like"?"#f97316":"#7c3aed", display:"flex", alignItems:"center", justifyContent:"center", border:`2px solid ${C.card}` }}>
@@ -5611,7 +5708,8 @@ const PageActualite = ({ joueur, setPage }) => {
               </div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:13.5, color:C.text, lineHeight:1.4 }}>
-                  <b>{n.from_pseudo}</b> {n.type==="like" ? "a aimé" : "a commenté"} ton match <b>vs {n.label}</b>
+                  <b>{n.from_pseudo}</b> {n.type==="like" ? "a aimé" : "a commenté"} {NOM_CARTE[n.kind] || "ta publication"}
+                  {n.kind === "match" && n.label ? <> <b>vs {n.label}</b></> : null}
                 </div>
                 {n.type==="comment" && n.contenu && <div style={{ fontSize:12.5, color:C.muted, marginTop:3, fontStyle:"italic" }}>« {n.contenu} »</div>}
                 <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{tempsDepuis(n.date)}</div>
@@ -5624,7 +5722,7 @@ const PageActualite = ({ joueur, setPage }) => {
   );
 };
 
-const PageCommunaute = ({ joueur, setPage, bars }) => {
+const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null }) => {
   const [mainTab, setMainTab] = useState("feed");
   const [feed, setFeed] = useState([]);
   const [photosMap, setPhotosMap] = useState({});
@@ -5637,6 +5735,9 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
   const [refreshTick, setRefreshTick] = useState(0);
   const [photoData, setPhotoData] = useState(null); // base64 image attachée au post
   const photoInputRef = useRef(null);
+  // Arrivée depuis l'Actualité : carte à mettre en évidence, et le cas où elle a disparu.
+  const [surligne, setSurligne] = useState(null);
+  const [focusIntrouvable, setFocusIntrouvable] = useState(false);
 
   // Compresse et stocke l'image sélectionnée
   const handlePhotoPick = (e) => {
@@ -5886,6 +5987,23 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
       // Tri par date décroissante
       items.sort((a,b) => b.date - a.date);
       const sliced = items.slice(0, 60);
+
+      // On arrive depuis l'Actualité sur une carte précise ? Le fil ne garde que les
+      // 60 éléments les plus récents (et seulement soi + ses amis) : la carte visée peut
+      // donc être tombée en dehors. On va alors la chercher et on l'épingle en tête.
+      // ⚠️ IMPÉRATIF : avant le calcul de `allIds` ci-dessous, sinon la carte épinglée
+      // s'afficherait sans ses j'aime ni ses commentaires (ils sont figés au montage).
+      if (focusRefId && !sliced.some(it => it.data?.id === focusRefId)) {
+        try {
+          const [pf] = await sb(`wall_posts?id=eq.${focusRefId}&select=*`).catch(()=>[]) || [];
+          if (pf) sliced.unshift({ type:"post", date:pf.date, data:pf });
+          else {
+            const [df] = await sb(`duels?id=eq.${focusRefId}&select=*`).catch(()=>[]) || [];
+            if (df) sliced.unshift({ type:"match", date: typeof df.date === "number" ? df.date : new Date(df.date).getTime(), data:df, drixMvts:{} });
+            else setFocusIntrouvable(true);
+          }
+        } catch(e) { setFocusIntrouvable(true); }
+      }
       setFeed(sliced);
 
       // 3. Charger les likes et commentaires pour tous les items du fil
@@ -5918,9 +6036,35 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
     } finally {
       setLoading(false);
     }
-  }, [joueur?.id, refreshTick]);
+  }, [joueur?.id, refreshTick, focusRefId]);
 
   useEffect(() => { chargerFeed(); }, [chargerFeed]);
+
+  // Arrivée depuis l'Actualité : amener la carte visée sous les yeux et l'entourer.
+  // ⚠️ On s'y reprend à PLUSIEURS fois, et ce n'est pas de la superstition : la navigation
+  // fait un scrollTo(0,0), et surtout les photos des publications n'ont pas de dimensions
+  // déclarées — elles s'affichent après coup et repoussent la carte plus bas. Une seule
+  // tentative laisse la carte hors de l'écran (mesuré : 753 px pour un écran de 694 px).
+  // On vise donc jusqu'à ce que la carte soit réellement visible.
+  useEffect(() => {
+    if (loading || !focusRefId || !feed.length) return undefined;
+    setSurligne(focusRefId);
+    const minuteries = [];
+    // On vise le HAUT de la carte, pas son centre : une carte de match fait ~700 px,
+    // plus que l'écran, et « centrer » afficherait son milieu. On la pose à 90 px du
+    // haut, juste sous l'en-tête fixe. Le calcul est idempotent : si la carte est déjà
+    // au bon endroit on ne bouge pas, sinon on rattrape le décalage.
+    const viser = () => {
+      const el = document.getElementById("carte-"+focusRefId);
+      if (!el) return;
+      const haut = el.getBoundingClientRect().top;
+      if (haut < 60 || haut > 200) window.scrollBy({ top: haut - 90, behavior:"auto" });
+    };
+    viser();
+    [250, 600, 1100, 1800, 2800].forEach(d => minuteries.push(setTimeout(viser, d)));
+    minuteries.push(setTimeout(() => setSurligne(null), 5000));
+    return () => minuteries.forEach(clearTimeout);
+  }, [loading, focusRefId, feed.length]);
 
   // Live match count badge (refreshes every 30s)
   // Exclut les sessions zombies (>2h sans clôture) — même seuil que la liste Live.
@@ -6400,7 +6544,18 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
         );
       }
       const el = renderItem(item, idx);
-      if (el) result.push(el);
+      // Aucune carte n'avait d'ancre dans la page (juste une `key` React, invisible du DOM).
+      // On enveloppe ici, en UN seul endroit, plutôt que dans les 9 composants de carte.
+      if (el) {
+        const idCarte = item.data?.id;
+        const vise = idCarte && idCarte === surligne;
+        result.push(
+          <div key={`anc-${idCarte || idx}`} id={idCarte ? "carte-"+idCarte : undefined}
+            style={vise ? { outline:`2px solid ${C.accent}`, outlineOffset:3, borderRadius:20, transition:"outline-color .4s" } : undefined}>
+            {el}
+          </div>
+        );
+      }
     });
     return result;
   };
@@ -6498,6 +6653,14 @@ const PageCommunaute = ({ joueur, setPage, bars }) => {
       )}
 
       {/* ── Feed ── */}
+      {/* On vient de l'Actualité mais la carte n'existe plus : le dire, plutôt que de
+          laisser l'utilisateur devant un fil ordinaire en se demandant où est sa carte. */}
+      {focusIntrouvable && !loading && (
+        <div style={{ background:"#1a1408", border:"1px solid #f59e0b55", borderRadius:12, padding:"12px 14px", marginBottom:14, fontSize:13, color:"#fcd34d", lineHeight:1.5 }}>
+          ⚠️ Cette publication n'existe plus — elle a dû être supprimée.
+        </div>
+      )}
+
       {loading ? (
         /* Skeleton loading */
         <div>
@@ -12562,7 +12725,9 @@ export default function App() {
   useEffect(() => {
     if (!joueur?.id) { setActuCount(0); return; }
     let stop = false;
-    const poll = () => fetchActuNotifs(joueur.id).then(ns => {
+    // `leger` : le sondage ne compte que des dates. Inutile de rapatrier la photo de
+    // chaque commentateur (du base64 entier) toutes les 45 secondes.
+    const poll = () => fetchActuNotifs(joueur.id, { leger:true }).then(ns => {
       if (stop) return;
       let last = 0; try { last = parseInt(localStorage.getItem("dp_actu_lastseen")||"0",10)||0; } catch(e){}
       setActuCount(ns.filter(n => (n.date||0) > last).length);
@@ -13384,7 +13549,11 @@ export default function App() {
         <ErrorBoundary key={page} page={page}>
         {page==="home"             && <Home joueur={joueur} setJoueur={setJoueur} defisCount={notifCount} demandesAmisCount={demandesAmisCount} bars={bars} associations={associations} tournois={tournois} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} setTournoiSlug={setTournoiSlug} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="defi"             && joueur && <PageDefi joueur={joueur} setPage={nav}/>}
-        {page==="communaute"       && <PageCommunaute joueur={joueur} setPage={nav} bars={bars}/>}
+        {/* « communaute » seul = le Comptoir normal. « communaute-<refId> » = arrivée depuis
+            l'Actualité : on ouvre le Comptoir SUR la carte concernée. Attention, c'était la
+            seule route en égalité stricte : sans ce startsWith on obtenait un écran blanc. */}
+        {page.startsWith("communaute") && <PageCommunaute joueur={joueur} setPage={nav} bars={bars}
+          focusRefId={page.startsWith("communaute-") ? page.slice("communaute-".length) : null}/>}
         {page==="actualite"        && <PageActualite joueur={joueur} setPage={nav}/>}
         {page==="bars"             && <Bars bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} villeFilter={villeFilter} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="bar"              && <BarDetail slug={barSlug} allBars={bars} associations={associations} setBars={setBars} setPage={nav} setAssoSlug={setAssoSlug} isAdmin={isAdmin} joueur={joueur} setJoueurId={setJoueurId}/>}
