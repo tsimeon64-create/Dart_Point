@@ -1541,6 +1541,10 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
   // Stats scoring depuis manches_detail
   let nb180=0, nb140=0, nb100=0, nb80=0, nb60=0, plusGrosScore=0, plusGrosFinish=0;
   let nbFinishes100=0, manchesJouees=0, manchesGagnees=0;
+  // Meilleure moyenne sur UNE manche. Elle etait deja stockee dans manches_detail
+  // (winner_moy / loser_moy) et visible dans le detail d'un match, mais elle
+  // n'apparaissait nulle part dans les stats generales : signale par un testeur.
+  let meilleureMoyManche = null;
   let checkoutAttempts=0, checkoutSuccess=0;
   termines.forEach(d => {
     (d.manches_detail||[]).forEach(m => {
@@ -1562,6 +1566,9 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
       // Vrai checkout % : tentatives (score ≤ 170 au début d'une volée)
       const myAttempts = isW ? (m.winner_checkout_attempts||0) : (m.loser_checkout_attempts||0);
       if (myAttempts > 0) { checkoutAttempts += myAttempts; if (isW) checkoutSuccess++; }
+      // Ma moyenne SUR CETTE MANCHE (et pas sur le match entier)
+      const moyM = parseFloat(isW ? m.winner_moy : m.loser_moy);
+      if (!isNaN(moyM) && moyM > 0 && (meilleureMoyManche == null || moyM > meilleureMoyManche)) meilleureMoyManche = moyM;
     });
   });
   const hasScoring    = termines.some(d=>(d.manches_detail||[]).some(m=>m.winner_180!==undefined));
@@ -1847,6 +1854,7 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
           <StatCard i={1} label="Cette semaine" value={moyenneSemaine?? "—"} color={CJ.blue} sub={nbSemaine>0?`${nbSemaine} match${nbSemaine>1?"s":""}`:null}/>
           <StatCard i={2} label="Ce mois"       value={moyenneMois??    "—"} color={CJ.blue} sub={nbMois>0?`${nbMois} match${nbMois>1?"s":""}`:null}/>
           {meilleureMoyPartie!=null && <StatCard i={3} label="Meilleure (1 partie)" value={meilleureMoyPartie.toFixed(1)} color={CJ.green}/>}
+          {meilleureMoyManche!=null && <StatCard i={3} label="Meilleure (1 manche)" value={meilleureMoyManche.toFixed(1)} color={CJ.green}/>}
           {meilleureMoyJour!=null && <StatCard i={4} label="Meilleure (1 jour)" value={meilleureMoyJour.toFixed(1)} color={CJ.green}/>}
           {meilleurMois && <StatCard i={5} label="Meilleur mois" value={meilleurMois.avg.toFixed(1)} color={CJ.yellow} sub={meilleurMois.label}/>}
           {progMoy30!=null && <StatCard i={6} label="Progression 30j" value={`${progMoy30>=0?"+":""}${progMoy30}`} color={progMoy30>=0?CJ.green:CJ.red}/>}
@@ -1985,6 +1993,7 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
           <SectionTitle icon={Trophy} color={CJ.yellow}>Records</SectionTitle>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
             {meilleureMoyPartie!=null && <StatCard i={0} label="Record moyenne" value={meilleureMoyPartie.toFixed(1)} color={CJ.blue}/>}
+            {meilleureMoyManche!=null && <StatCard i={0} label="Record moyenne / manche" value={meilleureMoyManche.toFixed(1)} color={CJ.blue}/>}
             {plusGrosScore>0 && <StatCard i={1} label="Record score" value={plusGrosScore} color={CJ.accent}/>}
             {plusGrosFinish>0 && <StatCard i={2} label="Record finish" value={plusGrosFinish} color={CJ.purple}/>}
             {record180Partie>0 && <StatCard i={3} label="Record 180 / partie" value={record180Partie} color="#fbbf24"/>}
