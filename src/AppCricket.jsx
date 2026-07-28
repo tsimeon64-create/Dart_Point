@@ -532,16 +532,33 @@ export const ScoreurCricket = ({ config, setPage }) => {
     const winnerId = winnerJ?.id;
     const challengerWon = winnerId === d.challengerId;
 
-    // DRIX formula K=32
-    const K = 32;
-    const EA = 1/(1+Math.pow(10,(d.defiDrix - d.challengerDrix)/400));
-    const challengerGain = challengerWon ? Math.round(K*(1-EA)) : -Math.round(K*EA);
-    const defiGain = challengerWon ? -Math.round(K*(1-EA)) : Math.round(K*EA);
+    // ── DRIX : le MÊME calcul que le 501 (appliquerDrixDuel, AppJoueurs.jsx) ───────
+    // Ce bloc avait sa propre formule, plus simple : K fixe à 32 et surtout AUCUN
+    // plancher. Sur un match très déséquilibré (1811 DRIX contre 885, soit 926 points
+    // d'écart) l'ELO pur vaut 0,15 point → arrondi à 0 : le vainqueur ne gagnait RIEN
+    // et le perdant ne perdait RIEN. Le 501 évite ça avec un plancher. On reprend donc
+    // la formule de référence à l'identique, plutôt que d'en maintenir deux.
+    const manches    = Math.max(1, d.manches || 1);
+    const K          = 32 * manches;
+    const plancher   = 7 * manches;            // un gain ou une perte ne descend jamais sous ça
+    const isRivalite = d.type === "rivalite";
+    const EA = 1/(1+Math.pow(10,(d.defiDrix - d.challengerDrix)/400)); // P(le challenger gagne)
+    const EB = 1 - EA;
+    // Rivalité hebdo : +50 au vainqueur, le perdant ne perd rien. Sinon ELO avec plancher.
+    const challengerGain = isRivalite
+      ? (challengerWon ? 50 : 0)
+      : (challengerWon ?  Math.max(plancher, Math.round(K*EB))
+                       : -Math.max(plancher, Math.round(K*EA)));
+    const defiGain = isRivalite
+      ? (challengerWon ? 0 : 50)
+      : (challengerWon ? -Math.max(plancher, Math.round(K*EB))
+                       :  Math.max(plancher, Math.round(K*EA)));
 
     setDrixInfo({ challengerGain, defiGain, winnerId });
 
-    const newChallengerDrix = Math.max(0, d.challengerDrix + challengerGain);
-    const newDefiDrix = Math.max(0, d.defiDrix + defiGain);
+    // Plancher à 100 DRIX comme en 501 (c'était 0 ici : on pouvait tomber à zéro).
+    const newChallengerDrix = Math.max(100, d.challengerDrix + challengerGain);
+    const newDefiDrix = Math.max(100, d.defiDrix + defiGain);
     const loserPseudo = challengerWon ? d.defiPseudo : d.challengerPseudo;
 
     const now = Date.now();
@@ -570,7 +587,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
       const duelPostData = {
         duel_id: d.duelId,
         isAmical: d.type === "amical",
-        isRivalite: false,
+        isRivalite,
         mode: "Cricket",
         headline: `🏆 ${winnerJ?.pseudo} bat ${loserPseudo} ${winNbManches}-${loseNbManches}`,
         highlights: null,
