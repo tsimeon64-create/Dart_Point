@@ -20,6 +20,10 @@ const sbTP = async (path, opts={}) => {
   return text?JSON.parse(text):null;
 };
 
+// Colonnes d'une ligne d'equipe, SANS la photo. Tout ce que l'appli lit vraiment.
+// La photo en est volontairement absente : voir l'avertissement sur getJoueurs.
+const JOUEUR_COLS = "id,tournoi_id,joueur_id,nom,membres,groupe,ordre,points,victoires,defaites,manches_pour,manches_contre";
+
 export const dbTP = {
   getTournoi:(id)=>sbTP(`tournois_potes?id=eq.${id}&select=*`).then(r=>r?.[0]),
   getTournois:(createur_id)=>sbTP(`tournois_potes?createur_id=eq.${createur_id}&order=date.desc&select=*`),
@@ -35,7 +39,16 @@ export const dbTP = {
   getTournoiByCode:(code)=>sbTP(`tournois_potes?code=eq.${encodeURIComponent(code)}&select=*`).then(r=>r?.[0]),
   createTournoi:(d)=>sbTP("tournois_potes",{method:"POST",body:JSON.stringify(d)}).then(r=>r?.[0]),
   updateTournoi:(id,d)=>sbTP(`tournois_potes?id=eq.${id}`,{method:"PATCH",body:JSON.stringify(d),prefer:"return=minimal"}),
-  getJoueurs:(tid)=>sbTP(`tournois_potes_joueurs?tournoi_id=eq.${tid}&order=groupe.asc,ordre.asc&select=*`),
+  // ⚠️ SURTOUT PAS select=* : la colonne `photo` contient une image en base64 et cette
+  // requete part TOUTES LES 5 SECONDES sur chaque telephone (sondage du tournoi).
+  // 20 equipes x ~40 Ko rechargees 12 fois par minute = plusieurs centaines de Mo par
+  // soiree et par telephone. Les photos sont chargees a part, via getPhotos ci-dessous.
+  getJoueurs:(tid)=>sbTP(`tournois_potes_joueurs?tournoi_id=eq.${tid}&order=groupe.asc,ordre.asc&select=${JOUEUR_COLS}`)
+    // Repli si une colonne manque encore sur cette base (ex. `photo` jamais creee) :
+    // sans ca, l'ecran du tournoi resterait bloque sur son chargement.
+    .catch(()=>sbTP(`tournois_potes_joueurs?tournoi_id=eq.${tid}&order=groupe.asc,ordre.asc&select=id,tournoi_id,joueur_id,nom,groupe,ordre,points,victoires,defaites,manches_pour,manches_contre`)),
+  // Les photos, une seule fois : rechargees uniquement quand la LISTE des inscrits change.
+  getPhotos:(tid)=>sbTP(`tournois_potes_joueurs?tournoi_id=eq.${tid}&select=id,photo`).catch(()=>[]),
   addJoueur:(d)=>sbTP("tournois_potes_joueurs",{method:"POST",body:JSON.stringify(d)}).then(r=>r?.[0]),
   updateJoueur:(id,d)=>sbTP(`tournois_potes_joueurs?id=eq.${id}`,{method:"PATCH",body:JSON.stringify(d),prefer:"return=minimal"}),
   removeJoueur:(id)=>sbTP(`tournois_potes_joueurs?id=eq.${id}`,{method:"DELETE",prefer:"return=minimal"}),
@@ -547,7 +560,7 @@ const ShareTournoiModal=({tournoi,canPlay,onUnlock,onClose})=>{
 
 
 // ── VUE LOBBY ─────────────────────────────────────────────────────────────────
-const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,joueurConnecte,onRejoindre})=>{
+const LobbyView=({tournoi,joueurs,photos={},isCreateur,onStart,onAddJoueur,onRemoveJoueur,joueurConnecte,onRejoindre})=>{
   const [nom,setNom]=useState("");
   const [nom2,setNom2]=useState("");           // doublette : 2e joueur de l'équipe (ajout manuel)
   const [equipeNom,setEquipeNom]=useState(""); // doublette : nom d'équipe (optionnel)
@@ -636,6 +649,25 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
   const [amiPickerOpen,setAmiPickerOpen]=useState(false);
   const [amiSearch,setAmiSearch]=useState("");
   const [rejoining,setRejoining]=useState(false);
+  // Assistant d'inscription en 2 etapes (1 = equipe, 2 = photo).
+  const [inscOpen,setInscOpen]=useState(false);
+  const [etapeInsc,setEtapeInsc]=useState(1);
+  const [photoEquipe,setPhotoEquipe]=useState(null); // dataURL compressee, ou null = pas de photo
+  const [photoBusy,setPhotoBusy]=useState(false);
+  const [inscOk,setInscOk]=useState(false);          // petite animation de validation
+  const camRef=useRef(null), galRef=useRef(null);
+  // Arrivee par QR Code : l'assistant s'ouvre tout seul, UNE seule fois (sinon il
+  // se rouvrirait a chaque rafraichissement de 5 s et on ne pourrait plus le fermer).
+  const autoOuvert=useRef(false);
+  useEffect(()=>{ if(peutRejoindre&&!autoOuvert.current){ autoOuvert.current=true; setInscOpen(true); } },[peutRejoindre]);
+  const choisirPhoto=async(e)=>{
+    const f=e.target.files&&e.target.files[0]; e.target.value=""; // permet de reprendre 2 fois la meme photo
+    if(!f)return;
+    setPhotoBusy(true);
+    try{ setPhotoEquipe(await compresserPhotoEquipe(f)); }
+    catch(err){ await alerter("Photo impossible a lire : "+((err&&err.message)||err)); }
+    finally{ setPhotoBusy(false); }
+  };
   const [notifOk,setNotifOk]=useState(()=>{ try{return "Notification" in window&&Notification.permission==="granted";}catch(e){return false;} });
   const demanderNotif=()=>{ try{ if("Notification" in window)Notification.requestPermission().then(p=>setNotifOk(p==="granted")); }catch(e){} };
   const membre1Nom=estConnecte?joueurConnecte.pseudo:j1Name.trim();
@@ -647,8 +679,8 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
       const monId=joueurConnecte?.id||null;
       const nomFinal=isDoublette?teamName.trim():membre1Nom;
       const payload=isDoublette
-        ? {nom:nomFinal,joueur_id:monId,membres:[{nom:membre1Nom,id:monId},{nom:binomeName.trim(),id:binomeId||null}]}
-        : {nom:nomFinal,joueur_id:monId,membres:null};
+        ? {nom:nomFinal,joueur_id:monId,photo:photoEquipe,membres:[{nom:membre1Nom,id:monId},{nom:binomeName.trim(),id:binomeId||null}]}
+        : {nom:nomFinal,joueur_id:monId,photo:photoEquipe,membres:null};
       const created=await onRejoindre(payload);
       setNomInscrit(nomFinal);
       setDejaInscrit(true);
@@ -657,6 +689,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
         if(created&&created.id)localStorage.setItem("dp_tp_myrow_"+tournoi.id,String(created.id)); // pour la notif "c'est à toi de jouer" (même sans compte)
       }catch(e){}
       try{ if("Notification" in window&&Notification.permission==="default"){ Notification.requestPermission().then(p=>setNotifOk(p==="granted")); } }catch(e){}
+      setInscOk(true); setTimeout(()=>{setInscOpen(false);setInscOk(false);},1400); // on laisse voir le "c'est bon !"
     }catch(e){ await alerter("Erreur : "+(e&&e.message||e)); }
     finally{ setRejoining(false); }
   };
@@ -664,49 +697,106 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
   return(
     <div>
       {/* Rejoindre le tournoi (joueur non inscrit) */}
-      {peutRejoindre&&(
+      {peutRejoindre&&!inscOpen&&(
         <Card style={{marginBottom:16,background:CT.accent+"11",border:`1px solid ${CT.accent}66`}}>
-          {/* Le créateur voit la même carte, mais « Rejoindre » n'a pas de sens pour son propre
-              tournoi : on lui parle de PARTICIPER, puisqu'il peut très bien se contenter d'arbitrer. */}
           <h3 style={{fontWeight:800,fontSize:16,marginBottom:4,color:CT.accent,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🙋" size={16}/>{isCreateur?"Participer au tournoi":"Rejoindre le tournoi"}</h3>
           <p style={{fontSize:12.5,color:CT.muted,marginBottom:14}}>{isCreateur
             ? (isDoublette?"Tu organises ce tournoi. Tu peux aussi y jouer : inscris ton équipe (2 joueurs).":"Tu organises ce tournoi. Tu peux aussi y jouer — sinon, laisse simplement les autres s'inscrire.")
             : (isDoublette?"Tournoi en doublette — inscris ton équipe (2 joueurs).":"Inscris-toi à ce tournoi.")}{!estConnecte&&" Pas besoin de compte."}</p>
-          {estConnecte
-            ? <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:"#111",borderRadius:8,marginBottom:isDoublette?12:14}}>
-                <EmoIcon e="👤" size={18} color={CT.accent}/>
-                <span style={{flex:1,fontWeight:600,fontSize:14}}>{joueurConnecte.pseudo}</span>
-                <Badge color={CT.blue}>Toi</Badge>
-              </div>
-            : <div style={{marginBottom:isDoublette?12:14}}>
-                <label style={{fontSize:12.5,color:CT.muted,fontWeight:600,display:"block",marginBottom:6}}>{isDoublette?"Joueur 1 (toi)":"Ton nom"}</label>
-                <input value={j1Name} onChange={e=>setJ1Name(e.target.value)} placeholder={isDoublette?"Nom du joueur 1…":"Ton nom…"} style={{width:"100%",background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:"9px 13px",color:CT.text,fontSize:14}}/>
-              </div>}
-          {isDoublette&&(<>
-            <label style={{fontSize:12.5,color:CT.muted,fontWeight:600,display:"block",marginBottom:6}}>{estConnecte?"Ton binôme":"Joueur 2"}</label>
-            <div style={{display:"flex",gap:8,marginBottom:8}}>
-              <input value={binomeName} onChange={e=>{setBinomeName(e.target.value);setBinomeId(null);}} placeholder="Nom du binôme…" style={{flex:1,background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:"9px 13px",color:CT.text,fontSize:14}}/>
-              {amis.length>0&&<Btn onClick={()=>setAmiPickerOpen(v=>!v)} variant="ghost" small><EmoIcon e="🔍" size={13} style={{verticalAlign:"-2px",marginRight:3}}/>Amis</Btn>}
+          <Btn onClick={()=>{setEtapeInsc(1);setInscOpen(true);}} style={{width:"100%",fontSize:15,padding:"12px"}}><EmoText s="✅ Rejoindre le tournoi" size={15}/></Btn>
+        </Card>
+      )}
+
+      {/* Assistant d'inscription en 2 étapes — s'ouvre seul quand on arrive par QR Code */}
+      {peutRejoindre&&inscOpen&&(
+        <div onClick={()=>{if(!rejoining&&!inscOk)setInscOpen(false);}} style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,.82)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+          <div onClick={e=>e.stopPropagation()} className="tp-insc-sheet" style={{position:"relative",width:"100%",maxWidth:470,maxHeight:"93vh",overflowY:"auto",background:CT.card,borderRadius:"20px 20px 0 0",border:`1px solid ${CT.accent}55`,borderBottom:"none",padding:"14px 16px 20px",boxShadow:"0 -16px 46px rgba(0,0,0,.65)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
+              <span style={{fontSize:10.5,fontWeight:800,letterSpacing:.7,color:CT.accent,textTransform:"uppercase"}}>Étape {etapeInsc}/2</span>
+              <span style={{flex:1}}/>
+              <button onClick={()=>setInscOpen(false)} aria-label="Fermer" disabled={rejoining||inscOk} style={{width:30,height:30,borderRadius:"50%",background:"#111",border:`1px solid ${CT.border}`,color:CT.muted,fontSize:15,cursor:"pointer",lineHeight:1,touchAction:"manipulation"}}>✕</button>
             </div>
-            {binomeId&&<div style={{fontSize:11,color:CT.blue,marginBottom:8}}><EmoIcon e="🔗" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>Binôme lié à son compte Dart Point</div>}
-            {amiPickerOpen&&(
-              <div style={{background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:10,marginBottom:10}}>
-                <input value={amiSearch} onChange={e=>setAmiSearch(e.target.value)} placeholder="🔍 Chercher un ami…" style={{width:"100%",background:"#0d0d0d",border:`1px solid ${CT.border}`,borderRadius:6,padding:"7px 10px",color:CT.text,fontSize:13,marginBottom:8}}/>
-                <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:170,overflowY:"auto"}}>
-                  {amis.filter(a=>a.pseudo.toLowerCase().includes(amiSearch.toLowerCase())).map(a=>(
-                    <button key={a.id} onClick={()=>{setBinomeName(a.pseudo);setBinomeId(a.id);setAmiPickerOpen(false);setAmiSearch("");}} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#0d0d0d",border:`1px solid ${CT.border}`,borderRadius:6,cursor:"pointer",color:CT.text,fontSize:13,textAlign:"left",touchAction:"manipulation"}}>
-                      <EmoIcon e="👤" size={14} color={CT.muted}/>{a.pseudo}
-                    </button>
-                  ))}
-                  {amis.filter(a=>a.pseudo.toLowerCase().includes(amiSearch.toLowerCase())).length===0&&<div style={{fontSize:12,color:CT.muted,padding:6,textAlign:"center"}}>Aucun ami trouvé</div>}
-                </div>
+            <div style={{height:5,borderRadius:99,background:"#1b1b1b",overflow:"hidden",marginBottom:15}}>
+              <div style={{height:"100%",width:etapeInsc===1?"50%":"100%",background:`linear-gradient(90deg,${CT.accent},${CT.blue})`,borderRadius:99,transition:"width .4s cubic-bezier(.4,0,.2,1)"}}/>
+            </div>
+            {etapeInsc===1&&(
+              <div key="e1" className="tp-insc-anim">
+                <h3 style={{fontWeight:800,fontSize:16,marginBottom:4,color:CT.accent,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="🙋" size={16}/>{isCreateur?"Participer au tournoi":"Rejoindre le tournoi"}</h3>
+                <p style={{fontSize:12.5,color:CT.muted,marginBottom:14}}>{isCreateur
+            ? (isDoublette?"Tu organises ce tournoi. Tu peux aussi y jouer : inscris ton équipe (2 joueurs).":"Tu organises ce tournoi. Tu peux aussi y jouer — sinon, laisse simplement les autres s'inscrire.")
+            : (isDoublette?"Tournoi en doublette — inscris ton équipe (2 joueurs).":"Inscris-toi à ce tournoi.")}{!estConnecte&&" Pas besoin de compte."}</p>
+                {estConnecte
+                  ? <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:"#111",borderRadius:8,marginBottom:isDoublette?12:14}}>
+                      <EmoIcon e="👤" size={18} color={CT.accent}/>
+                      <span style={{flex:1,fontWeight:600,fontSize:14}}>{joueurConnecte.pseudo}</span>
+                      <Badge color={CT.blue}>Toi</Badge>
+                    </div>
+                  : <div style={{marginBottom:isDoublette?12:14}}>
+                      <label style={{fontSize:12.5,color:CT.muted,fontWeight:600,display:"block",marginBottom:6}}>{isDoublette?"Joueur 1 (toi)":"Ton nom"}</label>
+                      <input value={j1Name} onChange={e=>setJ1Name(e.target.value)} placeholder={isDoublette?"Nom du joueur 1…":"Ton nom…"} style={{width:"100%",background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:"9px 13px",color:CT.text,fontSize:14}}/>
+                    </div>}
+                {isDoublette&&(<>
+                  <label style={{fontSize:12.5,color:CT.muted,fontWeight:600,display:"block",marginBottom:6}}>{estConnecte?"Ton binôme":"Joueur 2"}</label>
+                  <div style={{display:"flex",gap:8,marginBottom:8}}>
+                    <input value={binomeName} onChange={e=>{setBinomeName(e.target.value);setBinomeId(null);}} placeholder="Nom du binôme…" style={{flex:1,background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:"9px 13px",color:CT.text,fontSize:14}}/>
+                    {amis.length>0&&<Btn onClick={()=>setAmiPickerOpen(v=>!v)} variant="ghost" small><EmoIcon e="🔍" size={13} style={{verticalAlign:"-2px",marginRight:3}}/>Amis</Btn>}
+                  </div>
+                  {binomeId&&<div style={{fontSize:11,color:CT.blue,marginBottom:8}}><EmoIcon e="🔗" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>Binôme lié à son compte Dart Point</div>}
+                  {amiPickerOpen&&(
+                    <div style={{background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:10,marginBottom:10}}>
+                      <input value={amiSearch} onChange={e=>setAmiSearch(e.target.value)} placeholder="🔍 Chercher un ami…" style={{width:"100%",background:"#0d0d0d",border:`1px solid ${CT.border}`,borderRadius:6,padding:"7px 10px",color:CT.text,fontSize:13,marginBottom:8}}/>
+                      <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:170,overflowY:"auto"}}>
+                        {amis.filter(a=>a.pseudo.toLowerCase().includes(amiSearch.toLowerCase())).map(a=>(
+                          <button key={a.id} onClick={()=>{setBinomeName(a.pseudo);setBinomeId(a.id);setAmiPickerOpen(false);setAmiSearch("");}} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#0d0d0d",border:`1px solid ${CT.border}`,borderRadius:6,cursor:"pointer",color:CT.text,fontSize:13,textAlign:"left",touchAction:"manipulation"}}>
+                            <EmoIcon e="👤" size={14} color={CT.muted}/>{a.pseudo}
+                          </button>
+                        ))}
+                        {amis.filter(a=>a.pseudo.toLowerCase().includes(amiSearch.toLowerCase())).length===0&&<div style={{fontSize:12,color:CT.muted,padding:6,textAlign:"center"}}>Aucun ami trouvé</div>}
+                      </div>
+                    </div>
+                  )}
+                  <label style={{fontSize:12.5,color:CT.muted,fontWeight:600,display:"block",marginBottom:6}}>Nom de l'équipe <span style={{fontWeight:400}}>(s'affichera dans le tournoi)</span></label>
+                  <input value={teamName} onChange={e=>setTeamName(e.target.value)} placeholder={'Ex : "Les Fléchettos"'} style={{width:"100%",background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:"9px 13px",color:CT.text,fontSize:14,marginBottom:14}}/>
+                </>)}
+                <Btn onClick={()=>setEtapeInsc(2)} disabled={!rejoindreValide} style={{width:"100%",fontSize:15,padding:"12px"}}>Continuer →</Btn>
+                {!rejoindreValide&&<div style={{fontSize:11.5,color:CT.muted,textAlign:"center",marginTop:8}}>Remplis les champs ci-dessus pour continuer.</div>}
               </div>
             )}
-            <label style={{fontSize:12.5,color:CT.muted,fontWeight:600,display:"block",marginBottom:6}}>Nom de l'équipe <span style={{fontWeight:400}}>(s'affichera dans le tournoi)</span></label>
-            <input value={teamName} onChange={e=>setTeamName(e.target.value)} placeholder={'Ex : "Les Fléchettos"'} style={{width:"100%",background:"#111",border:`1px solid ${CT.border}`,borderRadius:8,padding:"9px 13px",color:CT.text,fontSize:14,marginBottom:14}}/>
-          </>)}
-          <Btn onClick={handleRejoindre} disabled={!rejoindreValide||rejoining} style={{width:"100%",fontSize:15,padding:"12px"}}>{rejoining?"Inscription…":<EmoText s="✅ Rejoindre le tournoi" size={15}/>}</Btn>
-        </Card>
+            {etapeInsc===2&&(
+              <div key="e2" className="tp-insc-anim">
+                <h3 style={{fontWeight:800,fontSize:16,marginBottom:4,color:CT.accent,display:"flex",alignItems:"center",gap:6}}><EmoIcon e="📸" size={16}/>Photo de l&apos;équipe</h3>
+                <p style={{fontSize:12.5,color:CT.muted,marginBottom:14}}>Elle servira d&apos;avatar {isDoublette?"à ton équipe":"pour toi"} partout dans le tournoi : poules, calendrier, tableau et classement. C&apos;est facultatif.</p>
+                <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
+                  {photoEquipe
+                    ? <img src={photoEquipe} alt="Photo de l&apos;équipe" className="tp-insc-pop" style={{width:150,height:150,borderRadius:"50%",objectFit:"cover",border:`3px solid ${CT.accent}`,boxShadow:`0 0 0 6px ${CT.accent}22`}}/>
+                    : <div style={{width:150,height:150,borderRadius:"50%",background:"#111",border:`2px dashed ${CT.border}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,color:CT.muted}}>
+                        <EmoIcon e={photoBusy?"⏳":"📷"} size={34}/>
+                        <span style={{fontSize:11.5}}>{photoBusy?"Préparation…":"Aucune photo"}</span>
+                      </div>}
+                </div>
+                <input ref={camRef} type="file" accept="image/*" capture="environment" onChange={choisirPhoto} style={{display:"none"}}/>
+                <input ref={galRef} type="file" accept="image/*" onChange={choisirPhoto} style={{display:"none"}}/>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                  <Btn onClick={()=>camRef.current&&camRef.current.click()} disabled={photoBusy} variant="dark" style={{fontSize:13.5,padding:"11px 6px"}}><EmoText s="📷 Appareil photo" size={13.5}/></Btn>
+                  <Btn onClick={()=>galRef.current&&galRef.current.click()} disabled={photoBusy} variant="dark" style={{fontSize:13.5,padding:"11px 6px"}}><EmoText s="🖼️ Galerie" size={13.5}/></Btn>
+                </div>
+                {photoEquipe&&<button onClick={()=>setPhotoEquipe(null)} style={{width:"100%",background:"transparent",border:"none",color:CT.muted,fontSize:12,cursor:"pointer",marginBottom:10,textDecoration:"underline",touchAction:"manipulation"}}>Retirer la photo</button>}
+                <div style={{display:"flex",gap:8}}>
+                  <Btn onClick={()=>setEtapeInsc(1)} disabled={rejoining} variant="ghost" style={{flex:"0 0 34%",fontSize:14,padding:"12px 4px"}}>← Retour</Btn>
+                  <Btn onClick={handleRejoindre} disabled={!rejoindreValide||rejoining||photoBusy} style={{flex:1,fontSize:14.5,padding:"12px 4px"}}>{rejoining?"Inscription…":<EmoText s="✅ Valider l&apos;inscription" size={14.5}/>}</Btn>
+                </div>
+                {!photoEquipe&&<Btn onClick={handleRejoindre} disabled={rejoining||photoBusy} variant="dark" style={{width:"100%",fontSize:13.5,padding:"11px",marginTop:8}}>Pas de photo</Btn>}
+              </div>
+            )}
+            {inscOk&&(
+              <div style={{position:"absolute",inset:0,background:CT.card,borderRadius:"20px 20px 0 0",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:11,zIndex:5}}>
+                <div className="tp-insc-pop" style={{width:82,height:82,borderRadius:"50%",background:CT.green+"22",border:`2px solid ${CT.green}`,display:"flex",alignItems:"center",justifyContent:"center"}}><EmoIcon e="✅" size={40}/></div>
+                <div style={{fontWeight:800,fontSize:17,color:CT.green}}>Inscription validée !</div>
+                <div style={{fontSize:13,color:CT.muted}}>{nomInscrit}</div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Confirmation d'inscription (empêche une 2e inscription) */}
@@ -807,6 +897,7 @@ const LobbyView=({tournoi,joueurs,isCreateur,onStart,onAddJoueur,onRemoveJoueur,
           {joueurs.map((j,i)=>(
             <div key={j.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#111",borderRadius:8,border:`1px solid ${CT.border}`}}>
               <span style={{width:24,height:24,borderRadius:"50%",background:CT.accent+"22",color:CT.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0}}>{i+1}</span>
+              <TeamAvatar equipe={j} photo={photos[j.id]} size={34}/>
               <span style={{flex:1,fontWeight:500}}>
                 {j.nom}
                 {Array.isArray(j.membres)&&j.membres.length>0&&<span style={{display:"block",fontSize:11,color:CT.muted,fontWeight:400,marginTop:1}}><EmoIcon e="👥" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{j.membres.map(m=>m&&m.nom).filter(Boolean).join(" & ")}</span>}
@@ -967,6 +1058,119 @@ const groupCol=(g)=>GROUP_COLORS[(g-1)%GROUP_COLORS.length];
 const groupLetter=(g)=>String.fromCharCode(64+((g-1)%26)+1); // 1->A, 2->B…
 const initiales=(nom)=>{ const s=(nom||"?").trim(); const p=s.split(/[\s-]+/).filter(Boolean); return (p.length>=2?(p[0][0]+p[1][0]):s.slice(0,2)).toUpperCase(); };
 
+// ── Photo d'équipe ───────────────────────────────────────────────────────────
+// Compression reprise de l'avatar joueur (AppJoueurs.jsx) : carré 320 px, JPEG 0.85.
+// Environ 30 à 50 Ko en base64 — assez net pour la popup « photo en grand », assez
+// léger pour être gardé en mémoire pour les 20 équipes d'un tournoi.
+const PHOTO_EQUIPE_PX = 320;
+const compresserPhotoEquipe = (file) => new Promise((ok, ko) => {
+  if (!file || !file.type || !file.type.startsWith("image/")) return ko(new Error("pas une image"));
+  const lecteur = new FileReader();
+  lecteur.onerror = () => ko(new Error("lecture impossible"));
+  lecteur.onload = (ev) => {
+    const img = new Image();
+    img.onerror = () => ko(new Error("image illisible"));
+    img.onload = () => {
+      try {
+        const c = document.createElement("canvas");
+        c.width = c.height = PHOTO_EQUIPE_PX;
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#0a0a14";
+        ctx.fillRect(0, 0, PHOTO_EQUIPE_PX, PHOTO_EQUIPE_PX);
+        // Recadrage carré centré, sans déformer le visage (façon object-fit: cover).
+        const cote = Math.min(img.width, img.height);
+        ctx.drawImage(img, (img.width - cote) / 2, (img.height - cote) / 2, cote, cote, 0, 0, PHOTO_EQUIPE_PX, PHOTO_EQUIPE_PX);
+        ok(c.toDataURL("image/jpeg", 0.85));
+      } catch (e) { ko(e); }
+    };
+    img.src = ev.target.result;
+  };
+  lecteur.readAsDataURL(file);
+});
+
+// Charge les photos À PART du sondage : une seule fois, et de nouveau seulement
+// quand la liste des inscrits change. Même patron que useStatsTournoi.
+const usePhotosEquipes = (tournoiId, joueurs) => {
+  const [photos, setPhotos] = useState({});
+  const idsKey = (joueurs || []).map(j => j.id).join(",");
+  useEffect(() => {
+    if (!tournoiId || !idsKey) { setPhotos({}); return undefined; }
+    let annule = false;
+    dbTP.getPhotos(tournoiId).then(rows => {
+      if (annule) return;
+      const m = {}; (rows || []).forEach(r => { if (r && r.photo) m[r.id] = r.photo; });
+      setPhotos(m);
+    }).catch(() => {});
+    return () => { annule = true; };
+  }, [tournoiId, idsKey]);
+  return photos;
+};
+
+// Avatar d'équipe : la photo si elle existe, sinon les initiales (comportement
+// par défaut — la plupart des équipes n'auront pas de photo).
+// ⚠️ Doit supporter `equipe` undefined : dans le tableau final, une case sur deux
+// est encore « À définir » et un plantage ici noircirait tout l'écran.
+// La popup d'agrandissement est portée par le composant LUI-MÊME : les avatars sont
+// rendus au fond de fonctions d'aide qui n'ont accès à aucun état du parent.
+const TeamAvatar = ({ equipe, photo, size = 34, col = "#f97316", win = false, animate = false, style = {} }) => {
+  const [zoom, setZoom] = useState(false);
+  const [cassee, setCassee] = useState(false);
+  const img = (photo || (equipe && equipe.photo)) && !cassee ? (photo || equipe.photo) : null;
+  const nom = equipe ? equipe.nom : null;
+  const membres = equipe && Array.isArray(equipe.membres) ? equipe.membres : null;
+  const ouvrable = !!nom;
+  return (
+    <>
+      <div
+        onClick={ouvrable ? (e) => { e.stopPropagation(); setZoom(true); } : undefined}
+        title={ouvrable ? nom : undefined}
+        style={{
+          width: size, height: size, borderRadius: "50%", flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          overflow: "hidden", position: "relative",
+          background: img ? "#0a0a14" : `linear-gradient(150deg, ${col}44, ${col}18)`,
+          border: `1.5px solid ${win ? col : col + "66"}`,
+          color: CT.text, fontWeight: 900, fontSize: Math.max(9, Math.round(size * 0.36)),
+          boxShadow: win ? `0 0 14px -2px ${col}aa` : "none",
+          cursor: ouvrable ? "zoom-in" : "default",
+          animation: animate ? "tpAvatarPop .4s cubic-bezier(.34,1.56,.64,1) both" : undefined,
+          ...style,
+        }}
+      >
+        {img
+          ? <img src={img} alt="" onError={() => setCassee(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          : initiales(nom)}
+      </div>
+
+      {zoom && (
+        <div
+          onClick={(e) => { e.stopPropagation(); setZoom(false); }}
+          style={{ position: "fixed", inset: 0, zIndex: 99999, background: "rgba(4,5,10,.9)", backdropFilter: "blur(8px)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 340, textAlign: "center",
+            background: "linear-gradient(168deg,#16161d,#101016)", border: `1px solid ${col}55`, borderRadius: 22,
+            padding: 18, boxShadow: `0 24px 60px rgba(0,0,0,.75), 0 0 40px -14px ${col}88` }}>
+            {img
+              ? <img src={img} alt={nom || ""} style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 16, display: "block" }} />
+              : <div style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center",
+                  background: `linear-gradient(150deg, ${col}44, ${col}18)`, border: `1px solid ${col}44`, color: CT.text, fontWeight: 900, fontSize: 72 }}>{initiales(nom)}</div>}
+            <div style={{ fontWeight: 900, fontSize: 19, color: CT.text, marginTop: 13 }}>{nom}</div>
+            {membres && membres.length > 0 && (
+              <div style={{ fontSize: 13, color: CT.muted, marginTop: 5 }}>
+                {membres.map(m => (m && m.nom) || "?").join("  &  ")}
+              </div>
+            )}
+            <button onClick={() => setZoom(false)} style={{ marginTop: 15, width: "100%", minHeight: 44, borderRadius: 12,
+              background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.10)", color: CT.muted,
+              fontSize: 14, fontWeight: 700, cursor: "pointer", touchAction: "manipulation" }}>Fermer</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
 // ── MOYENNE DE JEU DU TOURNOI par équipe, sur TOUS les matchs joués au scoreur ───────────────
 // La moyenne d'un match = 3 × points / fléchettes (moyenne aux 3 fléchettes). La moyenne du tournoi
 // est donc pondérée : 3 × Σpoints / Σfléchettes. Pour les vieux matchs sans "flech" enregistré,
@@ -1004,7 +1208,7 @@ const useStatsTournoi=(joueurs,refreshKey=0)=>{
   return stats;
 };
 
-const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,ciblesMode="optimise",onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,onLibererCibles,joueurConnecte,canPlay=false,onOpenShare,onModifier,saving=false,live=null,bracketLance=false,stats=null})=>{
+const PoulesView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,nbQual=2,ciblesMode="optimise",onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,onLibererCibles,joueurConnecte,canPlay=false,onOpenShare,onModifier,saving=false,live=null,bracketLance=false,stats=null})=>{
   const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
   const groupes=Array.from({length:nbGroupes},(_,i)=>i+1);
   // Ma poule (celle du joueur connecté) → pour l'⭐ sur l'onglet.
@@ -1077,7 +1281,10 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,ciblesM
   //  pour qu'elle marche aussi en barrages et en eliminatoires — pas seulement en poules.)
 
   // ── Carte de match "premium" (avatars, ⚔️, couleur d'état, badge) ──
-  const av=(nom,col,win)=>(<span style={{width:32,height:32,borderRadius:"50%",flexShrink:0,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,background:(win?CT.green:col)+"1e",color:win?CT.green:col,border:`1px solid ${(win?CT.green:col)}44`}}>{initiales(nom)}</span>);
+  // L'avatar reçoit maintenant l'OBJET équipe : il peut donc afficher la photo,
+  // et un appui l'ouvre en grand. Un seul changement ici couvre les cartes de match
+  // de poule ET les barrages 701 (même fonction carteMatch).
+  const av=(eq,col,win)=>(<TeamAvatar equipe={eq} photo={photos&&eq?photos[eq.id]:null} col={col} win={win} size={32}/>);
   const carteMatch=(m,barrage=false)=>{
     const j1=joueurs.find(j=>j.id===m.joueur1_id), j2=joueurs.find(j=>j.id===m.joueur2_id);
     const done=m.statut==="termine";
@@ -1103,7 +1310,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,ciblesM
         )}
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:9}}>
           <div style={{flex:1,display:"flex",alignItems:"center",gap:8,minWidth:0}}>
-            {av(j1?.nom,col,g1)}
+            {av(j1,col,g1)}
             <span style={{fontSize:14,fontWeight:g1?800:500,color:g1?CT.green:CT.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{j1?.nom||"?"}</span>
           </div>
           {done?(
@@ -1117,7 +1324,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,ciblesM
           )}
           <div style={{flex:1,display:"flex",alignItems:"center",gap:8,justifyContent:"flex-end",minWidth:0}}>
             <span style={{fontSize:14,fontWeight:g2?800:500,color:g2?CT.green:CT.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"right"}}>{j2?.nom||"?"}</span>
-            {av(j2?.nom,col,g2)}
+            {av(j2,col,g2)}
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -1268,6 +1475,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,nbQual=2,ciblesM
                 (i===nbQual&&groupeFini)?<div key={"cut"+g} style={{display:"flex",alignItems:"center",gap:8,margin:"6px 4px 8px"}}><div style={{flex:1,height:1,background:"repeating-linear-gradient(90deg,#3a3a44 0 6px,transparent 6px 12px)"}}/><span style={{fontSize:10,color:CT.muted}}>qualification</span><div style={{flex:1,height:1,background:"repeating-linear-gradient(90deg,#3a3a44 0 6px,transparent 6px 12px)"}}/></div>:null,
                 <div key={j.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:qual?gc+"0e":"transparent",marginBottom:4}}>
                   <span style={{width:22,height:22,borderRadius:"50%",flexShrink:0,background:rbc+"22",color:rbc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800}}>{i+1}</span>
+                  <TeamAvatar equipe={j} photo={photos[j.id]} size={30}/>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:"flex",alignItems:"center",gap:6}}>
                       <span style={{fontSize:14,fontWeight:600,color:(groupeFini&&i>=nbQual)?"#cbd5e1":CT.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",flex:1,minWidth:0}}>{j.nom}</span>
@@ -1345,6 +1553,13 @@ const BktStyles=()=>(
   <style>{`
     @keyframes bkt-halo{0%,100%{box-shadow:0 0 0 1px #fbbf2455 inset,0 0 18px 2px #fbbf2433;}50%{box-shadow:0 0 0 1px #fbbf2488 inset,0 0 32px 7px #fbbf2455;}}
     @keyframes bkt-pulse{0%,100%{opacity:.5;}50%{opacity:1;}}
+    @keyframes tpAvatarPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+    @keyframes tpInscUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+    @keyframes tpSheetUp{from{transform:translateY(100%)}to{transform:none}}
+    .tp-insc-anim{animation:tpInscUp .3s cubic-bezier(.4,0,.2,1) both}
+    .tp-insc-sheet{animation:tpSheetUp .32s cubic-bezier(.4,0,.2,1) both}
+    .tp-insc-pop{animation:tpAvatarPop .42s cubic-bezier(.34,1.56,.64,1) both}
+    @media (prefers-reduced-motion: reduce){.tp-insc-anim,.tp-insc-sheet,.tp-insc-pop{animation:none}}
     @keyframes bkt-slidein{0%{opacity:0;transform:translateX(-10px) scale(.85);}100%{opacity:1;transform:translateX(0) scale(1);}}
     @keyframes bkt-glowdot{0%,100%{box-shadow:0 0 4px 0 currentColor;}50%{box-shadow:0 0 10px 2px currentColor;}}
     @keyframes bkt-emblem{0%,100%{transform:scale(1);box-shadow:0 0 14px #fbbf2455;}50%{transform:scale(1.08);box-shadow:0 0 26px #fbbf2299;}}
@@ -1354,18 +1569,19 @@ const BktStyles=()=>(
 
 // ── Avatar bracket (initiales, garde-fou anti-crash) ─────────────────────────
 const bktInit=(nom)=>{ try{ return nom?initiales(nom):"?"; }catch(_){ return "?"; } };
-const BktAvatar=({nom,col,win,size=40,animate})=>(
-  <span style={{
-    width:size,height:size,borderRadius:"50%",flexShrink:0,
-    display:"inline-flex",alignItems:"center",justifyContent:"center",
-    fontSize:size>42?14:13,fontWeight:800,
-    background:(win?CT.green:col)+"22",
-    color:win?CT.green:(nom?col:CT.muted),
-    border:`2px solid ${(win?CT.green:(nom?col:CT.border))}${win?"":"66"}`,
-    boxShadow:win?`0 0 10px ${CT.green}55`:"none",
-    animation:animate?"bkt-slidein .5s ease both":"none",
-  }}>{bktInit(nom)}</span>
+// Avatar du tableau final. Il accepte l'équipe complète (pour la photo) mais reste
+// tolérant : dans un tableau, une case sur deux est encore « À définir » (equipe
+// undefined) — TeamAvatar retombe alors sur les initiales sans planter.
+const BktAvatar=({nom,equipe,photo,col,win,size=40,animate})=>(
+  <TeamAvatar
+    equipe={equipe || (nom ? { nom } : null)}
+    photo={photo}
+    col={win?CT.green:(nom?col:CT.border)}
+    win={win} size={size} animate={animate}
+    style={{ fontSize:size>42?14:13 }}
+  />
 );
+
 
 // ── Bandeau de statut (haut de chaque carte) ─────────────────────────────────
 const BktStatusBanner=({label,color,bg,hero})=>(
@@ -1385,7 +1601,7 @@ const BktStatusBanner=({label,color,bg,hero})=>(
 // ============================================================================
 // `actif` = ce match est élu par le planning des cibles (matchsSurCibles). null = pas de planning
 // (rétrocompatible : tout est jouable, comportement d'avant).
-const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch,canPlay=false,hero=false,live=null,stats=null,actif=null})=>{
+const BracketMatchCard=({match,joueurs,isCreateur,photos={},onSaisirScore,onJouerMatch,canPlay=false,hero=false,live=null,stats=null,actif=null})=>{
   const j1=joueurs.find(j=>j.id===match.joueur1_id);
   const j2=joueurs.find(j=>j.id===match.joueur2_id);
   const doneBrut=match.statut==="termine";
@@ -1429,7 +1645,7 @@ const BracketMatchCard=({match,joueurs,isCreateur,onSaisirScore,onJouerMatch,can
     }}>
       <div style={{position:"relative",display:"inline-flex",flexShrink:0}}>
         {crown&&<div style={{position:"absolute",top:-15,left:0,right:0,display:"flex",justifyContent:"center",pointerEvents:"none",animation:"bkt-crown 1.8s ease-in-out infinite",filter:"drop-shadow(0 2px 4px #fbbf2488)"}}><EmoIcon e="👑" size={18} color="#fbbf24"/></div>}
-        <BktAvatar nom={j?.nom} col={roundCol} win={isWin} size={avSize} animate={isWin&&done}/>
+        <BktAvatar nom={j?.nom} equipe={j} photo={photos&&j?photos[j.id]:null} col={roundCol} win={isWin} size={avSize} animate={isWin&&done}/>
       </div>
       <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
         <span style={{
@@ -1585,7 +1801,7 @@ const BktGutter=({pairs,color})=>(
 // ============================================================================
 //  VUE ÉLIMINATOIRES (arbre de championnat)
 // ============================================================================
-const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSaisirScore,onJouerMatch,onRetourPoules,onTerminer,onLibererCibles,canPlay=false,onOpenShare,live=null,stats=null})=>{
+const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,onSaisirScore,onJouerMatch,onRetourPoules,onTerminer,onLibererCibles,canPlay=false,onOpenShare,live=null,stats=null})=>{
   const bracketM=matchs.filter(m=>m.phase!=="poules");
   const mainM=bracketM.filter(m=>MAIN_PHASES.includes(m.phase));
   const petiteM=bracketM.find(m=>m.phase==="petite_finale");
@@ -1640,7 +1856,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSaisirS
           {colLabel(phase,r)}
           <div style={{flex:1,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-around",alignItems:"center",gap:24}}>
             {rm.map(m=>(
-              <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} hero={isFinaleCol} live={live} stats={stats} actif={actifsBracket.has(m.id)}/>
+              <BracketMatchCard key={m.id} match={m} joueurs={joueurs} photos={photos} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} hero={isFinaleCol} live={live} stats={stats} actif={actifsBracket.has(m.id)}/>
             ))}
           </div>
         </div>
@@ -1656,7 +1872,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSaisirS
   const petiteCol=()=>(
     <div key="petite-finale" style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",gap:24,flexShrink:0}}>
       {colLabel("petite_finale",0)}
-      <BracketMatchCard match={petiteM} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live} stats={stats} actif={actifsBracket.has(petiteM.id)}/>
+      <BracketMatchCard match={petiteM} joueurs={joueurs} photos={photos} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live} stats={stats} actif={actifsBracket.has(petiteM.id)}/>
     </div>
   );
 
@@ -1736,7 +1952,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,nbCibles=1,onSaisirS
                       </div>
                       <div style={{flex:1,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-around",alignItems:"center",gap:24}}>
                         {rm.map(m=>(
-                          <BracketMatchCard key={m.id} match={m} joueurs={joueurs} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live} stats={stats} actif={actifsBracket.has(m.id)}/>
+                          <BracketMatchCard key={m.id} match={m} joueurs={joueurs} photos={photos} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live} stats={stats} actif={actifsBracket.has(m.id)}/>
                         ))}
                       </div>
                     </div>
@@ -2004,6 +2220,8 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
 
   // Moyenne de jeu par équipe sur TOUT le tournoi (matchs joués au scoreur). Re-fetch à chaque match terminé.
   const statsTournoi=useStatsTournoi(joueurs||[], (matchs||[]).filter(m=>m.statut==="termine").length);
+  // Photos des équipes : chargées À PART du sondage de 5 s (voir l'avertissement sur getJoueurs).
+  const photos=usePhotosEquipes(tournoiId, joueurs);
 
   // Auto-réparation des exempts (byes) bloqués : si un tableau a été lancé par une ancienne version
   // (bye jamais avancé → tour suivant vide), le CRÉATEUR le répare une fois à l'ouverture. Idempotent.
@@ -2405,8 +2623,11 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       await Promise.all(
         joueurs.map((j,i)=>{
           const jb={tournoi_id:nt.id,nom:j.nom,joueur_id:j.joueur_id??null,groupe:1,ordre:i,points:0,victoires:0,defaites:0,manches_pour:0,manches_contre:0};
-          const payload=j.membres?{...jb,membres:j.membres}:jb;
-          return dbTP.addJoueur(payload).catch(()=>dbTP.addJoueur(jb)); // repli si la colonne "membres" manque
+          const avecM=j.membres?{...jb,membres:j.membres}:jb;
+          // La photo n'est PAS dans `joueurs` (voir JOUEUR_COLS) : on la reprend dans la table des photos.
+          const ph=photos&&photos[j.id];
+          const payload=ph?{...avecM,photo:ph}:avecM;
+          return dbTP.addJoueur(payload).catch(()=>dbTP.addJoueur(avecM).catch(()=>dbTP.addJoueur(jb)));
         })
       );
       setPage("tournoi-potes-"+nt.id);
@@ -2446,7 +2667,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   };
 
   // Un joueur rejoint le tournoi (via QR/lien) — solo ou équipe (doublette avec membres)
-  const rejoindre=async({nom,joueur_id=null,membres=null})=>{
+  const rejoindre=async({nom,joueur_id=null,membres=null,photo=null})=>{
     // Sécurité : le tournoi a-t-il déjà été lancé pendant que cet écran attendait ? (rafraîchissement toutes les 5 s)
     const frais=await dbTP.getTournoi(tournoiId).catch(()=>null);
     if(frais&&frais.statut!=="attente"){
@@ -2454,9 +2675,13 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       throw new Error("Le tournoi vient d'être lancé — les inscriptions sont fermées.");
     }
     const base={tournoi_id:tournoiId,nom,joueur_id,groupe:1,ordre:joueurs.length,points:0,victoires:0,defaites:0,manches_pour:0,manches_contre:0};
+    const avecM = membres?{...base,membres}:base;
+    const avecP = photo?{...avecM,photo}:avecM;
     let j;
-    try{ j=await dbTP.addJoueur(membres?{...base,membres}:base); }
-    catch(err){ j=await dbTP.addJoueur(base); } // repli si la colonne "membres" n'existe pas encore
+    // On tente d'abord AVEC la photo ; si une colonne manque encore en base, on retire
+    // ce qui bloque plutot que de faire echouer l'inscription.
+    try{ j=await dbTP.addJoueur(avecP); }
+    catch(err){ try{ j=await dbTP.addJoueur(avecM); } catch(e2){ j=await dbTP.addJoueur(base); } }
     // Celui qui s'inscrit devient JOUEUR (peut scorer), pas simple spectateur
     if(j){ try{localStorage.setItem("dp_tp_player_"+tournoiId,"1");}catch(e){} setCodeUnlocked(true); }
     await reload();
@@ -2558,7 +2783,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
 
       {/* Content by statut */}
       {tournoi.statut==="attente"&&(
-        <LobbyView tournoi={tournoi} joueurs={joueurs} isCreateur={isCreateur}
+        <LobbyView tournoi={tournoi} joueurs={joueurs} photos={photos} isCreateur={isCreateur}
           onStart={()=>setShowPoolConfig(true)} onAddJoueur={addJoueur} onRemoveJoueur={removeJoueur}
           joueurConnecte={joueurConnecte} onRejoindre={rejoindre}/>
       )}
@@ -2578,7 +2803,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
         }}
       />}
       {tournoi.statut==="poules"&&(
-        <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} isCreateur={isCreateur}
+        <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} photos={photos} isCreateur={isCreateur}
           nbCibles={cibles} nbQual={tournoi.nb_qualifies!=null?tournoi.nb_qualifies:nbQualLocal} ciblesMode={ciblesMode} onSetCibles={changerCibles} canPlay={canPlay} onOpenShare={()=>setShowShare(true)} onModifier={retourLobby}
           onSaisirScore={m=>setMatchModal(m)}
           onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
@@ -2633,12 +2858,12 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           ))}
         </div>
         {vuePhase==="poules"
-          ? <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} isCreateur={isCreateur}
+          ? <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} photos={photos} isCreateur={isCreateur}
               nbCibles={cibles} nbQual={tournoi.nb_qualifies!=null?tournoi.nb_qualifies:nbQualLocal} ciblesMode={ciblesMode} canPlay={canPlay} onOpenShare={()=>setShowShare(true)}
               onSaisirScore={m=>setMatchModal(m)}
               onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
               saving={saving} joueurConnecte={joueurConnecte} live={liveInfo} bracketLance={true} stats={statsTournoi}/>
-          : <EliminatoiresView tournoi={tournoi} joueurs={joueurs} live={liveInfo}
+          : <EliminatoiresView tournoi={tournoi} joueurs={joueurs} photos={photos} live={liveInfo}
               matchs={matchs.filter(m=>m.phase!=="poules")} isCreateur={isCreateur} canPlay={canPlay} nbCibles={cibles} onOpenShare={()=>setShowShare(true)}
               onSaisirScore={m=>setMatchModal(m)}
               onJouerMatch={m=>setPage("scoreur-potes-"+m.id)}
