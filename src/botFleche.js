@@ -27,10 +27,10 @@ export function moyenneDepuisDrix(drix = 1000) {
   return Math.round(clamp(30 + (d - 800) * (58 / 1200), 22, 100));
 }
 
-// Analyse les 10 DERNIÈRES parties de l'ami pour en extraire son niveau réel.
+// Analyse les 5 DERNIÈRES parties de l'ami pour en extraire son niveau réel (sa forme ACTUELLE).
 // manches_detail : winner/loser (pseudos), *_moy, *_volees, *_finish, *_max, *_180.
 export function statsReelles(duels, amiPseudo) {
-  const recents = (duels || []).slice(0, 10); // getDuels renvoie déjà les plus récents d'abord
+  const recents = (duels || []).slice(0, 5); // getDuels renvoie déjà les plus récents d'abord
   let pts = 0, vol = 0, maxFinish = 0, maxVisit = 0, n180 = 0;
   for (const d of recents) {
     let md = d?.manches_detail;
@@ -99,6 +99,8 @@ export function calculerProfilBot({ drix, duels, amiPseudo, volees }) {
       return {
         mode: "replay",
         moyenne: moy,
+        manchesReelles: reconstruireManches(volees), // pour rejouer ses manches telles quelles
+
         scoringVolleys: A.scoringPool, // [{ s: score, a: distance }] pour piocher selon la situation
         maxFinish: finishes.length ? Math.max(...finishes) : Math.max(60, moy),
         checkoutRate: A.globalRate,   // taux de checkout global (repli)
@@ -223,10 +225,96 @@ function genererScoreReplay(remaining, profil) {
   return remaining - laisse;
 }
 
+// ── REJEU DE MANCHES ENTIÈRES (le mode le plus fidèle) ───────────────────────
+// Le bot ne « ressemble » plus au joueur : il rejoue une manche qu'il a VRAIMENT jouée, volée par
+// volée, dans l'ordre réel. Conséquence voulue : le bot ne peut plus inventer une manche irréelle.
+// Avant, il repiochait ses volées une par une — et comme ses grosses volées sont dispersées sur
+// des centaines de manches, il pouvait les ENCHAÎNER et boucler 501 en 11 fléchettes alors qu'il
+// tourne à 68 de moyenne. Ici, chaque manche du bot a réellement existé.
+//
+// Reconstruit les manches à partir de la suite de ses volées :
+//   • le `reste` qui REMONTE  → début d'une nouvelle manche
+//   • `reste === 0`           → manche gagnée
+//   • `score === -1`          → bust (voir pushLiveVolee dans AppJeux)
+export function reconstruireManches(volees) {
+  const manches = [];
+  let cur = null, prev = null, sess;
+  for (const v of volees || []) {
+    if (!v || typeof v.reste !== "number") continue;
+    // ⚠️ Couper aussi au changement de SESSION. Les volées de 5 parties arrivent concaténées, et
+    // deux parties se collaient en une seule manche impossible (une partie abandonnée tôt suivie
+    // d'une manche complète donnait « une manche de 501 » à 542 points de volées). Le seul test du
+    // reste qui remonte ne suffit pas : entre deux parties, le reste peut très bien DESCENDRE.
+    const changeDeSession = sess !== undefined && v.session_id !== sess;
+    if (cur == null || changeDeSession || (prev != null && v.reste > prev)) {
+      cur = { volees: [], gagnee: false, depart: null }; manches.push(cur); prev = null;
+    }
+    sess = v.session_id;
+    if (cur.depart == null) cur.depart = v.score >= 0 ? v.reste + v.score : v.reste; // score AVANT sa 1re volée
+    cur.volees.push(v.score);
+    if (v.reste === 0) { cur.gagnee = true; cur = null; prev = null; }
+    else prev = v.reste;
+  }
+  return manches.filter((m) => m.depart > 0 && m.volees.length > 0);
+}
+
+// Curseur de rejeu, rangé À PART du profil (WeakMap) : les appelants gardent la même signature
+// et le profil reste une donnée pure. Une partie = un objet profil = un curseur.
+const _curseurs = new WeakMap();
+
+// Toutes les positions où il s'est réellement trouvé à CE score restant, dans n'importe laquelle
+// de ses manches. C'est la clé : au début d'une manche, `remaining` vaut le score de départ et on
+// rejoue la manche entière ; au milieu (après un « Retour », un score corrigé, ou une partie en 301
+// alors qu'il n'a joué que du 501), on reprend là où IL était à ce score-là. Le bot rejoue donc
+// toujours de vraies fléchettes, jamais du calcul.
+// ⚠️ On prend ses manches GAGNÉES **ET** PERDUES, à leur fréquence réelle. Ne garder que les gagnées
+// serait un piège : ce sont ses meilleures manches (les plus rapides), le bot ne jouerait que ses
+// bons jours et serait plus fort que lui.
+function positionsA(manches, remaining) {
+  const out = [];
+  for (const m of manches) {
+    let r = m.depart;
+    for (let k = 0; k < m.volees.length; k++) {
+      if (r === remaining) out.push({ m, k });
+      const sc = m.volees[k];
+      if (sc >= 0 && sc <= r) r -= sc; // un bust ne change pas le reste
+    }
+  }
+  return out;
+}
+
+// Renvoie la prochaine volée de la manche rejouée, ou null s'il n'y a pas de matière.
+function rejouerManche(remaining, profil) {
+  const manches = profil?.manchesReelles;
+  if (!Array.isArray(manches) || !manches.length) return null;
+  let st = _curseurs.get(profil);
+  if (!st) { st = { manche: null, i: 0, attendu: null }; _curseurs.set(profil, st); }
+
+  // ⚠️ Le curseur ne vaut QUE si le score restant est exactement celui qu'on attendait. Sinon on
+  // s'est désynchronisé : nouvelle manche, bouton « Retour » de l'humain (qui remet le bot à son
+  // score d'avant), score corrigé à la main… Avant, le curseur restait en avance et le bot servait
+  // ses grosses volées sur un petit reste — 6 à 9 BUSTS d'affilée.
+  if (st.attendu !== remaining) {
+    const pos = positionsA(manches, remaining);
+    if (pos.length) { const c = pos[(Math.random() * pos.length) | 0]; st.manche = c.m; st.i = c.k; }
+    else { st.manche = null; st.i = 0; }
+  }
+
+  if (!st.manche || st.i >= st.manche.volees.length) { st.attendu = null; return null; } // épuisée → repli
+  const brut = st.manche.volees[st.i++];
+  if (brut < 0 || brut > remaining) { st.attendu = remaining; return remaining + 1; }    // il avait busté ici
+  st.attendu = remaining - brut;
+  return brut;
+}
+
 // Génère le score d'une volée du bot pour un score restant donné.
 // Retourne un nombre 1..180+ ; si === remaining → finish ; si > remaining → bust.
 export function genererScoreBot(remaining, profil) {
-  if (profil?.mode === "replay") return genererScoreReplay(remaining, profil); // rejoue les vraies volées
+  if (profil?.mode === "replay") {
+    const rejeu = rejouerManche(remaining, profil); // 1) rejouer une VRAIE manche, à l'identique
+    if (rejeu != null) return rejeu;
+    return genererScoreReplay(remaining, profil);   // 2) repli : repiocher ses volées une par une
+  }
   const moy = clamp(profil?.moyenne ?? 45, 18, 130);
   const plafondFinish = profil?.plafondFinish ?? 100;
   const plafondVolee  = profil?.plafondVolee ?? 140;

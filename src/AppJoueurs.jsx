@@ -199,12 +199,24 @@ export const dbJ = {
   // Amis acceptés d'un joueur (pour le mode bot) + profils par lot (pseudo/photo/drix).
   getAmis: (id) => sbJ(`amis?or=(joueur_id.eq.${id},ami_id.eq.${id})&statut=eq.accepte&select=*`),
   getJoueursByIds: (ids) => (ids && ids.length ? sbJ(`joueurs?id=in.(${ids.join(",")})&select=${JOUEUR_COLS}`) : Promise.resolve([])),
-  // Vraies volées d'un joueur sur ses 10 dernières parties live (pour le bot « replay »).
+  // Vraies volées d'un joueur sur ses 5 dernières parties live (pour le bot « replay »).
+  // 5 et pas 10 : on veut son niveau ACTUEL. Sur 10 parties on mélangeait des soirées vieilles de
+  // deux semaines avec sa forme du moment, et le bot devenait un joueur moyen qui n'existe pas.
+  // ⚠️ On part de SES VOLÉES, pas de la table des sessions. Une partie jouée contre son bot crée
+  // bien une session à son nom, mais elle ne contient plus aucune volée de lui (voir pushLiveVolee
+  // dans AppJeux) : partir des sessions faisait donc consommer les 10 places par des parties vides,
+  // et le bot finissait par se calibrer sur du vide ou sur lui-même. Ici, une partie sans volée de
+  // lui est simplement ignorée.
   getVoleesReelles: async (joueur_id) => {
-    const sessions = await sbJ(`live_sessions?or=(joueur1_id.eq.${joueur_id},joueur2_id.eq.${joueur_id})&order=debut.desc&limit=10&select=id`).catch(() => []);
-    if (!Array.isArray(sessions) || !sessions.length) return [];
-    const ids = sessions.map((s) => s.id).join(",");
-    const vol = await sbJ(`live_volees?session_id=in.(${ids})&joueur_id=eq.${joueur_id}&select=score,reste,session_id&order=session_id.asc,numero_volee.asc`).catch(() => []);
+    const recentes = await sbJ(`live_volees?joueur_id=eq.${joueur_id}&select=session_id,date&order=date.desc&limit=900`).catch(() => []);
+    if (!Array.isArray(recentes) || !recentes.length) return [];
+    const ids = [];
+    for (const v of recentes) {
+      if (v.session_id && !ids.includes(v.session_id)) ids.push(v.session_id);
+      if (ids.length >= 5) break;
+    }
+    if (!ids.length) return [];
+    const vol = await sbJ(`live_volees?session_id=in.(${ids.join(",")})&joueur_id=eq.${joueur_id}&select=score,reste,session_id&order=session_id.asc,numero_volee.asc`).catch(() => []);
     return Array.isArray(vol) ? vol : [];
   },
   addDuel: (d) => sbJ("duels", { method: "POST", body: JSON.stringify(d) }),
@@ -346,6 +358,183 @@ const DrixEvolution = ({ drixMvts = [], current = 1000 }) => {
         ))}
         <path d={area} fill={`url(#${gid})`}/>
         <path d={line} fill="none" stroke={accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+        <circle cx={px(pts[pts.length - 1].t)} cy={py(pts[pts.length - 1].v)} r="3.5" fill={accent}/>
+        {xticks.map((x, i) => (
+          <text key={i} x={Math.max(XL, Math.min(XR, px(x.t)))} y={132} textAnchor="middle" style={{ fill:CJ.muted, fontSize:8, fontWeight:600 }}>{x.label}</text>
+        ))}
+      </svg>
+
+      <Onglets/>
+    </div>
+  );
+};
+
+// Évolution de la MOYENNE (points par volée de 3 fléchettes) — même carte, mêmes périodes et même
+// géométrie que DrixEvolution ci-dessus, volontairement : c'est le même geste pour l'utilisateur.
+//
+// Différence de FOND avec le DRIX : le DRIX est un NIVEAU (chaque mouvement remplace le précédent,
+// on trace la valeur telle quelle). Une moyenne est un ÉCHANTILLON par match. Tracer les 129 matchs
+// un par un sur 280 px de large donnerait un zigzag illisible où aucune tendance ne se voit.
+// On regroupe donc : une moyenne par JOUR joué (7 jours / Mois) ou par MOIS (Année / Tout).
+// `moyMvts` = [{t: date, v: moyenne du match}] — voir myMoy() dans PageProfilStats.
+const MoyenneEvolution = ({ moyMvts = [] }) => {
+  const [periode, setPeriode] = useState("30j"); // la moyenne bouge moins vite que le DRIX
+  const now = Date.now();
+  const JOUR = 86400000;
+
+  const asc = (moyMvts || [])
+    .filter(m => m && m.t && m.v != null && m.v > 0)
+    .sort((a, b) => a.t - b.t);
+
+  const PERIODES = [
+    { k:"7j", l:"7 jours", jours:7 }, { k:"30j", l:"Mois", jours:30 },
+    { k:"365j", l:"Année", jours:365 }, { k:"tout", l:"Tout", jours:null },
+  ];
+
+  const Onglets = () => (
+    <div style={{ display:"flex", gap:6, marginTop:12 }}>
+      {PERIODES.map(p => {
+        const on = p.k === periode;
+        return (
+          <button key={p.k} onClick={() => setPeriode(p.k)}
+            style={{ flex:1, padding:"8px 0", borderRadius:9, cursor:"pointer", fontSize:12, fontWeight:700, touchAction:"manipulation",
+              border:`1px solid ${on ? CJ.blue : CJ.border}`, background: on ? `${CJ.blue}1e` : "transparent", color: on ? CJ.blue : CJ.muted }}>
+            {p.l}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const Vide = (txt) => (
+    <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:16 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, fontWeight:800, color:CJ.muted, letterSpacing:1, marginBottom:8 }}><BarChart2 size={14} color={CJ.blue}/> ÉVOLUTION MOYENNE</div>
+      <p style={{ color:CJ.muted, fontSize:12, textAlign:"center", padding:"18px 0" }}>{txt}</p>
+      <Onglets/>
+    </div>
+  );
+
+  if (asc.length < 2) return Vide("Pas encore assez de matchs pour afficher la courbe.");
+
+  const conf = PERIODES.find(p => p.k === periode) || PERIODES[0];
+  const parMois = periode === "365j" || periode === "tout";
+
+  // ⚠️ La fenêtre DOIT tomber sur des frontières de jour (ou de mois), parce qu'on regroupe par jour
+  // civil. Un start à « il y a exactement 7×24 h » coupe le premier jour en deux : le point n'affiche
+  // alors que la moyenne des matchs joués après cette heure-là, le compteur de matchs est faux, et la
+  // variation peut changer de SIGNE ET DE COULEUR (un +30 vert affiché pour une vraie baisse de 7,5).
+  const debutJour = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const debutMois = (t) => { const d = new Date(t); d.setDate(1); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  let start;
+  if (conf.jours == null) start = parMois ? debutMois(asc[0].t) : debutJour(asc[0].t);
+  else if (parMois) { const d = new Date(now); d.setMonth(d.getMonth() - 11); start = debutMois(d.getTime()); } // 12 mois ENTIERS
+  else start = debutJour(now - (conf.jours - 1) * JOUR);                                                        // N jours ENTIERS, aujourd'hui inclus
+  // Sur « Tout », un match daté dans le futur (horloge de téléphone en avance) ne doit pas disparaître
+  // en silence : on étend la fin de la fenêtre au lieu de jeter le match.
+  const fin = conf.jours == null ? Math.max(now, asc[asc.length - 1].t) : now;
+
+  const cle = (t) => { const d = new Date(t); return parMois ? `${d.getFullYear()}-${d.getMonth()}` : `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+
+  const groupes = new Map();
+  asc.filter(m => m.t >= start && m.t <= fin).forEach(m => {
+    const k = cle(m.t);
+    const g = groupes.get(k) || { somme:0, n:0, tSomme:0 };
+    g.somme += m.v; g.n += 1; g.tSomme += m.t;
+    groupes.set(k, g);
+  });
+  // Chaque point est posé sur l'instant MOYEN de ses matchs. Deux avantages : il tombe forcément
+  // dans la fenêtre (donc jamais hors cadre), et il vit dans le MÊME repère que les étiquettes de
+  // l'axe X — un point calé d'autorité à midi ou au 15 du mois pouvait sortir de la fenêtre et se
+  // retrouver décalé par rapport à sa propre date.
+  const pts = [...groupes.values()].map(g => ({ t:g.tSomme / g.n, v:g.somme / g.n, n:g.n })).sort((a, b) => a.t - b.t);
+  const nbMatchs = pts.reduce((a, p) => a + p.n, 0);
+
+  if (pts.length < 2) return Vide(nbMatchs === 0
+    ? "Aucun match sur cette période."
+    : `Un seul ${parMois ? "mois" : "jour"} joué sur cette période — il en faut au moins deux pour tracer une évolution.`);
+
+  // Échelle Y — pas adaptés à des moyennes (≈ 20 à 180), pas à des DRIX à 4 chiffres.
+  const vals = pts.map(p => p.v).filter(v => Number.isFinite(v));
+  if (!vals.length) return Vide("Moyennes illisibles sur cette période.");
+  let vmin = Math.min(...vals), vmax = Math.max(...vals);
+  if (vmin === vmax) { vmin -= 5; vmax += 5; }
+  const STEPS = [1, 2, 5, 10, 20, 25, 50, 100];
+  const step = STEPS.find(x => x >= (vmax - vmin) / 4) || 100;
+  const tickMin = Math.max(0, Math.floor(vmin / step) * step);
+  const tickMax = Math.ceil(vmax / step) * step;
+  const ticks = [];
+  for (let t = tickMin; t <= tickMax + 0.5 && ticks.length < 40; t += step) ticks.push(t);
+
+  // Étiquettes de l'axe X — elles doivent parler de la MÊME granularité que les points : quand on
+  // regroupe par mois, on étiquette des mois (avant, « Tout » regroupait par mois mais affichait des
+  // jours, donc aucune étiquette ne tombait sur un point).
+  const clean = (str) => str.replace(".", "");
+  const xticks = [];
+  if (periode === "7j") {
+    for (let i = 0; i < conf.jours; i++) {
+      const t = start + i * JOUR + JOUR / 2; // milieu de la journée = sous son point
+      xticks.push({ t, label:clean(new Date(t).toLocaleDateString("fr-FR", { weekday:"short" })) });
+    }
+  } else if (parMois) {
+    const d = new Date(start);
+    const mois = [];
+    while (d.getTime() <= fin && mois.length < 400) { mois.push(d.getTime()); d.setMonth(d.getMonth() + 1); }
+    const stepM = Math.max(1, Math.ceil(mois.length / 6));
+    const avecAnnee = mois.length > 13; // sinon deux « juil » identiques sur la vue Année
+    mois.filter((_, i) => i % stepM === 0).forEach(t => {
+      const mid = new Date(t); mid.setDate(15);
+      xticks.push({ t:mid.getTime(), label:clean(new Date(t).toLocaleDateString("fr-FR", avecAnnee ? { month:"short", year:"2-digit" } : { month:"short" })) });
+    });
+  } else {
+    const N = 5, span = fin - start;
+    for (let i = 0; i < N; i++) {
+      const t = start + span * (i / (N - 1));
+      xticks.push({ t, label:new Date(t).toLocaleDateString("fr-FR", { day:"numeric", month:"numeric" }) });
+    }
+  }
+
+  // Géométrie SVG — mêmes bornes que DrixEvolution, et un SEUL repère temporel (start → fin)
+  // partagé par la courbe et par les étiquettes.
+  const XL = 34, XR = 314, YT = 8, YB = 116;
+  const px = (t) => XL + ((t - start) / ((fin - start) || 1)) * (XR - XL);
+  const py = (v) => YB - ((v - tickMin) / ((tickMax - tickMin) || 1)) * (YB - YT);
+  const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${px(p.t).toFixed(1)},${py(p.v).toFixed(1)}`).join(" ");
+  const area = `${line} L${px(pts[pts.length - 1].t).toFixed(1)},${YB} L${px(pts[0].t).toFixed(1)},${YB} Z`;
+
+  const variation = +(pts[pts.length - 1].v - pts[0].v).toFixed(1);
+  const positif = variation >= 0;
+  const accent = positif ? CJ.green : CJ.red;
+  const gid = "moygrad-" + periode + "-" + (positif ? "g" : "r");
+
+  return (
+    <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:16 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:2 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, fontWeight:800, color:CJ.muted, letterSpacing:1 }}><BarChart2 size={14} color={accent}/> ÉVOLUTION MOYENNE</div>
+        <span style={{ fontWeight:800, fontSize:15, color:accent }}>{positif ? "+" : ""}{variation} <span style={{ fontSize:10, color:CJ.muted, fontWeight:600 }}>{conf.l.toLowerCase()}</span></span>
+      </div>
+      <div style={{ fontSize:9.5, color:CJ.muted, fontWeight:600, marginBottom:8 }}>
+        Moyenne pts/volée · un point par {parMois ? "mois" : "jour"} joué · {nbMatchs} match{nbMatchs > 1 ? "s" : ""} pris en compte
+      </div>
+
+      <svg viewBox="0 0 320 140" style={{ width:"100%", height:"auto", display:"block" }} preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={accent} stopOpacity="0.28"/>
+            <stop offset="100%" stopColor={accent} stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+        {ticks.map((t, i) => (
+          <g key={i}>
+            <line x1={XL} y1={py(t)} x2={XR} y2={py(t)} stroke={CJ.border} strokeWidth="0.6" strokeDasharray="2 3"/>
+            <text x={XL - 4} y={py(t) + 3} textAnchor="end" style={{ fill:CJ.muted, fontSize:8, fontWeight:600 }}>{t}</text>
+          </g>
+        ))}
+        <path d={area} fill={`url(#${gid})`}/>
+        <path d={line} fill="none" stroke={accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+        {/* Les points sont peu nombreux : on les matérialise pour qu'on voie les jours réellement joués. */}
+        {pts.length <= 14 && pts.slice(0, -1).map((p, i) => (
+          <circle key={i} cx={px(p.t)} cy={py(p.v)} r="2" fill={accent} fillOpacity="0.75"/>
+        ))}
         <circle cx={px(pts[pts.length - 1].t)} cy={py(pts[pts.length - 1].v)} r="3.5" fill={accent}/>
         {xticks.map((x, i) => (
           <text key={i} x={Math.max(XL, Math.min(XR, px(x.t)))} y={132} textAnchor="middle" style={{ fill:CJ.muted, fontSize:8, fontWeight:600 }}>{x.label}</text>
@@ -1619,6 +1808,10 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
   const moy30     = dayAvg(termines.filter(d => (now-(d.date||0)) < monthMs).map(myMoy));
   const moy30prev = dayAvg(termines.filter(d => { const a = now-(d.date||0); return a >= monthMs && a < 2*monthMs; }).map(myMoy));
   const progMoy30 = (moy30 != null && moy30prev != null) ? +(moy30 - moy30prev).toFixed(1) : null;
+  // Série datée pour le graphique d'évolution : une entrée par match TERMINÉ qui porte une moyenne.
+  // Certains duels ont score_challenger à null (partie sans moyenne enregistrée) → myMoy renvoie
+  // null et l'entrée est écartée par MoyenneEvolution.
+  const moyMvts = termines.filter(d => d.date).map(d => ({ t:d.date, v:myMoy(d) }));
 
   // Scoring / Finishes avancés (par duel)
   let totalVolees = 0, totalPoints = 0, record180Partie = 0, record100Partie = 0;
@@ -1862,6 +2055,9 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
           {nbMoy(70)>0 && <StatCard i={8} label="Parties 70+" value={nbMoy(70)} color={CJ.blue}/>}
           {nbMoy(80)>0 && <StatCard i={9} label="Parties 80+" value={nbMoy(80)} color={CJ.accent}/>}
           {nbMoy(100)>0 && <StatCard i={10} label="Parties 100+" value={nbMoy(100)} color="#fbbf24"/>}
+        </div>
+        <div style={{ marginTop:12 }}>
+          <MoyenneEvolution moyMvts={moyMvts}/>
         </div>
       </div>
 
@@ -3420,6 +3616,15 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const drixMvtMap = {};
   drixMvts.forEach(m=>{ if(m.duel_id) drixMvtMap[m.duel_id]=m.variation; });
 
+  // Série DATÉE des moyennes du joueur CONSULTÉ, pour le graphique d'évolution.
+  // Même règle de lecture que partout ailleurs : sa moyenne est dans score_challenger s'il était
+  // le challenger du duel, sinon dans score_defie. Les duels sans moyenne enregistrée donnent NaN
+  // et sont écartés (parseFloat(null) → NaN).
+  const moyMvtsJoueur = (duels||[])
+    .filter(d => d.date)
+    .map(d => ({ t:d.date, v:parseFloat(d.challenger_id===joueurId ? d.score_challenger : d.score_defie) }))
+    .filter(m => !isNaN(m.v) && m.v > 0);
+
   // Badges
   const BADGES_CIBLE = [
     {emoji:"🥇",nom:"Premier duel",    seuil:1,   valeur:stats?.parties??0,  couleur:"#f59e0b"},
@@ -4109,6 +4314,10 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
             <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6}}>
               <StatCell icon={Circle} value={stats?.victoires??0} label="Victoires" color={CJ.green} delay={10}/>
               <StatCell icon={Circle} value={stats?.defaites??0} label="Défaites" color={CJ.red} delay={10.5}/>
+            </div>
+            {/* Évolution de SA moyenne — mêmes périodes que le graphique DRIX plus bas. */}
+            <div style={{marginTop:10}}>
+              <MoyenneEvolution moyMvts={moyMvtsJoueur}/>
             </div>
           </div>
 

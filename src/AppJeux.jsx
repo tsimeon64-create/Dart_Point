@@ -1545,6 +1545,13 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   const pushLiveVolee = async (joueurIdx, score, isBust, isFinish, updatedJoueurs) => {
     if (!liveIdRef.current) return;
+    // ⚠️ NE JAMAIS enregistrer les fléchettes du BOT. La place du bot porte l'id du VRAI ami
+    // (liveIdsRef, voir createLiveSession) : écrire ses volées revenait à les ranger dans
+    // l'historique de cette personne. Or c'est exactement cet historique que calculerProfilBot
+    // relit pour calibrer le bot (mode « replay ») — le bot se recalibrait donc sur ses propres
+    // exploits et devenait plus fort à chaque partie (constaté : 50 → 86 → 113 → 167 de moyenne
+    // en trois soirées, pour un joueur qui tourne à 50). Seules les vraies fléchettes comptent.
+    const estLeBot = !!botPseudo && updatedJoueurs?.[joueurIdx]?.nom === botPseudo;
     liveVoleeNumRef.current[joueurIdx]++;
     if (isFinish && score > 0) liveMaxFinishRef.current[joueurIdx] = Math.max(liveMaxFinishRef.current[joueurIdx], score);
     if (isBust) liveBustsRef.current[joueurIdx]++;
@@ -1562,7 +1569,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           headers:{ apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, "Content-Type":"application/json", Prefer:"return=minimal" },
           body: JSON.stringify({ [statsKey]:{ moy, volees:j.tours.length, flech, total_pts:j.totalPoints, nb180, reste, max_finish:liveMaxFinishRef.current[joueurIdx], busts:liveBustsRef.current[joueurIdx] }, [scoreKey]:j.manchesGagnees }),
         }),
-        fetch(`${SB_URL}/rest/v1/live_volees`, {
+        estLeBot ? Promise.resolve() : fetch(`${SB_URL}/rest/v1/live_volees`, {
           method:"POST",
           headers:{ apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, "Content-Type":"application/json", Prefer:"return=minimal" },
           body: JSON.stringify({ session_id:liveIdRef.current, joueur_id:liveIdsRef.current[joueurIdx], numero_volee:liveVoleeNumRef.current[joueurIdx], score:isBust?-1:score, reste, date:Date.now() }),
