@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import QRCode from "qrcode";
 import { Scoreur } from "./AppJeux";
 import { EmoIcon, EmoText } from "./icons";
-import { rankGroup, egalitesADepartager } from "./barrage";
+import { rankGroup, rankGroupDetaille, phraseDepartage, egalitesADepartager } from "./barrage";
 import { optimizePoolMatchOrder } from "./tournoiConfig";
 import { TournoiSetupWizard } from "./TournoiSetupWizard";
 import { confirmer, alerter } from "./uiConfirm.jsx";
@@ -1270,7 +1270,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,nbQual
       // sur les stats stockées en base : une fois le tableau lancé, celles-ci contiennent AUSSI les
       // victoires du tableau et de la consolante → elles inventaient des égalités qui n'existaient pas
       // dans le classement affiché juste en dessous (lui utilise déjà joueursPoule).
-      egalitesADepartager(joueursPoule.filter(j=>j.groupe===g),barrages,nbQual).forEach(({a,b,round})=>{
+      egalitesADepartager(joueursPoule.filter(j=>j.groupe===g),barrages,nbQual,matchs).forEach(({a,b,round})=>{
         tieNonTranchee=true;
         if(!barrageExiste(a.id,b.id,round))aCreer.push({a:a.id,b:b.id,groupe:g,round});
       });
@@ -1299,7 +1299,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,nbQual
     const bg=done?"#16161d":actif||barrage?col+"12":"#16161d";
     return(
       <div key={m.id} style={{borderRadius:12,padding:"11px 13px",marginBottom:8,background:bg,border:`1px solid ${bordC}`,opacity:attente?0.62:1}}>
-        {barrage&&<div style={{fontSize:8.5,fontWeight:800,color:RED_TP,letterSpacing:.6,marginBottom:7}}>BARRAGE · 701</div>}
+        {barrage&&<div style={{fontSize:8.5,fontWeight:800,color:RED_TP,letterSpacing:.6,marginBottom:7,lineHeight:1.4}}>MATCH DE BARRAGE POUR LA QUALIFICATION · 701</div>}
         {/* Ordre CONSEILLÉ (mode une poule par cible) : les joueurs restent libres de choisir, mais
             suivre ces numéros évite qu'un même joueur enchaîne deux matchs de suite. */}
         {!barrage&&!done&&ordreConseille[m.id]&&(
@@ -1405,8 +1405,8 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,nbQual
               <div style={{fontWeight:800,fontSize:14,color:RED_TP}}>Égalité à départager</div>
               <div style={{fontSize:12.5,color:CT.text,lineHeight:1.5,marginTop:3}}>
                 {aCreer.length>0
-                  ? <>Des joueurs sont à <b>égalité parfaite</b> sur une place qui compte. Un <b>match de barrage en 701</b> est nécessaire pour les départager.</>
-                  : <>Un <b>barrage en 701</b> (en rouge ci-dessous) est à jouer pour trancher l'égalité.</>}
+                  ? <>Des joueurs sont à <b>égalité parfaite</b> sur une place qui compte : ni leur <b>match direct</b> ni la <b>différence de manches</b> ne les départagent. Un <b>match de barrage en 701</b> est nécessaire.</>
+                  : <>Un <b>match de barrage en 701</b> (en rouge ci-dessous) est à jouer pour trancher l'égalité.</>}
               </div>
               {isCreateur&&aCreer.length>0&&(
                 <button onClick={()=>onCreerBarrages&&onCreerBarrages(aCreer)} disabled={saving} style={{marginTop:10,background:RED_TP,color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontWeight:800,fontSize:13.5,cursor:saving?"not-allowed":"pointer",opacity:saving?.6:1,touchAction:"manipulation"}}>
@@ -1437,7 +1437,9 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,nbQual
 
       {/* Poule sélectionnée */}
       {groupes.filter(g=>g===activeTab).map(g=>{
-        const jG=rankGroup(joueursPoule.filter(j=>j.groupe===g),barrages,matchs);
+        // Classement DETAILLE : chaque entree porte la raison qui l'a fait passer devant la suivante.
+        const jGd=rankGroupDetaille(joueursPoule.filter(j=>j.groupe===g),barrages,matchs);
+        const jG=jGd.map(e=>e.joueur);
         const barrageG=barrages.filter(m=>m.groupe===g).sort((a,b)=>(a.position_bracket||0)-(b.position_bracket||0));
         // Stats des barrages (701) d'une équipe DANS cette poule → ajoutées au récap V/D/manches/points AFFICHÉ,
         // pour que les barrages joués soient bien comptabilisés à l'écran. (Le classement, lui, reste géré par
@@ -1465,6 +1467,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,nbQual
             </div>
             {/* Classement */}
             {jG.map((j,i)=>{
+              const raison=jGd[i]?jGd[i].raison:null;
               const rc=i===0?"#fbbf24":i===1?"#cbd5e1":i===2?"#f59e0b":"#64748b";
               const rbc=groupeFini?rc:"#7a7a88";  // médailles seulement une fois la poule finie
               const qual=groupeFini&&i<nbQual;     // qualifié = poule finie + top nbQual (1 ou 2)
@@ -1487,6 +1490,17 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,nbQual
                       {sb.v+sb.d>0&&<span style={{color:RED_TP,fontWeight:600}}> · dont barrage {sb.v}V {sb.d}D</span>}
                       {qual&&<span style={{color:CT.green,fontWeight:700}}> · ✓ Qualifié</span>}
                     </div>
+                    {/* POURQUOI cette équipe est devant la suivante. On n'affiche la phrase qu'une fois
+                        la poule terminée : avant, le classement bouge à chaque match et la raison
+                        changerait sans arrêt. La raison vient de rankGroupDetaille, donc elle est
+                        calculée sur les manches de POULE (jamais sur les V/D/manches affichés
+                        ci-dessus, qui incluent les barrages — sinon elle contredirait l'ordre réel). */}
+                    {groupeFini&&raison&&(
+                      <div style={{fontSize:10.5,color:CT.muted,marginTop:3,lineHeight:1.35,display:"flex",alignItems:"flex-start",gap:4}}>
+                        <EmoIcon e="⚖️" size={10} style={{flexShrink:0,marginTop:1}}/>
+                        <span>{phraseDepartage(raison,j.nom,qual)}</span>
+                      </div>
+                    )}
                   </div>
                   <div style={{textAlign:"right",flexShrink:0}}>
                     <div style={{fontSize:17,fontWeight:800,color:qual?gc:CT.text,lineHeight:1}}>{PTS}</div>
@@ -2468,7 +2482,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       const restantes=[];
       for(let g=1;g<=nbGroupes;g++){
         const jG=joueursClasse.filter(j=>j.groupe===g);
-        if(jG.length>1)egalitesADepartager(jG,barragesTP,nbQual).forEach(s=>restantes.push({g,s}));
+        if(jG.length>1)egalitesADepartager(jG,barragesTP,nbQual,matchsFrais).forEach(s=>restantes.push({g,s}));
       }
       if(restantes.length>0){
         setSaving(false);

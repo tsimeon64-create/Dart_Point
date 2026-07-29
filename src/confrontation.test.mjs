@@ -1,7 +1,8 @@
 // Test du départage par CONFRONTATION DIRECTE (rankGroup, 3e paramètre `matchsPoule`).
-// Corrige D24 : deux équipes strictement à égalité (mêmes victoires, défaites et goal average, et
-// aucun barrage) étaient départagées par l'ordre du tirage au sort — donc au hasard, et sans que
-// personne puisse l'expliquer. Le match qu'elles ont déjà joué l'une contre l'autre tranche désormais.
+// Le match que deux equipes ont deja joue l'une contre l'autre tranche leur egalite. Depuis le
+// passage a l'ordre de competition standard, ce critere arrive JUSTE APRES les victoires : il
+// passe devant la difference de manches (et le barrage 701 n'est plus qu'un dernier recours).
+// Voir aussi departage.test.mjs pour le triangle et les egalites a 3 equipes ou plus.
 //
 // Lancer :  node src/confrontation.test.mjs
 import { rankGroup } from "./barrage.js";
@@ -31,7 +32,7 @@ t("meme classement dans les deux sens",
   JSON.stringify(rankGroup(exAequo(), [], matchAB("B")).map(x => x.id)) ===
   JSON.stringify(rankGroup(listeInversee, [], matchAB("B")).map(x => x.id)));
 
-console.log("3) ON NE CASSE PAS LES CRITERES PRIORITAIRES");
+console.log("3) LES VICTOIRES RESTENT AU-DESSUS DE TOUT");
 const plusDeVictoires = [
   { id: "A", victoires: 1, defaites: 2, manches_pour: 2, manches_contre: 4 },
   { id: "B", victoires: 3, defaites: 0, manches_pour: 6, manches_contre: 1 },
@@ -40,12 +41,14 @@ const plusDeVictoires = [
 t("les VICTOIRES priment sur la confrontation directe",
   rankGroup(plusDeVictoires, [], matchAB("A"))[0].id === "B");
 
+// A a une MOINS BONNE difference de manches (+1 contre +3) mais il a battu B en poule :
+// depuis le passage a la regle de competition standard, c'est le match direct qui tranche.
 const meilleurGoalAverage = [
   { id: "A", victoires: 2, defaites: 1, manches_pour: 4, manches_contre: 3 },
   { id: "B", victoires: 2, defaites: 1, manches_pour: 5, manches_contre: 2 },
 ];
-t("le GOAL AVERAGE prime sur la confrontation directe",
-  rankGroup(meilleurGoalAverage, [], matchAB("A"))[0].id === "B");
+t("la CONFRONTATION DIRECTE prime sur la difference de manches",
+  rankGroup(meilleurGoalAverage, [], matchAB("A"))[0].id === "A");
 
 console.log("4) LE BARRAGE 701 RESTE PRIORITAIRE SUR LA CONFRONTATION DIRECTE");
 // B a perdu le match de poule mais a gagné le barrage 701 : c'est le barrage qui doit trancher.

@@ -1,18 +1,13 @@
-// Test du classement de poule (miroir de rankGroup dans AppTournoiPotes.jsx).
-// Règle voulue : 1) VICTOIRES  2) moins de DÉFAITES  3) goal average manches  4) barrages.
+// Test du classement de poule — il importe le VRAI code (src/barrage.js), il ne le recopie plus.
+// Regle verifiee ici : 1) VICTOIRES  2) moins de DEFAITES  3) difference de manches.
+// (La confrontation directe et les barrages ont leurs propres suites : confrontation.test.mjs,
+//  departage.test.mjs et barrage.test.mjs. Ici aucun match de poule n'est fourni, donc la
+//  confrontation directe ne peut pas s'appliquer.)
 // Lancer :  node src/rankgroup.test.mjs
-//
-// ⚠️ Ce fichier reproduit à l'identique le comparateur de rankGroup. Si tu changes
-//    l'ordre des critères dans AppTournoiPotes.jsx, mets ce test à jour.
+import { rankGroup } from "./barrage.js";
 
-const cmp = (a, b) => {
-  if (b.victoires !== a.victoires) return b.victoires - a.victoires;      // 1) victoires
-  if (a.defaites !== b.defaites) return a.defaites - b.defaites;          // 2) moins de défaites
-  const da = a.manches_pour - a.manches_contre, db = b.manches_pour - b.manches_contre;
-  if (db !== da) return db - da;                                         // 3) goal average manches
-  return 0;                                                             // 4) (barrages testés ailleurs)
-};
-const rank = js => [...js].sort(cmp);
+// Les equipes ont besoin d'un `id` : rankGroup s'en sert pour rattacher matchs et barrages.
+const rank = js => rankGroup(js.map(j => ({ ...j, id: j.nom })), [], []);
 
 let ko = 0;
 const check = (label, cond) => { console.log(`${cond ? "OK  " : "ÉCHEC"} — ${label}`); if (!cond) ko++; };
@@ -41,7 +36,9 @@ const check = (label, cond) => { console.log(`${cond ? "OK  " : "ÉCHEC"} — ${
   check("à victoires égales, meilleur goal average devant", r[0].nom === "X");
 }
 
-// Cas 4 : à victoires égales, moins de défaites devant (utile avec des exempts).
+// Cas 4 : a victoires egales, moins de defaites devant.
+// Ce cas n'arrive QUE sur une poule en cours : le round-robin etant complet, une poule terminee
+// donne toujours victoires egales => defaites egales (voir le commentaire du critere 3 de barrage.js).
 {
   const M = { nom: "M", victoires: 3, defaites: 0, manches_pour: 9, manches_contre: 3 };
   const N = { nom: "N", victoires: 3, defaites: 1, manches_pour: 15, manches_contre: 4 }; // + de manches mais 1 défaite
