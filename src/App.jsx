@@ -223,6 +223,31 @@ const VILLES_FR = {
 // C importé depuis src/theme.js
 
 // ── LEAFLET ───────────────────────────────────────────────────────────────────
+// Coordonnées d'une commune française qu'on ne connaît pas d'avance.
+// VILLES_FR ne contient que 38 grandes villes ; la France en compte ~35 000. Sans ça, taper
+// « Larressore » ou « Magny-Cours » ne faisait RIEN sur la carte, sans le moindre message.
+// On interroge l'annuaire officiel (api-adresse.data.gouv.fr) : gratuit, sans clé, communes FR.
+// ⚠️ Cache en OBJET SIMPLE et pas en `new Map()` : l'icône `Map` de lucide-react est importée dans
+// ce fichier et masque le Map natif (« Map is not a constructor » → page blanche).
+const _geoVilles = {};
+async function geocoderCommune(q, signal) {
+  const cle = q.trim().toLowerCase();
+  if (!cle || cle.length < 2) return null;
+  if (Object.prototype.hasOwnProperty.call(_geoVilles, cle)) return _geoVilles[cle];
+  try {
+    const r = await fetch(
+      `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(cle)}&type=municipality&limit=1`,
+      { signal }
+    );
+    if (!r.ok) return null;
+    const j = await r.json();
+    const c = j?.features?.[0]?.geometry?.coordinates;           // [lng, lat] en GeoJSON
+    const pos = Array.isArray(c) && c.length === 2 ? [c[1], c[0]] : null;
+    _geoVilles[cle] = pos;                                        // on retient aussi les échecs (null)
+    return pos;
+  } catch { return null; }                                        // hors ligne / requête annulée
+}
+
 function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoClick, onTournoiClick, centerSlug=null, centerVille=null, height=400, barsActifs=[], userPos=null, recosParBar={} }) {
   const divRef = useRef(null);
   const mapRef = useRef(null);
@@ -294,6 +319,7 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
   useEffect(() => {
     if (!ready || !mapRef.current || !centerVille || centerVille.trim().length < 2) return;
     const L = window.L; const map = mapRef.current;
+    const ctrl = new AbortController(); // annule la recherche de commune si on retape entre-temps
     const timer = setTimeout(() => {
       map.invalidateSize();
       const q = centerVille.toLowerCase().trim();
@@ -301,9 +327,13 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
       if (all.length===1) { map.flyTo([all[0].lat,all[0].lng],14,{duration:0.8}); return; }
       if (all.length>1) { map.flyToBounds(window.L.latLngBounds(all.map(x=>[x.lat,x.lng])),{padding:[60,60],duration:0.8,maxZoom:14}); return; }
       const found = Object.entries(VILLES_FR).find(([k])=>k.includes(q)||q.includes(k));
-      if (found) map.flyTo(found[1],13,{duration:0.8});
+      if (found) { map.flyTo(found[1],13,{duration:0.8}); return; }
+      // Village inconnu de la liste : on demande ses coordonnées à l'annuaire officiel des communes.
+      geocoderCommune(q, ctrl.signal).then(pos => {
+        if (pos && mapRef.current && !ctrl.signal.aborted) mapRef.current.flyTo(pos, 13, { duration: 0.8 });
+      });
     }, 400);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); ctrl.abort(); };
   }, [ready, centerVille, bars, associations, tournois]);
 
   useEffect(() => {
