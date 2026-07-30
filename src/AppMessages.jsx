@@ -360,7 +360,16 @@ export const MessagesPage=({joueur,setPage,targetId=null,targetPseudo=null})=>{
     setSuppression(true);
     const r=await dbM.deleteConversations(selection).catch(()=>null);
     setSuppression(false);
-    if(!r||r.error){ await alerter("Suppression impossible pour l'instant."); return; }
+    // On montre la VRAIE raison renvoyée par le serveur : « action inconnue » veut dire que la
+    // fonction `messages` n'a pas encore été redéployée, un message sur les colonnes veut dire
+    // qu'il reste la commande SQL à lancer. Un « impossible » tout court n'aide personne.
+    if(!r||r.error){
+      const brut=String(r&&r.error||"");
+      await alerter(/action inconnue/i.test(brut)
+        ? "La suppression n'est pas encore active : la fonction « messages » doit être redéployée sur Supabase."
+        : (brut||"Suppression impossible pour l'instant."));
+      return;
+    }
     if(selection.includes(convId))setConvId(null);
     setSelection([]); setModeSuppr(false); setRechargeKey(k=>k+1);
   };

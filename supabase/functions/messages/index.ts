@@ -98,6 +98,7 @@ Deno.serve(async (req) => {
       const ids = bruts.filter((x: unknown) => typeof x === "string" && /^[0-9a-f-]{36}$/i.test(x)).slice(0, 50);
       if (!ids.length) return json({ error: "Aucune conversation à supprimer" }, 400);
       const liste = ids.join(",");
+      let detail = "";
       try {
         await api(`messages?from_id=eq.${me}&to_id=in.(${liste})`, {
           method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ supprime_from: true }),
@@ -105,8 +106,14 @@ Deno.serve(async (req) => {
         await api(`messages?to_id=eq.${me}&from_id=in.(${liste})`, {
           method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ supprime_to: true }),
         });
-      } catch {
-        return json({ error: "Suppression impossible" }, 500);
+      } catch (e) {
+        detail = String(e);
+        // La cause la plus probable : les colonnes n'existent pas encore en base.
+        // On le DIT, au lieu d'un « impossible » qui ne guide vers rien.
+        const manque = /supprime_from|supprime_to|column|42703/i.test(detail);
+        return json({ error: manque
+          ? "Il manque les colonnes supprime_from / supprime_to dans la table messages (commande SQL à lancer)."
+          : "Suppression impossible : " + detail.slice(0, 120) }, 500);
       }
       return json({ ok: true, supprimees: ids.length });
     }

@@ -534,6 +534,14 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                 {open ? <X size={18}/> : <Menu size={18}/>}
               </span>
             </button>
+            {/* Logo — À GAUCHE, juste après le hamburger (il était centré en absolu avant).
+                Plus de position:absolute : il prend sa place dans la rangée, donc il ne peut plus
+                passer SOUS les boutons de droite sur un écran étroit. */}
+            <div onClick={()=>go("home")} style={{ cursor:"pointer", flexShrink:1, minWidth:0, display:"flex", alignItems:"center" }}>
+              <img src="/logo dart point/logo bandeau.png" alt="DartPoint"
+                style={{ height:40, maxWidth:"100%", objectFit:"contain", display:"block",
+                  animation:"dp-breathe 4s ease-in-out infinite", transition:"height .25s" }}/>
+            </div>
             {/* Admin */}
             {isAdmin && (
               <button className="dp-topbtn" onClick={()=>go("admin")}
@@ -545,13 +553,6 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
             )}
           </div>
 
-          {/* CENTRE — Logo (centré absolument) */}
-          <div onClick={()=>go("home")} style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", cursor:"pointer", flexShrink:0, zIndex:1 }}>
-            <img src="/logo dart point/logo bandeau.png" alt="DartPoint"
-              style={{ height: 40, objectFit:"contain", display:"block",
-                animation:"dp-breathe 4s ease-in-out infinite",
-                transition:"height .25s" }}/>
-          </div>
 
           {/* DROITE — Profil */}
           <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"flex-end", gap:5 }}>
