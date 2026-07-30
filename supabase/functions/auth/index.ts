@@ -1,6 +1,27 @@
 // supabase/functions/auth/index.ts
 // Edge Function — AUTHENTIFICATION JOUEUR (login / register / reset) CÔTÉ SERVEUR.
 //
+// Accueil : chaque nouvel inscrit devient ami avec Thomas et reçoit un message de
+// bienvenue (voir la fin de l'action "register").
+const HOTE_ID = "6db6b5b2-bdac-4dc5-9e99-3c1f3a253d44"; // Thomas
+const HOTE_PSEUDO = "Thomas";
+
+const messageBienvenue = (pseudo: string) => `Salut ${pseudo} 👋
+
+Bienvenue sur Dart Point ! Moi c'est Thomas, c'est moi qui ai créé l'appli.
+
+Je t'ai ajouté en ami pour que tu ne démarres pas tout seul. Tu peux me retirer quand tu veux, ça ne me vexera pas 😉
+
+Pour bien commencer :
+🎯 Le Scoreur — pour compter tes parties (501, 301, Cricket)
+⚔️ Défi — affronte un joueur et fais grimper ton DRIX
+🍺 Le Comptoir — vois ce que font les autres joueurs
+🗺️ La carte — trouve les bars à fléchettes près de chez toi
+
+Une question, un bug, une idée ? Réponds ici, je lis tout.
+
+Bonnes fléchettes ! 🎯`;
+//
 // POURQUOI : aujourd'hui le client lit le hash du mot de passe et le compare dans le
 // navigateur → le hash est servi à quiconque a la clé anon (cf. audit, faille critique).
 // Ici, la vérification se fait avec la SERVICE ROLE KEY : le hash ne sort JAMAIS au client.
@@ -273,6 +294,42 @@ Deno.serve(async (req) => {
       }).then((r) => r.json());
       const joueur = Array.isArray(created) ? created[0] : created;
       if (!joueur?.id) return json({ error: "Erreur lors de la création du compte" }, 500);
+
+      // ── ACCUEIL DU NOUVEAU JOUEUR ────────────────────────────────────────────
+      // On l'ajoute en ami avec Thomas et on lui envoie un message de bienvenue.
+      // Côté SERVEUR et pas côté client, pour deux raisons : la fonction `messages`
+      // déduit l'expéditeur du jeton (un client ne peut donc écrire qu'en SON nom),
+      // et les tables `amis`/`messages` sont protégées par RLS.
+      // ⚠️ Tout est dans un try/catch silencieux : si ça échoue, l'inscription doit
+      // quand même aboutir. Personne ne doit rester bloqué dehors pour un mot d'accueil.
+      // ⚠️ Un seul ajout, à l'inscription : le joueur reste libre de retirer Thomas
+      // ensuite, et l'appli ne le rajoutera jamais.
+      try {
+        await api("amis", {
+          method: "POST",
+          headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({
+            joueur_id: HOTE_ID, joueur_pseudo: HOTE_PSEUDO,
+            ami_id: joueur.id, ami_pseudo: ps,
+            statut: "accepte", date: Date.now(),
+          }),
+        });
+      } catch { /* l'inscription prime */ }
+
+      try {
+        await api("messages", {
+          method: "POST",
+          headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({
+            from_id: HOTE_ID, from_pseudo: HOTE_PSEUDO,
+            to_id: joueur.id, to_pseudo: ps.slice(0, 40),
+            contenu: messageBienvenue(ps),
+            date: new Date().toISOString(),
+            lu: false, // non lu → pastille de notification
+          }),
+        });
+      } catch { /* l'inscription prime */ }
+
       return json({ ok: true, joueur, token: await makeToken(joueur.id) });
     }
 

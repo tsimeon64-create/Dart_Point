@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { EmoIcon, EmoText } from "./icons";
-import { alerter } from "./uiConfirm.jsx";
+import { alerter, confirmer } from "./uiConfirm.jsx";
 
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -25,6 +25,8 @@ export const dbM = {
   sendMessage: (d) => callMessages("send", { toId: d.to_id, toPseudo: d.to_pseudo, contenu: d.contenu }).then(r => r.message || null),
   markRead: (toId, fromId) => callMessages("markRead", { fromId }),
   getUnreadCount: () => callMessages("unread").then(r => r.unread || []),
+  // Supprime des fils ENTIERS, mais seulement de MON côté (voir visibles() côté serveur).
+  deleteConversations: (otherIds) => callMessages("deleteConvs", { otherIds }),
 };
 
 // ── COULEURS ─────────────────────────────────────────────────────────────────
@@ -255,7 +257,7 @@ const ConversationView=({joueur,autreId,autrePseudo,onBack})=>{
 };
 
 // ── LISTE DES CONVERSATIONS ───────────────────────────────────────────────────
-const ConversationsList=({joueur,onOpen,activeId})=>{
+const ConversationsList=({joueur,onOpen,activeId,modeSuppr=false,selection=[],onToggleSel,onNbConvs})=>{
   const [allMsgs,setAllMsgs]=useState([]);
   const [loading,setLoading]=useState(true);
   const pollRef=useRef(null);
@@ -284,6 +286,10 @@ const ConversationsList=({joueur,onOpen,activeId})=>{
     convs.push({id:otherId,pseudo:otherPseudo,lastMsg:m,unread});
   }
 
+  // Le parent a besoin des ids pour le bouton « tout sélectionner ».
+  const idsKey=convs.map(c=>c.id).join(",");
+  useEffect(()=>{ if(onNbConvs) onNbConvs(idsKey?idsKey.split(","):[]); },[idsKey,onNbConvs]);
+
   if(loading)return<Spinner/>;
 
   return(
@@ -300,10 +306,19 @@ const ConversationsList=({joueur,onOpen,activeId})=>{
         const isActive=c.id===activeId;
         const estMoi=c.lastMsg.from_id===joueur.id;
         return(
-          <div key={c.id} onClick={()=>onOpen(c.id,c.pseudo)}
+          <div key={c.id} onClick={()=>modeSuppr?onToggleSel&&onToggleSel(c.id):onOpen(c.id,c.pseudo)}
             style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",cursor:"pointer",background:isActive?CM.accent+"18":"transparent",borderBottom:`1px solid ${CM.border}22`,transition:"background .12s"}}
             onMouseEnter={e=>!isActive&&(e.currentTarget.style.background="#ffffff08")}
             onMouseLeave={e=>!isActive&&(e.currentTarget.style.background="transparent")}>
+            {/* Case à cocher — uniquement en mode suppression, à GAUCHE de la photo */}
+            {modeSuppr&&(
+              <div aria-hidden="true" style={{width:22,height:22,borderRadius:6,flexShrink:0,
+                border:`2px solid ${selection.includes(c.id)?CM.accent:CM.border}`,
+                background:selection.includes(c.id)?CM.accent:"transparent",
+                display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}}>
+                {selection.includes(c.id)&&<span style={{color:"#fff",fontSize:14,fontWeight:900,lineHeight:1}}>✓</span>}
+              </div>
+            )}
             {/* Avatar */}
             <div style={{position:"relative",flexShrink:0}}>
               <div style={{width:50,height:50,borderRadius:"50%",background:couleur+"22",border:`2px solid ${couleur}`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:17,color:couleur}}>{initiales(c.pseudo)}</div>
@@ -330,6 +345,25 @@ const ConversationsList=({joueur,onOpen,activeId})=>{
 // ── PAGE MESSAGERIE ───────────────────────────────────────────────────────────
 export const MessagesPage=({joueur,setPage,targetId=null,targetPseudo=null})=>{
   const [convId,setConvId]=useState(targetId);
+  // Mode « corbeille » : on coche des conversations puis on les supprime.
+  const [modeSuppr,setModeSuppr]=useState(false);
+  const [selection,setSelection]=useState([]);
+  const [tousIds,setTousIds]=useState([]);
+  const [suppression,setSuppression]=useState(false);
+  const [rechargeKey,setRechargeKey]=useState(0); // change → la liste se recharge
+  const basculerSel=(id)=>setSelection(sel=>sel.includes(id)?sel.filter(x=>x!==id):[...sel,id]);
+  const supprimerSelection=async()=>{
+    if(!selection.length||suppression)return;
+    const n=selection.length;
+    const ok=await confirmer(`Supprimer ${n} conversation${n>1?"s":""} ?\n\nElles disparaîtront de TA messagerie. Ton correspondant garde la sienne.`,{danger:true});
+    if(!ok)return;
+    setSuppression(true);
+    const r=await dbM.deleteConversations(selection).catch(()=>null);
+    setSuppression(false);
+    if(!r||r.error){ await alerter("Suppression impossible pour l'instant."); return; }
+    if(selection.includes(convId))setConvId(null);
+    setSelection([]); setModeSuppr(false); setRechargeKey(k=>k+1);
+  };
   const [convPseudo,setConvPseudo]=useState(targetPseudo);
 
   useEffect(()=>{
@@ -375,14 +409,46 @@ export const MessagesPage=({joueur,setPage,targetId=null,targetPseudo=null})=>{
   return(
     <div style={{maxWidth:700,margin:"0 auto",background:CM.bg,minHeight:"calc(100vh - 58px)",display:"flex",flexDirection:"column"}}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      {/* Header liste */}
-      <div style={{padding:"20px 18px 14px",borderBottom:`1px solid ${CM.border}`,background:"#161616"}}>
-        <h1 style={{fontWeight:800,fontSize:22,marginBottom:4}}><EmoText s="💬 Messages" size={20}/></h1>
-        <p style={{fontSize:13,color:CM.muted}}>Tes conversations avec d'autres joueurs</p>
+      {/* Header liste — la corbeille bascule en mode sélection */}
+      <div style={{padding:"20px 18px 14px",borderBottom:`1px solid ${CM.border}`,background:"#161616",display:"flex",alignItems:"flex-start",gap:12}}>
+        <div style={{flex:1,minWidth:0}}>
+          <h1 style={{fontWeight:800,fontSize:22,marginBottom:4}}><EmoText s="💬 Messages" size={20}/></h1>
+          <p style={{fontSize:13,color:CM.muted}}>
+            {modeSuppr?`${selection.length} conversation${selection.length>1?"s":""} sélectionnée${selection.length>1?"s":""}`:"Tes conversations avec d'autres joueurs"}
+          </p>
+        </div>
+        <button onClick={()=>{setModeSuppr(m=>!m);setSelection([]);}}
+          title={modeSuppr?"Annuler":"Supprimer des conversations"}
+          aria-label={modeSuppr?"Annuler la sélection":"Supprimer des conversations"}
+          style={{flexShrink:0,width:40,height:40,borderRadius:11,cursor:"pointer",touchAction:"manipulation",
+            background:modeSuppr?CM.accent:"#0f0f18",border:`1px solid ${modeSuppr?CM.accent:CM.border}`,
+            display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}>
+          <EmoIcon e={modeSuppr?"✕":"🗑️"} size={17} color="#fff"/>
+        </button>
       </div>
       <div style={{flex:1,overflowY:"auto"}}>
-        <ConversationsList joueur={joueur} onOpen={(id,pseudo)=>{setConvId(id);setConvPseudo(pseudo);}} activeId={convId}/>
+        <ConversationsList key={rechargeKey} joueur={joueur}
+          onOpen={(id,pseudo)=>{setConvId(id);setConvPseudo(pseudo);}} activeId={convId}
+          modeSuppr={modeSuppr} selection={selection} onToggleSel={basculerSel} onNbConvs={setTousIds}/>
       </div>
+      {/* Barre de suppression — sous la liste, comme demandé */}
+      {modeSuppr&&(
+        <div style={{borderTop:`1px solid ${CM.border}`,background:"#161616",padding:"12px 14px",
+          display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={()=>setSelection(sel=>sel.length===tousIds.length?[]:tousIds)}
+            style={{flexShrink:0,background:"transparent",border:`1px solid ${CM.border}`,color:CM.muted,
+              borderRadius:10,padding:"11px 12px",fontSize:13,fontWeight:600,cursor:"pointer",touchAction:"manipulation"}}>
+            {selection.length===tousIds.length&&tousIds.length>0?"Aucune":"Toutes"}
+          </button>
+          <button onClick={supprimerSelection} disabled={!selection.length||suppression}
+            style={{flex:1,borderRadius:10,padding:"12px",fontSize:14.5,fontWeight:700,touchAction:"manipulation",
+              border:"none",color:"#fff",cursor:selection.length&&!suppression?"pointer":"not-allowed",
+              background:selection.length&&!suppression?"#e11d48":"#3a3a3a",
+              opacity:selection.length&&!suppression?1:.7}}>
+            {suppression?"Suppression…":`Supprimer${selection.length?` (${selection.length})`:""}`}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

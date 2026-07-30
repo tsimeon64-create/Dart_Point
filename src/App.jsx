@@ -557,30 +557,40 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
           <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"flex-end", gap:5 }}>
 
 
-            {/* Cloche des notifications — à gauche de la photo de profil.
-                Elle ouvre l'Actualité et reprend le compteur déjà calculé par le sondage
-                de fond (actuCount), le même que celui affiché dans le menu. */}
-            {joueur && (
-              <button className="dp-topbtn" onClick={()=>setPage("actualite")}
-                title="Actualité"
-                aria-label={actuCount>0 ? `Actualité, ${actuCount} nouvelle${actuCount>1?"s":""}` : "Actualité"}
-                style={{ position:"relative", flexShrink:0, width:40, height:40, borderRadius:11,
-                  background: page==="actualite" ? "#f9731614" : "#0f0f18",
-                  border:`1px solid ${page==="actualite" ? "#f9731655" : "#1e1e2e"}`,
-                  display:"flex", alignItems:"center", justifyContent:"center",
-                  cursor:"pointer", transition:"all .2s", touchAction:"manipulation",
-                  boxShadow: actuCount>0 ? "0 0 14px #f9731633" : "none" }}>
-                <Bell size={17} color={actuCount>0 ? C.accent : "#94a3b8"}/>
-                {actuCount>0 && (
-                  <span style={{ position:"absolute", top:-5, right:-5, background:C.accent, color:"#fff",
-                    borderRadius:"50%", minWidth:16, height:16, display:"inline-flex", alignItems:"center",
-                    justifyContent:"center", fontSize:9.5, fontWeight:900, padding:"0 3px",
-                    border:"2px solid #08080d", boxShadow:`0 0 8px ${C.accent}aa` }}>
-                    {actuCount>9?"9+":actuCount}
-                  </span>
-                )}
-              </button>
-            )}
+            {/* Messages + Actualité — les deux raccourcis de la barre du haut, à gauche de la
+                photo de profil. Fond ORANGE plein et icône BLANCHE : sur un bandeau presque noir,
+                l'ancien fond #0f0f18 avec une icône grise se voyait à peine.
+                Les compteurs viennent du sondage de fond (unreadMessages, actuCount), les mêmes
+                que ceux du menu — pas de deuxième requête. La pastille est ROUGE : une pastille
+                orange sur un bouton orange serait invisible. */}
+            {joueur && [
+              { cle:"messagerie", icone:<Mail size={17} color="#fff"/>, page:"messagerie", n:unreadMessages,
+                titre:"Messages", aria: unreadMessages>0 ? `Messages, ${unreadMessages} non lu${unreadMessages>1?"s":""}` : "Messages" },
+              { cle:"actualite",  icone:<Bell size={17} color="#fff"/>, page:"actualite",  n:actuCount,
+                titre:"Actualité", aria: actuCount>0 ? `Actualité, ${actuCount} nouvelle${actuCount>1?"s":""}` : "Actualité" },
+            ].map(b => {
+              const actif = page === b.page;
+              return (
+                <button key={b.cle} className="dp-topbtn" onClick={()=>setPage(b.page)}
+                  title={b.titre} aria-label={b.aria}
+                  style={{ position:"relative", flexShrink:0, width:40, height:40, borderRadius:11,
+                    background: actif ? "#ea580c" : C.accent,
+                    border:`1px solid ${actif ? "#fdba74" : "#fb923c"}`,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    cursor:"pointer", transition:"all .2s", touchAction:"manipulation",
+                    boxShadow: b.n>0 ? "0 0 14px #f9731366" : "0 2px 8px #f9731633" }}>
+                  {b.icone}
+                  {b.n>0 && (
+                    <span style={{ position:"absolute", top:-5, right:-5, background:"#e11d48", color:"#fff",
+                      borderRadius:"50%", minWidth:16, height:16, display:"inline-flex", alignItems:"center",
+                      justifyContent:"center", fontSize:9.5, fontWeight:900, padding:"0 3px",
+                      border:"2px solid #08080d", boxShadow:"0 0 8px #e11d48aa" }}>
+                      {b.n>9?"9+":b.n}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
 
             {/* Profil joueur */}
             {joueur ? (

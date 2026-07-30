@@ -4,6 +4,14 @@
 // (from_id = jid du jeton) → fini la lecture globale des messages et l'usurpation d'expéditeur.
 // À déployer comme `auth` (dashboard → coller → Deploy, Verify JWT non requis).
 
+// Messages encore visibles POUR MOI. Un fil supprimé ne l'est que de mon côté :
+// `supprime_from` si j'étais l'expéditeur, `supprime_to` si j'étais le destinataire.
+// L'autre personne garde sa copie intacte — effacer chez elle serait une surprise.
+type Msg = { from_id?: string; to_id?: string; supprime_from?: boolean; supprime_to?: boolean };
+const visibles = (rows: unknown, me: string): Msg[] => Array.isArray(rows)
+  ? (rows as Msg[]).filter((m) => !(m.from_id === me && m.supprime_from === true) && !(m.to_id === me && m.supprime_to === true))
+  : [];
+
 const SB_URL      = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -48,21 +56,24 @@ Deno.serve(async (req) => {
   if (req.method !== "POST")    return json({ error: "method not allowed" }, 405);
 
   try {
-    const { action, token, otherId, toId, toPseudo, contenu, fromId } = await req.json();
+    const { action, token, otherId, otherIds, toId, toPseudo, contenu, fromId } = await req.json();
     const me = await verifyToken(token);
     if (!me) return json({ error: "Session expirée, reconnecte-toi" }, 401);
 
     // Toutes mes conversations (liste)
     if (action === "list") {
       const rows = await api(`messages?or=(from_id.eq.${me},to_id.eq.${me})&order=date.desc&select=*`).then((r) => r.json());
-      return json({ ok: true, messages: Array.isArray(rows) ? rows : [] });
+      // On filtre EN JS et pas dans la requête : si les colonnes supprime_from/supprime_to
+      // n'existent pas encore en base, la requête filtrée renverrait une erreur 400 et TOUTE
+      // la messagerie tomberait. Ici, au pire, rien n'est masqué.
+      return json({ ok: true, messages: visibles(rows, me) });
     }
 
     // Une conversation précise (moi <-> otherId)
     if (action === "conversation") {
       if (!isUuid(otherId)) return json({ error: "Destinataire invalide" }, 400);
       const rows = await api(`messages?or=(and(from_id.eq.${me},to_id.eq.${otherId}),and(from_id.eq.${otherId},to_id.eq.${me}))&order=date.asc&select=*`).then((r) => r.json());
-      return json({ ok: true, messages: Array.isArray(rows) ? rows : [] });
+      return json({ ok: true, messages: visibles(rows, me) });
     }
 
     // Envoyer un message (from_id = MOI, impossible d'usurper)
@@ -79,6 +90,27 @@ Deno.serve(async (req) => {
     }
 
     // Marquer comme lus les messages reçus de fromId
+    // Suppression SOUPLE d'un ou plusieurs fils : on ne les retire que pour MOI.
+    // L'autre personne garde sa copie — effacer chez elle serait une surprise très
+    // désagréable, et rien dans l'écran ne le laisse deviner.
+    if (action === "deleteConvs") {
+      const bruts = Array.isArray(otherIds) ? otherIds : [];
+      const ids = bruts.filter((x: unknown) => typeof x === "string" && /^[0-9a-f-]{36}$/i.test(x)).slice(0, 50);
+      if (!ids.length) return json({ error: "Aucune conversation à supprimer" }, 400);
+      const liste = ids.join(",");
+      try {
+        await api(`messages?from_id=eq.${me}&to_id=in.(${liste})`, {
+          method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ supprime_from: true }),
+        });
+        await api(`messages?to_id=eq.${me}&from_id=in.(${liste})`, {
+          method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ supprime_to: true }),
+        });
+      } catch {
+        return json({ error: "Suppression impossible" }, 500);
+      }
+      return json({ ok: true, supprimees: ids.length });
+    }
+
     if (action === "markRead") {
       if (!isUuid(fromId)) return json({ error: "Expéditeur invalide" }, 400);
       await api(`messages?to_id=eq.${me}&from_id=eq.${fromId}&lu=eq.false`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ lu: true }) });
