@@ -131,7 +131,6 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
   }, []);
 
   const gagnantIsChallenger = gagnant?.nom === duel?.challenger_pseudo;
-  const perdantNom = gagnantIsChallenger ? duel?.defie_pseudo : duel?.challenger_pseudo;
   const dxGagnant = drixData ? (gagnantIsChallenger ? drixData.challenger : drixData.defie) : null;
   const dxPerdant = drixData ? (gagnantIsChallenger ? drixData.defie : drixData.challenger) : null;
 
@@ -156,6 +155,11 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
   const s0 = computeStats(j0);
   const s1 = computeStats(j1);
   const gagnantIdx = gagnant?.nom === j0.nom ? 0 : 1;
+  // Nom du perdant. On part du duel officiel quand il existe, SINON des joueurs réellement
+  // présents dans la partie : sans ce repli, une partie contre un bot (ou une partie libre)
+  // n'a pas de `duel`, et le partage WhatsApp affichait « face à — ».
+  const perdantNom = (gagnantIsChallenger ? duel?.defie_pseudo : duel?.challenger_pseudo)
+    || (gagnantIdx === 0 ? j1?.nom : j0?.nom) || "";
 
   const hi = (a, b, highIsBetter=true) => {
     if (a === b || a == null || b == null) return -1;
