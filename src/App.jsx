@@ -1594,14 +1594,14 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
   // Bouton-image de l'accueil. Le libellé est dessiné DANS l'image : sans `label`, un
   // lecteur d'écran (et le clavier) ne verraient qu'un carré muet — d'où le <button>
   // et l'aria-label. `priorite` = visible d'emblée, on ne diffère pas son chargement.
-  const ImgBtn = ({ src, onClick, badge=0, label, priorite=false }) => (
+  const ImgBtn = ({ src, onClick, badge=0, label, priorite=false, ratio="100%" }) => (
     <button type="button" onClick={onClick} aria-label={label}
       /* ⚠️ `padding:0` DOIT rester avant `paddingTop` : sinon il l'écrase (dernière clé gagne)
          et le carré s'aplatit à zéro — c'est `paddingTop:"100%"` qui donne sa hauteur au bouton. */
-      style={{ position:"relative",cursor:"pointer",borderRadius:16,overflow:"hidden",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s",padding:0,border:"none",background:"none",display:"block",width:"100%",paddingTop:"100%" }}
+      style={{ position:"relative",cursor:"pointer",borderRadius:16,overflow:"hidden",userSelect:"none",touchAction:"manipulation",transition:"transform .15s, box-shadow .15s",padding:0,border:"none",background:"none",display:"block",width:"100%",paddingTop:ratio }}
       onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 12px 32px #00000088";}}
       onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
-      <img src={src} alt="" width={900} height={900}
+      <img src={src} alt="" width={1600} height={360}
         loading={priorite ? "eager" : "lazy"} decoding="async"
         style={{ position:"absolute",inset:0,width:"100%",height:"100%",display:"block",borderRadius:16,objectFit:"cover" }}/>
       {badge>0 && (
@@ -1727,23 +1727,29 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
         </div>
       </div>
 
-      {/* ── Grille 2×3 — tous boutons même taille ── */}
-      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
-        {/* Boutons fournis par l'utilisateur, convertis en WebP dans public/accueil/
-            (11 Mo de PNG → 689 Ko). Le texte est dessiné dans l'image : `label` porte
-            ce qu'il faut lire à voix haute. Les 2 premiers sont visibles d'emblée. */}
-        <ImgBtn src="/accueil/comptoir.webp"        label="Le Comptoir — scores, discussions et actus" priorite
-          onClick={()=>setPage("communaute")}/>
-        <ImgBtn src="/accueil/defi.webp"            label="Défi — défie un ami, gère tes matchs et gagne des DRIX" priorite
-          onClick={()=>setPage("defi")} badge={defisCount}/>
-        <ImgBtn src="/accueil/classement.webp"      label="Classement DRIX — découvre les meilleurs joueurs et grimpe dans le classement"
-          onClick={()=>setPage("drix")}/>
-        <ImgBtn src="/accueil/mini-jeux.webp"       label="Mini jeux et défi quotidien — pour jouer, progresser et s'amuser"
-          onClick={()=>setPage("jeux-sans")}/>
-        <ImgBtn src="/accueil/scoreur.webp"         label="Scoreur et jeux libres"
+      {/* ── Boutons du tableau de bord — DEUX formats mélangés ──
+          En haut, les 2 nouveaux BANDEAUX 1600x360 (WebP dans public/tableau-bord, 6,3 Mo -> 0,6 Mo).
+          Pleine largeur : à 4,44:1, deux par ligne rendraient le texte illisible.
+          En dessous, les ANCIENS boutons carrés, 2 par ligne, inchangés.
+          Le texte est dessiné DANS l'image : `label` porte ce qu'il faut lire à voix haute. */}
+      <div style={{ display:"grid",gridTemplateColumns:"1fr",gap:10,marginBottom:10 }}>
+        {/* Ce bandeau REMPLACE l'ancien bouton carré « Scoreur » : même destination. */}
+        <ImgBtn src="/tableau-bord/501.webp" ratio="22.5%" priorite
+          label="501, 301, Cricket, Capital — lance une partie rapide au scoreur"
           onClick={()=>setPage("jeux-flechettes")}/>
-        <ImgBtn src="/accueil/trouve-ton-spot.webp" label="Trouve ton spot — les bars à fléchettes près de chez toi"
+        <ImgBtn src="/tableau-bord/trouve-ton-spot.webp" ratio="22.5%" priorite
+          label="Trouve ton spot — les bars à fléchettes près de chez toi"
           onClick={()=>setPage("bars")}/>
+      </div>
+      <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+        <ImgBtn src="/accueil/comptoir.webp"   label="Le Comptoir — scores, discussions et actus" priorite
+          onClick={()=>setPage("communaute")}/>
+        <ImgBtn src="/accueil/defi.webp"       label="Défi — défie un ami, gère tes matchs et gagne des DRIX"
+          onClick={()=>setPage("defi")} badge={defisCount}/>
+        <ImgBtn src="/accueil/classement.webp" label="Classement DRIX — découvre les meilleurs joueurs et grimpe dans le classement"
+          onClick={()=>setPage("drix")}/>
+        <ImgBtn src="/accueil/mini-jeux.webp"  label="Mini jeux et défi quotidien — pour jouer, progresser et s'amuser"
+          onClick={()=>setPage("jeux-sans")}/>
       </div>
 
       {/* ── Feedback CTA esport — signaler bug / améliorations ── */}
