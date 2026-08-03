@@ -3,6 +3,7 @@ import { SCORER } from "./theme";
 import { Search, Swords, Check, X } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
 import { calculerProfilBot, genererScoreBot, BOT_LUCKY_LITTLER } from "./botFleche";
+import { confirmer } from "./uiConfirm.jsx";
 // Logique PURE du pavé « fléchette par fléchette » (testée : src/voleeFlechettes.test.mjs)
 import {
   creerFlechette as mkFlechette, totalVolee as sommeVolee,
@@ -1823,8 +1824,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       if (setJoueur) setJoueur((p) => ({ ...p, xp: newXp }));
       window.dpToast?.(`+${delta} XP ${humainGagne ? "— victoire contre le bot 🎯" : "— bien joué 👍"}`, "success");
 
-      // Poster le résultat dans le fil du Comptoir, étiqueté « duel bot » (jamais de DRIX).
-      // (Pas de publication quand on joue contre soi-même : c'est de l'entraînement privé.)
+      // Le résultat n'est PLUS publié tout seul : on DEMANDE au joueur s'il veut le partager.
+      // Un match contre un bot n'intéresse pas forcément le fil, et c'est à lui de choisir.
+      // (Rien n'est proposé quand on joue contre soi-même : c'est de l'entraînement privé.)
       if (!botSelf && joueurs?.length >= 2) {
         const botJ = joueurs.find((j) => j.nom === botPseudo);
         const humJ = joueurs.find((j) => j.nom !== botPseudo);
@@ -1844,11 +1846,15 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           loser:  { nom: loserJ?.nom,  nbManches: loserJ?.manchesGagnees || 0,  total: 0, elo: 0, xp: humainGagne ? 0 : delta, xpLines: humainGagne ? [] : xpLinesHum, moy: moyOf(loserJ), photo: photoDe(loserJ) },
           manches: manchesHistory || [],
         };
-        fetch(`${SB_URL}/rest/v1/wall_posts`, {
+        const publierAuComptoir = () => fetch(`${SB_URL}/rest/v1/wall_posts`, {
           method: "POST",
           headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" },
           body: JSON.stringify({ joueur_id: joueur.id, joueur_pseudo: joueur.pseudo, joueur_photo: joueur.photo || null, contenu: `__DUEL__|${JSON.stringify(duelPost)}`, date: Date.now() }),
-        }).catch(() => {});
+        }).then(() => window.dpToast?.("Match publié au Comptoir 🍻", "success"))
+          .catch(() => window.dpToast?.("Publication impossible pour l'instant", "error"));
+
+        confirmer("Veux-tu publier ce match sur le Comptoir ?", { ok: "Publier", annuler: "Non" })
+          .then((oui) => { if (oui) publierAuComptoir(); });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
