@@ -1733,10 +1733,6 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
           En dessous, les ANCIENS boutons carrés, 2 par ligne, inchangés.
           Le texte est dessiné DANS l'image : `label` porte ce qu'il faut lire à voix haute. */}
       <div style={{ display:"grid",gridTemplateColumns:"1fr",gap:10,marginBottom:10 }}>
-        {/* Ce bandeau REMPLACE l'ancien bouton carré « Scoreur » : même destination. */}
-        <ImgBtn src="/tableau-bord/501.webp" ratio="22.5%" priorite
-          label="501, 301, Cricket, Capital — lance une partie rapide au scoreur"
-          onClick={()=>setPage("jeux-flechettes")}/>
         <ImgBtn src="/tableau-bord/trouve-ton-spot.webp" ratio="22.5%" priorite
           label="Trouve ton spot — les bars à fléchettes près de chez toi"
           onClick={()=>setPage("bars")}/>
@@ -1744,12 +1740,14 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
       <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
         <ImgBtn src="/accueil/comptoir.webp"   label="Le Comptoir — scores, discussions et actus" priorite
           onClick={()=>setPage("communaute")}/>
-        <ImgBtn src="/accueil/defi.webp"       label="Défi — défie un ami, gère tes matchs et gagne des DRIX"
+        <ImgBtn src="/accueil/defi.webp"       label="Match DRIX et classement — joue tes matchs et grimpe au classement"
           onClick={()=>setPage("defi")} badge={defisCount}/>
-        <ImgBtn src="/accueil/classement.webp" label="Classement DRIX — découvre les meilleurs joueurs et grimpe dans le classement"
-          onClick={()=>setPage("drix")}/>
         <ImgBtn src="/accueil/mini-jeux.webp"  label="Mini jeux et défi quotidien — pour jouer, progresser et s'amuser"
           onClick={()=>setPage("jeux-sans")}/>
+        {/* Remplace l'ancien bouton carré « Scoreur » : même destination, et il comble la
+            case qui restait vide à droite de Mini jeux. */}
+        <ImgBtn src="/accueil/lance-une-partie.webp" label="Lance une partie — 501, Cricket, Capital, tournois"
+          onClick={()=>setPage("jeux-flechettes")}/>
       </div>
 
       {/* ── Feedback CTA esport — signaler bug / améliorations ── */}
@@ -2511,29 +2509,6 @@ const PageDefi = ({ joueur, setPage }) => {
 
       <button onClick={()=>setPage("home")} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",marginBottom:8,fontSize:13,display:"flex",alignItems:"center",gap:6,padding:"10px 6px",minHeight:44,touchAction:"manipulation" }}><ArrowLeft size={16}/> Accueil</button>
 
-      {/* ── Hero header ── */}
-      <div style={{ position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#0d0010 0%,#0a0a0f 60%,#001012 100%)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:20,padding:"22px 20px",marginBottom:20 }}>
-        <div style={{ position:"absolute",top:-40,right:-20,width:160,height:160,borderRadius:"50%",background:"radial-gradient(circle,rgba(168,85,247,0.15) 0%,transparent 70%)",pointerEvents:"none" }}/>
-        <div style={{ position:"absolute",bottom:-30,left:-10,width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,rgba(249,115,22,0.1) 0%,transparent 70%)",pointerEvents:"none" }}/>
-        <div style={{ position:"absolute",inset:0,background:"linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.025) 50%,transparent 60%)",animation:"defisShine 9s ease infinite",pointerEvents:"none" }}/>
-        <div style={{ position:"relative",display:"flex",alignItems:"center",gap:14 }}>
-          <div style={{ width:52,height:52,borderRadius:16,background:"linear-gradient(135deg,#a78bfa,#7c3aed)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 30px rgba(168,85,247,0.45)",flexShrink:0 }}>
-            <Swords size={24} color="#fff"/>
-          </div>
-          <div style={{ flex:1 }}>
-            <h1 style={{ fontWeight:900,fontSize:24,margin:0,letterSpacing:-.3 }}>Défis</h1>
-            <p style={{ color:C.muted,fontSize:12,margin:"4px 0 0",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
-              {rivaliteHebdo && <span style={{ background:"#a78bfa22",color:"#d8b4fe",padding:"1px 8px",borderRadius:20,fontSize:11,fontWeight:700 }}><EmoText s="⚔️ Rivalité active" size={10} gap={4}/></span>}
-              <span>{amis.length} ami{amis.length!==1?"s":""}</span>
-            </p>
-          </div>
-          <div style={{ textAlign:"right",flexShrink:0 }}>
-            <div style={{ fontSize:22,fontWeight:900,color:"#f97316",lineHeight:1 }}>{joueur.drix||1000}</div>
-            <div style={{ fontSize:9,color:C.muted,fontWeight:700,letterSpacing:1 }}>DRIX</div>
-          </div>
-        </div>
-      </div>
-
       {/* ── Défi hebdo verrouillé ── */}
       {(amis.length < 10 || !joueur.asso_slug) && !hideAssoLock && (
         <div style={{ background:"#f9731608",border:"1px solid #f9731633",borderRadius:14,padding:"14px 16px",marginBottom:16 }}>
@@ -2564,35 +2539,39 @@ const PageDefi = ({ joueur, setPage }) => {
         </div>
       )}
 
-      {/* ── Toggle 1v1 / Doublette ── */}
-      <div style={{ display:"flex",gap:10,marginBottom:20 }}>
-        <button onClick={()=>setTab("1v1")} style={{
-          flex:1, padding:"13px 0", border:"none", cursor:"pointer", fontWeight:800, fontSize:14, borderRadius:12,
-          transition:"all .15s",
-          background: tab==="1v1"
-            ? "linear-gradient(150deg,#fb923c 0%,#f97316 45%,#ea580c 100%)"
-            : "linear-gradient(160deg,#1c1c24,#141419)",
-          color: tab==="1v1" ? "#fff" : C.muted,
-          boxShadow: tab==="1v1"
-            ? "0 4px 0 -1px #9a3412, 0 12px 24px -12px rgba(249,115,22,0.7), 0 0 18px rgba(249,115,22,0.26), inset 0 1px 0 #ffffff5e"
-            : "0 3px 0 -1px #0a0a0a, 0 8px 18px -10px #000000e6, inset 0 1px 0 #ffffff12",
-          transform: tab==="1v1" ? "translateY(0)" : "translateY(-2px)",
-          letterSpacing:.3, display:"flex", alignItems:"center", justifyContent:"center", gap:7,
-        }}><Swords size={14}/>Défier un ami</button>
-        <button onClick={()=>setTab("doublette")} style={{
-          flex:1, padding:"13px 0", border:"none", cursor:"pointer", fontWeight:800, fontSize:14, borderRadius:12,
-          transition:"all .15s",
-          background: tab==="doublette"
-            ? "linear-gradient(150deg,#c4b5fd 0%,#a78bfa 45%,#7c3aed 100%)"
-            : "linear-gradient(160deg,#1c1c24,#141419)",
-          color: tab==="doublette" ? "#fff" : C.muted,
-          boxShadow: tab==="doublette"
-            ? "0 4px 0 -1px #4c1d95, 0 12px 24px -12px rgba(124,58,237,0.7), 0 0 18px rgba(168,85,247,0.26), inset 0 1px 0 #ffffff5e"
-            : "0 3px 0 -1px #0a0a0a, 0 8px 18px -10px #000000e6, inset 0 1px 0 #ffffff12",
-          transform: tab==="doublette" ? "translateY(0)" : "translateY(-2px)",
-          letterSpacing:.3, display:"flex", alignItems:"center", justifyContent:"center", gap:7,
-        }}><Users size={14}/>Doublette 2v2</button>
+      {/* Onglets « Défier un ami » / « Doublette 2v2 » — images fournies par Thomas, taillées
+          EXACTEMENT au format du bouton (1666x428 pour 166,6x42,8 réels, soit 10x).
+          Le texte est DANS l'image : `aria-label` porte ce qu'il faut lire à voix haute, et
+          l'onglet actif se signale par un halo orange, pas par une couleur de fond. */}
+      <div style={{ display:"flex",gap:10,marginBottom:10 }}>
+        {[
+          { cle:"1v1", img:"/defi/defier-un-ami.webp", label:"Défier un ami" },
+          { cle:"doublette", img:"/defi/doublette.webp", label:"Doublette 2v2" },
+        ].map((o) => {
+          const actif = tab === o.cle;
+          return (
+            <button key={o.cle} onClick={()=>setTab(o.cle)} aria-label={o.label} aria-pressed={actif}
+              style={{ flex:1, padding:0, border:"none", background:"none", cursor:"pointer",
+                borderRadius:12, overflow:"hidden", lineHeight:0, touchAction:"manipulation",
+                transition:"all .15s", opacity: actif ? 1 : .62,
+                transform: actif ? "translateY(0)" : "translateY(-2px)",
+                boxShadow: actif ? "0 0 0 2px #f97316, 0 10px 22px -12px rgba(249,115,22,.8)" : "none" }}>
+              <img src={o.img} alt="" width={1666} height={428}
+                style={{ width:"100%",height:"auto",display:"block",borderRadius:12 }}/>
+            </button>
+          );
+        })}
       </div>
+
+      {/* Raccourci vers le Classement DRIX — image pleine largeur (3432x424 pour 343,2x42,4 réels).
+          Ce n'est PAS un onglet : il quitte la page, d'où l'absence d'état actif. */}
+      <button onClick={()=>setPage("drix")} aria-label="Classement DRIX"
+        style={{ width:"100%", padding:0, border:"none", background:"none", cursor:"pointer",
+          borderRadius:12, overflow:"hidden", lineHeight:0, marginBottom:20,
+          touchAction:"manipulation", transition:"all .15s" }}>
+        <img src="/defi/classement-drix.webp" alt="" width={3432} height={424}
+          style={{ width:"100%",height:"auto",display:"block",borderRadius:12 }}/>
+      </button>
 
       {/* « Affronter un bot » a été retiré d'ici : le mode reste accessible depuis
           la Salle de jeux (carte « Affronte un bot » → page scoreur-bot). */}
