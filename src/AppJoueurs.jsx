@@ -2535,16 +2535,19 @@ export const storeBadgesSet = (joueurId, badgeSet) => {
 };
 
 // ── PAGE BADGES ───────────────────────────────────────────────────────────────
-// Visuel d'un badge : image personnalisée /badges/<id>.png si présente,
+// Visuel d'un badge : image personnalisée /badges/<id>.webp si présente,
 // sinon repli automatique sur l'emoji du badge (les barres de progression
 // et le check sont gérés à part par les cartes, on ne touche qu'au visuel).
+// ⚠️ Les visuels sont fournis en PNG de 400 Ko à 1,6 Mo pièce : en l'état, une page
+// de badges aurait pesé plusieurs Mo. D'où le WebP (≈35 Ko l'unité, même rendu,
+// transparence conservée) — c'est la raison du changement d'extension.
 export const BadgeVisual = ({ b, size = 42, fill = false, unlocked = true }) => {
   const [imgErr, setImgErr] = useState(false);
   const fil = unlocked ? "none" : "grayscale(1)";
   if (imgErr) {
     return <span style={{ fontSize: fill ? 76 : Math.round(size * 0.72), lineHeight: 1, filter: fil }}>{b.emoji}</span>;
   }
-  return <img src={`/badges/${encodeURIComponent(b.id)}.png`} alt="" loading="lazy" decoding="async" onError={() => setImgErr(true)}
+  return <img src={`/badges/${encodeURIComponent(b.id)}.webp`} alt="" loading="lazy" decoding="async" onError={() => setImgErr(true)}
     style={fill
       ? { width: "100%", height: "auto", objectFit: "contain", display: "block", filter: fil }
       : { width: size, height: size, objectFit: "contain", display: "block", filter: fil }}/>;
@@ -2608,7 +2611,7 @@ export const PageProfilBadges = ({ joueur, setPage, embedded = false }) => {
         alignItems: "center",
         textAlign: "center",
       }}>
-        {/* Visuel du badge : image /badges/<id>.png (repli emoji si absente) */}
+        {/* Visuel du badge : image /badges/<id>.webp (repli emoji si absente) */}
         <div style={{ marginBottom: 10, width: "100%", display: "flex", justifyContent: "center" }}><BadgeVisual b={b} fill unlocked={unlocked}/></div>
 
         {/* Nom */}
@@ -3625,24 +3628,13 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
     .map(d => ({ t:d.date, v:parseFloat(d.challenger_id===joueurId ? d.score_challenger : d.score_defie) }))
     .filter(m => !isNaN(m.v) && m.v > 0);
 
-  // Badges
-  const BADGES_CIBLE = [
-    {emoji:"🥇",nom:"Premier duel",    seuil:1,   valeur:stats?.parties??0,  couleur:"#f59e0b"},
-    {emoji:"⚔️", nom:"Combattant",      seuil:10,  valeur:stats?.parties??0,  couleur:"#60a5fa"},
-    {emoji:"🔥", nom:"5 victoires",     seuil:5,   valeur:stats?.victoires??0,couleur:"#f97316"},
-    {emoji:"🏆", nom:"10 victoires",    seuil:10,  valeur:stats?.victoires??0,couleur:"#22c55e"},
-    {emoji:"👑", nom:"50 victoires",    seuil:50,  valeur:stats?.victoires??0,couleur:"#f59e0b"},
-    {emoji:"🎯", nom:"Premier 180",     seuil:1,   valeur:nb180>0?1:0,        couleur:"#ef4444"},
-    {emoji:"💯", nom:"Finish 100+",     seuil:1,   valeur:plusGrosFinish>=100?1:0,couleur:"#22c55e"},
-    {emoji:"⭐", nom:"Confirmé",        seuil:1,   valeur:drix>=1100?1:0,     couleur:"#22c55e"},
-    {emoji:"⭐⭐",nom:"Expert",          seuil:1,   valeur:drix>=1300?1:0,     couleur:"#f59e0b"},
-    {emoji:"💎", nom:"Élite",           seuil:1,   valeur:drix>=1500?1:0,     couleur:"#a78bfa"},
-  ];
-  const badgesOk = BADGES_CIBLE.filter(b=>b.valeur>=b.seuil);
-
-  // Vals complets pour l'onglet badges détaillé (même calcul que PageProfilBadges)
+  // Badges — même source que l'onglet « Voir tous » et que la page Badges (ALL_BADGES).
+  // Avant, cette bandelette avait sa PROPRE liste de 10 badges écrits à la main (« Premier duel »,
+  // « Combattant »…) qui n'existaient nulle part ailleurs : le titre annonçait « 24 badges obtenus »
+  // et on en voyait défiler 10 autres, sans image possible faute d'identifiant.
   const valsComplets = computeBadgeValues(j, stats, duels, drixMvts, jAmis, jNbTournois, jNbTournoisGagnes);
-  const totalBadgesOk = ALL_BADGES.filter(b=>b.val(valsComplets)>=b.seuil).length;
+  const badgesOk = ALL_BADGES.filter(b=>b.val(valsComplets)>=b.seuil);
+  const totalBadgesOk = badgesOk.length;
 
   const FicheBadgeCard = ({ b }) => {
     const current = b.val(valsComplets);
@@ -4375,9 +4367,15 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                 <button onClick={()=>setTab("badges")} style={{background:"none",border:"none",color:CJ.blue,cursor:"pointer",fontSize:11,fontWeight:600,touchAction:"manipulation"}}>Voir tous →</button>
               </div>
               <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}>
+                {/* La pastille garde son anneau de couleur mais le fond devient discret : un badge
+                    dessiné posé sur un disque plein vif se noyait dedans. `BadgeVisual` met l'image
+                    si elle existe, sinon l'emoji — la bandelette suit donc les visuels sans rien
+                    savoir de qui en a un. */}
                 {badgesOk.map(b=>(
-                  <div key={b.nom} style={{textAlign:"center",flexShrink:0,width:60}}>
-                    <div style={{width:54,height:54,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%, ${b.couleur}, ${b.couleur}88)`,border:`2px solid ${b.couleur}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:23,margin:"0 auto 5px",boxShadow:`0 0 14px ${b.couleur}55`}}>{b.emoji}</div>
+                  <div key={b.id} style={{textAlign:"center",flexShrink:0,width:60}}>
+                    <div style={{width:54,height:54,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%, ${b.couleur}44, ${b.couleur}14)`,border:`2px solid ${b.couleur}`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 5px",boxShadow:`0 0 14px ${b.couleur}55`,overflow:"hidden"}}>
+                      <BadgeVisual b={b} size={42}/>
+                    </div>
                     <div style={{fontSize:9,color:CJ.muted,fontWeight:600,lineHeight:1.2}}>{b.nom}</div>
                   </div>
                 ))}

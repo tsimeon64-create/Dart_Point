@@ -37,3 +37,7 @@ supabase_cli.tar.gz
 
 # Fichier temporaire de message de commit
 COMMIT_MSG.tmp
+
+# Sources des badges (PNG de 400 Ko a 1,6 Mo) : converties en .webp dans public/badges,
+# elles ne doivent jamais partir en ligne.
+public/badges/badge à jour/
