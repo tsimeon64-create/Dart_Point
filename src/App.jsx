@@ -287,27 +287,30 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
       const recoBadge = recoCount > 0 ? `<span style="position:absolute;top:-7px;right:-7px;min-width:18px;height:18px;padding:0 4px;box-sizing:border-box;background:#f97316;color:#fff;border:2px solid #fff;border-radius:9px;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 1px 5px rgba(0,0,0,0.55)">${recoCount}</span>` : "";
       return L.divIcon({ className:"", html:`<div style="width:${size}px;height:${size}px;background:${bg};border:3px solid rgba(255,255,255,0.4);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.5);cursor:pointer;position:relative">${iconHtml}${activeDot}${recoBadge}</div>`, iconSize:[size,size], iconAnchor:[size/2,size/2] });
     };
-    // ── Marqueur d'un BAR : une image (cible de fléchettes posée sur une goutte) ──
-    // Ce n'est plus un rond, et ça change trois choses :
+    // ── Marqueurs en IMAGE (une goutte dessinée, plus un rond) : bars et associations ──
+    // Ce ne sont plus des ronds, et ça change trois choses :
     //  1. l'ancre descend au BAS de l'image — c'est la POINTE qui désigne l'endroit, alors
     //     qu'un rond, lui, se centre dessus ;
     //  2. le popup doit s'ouvrir au-dessus de la tête, sinon il sort de la pointe et recouvre
     //     le pin (`popupAnchor` se compte à partir de l'ancre, donc -h) ;
-    //  3. les deux pastilles se posent sur la TÊTE et pas au coin de l'image : en haut à
-    //     gauche d'une goutte il n'y a que du vide, la pastille flotterait toute seule.
-    // La tête est un disque de diamètre = la largeur, centré à 30,1 % de la hauteur (mesuré
-    // sur l'image 132×219) ; les pastilles se posent dessus à 45°.
-    const RATIO_PIN = 219 / 132;
-    const mkPinBar = (w, actif, reco = 0, phare = false) => {
-      const h = Math.round(w * RATIO_PIN);
-      const cx = w / 2, cy = 0.301 * h, d = 0.354 * w;
+    //  3. les pastilles se posent sur la TÊTE et pas au coin de l'image : en haut à gauche
+    //     d'une goutte il n'y a que du vide, la pastille flotterait toute seule.
+    // La tête est un disque de diamètre = la largeur ; `tete` dit à quelle fraction de la
+    // hauteur se trouve son centre (mesuré sur chaque image), et les pastilles se posent
+    // dessus à 45°. Une image mise en avant ne peut pas s'inverser en blanc comme un rond :
+    // elle grossit et reçoit un halo de sa propre couleur.
+    const PIN_BAR  = { src:"/carte/pin-bar.webp",         ratio:219/132, tete:0.301, halo:"#f97316" };
+    const PIN_ASSO = { src:"/carte/pin-association.webp", ratio:222/132, tete:0.292, halo:"#3b82f6" };
+    const mkPin = (pin, w, { actif = false, reco = 0, phare = false } = {}) => {
+      const h = Math.round(w * pin.ratio);
+      const cx = w / 2, cy = pin.tete * h, d = 0.354 * w;
       const pastilleVerte = actif
         ? `<span style="position:absolute;left:${(cx-d-6).toFixed(1)}px;top:${(cy-d-6).toFixed(1)}px;width:12px;height:12px;box-sizing:border-box;background:#22c55e;border:2px solid #0f0f0f;border-radius:50%"></span>` : "";
       const pastilleReco = reco > 0
         ? `<span style="position:absolute;left:${(cx+d-9).toFixed(1)}px;top:${(cy-d-9).toFixed(1)}px;min-width:18px;height:18px;padding:0 4px;box-sizing:border-box;background:#f97316;color:#fff;border:2px solid #fff;border-radius:9px;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 1px 5px rgba(0,0,0,0.55)">${reco}</span>` : "";
       return L.divIcon({
         className:"", iconSize:[w,h], iconAnchor:[cx,h], popupAnchor:[0,-h+6],
-        html:`<div style="width:${w}px;height:${h}px;position:relative;cursor:pointer"><img src="/carte/pin-bar.webp" width="${w}" height="${h}" alt="" style="display:block;width:100%;height:100%${phare?";filter:drop-shadow(0 0 7px #f97316)":""}">${pastilleVerte}${pastilleReco}</div>`,
+        html:`<div style="width:${w}px;height:${h}px;position:relative;cursor:pointer"><img src="${pin.src}" width="${w}" height="${h}" alt="" style="display:block;width:100%;height:100%${phare?`;filter:drop-shadow(0 0 7px ${pin.halo})`:""}">${pastilleVerte}${pastilleReco}</div>`,
       });
     };
     const popup = (html) => `<div style="font-family:Inter,sans-serif;min-width:160px;color:#111111;background:#ffffff">${html}</div>`;
@@ -317,14 +320,15 @@ function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoC
     bars.forEach(bar => {
       if (bar.lat == null || bar.lng == null) return;
       const isHL = bar.slug===centerSlug; const isActif = barsActifs.includes(bar.slug);
-      const m = L.marker([bar.lat,bar.lng], { icon:mkPinBar(isHL?38:30, isActif, recosParBar[bar.slug]||0, isHL) }).addTo(map);
+      const m = L.marker([bar.lat,bar.lng], { icon:mkPin(PIN_BAR, isHL?38:30, { actif:isActif, reco:recosParBar[bar.slug]||0, phare:isHL }) }).addTo(map);
       m.bindPopup(popup(`<strong>${escHtml(bar.nom)}</strong><br><span style="color:#555;font-size:12px">${lmSvg("pin",{size:11,color:"#555",va:-2})} ${escHtml(bar.ville)}</span>${isActif?`<br><span style="color:#16a34a;font-size:11px">${lmSvg("circle",{size:9,color:"#16a34a",fill:"#16a34a",va:-1})} Joueurs ce soir</span>`:""}<br>${mkBtn("#f97316")}`));
       bindGo(m, onBarClick, bar.slug);
       markersRef.current.push(m);
     });
     associations.forEach(asso => {
       if (asso.lat == null || asso.lng == null) return;
-      const m = L.marker([asso.lat,asso.lng], { icon:mkIcon(lmSvg("users",{size:(asso.slug===centerSlug?38:28)*0.5}),"#7c3aed", asso.slug===centerSlug?38:28) }).addTo(map);
+      const estHL = asso.slug===centerSlug;
+      const m = L.marker([asso.lat,asso.lng], { icon:mkPin(PIN_ASSO, estHL?36:28, { phare:estHL }) }).addTo(map);
       m.bindPopup(popup(`<strong>${escHtml(asso.nom)}</strong><br><span style="color:#555;font-size:12px">${lmSvg("pin",{size:11,color:"#555",va:-2})} ${escHtml(asso.ville)}</span>${onAssoClick?"<br>"+mkBtn("#7c3aed"):""}`));
       bindGo(m, onAssoClick, asso.slug);
       markersRef.current.push(m);
