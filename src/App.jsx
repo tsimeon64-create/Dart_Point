@@ -3683,6 +3683,22 @@ const tempsDepuis = (ts) => {
   return new Date(ts).toLocaleDateString("fr-FR", { day:"numeric", month:"short" });
 };
 
+// Même chose en TRÈS court, pour se glisser juste après un pseudo : « 5 min », « 16 h »,
+// puis en jours passé 24 h, puis la date au bout d'une semaine. C'est la convention des
+// fils de commentaires (Instagram, Facebook) : à côté d'un pseudo, personne ne lit « 16 h »
+// comme une heure de la journée.
+const tempsCourt = (ts) => {
+  if (!ts) return "";
+  const min = Math.floor((Date.now() - ts) / 60000);
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} h`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d} j`;
+  return new Date(ts).toLocaleDateString("fr-FR", { day:"numeric", month:"short" });
+};
+
 const FeedAvatar = ({ photo, pseudo, size=40, onClick, status }) => {
   const cols = ["#f97316","#3b82f6","#10b981","#a78bfa","#ec4899","#eab308"];
   const col = cols[pseudo ? pseudo.charCodeAt(0) % cols.length : 0];
@@ -3797,6 +3813,50 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
   const [comments, setComments] = useState(initialComments);
   const [texte, setTexte] = useState("");
   const [busy, setBusy] = useState(false);
+  const [likes, setLikes] = useState({});   // id du commentaire → { n, moi }
+
+  // Les j'aime des commentaires vivent dans la MÊME table `wall_likes` que ceux des cartes :
+  // `ref_id` porte alors l'id du commentaire. Rien à créer en base, et un seul appel pour
+  // toute la carte (pas un par commentaire, sinon un fil de 10 réponses = 10 requêtes).
+  useEffect(() => {
+    const ids = (initialComments || []).map(c => c.id).filter(Boolean);
+    if (synth || !ids.length) return;
+    let alive = true;
+    sb(`wall_likes?ref_id=in.(${ids.join(",")})&select=ref_id,joueur_id`)
+      .then(rows => {
+        if (!alive) return;
+        const m = {};
+        (rows || []).forEach(l => {
+          const e = m[l.ref_id] || (m[l.ref_id] = { n:0, moi:false });
+          e.n++;
+          if (l.joueur_id === joueur?.id) e.moi = true;
+        });
+        // `...prev` EN DERNIER : si le joueur a eu le temps de toucher « J'aime » pendant que
+        // la requête voyageait, c'est SON geste qui gagne, pas la photo d'avant qui revient.
+        setLikes(prev => ({ ...m, ...prev }));
+      })
+      .catch(()=>{});
+    return () => { alive = false; };
+  }, [refId, joueur?.id]); // eslint-disable-line
+
+  const enVol = useRef({});   // id du commentaire → une requête est déjà partie
+
+  // On bascule l'affichage TOUT DE SUITE et on remet comme avant si la base refuse :
+  // attendre le serveur pour colorer un pouce donne l'impression que le bouton est mort.
+  // On ignore le 2e appui tant que le 1er n'a pas répondu : sur un téléphone, un double-tap
+  // enverrait sinon l'ajout et le retrait en même temps, et c'est le serveur qui déciderait
+  // lequel arrive en dernier — l'écran et la base pourraient finir en désaccord.
+  const aimerCommentaire = async (c) => {
+    if (!joueur || !c?.id || enVol.current[c.id]) return;
+    enVol.current[c.id] = true;
+    const avant = likes[c.id] || { n:0, moi:false };
+    setLikes(m => ({ ...m, [c.id]: { n: Math.max(0, avant.n + (avant.moi ? -1 : 1)), moi: !avant.moi } }));
+    try {
+      if (avant.moi) await sb(`wall_likes?ref_id=eq.${c.id}&joueur_id=eq.${joueur.id}`, { method:"DELETE", prefer:"return=minimal" });
+      else await sb("wall_likes", { method:"POST", body:JSON.stringify({ ref_id:c.id, joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, date:Date.now() }) });
+    } catch { setLikes(m => ({ ...m, [c.id]: avant })); }
+    finally { delete enVol.current[c.id]; }
+  };
 
   const publier = async () => {
     if (!texte.trim() || !joueur || busy) return;
@@ -3817,16 +3877,37 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
       {/* Commentaires affichés directement si présents */}
       {hasComments && (
         <div style={{ marginBottom:8 }}>
-          {comments.map((c,i) => (
-            <div key={c.id||i} style={{ display:"flex", gap:8, marginBottom:8, alignItems:"flex-start" }}>
-              <FeedAvatar photo={c.joueur_photo} pseudo={c.joueur_pseudo} size={28}/>
-              <div style={{ background:"#0f0f0f", borderRadius:10, padding:"6px 10px", flex:1 }}>
-                <span style={{ fontWeight:700, fontSize:12, color:C.text }}>{c.joueur_pseudo} </span>
-                <span style={{ fontSize:13, color:C.text }}>{c.contenu}</span>
-                <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{tempsDepuis(c.date)}</div>
+          {comments.map((c,i) => {
+            const l = likes[c.id] || { n:0, moi:false };
+            return (
+              <div key={c.id||i} style={{ display:"flex", gap:9, marginBottom:10, alignItems:"flex-start" }}>
+                <FeedAvatar photo={c.joueur_photo} pseudo={c.joueur_pseudo} size={32}
+                  onClick={c.joueur_id ? ()=>window.setPageGlobal?.("profil-joueur-"+c.joueur_id) : undefined}/>
+                <div style={{ flex:1, minWidth:0 }}>
+                  {/* Pseudo et âge du message sur la MÊME ligne, le commentaire en dessous. */}
+                  <div style={{ background:"#0f0f0f", borderRadius:12, padding:"7px 11px" }}>
+                    <div style={{ display:"flex", alignItems:"baseline", gap:6, marginBottom:2 }}>
+                      <span style={{ fontWeight:700, fontSize:12.5, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.joueur_pseudo}</span>
+                      <span style={{ fontSize:11, color:C.muted, flexShrink:0 }}>{tempsCourt(c.date)}</span>
+                    </div>
+                    {/* `wordBreak` : un pseudo ou un lien collé sans espace élargissait la carte
+                        et faisait défiler toute la page vers la droite sur téléphone. */}
+                    <div style={{ fontSize:13.5, color:C.text, lineHeight:1.45, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>{c.contenu}</div>
+                  </div>
+                  {c.id && (
+                    <button onClick={()=>aimerCommentaire(c)} aria-pressed={l.moi}
+                      aria-label={l.moi ? "Je n'aime plus ce commentaire" : "J'aime ce commentaire"}
+                      style={{ marginTop:1, marginLeft:2, background:"none", border:"none", padding:"8px 6px",
+                        color:l.moi?C.accent:C.muted, fontSize:11.5, fontWeight:700, cursor:joueur?"pointer":"default",
+                        display:"flex", alignItems:"center", gap:5, touchAction:"manipulation", transition:"color .15s" }}>
+                      <ThumbsUp size={12} fill={l.moi?C.accent:"none"}/> J'aime
+                      {l.n > 0 && <span style={{ color:C.accent }}>· {l.n}</span>}
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -5681,6 +5762,17 @@ const resoudreCartes = async (refIds, joueurId) => {
       (pr||[]).forEach(p => { reste.delete(p.id); _cacheCartes[cle(p.id)] = ({ kind:"presence", label:"" }); });
     }
 
+    // e) j'aime posé sur un COMMENTAIRE (`ref_id` = l'id du commentaire). Ce n'est pas une carte
+    //    du fil : on note la carte PARENTE dans `cible`, sinon toucher la notification chercherait
+    //    une carte qui n'existe pas. Sondé en dernier pour ne rien changer aux cas d'avant.
+    if (reste.size) {
+      const coms = await sb(`wall_comments?id=in.(${liste()})&select=id,ref_id,joueur_id`).catch(()=>[]);
+      (coms||[]).forEach(c => {
+        reste.delete(c.id);
+        _cacheCartes[cle(c.id)] = (c.joueur_id === joueurId ? { kind:"commentaire", label:"", cible:c.ref_id } : null);
+      });
+    }
+
     // Tout ce qui reste ne me concerne pas (ou la carte a été supprimée) : on le
     // mémorise aussi, sinon on la redemanderait à chaque sondage.
     reste.forEach(id => _cacheCartes[cle(id)] = (null));
@@ -5707,14 +5799,15 @@ const fetchActuNotifs = async (joueurId, { leger = false } = {}) => {
   if (!ls.length && !cs.length) return [];
   const cartes = await resoudreCartes([...ls, ...cs].map(x => x.ref_id), joueurId);
   const notifs = [];
-  ls.forEach(l => { const c = cartes[l.ref_id]; if (c) notifs.push({ id:"l_"+l.ref_id+"_"+l.joueur_id, type:"like", from_id:l.joueur_id, from_pseudo:l.joueur_pseudo, date:l.date, ref_id:l.ref_id, kind:c.kind, label:c.label }); });
+  // `c.cible` : pour un j'aime sur un commentaire, la carte à ouvrir est la carte parente.
+  ls.forEach(l => { const c = cartes[l.ref_id]; if (c) notifs.push({ id:"l_"+l.ref_id+"_"+l.joueur_id, type:"like", from_id:l.joueur_id, from_pseudo:l.joueur_pseudo, date:l.date, ref_id:c.cible||l.ref_id, kind:c.kind, label:c.label }); });
   cs.forEach(c0 => { const c = cartes[c0.ref_id]; if (c) notifs.push({ id:"c_"+(c0.id||c0.ref_id+"_"+c0.joueur_id+"_"+c0.date), type:"comment", from_id:c0.joueur_id, from_pseudo:c0.joueur_pseudo, from_photo:c0.joueur_photo, contenu:c0.contenu, date:c0.date, ref_id:c0.ref_id, kind:c.kind, label:c.label }); });
   notifs.sort((a,b) => (b.date||0) - (a.date||0));
   return notifs;
 };
 
 // Ce qu'on lit dans « X a aimé … ». `label` n'est utilisé que pour un match.
-const NOM_CARTE = { match:"ton match", speedrun:"ton speed run", badge:"ton badge", post:"ta publication", drix:"ton palier DRIX", training:"ton entraînement", presence:"ta présence au bar" };
+const NOM_CARTE = { match:"ton match", speedrun:"ton speed run", badge:"ton badge", post:"ta publication", drix:"ton palier DRIX", training:"ton entraînement", presence:"ta présence au bar", commentaire:"ton commentaire" };
 
 const PageActualite = ({ joueur, setPage }) => {
   const [notifs, setNotifs] = useState([]);
