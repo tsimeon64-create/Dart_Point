@@ -7679,29 +7679,19 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
         {/* ══════════════════════════════════════════════════════════════════════ */}
         {typeVue === "bars" && (<>
 
-          {/* ── HERO premium avec capsules ── */}
-          <div style={{
-            position:"relative", overflow:"hidden",
-            background:"radial-gradient(ellipse at top,#2a1500 0%,#1a0a00 50%,#0a0500 100%)",
-            border:"1.5px solid #f9731677",
-            borderRadius:20, padding:"16px 16px 14px", marginBottom:14,
-            boxShadow:"0 0 24px #f9731633, inset 0 1px 0 #ffffff0a",
-          }}>
-            <div aria-hidden style={{ position:"absolute", top:-40, right:-30, width:220, height:220, borderRadius:"50%", background:"radial-gradient(circle,#f9731620,transparent 65%)", pointerEvents:"none" }}/>
-            <div aria-hidden style={{ position:"absolute", top:0, left:0, bottom:0, width:90, background:"linear-gradient(90deg,transparent,#ffffff08,transparent)", animation:"glow-bar 4s ease-in-out infinite", pointerEvents:"none" }}/>
-            <h1 style={{
-              fontSize:"clamp(20px,5.5vw,26px)", fontWeight:900, lineHeight:1.1,
-              background:"linear-gradient(135deg,#fbbf24 0%,#f97316 50%,#ef4444 100%)",
-              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
-              letterSpacing:1, margin:"0 0 10px", position:"relative",
-              display:"flex", alignItems:"center", gap:8,
-            }}>
-              <EmoIcon e="🍺" size={22} color="#f97316"/>BARS À FLÉCHETTES
-            </h1>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap", position:"relative" }}>
-              <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:14, background:"linear-gradient(135deg,#f9731622,#f9731608)", border:"1px solid #f9731677", fontSize:10, fontWeight:800, color:"#f97316" }}>
-                <EmoIcon e="🎯" size={10}/>{bars.length} référencés
-              </span>
+          {/* ── Bandeau (image fournie : le titre et le cadre sont dessinés dedans) ──
+              Le titre étant DANS l'image, `alt` porte ce qu'il faut lire à voix haute — sans
+              lui, un lecteur d'écran n'annoncerait plus du tout le nom de la page. */}
+          <img src="/bars/bandeau.webp" alt="Bars à fléchettes"
+            width={1600} height={360} decoding="async"
+            style={{ display:"block", width:"100%", height:"auto", borderRadius:20, marginBottom:14 }}/>
+
+          {/* Les capsules VIVANTES (elles changent d'un soir à l'autre) passent SOUS le bandeau :
+              elles ne peuvent plus tenir dedans, tout y est dessiné. Les deux compteurs figés
+              — « X référencés » et « X tournois » — ont été retirés : le nombre de bars est déjà
+              sur l'onglet au-dessus et les tournois ont leur propre filtre juste en dessous. */}
+          {(barsActifs.length > 0 || joueursPresentAujourd > 0) && (
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:14 }}>
               {barsActifs.length > 0 && (
                 <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:14, background:"linear-gradient(135deg,#22c55e22,#22c55e08)", border:"1px solid #22c55e77", fontSize:10, fontWeight:800, color:"#22c55e" }}>
                   <span style={{ width:6,height:6,borderRadius:"50%",background:"#22c55e",animation:"pulse-dot 2s infinite" }}/>
@@ -7713,13 +7703,8 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
                   <EmoIcon e="👥" size={10}/>{joueursPresentAujourd} joueurs aujourd'hui
                 </span>
               )}
-              {bars.filter(b => b.tournois).length > 0 && (
-                <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:14, background:"linear-gradient(135deg,#fbbf2422,#fbbf2408)", border:"1px solid #fbbf2477", fontSize:10, fontWeight:800, color:"#fbbf24" }}>
-                  <EmoIcon e="🏆" size={10}/>{bars.filter(b => b.tournois).length} tournois
-                </span>
-              )}
             </div>
-          </div>
+          )}
 
           {/* ── SPOTS DU MOMENT (carrousel horizontal) ── */}
           {spotsDuMoment.length > 0 && (
@@ -7934,21 +7919,15 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
         {/* ══════════════════════════════════════════════════════════════════════ */}
         {typeVue === "assos" && (<>
 
-          {/* Header violet */}
-          <div style={{ background:"linear-gradient(135deg,#0f0a1e,#1a1030)", border:"1px solid #7c3aed30", borderRadius:20, padding:"20px 20px 16px", marginBottom:16, position:"relative", overflow:"hidden" }}>
-            <div style={{ position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle,#7c3aed20,transparent)",pointerEvents:"none" }}/>
-            <h1 style={{ fontWeight:900,fontSize:22,color:"#fff",marginBottom:8,textShadow:"0 0 20px #a78bfa88",display:"flex",alignItems:"center",gap:10 }}><Users size={22} color="#a78bfa"/> Associations</h1>
-            <div style={{ display:"flex",gap:16,flexWrap:"wrap" }}>
-              <div style={{ display:"flex",alignItems:"center",gap:7 }}>
-                <span style={{ fontWeight:700,fontSize:14,color:"#a78bfa" }}>{associations.length}</span>
-                <span style={{ fontSize:12,color:"#94a3b8" }}>clubs référencés</span>
-              </div>
-              <div style={{ display:"flex",alignItems:"center",gap:7 }}>
-                <span style={{ fontWeight:700,fontSize:14,color:"#c4b5fd" }}>{filteredAssos.filter(a=>a.bars?.length>0).length}</span>
-                <span style={{ fontSize:12,color:"#94a3b8" }}>avec bar affilié</span>
-              </div>
-            </div>
-          </div>
+          {/* ── Bandeau (image fournie : le titre et le cadre sont dessinés dedans) ──
+              Même format que celui des bars (1600×360) pour que les deux onglets voisins aient
+              exactement la même hauteur : sinon la page saute en passant de l'un à l'autre.
+              Les deux compteurs (« X clubs référencés », « X avec bar affilié ») sont retirés
+              comme sur l'onglet Bars — le nombre de clubs est déjà sur l'onglet juste au-dessus.
+              `alt` porte le titre, qui n'existe plus qu'en image. */}
+          <img src="/associations/bandeau.webp" alt="Les associations"
+            width={1600} height={360} decoding="async"
+            style={{ display:"block", width:"100%", height:"auto", borderRadius:20, marginBottom:16 }}/>
 
           {/* Search */}
           <div style={{ position:"relative",marginBottom:14 }}>
