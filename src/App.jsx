@@ -1769,7 +1769,9 @@ const HomeDashboard = ({ joueur, setJoueur, setPage, bars, defisCount, demandesA
           onClick={()=>setPage("communaute")}/>
         <ImgBtn src="/accueil/defi.webp"       label="Match DRIX et classement — joue tes matchs et grimpe au classement"
           onClick={()=>setPage("defi")} badge={defisCount}/>
-        <ImgBtn src="/accueil/mini-jeux.webp"  label="Mini jeux et défi quotidien — pour jouer, progresser et s'amuser"
+        {/* Le visuel dit désormais « Entraînement · Calcul mental » : `label` doit dire la même
+            chose, c'est lui que lisent les lecteurs d'écran puisque le texte est dans l'image. */}
+        <ImgBtn src="/accueil/mini-jeux.webp"  label="Entraînement et calcul mental — chrono finish, chasse au OBM, meilleur score, défi du jour"
           onClick={()=>setPage("jeux-sans")}/>
         {/* Remplace l'ancien bouton carré « Scoreur » : même destination, et il comble la
             case qui restait vide à droite de Mini jeux. */}

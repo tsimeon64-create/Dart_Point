@@ -61,6 +61,7 @@ export function ConfirmHost() {
   const [demande, setDemande] = useState(null);   // { message, options }
   const repondreRef = useRef(null);               // resolve de la promesse en cours
   const boutonRef = useRef(null);
+  const ouvertARef = useRef(0);                   // instant d'ouverture (anti-clic fantôme)
 
   // Branchement du point d'entrée global, une seule fois.
   useEffect(() => {
@@ -69,6 +70,7 @@ export function ConfirmHost() {
         // Si une question était déjà ouverte, on y répond « non » avant d'empiler.
         if (repondreRef.current) { const p = repondreRef.current; repondreRef.current = null; p(false); }
         repondreRef.current = resolve;
+        ouvertARef.current = (typeof performance !== "undefined" ? performance.now() : Date.now());
         setDemande({ message, options: options || {} });
       });
     return () => { _ouvrir = null; };
@@ -80,6 +82,21 @@ export function ConfirmHost() {
     setDemande(null);
     if (p) p(valeur);
   }, []);
+
+  // ⚠️ CLIC FANTÔME — la cause du bug « il ne me propose pas de publier » (signalé le 07/08/2026).
+  // Tous les boutons du scoreur réagissent au `pointerdown` (au moment où le doigt se POSE) pour
+  // rester réactifs. Quand ce bouton termine la partie, la question « publier ce match ? » s'ouvre
+  // pendant que le doigt est ENCORE POSÉ. Au relâchement, le navigateur envoie quand même son
+  // `click`, visé là où le doigt se trouve — donc sur cette fenêtre à peine apparue, qui répondait
+  // « Non » toute seule sans que personne ne la voie. D'où l'asymétrie : quand le BOT gagne, la
+  // partie se termine sur un minuteur, aucun doigt sur l'écran, et la fenêtre s'affichait bien.
+  // On reste donc sourd aux CLICS pendant 400 ms (la carte est encore en animation d'entrée).
+  // Échap n'est pas concerné : un clavier ne produit pas de clic fantôme.
+  const repondreClic = useCallback((valeur) => {
+    const t = (typeof performance !== "undefined" ? performance.now() : Date.now());
+    if (t - ouvertARef.current < 400) return;
+    repondre(valeur);
+  }, [repondre]);
 
   // Échap = annuler. Actif seulement quand la fenêtre est ouverte.
   useEffect(() => {
@@ -105,7 +122,7 @@ export function ConfirmHost() {
   return (
     <div
       role="alertdialog" aria-modal="true" aria-labelledby="dp-confirm-titre"
-      onClick={(e) => { if (e.target === e.currentTarget) repondre(false); }}
+      onClick={(e) => { if (e.target === e.currentTarget) repondreClic(false); }}
       style={{
         position: "fixed", inset: 0, zIndex: 100001,
         background: "rgba(0,0,0,0.72)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
@@ -139,7 +156,7 @@ export function ConfirmHost() {
           {/* Un simple message (alerter) n'a qu'un bouton : pas de choix à faire. */}
           {!options.seulOk && (
           <button
-            ref={boutonRef} onClick={() => repondre(false)}
+            ref={boutonRef} onClick={() => repondreClic(false)}
             style={{
               flex: 1, minHeight: 46, background: "none", border: `1px solid ${CC.bord}`,
               color: CC.doux, borderRadius: 11, fontSize: 14, fontWeight: 700,
@@ -149,7 +166,7 @@ export function ConfirmHost() {
           )}
           <button
             ref={options.seulOk ? boutonRef : undefined}
-            onClick={() => repondre(true)}
+            onClick={() => repondreClic(true)}
             style={{
               flex: 1, minHeight: 46, background: couleur, border: "none",
               color: danger ? "#fff" : "#1a0d00", borderRadius: 11, fontSize: 14, fontWeight: 800,

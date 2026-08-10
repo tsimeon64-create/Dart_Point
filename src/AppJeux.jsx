@@ -102,7 +102,7 @@ const AnimCount = ({ target, duration=1400, prefix="", suffix="" }) => {
 const SB_URL_J = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY_J = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 
-const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moyenne, demarrer, quitterPartie, onRejouer=null, joueurs: joueursData=[], manchesDetail=[] }) => {
+const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moyenne, demarrer, quitterPartie, onRejouer=null, joueurs: joueursData=[], manchesDetail=[], publierBot=null, etatPublication="attente" }) => {
   const [show, setShow] = useState(false);
   const [drixShow, setDrixShow] = useState(false);
   const [winnerPhoto, setWinnerPhoto] = useState(null);
@@ -618,6 +618,24 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
       {/* ════════════════════════════════════════════════════════════════ */}
       {/* 11. ACTIONS SECONDAIRES                                           */}
       {/* ════════════════════════════════════════════════════════════════ */}
+      {/* Publier au Comptoir — SEULEMENT en partie bot, et c'est un filet de sécurité :
+          une partie contre un bot n'est enregistrée nulle part (pas de duel, donc rien dans
+          l'historique), la publication est sa SEULE trace. Si la fenêtre de fin de partie a été
+          ratée, ou si on a répondu « Non » puis changé d'avis, tout se rejoue depuis ici tant
+          qu'on n'a pas quitté l'écran. */}
+      {publierBot && (
+        <button onClick={etatPublication === "attente" ? publierBot : undefined}
+          disabled={etatPublication !== "attente"}
+          style={{ width:"100%", padding:"13px", borderRadius:14, marginBottom:8,
+            border:`1px solid ${etatPublication === "publie" ? "#22c55e77" : "#f9731677"}`,
+            background: etatPublication === "publie" ? "#0a1a0a" : "linear-gradient(135deg,#1a0f00,#241300)",
+            color: etatPublication === "publie" ? "#22c55e" : "#f97316",
+            fontWeight:800, fontSize:13, cursor: etatPublication === "attente" ? "pointer" : "default",
+            display:"flex", alignItems:"center", justifyContent:"center", gap:8, touchAction:"manipulation" }}>
+          <EmoIcon e={etatPublication === "publie" ? "✅" : "🍻"} size={16}/>
+          <span>{etatPublication === "publie" ? "Publié au Comptoir" : etatPublication === "envoi" ? "Publication…" : "Publier au Comptoir"}</span>
+        </button>
+      )}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
         <button onClick={()=>setShowStats(true)} style={{ padding:"11px 6px", borderRadius:12, border:"1px solid #22c55e44", fontWeight:700, fontSize:12, cursor:"pointer", background:"#0a1a0a", color:"#22c55e", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
           <EmoIcon e="📊" size={16}/>
@@ -924,6 +942,25 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [loadingBot, setLoadingBot]   = useState(null); // id de l'ami en cours de préparation
   const [botPreparing, setBotPreparing] = useState(!!initBotAmiId); // entrée directe « Affronte son bot » depuis une fiche joueur
   const botXpRef = useRef(false);                       // évite de créditer l'XP deux fois
+  // Publication du match bot au Comptoir : la charge utile est gardée pour que l'écran de fin
+  // puisse la renvoyer, la fenêtre de confirmation n'étant plus la seule occasion.
+  const [postBot, setPostBot] = useState(null);
+  const [etatPostBot, setEtatPostBot] = useState("attente"); // attente | envoi | publie
+  const postBotRef = useRef(null); postBotRef.current = postBot;   // pour ne dépendre d'aucun rendu
+  const etatPostRef = useRef("attente"); etatPostRef.current = etatPostBot;
+  // Envoie le match bot au Comptoir. Appelée soit par la fenêtre de fin de partie, soit par le
+  // bouton de l'écran de fin — d'où le garde : on ne publie jamais le même match deux fois.
+  const publierPostBot = (charge) => {
+    const p = charge || postBotRef.current;
+    if (!p || !joueur?.id || etatPostRef.current !== "attente") return;
+    setEtatPostBot("envoi"); etatPostRef.current = "envoi";
+    fetch(`${SB_URL}/rest/v1/wall_posts`, {
+      method: "POST",
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ joueur_id: joueur.id, joueur_pseudo: joueur.pseudo, joueur_photo: joueur.photo || null, contenu: `__DUEL__|${JSON.stringify(p)}`, date: Date.now() }),
+    }).then(() => { setEtatPostBot("publie"); etatPostRef.current = "publie"; window.dpToast?.("Match publié au Comptoir 🍻", "success"); })
+      .catch(() => { setEtatPostBot("attente"); etatPostRef.current = "attente"; window.dpToast?.("Publication impossible — réessaie", "error"); });
+  };
   const [mancheEnCours, setMancheEnCours] = useState(resume?.mancheEnCours ?? 0); // 0-based
   const [gagnant, setGagnant] = useState(null);
   const [resultEnregistre, setResultEnregistre] = useState(false);
@@ -1145,6 +1182,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     setManchesHistory([]);
     setMancheStart({ vol:Array(n).fill(0), pts:Array(n).fill(0), nbtours:Array(n).fill(0), flechettes:Array(n).fill(0) });
     botXpRef.current = false; // chaque nouvelle partie bot peut re-créditer l'XP (rejeu contre le même bot)
+    // Remise à zéro de la publication : sans ça, la revanche afficherait « Publié au Comptoir »
+    // pour le match PRÉCÉDENT, et le bouton refuserait d'envoyer le nouveau.
+    setPostBot(null); postBotRef.current = null;
+    setEtatPostBot("attente"); etatPostRef.current = "attente";
     setEtape("jeu");
   };
 
@@ -1846,15 +1887,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           loser:  { nom: loserJ?.nom,  nbManches: loserJ?.manchesGagnees || 0,  total: 0, elo: 0, xp: humainGagne ? 0 : delta, xpLines: humainGagne ? [] : xpLinesHum, moy: moyOf(loserJ), photo: photoDe(loserJ) },
           manches: manchesHistory || [],
         };
-        const publierAuComptoir = () => fetch(`${SB_URL}/rest/v1/wall_posts`, {
-          method: "POST",
-          headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" },
-          body: JSON.stringify({ joueur_id: joueur.id, joueur_pseudo: joueur.pseudo, joueur_photo: joueur.photo || null, contenu: `__DUEL__|${JSON.stringify(duelPost)}`, date: Date.now() }),
-        }).then(() => window.dpToast?.("Match publié au Comptoir 🍻", "success"))
-          .catch(() => window.dpToast?.("Publication impossible pour l'instant", "error"));
-
+        // La charge utile est mise DE CÔTÉ, pas seulement capturée dans cette fonction : le bouton
+        // « Publier au Comptoir » de l'écran de fin doit pouvoir la renvoyer plus tard, si la
+        // fenêtre a été ratée ou si le joueur change d'avis après avoir dit « Non ».
+        setPostBot(duelPost);
         confirmer("Veux-tu publier ce match sur le Comptoir ?", { ok: "Publier", annuler: "Non" })
-          .then((oui) => { if (oui) publierAuComptoir(); });
+          .then((oui) => { if (oui) publierPostBot(duelPost); });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2156,6 +2194,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       onRejouer={botPseudo ? rejouerBot : onRejouer}
       joueurs={joueurs}
       manchesDetail={manchesHistory}
+      publierBot={postBot ? () => publierPostBot() : null}
+      etatPublication={etatPostBot}
     />
   );
 
