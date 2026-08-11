@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback, Component } from "react";
+import { createPortal } from "react-dom";
 import { C, Z } from "./theme";
-import { Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell, Users, RefreshCw, Swords, TrendingUp, TrendingDown, Medal, Check, AlertCircle, ThumbsUp, MessageCircle, MapPin, Flame, Zap, Target, Clock, ChevronRight, ChevronDown, Map, List, Phone, Share2, Eye, Info, Calendar, Home as HomeIcon, Lock, ExternalLink, Crown, Gem, Pencil, Navigation, Camera, Link2, Building2, Skull, Gamepad2, HelpCircle, Brain, Timer, Bot } from "lucide-react";
+import { Megaphone, Trash2, Menu, X, Settings, User, Mail, LogOut, Search, Trophy, ArrowLeft, Bell, Users, RefreshCw, Swords, TrendingUp, TrendingDown, Medal, Check, AlertCircle, ThumbsUp, MessageCircle, MapPin, Flame, Zap, Target, Clock, ChevronRight, ChevronDown, Map, List, Phone, Share2, Eye, Info, Calendar, Home as HomeIcon, Lock, ExternalLink, Crown, Gem, Pencil, Navigation, Camera, Link2, Building2, Skull, Gamepad2, HelpCircle, Brain, Timer, Bot } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
 import { ConfirmHost, confirmer, alerter } from "./uiConfirm.jsx";
 import {
@@ -3728,6 +3729,12 @@ const tempsCourt = (ts) => {
   return new Date(ts).toLocaleDateString("fr-FR", { day:"numeric", month:"short" });
 };
 
+// ⚠️ Les cartes du fil portent une animation d'entrée (`feedIn`), donc un `transform`. Un
+// `transform` sur un ancêtre fait de lui le repère des enfants en `position:fixed` : une fenêtre
+// posée dans une carte se calait sur la CARTE et non sur l'écran — mesuré à 413 px au-dessus du
+// haut de l'écran, donc à moitié invisible. On la sort donc du fil, directement dans <body>.
+const SurEcran = ({ children }) => (typeof document === "undefined" ? children : createPortal(children, document.body));
+
 const FeedAvatar = ({ photo, pseudo, size=40, onClick, status }) => {
   const cols = ["#f97316","#3b82f6","#10b981","#a78bfa","#ec4899","#eab308"];
   const col = cols[pseudo ? pseudo.charCodeAt(0) % cols.length : 0];
@@ -3818,6 +3825,7 @@ const LikeButton = ({ refId, joueur, initialCount=0, initialMyLike=false }) => {
         </div>
       )}
       {showList && (
+        <SurEcran>
         <div onClick={()=>setShowList(false)} style={{ position:"fixed", inset:0, background:"#000000d8", zIndex:99999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
           <div onClick={e=>e.stopPropagation()} style={{ background:"#15151c", border:"1px solid #2a2a2a", borderRadius:16, padding:18, maxWidth:360, width:"100%", maxHeight:"72vh", overflowY:"auto" }}>
             <div style={{ fontWeight:800, fontSize:15, color:"#f1f5f9", marginBottom:12, display:"flex", alignItems:"center", gap:7 }}><ThumbsUp size={16} color="#f97316"/> {count} j'aime</div>
@@ -3830,6 +3838,7 @@ const LikeButton = ({ refId, joueur, initialCount=0, initialMyLike=false }) => {
             <button onClick={()=>setShowList(false)} style={{ width:"100%", marginTop:14, background:"none", border:"none", color:"#94a3b8", fontSize:13, cursor:"pointer", padding:8, touchAction:"manipulation" }}>Fermer</button>
           </div>
         </div>
+        </SurEcran>
       )}
     </div>
   );
@@ -3842,29 +3851,39 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
   const [comments, setComments] = useState(initialComments);
   const [texte, setTexte] = useState("");
   const [busy, setBusy] = useState(false);
-  const [likes, setLikes] = useState({});   // id du commentaire → { n, moi }
+  const [likes, setLikes] = useState({});      // id du commentaire → { n, moi, gens:[…] }
+  const [listeLikes, setListeLikes] = useState(null); // id du commentaire dont on montre la liste
 
   // Les j'aime des commentaires vivent dans la MÊME table `wall_likes` que ceux des cartes :
-  // `ref_id` porte alors l'id du commentaire. Rien à créer en base, et un seul appel pour
-  // toute la carte (pas un par commentaire, sinon un fil de 10 réponses = 10 requêtes).
+  // `ref_id` porte alors l'id du commentaire. Rien à créer en base, et DEUX appels pour toute la
+  // carte, quel que soit le nombre de commentaires : les j'aime, puis les photos de ceux qui ont
+  // aimé (wall_likes ne stocke pas les photos, comme pour les cartes).
   useEffect(() => {
     const ids = (initialComments || []).map(c => c.id).filter(Boolean);
     if (synth || !ids.length) return;
     let alive = true;
-    sb(`wall_likes?ref_id=in.(${ids.join(",")})&select=ref_id,joueur_id`)
-      .then(rows => {
+    (async () => {
+      try {
+        const rows = await sb(`wall_likes?ref_id=in.(${ids.join(",")})&select=ref_id,joueur_id,joueur_pseudo&order=date.asc`);
+        const idsJ = [...new Set((rows || []).map(l => l.joueur_id).filter(Boolean))];
+        const photos = {};
+        if (idsJ.length) {
+          const ph = await sb(`joueurs?id=in.(${idsJ.join(",")})&select=id,photo`).catch(() => []);
+          (ph || []).forEach(p => { photos[p.id] = p.photo; });
+        }
         if (!alive) return;
         const m = {};
         (rows || []).forEach(l => {
-          const e = m[l.ref_id] || (m[l.ref_id] = { n:0, moi:false });
+          const e = m[l.ref_id] || (m[l.ref_id] = { n:0, moi:false, gens:[] });
           e.n++;
+          e.gens.push({ joueur_id:l.joueur_id, joueur_pseudo:l.joueur_pseudo, photo: photos[l.joueur_id] || null });
           if (l.joueur_id === joueur?.id) e.moi = true;
         });
         // `...prev` EN DERNIER : si le joueur a eu le temps de toucher « J'aime » pendant que
         // la requête voyageait, c'est SON geste qui gagne, pas la photo d'avant qui revient.
         setLikes(prev => ({ ...m, ...prev }));
-      })
-      .catch(()=>{});
+      } catch { /* le compteur reste à 0, le bouton marche quand même */ }
+    })();
     return () => { alive = false; };
   }, [refId, joueur?.id]); // eslint-disable-line
 
@@ -3878,8 +3897,12 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
   const aimerCommentaire = async (c) => {
     if (!joueur || !c?.id || enVol.current[c.id]) return;
     enVol.current[c.id] = true;
-    const avant = likes[c.id] || { n:0, moi:false };
-    setLikes(m => ({ ...m, [c.id]: { n: Math.max(0, avant.n + (avant.moi ? -1 : 1)), moi: !avant.moi } }));
+    const avant = likes[c.id] || { n:0, moi:false, gens:[] };
+    // La bulle de photo doit apparaître/disparaître avec le pouce, sinon on aime et on ne se
+    // voit pas dans la liste tant que la page n'a pas été rechargée.
+    const sansMoi = (avant.gens || []).filter(g => g.joueur_id !== joueur.id);
+    const gens = avant.moi ? sansMoi : [...sansMoi, { joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, photo: joueur.photo || null }];
+    setLikes(m => ({ ...m, [c.id]: { n: Math.max(0, avant.n + (avant.moi ? -1 : 1)), moi: !avant.moi, gens } }));
     try {
       if (avant.moi) await sb(`wall_likes?ref_id=eq.${c.id}&joueur_id=eq.${joueur.id}`, { method:"DELETE", prefer:"return=minimal" });
       else await sb("wall_likes", { method:"POST", body:JSON.stringify({ ref_id:c.id, joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, date:Date.now() }) });
@@ -3924,20 +3947,58 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
                     <div style={{ fontSize:13.5, color:C.text, lineHeight:1.45, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>{c.contenu}</div>
                   </div>
                   {c.id && (
-                    <button onClick={()=>aimerCommentaire(c)} aria-pressed={l.moi}
-                      aria-label={l.moi ? "Je n'aime plus ce commentaire" : "J'aime ce commentaire"}
-                      style={{ marginTop:1, marginLeft:2, background:"none", border:"none", padding:"8px 6px",
-                        color:l.moi?C.accent:C.muted, fontSize:11.5, fontWeight:700, cursor:joueur?"pointer":"default",
-                        display:"flex", alignItems:"center", gap:5, touchAction:"manipulation", transition:"color .15s" }}>
-                      <ThumbsUp size={12} fill={l.moi?C.accent:"none"}/> J'aime
-                      {l.n > 0 && <span style={{ color:C.accent }}>· {l.n}</span>}
-                    </button>
+                    <div style={{ display:"flex", alignItems:"center", gap:4, flexWrap:"wrap" }}>
+                      <button onClick={()=>aimerCommentaire(c)} aria-pressed={l.moi}
+                        aria-label={l.moi ? "Je n'aime plus ce commentaire" : "J'aime ce commentaire"}
+                        style={{ marginTop:1, marginLeft:2, background:"none", border:"none", padding:"8px 6px",
+                          color:l.moi?C.accent:C.muted, fontSize:11.5, fontWeight:700, cursor:joueur?"pointer":"default",
+                          display:"flex", alignItems:"center", gap:5, touchAction:"manipulation", transition:"color .15s" }}>
+                        <ThumbsUp size={12} fill={l.moi?C.accent:"none"}/> J'aime
+                      </button>
+                      {/* Les bulles de ceux qui ont aimé, comme sur une publication — en plus petit
+                          (18 px contre 22), le commentaire étant déjà en retrait sous l'avatar. */}
+                      {l.n > 0 && (
+                        <div onClick={()=>setListeLikes(c.id)} title="Voir qui a aimé"
+                          style={{ display:"flex", alignItems:"center", gap:5, cursor:"pointer", padding:"2px 4px" }}>
+                          <div style={{ display:"flex", alignItems:"center" }}>
+                            {(l.gens || []).slice(-3).map((g,k)=>(
+                              <div key={g.joueur_id||k} style={{ marginLeft:k?-7:0, borderRadius:"50%", border:"2px solid #0a0a0a", display:"flex", zIndex:3-k }}>
+                                <FeedAvatar photo={g.photo} pseudo={g.joueur_pseudo} size={18}/>
+                              </div>
+                            ))}
+                          </div>
+                          <span style={{ fontSize:11.5, color:C.accent, fontWeight:800 }}>{l.n}</span>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* Qui a aimé CE commentaire — même fenêtre que celle des publications. La liste vient de
+          l'état déjà chargé : toucher une bulle n'appelle donc pas la base. */}
+      {listeLikes && (
+        <SurEcran>
+        <div onClick={()=>setListeLikes(null)} style={{ position:"fixed", inset:0, background:"#000000d8", zIndex:99999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ background:"#15151c", border:"1px solid #2a2a2a", borderRadius:16, padding:18, maxWidth:360, width:"100%", maxHeight:"72vh", overflowY:"auto" }}>
+            <div style={{ fontWeight:800, fontSize:15, color:C.text, marginBottom:12, display:"flex", alignItems:"center", gap:7 }}>
+              <ThumbsUp size={16} color={C.accent}/> {(likes[listeLikes]?.n) || 0} j'aime
+            </div>
+            {(likes[listeLikes]?.gens || []).slice().reverse().map((g,i)=>(
+              <div key={g.joueur_id||i} onClick={()=>{ if(g.joueur_id){ setListeLikes(null); window.setPageGlobal?.("profil-joueur-"+g.joueur_id); } }}
+                style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:"1px solid #2a2a2a", cursor:g.joueur_id?"pointer":"default" }}>
+                <FeedAvatar photo={g.photo} pseudo={g.joueur_pseudo} size={34}/>
+                <span style={{ fontWeight:700, fontSize:14, color:C.text }}>{g.joueur_pseudo}</span>
+              </div>
+            ))}
+            <button onClick={()=>setListeLikes(null)} style={{ width:"100%", marginTop:14, background:"none", border:"none", color:C.muted, fontSize:13, cursor:"pointer", padding:8, touchAction:"manipulation" }}>Fermer</button>
+          </div>
+        </div>
+        </SurEcran>
       )}
 
       {/* Bouton commenter — toggle zone d'écriture (ou affichage si pas encore de commentaires) */}
@@ -5813,21 +5874,32 @@ const resoudreCartes = async (refIds, joueurId) => {
 
 // `leger` : le sondage de fond ne compte que des dates, il n'a pas besoin des photos
 // des commentateurs (du base64 entier à chaque fois).
-const fetchActuNotifs = async (joueurId, { leger = false } = {}) => {
+const fetchActuNotifs = async (joueurId, { leger = false, assoSlug = null } = {}) => {
   if (!joueurId) return [];
   const depuis = Date.now() - 30*24*3600*1000;   // au-delà de 30 jours ce n'est plus une « actualité »
   const champsCom = `id,ref_id,joueur_id,joueur_pseudo,contenu,date${leger ? "" : ",joueur_photo"}`;
-  const [likes, comments] = await Promise.all([
+  // Les annonces du club ne se « résolvent » pas comme les autres : il n'y a rien à sonder,
+  // on est concerné si on est membre du club, point. D'où la requête à part, faite seulement
+  // si le joueur appartient à un club. `catch` silencieux : tant que la table `asso_posts`
+  // n'existe pas, la cloche doit continuer à afficher le reste.
+  const [likes, comments, annonces] = await Promise.all([
     sb(`wall_likes?date=gt.${depuis}&order=date.desc&limit=200&select=ref_id,joueur_id,joueur_pseudo,date`).catch(()=>[]),
     sb(`wall_comments?date=gt.${depuis}&order=date.desc&limit=200&select=${champsCom}`).catch(()=>[]),
+    assoSlug
+      ? sb(`asso_posts?asso_slug=eq.${encodeURIComponent(assoSlug)}&date=gt.${depuis}&order=date.desc&limit=50&select=id,asso_slug,joueur_id,joueur_pseudo,contenu,date${leger ? "" : ",joueur_photo"}`).catch(()=>[])
+      : Promise.resolve([]),
   ]);
+  const notifsAsso = (annonces || [])
+    .filter(a => a && a.joueur_id && a.joueur_id !== joueurId)   // on ne se notifie pas soi-même
+    .map(a => ({ id:"a_"+a.id, type:"asso", from_id:a.joueur_id, from_pseudo:a.joueur_pseudo,
+      from_photo:a.joueur_photo, contenu:a.contenu, date:a.date, asso_slug:a.asso_slug }));
   // On écarte d'emblée ses propres actions (on ne se notifie pas soi-même) et les
   // cartes synthétiques « __syn… », qui ne sont ni aimables ni retrouvables.
   const garde = (x) => x && x.joueur_id && x.joueur_id !== joueurId && x.ref_id && !String(x.ref_id).startsWith("__syn");
   const ls = (likes||[]).filter(garde), cs = (comments||[]).filter(garde);
-  if (!ls.length && !cs.length) return [];
+  if (!ls.length && !cs.length) return notifsAsso.sort((a,b) => (b.date||0) - (a.date||0));
   const cartes = await resoudreCartes([...ls, ...cs].map(x => x.ref_id), joueurId);
-  const notifs = [];
+  const notifs = [...notifsAsso];
   // `c.cible` : pour un j'aime sur un commentaire, la carte à ouvrir est la carte parente.
   ls.forEach(l => { const c = cartes[l.ref_id]; if (c) notifs.push({ id:"l_"+l.ref_id+"_"+l.joueur_id, type:"like", from_id:l.joueur_id, from_pseudo:l.joueur_pseudo, date:l.date, ref_id:c.cible||l.ref_id, kind:c.kind, label:c.label }); });
   cs.forEach(c0 => { const c = cartes[c0.ref_id]; if (c) notifs.push({ id:"c_"+(c0.id||c0.ref_id+"_"+c0.joueur_id+"_"+c0.date), type:"comment", from_id:c0.joueur_id, from_pseudo:c0.joueur_pseudo, from_photo:c0.joueur_photo, contenu:c0.contenu, date:c0.date, ref_id:c0.ref_id, kind:c.kind, label:c.label }); });
@@ -5838,7 +5910,7 @@ const fetchActuNotifs = async (joueurId, { leger = false } = {}) => {
 // Ce qu'on lit dans « X a aimé … ». `label` n'est utilisé que pour un match.
 const NOM_CARTE = { match:"ton match", speedrun:"ton speed run", badge:"ton badge", post:"ta publication", drix:"ton palier DRIX", training:"ton entraînement", presence:"ta présence au bar", commentaire:"ton commentaire" };
 
-const PageActualite = ({ joueur, setPage }) => {
+const PageActualite = ({ joueur, setPage, onOuvrirAsso }) => {
   const [notifs, setNotifs] = useState([]);
   const [photos, setPhotos] = useState({});
   const [loading, setLoading] = useState(true);
@@ -5846,7 +5918,7 @@ const PageActualite = ({ joueur, setPage }) => {
     if (!joueur?.id) { setLoading(false); return; }
     let alive = true;
     (async () => {
-      const ns = await fetchActuNotifs(joueur.id);
+      const ns = await fetchActuNotifs(joueur.id, { assoSlug: joueur.asso_slug || null });
       if (!alive) return;
       setNotifs(ns);
       const likeIds = [...new Set(ns.filter(n=>n.type==="like").map(n=>n.from_id).filter(Boolean))];
@@ -5859,32 +5931,41 @@ const PageActualite = ({ joueur, setPage }) => {
       if (window.dpActuSeen) window.dpActuSeen();
     })();
     return () => { alive = false; };
-  }, [joueur?.id]);
+  }, [joueur?.id, joueur?.asso_slug]);
 
   if (!joueur) return <div style={{ textAlign:"center", padding:60 }}><p style={{ color:C.muted, marginBottom:14 }}>Connecte-toi pour voir ton actualité.</p><Btn onClick={()=>setPage("connexion")}>Se connecter</Btn></div>;
 
   return (
     <div style={{ maxWidth:640, margin:"0 auto", padding:"16px 16px 40px" }}>
       <h1 style={{ fontWeight:900, fontSize:22, marginBottom:4, display:"flex", alignItems:"center", gap:8 }}><Bell size={20} color={C.accent}/> Actualité</h1>
-      <p style={{ color:C.muted, fontSize:13, marginBottom:20 }}>Les j'aime et commentaires reçus sur tes cartes du Comptoir. Touche une ligne pour aller voir.</p>
+      <p style={{ color:C.muted, fontSize:13, marginBottom:20 }}>Les j'aime et commentaires reçus sur tes cartes du Comptoir, et les annonces de ton club. Touche une ligne pour aller voir.</p>
       {loading ? <div style={{ textAlign:"center", padding:40, color:C.muted, fontSize:13 }}>Chargement…</div>
        : notifs.length === 0 ? <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:24, textAlign:"center", color:C.muted, fontSize:14, lineHeight:1.6 }}>Rien pour l'instant.<br/>Joue des matchs : ils apparaissent dans le Comptoir et tes amis pourront les aimer et les commenter. 🎯</div>
        : (
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
           {notifs.map(n => (
-            <div key={n.id} onClick={()=>{ if (n.ref_id) setPage("communaute-"+n.ref_id); else if (n.from_id) setPage("profil-joueur-"+n.from_id); }} style={{ display:"flex", gap:12, alignItems:"flex-start", background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px", cursor:(n.ref_id||n.from_id)?"pointer":"default" }}>
+            <div key={n.id} onClick={()=>{
+                // Une annonce de club n'est pas une carte du Comptoir : elle s'ouvre sur la
+                // fiche du club, qui a besoin du slug ET du changement de page.
+                if (n.type === "asso") { if (n.asso_slug && onOuvrirAsso) onOuvrirAsso(n.asso_slug); return; }
+                if (n.ref_id) setPage("communaute-"+n.ref_id); else if (n.from_id) setPage("profil-joueur-"+n.from_id);
+              }} style={{ display:"flex", gap:12, alignItems:"flex-start", background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px", cursor:(n.ref_id||n.from_id||n.asso_slug)?"pointer":"default" }}>
               <div style={{ position:"relative", flexShrink:0 }}>
-                <FeedAvatar photo={n.type==="comment"?n.from_photo:photos[n.from_id]} pseudo={n.from_pseudo} size={40}/>
-                <div style={{ position:"absolute", bottom:-3, right:-3, width:20, height:20, borderRadius:"50%", background:n.type==="like"?"#f97316":"#7c3aed", display:"flex", alignItems:"center", justifyContent:"center", border:`2px solid ${C.card}` }}>
-                  {n.type==="like" ? <ThumbsUp size={11} color="#fff"/> : <MessageCircle size={11} color="#fff"/>}
+                <FeedAvatar photo={n.type==="like"?photos[n.from_id]:n.from_photo} pseudo={n.from_pseudo} size={40}/>
+                <div style={{ position:"absolute", bottom:-3, right:-3, width:20, height:20, borderRadius:"50%", background:n.type==="like"?"#f97316":n.type==="asso"?"#f59e0b":"#7c3aed", display:"flex", alignItems:"center", justifyContent:"center", border:`2px solid ${C.card}` }}>
+                  {n.type==="like" ? <ThumbsUp size={11} color="#fff"/> : n.type==="asso" ? <Megaphone size={11} color="#fff"/> : <MessageCircle size={11} color="#fff"/>}
                 </div>
               </div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:13.5, color:C.text, lineHeight:1.4 }}>
-                  <b>{n.from_pseudo}</b> {n.type==="like" ? "a aimé" : "a commenté"} {NOM_CARTE[n.kind] || "ta publication"}
-                  {n.kind === "match" && n.label ? <> <b>vs {n.label}</b></> : null}
+                  {n.type === "asso" ? (
+                    <><b>{n.from_pseudo}</b> a publié une annonce dans <b>ton club</b></>
+                  ) : (
+                    <><b>{n.from_pseudo}</b> {n.type==="like" ? "a aimé" : "a commenté"} {NOM_CARTE[n.kind] || "ta publication"}
+                      {n.kind === "match" && n.label ? <> <b>vs {n.label}</b></> : null}</>
+                  )}
                 </div>
-                {n.type==="comment" && n.contenu && <div style={{ fontSize:12.5, color:C.muted, marginTop:3, fontStyle:"italic" }}>« {n.contenu} »</div>}
+                {(n.type==="comment" || n.type==="asso") && n.contenu && <div style={{ fontSize:12.5, color:C.muted, marginTop:3, fontStyle:"italic" }}>« {n.contenu.length > 120 ? n.contenu.slice(0,120)+"…" : n.contenu} »</div>}
                 <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{tempsDepuis(n.date)}</div>
               </div>
             </div>
@@ -8565,6 +8646,11 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
   const [membres, setMembres] = useState([]);
   const [loadMembres, setLoadMembres] = useState(true);
   const [events, setEvents] = useState([]);
+  const [actus, setActus] = useState([]);            // annonces du club (table asso_posts)
+  const [actuTexte, setActuTexte] = useState("");
+  const [actuEnvoi, setActuEnvoi] = useState(false);
+  const [actuLikes, setActuLikes] = useState({});     // ref_id → { count, myLike }
+  const [actuComs, setActuComs] = useState({});       // ref_id → commentaires
   const [editingAsso, setEditingAsso] = useState(false);
   const [assoClassesIds, setAssoClassesIds] = useState(new Set());
   const [showAssoNonClasses, setShowAssoNonClasses] = useState(false);
@@ -8627,6 +8713,35 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
       .catch(() => {});
   }, [slug]);
 
+  // ── Actualité du club ──────────────────────────────────────────────────────
+  // Les annonces ont leur propre table (`asso_posts`), mais leurs j'aime et leurs commentaires
+  // réutilisent `wall_likes` / `wall_comments` avec `ref_id` = l'id de l'annonce : c'est déjà
+  // la convention du Comptoir, donc `LikeButton` et `CommentSection` fonctionnent tels quels,
+  // sans une ligne de code en plus ni une table de plus.
+  // ⚠️ `catch` silencieux volontaire : tant que Thomas n'a pas lancé le SQL, la table n'existe
+  // pas et la requête échoue — la page du club doit continuer à s'afficher normalement.
+  const chargerActus = useCallback(async () => {
+    try {
+      const posts = await sb(`asso_posts?asso_slug=eq.${encodeURIComponent(slug)}&order=date.desc&limit=50&select=*`);
+      const liste = Array.isArray(posts) ? posts : [];
+      setActus(liste);
+      const ids = liste.map(p => p.id).filter(Boolean);
+      if (!ids.length) { setActuLikes({}); setActuComs({}); return; }
+      const [likes, coms] = await Promise.all([
+        sb(`wall_likes?ref_id=in.(${ids.join(",")})&select=ref_id,joueur_id`).catch(() => []),
+        sb(`wall_comments?ref_id=in.(${ids.join(",")})&order=date.asc&select=*`).catch(() => []),
+      ]);
+      const lm = {}; (likes||[]).forEach(l => {
+        const e = lm[l.ref_id] || (lm[l.ref_id] = { count:0, myLike:false });
+        e.count++; if (l.joueur_id === joueur?.id) e.myLike = true;
+      });
+      const cm = {}; (coms||[]).forEach(c => { (cm[c.ref_id] || (cm[c.ref_id] = [])).push(c); });
+      setActuLikes(lm); setActuComs(cm);
+    } catch { setActus([]); }
+  }, [slug, joueur?.id]);
+
+  useEffect(() => { chargerActus(); }, [chargerActus]);
+
   const stats = useMemo(() => {
     const n = membres.length;
     const drixMoyen = n > 0 ? Math.round(membres.reduce((s,m) => s + (m.drix||1000), 0) / n) : null;
@@ -8671,7 +8786,7 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
   };
 
   const TABS = [
-    { id:"club", Icon:HomeIcon, l:"Club" },
+    { id:"club", Icon:HomeIcon, l:"Info du club" },
     { id:"membres", Icon:Users, l:`Membres${stats.n > 0 ? ` (${stats.n})` : ""}` },
     { id:"events", Icon:Calendar, l:`Événements${events.length > 0 ? ` (${events.length})` : ""}` },
     { id:"photos", Icon:Camera, l:"Photos" },
@@ -9016,6 +9131,105 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
     );
   })();
 
+  // ── ONGLET ACTUALITÉ ────────────────────────────────────────────────────────
+  // Qui peut écrire : TOUS les membres du club (leur profil porte `asso_slug`), plus le
+  // président et l'admin. Le garde est côté écran, comme partout ailleurs dans l'appli — il
+  // cache le formulaire, il n'empêche pas techniquement d'écrire.
+  const estPresident = !!joueur && (isAdmin || (asso.president_id && asso.president_id === joueur.id));
+  const peutPublier = !!joueur && (estPresident || joueur.asso_slug === slug);
+  // Effacer : la sienne pour un membre, n'importe laquelle pour le président et l'admin —
+  // sinon un membre pourrait faire disparaître l'annonce d'un autre.
+  const peutSupprimer = (p) => !!joueur && (estPresident || p.joueur_id === joueur.id);
+  const publierActu = async () => {
+    const txt = actuTexte.trim();
+    if (!txt || actuEnvoi || !joueur) return;
+    setActuEnvoi(true);
+    try {
+      const r = await sb("asso_posts", { method:"POST", body: JSON.stringify({
+        asso_slug: slug, joueur_id: joueur.id, joueur_pseudo: joueur.pseudo,
+        joueur_photo: joueur.photo || null, contenu: txt, date: Date.now(),
+      }) });
+      if (r?.[0]) setActus(a => [r[0], ...a]);
+      setActuTexte("");
+      window.dpToast?.("Annonce publiée 📣", "success");
+    } catch (e) {
+      window.dpToast?.("Publication impossible — la table n'existe peut-être pas encore", "error", 5000);
+    }
+    setActuEnvoi(false);
+  };
+  const supprimerActu = async (p) => {
+    if (!(await confirmer("Supprimer cette annonce ?\n\nElle disparaîtra pour tous les membres.", { danger:true, ok:"Supprimer" }))) return;
+    try {
+      await sb(`asso_posts?id=eq.${p.id}`, { method:"DELETE", prefer:"return=minimal" });
+      setActus(a => a.filter(x => x.id !== p.id));
+      window.dpToast?.("Annonce supprimée", "success");
+    } catch { window.dpToast?.("Suppression impossible", "error"); }
+  };
+
+  const tabActuJSX = (
+    <div>
+      {peutPublier && (
+        <div style={{ background:C.card, border:`1px solid ${C.accent}44`, borderRadius:14, padding:14, marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+            <Megaphone size={15} color={C.accent}/>
+            <span style={{ fontWeight:800, fontSize:12.5, color:C.accent, letterSpacing:.5 }}>ANNONCE AUX MEMBRES</span>
+            <span style={{ marginLeft:"auto", fontSize:10.5, color:C.muted }}>tout le club sera prévenu</span>
+          </div>
+          <textarea value={actuTexte} onChange={e=>setActuTexte(e.target.value)} maxLength={1000}
+            placeholder={`Entraînement annulé, résultats du week-end, nouvelle recrue…`} rows={3}
+            style={{ width:"100%", boxSizing:"border-box", background:"#0f0f0f", border:`1px solid ${C.border}`, borderRadius:10,
+              padding:"10px 12px", color:C.text, fontSize:13.5, fontFamily:"inherit", resize:"vertical", outline:"none", lineHeight:1.5 }}/>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:10 }}>
+            <span style={{ fontSize:11, color:C.muted }}>{actuTexte.length}/1000</span>
+            <button onClick={publierActu} disabled={!actuTexte.trim() || actuEnvoi}
+              style={{ background: actuTexte.trim() ? C.accent : "#2a2a2a", color: actuTexte.trim() ? "#fff" : C.muted,
+                border:"none", borderRadius:10, padding:"9px 18px", fontWeight:800, fontSize:13,
+                cursor: actuTexte.trim() ? "pointer" : "default", touchAction:"manipulation" }}>
+              {actuEnvoi ? "Envoi…" : "Publier"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {actus.length === 0 ? (
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:28, textAlign:"center", color:C.muted, fontSize:13.5, lineHeight:1.7 }}>
+          <Megaphone size={26} color={C.muted} style={{ marginBottom:10 }}/>
+          <div>Aucune annonce pour l'instant.</div>
+          <div style={{ fontSize:12.5, marginTop:4 }}>
+            {peutPublier ? "Écris la première : elle s'affichera ici pour tous les membres du club."
+                         : "Le club n'a encore rien publié. Reviens plus tard 🎯"}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          {actus.map(p => (
+            <div key={p.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:14 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+                <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={36}
+                  onClick={p.joueur_id ? ()=>setPage("profil-joueur-"+p.joueur_id) : undefined}/>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:800, fontSize:13.5, color:C.text }}>{p.joueur_pseudo}</div>
+                  <div style={{ fontSize:11, color:C.muted }}>{tempsDepuis(p.date)}</div>
+                </div>
+                {peutSupprimer(p) && (
+                  <button onClick={()=>supprimerActu(p)} aria-label="Supprimer cette annonce"
+                    style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", padding:6, touchAction:"manipulation" }}>
+                    <Trash2 size={15}/>
+                  </button>
+                )}
+              </div>
+              <div style={{ fontSize:14, color:C.text, lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>{p.contenu}</div>
+              <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}` }}>
+                <LikeButton refId={p.id} joueur={joueur} initialCount={actuLikes[p.id]?.count || 0} initialMyLike={actuLikes[p.id]?.myLike || false}/>
+              </div>
+              <CommentSection refId={p.id} joueur={joueur} initialComments={actuComs[p.id] || []}/>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div style={{ maxWidth:860, margin:"0 auto", padding:"20px 16px 88px" }}>
       {/* Modal de crop logo */}
@@ -9051,22 +9265,46 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
       <div style={{ display:"flex",gap:0,marginBottom:20,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden" }}>
         {TABS.map(t => {
           const TabIcon = t.Icon;
+          // Icône AU-DESSUS du texte, et non à côté : à 375 px de large, quatre onglets ne
+          // laissent que 85 px chacun. Sur une seule ligne, « Info du club » et « Membres (27) »
+          // écrasaient leur icône jusqu'à la faire disparaître. Empilés, chacun a toute la
+          // largeur pour son texte et l'icône reste entière.
           return (
             <button key={t.id} onClick={() => setTab(t.id)}
-              style={{ flex:1,padding:"11px 4px",background:tab===t.id?C.accent:"transparent",
+              style={{ flex:1,minWidth:0,padding:"8px 4px",background:tab===t.id?C.accent:"transparent",
                 color:tab===t.id?"#fff":C.muted,border:"none",cursor:"pointer",fontWeight:tab===t.id?700:400,
-                fontSize:12,transition:"all .15s",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
-                display:"flex",alignItems:"center",justifyContent:"center",gap:5 }}>
-              <TabIcon size={14}/> {t.l}
+                fontSize:11.5,transition:"all .15s",lineHeight:1.2,
+                display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3 }}>
+              <TabIcon size={15} style={{ flexShrink:0 }}/>
+              <span style={{ maxWidth:"100%",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{t.l}</span>
             </button>
           );
         })}
       </div>
 
+      {/* ── ACTUALITÉ DU CLUB — bouton à part, SOUS la barre d'onglets ──
+          Il n'est pas dans la barre exprès : c'est le seul endroit où le club PARLE à ses
+          membres, les quatre autres ne font que présenter des informations. Pleine largeur,
+          il se remarque. */}
+      <button onClick={() => setTab("actu")}
+        style={{ width:"100%", marginTop:-8, marginBottom:20, padding:"12px 14px", borderRadius:14,
+          border:`1px solid ${tab==="actu" ? C.accent : C.border}`,
+          background: tab==="actu" ? `linear-gradient(135deg,${C.accent}28,${C.accent}0c)` : C.card,
+          color: tab==="actu" ? C.accent : C.text, fontWeight:800, fontSize:13, cursor:"pointer",
+          display:"flex", alignItems:"center", justifyContent:"center", gap:8, touchAction:"manipulation",
+          transition:"all .15s" }}>
+        <Megaphone size={16} color={tab==="actu" ? C.accent : C.muted}/>
+        Actualité du club
+        {actus.length > 0 && (
+          <span style={{ minWidth:20, padding:"1px 6px", borderRadius:10, background:C.accent, color:"#fff", fontSize:11, fontWeight:800 }}>{actus.length}</span>
+        )}
+      </button>
+
       {/* CONTENU ONGLETS */}
       {tab === "club"    && tabClubJSX}
       {tab === "membres" && tabMembresJSX}
       {tab === "events"  && tabEventsJSX}
+      {tab === "actu"    && tabActuJSX}
       {tab === "photos"  && <GalerieSection slug={asso.slug} type="asso" isAdmin={isAdmin}/>}
     </div>
   );
@@ -12822,7 +13060,7 @@ export default function App() {
     let stop = false;
     // `leger` : le sondage ne compte que des dates. Inutile de rapatrier la photo de
     // chaque commentateur (du base64 entier) toutes les 45 secondes.
-    const poll = () => fetchActuNotifs(joueur.id, { leger:true }).then(ns => {
+    const poll = () => fetchActuNotifs(joueur.id, { leger:true, assoSlug: joueur.asso_slug || null }).then(ns => {
       if (stop) return;
       let last = 0; try { last = parseInt(localStorage.getItem("dp_actu_lastseen")||"0",10)||0; } catch(e){}
       setActuCount(ns.filter(n => (n.date||0) > last).length);
@@ -12831,7 +13069,7 @@ export default function App() {
     const iv = setInterval(poll, 45000);
     window.dpActuSeen = () => setActuCount(0);
     return () => { stop = true; clearInterval(iv); if (window.dpActuSeen) delete window.dpActuSeen; };
-  }, [joueur?.id]);
+  }, [joueur?.id, joueur?.asso_slug]);
   const [demandesAmisCount,setDemandesAmisCount]=useState(0);
   const [unreadMessages,setUnreadMessages]=useState(0);
   const [newBadgesCount,setNewBadgesCount]=useState(0);
@@ -13649,7 +13887,7 @@ export default function App() {
             seule route en égalité stricte : sans ce startsWith on obtenait un écran blanc. */}
         {page.startsWith("communaute") && <PageCommunaute joueur={joueur} setPage={nav} bars={bars}
           focusRefId={page.startsWith("communaute-") ? page.slice("communaute-".length) : null}/>}
-        {page==="actualite"        && <PageActualite joueur={joueur} setPage={nav}/>}
+        {page==="actualite"        && <PageActualite joueur={joueur} setPage={nav} onOuvrirAsso={(s)=>{ setAssoSlug(s); nav("asso"); }}/>}
         {page==="bars"             && <Bars bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} villeFilter={villeFilter} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="bar"              && <BarDetail slug={barSlug} allBars={bars} associations={associations} setBars={setBars} setPage={nav} setAssoSlug={setAssoSlug} isAdmin={isAdmin} joueur={joueur} setJoueurId={setJoueurId}/>}
         {page==="associations"     && <Associations associations={associations} setPage={nav} setAssoSlug={setAssoSlug}/>}
