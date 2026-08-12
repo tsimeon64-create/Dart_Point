@@ -98,6 +98,102 @@ const AnimCount = ({ target, duration=1400, prefix="", suffix="" }) => {
   return <>{prefix}{val}{suffix}</>;
 };
 
+// ── PILE OU FACE — tire au sort qui commence ──────────────────────────────────
+// Une pièce avec la photo d'un joueur sur chaque face. Le gagnant est tiré AVANT
+// l'animation : on calcule l'angle d'arrivée pour que la pièce s'arrête pile sur sa
+// face. Sans ça, une animation « au hasard » finirait par mentir sur le résultat.
+// La rotation se fait par une TRANSITION (pas des keyframes) : l'angle final change
+// à chaque lancer, une keyframe CSS ne saurait pas s'y adapter.
+const FacePiece = ({ j, dos = false }) => (
+  <div style={{
+    position:"absolute", inset:0, borderRadius:"50%", backfaceVisibility:"hidden",
+    transform: dos ? "rotateY(180deg)" : "none",
+    background:"radial-gradient(circle at 32% 28%, #fde68a, #f59e0b 55%, #b45309)",
+    border:"5px solid #fbbf24", boxShadow:"inset 0 0 22px #78350f88",
+    display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden",
+  }}>
+    {j?.photo
+      ? <img src={j.photo} alt="" style={{ width:"78%", height:"78%", borderRadius:"50%", objectFit:"cover", border:"3px solid #78350f" }}/>
+      : <span style={{ fontSize:52, fontWeight:900, color:"#78350f" }}>{(j?.nom?.[0] || "?").toUpperCase()}</span>}
+  </div>
+);
+
+const PileOuFace = ({ joueurs, onFini, onFermer }) => {
+  const [angle, setAngle] = useState(0);
+  const [gagnant, setGagnant] = useState(null);   // index une fois la pièce posée
+  const choixRef = useRef(null);
+
+  useEffect(() => {
+    const choix = Math.random() < 0.5 ? 0 : 1;     // le tirage, une seule fois
+    choixRef.current = choix;
+    const final = 360 * 5 + (choix === 1 ? 180 : 0);   // 5 tours + demi-tour si c'est le 2e
+    // ⚠️ Téléphone réglé sur « réduire les animations » : l'appli impose partout
+    // `transition-duration:.001ms !important` (le <style> de Nav). La pièce saute alors
+    // à son angle final dès la 1re image — soit elle montre le gagnant 2,4 s AVANT
+    // qu'on l'annonce, soit elle ne bouge pas du tout et l'écran a l'air planté, sans
+    // bouton pour sortir. Dans ce cas on annonce TOUT DE SUITE : pas de faux suspense.
+    const reduit = !!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (reduit) { setAngle(final); setGagnant(choix); return undefined; }
+    const id = requestAnimationFrame(() => setAngle(final));
+    const fin = setTimeout(() => setGagnant(choix), 2400);   // filet : voir aussi onTransitionEnd
+    return () => { cancelAnimationFrame(id); clearTimeout(fin); };
+  }, []);
+
+  const nomGagnant = gagnant != null ? (joueurs[gagnant]?.nom || `Joueur ${gagnant + 1}`) : "";
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:100000, background:"#000000ee",
+      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24 }}>
+      <style>{`@keyframes pofPop{from{opacity:0;transform:translateY(14px) scale(.9)}to{opacity:1;transform:none}}`}</style>
+
+      <div style={{ fontSize:13, fontWeight:800, color:"#fbbf24", letterSpacing:2, marginBottom:26 }}>
+        {gagnant == null ? "PILE OU FACE…" : "ET C'EST…"}
+      </div>
+
+      {/* perspective sur le PARENT, preserve-3d sur la pièce : sans les deux, la pièce
+          resterait plate et on ne verrait jamais le dos tourner. */}
+      <div style={{ perspective:900 }}>
+        {/* L'annonce suit la VRAIE fin de la rotation ; le setTimeout ne sert que de filet
+            si l'événement n'arrive pas (onglet mis en arrière-plan, transition sautée…). */}
+        <div onTransitionEnd={() => { if (choixRef.current != null) setGagnant(choixRef.current); }}
+          style={{
+          width:190, height:190, position:"relative", transformStyle:"preserve-3d",
+          transform:`rotateY(${angle}deg)`,
+          transition:"transform 2.4s cubic-bezier(.17,.85,.3,1)",
+        }}>
+          <FacePiece j={joueurs[0]}/>
+          <FacePiece j={joueurs[1]} dos/>
+        </div>
+      </div>
+
+      <div style={{ height:96, marginTop:28, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+        {gagnant == null ? (
+          <div style={{ color:"#94a3b8", fontSize:14 }}>La pièce tourne…</div>
+        ) : (
+          <div style={{ textAlign:"center", animation:"pofPop .3s ease-out both" }}>
+            <div style={{ fontWeight:900, fontSize:26, color:"#fbbf24", marginBottom:4 }}>{nomGagnant}</div>
+            <div style={{ color:"#f1f5f9", fontSize:15, fontWeight:700 }}>commence la partie 🎯</div>
+          </div>
+        )}
+      </div>
+
+      {gagnant != null && (
+        <div style={{ display:"flex", flexDirection:"column", gap:10, width:"100%", maxWidth:330, marginTop:8 }}>
+          <button onClick={() => onFini(gagnant)}
+            style={{ width:"100%", padding:"16px", borderRadius:14, border:"none", fontWeight:900, fontSize:17,
+              cursor:"pointer", background:"linear-gradient(135deg,#f97316,#ea580c)", color:"#fff", touchAction:"manipulation" }}>
+            C'est parti 🎯
+          </button>
+          <button onClick={onFermer}
+            style={{ background:"none", border:"none", color:"#94a3b8", fontSize:13, cursor:"pointer", padding:8, touchAction:"manipulation" }}>
+            Annuler — choisir à la main
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Écran de fin (composant séparé pour pouvoir utiliser des hooks) ────────────
 const SB_URL_J = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY_J = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
@@ -931,6 +1027,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [actifIdx, setActifIdx] = useState(resume?.actifIdx ?? 0);
   const [bulleStartIdx, setBulleStartIdx] = useState(resume?.bulleStartIdx ?? 0); // qui commence la manche 1
   const [ordreBulle, setOrdreBulle] = useState([]); // mode libre : ordre de passage choisi à la bulle (indices de config.noms)
+  const [pofOuvert, setPofOuvert] = useState(false); // pile ou face : tirage de celui qui commence
   // ── Mode bot (mode libre) : affronter le « fantôme » d'un ami ──────────────────
   const [botPseudo, setBotPseudo] = useState(null); // pseudo de l'ami simulé (identifie le bot dans `joueurs`)
   const [botSelf, setBotSelf] = useState(false);    // « contre soi-même » : pas de diffusion live/fil
@@ -2149,6 +2246,15 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                 <div style={{ fontSize:12, color:"#94a3b8" }}>{botProfil?.source==="champion" ? "👑 Champion · calé sur les vraies stats d'un pro" : `${botAmi?.drix} DRIX · ${botProfil?.source==="stats" ? "joue à son vrai niveau" : "niveau estimé (DRIX)"}`}</div>
               </div>
             </div>
+            {/* Tirage au sort — au-dessus du choix à la main : c'est le geste le plus rapide
+                quand on est deux, et ça évite la discussion de « qui commence ». */}
+            <button onClick={()=>setPofOuvert(true)}
+              style={{ width:"100%", padding:"16px", borderRadius:14, border:"2px solid #fbbf24",
+                fontWeight:900, fontSize:17, cursor:"pointer", touchAction:"manipulation",
+                background:"linear-gradient(135deg,#f59e0b22,#78350f22)", color:"#fbbf24", marginTop:4,
+                display:"flex", alignItems:"center", justifyContent:"center", gap:9 }}>
+              <EmoIcon e="🪙" size={19}/>Pile ou face
+            </button>
             <button onClick={()=>{ setOrdreBulle([]); setEtape("bulle"); }}
               style={{ width:"100%", padding:"18px", borderRadius:14, border:"none", fontWeight:900, fontSize:18, cursor:"pointer",
                 background:"linear-gradient(135deg,#a78bfa,#7c3aed)", color:"#fff", marginTop:4 }}>
@@ -2158,6 +2264,21 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
               style={{ width:"100%", background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13, padding:6 }}>
               ← Changer d'adversaire
             </button>
+            {pofOuvert && (
+              <PileOuFace
+                joueurs={[
+                  { nom: config.noms[0] || joueur?.pseudo || "Moi", photo: joueur?.photo },
+                  { nom: botPseudo, photo: botAmi?.photo },
+                ]}
+                onFermer={()=>setPofOuvert(false)}
+                onFini={(g)=>{
+                  // Le gagnant du tirage passe en PREMIER dans la liste, et commence donc
+                  // (`startIdx` 0). Le bot reste reconnu par son nom, pas par sa position.
+                  const noms = [config.noms[0] || joueur?.pseudo || "Moi", botPseudo];
+                  setPofOuvert(false);
+                  demarrerAvecBulle(0, g === 0 ? noms : [noms[1], noms[0]]);
+                }}/>
+            )}
           </>
         ) : (
           <>
