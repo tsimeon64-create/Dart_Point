@@ -1730,6 +1730,10 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
   // Stats scoring depuis manches_detail
   let nb180=0, nb140=0, nb100=0, nb80=0, nb60=0, plusGrosScore=0, plusGrosFinish=0;
   let nbFinishes100=0, manchesJouees=0, manchesGagnees=0;
+  // Fléchettes lancées. Les manches récentes stockent le compte EXACT (`winner_flech`), les
+  // anciennes seulement le nombre de volées : on retombe alors sur volées × 3, qui est juste
+  // sauf sur la dernière volée d'une manche (finie en 1 ou 2 fléchettes). D'où « environ ».
+  let flechettes = 0, flechettesExactes = true;
   // Meilleure moyenne sur UNE manche. Elle etait deja stockee dans manches_detail
   // (winner_moy / loser_moy) et visible dans le detail d'un match, mais elle
   // n'apparaissait nulle part dans les stats generales : signale par un testeur.
@@ -1751,6 +1755,9 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
       plusGrosScore  = Math.max(plusGrosScore, ms);
       plusGrosFinish = Math.max(plusGrosFinish, fin);
       manchesJouees++;
+      const fl = isW ? m.winner_flech : m.loser_flech;
+      if (fl != null) flechettes += fl;
+      else { flechettes += (isW ? (m.winner_volees||0) : (m.loser_volees||0)) * 3; flechettesExactes = false; }
       if (isW) { manchesGagnees++; if (fin >= 100) nbFinishes100++; }
       // Vrai checkout % : tentatives (score ≤ 170 au début d'une volée)
       const myAttempts = isW ? (m.winner_checkout_attempts||0) : (m.loser_checkout_attempts||0);
@@ -2025,7 +2032,8 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
           </div>
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
-          <StatCard i={0} label="Parties" value={stats?.parties??0} color={CJ.blue}/>
+          <StatCard i={0} label="Matchs joués" value={stats?.parties??0} color={CJ.blue}/>
+          {flechettes>0 && <StatCard i={1} label="Fléchettes lancées" value={flechettes.toLocaleString("fr-FR")} color={CJ.accent} sub={flechettesExactes?null:"environ"}/>}
           <StatCard i={1} label="Ratio V/D" value={stats?.defaites>0?(stats.victoires/stats.defaites).toFixed(1):"∞"} color={CJ.accent}/>
           <StatCard i={2} label="Série actuelle" value={serieActuelle>0?(serieType==="win"?`${serieActuelle}🔥`:`${serieActuelle}💔`):"—"} color={serieType==="win"?CJ.green:CJ.red}/>
           {meilleureSerieW>0 && <StatCard i={3} label="Plus longue série V" value={`${meilleureSerieW}🔥`} color={CJ.green}/>}
@@ -3326,6 +3334,9 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const moyenneDuels = moyAll.length > 0 ? (moyAll.reduce((a,b)=>a+b,0)/moyAll.length).toFixed(1) : null;
 
   let nb180=0, plusGrosFinish=0;
+  // Fléchettes lancées : compte EXACT quand la manche le stocke (`winner_flech`, matchs récents),
+  // sinon volées × 3 — juste sauf sur la dernière volée d'une manche. D'où la mention « environ ».
+  let flechettesJ = 0, flechJExactes = true;
   duels.forEach(d => {
     (d.manches_detail||[]).forEach(m => {
       // Gère le changement de pseudo : comparer au pseudo stocké dans le duel au moment de la partie
@@ -3334,6 +3345,9 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       const isW = m.winner === myPseudoAtTime || m.winner === j.pseudo;
       nb180 += isW ? (m.winner_180||0) : (m.loser_180||0);
       if (isW) plusGrosFinish = Math.max(plusGrosFinish, m.winner_finish||0);
+      const fl = isW ? m.winner_flech : m.loser_flech;
+      if (fl != null) flechettesJ += fl;
+      else { flechettesJ += (isW ? (m.winner_volees||0) : (m.loser_volees||0)) * 3; flechJExactes = false; }
     });
   });
 
@@ -4292,7 +4306,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:6}}>
               <StatCell icon={Trophy} value={winRate+"%"} label="Win Rate" color={wrColor} strong={winRate>=60} gaugePct={winRate} gaugeColor={wrColor} context={ctxWR} delay={7}/>
               <StatCell icon={BarChart2} value={moyDisplay} label="Moyenne / volée" color={moyColor} strong={moyNum!=null&&moyNum>=52} gaugePct={moyNum!=null?moyPct:undefined} gaugeColor={moyColor} context={ctxMoy} delay={7.5}/>
-              <StatCell icon={Swords} value={stats?.parties??0} label="Parties jouées" color={CJ.text} context={ctxParties} delay={8}/>
+              <StatCell icon={Swords} value={stats?.parties??0} label="Matchs joués" color={CJ.text} context={ctxParties} delay={8}/>
             </div>
 
             {/* Ligne 2 — Série · Record finish · 180 */}
@@ -4306,6 +4320,10 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
             <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6}}>
               <StatCell icon={Circle} value={stats?.victoires??0} label="Victoires" color={CJ.green} delay={10}/>
               <StatCell icon={Circle} value={stats?.defaites??0} label="Défaites" color={CJ.red} delay={10.5}/>
+            </div>
+            {/* Ligne 4 — Fléchettes lancées (les matchs joués sont déjà en haut de la carte) */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr",gap:6,marginTop:6}}>
+              <StatCell icon={Target} value={flechettesJ>0?flechettesJ.toLocaleString("fr-FR"):"—"} label="Fléchettes lancées" color="#f59e0b" context={flechettesJ>0&&!flechJExactes?"environ":null} delay={11}/>
             </div>
             {/* Évolution de SA moyenne — mêmes périodes que le graphique DRIX plus bas. */}
             <div style={{marginTop:10}}>
@@ -4678,12 +4696,18 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
   const moyenneDuels = moyAll.length > 0 ? (moyAll.reduce((a,b)=>a+b,0)/moyAll.length).toFixed(1) : null;
 
   let nb180=0, plusGrosFinish=0;
+  // Même calcul que sur la fiche d'un autre joueur : compte exact si la manche le stocke,
+  // sinon volées × 3 (juste sauf sur la dernière volée d'une manche) → mention « environ ».
+  let flechettesA = 0, flechAExactes = true;
   duels.forEach(d => { (d.manches_detail||[]).forEach(m => {
     const isChallenger = d.challenger_id === joueurId;
     const myPseudoAtTime = isChallenger ? (d.challenger_pseudo || j.pseudo) : (d.defie_pseudo || j.pseudo);
     const isW = m.winner === myPseudoAtTime || m.winner === j.pseudo;
     nb180 += isW ? (m.winner_180||0) : (m.loser_180||0);
     if (isW) plusGrosFinish = Math.max(plusGrosFinish, m.winner_finish||0);
+    const fl = isW ? m.winner_flech : m.loser_flech;
+    if (fl != null) flechettesA += fl;
+    else { flechettesA += (isW ? (m.winner_volees||0) : (m.loser_volees||0)) * 3; flechAExactes = false; }
   }); });
 
   let serieActuelle = 0, serieType = null;
@@ -5041,7 +5065,7 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:6}}>
           <StatCell icon={Trophy} value={winRate+"%"} label="Win Rate" color={wrColor} strong={winRate>=60} gaugePct={winRate} gaugeColor={wrColor} context={ctxWR} delay={7}/>
           <StatCell icon={BarChart2} value={moyDisplay} label="Moyenne / volée" color={moyColor} strong={moyNum!=null&&moyNum>=52} gaugePct={moyNum!=null?moyPct:undefined} gaugeColor={moyColor} context={ctxMoy} delay={7.5}/>
-          <StatCell icon={Swords} value={stats?.parties??0} label="Parties jouées" color={CJ.text} context={ctxParties} delay={8}/>
+          <StatCell icon={Swords} value={stats?.parties??0} label="Matchs joués" color={CJ.text} context={ctxParties} delay={8}/>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:6}}>
           <StatCell icon={serieType==="loss"?HeartCrack:Flame} value={serieActuelle>0?serieActuelle:"—"} label={serieType==="loss"?"Défaites de suite":"Victoires consécutives"} color={serieType==="loss"?CJ.red:CJ.green} strong={serieType==="win"&&serieActuelle>=3} context={serieType==="win"&&serieActuelle>0?"en cours":null} delay={8.5}/>
@@ -5051,6 +5075,9 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6}}>
           <StatCell icon={Circle} value={stats?.victoires??0} label="Victoires" color={CJ.green} delay={10}/>
           <StatCell icon={Circle} value={stats?.defaites??0} label="Défaites" color={CJ.red} delay={10.5}/>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr",gap:6,marginTop:6}}>
+          <StatCell icon={Target} value={flechettesA>0?flechettesA.toLocaleString("fr-FR"):"—"} label="Fléchettes lancées" color="#f59e0b" context={flechettesA>0&&!flechAExactes?"environ":null} delay={11}/>
         </div>
       </div>
 
