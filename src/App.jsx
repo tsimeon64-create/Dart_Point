@@ -21,6 +21,8 @@ import { ConfigCricket } from "./AppCricket";
 import { JeuCapital } from "./AppJeuDecalePoint";
 import { ToucheCoule } from "./AppToucheCoule";
 import { DoubleDown } from "./AppDoubleDown";
+import { ConfettiBurst } from "./DPLottie";
+import confettiData from "./lottie/confetti.json";
 import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper } from "./AppTournoiPotes";
 import { EntrainementFinish } from "./AppEntrainementFinish";
 import { ChronoFinish, checkYesterdayReward } from "./AppChronoFinish";
@@ -305,6 +307,14 @@ function nomNu(v) {
     .replace(/\s+/g, " ").trim();
 }
 
+// Deux noms designent-ils le meme etablissement ? On compare la version « nue », puis la meme
+// sans aucune espace : sinon « A.C.D.C. » (qui devient « a c d c ») ne reconnaissait pas « ACDC ».
+function memeNom(a, b) {
+  const x = nomNu(a), y = nomNu(b);
+  if (!x || !y) return false;
+  return x === y || x.replace(/\s/g, "") === y.replace(/\s/g, "");
+}
+
 function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoClick, onTournoiClick, centerSlug=null, centerVille=null, height=400, barsActifs=[], userPos=null, recosParBar={} }) {
   const divRef = useRef(null);
   const mapRef = useRef(null);
@@ -459,16 +469,29 @@ const Btn = ({ children, onClick, variant="primary", style={}, disabled=false })
   return <button onClick={disabled?undefined:onClick} style={{ cursor:disabled?"not-allowed":"pointer",borderRadius:8,fontWeight:600,fontSize:14,padding:"10px 20px",transition:"all .15s",touchAction:"manipulation",minHeight:40,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,...variantStyle,...disabledStyle,...style }}>{typeof children==="string"?<EmoText s={children}/>:children}</button>;
 };
 
-const Field = ({ label, value, onChange, placeholder, type="text", as="input", options }) => (
-  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-    {label && <label style={{ fontSize:13, fontWeight:500, color:C.muted }}>{label}</label>}
-    {as==="select"
-      ? <select value={value} onChange={e=>onChange(e.target.value)} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14 }}>{options.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select>
-      : as==="textarea"
-      ? <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={4} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14,resize:"vertical" }}/>
-      : <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14 }}/>}
-  </div>
-);
+// ⚠️ `width:100%` + `boxSizing:border-box` OBLIGATOIRES, et `minWidth:0` sur l'enveloppe.
+// Sans eux, un <input> garde sa largeur naturelle (~20 caractères + les marges = 221 px) : dans
+// une grille « 1fr 1fr » sur un écran de 375 px, deux champs côte à côte réclamaient 455 px et
+// la page se décalait de gauche à droite. Mesuré sur « Proposer un bar » : page à 491 px.
+// `erreur` : bordure rouge quand le champ manque, pour qu'on voie LEQUEL sans chercher.
+const Field = ({ label, value, onChange, placeholder, type="text", as="input", options, erreur=false }) => {
+  const base = {
+    width:"100%", boxSizing:"border-box",
+    background:C.card, border:`1px solid ${erreur ? C.red : C.border}`, borderRadius:8,
+    padding:"10px 14px", color:C.text, fontSize:14,
+    ...(erreur ? { boxShadow:`0 0 0 2px ${C.red}22` } : null),
+  };
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:6, minWidth:0 }}>
+      {label && <label style={{ fontSize:13, fontWeight:500, color: erreur ? C.red : C.muted }}>{label}</label>}
+      {as==="select"
+        ? <select value={value} onChange={e=>onChange(e.target.value)} style={base}>{options.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select>
+        : as==="textarea"
+        ? <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={4} style={{ ...base, resize:"vertical" }}/>
+        : <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={base}/>}
+    </div>
+  );
+};
 
 const Spinner = () => <div style={{ display:"flex",alignItems:"center",justifyContent:"center",padding:40 }}><div style={{ width:32,height:32,border:`3px solid ${C.border}`,borderTop:`3px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite" }}/></div>;
 
@@ -1322,10 +1345,10 @@ const EditBarModal = ({ bar, onSave, onClose, joueur=null }) => {
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,maxWidth:600,width:"100%",maxHeight:"90vh",overflowY:"auto" }}>
         <h3 style={{ fontWeight:700,fontSize:18,marginBottom:20 }}><EmoIcon e="✏️" size={16} style={{verticalAlign:"-2px",marginRight:5}}/>Modifier — {bar.nom}</h3>
         <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Le Central"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/></div>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Ex : Le Central"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Ex : Bayonne"/></div>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Code postal" value={f.cp} onChange={set("cp")} placeholder="64100"/><Field label="Adresse" value={f.adresse} onChange={set("adresse")} placeholder="12 rue..."/></div>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Téléphone" value={f.tel} onChange={set("tel")} placeholder="05 59..."/><Field label="Horaires" value={f.horaires} onChange={set("horaires")} placeholder="Lun–Sam 10h–2h"/></div>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12 }}>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12 }}>
             <Field label="Type" as="select" value={f.type} onChange={set("type")} options={TYPES}/>
             <Field label="Cibles" value={f.cibles} onChange={set("cibles")} placeholder="2" type="number"/>
             <Field label="Tournois" as="select" value={f.tournois} onChange={set("tournois")} options={[{v:"non",l:"Non"},{v:"oui",l:"Oui"}]}/>
@@ -1556,9 +1579,9 @@ const EditTournoiModal = ({ tournoi, onSave, onClose }) => {
       <div style={{ background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,maxWidth:620,width:"100%",maxHeight:"90vh",overflowY:"auto" }}>
         <h3 style={{ fontWeight:700,fontSize:18,marginBottom:20 }}><EmoIcon e="✏️" size={16} style={{verticalAlign:"-2px",marginRight:5}}/>Modifier — {tournoi.nom}</h3>
         <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Open"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/></div>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Date" value={f.date} onChange={set("date")} type="date" placeholder=""/><Field label="Bar" value={f.bar} onChange={set("bar")} placeholder="Le Central"/></div>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12 }}>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Open"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Ex : Bayonne"/></div>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}><Field label="Date" value={f.date} onChange={set("date")} type="date" placeholder=""/><Field label="Bar" value={f.bar} onChange={set("bar")} placeholder="Ex : Le Central"/></div>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12 }}>
             <Field label="Type" as="select" value={f.type} onChange={set("type")} options={TYPES.slice(0,3)}/>
             <Field label="Format" as="select" value={f.format} onChange={set("format")} options={[{v:"individuel",l:"Individuel"},{v:"equipes",l:"Équipes"},{v:"mixte",l:"Mixte"}]}/>
             <Field label="Niveau" as="select" value={f.niveau} onChange={set("niveau")} options={[{v:"tous",l:"Tous niveaux"},{v:"intermediaire",l:"Intermédiaire"},{v:"competiteur",l:"Compétiteur"}]}/>
@@ -9497,7 +9520,11 @@ const TournoiDetail = ({ slug, tournois, setTournois, bars, setPage, setBarSlug,
 
 // ── FORMULAIRES PROPOSER ──────────────────────────────────────────────────────
 // Sélecteur de position sur carte — clic/glisser pour placer le pin, + géocodage de l'adresse
-function MapPicker({ value, onChange, address, ville, cp, height=220 }) {
+// `quoi` / `icone` / `couleur` : le composant sert maintenant AUSSI aux associations. Par
+// défaut il reste réglé sur le bar, donc les appels existants ne bougent pas — sans ça, la page
+// « Proposer une association » demandait de « positionner le bar » et plantait une chope sur la
+// carte, au milieu d'un écran entièrement rehabillé en violet pour les clubs.
+function MapPicker({ value, onChange, address, ville, cp, height=220, quoi="le bar", icone="beer", couleur=C.accent }) {
   const divRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
@@ -9517,7 +9544,7 @@ function MapPicker({ value, onChange, address, ville, cp, height=220 }) {
     if (markerRef.current) {
       markerRef.current.setLatLng([lat, lng]);
     } else {
-      const icon = L.divIcon({ className:"", html:`<div style="width:38px;height:38px;background:${C.accent};border:3px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.6);cursor:grab">${lmSvg("beer",{size:18,color:"#fff"})}</div>`, iconSize:[38,38], iconAnchor:[19,19] });
+      const icon = L.divIcon({ className:"", html:`<div style="width:38px;height:38px;background:${couleur};border:3px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.6);cursor:grab">${lmSvg(icone,{size:18,color:"#fff"})}</div>`, iconSize:[38,38], iconAnchor:[19,19] });
       const m = L.marker([lat, lng], { icon, draggable:true }).addTo(map);
       m.on("dragend", () => { const p = m.getLatLng(); cbRef.current({ lat:+p.lat.toFixed(6), lng:+p.lng.toFixed(6) }); });
       markerRef.current = m;
@@ -9598,7 +9625,7 @@ function MapPicker({ value, onChange, address, ville, cp, height=220 }) {
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
         <label style={{ fontSize:13, fontWeight:500, color:C.muted }}>Position sur la carte</label>
         <button type="button" onClick={geocoder} disabled={busy}
-          style={{ background:`${C.accent}22`, border:`1px solid ${C.accent}66`, borderRadius:8, color:C.accent, fontWeight:700, fontSize:12, padding:"6px 11px", cursor:busy?"default":"pointer" }}>
+          style={{ background:`${couleur}22`, border:`1px solid ${couleur}66`, borderRadius:8, color:couleur, fontWeight:700, fontSize:12, padding:"6px 11px", cursor:busy?"default":"pointer" }}>
           {busy ? "…" : "📍 Localiser l'adresse"}
         </button>
       </div>
@@ -9609,7 +9636,7 @@ function MapPicker({ value, onChange, address, ville, cp, height=220 }) {
       <div style={{ fontSize:12, color: value && value.lat != null ? C.green : C.muted }}>
         {value && value.lat != null
           ? <><EmoIcon e="✅" size={12} color={C.green} style={{verticalAlign:"-2px",marginRight:4}}/>Position : {(+value.lat).toFixed(5)}, {(+value.lng).toFixed(5)} · <span onClick={clear} style={{ color:C.red, cursor:"pointer", textDecoration:"underline" }}>effacer</span></>
-          : "Clique sur la carte (ou « Localiser l'adresse ») pour positionner le bar — tu peux ensuite déplacer le point."}
+          : `Clique sur la carte (ou « Localiser l'adresse ») pour positionner ${quoi} — tu peux ensuite déplacer le point.`}
       </div>
       {msg && <div style={{ fontSize:12, color:C.yellow }}>{msg}</div>}
     </div>
@@ -9648,6 +9675,7 @@ const Proposer = ({ bars, onSubmit, setPage, setBarSlug }) => {
   const [cherche, setCherche] = useState(false);
   const [geoEtat, setGeoEtat] = useState("");      // "" | "en cours" | message d'erreur
   const [photo, setPhoto] = useState(null);        // dataURL, envoyée après la création
+  const [montrerErreurs, setMontrerErreurs] = useState(false);   // rouge seulement après un essai
   const photoRef = useRef(null);
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
 
@@ -9691,7 +9719,7 @@ const Proposer = ({ bars, onSubmit, setPage, setBarSlug }) => {
   const doublon = useMemo(() => {
     const n = nomNu(f.nom), v = nomNu(f.ville);
     if (!n || !v) return null;
-    return bars.find((b) => nomNu(b.nom) === n && nomNu(b.ville) === v) || null;
+    return bars.find((b) => memeNom(b.nom, f.nom) && nomNu(b.ville) === v) || null;
   }, [f.nom, f.ville, bars]);
   // 2) et surtout : les bars DÉJÀ enregistrés à moins de 300 m de la position choisie. C'est ce
   //    qui attrape « Le Central » vs « Café Central », que la comparaison de noms rate toujours.
@@ -9705,7 +9733,8 @@ const Proposer = ({ bars, onSubmit, setPage, setBarSlug }) => {
   }, [f.lat, f.lng, bars, doublon]);
 
   const aPosition = f.lat != null && f.lng != null;
-  const valid = f.nom.trim() && f.ville.trim() && !doublon;
+  const manquants = [!f.nom.trim() && "le nom du bar", !f.ville.trim() && "la ville"].filter(Boolean);
+  const valid = manquants.length === 0 && !doublon;
 
   const choisirPhoto = (e) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -9726,7 +9755,11 @@ const Proposer = ({ bars, onSubmit, setPage, setBarSlug }) => {
   };
 
   const envoyer = async () => {
-    if (!valid || sending) return;
+    if (sending) return;
+    // Le bouton reste CLIQUABLE même quand il manque quelque chose : un bouton gris qui ne
+    // réagit pas n'explique rien — c'est exactement ce qui a bloqué Thomas. On accepte le
+    // geste, et on montre en rouge ce qu'il reste à remplir.
+    if (!valid) { setMontrerErreurs(true); return; }
     setErr(""); setSending(true);
     const bar = await onSubmit(f);
     // La photo part APRÈS la création : le bar doit exister pour qu'on puisse l'y rattacher,
@@ -9742,8 +9775,9 @@ const Proposer = ({ bars, onSubmit, setPage, setBarSlug }) => {
 
   if (sent) return (
     <div style={{ maxWidth:600, margin:"80px auto", padding:"0 20px", textAlign:"center" }}>
-      <div style={{ marginBottom:12, display:"flex", justifyContent:"center" }}><EmoIcon e="✅" size={50} color={C.green}/></div>
-      <h2 style={{ fontWeight:700, marginBottom:8 }}>Bar ajouté !</h2>
+      <ConfettiBurst data={confettiData}/>
+      <div style={{ marginBottom:12, display:"flex", justifyContent:"center" }}><EmoIcon e="🎉" size={54}/></div>
+      <h2 style={{ fontWeight:900, fontSize:24, marginBottom:8, color:C.accent }}>Bravo ! Tu as ajouté un bar</h2>
       <p style={{ color:C.muted, marginBottom:22 }}>{sent.nom} est maintenant dans la liste des bars.{photo ? " Ta photo sera visible après validation." : ""}</p>
       <div style={{ display:"flex", flexDirection:"column", gap:10, maxWidth:320, margin:"0 auto" }}>
         {setBarSlug && setPage && (
@@ -9783,7 +9817,7 @@ const Proposer = ({ bars, onSubmit, setPage, setBarSlug }) => {
         <div style={{ position:"relative" }}>
           <Search size={15} color={C.muted} style={{ position:"absolute", left:13, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}/>
           <input value={recherche} onChange={(e) => setRecherche(e.target.value)}
-            placeholder="12 rue de la Mairie, Bayonne"
+            placeholder="Ex : 12 rue de la Mairie, Bayonne"
             style={{ width:"100%", boxSizing:"border-box", background:"#0f0f0f", border:`1px solid ${C.border}`, borderRadius:11,
               padding:"11px 14px 11px 36px", color:C.text, fontSize:14, outline:"none", fontFamily:"inherit" }}/>
           {cherche && <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", color:C.muted, fontSize:11 }}>…</span>}
@@ -9813,8 +9847,8 @@ const Proposer = ({ bars, onSubmit, setPage, setBarSlug }) => {
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:16, marginBottom:14 }}>
         <div style={{ fontSize:11.5, fontWeight:800, color:C.accent, letterSpacing:1, marginBottom:12 }}>2 · LE BAR</div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:13 }}>
-          <Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Le Central"/>
-          <Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/>
+          <Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Ex : Le Central" erreur={montrerErreurs && !f.nom.trim()}/>
+          <Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Ex : Bayonne" erreur={montrerErreurs && !f.ville.trim()}/>
         </div>
 
         {doublon && (
@@ -9892,30 +9926,266 @@ const Proposer = ({ bars, onSubmit, setPage, setBarSlug }) => {
 
       {err && <div style={{ background:"#1a0000", border:`1px solid ${C.red}44`, borderRadius:11, padding:12, marginBottom:12 }}><p style={{ color:C.red, fontSize:13, margin:0 }}>{err}</p></div>}
 
-      <Btn onClick={envoyer} disabled={!valid || sending} style={{ padding:"14px 22px", fontSize:15.5 }}>
+      <Btn onClick={envoyer} disabled={sending || !!doublon} style={{ padding:"14px 22px", fontSize:15.5 }}>
         {sending ? "Envoi…" : "Envoyer →"}
       </Btn>
-      {!valid && !doublon && <p style={{ color:C.muted, fontSize:12, textAlign:"center", marginTop:9 }}>Il manque le nom et la ville.</p>}
+      {/* Dire PRÉCISÉMENT ce qui manque, et le COMPTER. Le message fixe « Il manque le nom et
+          la ville » s'affichait même quand la ville était remplie : on la voyait à l'écran et on
+          cherchait en vain ce qui n'allait pas, sans comprendre pourquoi le bouton restait gris. */}
+      {manquants.length > 0 && !doublon && (
+        <p style={{ color: montrerErreurs ? C.red : C.muted, fontSize:12.5, textAlign:"center", marginTop:9, fontWeight: montrerErreurs ? 700 : 400 }}>
+          {montrerErreurs
+            ? `${manquants.length} champ${manquants.length > 1 ? "s" : ""} à remplir : ${manquants.join(" et ")}.`
+            : `Il manque ${manquants.join(" et ")}.`}
+        </p>
+      )}
     </div>
   );
 };
 
-const ProposerAsso = ({ onSubmit }) => {
-  const [f,setF]=useState({nom:"",ville:"",zone:"",type:"electronique",jours:"",lieu:"",tel:"",contact:"",president:"",contact_nom:"",description:""});
-  const [sent,setSent]=useState(false); const [sending,setSending]=useState(false); const set=k=>v=>setF(p=>({...p,[k]:v})); const valid=f.nom.trim()&&f.ville.trim();
-  if(sent) return <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}><div style={{ display:"flex",justifyContent:"center" }}><EmoIcon e="✅" size={50} color={C.green}/></div><h2 style={{ fontWeight:700,marginTop:12 }}>Proposition envoyée !</h2><p style={{ color:C.muted,marginTop:8 }}>Ton association sera visible après validation par un admin.</p></div>;
+// ── PROPOSER UNE ASSOCIATION ──────────────────────────────────────────────────
+// Même logique que « Proposer un bar » : d'abord OÙ, ensuite le club, et le reste en option.
+// Les chiffres justifiaient la refonte : sur 245 clubs enregistrés, les jours d'entraînement et
+// le lieu — les deux infos que cherche vraiment un joueur — n'étaient remplis que dans 4 % des
+// cas, noyés au milieu de dix champs.
+const BROUILLON_ASSO = "dp_proposer_asso";
+
+const ProposerAsso = ({ onSubmit, associations = [], bars = [], setPage, setAssoSlug }) => {
+  const vide = { nom:"", ville:"", zone:"", type:"electronique", jours:"", lieu:"", tel:"", contact:"",
+                 president:"", contact_nom:"", description:"", bar:"", adresse:"", cp:"", lat:null, lng:null };
+  const [f, setF] = useState(() => {
+    try { const b = JSON.parse(localStorage.getItem(BROUILLON_ASSO) || "null"); return b && typeof b === "object" ? { ...vide, ...b } : vide; }
+    catch { return vide; }
+  });
+  const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState("");
+  const [recherche, setRecherche] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [cherche, setCherche] = useState(false);
+  const [geoEtat, setGeoEtat] = useState("");
+  const [montrerErreurs, setMontrerErreurs] = useState(false);
+  const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
+
+  useEffect(() => { try { localStorage.setItem(BROUILLON_ASSO, JSON.stringify(f)); } catch { /* quota plein */ } }, [f]);
+
+  useEffect(() => {
+    const q = recherche.trim();
+    if (q.length < 3) { setSuggestions([]); return undefined; }
+    const ctrl = new AbortController();
+    setCherche(true);
+    const t = setTimeout(async () => { const r = await chercherAdresse(q, ctrl.signal); setSuggestions(r); setCherche(false); }, 350);
+    return () => { clearTimeout(t); ctrl.abort(); setCherche(false); };
+  }, [recherche]);
+
+  const choisirAdresse = (a) => {
+    setF((p) => ({ ...p, adresse:a.rue || p.adresse, ville:a.ville || p.ville, cp:a.cp || p.cp, lat:a.lat, lng:a.lng }));
+    setRecherche(""); setSuggestions([]); setGeoEtat("");
+  };
+
+  const jeSuisAuClub = () => {
+    if (!navigator.geolocation) { setGeoEtat("Ton téléphone ne donne pas la position."); return; }
+    setGeoEtat("en cours");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude:lat, longitude:lng } = pos.coords;
+        const a = await adresseDepuisPosition(lat, lng);
+        setF((p) => ({ ...p, lat, lng, adresse:a?.rue || p.adresse, ville:a?.ville || p.ville, cp:a?.cp || p.cp }));
+        setGeoEtat("");
+      },
+      () => setGeoEtat("Position refusée. Autorise la localisation, ou cherche l'adresse à la main."),
+      { enableHighAccuracy:true, timeout:10000 }
+    );
+  };
+
+  // Doublons : par le nom, puis par la proximité. Trois clubs portent DÉJÀ le même nom dans des
+  // villes différentes (ACDC, Darts Devil, Royal Moderne des Yvelines) — on ne bloque donc
+  // jamais sur le nom seul, on prévient.
+  const doublon = useMemo(() => {
+    const n = nomNu(f.nom), v = nomNu(f.ville);
+    if (!n || !v) return null;
+    return associations.find((a) => memeNom(a.nom, f.nom) && nomNu(a.ville) === v) || null;
+  }, [f.nom, f.ville, associations]);
+  const voisins = useMemo(() => {
+    if (f.lat == null || f.lng == null) return [];
+    return associations
+      .filter((a) => a.lat != null && a.lng != null)
+      .map((a) => ({ a, d: distanceM(f.lat, f.lng, a.lat, a.lng) }))
+      .filter((x) => x.d <= 1000 && (!doublon || x.a.slug !== doublon.slug))   // 1 km : un club rayonne plus large qu'un bar
+      .sort((x, y) => x.d - y.d).slice(0, 3);
+  }, [f.lat, f.lng, associations, doublon]);
+
+  const aPosition = f.lat != null && f.lng != null;
+  const manquants = [!f.nom.trim() && "le nom du club", !f.ville.trim() && "la ville"].filter(Boolean);
+  const valid = manquants.length === 0;
+
+  const envoyer = async () => {
+    if (sending) return;
+    if (!valid) { setMontrerErreurs(true); return; }
+    setErr(""); setSending(true);
+    const ok = await onSubmit({ ...f, type_prop:"association" });
+    setSending(false);
+    if (ok === false) { setErr("L'envoi a échoué. Réessaie — ta saisie est gardée."); return; }
+    try { localStorage.removeItem(BROUILLON_ASSO); } catch { /* ignore */ }
+    setSent(true);
+  };
+
+  if (sent) return (
+    <div style={{ maxWidth:600, margin:"80px auto", padding:"0 20px", textAlign:"center" }}>
+      <ConfettiBurst data={confettiData}/>
+      <div style={{ display:"flex", justifyContent:"center" }}><EmoIcon e="🎉" size={54}/></div>
+      <h2 style={{ fontWeight:900, fontSize:24, marginTop:12, color:"#a78bfa" }}>Bravo ! Tu as ajouté une association</h2>
+      {/* Le titre félicite, la ligne du dessous reste honnête : elle n'est pas encore publique. */}
+      <p style={{ color:C.muted, marginTop:8, marginBottom:22 }}>{f.nom} sera visible après validation par un admin.</p>
+      <button onClick={() => { setSent(false); setF(vide); setRecherche(""); setMontrerErreurs(false); }}
+        style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:11, padding:"12px 20px", color:C.text, fontSize:14, fontWeight:700, cursor:"pointer", touchAction:"manipulation" }}>
+        ➕ En proposer une autre
+      </button>
+    </div>
+  );
+
   return (
-    <div style={{ maxWidth:660,margin:"0 auto",padding:"36px 20px" }}>
-      <h1 style={{ fontWeight:800,fontSize:26,marginBottom:24 }}><EmoText s="🫂 Proposer une association" size={24} gap={8}/></h1>
-      <div style={{ display:"flex",flexDirection:"column",gap:13 }}>
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Les Darts du Coin"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/></div>
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Zone" value={f.zone} onChange={set("zone")} placeholder="Côte Basque"/><Field label="Type" as="select" value={f.type} onChange={set("type")} options={TYPES.slice(0,3)}/></div>
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Jours" value={f.jours} onChange={set("jours")} placeholder="Vendredi 20h"/><Field label="Lieu" value={f.lieu} onChange={set("lieu")} placeholder="Bar des Sports"/></div>
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Tél" value={f.tel} onChange={set("tel")} placeholder="06 XX"/><Field label="Contact" value={f.contact} onChange={set("contact")} placeholder="email"/></div>
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Président" value={f.president} onChange={set("president")} placeholder="Nom du président"/><Field label="Personne à contacter" value={f.contact_nom} onChange={set("contact_nom")} placeholder="Nom"/></div>
-        <Field label="Description" value={f.description} onChange={set("description")} placeholder="Présentez votre asso…" as="textarea"/>
-        <Btn onClick={async()=>{ if(!valid||sending) return; setSending(true); await onSubmit({...f,type_prop:"association"}); setSending(false); setSent(true); }} disabled={!valid||sending} style={{ marginTop:4,padding:"13px 22px",fontSize:15,background:"#7c3aed" }}>{sending?"Envoi…":"Envoyer →"}</Btn>
+    <div style={{ maxWidth:660, margin:"0 auto", padding:"28px 20px 40px" }}>
+      <h1 style={{ fontWeight:800, fontSize:26, marginBottom:6 }}><EmoText s="🫂 Proposer une association" size={24} gap={8}/></h1>
+      <p style={{ color:C.muted, fontSize:13.5, marginBottom:8 }}>Deux infos suffisent : le nom du club et sa ville.</p>
+      {/* Dit AVANT de remplir, pas seulement après l'envoi : un bar est publié tout de suite,
+          une association attend un admin — autant le savoir en arrivant. */}
+      <p style={{ color:C.muted, fontSize:12.5, marginBottom:20, display:"flex", alignItems:"center", gap:6 }}>
+        <Info size={13} color={C.muted}/>Une association est vérifiée par un admin avant d&apos;apparaître.
+      </p>
+
+      {/* ── 1. OÙ ────────────────────────────────────────────────────────────── */}
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:16, marginBottom:14 }}>
+        <div style={{ fontSize:11.5, fontWeight:800, color:"#a78bfa", letterSpacing:1, marginBottom:12 }}>1 · OÙ SE TROUVE LE CLUB ?</div>
+
+        <button onClick={jeSuisAuClub} disabled={geoEtat === "en cours"}
+          style={{ width:"100%", padding:"14px", borderRadius:13, border:"1px solid #a78bfa", cursor:"pointer",
+            background:"linear-gradient(135deg,#a78bfa28,#a78bfa0c)", color:"#a78bfa", fontWeight:800, fontSize:15,
+            display:"flex", alignItems:"center", justifyContent:"center", gap:9, touchAction:"manipulation" }}>
+          <Navigation size={17}/>{geoEtat === "en cours" ? "Recherche de ta position…" : "Je suis au club"}
+        </button>
+        {geoEtat && geoEtat !== "en cours" && <p style={{ color:C.yellow, fontSize:12.5, marginTop:8 }}>{geoEtat}</p>}
+
+        <div style={{ display:"flex", alignItems:"center", gap:10, margin:"14px 0 12px" }}>
+          <div style={{ flex:1, height:1, background:C.border }}/>
+          <span style={{ color:C.muted, fontSize:11.5 }}>ou cherche l&apos;adresse</span>
+          <div style={{ flex:1, height:1, background:C.border }}/>
+        </div>
+
+        <div style={{ position:"relative" }}>
+          <Search size={15} color={C.muted} style={{ position:"absolute", left:13, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}/>
+          <input value={recherche} onChange={(e) => setRecherche(e.target.value)}
+            placeholder="Ex : Salle des fêtes, Bayonne"
+            style={{ width:"100%", boxSizing:"border-box", background:"#0f0f0f", border:`1px solid ${C.border}`, borderRadius:11,
+              padding:"11px 14px 11px 36px", color:C.text, fontSize:14, outline:"none", fontFamily:"inherit" }}/>
+          {cherche && <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", color:C.muted, fontSize:11 }}>…</span>}
+        </div>
+        {suggestions.length > 0 && (
+          <div style={{ marginTop:8, border:`1px solid ${C.border}`, borderRadius:11, overflow:"hidden" }}>
+            {suggestions.map((a, i) => (
+              <button key={i} onClick={() => choisirAdresse(a)}
+                style={{ width:"100%", textAlign:"left", background:"#0f0f0f", border:"none", borderTop:i?`1px solid ${C.border}`:"none",
+                  padding:"11px 13px", color:C.text, fontSize:13.5, cursor:"pointer", touchAction:"manipulation" }}>
+                <MapPin size={12} color="#a78bfa" style={{ verticalAlign:"-1px", marginRight:6 }}/>{a.label}
+                {a.approx && <span style={{ color:C.muted, fontSize:11.5 }}> — centre de la commune, à ajuster</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {aPosition && (
+          <div style={{ marginTop:12, background:"#0a1a0a", border:`1px solid ${C.green}44`, borderRadius:11, padding:"11px 13px", display:"flex", alignItems:"center", gap:9 }}>
+            <Check size={15} color={C.green} style={{ flexShrink:0 }}/>
+            <span style={{ fontSize:13, color:C.text }}>{[f.adresse, f.cp, f.ville].filter(Boolean).join(" · ") || "Position placée sur la carte"}</span>
+          </div>
+        )}
       </div>
+
+      {/* ── 2. LE CLUB ───────────────────────────────────────────────────────── */}
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:16, marginBottom:14 }}>
+        <div style={{ fontSize:11.5, fontWeight:800, color:"#a78bfa", letterSpacing:1, marginBottom:12 }}>2 · LE CLUB</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:13 }}>
+          <Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Ex : Les Darts du Coin" erreur={montrerErreurs && !f.nom.trim()}/>
+          <Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Ex : Bayonne" erreur={montrerErreurs && !f.ville.trim()}/>
+        </div>
+
+        {doublon && (
+          <div style={{ marginTop:12, background:"#1a0f00", border:`1px solid ${C.yellow}44`, borderRadius:11, padding:13 }}>
+            <p style={{ color:C.yellow, fontSize:13, margin:0 }}>
+              <EmoIcon e="⚠️" size={13} style={{ verticalAlign:"-2px", marginRight:5 }}/>« {doublon.nom} » à {doublon.ville} est déjà référencé.
+            </p>
+          </div>
+        )}
+        {!doublon && voisins.length > 0 && (
+          <div style={{ marginTop:12, background:"#1a0f00", border:`1px solid ${C.yellow}33`, borderRadius:11, padding:13 }}>
+            <p style={{ color:C.yellow, fontSize:12.5, margin:"0 0 8px", fontWeight:700 }}>
+              {voisins.length === 1 ? "Un club est déjà enregistré tout près" : `${voisins.length} clubs sont déjà enregistrés tout près`} — c&apos;est peut-être le même :
+            </p>
+            {voisins.map(({ a, d }) => (
+              <button key={a.slug} onClick={() => { if (setAssoSlug && setPage) { setAssoSlug(a.slug); setPage("asso"); } }}
+                style={{ display:"block", width:"100%", textAlign:"left", background:"none", border:"none", padding:"4px 0", color:C.text, fontSize:13, cursor:"pointer" }}>
+                • {a.nom} <span style={{ color:C.muted }}>— à {d < 1000 ? d + " m" : (d/1000).toFixed(1) + " km"}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div style={{ marginTop:14 }}>
+          <label style={{ fontSize:13, fontWeight:500, color:C.muted, display:"block", marginBottom:7 }}>Type de cibles</label>
+          <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+            {TYPES.slice(0,3).map((t) => <Chip key={t.v} actif={f.type === t.v} onClick={() => set("type")(t.v)} couleur="#a78bfa">{t.l}</Chip>)}
+          </div>
+        </div>
+
+        {/* Jours et Lieu REMONTÉS ici : ce sont les deux infos que cherche un joueur, et elles
+            étaient enterrées au milieu du formulaire (remplies dans 4 % des cas seulement). */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:13, marginTop:14 }}>
+          <Field label="Jours d'entraînement" value={f.jours} onChange={set("jours")} placeholder="Ex : Vendredi 20h"/>
+          <Field label="Où vous jouez" value={f.lieu} onChange={set("lieu")} placeholder="Ex : Bar des Sports"/>
+        </div>
+      </div>
+
+      {/* ── 3. CONTACT ───────────────────────────────────────────────────────── */}
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:16, marginBottom:14 }}>
+        <div style={{ fontSize:11.5, fontWeight:800, color:C.muted, letterSpacing:1, marginBottom:12 }}>3 · CONTACT <span style={{ fontWeight:500 }}>(facultatif)</span></div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:13 }}>
+          <Field label="Qui contacter" value={f.contact_nom} onChange={set("contact_nom")} placeholder="Ex : Jean, président"/>
+          <Field label="Téléphone ou e-mail" value={f.contact} onChange={set("contact")} placeholder="Ex : 06 12 34 56 78"/>
+        </div>
+      </div>
+
+      {/* ── 4. EN PLUS ───────────────────────────────────────────────────────── */}
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:16, marginBottom:14 }}>
+        <div style={{ fontSize:11.5, fontWeight:800, color:C.muted, letterSpacing:1, marginBottom:12 }}>4 · EN PLUS <span style={{ fontWeight:500 }}>(facultatif)</span></div>
+        {bars.length > 0 && (
+          <div style={{ marginBottom:13 }}>
+            <Field label="Bar où le club joue" as="select" value={f.bar} onChange={set("bar")}
+              options={[{ v:"", l:"— aucun / je ne sais pas —" }, ...bars.slice().sort((a,b)=>(a.nom||"").localeCompare(b.nom||"","fr")).map((b) => ({ v:b.nom, l:`${b.nom} — ${b.ville}` }))]}/>
+          </div>
+        )}
+        <Field label="Description" value={f.description} onChange={set("description")} placeholder="Ambiance, niveau, comment nous rejoindre…" as="textarea"/>
+      </div>
+
+      {/* ── Carte ─────────────────────────────────────────────────────────────── */}
+      <div style={{ marginBottom:14 }}>
+        <MapPicker value={aPosition ? { lat:f.lat, lng:f.lng } : null}
+          onChange={(c) => setF((p) => ({ ...p, lat:c ? c.lat : null, lng:c ? c.lng : null }))}
+          address={f.adresse} ville={f.ville} cp={f.cp}
+          quoi="le club" icone="users" couleur="#7c3aed"/>
+      </div>
+
+      {err && <div style={{ background:"#1a0000", border:`1px solid ${C.red}44`, borderRadius:11, padding:12, marginBottom:12 }}><p style={{ color:C.red, fontSize:13, margin:0 }}>{err}</p></div>}
+
+      <Btn onClick={envoyer} disabled={sending} style={{ padding:"14px 22px", fontSize:15.5, background:"#7c3aed" }}>
+        {sending ? "Envoi…" : "Envoyer →"}
+      </Btn>
+      {manquants.length > 0 && (
+        <p style={{ color: montrerErreurs ? C.red : C.muted, fontSize:12.5, textAlign:"center", marginTop:9, fontWeight: montrerErreurs ? 700 : 400 }}>
+          {montrerErreurs
+            ? `${manquants.length} champ${manquants.length > 1 ? "s" : ""} à remplir : ${manquants.join(" et ")}.`
+            : `Il manque ${manquants.join(" et ")}.`}
+        </p>
+      )}
     </div>
   );
 };
@@ -9954,9 +10224,9 @@ const ProposerTournoi = ({ onSubmit, joueur, onCreated }) => {
       <h1 style={{ fontWeight:800,fontSize:26,marginBottom:joueur?8:24 }}><EmoIcon e="🏅" size={24} style={{verticalAlign:"-2px",marginRight:8}}/>{joueur?"Créer un tournoi":"Proposer un tournoi"}</h1>
       {joueur && <p style={{ color:C.green,fontSize:13,marginBottom:20 }}><EmoIcon e="✅" size={13} color={C.green} style={{verticalAlign:"-2px",marginRight:5}}/>Connecté en tant que <strong>{joueur.pseudo}</strong> — le tournoi sera publié directement.</p>}
       <div style={{ display:"flex",flexDirection:"column",gap:13 }}>
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Open Bayonne 2025"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/></div>
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Date *" value={f.date} onChange={set("date")} type="date" placeholder=""/><Field label="Bar organisateur" value={f.bar} onChange={set("bar")} placeholder="Le Central"/></div>
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:13 }}>
+        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Open Bayonne 2025"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Ex : Bayonne"/></div>
+        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Date *" value={f.date} onChange={set("date")} type="date" placeholder=""/><Field label="Bar organisateur" value={f.bar} onChange={set("bar")} placeholder="Ex : Le Central"/></div>
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:13 }}>
           <Field label="Type" as="select" value={f.type} onChange={set("type")} options={TYPES.slice(0,3)}/>
           <Field label="Format" as="select" value={f.format} onChange={set("format")} options={[{v:"individuel",l:"Individuel"},{v:"equipes",l:"Équipes"},{v:"mixte",l:"Mixte"}]}/>
           <Field label="Niveau" as="select" value={f.niveau} onChange={set("niveau")} options={[{v:"tous",l:"Tous niveaux"},{v:"intermediaire",l:"Intermédiaire"},{v:"competiteur",l:"Compétiteur"}]}/>
@@ -10260,6 +10530,7 @@ const AdminJoueurs = ({ addLog }) => {
 
   const [fiche, setFiche] = useState({}); // { [id]: { stats, duels, presences, mouvements } }
   const [ficheLoading, setFicheLoading] = useState({});
+  const [tri, setTri] = useState("drix");   // drix | pseudo | recent | ancien
 
   // Chargement initial — tous les joueurs
   useEffect(()=>{
@@ -10282,10 +10553,22 @@ const AdminJoueurs = ({ addLog }) => {
     setFicheLoading(f=>({...f,[j.id]:false}));
   };
 
-  // Filtre local par pseudo
-  const joueurs = recherche.trim()
-    ? tous.filter(j=>j.pseudo?.toLowerCase().includes(recherche.toLowerCase()))
-    : tous;
+  // Filtre local — pseudo, mais aussi nom, prenom et ville : en tant qu'admin on cherche
+  // souvent quelqu'un dont on connait le vrai nom sans se rappeler son pseudo.
+  // On compare sans accents ni majuscules, sinon « Simeon » ne trouvait pas « Siméon ».
+  const joueurs = useMemo(() => {
+    const sansAccent = (v) => (v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    const q = sansAccent(recherche.trim());
+    const liste = q
+      ? tous.filter(j => [j.pseudo, j.nom, j.prenom, j.ville].some(v => sansAccent(v).includes(q)))
+      : [...tous];
+    const d = (j) => Number(j.date_inscription) || 0;
+    if (tri === "pseudo") liste.sort((a, b) => (a.pseudo || "").localeCompare(b.pseudo || "", "fr", { sensitivity:"base" }));
+    else if (tri === "recent") liste.sort((a, b) => d(b) - d(a));
+    else if (tri === "ancien") liste.sort((a, b) => d(a) - d(b));
+    else liste.sort((a, b) => (b.drix || 0) - (a.drix || 0));
+    return liste;
+  }, [tous, recherche, tri]);
 
   const setField = (id, field, val) => setTous(x=>x.map(j=>j.id===id?{...j,[field]:val}:j));
 
@@ -10384,11 +10667,25 @@ const AdminJoueurs = ({ addLog }) => {
         <input
           value={recherche}
           onChange={e=>setRecherche(e.target.value)}
-          placeholder="🔍 Filtrer par pseudo…"
+          placeholder="🔍 Pseudo, nom, prénom ou ville…"
           style={{flex:1,background:"#111",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",color:C.text,fontSize:14}}
         />
         {recherche&&<button onClick={()=>setRecherche("")} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:18}}><X size={18}/></button>}
         <div style={{color:C.muted,fontSize:12,whiteSpace:"nowrap"}}>{joueurs.length} joueur{joueurs.length!==1?"s":""}</div>
+      </div>
+
+      {/* Tri — la liste arrivait toujours par DRIX decroissant, sans moyen de la reordonner. */}
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:16}}>
+        <span style={{color:C.muted,fontSize:12,marginRight:2}}>Trier par</span>
+        {[["drix","DRIX"],["pseudo","Nom (A→Z)"],["recent","Inscription · récents"],["ancien","Inscription · anciens"]].map(([k,l])=>(
+          <button key={k} onClick={()=>setTri(k)} style={{
+            background: tri===k ? `${C.accent}33` : "#1a1a1a",
+            border: `1px solid ${tri===k?C.accent:C.border}`,
+            color: tri===k ? C.accent : C.muted,
+            borderRadius:10, padding:"7px 12px", cursor:"pointer",
+            fontWeight: tri===k?700:500, fontSize:12, touchAction:"manipulation",
+          }}>{l}</button>
+        ))}
       </div>
 
       {loading && <Spinner/>}
@@ -13738,7 +14035,19 @@ export default function App() {
     db.addProposition({ nom:f.nom, ville:f.ville, slug, statut:"auto_accepte", date:Date.now(), commentaire:`Bar ajouté directement. ${f.commentaire||""}`.trim() }).catch(()=>{});
     return result[0];   // le formulaire en a besoin : slug pour la photo et pour « Voir le bar »
   };
-  const handleProposalAsso=async f=>{ await db.addProposition({...f,slug:slugify(f.nom+"-"+f.ville),statut:"en_attente",date:Date.now(),type_prop:"association"}); };
+  // La table `propositions` n'a pas (encore) de colonnes lat/lng. On tente AVEC la position —
+  // c'est elle qui permet à l'admin de placer le club sur la carte sans la chercher à la main —
+  // et si la base la refuse, on renvoie la proposition SANS. Le formulaire marche donc avant
+  // comme après le SQL, et Thomas n'est jamais bloqué. Renvoie false si l'envoi a vraiment raté.
+  const handleProposalAsso = async (f) => {
+    const base = { ...f, slug:slugify(f.nom+"-"+f.ville), statut:"en_attente", date:Date.now(), type_prop:"association" };
+    try { await db.addProposition(base); return true; }
+    catch {
+      const { lat, lng, ...sansPosition } = base;   // eslint-disable-line no-unused-vars
+      try { await db.addProposition(sansPosition); return true; }
+      catch { return false; }
+    }
+  };
   const handleProposalTournoi=async f=>{ await db.addProposition({...f,slug:slugify(f.nom+"-"+f.ville),statut:"en_attente",date:Date.now(),type_prop:"tournoi"}); };
 
   // ── NAVIGATION ────────────────────────────────────────────────────────────────
@@ -14083,7 +14392,8 @@ export default function App() {
         html, body, #root { background:#0f0f0f !important; color:#f1f5f9 !important; color-scheme:dark; }
         body { font-family:'Inter',sans-serif; -webkit-text-fill-color:#f1f5f9; }
         input, select, textarea, button { font-family:inherit; -webkit-text-fill-color:inherit; }
-        ::placeholder { color:#94a3b8; }
+        /* Un exemple doit se VOIR comme un exemple (cf. index.css) */
+        ::placeholder { color:#5b6478; -webkit-text-fill-color:#5b6478; font-style:italic; opacity:1; }
         ::-webkit-scrollbar { width:6px; }
         ::-webkit-scrollbar-track { background:#111; }
         ::-webkit-scrollbar-thumb { background:#333; border-radius:3px; }
@@ -14292,7 +14602,7 @@ export default function App() {
         {page==="scoreur-doublette"     && joueur && <ScoreurDoublette joueur={joueur} setPage={nav}/>}
         {page==="apropos"          && <APropos bars={bars} setPage={nav}/>}
         {page==="proposer"         && <Proposer bars={bars} onSubmit={handleProposal} setPage={nav} setBarSlug={setBarSlug}/>}
-        {page==="proposer-asso"    && <ProposerAsso onSubmit={handleProposalAsso}/>}
+        {page==="proposer-asso"    && <ProposerAsso onSubmit={handleProposalAsso} associations={associations} bars={bars} setPage={nav} setAssoSlug={setAssoSlug}/>}
         {page==="proposer-tournoi" && <ProposerTournoi onSubmit={handleProposalTournoi} joueur={joueur} onCreated={t=>{setTournois(ts=>[...ts,t]);nav("tournoi-detail");setTournoiSlug(t.slug);}}/>}
         {page==="contact"          && <Contact/>}
       
