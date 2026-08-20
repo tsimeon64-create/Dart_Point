@@ -249,6 +249,62 @@ async function geocoderCommune(q, signal) {
   } catch { return null; }                                        // hors ligne / requête annulée
 }
 
+// Recherche d'ADRESSE (et pas seulement de commune) pour le formulaire « Proposer un bar ».
+// Même annuaire officiel, gratuit et sans clé. On renvoie de quoi remplir le formulaire d'un
+// coup : libellé, rue, code postal, ville et coordonnées.
+async function chercherAdresse(q, signal) {
+  const texte = (q || "").trim();
+  if (texte.length < 3) return [];
+  try {
+    const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(texte)}&limit=5`, { signal });
+    if (!r.ok) return [];
+    const j = await r.json();
+    return (j?.features || []).map((f) => {
+      const p = f.properties || {}, c = f.geometry?.coordinates || [];
+      // ⚠️ `name` vaut le nom de la RUE pour une adresse, mais le nom de la COMMUNE pour un
+      // résultat de type « municipality ». Le recopier tel quel enregistrait des bars dont
+      // l'adresse était « Bayonne · 64100 Bayonne », et posait le pin au centre du village.
+      // On ne garde donc `rue` que pour une vraie adresse.
+      const estAdresse = p.type === "housenumber" || p.type === "street";
+      return {
+        label: p.label || "", rue: estAdresse ? (p.name || "") : "",
+        cp: p.postcode || "", ville: p.city || "",
+        approx: !estAdresse,                       // commune/lieu-dit : position au centre
+        lat: c[1] ?? null, lng: c[0] ?? null,
+      };
+    }).filter((a) => a.lat != null);
+  } catch { return []; }
+}
+
+// Adresse correspondant à une position GPS (bouton « Je suis dans le bar »).
+async function adresseDepuisPosition(lat, lng) {
+  try {
+    const r = await fetch(`https://api-adresse.data.gouv.fr/reverse/?lon=${lng}&lat=${lat}`);
+    if (!r.ok) return null;
+    const p = (await r.json())?.features?.[0]?.properties;
+    return p ? { label:p.label || "", rue:p.name || "", cp:p.postcode || "", ville:p.city || "" } : null;
+  } catch { return null; }
+}
+
+// Distance approximative entre deux points, en mètres (formule de Haversine).
+// Sert à repérer les bars déjà enregistrés juste à côté de la position choisie.
+function distanceM(aLat, aLng, bLat, bLng) {
+  const R = 6371000, rad = (d) => (d * Math.PI) / 180;
+  const dLat = rad(bLat - aLat), dLng = rad(bLng - aLng);
+  const x = Math.sin(dLat/2)**2 + Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(dLng/2)**2;
+  return Math.round(2 * R * Math.asin(Math.sqrt(x)));
+}
+
+// Nom « nu » d'un bar, pour comparer sans se faire piéger : « Le Central », « Bar le Central »
+// et « le central » doivent être reconnus comme le MÊME établissement. On enlève les accents,
+// la ponctuation et les mots vides du début.
+function nomNu(v) {
+  return (v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\b(bar|pub|cafe|brasserie|le|la|les|l|du|de|des|chez|au|aux)\b/g, " ")
+    .replace(/\s+/g, " ").trim();
+}
+
 function LeafletMap({ bars=[], associations=[], tournois=[], onBarClick, onAssoClick, onTournoiClick, centerSlug=null, centerVille=null, height=400, barsActifs=[], userPos=null, recosParBar={} }) {
   const divRef = useRef(null);
   const mapRef = useRef(null);
@@ -9451,8 +9507,10 @@ function MapPicker({ value, onChange, address, ville, cp, height=220 }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
-  // Place / déplace le pin (ne lit que des refs → pas de closure périmée)
-  const place = (lat, lng, fly = true) => {
+  // Pose le pin SANS prévenir le parent. Séparé de `place` exprès : quand c'est le PARENT qui
+  // donne la position (bouton « Je suis dans le bar », choix d'une adresse), le rappeler
+  // ferait un aller-retour sans fin — il nous renverrait la position qu'il vient d'envoyer.
+  const poserPin = (lat, lng, fly = true) => {
     const L = window.L, map = mapRef.current;
     if (!map || lat == null || lng == null) return;
     lat = +(+lat).toFixed(6); lng = +(+lng).toFixed(6);
@@ -9464,8 +9522,14 @@ function MapPicker({ value, onChange, address, ville, cp, height=220 }) {
       m.on("dragend", () => { const p = m.getLatLng(); cbRef.current({ lat:+p.lat.toFixed(6), lng:+p.lng.toFixed(6) }); });
       markerRef.current = m;
     }
-    cbRef.current({ lat, lng });
     if (fly) map.setView([lat, lng], Math.max(map.getZoom() || 5, 15));
+  };
+
+  // Pose le pin ET prévient le parent — pour les gestes faits DANS la carte (clic, glisser).
+  const place = (lat, lng, fly = true) => {
+    if (lat == null || lng == null || !mapRef.current) return;
+    poserPin(lat, lng, fly);
+    cbRef.current({ lat:+(+lat).toFixed(6), lng:+(+lng).toFixed(6) });
   };
 
   // Chargement de Leaflet (partagé avec LeafletMap via window.L)
@@ -9492,6 +9556,27 @@ function MapPicker({ value, onChange, address, ville, cp, height=220 }) {
     if (has) place(value.lat, value.lng, false);
     return () => { try { map.remove(); } catch(e) {} mapRef.current = null; markerRef.current = null; };
   }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ⚠️ La carte doit SUIVRE la position donnée de l'extérieur : bouton « Je suis dans le bar »,
+  // adresse choisie dans la liste, brouillon restauré. Sans ça le pin ne bougeait jamais — on
+  // lisait « Position : 43.49…, -1.47… » sous une carte affichant la France entière, et le
+  // joueur, croyant que rien n'était pris, tapait sur la carte : à ce niveau de zoom, un doigt
+  // vaut plusieurs kilomètres, et le clic ÉCRASAIT la position GPS exacte.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!value || value.lat == null) {
+      if (markerRef.current) { markerRef.current.remove(); markerRef.current = null; }
+      return;
+    }
+    const lat = +(+value.lat).toFixed(6), lng = +(+value.lng).toFixed(6);
+    const cur = markerRef.current?.getLatLng();
+    // Déjà au bon endroit : c'est notre propre clic/glisser qui revient, on ne touche à rien
+    // (sinon la carte se recentrerait à chaque petit déplacement du pin).
+    if (cur && +cur.lat.toFixed(6) === lat && +cur.lng.toFixed(6) === lng) return;
+    poserPin(lat, lng, false);
+    map.setView([lat, lng], Math.max(map.getZoom() || 5, 16));
+  }, [value?.lat, value?.lng, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const geocoder = async () => {
     const q = [address, cp, ville, "France"].filter(s => s && s.trim()).join(", ");
@@ -9531,27 +9616,286 @@ function MapPicker({ value, onChange, address, ville, cp, height=220 }) {
   );
 }
 
-const Proposer = ({ bars, onSubmit }) => {
-  const [f,setF]=useState({nom:"",adresse:"",ville:"",cp:"",type:"electronique",cibles:"1",tournois:"non",tel:"",commentaire:"",lat:null,lng:null});
-  const [sent,setSent]=useState(false); const [doublon,setDoublon]=useState(null);
-  const [sending,setSending]=useState(false); const [err,setErr]=useState("");
-  const set=k=>v=>setF(p=>({...p,[k]:v})); const valid=f.nom.trim()&&f.ville.trim()&&!doublon;
-  useEffect(()=>{ if(!f.nom.trim()||!f.ville.trim()){setDoublon(null);return;} const norm=s=>(s||"").trim().toLowerCase(); setDoublon(bars.find(b=>norm(b.nom)===norm(f.nom)&&norm(b.ville)===norm(f.ville))||null); },[f.nom,f.ville,bars]);
-  if(sent) return <div style={{ maxWidth:600,margin:"80px auto",padding:"0 20px",textAlign:"center" }}><div style={{ marginBottom:12,display:"flex",justifyContent:"center" }}><EmoIcon e="✅" size={50} color={C.green}/></div><h2 style={{ fontWeight:700,marginBottom:8 }}>Bar ajouté !</h2><p style={{ color:C.muted }}>Il est maintenant visible dans la liste des bars.</p></div>;
-  return (
-    <div style={{ maxWidth:660,margin:"0 auto",padding:"36px 20px" }}>
-      <h1 style={{ fontWeight:800,fontSize:26,marginBottom:24 }}><EmoText s="➕ Proposer un bar" size={24} gap={8}/></h1>
-      <div style={{ display:"flex",flexDirection:"column",gap:13 }}>
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Le Central"/><Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/></div>
-        {doublon&&<div style={{ background:"#1a0f00",border:`1px solid ${C.yellow}44`,borderRadius:10,padding:14 }}><p style={{ color:C.yellow,fontSize:13 }}><EmoIcon e="⚠️" size={13} style={{verticalAlign:"-2px",marginRight:5}}/>"{doublon.nom}" à {doublon.ville} existe déjà.</p></div>}
-        <Field label="Adresse" value={f.adresse} onChange={set("adresse")} placeholder="12 rue de la Mairie"/>
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Code postal" value={f.cp} onChange={set("cp")} placeholder="64100"/><Field label="Type" as="select" value={f.type} onChange={set("type")} options={TYPES}/></div>
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:13 }}><Field label="Nb de cibles" value={f.cibles} onChange={set("cibles")} placeholder="2" type="number"/><Field label="Tournois ?" as="select" value={f.tournois} onChange={set("tournois")} options={[{v:"non",l:"Non"},{v:"oui",l:"Oui"},{v:"nsp",l:"Je ne sais pas"}]}/></div>
-        <Field label="Commentaire" value={f.commentaire} onChange={set("commentaire")} placeholder="Ambiance, infos…" as="textarea"/>
-        <MapPicker value={f.lat!=null?{lat:f.lat,lng:f.lng}:null} onChange={c=>setF(p=>({...p,lat:c?c.lat:null,lng:c?c.lng:null}))} address={f.adresse} ville={f.ville} cp={f.cp}/>
-        {err&&<div style={{ background:"#1a0000",border:`1px solid ${C.red}44`,borderRadius:10,padding:12 }}><p style={{ color:C.red,fontSize:13,margin:0 }}>{err}</p></div>}
-        <Btn onClick={async()=>{ if(!valid||sending) return; setErr(""); setSending(true); const ok=await onSubmit(f); setSending(false); if(ok) setSent(true); else setErr("L'ajout a échoué (réseau ou bar en double). Réessaie."); }} disabled={!valid||sending} style={{ marginTop:4,padding:"13px 22px",fontSize:15 }}>{sending?"Envoi…":"Envoyer →"}</Btn>
+// ── PROPOSER UN BAR ───────────────────────────────────────────────────────────
+// Pensé pour quelqu'un DEBOUT DANS LE BAR, au téléphone : d'abord OÙ (position GPS ou
+// recherche d'adresse qui remplit tout d'un coup), ensuite QUOI, et le reste en option.
+const CHIPS_CIBLES = ["1", "2", "3", "4", "5", "6+"];
+const CHIPS_TOURNOIS = [{ v:"nsp", l:"Je ne sais pas" }, { v:"oui", l:"Oui" }, { v:"non", l:"Non" }];
+const BROUILLON_BAR = "dp_proposer_bar";
+
+const Chip = ({ actif, onClick, children, couleur = C.accent }) => (
+  <button type="button" onClick={onClick}
+    style={{ padding:"9px 13px", borderRadius:11, cursor:"pointer", fontSize:13.5, fontWeight:actif?800:600,
+      border:`1px solid ${actif ? couleur : C.border}`, background: actif ? couleur+"22" : "transparent",
+      color: actif ? couleur : C.muted, touchAction:"manipulation", transition:"all .15s" }}>
+    {children}
+  </button>
+);
+
+const Proposer = ({ bars, onSubmit, setPage, setBarSlug }) => {
+  const vide = { nom:"", adresse:"", ville:"", cp:"", type:"electronique", cibles:"1", tournois:"nsp", tel:"", commentaire:"", lat:null, lng:null };
+  // Brouillon : au bar la 4G est souvent mauvaise. Si l'envoi échoue ou si l'appli est fermée,
+  // tout était perdu et il fallait TOUT retaper. On garde donc la saisie dans le téléphone.
+  const [f, setF] = useState(() => {
+    try { const b = JSON.parse(localStorage.getItem(BROUILLON_BAR) || "null"); return b && typeof b === "object" ? { ...vide, ...b } : vide; }
+    catch { return vide; }
+  });
+  const [sent, setSent] = useState(null);          // le bar créé (pour « Voir le bar »)
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState("");
+  const [recherche, setRecherche] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [cherche, setCherche] = useState(false);
+  const [geoEtat, setGeoEtat] = useState("");      // "" | "en cours" | message d'erreur
+  const [photo, setPhoto] = useState(null);        // dataURL, envoyée après la création
+  const photoRef = useRef(null);
+  const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
+
+  useEffect(() => { try { localStorage.setItem(BROUILLON_BAR, JSON.stringify(f)); } catch { /* quota plein */ } }, [f]);
+
+  // ── Recherche d'adresse : suggestions au fil de la frappe ──
+  useEffect(() => {
+    const q = recherche.trim();
+    if (q.length < 3) { setSuggestions([]); return undefined; }
+    const ctrl = new AbortController();
+    setCherche(true);
+    const t = setTimeout(async () => {
+      const r = await chercherAdresse(q, ctrl.signal);
+      setSuggestions(r); setCherche(false);
+    }, 350);   // on attend une pause dans la frappe : sinon une requête par lettre
+    return () => { clearTimeout(t); ctrl.abort(); setCherche(false); };
+  }, [recherche]);
+
+  const choisirAdresse = (a) => {
+    setF((p) => ({ ...p, adresse:a.rue || p.adresse, ville:a.ville || p.ville, cp:a.cp || p.cp, lat:a.lat, lng:a.lng }));
+    setRecherche(""); setSuggestions([]); setGeoEtat("");
+  };
+
+  const jeSuisDansLeBar = () => {
+    if (!navigator.geolocation) { setGeoEtat("Ton téléphone ne donne pas la position."); return; }
+    setGeoEtat("en cours");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude:lat, longitude:lng } = pos.coords;
+        const a = await adresseDepuisPosition(lat, lng);
+        setF((p) => ({ ...p, lat, lng, adresse:a?.rue || p.adresse, ville:a?.ville || p.ville, cp:a?.cp || p.cp }));
+        setGeoEtat("");
+      },
+      () => setGeoEtat("Position refusée. Autorise la localisation, ou cherche l'adresse à la main."),
+      { enableHighAccuracy:true, timeout:10000 }
+    );
+  };
+
+  // ── Doublons ──
+  // 1) même nom + même ville, en ignorant accents, ponctuation et « bar / le / chez »…
+  const doublon = useMemo(() => {
+    const n = nomNu(f.nom), v = nomNu(f.ville);
+    if (!n || !v) return null;
+    return bars.find((b) => nomNu(b.nom) === n && nomNu(b.ville) === v) || null;
+  }, [f.nom, f.ville, bars]);
+  // 2) et surtout : les bars DÉJÀ enregistrés à moins de 300 m de la position choisie. C'est ce
+  //    qui attrape « Le Central » vs « Café Central », que la comparaison de noms rate toujours.
+  const voisins = useMemo(() => {
+    if (f.lat == null || f.lng == null) return [];
+    return bars
+      .filter((b) => b.lat != null && b.lng != null)
+      .map((b) => ({ b, d: distanceM(f.lat, f.lng, b.lat, b.lng) }))
+      .filter((x) => x.d <= 300 && (!doublon || x.b.slug !== doublon.slug))
+      .sort((a, b) => a.d - b.d).slice(0, 3);
+  }, [f.lat, f.lng, bars, doublon]);
+
+  const aPosition = f.lat != null && f.lng != null;
+  const valid = f.nom.trim() && f.ville.trim() && !doublon;
+
+  const choisirPhoto = (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 900; let w = img.width, h = img.height;
+        if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+        const c = document.createElement("canvas"); c.width = w; c.height = h;
+        c.getContext("2d").drawImage(img, 0, 0, w, h);
+        setPhoto(c.toDataURL("image/jpeg", 0.7));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const envoyer = async () => {
+    if (!valid || sending) return;
+    setErr(""); setSending(true);
+    const bar = await onSubmit(f);
+    // La photo part APRÈS la création : le bar doit exister pour qu'on puisse l'y rattacher,
+    // et une photo qui échoue ne doit jamais faire perdre l'ajout du bar.
+    if (bar && photo) {
+      try { await db.addPhoto({ bar_slug: bar.slug, pseudo:"Contributeur", data:photo, date:Date.now() }); }
+      catch { /* tant pis pour la photo */ }
+    }
+    setSending(false);
+    if (bar) { try { localStorage.removeItem(BROUILLON_BAR); } catch { /* ignore */ } setSent(bar); }
+    else setErr("L'ajout a échoué (réseau ou bar en double). Réessaie — ta saisie est gardée.");
+  };
+
+  if (sent) return (
+    <div style={{ maxWidth:600, margin:"80px auto", padding:"0 20px", textAlign:"center" }}>
+      <div style={{ marginBottom:12, display:"flex", justifyContent:"center" }}><EmoIcon e="✅" size={50} color={C.green}/></div>
+      <h2 style={{ fontWeight:700, marginBottom:8 }}>Bar ajouté !</h2>
+      <p style={{ color:C.muted, marginBottom:22 }}>{sent.nom} est maintenant dans la liste des bars.{photo ? " Ta photo sera visible après validation." : ""}</p>
+      <div style={{ display:"flex", flexDirection:"column", gap:10, maxWidth:320, margin:"0 auto" }}>
+        {setBarSlug && setPage && (
+          <Btn onClick={() => { setBarSlug(sent.slug); setPage("bar"); }} style={{ padding:"13px 22px", fontSize:15 }}>Voir le bar →</Btn>
+        )}
+        <button onClick={() => { setSent(null); setF(vide); setPhoto(null); setRecherche(""); }}
+          style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:11, padding:"12px 20px", color:C.text, fontSize:14, fontWeight:700, cursor:"pointer", touchAction:"manipulation" }}>
+          ➕ En ajouter un autre
+        </button>
       </div>
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth:660, margin:"0 auto", padding:"28px 20px 40px" }}>
+      <h1 style={{ fontWeight:800, fontSize:26, marginBottom:6 }}><EmoText s="➕ Proposer un bar" size={24} gap={8}/></h1>
+      <p style={{ color:C.muted, fontSize:13.5, marginBottom:20 }}>Deux infos suffisent : où il est, et comment il s&apos;appelle.</p>
+
+      {/* ── 1. OÙ ────────────────────────────────────────────────────────────── */}
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:16, marginBottom:14 }}>
+        <div style={{ fontSize:11.5, fontWeight:800, color:C.accent, letterSpacing:1, marginBottom:12 }}>1 · OÙ EST CE BAR ?</div>
+
+        <button onClick={jeSuisDansLeBar} disabled={geoEtat === "en cours"}
+          style={{ width:"100%", padding:"14px", borderRadius:13, border:`1px solid ${C.accent}`, cursor:"pointer",
+            background:`linear-gradient(135deg,${C.accent}28,${C.accent}0c)`, color:C.accent, fontWeight:800, fontSize:15,
+            display:"flex", alignItems:"center", justifyContent:"center", gap:9, touchAction:"manipulation" }}>
+          <Navigation size={17}/>{geoEtat === "en cours" ? "Recherche de ta position…" : "Je suis dans le bar"}
+        </button>
+        {geoEtat && geoEtat !== "en cours" && <p style={{ color:C.yellow, fontSize:12.5, marginTop:8 }}>{geoEtat}</p>}
+
+        <div style={{ display:"flex", alignItems:"center", gap:10, margin:"14px 0 12px" }}>
+          <div style={{ flex:1, height:1, background:C.border }}/>
+          <span style={{ color:C.muted, fontSize:11.5 }}>ou cherche l&apos;adresse</span>
+          <div style={{ flex:1, height:1, background:C.border }}/>
+        </div>
+
+        <div style={{ position:"relative" }}>
+          <Search size={15} color={C.muted} style={{ position:"absolute", left:13, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}/>
+          <input value={recherche} onChange={(e) => setRecherche(e.target.value)}
+            placeholder="12 rue de la Mairie, Bayonne"
+            style={{ width:"100%", boxSizing:"border-box", background:"#0f0f0f", border:`1px solid ${C.border}`, borderRadius:11,
+              padding:"11px 14px 11px 36px", color:C.text, fontSize:14, outline:"none", fontFamily:"inherit" }}/>
+          {cherche && <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", color:C.muted, fontSize:11 }}>…</span>}
+        </div>
+        {suggestions.length > 0 && (
+          <div style={{ marginTop:8, border:`1px solid ${C.border}`, borderRadius:11, overflow:"hidden" }}>
+            {suggestions.map((a, i) => (
+              <button key={i} onClick={() => choisirAdresse(a)}
+                style={{ width:"100%", textAlign:"left", background:"#0f0f0f", border:"none", borderTop:i?`1px solid ${C.border}`:"none",
+                  padding:"11px 13px", color:C.text, fontSize:13.5, cursor:"pointer", touchAction:"manipulation" }}>
+                <MapPin size={12} color={C.accent} style={{ verticalAlign:"-1px", marginRight:6 }}/>{a.label}
+                {a.approx && <span style={{ color:C.muted, fontSize:11.5 }}> — centre de la commune, à ajuster</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {aPosition && (
+          <div style={{ marginTop:12, background:"#0a1a0a", border:`1px solid ${C.green}44`, borderRadius:11, padding:"11px 13px", display:"flex", alignItems:"center", gap:9 }}>
+            <Check size={15} color={C.green} style={{ flexShrink:0 }}/>
+            <span style={{ fontSize:13, color:C.text }}>{[f.adresse, f.cp, f.ville].filter(Boolean).join(" · ") || "Position placée sur la carte"}</span>
+          </div>
+        )}
+      </div>
+
+      {/* ── 2. LE BAR ────────────────────────────────────────────────────────── */}
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:16, marginBottom:14 }}>
+        <div style={{ fontSize:11.5, fontWeight:800, color:C.accent, letterSpacing:1, marginBottom:12 }}>2 · LE BAR</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:13 }}>
+          <Field label="Nom *" value={f.nom} onChange={set("nom")} placeholder="Le Central"/>
+          <Field label="Ville *" value={f.ville} onChange={set("ville")} placeholder="Bayonne"/>
+        </div>
+
+        {doublon && (
+          <div style={{ marginTop:12, background:"#1a0f00", border:`1px solid ${C.yellow}44`, borderRadius:11, padding:13 }}>
+            <p style={{ color:C.yellow, fontSize:13, margin:0 }}>
+              <EmoIcon e="⚠️" size={13} style={{ verticalAlign:"-2px", marginRight:5 }}/>« {doublon.nom} » à {doublon.ville} est déjà référencé.
+            </p>
+          </div>
+        )}
+        {!doublon && voisins.length > 0 && (
+          <div style={{ marginTop:12, background:"#1a0f00", border:`1px solid ${C.yellow}33`, borderRadius:11, padding:13 }}>
+            <p style={{ color:C.yellow, fontSize:12.5, margin:"0 0 8px", fontWeight:700 }}>
+              {voisins.length === 1 ? "Un bar est déjà enregistré tout près" : `${voisins.length} bars sont déjà enregistrés tout près`} — c&apos;est peut-être le même :
+            </p>
+            {voisins.map(({ b, d }) => (
+              <button key={b.slug} onClick={() => { if (setBarSlug && setPage) { setBarSlug(b.slug); setPage("bar"); } }}
+                style={{ display:"block", width:"100%", textAlign:"left", background:"none", border:"none", padding:"4px 0", color:C.text, fontSize:13, cursor:"pointer" }}>
+                • {b.nom} <span style={{ color:C.muted }}>— à {d} m</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div style={{ marginTop:14 }}>
+          <label style={{ fontSize:13, fontWeight:500, color:C.muted, display:"block", marginBottom:7 }}>Type de cibles</label>
+          <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+            {TYPES.map((t) => <Chip key={t.v} actif={f.type === t.v} onClick={() => set("type")(t.v)}>{t.l}</Chip>)}
+          </div>
+        </div>
+
+        <div style={{ marginTop:14 }}>
+          <label style={{ fontSize:13, fontWeight:500, color:C.muted, display:"block", marginBottom:7 }}>Nombre de cibles</label>
+          <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+            {CHIPS_CIBLES.map((n) => <Chip key={n} actif={f.cibles === n} onClick={() => set("cibles")(n)}>{n}</Chip>)}
+          </div>
+        </div>
+
+        <div style={{ marginTop:14 }}>
+          <label style={{ fontSize:13, fontWeight:500, color:C.muted, display:"block", marginBottom:7 }}>Des tournois y sont organisés ?</label>
+          <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+            {CHIPS_TOURNOIS.map((t) => <Chip key={t.v} actif={f.tournois === t.v} onClick={() => set("tournois")(t.v)}>{t.l}</Chip>)}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 3. EN PLUS (facultatif) ──────────────────────────────────────────── */}
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:16, marginBottom:14 }}>
+        <div style={{ fontSize:11.5, fontWeight:800, color:C.muted, letterSpacing:1, marginBottom:12 }}>3 · EN PLUS <span style={{ fontWeight:500 }}>(facultatif)</span></div>
+
+        <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={choisirPhoto} style={{ display:"none" }}/>
+        {photo ? (
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:13 }}>
+            <img src={photo} alt="" style={{ width:64, height:64, borderRadius:11, objectFit:"cover" }}/>
+            <div style={{ flex:1, fontSize:13, color:C.muted }}>Photo ajoutée</div>
+            <button onClick={() => setPhoto(null)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", padding:6 }}><Trash2 size={15}/></button>
+          </div>
+        ) : (
+          <button onClick={() => photoRef.current?.click()}
+            style={{ width:"100%", padding:"12px", borderRadius:11, border:`1px dashed ${C.border}`, background:"none",
+              color:C.muted, fontSize:13.5, fontWeight:600, cursor:"pointer", marginBottom:13,
+              display:"flex", alignItems:"center", justifyContent:"center", gap:8, touchAction:"manipulation" }}>
+            <Camera size={16}/>Photo du bar ou de la cible
+          </button>
+        )}
+
+        <Field label="Commentaire" value={f.commentaire} onChange={set("commentaire")} placeholder="Ambiance, horaires, prix de la partie…" as="textarea"/>
+      </div>
+
+      {/* ── Carte ─────────────────────────────────────────────────────────────── */}
+      <div style={{ marginBottom:14 }}>
+        <MapPicker value={aPosition ? { lat:f.lat, lng:f.lng } : null}
+          onChange={(c) => setF((p) => ({ ...p, lat:c ? c.lat : null, lng:c ? c.lng : null }))}
+          address={f.adresse} ville={f.ville} cp={f.cp}/>
+      </div>
+
+      {err && <div style={{ background:"#1a0000", border:`1px solid ${C.red}44`, borderRadius:11, padding:12, marginBottom:12 }}><p style={{ color:C.red, fontSize:13, margin:0 }}>{err}</p></div>}
+
+      <Btn onClick={envoyer} disabled={!valid || sending} style={{ padding:"14px 22px", fontSize:15.5 }}>
+        {sending ? "Envoi…" : "Envoyer →"}
+      </Btn>
+      {!valid && !doublon && <p style={{ color:C.muted, fontSize:12, textAlign:"center", marginTop:9 }}>Il manque le nom et la ville.</p>}
     </div>
   );
 };
@@ -13388,11 +13732,11 @@ export default function App() {
       tel:f.tel||"", description:f.commentaire||"", slug, source:"user", verifie:false,
       lat:f.lat??null, lng:f.lng??null,
     }).catch(()=>null);
-    if (!result?.[0]) return false;     // échec → le formulaire affiche l'erreur (pas de faux succès)
+    if (!result?.[0]) return null;      // échec → le formulaire affiche l'erreur (pas de faux succès)
     setBars(prev=>[...prev, result[0]]);
     // Log pour l'admin (info seulement, non bloquant)
     db.addProposition({ nom:f.nom, ville:f.ville, slug, statut:"auto_accepte", date:Date.now(), commentaire:`Bar ajouté directement. ${f.commentaire||""}`.trim() }).catch(()=>{});
-    return true;
+    return result[0];   // le formulaire en a besoin : slug pour la photo et pour « Voir le bar »
   };
   const handleProposalAsso=async f=>{ await db.addProposition({...f,slug:slugify(f.nom+"-"+f.ville),statut:"en_attente",date:Date.now(),type_prop:"association"}); };
   const handleProposalTournoi=async f=>{ await db.addProposition({...f,slug:slugify(f.nom+"-"+f.ville),statut:"en_attente",date:Date.now(),type_prop:"tournoi"}); };
@@ -13947,7 +14291,7 @@ export default function App() {
         {page.startsWith("scoreur-duel-") && joueur && <ScoreurDuel duelId={page.replace("scoreur-duel-","")} joueur={joueur} setPage={nav}/>}
         {page==="scoreur-doublette"     && joueur && <ScoreurDoublette joueur={joueur} setPage={nav}/>}
         {page==="apropos"          && <APropos bars={bars} setPage={nav}/>}
-        {page==="proposer"         && <Proposer bars={bars} onSubmit={handleProposal}/>}
+        {page==="proposer"         && <Proposer bars={bars} onSubmit={handleProposal} setPage={nav} setBarSlug={setBarSlug}/>}
         {page==="proposer-asso"    && <ProposerAsso onSubmit={handleProposalAsso}/>}
         {page==="proposer-tournoi" && <ProposerTournoi onSubmit={handleProposalTournoi} joueur={joueur} onCreated={t=>{setTournois(ts=>[...ts,t]);nav("tournoi-detail");setTournoiSlug(t.slug);}}/>}
         {page==="contact"          && <Contact/>}
