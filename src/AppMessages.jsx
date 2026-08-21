@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import { EmoIcon, EmoText } from "./icons";
 import { alerter, confirmer } from "./uiConfirm.jsx";
 
@@ -34,6 +34,56 @@ const CM = {
   bg:"#0f0f0f",card:"#1a1a1a",border:"#2a2a2a",
   accent:"#f97316",text:"#f1f5f9",muted:"#94a3b8",
   green:"#22c55e",red:"#ef4444",yellow:"#f59e0b",blue:"#60a5fa",
+};
+
+// ── CORPS D'UN MESSAGE ────────────────────────────────────────────────────────
+// Le texte est affiché tel quel, à deux exceptions près :
+//   • le marqueur [INVITER] devient un vrai bouton de partage WhatsApp (utilisé
+//     par le message de bienvenue, écrit côté serveur dans la fonction `auth`) ;
+//   • les adresses http(s) deviennent cliquables.
+// ⚠️ Découpage à la main et JAMAIS de dangerouslySetInnerHTML : le contenu vient
+// d'un autre joueur, il ne doit pas pouvoir injecter de HTML dans l'appli.
+const INVITE_TEXTE = `🎯 Salut ! Je joue aux fléchettes sur Dart Point : on compte les parties, on se défie et on se chambre dans un classement.
+
+Rejoins-nous, c'est gratuit : https://dart-point.vercel.app`;
+
+const BoutonInviter = () => (
+  <a
+    href={`https://wa.me/?text=${encodeURIComponent(INVITE_TEXTE)}`}
+    target="_blank" rel="noreferrer"
+    style={{
+      display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+      margin:"10px 0",padding:"12px 16px",minHeight:44,
+      background:"#25D366",color:"#0b1a12",borderRadius:12,
+      fontWeight:800,fontSize:14,textDecoration:"none",
+      boxShadow:"0 2px 10px rgba(37,211,102,.35)",cursor:"pointer",
+    }}
+  >
+    <EmoText s="📱 Inviter mes potes sur WhatsApp"/>
+  </a>
+);
+
+// Le lien s'arrête avant la ponctuation finale : celle-ci appartient à la phrase.
+const MORCEAUX = /(\[INVITER\]|https?:\/\/[^\s]+)/g;
+
+const CorpsMessage = ({ texte, estMoi }) => {
+  const bouts = String(texte ?? "").split(MORCEAUX);
+  return bouts.map((b, i) => {
+    if (!b) return null;
+    if (b === "[INVITER]") return <BoutonInviter key={i}/>;
+    if (/^https?:\/\//.test(b)) {
+      const fin = b.match(/[.,;:!?)]+$/);
+      const url = fin ? b.slice(0, -fin[0].length) : b;
+      return (
+        <Fragment key={i}>
+          <a href={url} target="_blank" rel="noreferrer"
+             style={{color:estMoi?"#fff":CM.accent,textDecoration:"underline",wordBreak:"break-all"}}>{url}</a>
+          {fin ? fin[0] : ""}
+        </Fragment>
+      );
+    }
+    return <Fragment key={i}>{b}</Fragment>;
+  });
 };
 
 // ── UI ────────────────────────────────────────────────────────────────────────
@@ -172,7 +222,14 @@ const ConversationView=({joueur,autreId,autrePseudo,onBack})=>{
       </div>
 
       {/* ── MESSAGES ── */}
-      <div ref={scrollRef} onScroll={checkAtBottom} style={{flex:1,overflowY:"auto",padding:"16px 12px",display:"flex",flexDirection:"column",justifyContent:"flex-end",minHeight:0,gap:2}}>
+      {/* ⚠️ PAS de justifyContent:"flex-end" ici, malgré l'envie. Avec overflow, un contenu
+          plus haut que la fenêtre déborde alors VERS LE HAUT, et un débordement vers le haut
+          n'entre pas dans la zone défilable : mesuré scrollHeight === clientHeight et
+          scrollTop bloqué à 0, donc le début de la conversation devenait INATTEIGNABLE.
+          La cale ci-dessous colle les messages en bas quand il y en a peu, et s'efface
+          d'elle-même dès que ça déborde. */}
+      <div ref={scrollRef} onScroll={checkAtBottom} style={{flex:1,overflowY:"auto",padding:"16px 12px",display:"flex",flexDirection:"column",minHeight:0,gap:2}}>
+        <div style={{marginTop:"auto"}}/>
         {loading&&<Spinner/>}
         {!loading&&messages.length===0&&(
           <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flex:1,gap:12,opacity:.6}}>
@@ -203,9 +260,12 @@ const ConversationView=({joueur,autreId,autrePseudo,onBack})=>{
                 background:estMoi?"linear-gradient(135deg,#f97316,#ea6a10)":"#242424",
                 color:estMoi?"#fff":CM.text,
                 fontSize:14,lineHeight:1.5,wordBreak:"break-word",
+                // Sans pre-wrap, les retours à la ligne étaient AVALÉS : un message
+                // écrit en paragraphes s'affichait en un seul bloc compact.
+                whiteSpace:"pre-wrap",
                 boxShadow:estMoi?"0 2px 8px rgba(249,115,22,.3)":"0 1px 4px rgba(0,0,0,.3)",
               }}>
-                {m.contenu}
+                <CorpsMessage texte={m.contenu} estMoi={estMoi}/>
               </div>
               {!nextSameAuthor&&<div style={{fontSize:10,color:CM.muted,marginTop:3,marginLeft:estMoi?0:4,marginRight:estMoi?4:0}}>{formatHeure(m.date)}</div>}
             </div>

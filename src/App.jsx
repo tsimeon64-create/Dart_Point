@@ -1326,6 +1326,22 @@ const ShareBar = ({ bar }) => {
 };
 
 // ── MODALS ÉDITION ────────────────────────────────────────────────────────────
+// Trace d'une modification, avec les ANCIENNES valeurs des champs touchés.
+// Sans elle, une fiche écrasée était perdue pour de bon : le journal ne gardait que le NOM des
+// champs modifiés. C'est arrivé au « Club de Fléchettes de Tarnos », réécrit en « Cristal Darts »
+// le 21/08/2026 — impossible à restaurer. On écrit donc l'avant en clair, lisible dans l'admin
+// et suffisant pour remettre la fiche à la main.
+const traceModif = (avant, apres, qui, quiId) => {
+  const changes = Object.keys(apres).filter((k) => String(avant?.[k] ?? "") !== String(apres[k] ?? ""));
+  const ligne = `Modifié par ${qui || "?"} (ID:${quiId || "?"}) — Champs: ${changes.join(", ") || "(aucun changement détecté)"}`;
+  if (!changes.length) return ligne;
+  const vieux = {};
+  changes.forEach((k) => { vieux[k] = avant?.[k] ?? ""; });
+  // Tronqué : `commentaire` sert aussi à l'affichage de la liste d'admin.
+  return `${ligne}
+AVANT : ${JSON.stringify(vieux).slice(0, 1500)}`;
+};
+
 const EditBarModal = ({ bar, onSave, onClose, joueur=null }) => {
   const [f,setF]=useState({ nom:bar.nom||"",ville:bar.ville||"",cp:bar.cp||"",adresse:bar.adresse||"",tel:bar.tel||"",type:bar.type||"electronique",cibles:String(bar.cibles||1),horaires:bar.horaires||"",description:bar.description||"",tournois:bar.tournois?"oui":"non",lat:String(bar.lat||""),lng:String(bar.lng||"") });
   const [saving,setSaving]=useState(false);
@@ -1334,8 +1350,10 @@ const EditBarModal = ({ bar, onSave, onClose, joueur=null }) => {
     setSaving(true);
     await db.updateBar(bar.slug,{nom:f.nom,ville:f.ville,cp:f.cp,adresse:f.adresse,tel:f.tel,type:f.type,cibles:parseInt(f.cibles)||1,horaires:f.horaires,description:f.description,tournois:f.tournois==="oui",lat:num(f.lat),lng:num(f.lng)});
     // Log de modification
-    const champs = Object.entries(f).filter(([k,v])=>String(bar[k]||"")!==v).map(([k])=>k).join(", ");
-    db.addProposition({ nom:bar.nom, ville:bar.ville, slug:bar.slug, statut:"info", date:Date.now(), type_prop:"modif_bar", commentaire:`Modifié par ${joueur?.pseudo||"admin"} (ID:${joueur?.id||"admin"}). Champs: ${champs||"(aucun changement détecté)"}` }).catch(()=>{});
+    db.addProposition({ nom:bar.nom, ville:bar.ville, slug:bar.slug, statut:"info", date:Date.now(), type_prop:"modif_bar",
+      commentaire: traceModif(
+        { ...bar, cibles:String(bar.cibles||1), tournois: bar.tournois?"oui":"non", lat:String(bar.lat||""), lng:String(bar.lng||"") },
+        f, joueur?.pseudo||"admin", joueur?.id||"admin") }).catch(()=>{});
     onSave({...bar,...f,cibles:parseInt(f.cibles)||1,tournois:f.tournois==="oui",lat:num(f.lat),lng:num(f.lng)});
     setSaving(false);
     onClose();
@@ -1406,8 +1424,10 @@ const EditAssoModal = ({ asso, allBars=[], onSave, onClose, joueur=null }) => {
       try { await db.updateAssociation(asso.slug, payload); }
       catch { await db.updateAssociation(asso.slug, base); saved = base; }
       // Log de modification
-      const champs = Object.entries(f).filter(([k,v])=>String(asso[k]||"")!==v).map(([k])=>k).join(", ");
-      db.addProposition({ nom:asso.nom, ville:asso.ville, slug:asso.slug, statut:"info", date:Date.now(), type_prop:"modif_asso", commentaire:`Modifié par ${joueur?.pseudo||"?"} (ID:${joueur?.id||"?"}) — Champs: ${champs||"(aucun changement détecté)"}` }).catch(()=>{});
+      db.addProposition({ nom:asso.nom, ville:asso.ville, slug:asso.slug, statut:"info", date:Date.now(), type_prop:"modif_asso",
+        commentaire: traceModif(
+          { ...asso, lat:String(asso.lat||""), lng:String(asso.lng||"") },
+          f, joueur?.pseudo, joueur?.id) }).catch(()=>{});
       onSave({...asso,...saved});
       onClose();
     } catch(e) {
@@ -12200,7 +12220,26 @@ ${brut.slice(0,200)}`); }
                             {isBar?"BAR":"ASSO"}
                           </span>
                         </div>
-                        <p style={{ fontSize:12, color:C.muted, margin:0, lineHeight:1.6 }}>{m.commentaire}</p>
+                        {/* La trace tient sur deux lignes : qui a modifié quoi, puis les ANCIENNES
+                            valeurs. Sans `pre-wrap` la seconde ligne se collait à la première et
+                            devenait illisible — or c'est elle qui permet de restaurer une fiche. */}
+                        {(() => {
+                          const lignes = String(m.commentaire || "").split(/\r?\n/);
+                          const tete = lignes[0];
+                          const avant = lignes.slice(1).join("\n");
+                          return (
+                            <>
+                              <p style={{ fontSize:12, color:C.muted, margin:0, lineHeight:1.6 }}>{tete}</p>
+                              {avant && (
+                                <details style={{ marginTop:6 }}>
+                                  <summary style={{ fontSize:11.5, color:C.yellow, cursor:"pointer", fontWeight:700 }}>Voir les valeurs d&apos;avant</summary>
+                                  <pre style={{ fontSize:11, color:C.text, background:"#0f0f0f", border:`1px solid ${C.border}`, borderRadius:8,
+                                    padding:"9px 11px", marginTop:6, whiteSpace:"pre-wrap", wordBreak:"break-word", fontFamily:"inherit" }}>{avant}</pre>
+                                </details>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     );
                   })}

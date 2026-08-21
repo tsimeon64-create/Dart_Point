@@ -12,13 +12,27 @@ Bienvenue sur Dart Point ! Moi c'est Thomas, c'est moi qui ai créé l'appli.
 
 Je t'ai ajouté en ami pour que tu ne démarres pas tout seul. Tu peux me retirer quand tu veux, ça ne me vexera pas 😉
 
-Pour bien commencer :
-🎯 Le Scoreur — pour compter tes parties (501, 301, Cricket)
-⚔️ Défi — affronte un joueur et fais grimper ton DRIX
-🍺 Le Comptoir — vois ce que font les autres joueurs
+Ce que tu trouveras dans l'appli :
+🎯 Le Scoreur — compte tes parties (501, 301, Cricket)
 🗺️ La carte — trouve les bars à fléchettes près de chez toi
+🏆 Les tournois — organise une soirée entre potes
 
 Une question, un bug, une idée ? Réponds ici, je lis tout.
+
+⚡ MAIS LE PLUS IMPORTANT : AJOUTE TES POTES
+
+Dart Point tout seul, c'est un carnet de scores. Avec tes potes, c'est un championnat qui ne s'arrête jamais.
+
+Une fois qu'ils sont là, tu peux :
+⚔️ les défier et leur prendre des DRIX (c'est notre classement, et ça pique)
+📊 comparer vos moyennes — et leur rappeler la tienne. Souvent.
+🍺 chambrer tout le monde au Comptoir
+
+Parce qu'un joueur sans amis, ça lance des fléchettes dans le vide : personne ne le voit, et surtout personne ne le croit quand il raconte son 180 🙈
+
+Le bouton ci-dessous envoie l'invitation dans le groupe WhatsApp de ton club, en un clic :
+
+[INVITER]
 
 Bonnes fléchettes ! 🎯`;
 //
