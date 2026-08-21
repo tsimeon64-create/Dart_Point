@@ -9952,7 +9952,7 @@ const BROUILLON_ASSO = "dp_proposer_asso";
 
 const ProposerAsso = ({ onSubmit, associations = [], bars = [], setPage, setAssoSlug }) => {
   const vide = { nom:"", ville:"", zone:"", type:"electronique", jours:"", lieu:"", tel:"", contact:"",
-                 president:"", contact_nom:"", description:"", bar:"", adresse:"", cp:"", lat:null, lng:null };
+                 contact_nom:"", description:"", bar:"", adresse:"", cp:"", lat:null, lng:null };
   const [f, setF] = useState(() => {
     try { const b = JSON.parse(localStorage.getItem(BROUILLON_ASSO) || "null"); return b && typeof b === "object" ? { ...vide, ...b } : vide; }
     catch { return vide; }
@@ -14035,15 +14035,24 @@ export default function App() {
     db.addProposition({ nom:f.nom, ville:f.ville, slug, statut:"auto_accepte", date:Date.now(), commentaire:`Bar ajouté directement. ${f.commentaire||""}`.trim() }).catch(()=>{});
     return result[0];   // le formulaire en a besoin : slug pour la photo et pour « Voir le bar »
   };
-  // La table `propositions` n'a pas (encore) de colonnes lat/lng. On tente AVEC la position —
-  // c'est elle qui permet à l'admin de placer le club sur la carte sans la chercher à la main —
-  // et si la base la refuse, on renvoie la proposition SANS. Le formulaire marche donc avant
-  // comme après le SQL, et Thomas n'est jamais bloqué. Renvoie false si l'envoi a vraiment raté.
+  // ⚠️ Postgres refuse l'insertion ENTIÈRE si UNE seule clé ne correspond à aucune colonne.
+  // Le formulaire portait `president` et `contact_nom`, qui n'existent pas dans `propositions` :
+  // toute proposition d'association échouait. On ne transmet donc que des colonnes connues —
+  // une liste blanche, pour que ce genre d'erreur ne puisse plus revenir en ajoutant un champ.
+  const COLONNES_PROPOSITION = ["nom","ville","zone","type","jours","lieu","tel","contact","description",
+    "bar","adresse","cp","lat","lng","cibles","tournois","commentaire","pseudo","email","slug","statut",
+    "date","type_prop","date_event","format","niveau","prix","dotations","places","lien","association"];
   const handleProposalAsso = async (f) => {
-    const base = { ...f, slug:slugify(f.nom+"-"+f.ville), statut:"en_attente", date:Date.now(), type_prop:"association" };
-    try { await db.addProposition(base); return true; }
+    // « Qui contacter » n'a pas de colonne à lui : on le met devant le contact, ce que l'admin
+    // lit très bien (« Jean, président — 06 12 34 56 78 ») et qui ne perd aucune information.
+    const contact = [f.contact_nom, f.contact].map(x => (x || "").trim()).filter(Boolean).join(" — ");
+    const brut = { ...f, contact, slug:slugify(f.nom+"-"+f.ville), statut:"en_attente", date:Date.now(), type_prop:"association" };
+    const payload = {};
+    COLONNES_PROPOSITION.forEach(k => { if (brut[k] !== undefined && brut[k] !== "") payload[k] = brut[k]; });
+    try { await db.addProposition(payload); return true; }
     catch {
-      const { lat, lng, ...sansPosition } = base;   // eslint-disable-line no-unused-vars
+      // Repli : la base n'a peut-être pas encore les colonnes lat/lng (voir le SQL fourni).
+      const { lat, lng, ...sansPosition } = payload;   // eslint-disable-line no-unused-vars
       try { await db.addProposition(sansPosition); return true; }
       catch { return false; }
     }
