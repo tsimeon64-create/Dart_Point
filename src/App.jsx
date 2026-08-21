@@ -11451,11 +11451,28 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
     return () => clearInterval(interval);
   },[]);
 
+  // Trouve un identifiant libre en interrogeant la BASE. L'ancienne version ne regardait que la
+  // liste affichée à l'écran : si elle était périmée (autre session, page rechargée, seconde
+  // validation), l'insertion partait quand même et Postgres la rejetait avec un message brut
+  // « violates unique constraint associations_slug_key » en pleine figure de l'admin.
+  const slugLibre = async (table, base) => {
+    for (let n = 0; n < 30; n++) {
+      const essai = n === 0 ? base : `${base}-${n + 1}`;
+      try {
+        const d = await sb(`${table}?slug=eq.${encodeURIComponent(essai)}&select=slug&limit=1`);
+        if (!Array.isArray(d) || d.length === 0) return essai;
+      } catch { return essai; }   // base injoignable : on tente, l'appelant gère l'échec
+    }
+    return `${base}-${Date.now()}`;
+  };
+
   const validerBar=async p=>{
-    const base=slugify(p.nom+"-"+p.ville); let slug=base,n=2;
-    while(bars.some(b=>b.slug===slug)) slug=`${base}-${n++}`;   // slug unique
-    let lat=null,lng=null;
-    try{const q=encodeURIComponent(`${p.adresse||p.nom}, ${p.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const gd=await geo.json();if(gd?.[0]){lat=parseFloat(gd[0].lat);lng=parseFloat(gd[0].lon);}if(lat==null){const q2=encodeURIComponent(`${p.ville}, France`);const g2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);const d2=await g2.json();if(d2?.[0]){lat=parseFloat(d2[0].lat);lng=parseFloat(d2[0].lon);}}}catch(e){}
+    const slug = await slugLibre("bars", slugify(p.nom+"-"+p.ville));
+    // La position CHOISIE par le contributeur prime : il a posé le point sur la carte ou utilisé
+    // son GPS. Ne géocoder que s'il n'a rien donné — sinon on remplaçait un point exact par une
+    // approximation, parfois dans une autre commune du même nom.
+    let lat=p.lat??null,lng=p.lng??null;
+    if(lat==null||lng==null)try{const q=encodeURIComponent(`${p.adresse||p.nom}, ${p.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const gd=await geo.json();if(gd?.[0]){lat=parseFloat(gd[0].lat);lng=parseFloat(gd[0].lon);}if(lat==null){const q2=encodeURIComponent(`${p.ville}, France`);const g2=await fetch(`https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1`);const d2=await g2.json();if(d2?.[0]){lat=parseFloat(d2[0].lat);lng=parseFloat(d2[0].lon);}}}catch(e){}
     const nb={slug,nom:p.nom,ville:p.ville,cp:p.cp||"",adresse:p.adresse||"",tel:p.tel||"",type:p.type||"electronique",cibles:parseInt(p.cibles)||1,horaires:p.horaires||"",description:p.commentaire||p.description||"",tournois:p.tournois==="oui",association:null,source:"user",verifie:true,vues:0,lat,lng};
     try{
       const r=await db.addBar(nb);
@@ -11464,13 +11481,17 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
       await db.updateProposition(p.id,{statut:"publie"});
       setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));
       addLog("Bar validé",p.nom,"success");
-    }catch(e){ addLog("Échec validation bar",p.nom,"danger"); await alerter(`❌ Échec de la validation de « ${p.nom} » : ${String(e?.message||e).slice(0,200)}`); }
+    }catch(e){ addLog("Échec validation bar",p.nom,"danger"); const brut=String(e?.message||e);
+      // Traduire les erreurs de base : l'admin n'a pas à lire du JSON Postgres.
+      await alerter(brut.includes("23505") ? `« ${p.nom} » existe déjà — cette proposition a sans doute déjà été validée.`
+        : `❌ Échec de la validation de « ${p.nom} » :
+${brut.slice(0,200)}`); }
   };
   const validerAsso=async p=>{
-    const base=slugify(p.nom+"-"+p.ville); let slug=base,n=2;
-    while(associations.some(a=>a.slug===slug)) slug=`${base}-${n++}`;   // slug unique
-    let lat=null,lng=null;
-    try{const q=encodeURIComponent(`${p.lieu?p.lieu+", ":""}${p.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const gd=await geo.json();if(gd?.[0]){lat=parseFloat(gd[0].lat);lng=parseFloat(gd[0].lon);}}catch(e){}
+    const slug = await slugLibre("associations", slugify(p.nom+"-"+p.ville));
+    // Même règle que pour les bars : la position donnée par le contributeur prime sur le géocodage.
+    let lat=p.lat??null,lng=p.lng??null;
+    if(lat==null||lng==null)try{const q=encodeURIComponent(`${p.lieu?p.lieu+", ":""}${p.ville}, France`);const geo=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`);const gd=await geo.json();if(gd?.[0]){lat=parseFloat(gd[0].lat);lng=parseFloat(gd[0].lon);}}catch(e){}
     const nb={slug,nom:p.nom,ville:p.ville,zone:p.zone||"",type:p.type||"electronique",jours:p.jours||"À confirmer",lieu:p.lieu||"",tel:p.tel||"",contact:p.contact||"",president:p.president||"",contact_nom:p.contact_nom||"",description:p.description||"",bars:[],source:"user",verifie:true,lat,lng};
     try{
       const r=await db.addAssociation(nb);
@@ -11479,7 +11500,11 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
       await db.updateProposition(p.id,{statut:"publie"});
       setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));
       addLog("Association validée",p.nom,"success");
-    }catch(e){ addLog("Échec validation asso",p.nom,"danger"); await alerter(`❌ Échec de la validation de « ${p.nom} » : ${String(e?.message||e).slice(0,200)}`); }
+    }catch(e){ addLog("Échec validation asso",p.nom,"danger"); const brut=String(e?.message||e);
+      // Traduire les erreurs de base : l'admin n'a pas à lire du JSON Postgres.
+      await alerter(brut.includes("23505") ? `« ${p.nom} » existe déjà — cette proposition a sans doute déjà été validée.`
+        : `❌ Échec de la validation de « ${p.nom} » :
+${brut.slice(0,200)}`); }
   };
   const validerTournoi=async p=>{
     const base=slugify(p.nom+"-"+p.ville+"-"+(p.date||"")); let slug=base,n=2;
@@ -11494,7 +11519,11 @@ const Admin = ({ joueur, bars, setBars, associations, setAssociations, tournois,
       await db.updateProposition(p.id,{statut:"publie"});
       setPropositions(x=>x.map(y=>y.id===p.id?{...y,statut:"publie"}:y));
       addLog("Tournoi validé",p.nom,"success");
-    }catch(e){ addLog("Échec validation tournoi",p.nom,"danger"); await alerter(`❌ Échec de la validation de « ${p.nom} » : ${String(e?.message||e).slice(0,200)}`); }
+    }catch(e){ addLog("Échec validation tournoi",p.nom,"danger"); const brut=String(e?.message||e);
+      // Traduire les erreurs de base : l'admin n'a pas à lire du JSON Postgres.
+      await alerter(brut.includes("23505") ? `« ${p.nom} » existe déjà — cette proposition a sans doute déjà été validée.`
+        : `❌ Échec de la validation de « ${p.nom} » :
+${brut.slice(0,200)}`); }
   };
   const refuser=async(id,nom)=>{await db.updateProposition(id,{statut:"refuse"});setPropositions(x=>x.map(y=>y.id===id?{...y,statut:"refuse"}:y));addLog("Proposition refusée",nom||id,"warning");};
 
