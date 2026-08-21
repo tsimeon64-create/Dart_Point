@@ -21,22 +21,13 @@
 --  type partout : joueurs.id est un uuid, messages.to_id est du texte, et
 --  Postgres REFUSE de comparer les deux (erreur 42883). Comparer les deux
 --  côtés en texte marche quel que soit le type réel des colonnes.
--- ═══════════════════════════════════════════════════════════════════════════
-
--- ────────────────────────────────────────────────────────────────────────────
--- ÉTAPE 0 — CONTRÔLE DES TYPES (ne modifie RIEN — à lancer en tout premier)
 --
--- Les identifiants ne sont pas du même type d'une table à l'autre : joueurs.id
--- est un uuid, messages.to_id est du texte. Cette requête affiche les types
--- réels ; envoie le résultat à Claude avant de lancer l'ÉTAPE 3.
--- ────────────────────────────────────────────────────────────────────────────
-select table_name, column_name, data_type
-  from information_schema.columns
- where table_schema = 'public'
-   and table_name in ('messages', 'amis', 'joueurs')
-   and column_name in ('id', 'from_id', 'to_id', 'joueur_id', 'ami_id',
-                       'date', 'lu', 'contenu', 'date_inscription')
- order by table_name, column_name;
+--  TYPES CONFIRMÉS sur cette base (vérifiés à la dure, par deux erreurs) :
+--    joueurs.id            uuid
+--    messages.from_id/to_id  text        → d'où les ::text dans les comparaisons
+--    messages.date         timestamptz → d'où now() et surtout PAS to_char()
+--    amis.date             bigint      → millisecondes, d'où extract(epoch)*1000
+-- ═══════════════════════════════════════════════════════════════════════════
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- ÉTAPE 1 — APERÇU (ne modifie RIEN, à lancer d'abord)
@@ -100,7 +91,7 @@ Le bouton ci-dessous envoie l'invitation dans le groupe WhatsApp de ton club, en
 [INVITER]
 
 Bonnes fléchettes ! 🎯$msg$, '{PSEUDO}', j.pseudo),
-       to_char(now() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+       now(),   -- messages.date est un timestamptz : now() va direct, sans conversion
        false
   from public.joueurs j
  where j.date_inscription >= 1785403920000
