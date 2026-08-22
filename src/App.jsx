@@ -2288,11 +2288,205 @@ const FaceAFaceCard = ({ joueur, rival, myColor, rColor, myEmoji, rEmoji, myTitr
   );
 };
 
+// ── RENDRE LES DRIX D'UN DUEL ─────────────────────────────────────────────────
+// Partie « argent » de l'annulation, isolée pour que le retrait de la victoire
+// dans les statistiques puisse avoir lieu même quand il n'y a aucun DRIX à rendre
+// (cas d'une partie amicale).
+//
+// ⚠️ IDEMPOTENTE PAR CONSTRUCTION. On ne « rejoue pas les mouvements à l'envers » :
+// on calcule, pour chaque joueur, le SOLDE de DRIX que ce duel lui a laissé (somme
+// de tous ses mouvements portant ce duel_id, annulations comprises) et on retire
+// exactement ce solde. Après un premier passage le solde vaut 0, donc un deuxième
+// passage ne retire plus rien. C'est ce qui protège du double comptage quand une
+// contestation ET une annulation admin tombent sur le même duel.
+//
+// ⚠️ replierSurLeTemps est RÉSERVÉ À L'ADMIN. Les tout premiers duels de l'appli
+// n'ont pas de duel_id sur leurs mouvements ; le seul moyen de les retrouver est une
+// fenêtre de temps, qui ramasse aussi les DRIX gagnés AILLEURS (comptage de finish,
+// chrono, bonus admin). Côté joueur c'est inutile — on ne conteste que dans les 24 h,
+// donc uniquement des duels récents, qui ont tous un duel_id — et ce serait dangereux :
+// le joueur perdrait des DRIX gagnés à l'entraînement.
+const rendreLesDrixDuDuel = async (d, ids, parQui, replierSurLeTemps) => {
+  // ⚠️ Une lecture qui ÉCHOUE ne doit pas être confondue avec « rien à rendre » :
+  // sans ça, une coupure réseau annoncerait au joueur qu'il n'y avait aucun DRIX en
+  // jeu alors que ses points sont toujours partis.
+  let echecLecture = false;
+  let mvts = await sb(`drix_mouvements?duel_id=eq.${d.id}&select=*`)
+    .catch(() => { echecLecture = true; return []; });
+  if (echecLecture) return { ok:false, raison:"les DRIX de ce match n'ont pas pu être lus" };
+
+  let orphelins = false;
+  if ((mvts || []).length === 0 && replierSurLeTemps) {
+    const t = new Date(d.date).getTime();
+    if (!Number.isFinite(t)) return { ok:false, raison:"date du duel illisible" };
+    const bruts = await sb(`drix_mouvements?joueur_id=in.(${ids.join(",")})&duel_id=is.null&date=gte.${t-60*1000}&date=lte.${t+30*60*1000}&select=*`).catch(()=>[]);
+    // Filtre décisif : on ne garde que les mouvements dont l'adversaire est bien l'un
+    // des deux joueurs du duel. Ceux du comptage de finish, du chrono ou d'un
+    // ajustement admin portent un autre libellé et sont donc écartés.
+    // startsWith et pas égalité stricte : un duel de rivalité hebdo écrit
+    // « Beub ⚔️ Rivalité Hebdo » dans adversaire_pseudo (AppJoueurs.jsx:5541).
+    const noms = [d.challenger_pseudo, d.defie_pseudo].filter(Boolean);
+    mvts = (bruts || []).filter(m => noms.some(n => String(m.adversaire_pseudo || "").startsWith(n)));
+    orphelins = mvts.length > 0;
+  }
+  // aucunMouvement distingue « la base ne contient rien pour ce match » de « on a
+  // trouvé les mouvements mais le remboursement a échoué » : les deux donnent une
+  // liste `rendus` vide, mais ce n'est pas du tout la même chose à annoncer.
+  if ((mvts || []).length === 0) return { ok:true, rendus:[], echecs:[], aucunMouvement:true, raison:"aucun mouvement DRIX trouvé pour ce match" };
+
+  // Les mouvements trouvés par le repli n'ont pas de duel_id. On les rattache AVANT
+  // d'écrire la trace : sinon, au passage suivant, la requête principale ne verrait
+  // que la trace (−X) et le solde repartirait à l'envers — l'annulation rendrait le
+  // duel une deuxième fois.
+  // ⚠️ UN SEUL PATCH, pas une boucle : un rattachement à moitié fait laisserait des
+  // mouvements orphelins que plus rien ne pourrait retrouver (la requête principale
+  // ne renverrait plus 0 ligne, donc le repli ne se déclencherait plus jamais).
+  if (orphelins) {
+    let echecRattache = false;
+    await sb(`drix_mouvements?id=in.(${mvts.map(m=>m.id).join(",")})&duel_id=is.null`, {
+      method:"PATCH", prefer:"return=minimal", body:JSON.stringify({ duel_id: d.id }),
+    }).catch(() => { echecRattache = true; });
+    if (echecRattache) return { ok:false, raison:"les anciens mouvements n'ont pas pu être rattachés au match" };
+  }
+
+  // Solde restant par joueur
+  const solde = {}, pseudos = {};
+  mvts.forEach(m => {
+    solde[m.joueur_id] = (solde[m.joueur_id] || 0) + Number(m.variation || 0);
+    if (m.joueur_pseudo) pseudos[m.joueur_id] = m.joueur_pseudo;
+  });
+
+  const rendus = [], echecs = [];
+  for (const [pid, delta] of Object.entries(solde)) {
+    if (!delta) continue;                       // déjà rendu pour ce joueur
+    const j = await sb(`joueurs?id=eq.${pid}&select=drix,pseudo,anonymise`).catch(()=>[]).then(r=>r?.[0]);
+    if (!j || j.anonymise) continue;
+    const nom = j.pseudo || pseudos[pid] || "?";
+    const avant = j.drix ?? 1000;
+    const apres = Math.max(0, avant - delta);
+    // Chaque joueur est traité à part : une panne sur l'un ne doit pas priver l'autre
+    // de son remboursement, ni faire exploser toute la fonction.
+    try {
+      await sb(`joueurs?id=eq.${pid}`, { method:"PATCH", prefer:"return=minimal",
+        body:JSON.stringify({ drix:apres }) });
+    } catch { echecs.push(`${nom} : DRIX non rendus`); continue; }
+    // La trace porte le duel_id : c'est elle qui ramène le solde à 0 et rend
+    // l'opération rejouable sans danger. Si elle manque, le duel pourrait être
+    // remboursé une deuxième fois — d'où le signalement.
+    try {
+      await sb("drix_mouvements", { method:"POST", prefer:"return=minimal", body:JSON.stringify({
+        joueur_id: pid, joueur_pseudo: nom,
+        adversaire_pseudo: `${parQui} (annulation)`,
+        variation: -delta, drix_avant: avant, drix_apres: apres,
+        resultat: "annule", duel_id: d.id, date: Date.now(),
+      })});
+    } catch { echecs.push(`${nom} : trace non enregistrée`); }
+    rendus.push({ pseudo: nom, delta, avant, apres });
+  }
+
+  return { ok:true, rendus, echecs, orphelins };
+};
+
+// ── ANNULER UN DUEL ───────────────────────────────────────────────────────────
+// Rend les DRIX aux deux joueurs ET retire la victoire des statistiques.
+// Appelée à DEUX endroits : quand un joueur conteste un résultat (automatique,
+// décision de Thomas du 21/08/2026) et quand l'admin annule un duel à la main.
+const annulerDrixDuDuel = async (d, { parQui = "Admin", replierSurLeTemps = false } = {}) => {
+  const ids = [d?.challenger_id, d?.defie_id].filter(Boolean);
+  if (!d?.id || ids.length === 0) return { ok:false, raison:"duel incomplet" };
+
+  // Une partie amicale (invitation amicale ET mode « Jouer en ligne ») ne met AUCUN
+  // DRIX en jeu : appliquerDrixDuel sort avant d'écrire quoi que ce soit. Il n'y a
+  // donc rien à rendre — et surtout il ne faut pas aller chercher plus loin, sinon on
+  // pioche dans les DRIX gagnés ailleurs.
+  // ⚠️ On ne QUITTE PAS la fonction pour autant : une amicale compte bien dans les
+  // statistiques (finaliserDuel appelle upsertStatsRow sans regarder le type), donc
+  // sa victoire doit être retirée comme celle des autres.
+  const sansEnjeu = d.type === "amical";
+  const drix = sansEnjeu
+    ? { ok:true, rendus:[], echecs:[] }
+    : await rendreLesDrixDuDuel(d, ids, parQui, replierSurLeTemps);
+  // Si les DRIX n'ont pas pu être traités, on ne touche pas non plus aux stats :
+  // mieux vaut un duel intact qu'un duel à moitié annulé.
+  if (!drix.ok) return drix;
+
+  // Stats : la garde est le STATUT du duel, pas le nombre de remboursements. Le duel
+  // ne passe qu'une seule fois de "termine" à "conteste"/"annule_admin", donc la
+  // victoire n'est retirée qu'une fois.
+  let statsFaites = false;
+  if (d.statut === "termine" && d.gagnant_id) {
+    const perdant_id = d.gagnant_id === d.challenger_id ? d.defie_id : d.challenger_id;
+    for (const [pid, champ] of [[d.gagnant_id,"victoires"],[perdant_id,"defaites"]]) {
+      if (!pid) continue;
+      const s = await sb(`stats_joueurs?joueur_id=eq.${pid}&select=*`).catch(()=>[]).then(r=>r?.[0]);
+      if (!s) continue;
+      await sb(`stats_joueurs?joueur_id=eq.${pid}`, { method:"PATCH", prefer:"return=minimal", body:JSON.stringify({
+        [champ]: Math.max(0,(s[champ]||0)-1), parties: Math.max(0,(s.parties||0)-1),
+      })}).catch(()=>{});
+      statsFaites = true;
+    }
+  }
+
+  return { ok:true, rendus:drix.rendus, echecs:drix.echecs, orphelins:drix.orphelins,
+           aucunMouvement:drix.aucunMouvement, sansEnjeu, statsFaites };
+};
+
 const PageDefi = ({ joueur, setPage }) => {
   const [amis, setAmis] = useState([]);
   const [amisData, setAmisData] = useState({});
   const [matchsActifs, setMatchsActifs] = useState([]);
   const [resultsAContester, setResultsAContester] = useState([]);
+  // Contestations déjà parties (une par duel) : sans ça, deux appuis rapides sur
+  // le bouton lanceraient deux annulations en parallèle.
+  const contestEnVol = useRef({});
+
+  // Contester un résultat → les DRIX du match sont rendus TOUT DE SUITE aux deux
+  // joueurs, et c'est définitif (choix de Thomas, 21/08/2026). Le duel passe en
+  // « contesté » : il sort du classement et apparaît dans l'admin.
+  const contesterResultat = async (d) => {
+    if (!d?.id || contestEnVol.current[d.id]) return;
+    const ok = await confirmer(
+      `⚠️ Contester ce résultat ?\n\n${d.challenger_pseudo} vs ${d.defie_pseudo}\n\n` +
+      `Les DRIX de ce match seront rendus immédiatement aux deux joueurs, et le match ne comptera plus.\n\n` +
+      `C'est définitif : il ne pourra pas être remis.`,
+      { danger:true, ok:"Contester" }
+    );
+    if (!ok) return;
+    contestEnVol.current[d.id] = true;
+    try {
+      // Le duel change d'état AVANT le remboursement : s'il repassait par la
+      // liste entre-temps, il ne serait plus proposé à la contestation.
+      await sb(`duels?id=eq.${d.id}`, { method:"PATCH", prefer:"return=minimal",
+        body:JSON.stringify({ statut:"conteste" }) });
+      setResultsAContester(x => x.filter(r => r.id !== d.id));
+
+      // Pas de repli par fenêtre de temps ici : on ne conteste que dans les 24 h,
+      // donc uniquement des duels récents, qui portent tous un duel_id.
+      const r = await annulerDrixDuDuel(d, { parQui: joueur?.pseudo || "Contestation", replierSurLeTemps:false });
+      const souci = (r.echecs && r.echecs.length)
+        ? `\n\n⚠️ Un souci est survenu :\n${r.echecs.map(e => "• " + e).join("\n")}\nPréviens Thomas avec une capture de ce message.`
+        : "";
+      if (!r.ok) {
+        await alerter(`Le match est bien contesté, mais les DRIX n'ont pas pu être rendus.\n\nRaison : ${r.raison}\n\nPréviens Thomas, il peut le faire depuis l'admin.`);
+      } else if (r.sansEnjeu) {
+        await alerter(`Match contesté ✅\n\nC'était une partie amicale : aucun DRIX n'était en jeu, il n'y avait donc rien à rendre.` +
+          (r.statsFaites ? `\n\nLe match a été retiré de vos statistiques.` : ""));
+      } else if (r.aucunMouvement) {
+        await alerter(`Match contesté ✅\n\nAucun mouvement de DRIX n'a été retrouvé pour ce match. Si tu penses que des points sont en jeu, préviens Thomas.`);
+      } else if (!r.rendus || r.rendus.length === 0) {
+        // Les mouvements existaient, mais AUCUN n'a pu être rendu. Ne surtout pas
+        // afficher « rien à rendre » : le joueur croirait que tout va bien.
+        await alerter(`Match contesté ✅\n\nMais aucun DRIX n'a pu être rendu.${souci || "\n\nPréviens Thomas."}`);
+      } else {
+        const detail = r.rendus.map(x => `• ${x.pseudo} : ${x.delta > 0 ? "−" : "+"}${Math.abs(x.delta)} → ${x.apres} DRIX`).join("\n");
+        await alerter(`Match contesté ✅\n\nLes DRIX ont été rendus :\n${detail}\n\nCe match ne compte plus au classement.${souci}`);
+      }
+    } catch (e) {
+      await alerter("La contestation a échoué : " + (e?.message || "erreur inconnue"));
+    } finally {
+      delete contestEnVol.current[d.id];
+    }
+  };
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("1v1");
   const [searchDefi, setSearchDefi] = useState("");
@@ -2730,7 +2924,7 @@ const PageDefi = ({ joueur, setPage }) => {
                 </div>
                 <div style={{ display:"flex",gap:8 }}>
                   <Btn onClick={async ()=>{ await sb(`duels?id=eq.${d.id}`,{method:"PATCH",body:JSON.stringify({valide_defie:true}),prefer:"return=minimal"}); setResultsAContester(x=>x.filter(r=>r.id!==d.id)); }} style={{ flex:1,fontSize:13,background:C.green,display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}><Check size={13}/>J'accepte le résultat</Btn>
-                  <Btn onClick={async ()=>{ await sb(`duels?id=eq.${d.id}`,{method:"PATCH",body:JSON.stringify({statut:"conteste"}),prefer:"return=minimal"}); setResultsAContester(x=>x.filter(r=>r.id!==d.id)); }} style={{ fontSize:13,background:"#2a2a2a",color:C.red,display:"flex",alignItems:"center",gap:6 }}><Zap size={13}/>Contester</Btn>
+                  <Btn onClick={()=>contesterResultat(d)} style={{ fontSize:13,background:"#2a2a2a",color:C.red,display:"flex",alignItems:"center",gap:6 }}><Zap size={13}/>Contester</Btn>
                 </div>
               </div>
             );
@@ -6310,6 +6504,11 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null }) => {
       const PALIERS = [800,900,1000,1100,1200,1300,1500,1800,2000,2500,3000];
       (drixMvts||[]).forEach(m => {
         if (!m?.date) return;
+        // Une annulation de match (contestation ou rollback admin) n'est PAS une
+        // progression : elle remet juste les DRIX là où ils étaient. Sans ce filtre,
+        // le remboursement fabriquait une fausse carte « Nouveau palier débloqué ! »
+        // dans le fil de tous les amis, pour un match qui venait d'être effacé.
+        if (m.resultat === "annule") return;
         // Mouvements d'entraînement (Comptage de finish)
         if (m.adversaire_pseudo === "Comptage de finish" && !m.duel_id) {
           const ts = typeof m.date === "number" ? m.date : new Date(m.date).getTime();
@@ -10926,53 +11125,74 @@ const AdminDuels = ({ addLog }) => {
 
   useEffect(()=>{ fetchDuels(); }, [fetchDuels]);
 
-  // Annuler un duel terminé → rollback DRIX via drix_mouvements
+  // Annuler un duel → rend les DRIX et corrige les stats, via la fonction
+  // partagée annulerDrixDuDuel (la même que la contestation joueur).
+  // ⚠️ Depuis le 21/08/2026, une contestation rend DÉJÀ les DRIX toute seule.
+  // Passer ici sur un duel « contesté » ne retire donc rien de plus : la
+  // fonction partagée calcule le solde restant, qui vaut alors 0.
+  // Annulations déjà parties (une par duel). La sonde de solde et le prompt prennent
+  // du temps : sans ce verrou, deux appuis lanceraient deux annulations qui liraient
+  // toutes les deux d.statut === "termine" en mémoire et retireraient la victoire
+  // DEUX fois. Le remboursement des DRIX, lui, reste protégé par le calcul du solde.
+  const annulEnVol = useRef({});
+
   const annulerDuel = async (d) => {
-    const note = window.prompt(`⚠️ Annuler ce duel et rollback DRIX ?\n\n${d.challenger_pseudo} vs ${d.defie_pseudo}\nStatut : ${d.statut}\n\nMotif de l'annulation (sera enregistré) :`);
+    if (!d?.id || annulEnVol.current[d.id]) return;
+    annulEnVol.current[d.id] = true;
+    try { await annulerDuelInterne(d); } finally { delete annulEnVol.current[d.id]; }
+  };
+
+  const annulerDuelInterne = async (d) => {
+    // ⚠️ NE PAS déduire du statut si les DRIX ont déjà été rendus. Les duels
+    // contestés AVANT le 21/08/2026 sont en statut « conteste » sans avoir jamais
+    // été remboursés (l'ancien bouton ne faisait que changer le statut). Le seul
+    // juge fiable est le SOLDE réellement restant sur le duel.
+    // ⚠️ Le solde se compte PAR JOUEUR, jamais en bloc : les deux variations d'un
+    // duel sont exactement opposées par construction (AppJoueurs.jsx:5504), donc un
+    // total global vaut TOUJOURS zéro et ne dirait strictement rien.
+    let reste = null;                       // true / false / null = inconnu
+    if (d.type !== "amical") {
+      const mv = await sb(`drix_mouvements?duel_id=eq.${d.id}&select=joueur_id,variation`).catch(()=>null);
+      if (Array.isArray(mv) && mv.length) {
+        const solde = {};
+        mv.forEach(m => { solde[m.joueur_id] = (solde[m.joueur_id] || 0) + Number(m.variation || 0); });
+        // « il reste des DRIX » dès qu'UN des deux joueurs n'a pas été remboursé.
+        reste = Object.values(solde).some(v => v !== 0);
+      }
+      else if (Array.isArray(mv)) reste = false;   // aucun mouvement rattaché
+    }
+    const info =
+      d.type === "amical" ? `\nℹ️ Partie AMICALE : aucun DRIX en jeu. L'annulation retirera seulement le match des statistiques.\n`
+      : reste === true    ? `\n⚠️ Il reste des DRIX à rendre sur ce duel.\n`
+      : reste === false   ? `\nℹ️ Aucun DRIX ne reste à rendre sur ce duel (déjà remboursé, ou aucun mouvement rattaché).\n`
+      : "";
+    const note = window.prompt(
+      `⚠️ Annuler ce duel ?\n\n${d.challenger_pseudo} vs ${d.defie_pseudo}\nStatut : ${d.statut}\n` +
+      info +
+      `\nMotif de l'annulation (sera enregistré) :`
+    );
     if (!note) return;
     setWorking(w=>({...w,[d.id]:true}));
     try {
-      const ids = [d.challenger_id, d.defie_id].filter(Boolean);
-      if (ids.length === 0) { await alerter("IDs joueurs manquants"); return; }
+      // L'admin a le droit au repli par fenêtre de temps : c'est le seul moyen de
+      // rattraper les tout premiers duels, dont les mouvements n'ont pas de duel_id.
+      const r = await annulerDrixDuDuel(d, { parQui: "Admin", replierSurLeTemps:true });
+      if (!r.ok) { await alerter("Annulation impossible : " + (r.raison || "?")); setWorking(w=>({...w,[d.id]:false})); return; }
 
-      // Mouvements DRIX du duel : par duel_id (fiable) ; repli fenêtre temporelle pour les anciens duels sans duel_id
-      let mvts = await sb(`drix_mouvements?duel_id=eq.${d.id}&select=*`).catch(()=>[]);
-      if (!mvts || mvts.length === 0) {
-        const dueltime = new Date(d.date).getTime();
-        mvts = await sb(`drix_mouvements?joueur_id=in.(${ids.join(",")})&date=gte.${dueltime-60*1000}&date=lte.${dueltime+30*60*1000}&select=*`).catch(()=>[]);
-      }
-
-      // Rollback : pour chaque mouvement trouvé, inverse la variation
-      for (const m of (mvts||[])) {
-        const j = await sb(`joueurs?id=eq.${m.joueur_id}&select=drix,pseudo,anonymise`).catch(()=>[]).then(r=>r?.[0]);
-        if (!j || j.anonymise) continue;
-        const newDrix = Math.max(0, (j.drix||1000) - (m.variation||0));
-        await sb(`joueurs?id=eq.${m.joueur_id}`, { method:"PATCH", body:JSON.stringify({ drix:newDrix }), prefer:"return=minimal" });
-        await sb("drix_mouvements", { method:"POST", body:JSON.stringify({
-          joueur_id: m.joueur_id, joueur_pseudo: m.joueur_pseudo,
-          adversaire_pseudo: "Admin (rollback)",
-          variation: -(m.variation||0), drix_avant: j.drix||1000, drix_apres: newDrix,
-          resultat: "annule_admin", date: Date.now()
-        })}).catch(()=>{});
-      }
-
-      // Correction des stats (victoires/défaites/parties) si le duel était comptabilisé
-      if (d.statut === "termine" && d.gagnant_id) {
-        const perdant_id = d.gagnant_id === d.challenger_id ? d.defie_id : d.challenger_id;
-        for (const [pid, champ] of [[d.gagnant_id,"victoires"],[perdant_id,"defaites"]]) {
-          if (!pid) continue;
-          const s = await sb(`stats_joueurs?joueur_id=eq.${pid}&select=*`).catch(()=>[]).then(r=>r?.[0]);
-          if (!s) continue;
-          await sb(`stats_joueurs?joueur_id=eq.${pid}`, { method:"PATCH", body:JSON.stringify({ [champ]:Math.max(0,(s[champ]||0)-1), parties:Math.max(0,(s.parties||0)-1) }), prefer:"return=minimal" }).catch(()=>{});
-        }
-      }
-
-      // PATCH duel
       await sb(`duels?id=eq.${d.id}`, { method:"PATCH", body:JSON.stringify({
         statut:"annule_admin", admin_action:"annule_admin", admin_note: note
       }), prefer:"return=minimal" });
 
-      addLog?.(`Duel annulé (rollback DRIX + stats)`, `${d.challenger_pseudo} vs ${d.defie_pseudo}`, "danger");
+      // Le journal dit ce qui s'est VRAIMENT passé : « + stats » seulement si la
+      // victoire a réellement été retirée (elle ne l'est qu'au premier passage).
+      const n = (r.rendus || []).length;
+      addLog?.([n ? `DRIX rendus à ${n} joueur(s)` : "aucun DRIX à rendre",
+                r.statsFaites ? "stats corrigées" : "stats déjà à jour"].join(", "),
+               `Duel annulé — ${d.challenger_pseudo} vs ${d.defie_pseudo}`, "danger");
+      if (r.echecs && r.echecs.length) {
+        await alerter("⚠️ L'annulation est passée, mais pas complètement :\n" + r.echecs.map(e => "• " + e).join("\n") +
+          "\n\nUne trace manquante veut dire que ce duel pourrait être remboursé une 2e fois. Ne le ré-annule pas.");
+      }
       await fetchDuels();
     } catch(e) {
       await alerter("Erreur annulation : " + e.message);

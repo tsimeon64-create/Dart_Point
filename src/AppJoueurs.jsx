@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Crosshair, Star, Zap, Flame, Sparkles, Snowflake, Minus, ArrowUp, ArrowDown, Gamepad2, Dices, Scale, Beer, Cake, HeartCrack, Circle, Bomb, Sprout, List, Cog, Hand, Rocket, QrCode } from "lucide-react";
+import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Crosshair, Star, Zap, Flame, Sparkles, Snowflake, Minus, ArrowUp, ArrowDown, Gamepad2, Dices, Scale, Beer, Cake, HeartCrack, Circle, Bomb, Sprout, List, Cog, Hand, Rocket, QrCode, RotateCcw } from "lucide-react";
 import QRCode from "qrcode";
 import { EmoIcon } from "./icons";
 import { confirmer } from "./uiConfirm.jsx";
@@ -2246,19 +2246,28 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
           <SectionTitle icon={Clock} color={CJ.muted}>Historique DRIX</SectionTitle>
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             {drixMvts.slice(0,10).map((m,i)=>{
+              // Trois états, pas deux : un match annulé (contestation ou admin)
+              // n'est ni une victoire ni une défaite. Sans ce cas neutre, le
+              // remboursement s'affichait en ROUGE avec une croix, et le joueur
+              // croyait avoir pris une défaite de plus.
+              const annule = m.resultat === "annule";
               const win = m.resultat === "victoire";
               const up  = m.variation > 0;
+              const teinte = annule ? "#94a3b8" : win ? "#22c55e" : "#ef4444";
+              const fond   = annule ? "linear-gradient(90deg,#33415524,#16161c 62%)"
+                                    : win ? "linear-gradient(90deg,#14532d24,#16161c 62%)"
+                                          : "linear-gradient(90deg,#7f1d1d24,#16161c 62%)";
               return (
                 <div key={i} style={{ ...card, display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 13px",
-                  background:win?"linear-gradient(90deg,#14532d24,#16161c 62%)":"linear-gradient(90deg,#7f1d1d24,#16161c 62%)",
-                  border:`1px solid ${win?"#22c55e33":"#ef444433"}`, animation:"dpStatIn .4s ease both", animationDelay:`${(0.03*i).toFixed(2)}s` }}>
+                  background:fond,
+                  border:`1px solid ${teinte}33`, animation:"dpStatIn .4s ease both", animationDelay:`${(0.03*i).toFixed(2)}s` }}>
                   <div style={{ display:"flex", alignItems:"center", gap:11, minWidth:0 }}>
-                    <div style={{ flexShrink:0, width:34, height:34, borderRadius:10, background:win?"#22c55e22":"#ef444422", border:`1px solid ${win?"#22c55e55":"#ef444455"}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                      {win ? <Check size={16} color={CJ.green} strokeWidth={3}/> : <X size={16} color={CJ.red} strokeWidth={3}/>}
+                    <div style={{ flexShrink:0, width:34, height:34, borderRadius:10, background:`${teinte}22`, border:`1px solid ${teinte}55`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      {annule ? <RotateCcw size={16} color={CJ.muted} strokeWidth={3}/> : win ? <Check size={16} color={CJ.green} strokeWidth={3}/> : <X size={16} color={CJ.red} strokeWidth={3}/>}
                     </div>
                     <div style={{ minWidth:0 }}>
-                      <div style={{ fontWeight:800, fontSize:13.5, color:CJ.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>vs {m.adversaire_pseudo||"?"}</div>
-                      <div style={{ fontSize:10.5, color:CJ.muted }}>{win?"Victoire":"Défaite"} · {new Date(m.date).toLocaleDateString("fr-FR")}</div>
+                      <div style={{ fontWeight:800, fontSize:13.5, color:CJ.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{annule ? "Match annulé" : `vs ${m.adversaire_pseudo||"?"}`}</div>
+                      <div style={{ fontSize:10.5, color:CJ.muted }}>{annule?"DRIX rendus":win?"Victoire":"Défaite"} · {new Date(m.date).toLocaleDateString("fr-FR")}</div>
                     </div>
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
@@ -5613,7 +5622,10 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
   useEffect(() => {
     Promise.all([
       dbDrix.getClassement(),
-      sbJ(`drix_mouvements?resultat=in.(victoire,defaite)&order=date.desc&select=joueur_id,joueur_pseudo,variation,resultat,date,duel_id`).catch(() => []),
+      // On charge aussi les annulations : sans elles, un match contesté continuait
+      // d'alimenter « DRIX cette semaine », le compteur de matchs et les séries,
+      // alors que les DRIX, eux, avaient bien été rendus.
+      sbJ(`drix_mouvements?resultat=in.(victoire,defaite,annule)&order=date.desc&select=joueur_id,joueur_pseudo,variation,resultat,date,duel_id`).catch(() => []),
       dbDrix.getHallOfFame().catch(() => []),
     ]).then(([c, mvts, hof]) => {
       setClassement(c || []);
@@ -5631,10 +5643,21 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
   // "DRIX cette semaine" = tous les mouvements (duels + chrono + entraînement + admin).
   // "matchs" & "séries" = uniquement les vrais duels (duel_id non nul) — les manches
   // ne créent jamais de ligne, et chrono/entraînement/admin n'ont pas de duel_id.
+  // Duels annulés (contestation joueur ou rollback admin). Ils disparaissent
+  // COMPLÈTEMENT des statistiques : on écarte à la fois leur ligne victoire/défaite
+  // et leur ligne d'annulation. Se contenter de les additionner donnerait bien 0 sur
+  // les DRIX, mais le match resterait compté dans « matchs » et casserait la série.
+  // ⚠️ Partagé avec le palmarès (liveHof) : sans ça, « Plus gros gain » couronnait le
+  // REMBOURSEMENT du perdant d'un match qui n'existe plus.
+  const duelsAnnules = useMemo(() => new Set(
+    mouvements.filter(mv => mv.resultat === "annule" && mv.duel_id != null).map(mv => mv.duel_id)
+  ), [mouvements]);
+
   const statsMap = useMemo(() => {
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const m = {};
     for (const mv of mouvements) {
+      if (mv.duel_id != null && duelsAnnules.has(mv.duel_id)) continue;
       const id = mv.joueur_id;
       if (!m[id]) m[id] = { matches:0, wins:0, losses:0, streak:0, streakType:null, weeklyVar:0, lastDate:0, _done:false };
       const s = m[id];
@@ -5650,7 +5673,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
       }
     }
     return m;
-  }, [mouvements]);
+  }, [mouvements, duelsAnnules]);
 
   const variationMap = useMemo(() => {
     const m = {};
@@ -5746,10 +5769,11 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
     });
     for (const mv of mouvements) {
       if (mv.duel_id == null) continue;               // "sur un match" → duels uniquement
+      if (duelsAnnules.has(mv.duel_id)) continue;      // match annulé → ni le gain, ni son remboursement
       if ((mv.variation||0) > 0 && (!bestGain || mv.variation > bestGain.v)) bestGain = { j:byId[mv.joueur_id], pseudo:mv.joueur_pseudo, v:mv.variation };
     }
     return { leader, bestProg, bestStreak, bestGain, mostActive };
-  }, [classement, variationMap, statsMap, mouvements]);
+  }, [classement, variationMap, statsMap, mouvements, duelsAnnules]);
 
   // ── Sous-composants ladder ──────────────────────────────────────────────────
   // Identité de ligue forte (icône + nom coloré du rang)
