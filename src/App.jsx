@@ -3455,26 +3455,57 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
   const [comments, setComments] = useState(initialComments);
   const [texte, setTexte] = useState("");
   const [busy, setBusy] = useState(false);
+  // ⚠ Garde SYNCHRONE : setBusy(true) ne prend effet qu'au rendu suivant, donc deux
+  // déclencheurs tirés dans le même tick (touche « Entrée » du clavier virtuel Android
+  // + clic sur « Envoyer ») passaient tous les deux le test `busy` → 2 POST → le même
+  // commentaire enregistré deux fois. Un ref est mis à jour immédiatement.
+  const busyRef = useRef(false);
 
   const publier = async () => {
-    if (!texte.trim() || !joueur || busy) return;
+    const contenu = texte.trim();
+    if (!contenu || !joueur || busyRef.current) return;
+    // Anti-doublon : même auteur + même texte déjà envoyé il y a moins de 2 min
+    const now = Date.now();
+    const dejaEnvoye = comments.some(c =>
+      c.joueur_id === joueur.id && c.contenu === contenu && (now - (c.date||0)) < 120000
+    );
+    if (dejaEnvoye) { setTexte(""); return; }
+    busyRef.current = true;
     setBusy(true);
     try {
-      const r = await sb("wall_comments", { method:"POST", body:JSON.stringify({ ref_id:refId, joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, joueur_photo:joueur.photo||null, contenu:texte.trim(), date:Date.now() }) });
+      const r = await sb("wall_comments", { method:"POST", body:JSON.stringify({ ref_id:refId, joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, joueur_photo:joueur.photo||null, contenu, date:now }) });
       if (r?.[0]) setComments(c=>[...c, r[0]]);
       setTexte("");
     } catch{}
+    busyRef.current = false;
     setBusy(false);
   };
 
-  const totalComments = comments.length;
+  // Affichage : masque les doublons déjà en base (même auteur + même texte à moins de
+  // 2 min d'intervalle) — artefact des double-envois d'avant le correctif ci-dessus.
+  // Deux comptes DIFFÉRENTS avec le même pseudo ont des joueur_id distincts : leurs
+  // messages restent tous les deux affichés.
+  const visibleComments = useMemo(() => {
+    const vus = [];
+    return comments.filter(c => {
+      const doublon = vus.some(v =>
+        v.joueur_id && c.joueur_id && v.joueur_id === c.joueur_id &&
+        v.contenu === c.contenu && Math.abs((c.date||0) - (v.date||0)) < 120000
+      );
+      if (doublon) return false;
+      vus.push(c);
+      return true;
+    });
+  }, [comments]);
+
+  const totalComments = visibleComments.length;
   const hasComments = totalComments > 0;
   return (
     <div style={{ marginTop:10, borderTop:`1px solid ${C.border}`, paddingTop:8 }}>
       {/* Commentaires affichés directement si présents */}
       {hasComments && (
         <div style={{ marginBottom:8 }}>
-          {comments.map((c,i) => (
+          {visibleComments.map((c,i) => (
             <div key={c.id||i} style={{ display:"flex", gap:8, marginBottom:8, alignItems:"flex-start" }}>
               <FeedAvatar photo={c.joueur_photo} pseudo={c.joueur_pseudo} size={28}/>
               <div style={{ background:"#0f0f0f", borderRadius:10, padding:"6px 10px", flex:1 }}>
