@@ -48,19 +48,43 @@ const court = (id) => (id ? String(id).slice(0, 8) : "—");
   );
   console.log(`\n2) COMMENTAIRES signés « ${PSEUDO} » : ${comms.length} (60 plus récents)`);
   for (const c of comms) {
-    const orphelin = c.joueur_id && !idsConnus.has(c.joueur_id) ? "  ⚠️ id inconnu" : "";
-    console.log(`   ${dt(c.date).padEnd(20)} auteur=${court(c.joueur_id)}…  post=${court(c.ref_id)}…${orphelin}`);
+    // Marque simplement les auteurs qui ne font pas partie des comptes homonymes ;
+    // le verdict « compte introuvable » est établi plus bas, contre la table entière.
+    const autre = c.joueur_id && !idsConnus.has(c.joueur_id) ? "  ← autre compte" : "";
+    console.log(`   ${dt(c.date).padEnd(20)} auteur=${court(c.joueur_id)}…  post=${court(c.ref_id)}…${autre}`);
     console.log(`      « ${String(c.contenu).slice(0, 70)} »`);
   }
 
-  // Répartition par auteur réel
+  // Répartition par auteur réel.
+  // ⚠ On vérifie chaque joueur_id contre la table `joueurs` ENTIÈRE (et pas seulement
+  // contre les comptes dont le pseudo contient PSEUDO) : sinon un joueur qui a changé
+  // de pseudo depuis son commentaire serait signalé « introuvable » à tort.
   const parAuteur = {};
   for (const c of comms) (parAuteur[c.joueur_id || "null"] ||= []).push(c);
-  const auteurs = Object.keys(parAuteur);
+  const auteurs = Object.keys(parAuteur).filter((a) => a !== "null");
+  const reels = auteurs.length
+    ? await sb(`joueurs?id=in.(${auteurs.join(",")})&select=id,pseudo`)
+    : [];
+  const pseudoActuel = Object.fromEntries(reels.map((j) => [j.id, j.pseudo]));
+
   console.log(`\n   → Ces commentaires proviennent de ${auteurs.length} compte(s) distinct(s) :`);
   for (const a of auteurs) {
-    const connu = comptes.find((c) => c.id === a);
-    console.log(`      ${court(a)}…  ${parAuteur[a].length} commentaire(s)  ${connu ? `(= ${connu.pseudo})` : "⚠️ COMPTE INTROUVABLE"}`);
+    const actuel = pseudoActuel[a];
+    let etat;
+    if (!actuel) etat = "⚠️ COMPTE INTROUVABLE (supprimé/anonymisé… ou ligne forgée)";
+    else if (actuel.toLowerCase().includes(PSEUDO.toLowerCase())) etat = `= ${actuel}`;
+    else etat = `↪ ce compte s'appelle aujourd'hui « ${actuel} » (pseudo changé — normal)`;
+    console.log(`      ${court(a)}…  ${parAuteur[a].length} commentaire(s)  ${etat}`);
+  }
+  if (parAuteur["null"]) {
+    console.log(`      (sans id)   ${parAuteur["null"].length} commentaire(s)  ⚠️ aucun auteur enregistré`);
+  }
+  const introuvables = auteurs.filter((a) => !pseudoActuel[a]);
+  if (introuvables.length) {
+    console.log(`\n   ⚠️  ${introuvables.length} identifiant(s) ne correspondent à AUCUN compte.`);
+    console.log(`       Causes possibles : compte supprimé/anonymisé depuis (bénin),`);
+    console.log(`       ou ligne insérée directement via l'API avec un id inventé (usurpation).`);
+    console.log(`       → à recouper avec la date du commentaire et tes suppressions de comptes.`);
   }
   if (auteurs.length > 1) {
     console.log(`   ⚠️  Plusieurs comptes écrivent sous ce pseudo → vérifie lesquels sont bien toi.`);
