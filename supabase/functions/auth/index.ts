@@ -222,7 +222,11 @@ Deno.serve(async (req) => {
       const rows = await api(`joueurs?id=eq.${jid}&select=${PUBLIC_COLS}`).then((r) => r.json());
       const u = Array.isArray(rows) ? rows[0] : null;
       if (!u) return json({ error: "Joueur introuvable" }, 404);
-      return json({ ok: true, joueur: u });
+      // ⚠️ On renvoie un jeton NEUF a chaque passage. Sans ca, le jeton mourait au bout
+      // de 30 jours et n'etait jamais renouvele : un joueur installe en PWA restait
+      // connecte indefiniment avec un jeton perime, donc prive de la messagerie et du
+      // Comptoir securise, sans comprendre pourquoi.
+      return json({ ok: true, joueur: u, token: await makeToken(jid) });
     }
 
     // ───────── SUPPRESSION DE COMPTE (RGPD art.17 / exigence Google Play) ─────────

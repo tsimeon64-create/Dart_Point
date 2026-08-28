@@ -49,6 +49,40 @@ const sb = async (path, opts = {}) => {
 };
 // Opérations admin sensibles (DELETE/UPDATE) → Edge Function admin-ops (service key côté
 // serveur). Le mot de passe admin, stocké en session à la connexion, est revérifié serveur.
+// ── COMPTOIR SÉCURISÉ ─────────────────────────────────────────────────────────
+// Commentaires et j'aime passent par la fonction Edge `wall`, qui déduit l'auteur du
+// JETON DE SESSION. Avant, le navigateur annonçait lui-même « je suis le joueur X » :
+// n'importe qui pouvait donc commenter sous le pseudo d'un autre, ou modifier le
+// commentaire de quelqu'un d'autre.
+//
+// `secours` est le chemin d'AVANT, gardé uniquement pour la fenêtre de transition :
+// une fonction Edge se déploie à la main (git push ne le fait pas), donc l'appli peut
+// être en ligne avant elle. Tant que la fonction répond 404, on écrit à l'ancienne.
+// Dès que le SQL de verrouillage sera lancé, ce repli échouera de lui-même.
+const callWall = async (action, payload = {}, secours = null) => {
+  const token = (typeof localStorage !== "undefined" && localStorage.getItem("dp_token")) || "";
+  try {
+    const res = await fetch(`${SB_URL}/functions/v1/wall`, {
+      method: "POST",
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ action, token, ...payload }),
+    });
+    // 404 = fonction pas encore déployée.
+    // 401/403 = jeton absent ou périmé. ⚠️ CAS FRÉQUENT : le jeton dure 30 jours et
+    // rien ne le renouvelait ; un joueur installé en PWA reste connecté indéfiniment
+    // avec un jeton mort. Sans ce repli, son commentaire partait dans le vide sans
+    // le moindre message à l'écran.
+    if ((res.status === 404 || res.status === 401 || res.status === 403) && secours) return await secours();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data?.error) throw new Error(data?.error || `wall ${res.status}`);
+    return data;
+  } catch (e) {
+    // Panne réseau : on tente l'ancien chemin plutôt que de perdre le commentaire.
+    if (secours && /Failed to fetch|NetworkError|Load failed/i.test(String(e?.message))) return await secours();
+    throw e;
+  }
+};
+
 const sbAdmin = async (op, table, match, body) => {
   const pw = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("dp_admin_pw")) || "";
   const res = await fetch(`${SB_URL}/functions/v1/admin-ops`, {
@@ -4087,15 +4121,18 @@ const LikeButton = ({ refId, joueur, initialCount=0, initialMyLike=false }) => {
     setBusy(true);
     try {
       if (liked) {
-        await sb(`wall_likes?ref_id=eq.${refId}&joueur_id=eq.${joueur.id}`, { method:"DELETE", prefer:"return=minimal" });
+        await callWall("unlike", { refId }, () => sb(`wall_likes?ref_id=eq.${refId}&joueur_id=eq.${joueur.id}`, { method:"DELETE", prefer:"return=minimal" }));
         setCount(c=>Math.max(0,c-1)); setLiked(false);
         setLikers(ls => ls.filter(l => l.joueur_id !== joueur.id));
       } else {
-        await sb("wall_likes", { method:"POST", body:JSON.stringify({ ref_id:refId, joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, date:Date.now() }) });
+        await callWall("like", { refId }, () => sb("wall_likes", { method:"POST", body:JSON.stringify({ ref_id:refId, joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, date:Date.now() }) }));
         setCount(c=>c+1); setLiked(true);
         setLikers(ls => [...ls.filter(l=>l.joueur_id!==joueur.id), { joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, photo: joueur.photo||null }]);
       }
-    } catch{}
+    } catch(e) {
+      const msg = String(e?.message || "");
+      window.dpToast?.(/Session expir|401|403/i.test(msg) ? "Reconnecte-toi pour aimer" : "Action non enregistree", "error", 3000);
+    }
     setBusy(false);
   };
   if (synth) return null; // annonce synthétisée → pas d'interaction (id non réel)
@@ -4197,9 +4234,13 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
     const gens = avant.moi ? sansMoi : [...sansMoi, { joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, photo: joueur.photo || null }];
     setLikes(m => ({ ...m, [c.id]: { n: Math.max(0, avant.n + (avant.moi ? -1 : 1)), moi: !avant.moi, gens } }));
     try {
-      if (avant.moi) await sb(`wall_likes?ref_id=eq.${c.id}&joueur_id=eq.${joueur.id}`, { method:"DELETE", prefer:"return=minimal" });
-      else await sb("wall_likes", { method:"POST", body:JSON.stringify({ ref_id:c.id, joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, date:Date.now() }) });
-    } catch { setLikes(m => ({ ...m, [c.id]: avant })); }
+      if (avant.moi) await callWall("unlike", { refId:c.id }, () => sb(`wall_likes?ref_id=eq.${c.id}&joueur_id=eq.${joueur.id}`, { method:"DELETE", prefer:"return=minimal" }));
+      else await callWall("like", { refId:c.id }, () => sb("wall_likes", { method:"POST", body:JSON.stringify({ ref_id:c.id, joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, date:Date.now() }) }));
+    } catch(e) {
+      setLikes(m => ({ ...m, [c.id]: avant }));
+      const msg = String(e?.message || "");
+      window.dpToast?.(/Session expir|401|403/i.test(msg) ? "Reconnecte-toi pour aimer" : "Action non enregistree", "error", 3000);
+    }
     finally { delete enVol.current[c.id]; }
   };
 
@@ -4207,10 +4248,23 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
     if (!texte.trim() || !joueur || busy) return;
     setBusy(true);
     try {
-      const r = await sb("wall_comments", { method:"POST", body:JSON.stringify({ ref_id:refId, joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, joueur_photo:joueur.photo||null, contenu:texte.trim(), date:Date.now() }) });
-      if (r?.[0]) setComments(c=>[...c, r[0]]);
+      // L'auteur n'est PLUS annonce par le telephone : la fonction `wall` le deduit
+      // du jeton de session. Le repli garde l'ancien chemin tant qu'elle n'est pas
+      // deployee (voir callWall).
+      const rep = await callWall("addComment", { refId, contenu: texte.trim() },
+        () => sb("wall_comments", { method:"POST", body:JSON.stringify({ ref_id:refId, joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, joueur_photo:joueur.photo||null, contenu:texte.trim(), date:Date.now() }) }).then(r => ({ comment: r?.[0] })));
+      const nouveau = rep?.comment || (Array.isArray(rep) ? rep[0] : null);
+      // Sans ligne renvoyee, on n'affiche RIEN plutot qu'une bulle vide, et on garde
+      // le texte dans la case pour que le joueur puisse reessayer.
+      if (!nouveau?.id) throw new Error("commentaire non enregistre");
+      setComments(c=>[...c, nouveau]);
       setTexte("");
-    } catch{}
+    } catch(e) {
+      const m = String(e?.message || "");
+      window.dpToast?.(/Session expir|401|403/i.test(m)
+        ? "Reconnecte-toi pour commenter"
+        : "Commentaire non envoye, reessaie", "error", 4000);
+    }
     setBusy(false);
   };
 
@@ -14137,10 +14191,13 @@ export default function App() {
       const parsed=JSON.parse(j);
       setJoueur(parsed);
       const tok=localStorage.getItem("dp_token");
-      if(tok && parsed?.id && !parsed?.email){
+      // On appelle `session` des qu'un jeton existe (et plus seulement quand l'email
+      // manque) : c'est ce passage qui RENOUVELLE le jeton. Sinon il meurt a 30 jours.
+      if(tok && parsed?.id){
         callAuth("session",{ token:tok })
           .then(r=>{
             if(cancelled) return;
+            if(r?.token) localStorage.setItem("dp_token", r.token);
             if(r?.ok && r.joueur?.email){
               const merged={ ...parsed, ...r.joueur };
               setJoueur(merged);

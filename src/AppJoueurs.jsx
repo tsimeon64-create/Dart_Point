@@ -156,6 +156,23 @@ const fixManches = (d) => {
   return { sc, sd };
 };
 
+// Recopie le pseudo/la photo du joueur sur SES anciennes traces du Comptoir.
+// Passe par la fonction Edge `wall` : c'est le jeton de session qui decide de qui il
+// s'agit, pas le filtre envoye par le telephone. Le repli garde l'ancien chemin tant
+// que la fonction n'est pas deployee (git push ne deploie pas les fonctions Edge).
+export const syncIdentiteComptoir = async (joueurId) => {
+  const token = (typeof localStorage !== "undefined" && localStorage.getItem("dp_token")) || "";
+  try {
+    const res = await fetch(`${SB_URL}/functions/v1/wall`, {
+      method: "POST",
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "syncIdentite", token }),
+    });
+    if (res.ok) { const j = await res.json().catch(() => ({})); if (j?.ok) return true; }
+  } catch { /* on retombe sur l'ancien chemin */ }
+  return false;
+};
+
 export const hashPwd = async (pwd) => {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(pwd));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
@@ -1054,8 +1071,11 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       //         ni manches_detail[].winner (cassé le calcul des stats).
       Promise.all([
         sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}`, { method:"PATCH", body:JSON.stringify({ joueur_pseudo:newPseudo }), prefer:"return=minimal" }),
-        sbJ(`wall_posts?joueur_id=eq.${joueur.id}`,     { method:"PATCH", body:JSON.stringify({ joueur_pseudo:newPseudo }), prefer:"return=minimal" }),
-        sbJ(`wall_comments?joueur_id=eq.${joueur.id}`,  { method:"PATCH", body:JSON.stringify({ joueur_pseudo:newPseudo }), prefer:"return=minimal" }),
+        // Comptoir : par le serveur (le jeton dit qui je suis). Repli si pas deployee.
+        syncIdentiteComptoir(joueur.id).then(ok => ok ? null : Promise.all([
+          sbJ(`wall_posts?joueur_id=eq.${joueur.id}`,     { method:"PATCH", body:JSON.stringify({ joueur_pseudo:newPseudo }), prefer:"return=minimal" }),
+          sbJ(`wall_comments?joueur_id=eq.${joueur.id}`,  { method:"PATCH", body:JSON.stringify({ joueur_pseudo:newPseudo }), prefer:"return=minimal" }),
+        ])),
         sbJ(`presences?joueur_id=eq.${joueur.id}`,      { method:"PATCH", body:JSON.stringify({ joueur_pseudo:newPseudo }), prefer:"return=minimal" }),
         sbJ(`amis?joueur_id=eq.${joueur.id}`,           { method:"PATCH", body:JSON.stringify({ joueur_pseudo:newPseudo }), prefer:"return=minimal" }),
         sbJ(`amis?ami_id=eq.${joueur.id}`,              { method:"PATCH", body:JSON.stringify({ ami_pseudo:newPseudo }),    prefer:"return=minimal" }),
@@ -1100,14 +1120,16 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       window.dpToast?.("Photo de profil mise à jour", "success");
       // Cascade : mets à jour la photo dans tous les snapshots (wall_posts + wall_comments)
       // pour que la nouvelle photo apparaisse partout où elle a déjà été embarquée.
-      Promise.all([
+      // Par le serveur (le jeton dit qui je suis) ; repli sur l'ancien chemin tant que
+      // la fonction Edge `wall` n'est pas deployee.
+      syncIdentiteComptoir(joueur.id).then(ok => { if (ok) return; Promise.all([
         sbJ(`wall_posts?joueur_id=eq.${joueur.id}`, {
           method:"PATCH", body: JSON.stringify({ joueur_photo: dataUrl }), prefer:"return=minimal",
         }).catch(()=>{}),
         sbJ(`wall_comments?joueur_id=eq.${joueur.id}`, {
           method:"PATCH", body: JSON.stringify({ joueur_photo: dataUrl }), prefer:"return=minimal",
         }).catch(()=>{}),
-      ]);
+      ]); });
     } catch {
       window.dpToast?.("Erreur lors de la mise à jour de la photo", "error");
     }
