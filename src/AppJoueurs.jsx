@@ -139,7 +139,10 @@ export const callAuth = async (action, payload = {}) => {
       body: JSON.stringify({ action, ...payload }),
     });
     const data = await res.json().catch(() => ({}));
-    return { ok: res.ok && data?.ok === true, ...data };
+    // ⚠️ `status` est indispensable à l'appelant : sans le code HTTP, impossible de
+    // distinguer « ton jeton est mort » (401) d'une panne serveur (404/500). Placé
+    // APRÈS le spread pour que ce soit toujours le vrai code HTTP qui gagne.
+    return { ok: res.ok && data?.ok === true, ...data, status: res.status };
   } catch {
     return { ok: false, error: "Connexion au serveur impossible" };
   }
@@ -624,7 +627,11 @@ const getProgression = (drix) => {
 // ── CONNEXION / INSCRIPTION ───────────────────────────────────────────────────
 export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" }) => {
   const [mode, setMode] = useState(initMode); // "login" | "register" | "reset"
-  const [pseudo, setPseudo] = useState("");
+  // Pre-rempli avec le dernier pseudo connu : apres une reconnexion imposee par la
+  // securite, le joueur n'a plus que son mot de passe a taper.
+  const [pseudo, setPseudo] = useState(() => {
+    try { return localStorage.getItem("dp_dernier_pseudo") || ""; } catch { return ""; }
+  });
   const [pwd, setPwd] = useState("");
   const [pwd2, setPwd2] = useState("");
   const [adminCode, setAdminCode] = useState("");
@@ -658,6 +665,7 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
       const r = await callAuth("login", { pseudo: pseudo.trim(), password: pwd });
       if (!r.ok || !r.joueur) { setErr(r.error || "Pseudo ou mot de passe incorrect"); setLoading(false); return; }
       if (r.token) localStorage.setItem("dp_token", r.token);
+      try { if (r.joueur?.pseudo) localStorage.setItem("dp_dernier_pseudo", r.joueur.pseudo); } catch { /* ignore */ }
       onLogin(r.joueur);
     } catch { setErr("Erreur de connexion"); }
     setLoading(false);
@@ -687,6 +695,7 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
       });
       if (!r.ok || !r.joueur) { setErr(r.error || "Erreur lors de l'inscription"); setLoading(false); return; }
       if (r.token) localStorage.setItem("dp_token", r.token);
+      try { if (r.joueur?.pseudo) localStorage.setItem("dp_dernier_pseudo", r.joueur.pseudo); } catch { /* ignore */ }
       await dbJ.addStats({ joueur_id: r.joueur.id, saison: "2025", victoires: 0, defaites: 0, parties: 0 }).catch(() => {});
       onLogin(r.joueur);
     } catch { setErr("Erreur lors de l'inscription"); }

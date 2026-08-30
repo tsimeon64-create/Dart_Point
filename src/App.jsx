@@ -49,6 +49,25 @@ const sb = async (path, opts = {}) => {
 };
 // Opérations admin sensibles (DELETE/UPDATE) → Edge Function admin-ops (service key côté
 // serveur). Le mot de passe admin, stocké en session à la connexion, est revérifié serveur.
+// Une session permet d'ECRIRE (commenter, aimer, envoyer un message) uniquement si
+// elle porte un jeton VALIDE. Le jeton est efface au demarrage s'il est refuse par le
+// serveur (voir le boot), donc sa simple presence suffit ensuite.
+// ⚠️ Verifier seulement que le jeton EXISTE ne suffisait pas : un jeton perime passait
+// le test puis echouait au moment d'ecrire. C'est ce qui a bloque les joueurs le
+// 21/08/2026, quand l'ecriture directe a ete fermee.
+const sessionPeutEcrire = () => {
+  try { return !!localStorage.getItem("dp_token"); } catch { return false; }
+};
+
+// Deconnexion volontaire pour repartir sur une session propre.
+const refaireSaSession = () => {
+  try {
+    localStorage.removeItem("dp_joueur");
+    localStorage.removeItem("dp_token");
+  } catch { /* stockage indisponible */ }
+  window.location.reload();
+};
+
 // ── COMPTOIR SÉCURISÉ ─────────────────────────────────────────────────────────
 // Commentaires et j'aime passent par la fonction Edge `wall`, qui déduit l'auteur du
 // JETON DE SESSION. Avant, le navigateur annonçait lui-même « je suis le joueur X » :
@@ -4118,6 +4137,10 @@ const LikeButton = ({ refId, joueur, initialCount=0, initialMyLike=false }) => {
 
   const toggle = async () => {
     if (!joueur || busy || synth) return;
+    // On teste la session AVANT d'essayer : sinon l'echec revenait sous la forme
+    // « permission denied for table wall_likes », que le joueur ne peut pas comprendre
+    // et qui ne l'oriente vers rien.
+    if (!sessionPeutEcrire()) { window.dpToast?.("Reconnecte-toi pour aimer", "error", 3500); return; }
     setBusy(true);
     try {
       if (liked) {
@@ -4129,9 +4152,8 @@ const LikeButton = ({ refId, joueur, initialCount=0, initialMyLike=false }) => {
         setCount(c=>c+1); setLiked(true);
         setLikers(ls => [...ls.filter(l=>l.joueur_id!==joueur.id), { joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, photo: joueur.photo||null }]);
       }
-    } catch(e) {
-      const msg = String(e?.message || "");
-      window.dpToast?.(/Session expir|401|403/i.test(msg) ? "Reconnecte-toi pour aimer" : "Action non enregistree", "error", 3000);
+    } catch {
+      window.dpToast?.("Action non enregistrée, réessaie", "error", 3000);
     }
     setBusy(false);
   };
@@ -4226,6 +4248,7 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
   // lequel arrive en dernier — l'écran et la base pourraient finir en désaccord.
   const aimerCommentaire = async (c) => {
     if (!joueur || !c?.id || enVol.current[c.id]) return;
+    if (!sessionPeutEcrire()) { window.dpToast?.("Reconnecte-toi pour aimer", "error", 3500); return; }
     enVol.current[c.id] = true;
     const avant = likes[c.id] || { n:0, moi:false, gens:[] };
     // La bulle de photo doit apparaître/disparaître avec le pouce, sinon on aime et on ne se
@@ -4236,10 +4259,9 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
     try {
       if (avant.moi) await callWall("unlike", { refId:c.id }, () => sb(`wall_likes?ref_id=eq.${c.id}&joueur_id=eq.${joueur.id}`, { method:"DELETE", prefer:"return=minimal" }));
       else await callWall("like", { refId:c.id }, () => sb("wall_likes", { method:"POST", body:JSON.stringify({ ref_id:c.id, joueur_id:joueur.id, joueur_pseudo:joueur.pseudo, date:Date.now() }) }));
-    } catch(e) {
+    } catch {
       setLikes(m => ({ ...m, [c.id]: avant }));
-      const msg = String(e?.message || "");
-      window.dpToast?.(/Session expir|401|403/i.test(msg) ? "Reconnecte-toi pour aimer" : "Action non enregistree", "error", 3000);
+      window.dpToast?.("Action non enregistrée, réessaie", "error", 3000);
     }
     finally { delete enVol.current[c.id]; }
   };
@@ -4355,8 +4377,26 @@ const CommentSection = ({ refId, joueur, initialComments=[] }) => {
         </button>
       </div>
 
+      {/* Session sans jeton valide : on le dit AVANT que le joueur tape son texte,
+          au lieu de le laisser écrire puis échouer. « Réessaie » ne servait à rien —
+          ça n'aurait jamais marché sans reconnexion. */}
+      {open && joueur && !sessionPeutEcrire() && (
+        <div style={{ marginTop:10, background:"#1a1206", border:`1px solid ${C.accent}55`, borderRadius:12, padding:"12px 14px" }}>
+          <div style={{ color:C.text, fontSize:13, fontWeight:700, marginBottom:4 }}>Reconnecte-toi pour commenter</div>
+          {/* ⚠️ Texte volontairement neutre. Ne PAS expliquer la faille au joueur : lui dire
+              que n'importe qui pouvait commenter à sa place l'inquiéterait pour un problème
+              qu'on est justement en train de fermer. */}
+          <div style={{ color:C.muted, fontSize:12, lineHeight:1.5, marginBottom:10 }}>
+            On renforce la sécurité de l'appli. Retape ton mot de passe une fois, et c'est reparti.
+          </div>
+          <button onClick={refaireSaSession} style={{ background:C.accent, color:"#fff", border:"none", borderRadius:20, padding:"8px 18px", fontSize:13, fontWeight:700, cursor:"pointer", minHeight:38 }}>
+            Se reconnecter
+          </button>
+        </div>
+      )}
+
       {/* Zone de saisie */}
-      {open && joueur && (
+      {open && joueur && sessionPeutEcrire() && (
         <div style={{ marginTop:10 }}>
           <div style={{ display:"flex", gap:8, alignItems:"center" }}>
             <FeedAvatar photo={joueur.photo} pseudo={joueur.pseudo} size={28}/>
@@ -14197,7 +14237,18 @@ export default function App() {
         callAuth("session",{ token:tok })
           .then(r=>{
             if(cancelled) return;
+            // Jeton accepte -> on range le jeton FRAIS. Jeton refuse (401) -> on
+            // l'efface : le garder ferait croire a l'appli qu'on peut ecrire, et le
+            // joueur decouvrirait le probleme seulement en tapant son commentaire.
+            // ⚠️ SEUL un 401 efface le jeton. Se fier au TEXTE de l'erreur ne suffit
+            // pas : quand la base tousse (quota, 5xx, colonne renommee), la fonction
+            // `auth` renvoie « Joueur introuvable » en 404 alors que le jeton est bon.
+            // On aurait deconnecte tout le monde a la premiere hoquet de Supabase —
+            // et definitivement, puisque sans jeton le boot ne redemande plus rien.
             if(r?.token) localStorage.setItem("dp_token", r.token);
+            else if(r && r.status === 401) {
+              try { localStorage.removeItem("dp_token"); } catch { /* ignore */ }
+            }
             if(r?.ok && r.joueur?.email){
               const merged={ ...parsed, ...r.joueur };
               setJoueur(merged);
