@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST")    return json({ error: "method not allowed" }, 405);
 
   try {
-    const { action, token, refId, contenu, commentId } = await req.json();
+    const { action, token, refId, contenu, commentId, postId, imageUrl } = await req.json();
     const jid = await verifyToken(token);
     if (!jid) return json({ error: "Session expirée, reconnecte-toi" }, 401);
     const me = await moi(jid);
@@ -135,6 +135,47 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ ref_id: refId, joueur_id: me.id, joueur_pseudo: me.pseudo, date: Date.now() }),
       });
       return json({ ok: true, aime: true });
+    }
+
+    // ── PUBLIER SUR LA TOURNÉE GÉNÉRALE ──────────────────────────────────────
+    // Mur PUBLIC : visible de tous, contrairement au Comptoir qui reste entre amis.
+    // Marqué par type="public" ; le fil des amis exclut ce type, et réciproquement.
+    // Comme pour les commentaires, l'auteur vient du JETON, jamais du téléphone.
+    if (action === "addPost") {
+      const txt = String(contenu || "").trim();
+      const img = typeof imageUrl === "string" ? imageUrl : null;
+      if (!txt && !img) return json({ error: "Message vide" }, 400);
+      if (txt.length > 500) return json({ error: "Message trop long (max 500)" }, 400);
+      // Une image est une dataURL : on borne la taille, sinon un seul post pourrait
+      // peser plusieurs Mo et ralentir le fil de tout le monde.
+      if (img && (img.length > 3_000_000 || !/^data:image\//.test(img))) {
+        return json({ error: "Photo trop lourde ou invalide" }, 400);
+      }
+      const cree = await apiOk("wall_posts?select=*", {
+        method: "POST", headers: { Prefer: "return=representation" },
+        body: JSON.stringify({
+          joueur_id: me.id, joueur_pseudo: me.pseudo, joueur_photo: me.photo || null,
+          contenu: txt || "📷", image_url: img, type: "public", date: Date.now(),
+        }),
+      }).then((r) => r.json());
+      const ligne = Array.isArray(cree) ? cree[0] : cree;
+      if (!ligne?.id) return json({ error: "La publication n'a pas pu être enregistrée" }, 500);
+      return json({ ok: true, post: ligne });
+    }
+
+    // ── SUPPRIMER SA PUBLICATION ─────────────────────────────────────────────
+    // Seul l'auteur peut supprimer, verifie en relisant la ligne cote serveur.
+    if (action === "deletePost") {
+      if (!isUuid(postId)) return json({ error: "Publication invalide" }, 400);
+      const p = await api(`wall_posts?id=eq.${postId}&select=joueur_id,type`).then((r) => r.json()).catch(() => null);
+      const ligne = Array.isArray(p) ? p[0] : null;
+      if (!ligne) return json({ error: "Publication introuvable" }, 404);
+      if (ligne.joueur_id !== me.id) return json({ error: "Cette publication n'est pas la tienne" }, 403);
+      await apiOk(`wall_posts?id=eq.${postId}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
+      // Les commentaires et les j'aime partent avec elle, sinon ils restent orphelins.
+      await api(`wall_comments?ref_id=eq.${postId}`, { method: "DELETE", headers: { Prefer: "return=minimal" } }).catch(() => {});
+      await api(`wall_likes?ref_id=eq.${postId}`,    { method: "DELETE", headers: { Prefer: "return=minimal" } }).catch(() => {});
+      return json({ ok: true });
     }
 
     // ── RECOPIER SON PSEUDO / SA PHOTO SUR SES ANCIENNES TRACES ──────────────

@@ -6363,6 +6363,243 @@ const PageActualite = ({ joueur, setPage, onOuvrirAsso }) => {
   );
 };
 
+// ── PHOTO D'UNE PUBLICATION ───────────────────────────────────────────────────
+// Redimensionne et compresse avant l'envoi : une photo de téléphone fait 3 à 8 Mo,
+// ce qui rendrait le fil illisible pour tout le monde et ferait exploser la base.
+const lirePhotoCompressee = (file) => new Promise((resolve, reject) => {
+  if (!file) return reject(new Error("aucun fichier"));
+  if (!file.type?.startsWith("image/")) return reject(new Error("Choisis une image."));
+  const reader = new FileReader();
+  reader.onerror = () => reject(new Error("Lecture impossible"));
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onerror = () => reject(new Error("Image illisible"));
+    img.onload = () => {
+      const MAX = 1000;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      const data = canvas.toDataURL("image/jpeg", 0.82);
+      if (data.length > 2_500_000) return reject(new Error("Photo trop lourde, réessaie avec une autre"));
+      resolve(data);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+// ── COMPTOIR TOURNÉE GÉNÉRALE ─────────────────────────────────────────────────
+// Mur PUBLIC : tout le monde voit tout le monde, contrairement au Comptoir qui
+// reste réservé aux amis. On n'y trouve QUE ce que les joueurs écrivent eux-mêmes
+// — aucun résultat de match, aucun exploit automatique.
+//
+// Stocké dans la même table `wall_posts` avec type="public" : les j'aime et les
+// commentaires fonctionnent alors sans rien changer, puisqu'ils pointent une
+// publication par son id. Le fil des amis exclut ce type, et réciproquement.
+//
+// ⚠️ La publication passe par la fonction Edge `wall` : l'auteur est déduit du
+// jeton de session. Sans ça, n'importe qui pourrait publier sous le nom d'un autre
+// sur un mur vu de TOUS — plus visible encore que le Comptoir.
+const TourneeGenerale = ({ joueur, setPage, focusRefId = null }) => {
+  const [posts, setPosts] = useState([]);
+  const [likesMap, setLikesMap] = useState({});
+  const [commentsMap, setCommentsMap] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [texte, setTexte] = useState("");
+  const [photoData, setPhotoData] = useState(null);
+  const [posting, setPosting] = useState(false);
+  const [erreur, setErreur] = useState(null);
+  const [tick, setTick] = useState(0);
+  const photoRef = useRef(null);
+
+  const charger = useCallback(async () => {
+    setLoading(true);
+    try {
+      const p = await sb("wall_posts?type=eq.public&order=date.desc&limit=50&select=*").catch(() => []);
+      let liste = p || [];
+      // Arrivee depuis la cloche : la publication visee peut etre plus ancienne que les
+      // 50 dernieres. On va la chercher et on l'epingle, sinon le joueur atterrit sur un
+      // mur ou sa propre publication est introuvable.
+      if (focusRefId && !liste.some((x) => x.id === focusRefId)) {
+        const [pf] = await sb(`wall_posts?id=eq.${focusRefId}&type=eq.public&select=*`).catch(() => []) || [];
+        if (pf) liste = [pf, ...liste];
+      }
+      setPosts(liste);
+      // J'aime et commentaires en DEUX requêtes groupées, pas une par publication :
+      // à 50 cartes, une requête par carte rendrait le fil interminable à charger.
+      const ids = liste.map((x) => x.id).filter(Boolean);
+      if (ids.length) {
+        const inList = ids.join(",");
+        const [lk, cm] = await Promise.all([
+          sb(`wall_likes?ref_id=in.(${inList})&select=ref_id,joueur_id`).catch(() => []),
+          sb(`wall_comments?ref_id=in.(${inList})&order=date.asc&select=*`).catch(() => []),
+        ]);
+        const L = {}, K = {};
+        (lk || []).forEach((x) => {
+          if (!L[x.ref_id]) L[x.ref_id] = { n: 0, moi: false };
+          L[x.ref_id].n++;
+          if (x.joueur_id === joueur?.id) L[x.ref_id].moi = true;
+        });
+        (cm || []).forEach((x) => { (K[x.ref_id] = K[x.ref_id] || []).push(x); });
+        setLikesMap(L); setCommentsMap(K);
+      } else { setLikesMap({}); setCommentsMap({}); }
+    } catch { /* le fil reste vide, le message d'accueil s'affiche */ }
+    setLoading(false);
+  }, [joueur?.id, focusRefId]);
+
+  useEffect(() => { charger(); }, [charger, tick]);
+
+  const choisirPhoto = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";                      // permet de rechoisir la même photo
+    if (!file) return;
+    try { setPhotoData(await lirePhotoCompressee(file)); setErreur(null); }
+    catch (err) { setErreur(err?.message || "Photo impossible à charger"); }
+  };
+
+  const publier = async () => {
+    if ((!texte.trim() && !photoData) || posting) return;
+    if (!sessionPeutEcrire()) { setErreur("Reconnecte-toi pour publier."); return; }
+    setPosting(true); setErreur(null);
+    try {
+      const r = await callWall("addPost", { contenu: texte.trim(), imageUrl: photoData });
+      if (!r?.post?.id) throw new Error("publication non enregistrée");
+      setPosts((l) => [r.post, ...l]);
+      setTexte(""); setPhotoData(null);
+    } catch (e) {
+      const m = String(e?.message || "");
+      setErreur(/Session expir|401|403/i.test(m)
+        ? "Reconnecte-toi pour publier."
+        : "Publication non envoyée, réessaie.");
+    }
+    setPosting(false);
+  };
+
+  const supprimer = async (p) => {
+    if (!(await confirmer("Supprimer ta publication ?\n\nLes j'aime et les commentaires partiront avec elle.", { danger: true, ok: "Supprimer" }))) return;
+    try {
+      await callWall("deletePost", { postId: p.id });
+      setPosts((l) => l.filter((x) => x.id !== p.id));
+    } catch { await alerter("La suppression a échoué, réessaie."); }
+  };
+
+  const carte = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, marginBottom: 12 };
+
+  return (
+    <div>
+      {/* Session sans jeton valide : on le dit AVANT que le joueur ecrive et compresse
+          sa photo, avec un bouton pour agir. Meme bloc que pour les commentaires — le
+          message « Reconnecte-toi » sans porte de sortie est un cul-de-sac. */}
+      {joueur && !sessionPeutEcrire() && (
+        <div style={{ background:"#1a1206", border:`1px solid ${C.accent}55`, borderRadius:12, padding:"12px 14px", marginBottom:18 }}>
+          <div style={{ color:C.text, fontSize:13, fontWeight:700, marginBottom:4 }}>Reconnecte-toi pour publier</div>
+          <div style={{ color:C.muted, fontSize:12, lineHeight:1.5, marginBottom:10 }}>
+            On renforce la sécurité de l'appli. Retape ton mot de passe une fois, et c'est reparti.
+          </div>
+          <button onClick={refaireSaSession} style={{ background:C.accent, color:"#fff", border:"none", borderRadius:20, padding:"8px 18px", fontSize:13, fontWeight:700, cursor:"pointer", minHeight:38 }}>
+            Se reconnecter
+          </button>
+        </div>
+      )}
+
+      {/* ── Écrire ── */}
+      {joueur && sessionPeutEcrire() && (
+        <div style={{ background: "linear-gradient(160deg,#141018,#0e0b12)", border: "1px solid #f9731622", borderRadius: 16, padding: 14, marginBottom: 18 }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 10 }}>
+            <FeedAvatar photo={joueur.photo} pseudo={joueur.pseudo} size={40} />
+            <textarea
+              value={texte} onChange={(e) => setTexte(e.target.value)}
+              placeholder="Dis quelque chose à toute la communauté…"
+              maxLength={500} rows={2}
+              style={{ flex: 1, background: "#0a0a10", border: `1px solid ${texte.trim() || photoData ? C.accentBorder : "#ffffff12"}`, borderRadius: 12, padding: "10px 12px", color: C.text, fontSize: 14, outline: "none", resize: "vertical", fontFamily: "inherit", minWidth: 0 }}
+            />
+          </div>
+          {photoData && (
+            <div style={{ position: "relative", marginLeft: 50, marginBottom: 10, borderRadius: 12, overflow: "hidden", border: `1px solid ${C.accentBorder}` }}>
+              <img src={photoData} alt="" style={{ width: "100%", maxHeight: 220, objectFit: "cover", display: "block" }} />
+              <button onClick={() => setPhotoData(null)} aria-label="Retirer la photo"
+                style={{ position: "absolute", top: 6, right: 6, background: "#000000bb", border: "none", color: "#fff", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <X size={15} />
+              </button>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input ref={photoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={choisirPhoto} />
+            <button onClick={() => photoRef.current?.click()}
+              style={{ display: "flex", alignItems: "center", gap: 5, background: photoData ? C.accentTint : "transparent", border: `1px solid ${photoData ? C.accentBorder : "#ffffff14"}`, borderRadius: 20, padding: "7px 13px", color: photoData ? C.accent : C.muted, fontSize: 12, cursor: "pointer", minHeight: 36 }}>
+              <Camera size={13} /> {photoData ? "Photo prête" : "Photo"}
+            </button>
+            <div style={{ flex: 1 }} />
+            <span style={{ fontSize: 11, color: C.textLabel }}>{texte.length}/500</span>
+            <button onClick={publier} disabled={(!texte.trim() && !photoData) || posting}
+              style={{ background: (texte.trim() || photoData) ? C.accent : "#1e1e1e", color: (texte.trim() || photoData) ? "#fff" : C.muted, border: "none", borderRadius: 20, padding: "8px 18px", fontWeight: 800, fontSize: 13, cursor: (texte.trim() || photoData) ? "pointer" : "default", minHeight: 36 }}>
+              {posting ? "…" : "Publier"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {erreur && (
+        <div style={{ background: "#ef444418", border: "1px solid #ef444440", borderRadius: 12, padding: "10px 14px", color: "#ef4444", fontSize: 13, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+          <AlertCircle size={14} /> {erreur}
+        </div>
+      )}
+
+      {/* ── Le fil ── */}
+      {loading ? (
+        <div style={{ textAlign: "center", padding: 40, color: C.muted, fontSize: 13 }}>Chargement…</div>
+      ) : posts.length === 0 ? (
+        <div style={{ ...carte, textAlign: "center", padding: 30 }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>🍻</div>
+          <div style={{ fontWeight: 800, color: C.text, marginBottom: 6 }}>La tournée générale est encore vide</div>
+          <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.5 }}>
+            Ici, tout le monde te lit — pas seulement tes amis.<br />Lance la première tournée !
+          </div>
+        </div>
+      ) : posts.map((p) => (
+        <div key={p.id} style={carte}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
+            <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={40}
+              onClick={() => p.joueur_id && setPage?.("profil-joueur-" + p.joueur_id)} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.joueur_pseudo}</div>
+              <div style={{ fontSize: 11, color: C.muted }}>{tempsCourt(p.date)}</div>
+            </div>
+            {joueur?.id && p.joueur_id === joueur.id && (
+              <button onClick={() => supprimer(p)} aria-label="Supprimer ma publication"
+                style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", padding: 6, minHeight: 36, minWidth: 36 }}>
+                <Trash2 size={15} />
+              </button>
+            )}
+          </div>
+          {p.contenu && p.contenu !== "📷" && (
+            <div style={{ color: C.text, fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word", marginBottom: p.image_url ? 10 : 8 }}>{p.contenu}</div>
+          )}
+          {p.image_url && (
+            <img src={p.image_url} alt="" loading="lazy"
+              style={{ width: "100%", borderRadius: 12, display: "block", marginBottom: 8, maxHeight: 420, objectFit: "cover" }} />
+          )}
+          <LikeButton refId={p.id} joueur={joueur}
+            initialCount={likesMap[p.id]?.n || 0} initialMyLike={!!likesMap[p.id]?.moi} />
+          <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id] || []} />
+        </div>
+      ))}
+
+      {!loading && posts.length > 0 && (
+        <button onClick={() => setTick((t) => t + 1)}
+          style={{ width: "100%", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px", color: C.muted, fontSize: 13, cursor: "pointer", minHeight: 40 }}>
+          Actualiser
+        </button>
+      )}
+    </div>
+  );
+};
+
 const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null }) => {
   const [mainTab, setMainTab] = useState("feed");
   const [feed, setFeed] = useState([]);
@@ -6478,7 +6715,11 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null }) => {
 
       // 2. Charger posts, duels, presences, photos en parallèle
       const [posts, duels, presences, joueursData] = await Promise.all([
-        sb(`wall_posts?joueur_id=in.(${inList})&order=date.desc&limit=30&select=*`).catch(()=>[]),
+        // ⚠️ or=(type.is.null,type.neq.public) et PAS type=neq.public : dans Postgres,
+        // NULL != 'public' ne vaut pas vrai, donc `neq` ecarterait silencieusement les
+        // 1609 publications historiques qui n'ont pas de type. Mesure : 3 lignes au lieu
+        // de 1612. Le fil des amis exclut ainsi la Tournee generale, qui est publique.
+        sb(`wall_posts?joueur_id=in.(${inList})&or=(type.is.null,type.neq.public)&order=date.desc&limit=30&select=*`).catch(()=>[]),
         sb(`duels?or=(challenger_id.in.(${inList}),defie_id.in.(${inList}))&statut=eq.termine&order=date.desc&limit=40&select=*`).catch(()=>[]),
         sb(`presences?joueur_id=in.(${inList})&order=heure.desc&limit=20&select=*`).catch(()=>[]),
         sb(`joueurs?id=in.(${inList})&select=id,photo`).catch(()=>[]),
@@ -6642,7 +6883,11 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null }) => {
       if (focusRefId && !sliced.some(it => it.data?.id === focusRefId)) {
         try {
           const [pf] = await sb(`wall_posts?id=eq.${focusRefId}&select=*`).catch(()=>[]) || [];
-          if (pf) sliced.unshift({ type:"post", date:pf.date, data:pf });
+          // Une publication de la Tournee generale n'a rien a faire dans le fil des
+          // amis : on bascule sur SON mur au lieu de l'epingler ici. Sans ca, arriver
+          // depuis la cloche melangeait les deux murs qu'on vient justement de separer.
+          if (pf?.type === "public") setMainTab("tournee");
+          else if (pf) sliced.unshift({ type:"post", date:pf.date, data:pf });
           else {
             const [df] = await sb(`duels?id=eq.${focusRefId}&select=*`).catch(()=>[]) || [];
             if (df) sliced.unshift({ type:"match", date: typeof df.date === "number" ? df.date : new Date(df.date).getTime(), data:df, drixMvts:{} });
@@ -7245,7 +7490,22 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null }) => {
         </button>
       </div>
 
-      {mainTab==="live" ? (
+      {/* ── TOURNÉE GÉNÉRALE — bouton à part, SOUS la barre d'onglets ──
+          Ce n'est pas un 3e onglet : à 375 px de large, trois onglets écrasent les
+          libellés. Même choix que pour « Actualité du club ». */}
+      <button onClick={()=>setMainTab(mainTab==="tournee"?"feed":"tournee")}
+        style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+          background: mainTab==="tournee" ? C.accentTint : "linear-gradient(160deg,#141018,#0e0b12)",
+          border:`1px solid ${mainTab==="tournee" ? C.accent : C.accentBorder}`,
+          borderRadius:14, padding:"12px", marginBottom:20, cursor:"pointer", minHeight:46,
+          color: mainTab==="tournee" ? C.accent : C.text, fontWeight:800, fontSize:14 }}>
+        <EmoText s="🍻 Comptoir Tournée générale"/>
+        {mainTab!=="tournee" && <span style={{ fontSize:11, fontWeight:600, color:C.muted }}>· tout le monde</span>}
+      </button>
+
+      {mainTab==="tournee" ? (
+        <TourneeGenerale joueur={joueur} setPage={setPage} focusRefId={focusRefId}/>
+      ) : mainTab==="live" ? (
         <PageLive joueur={joueur} setPage={setPage}/>
       ) : (<>
 
