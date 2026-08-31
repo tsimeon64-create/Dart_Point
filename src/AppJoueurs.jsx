@@ -2932,15 +2932,102 @@ export const PageJoueurs = ({ joueur, setPage }) => {
   const [joueurs, setJoueurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [fLigue, setFLigue] = useState("");
+  const [fDep, setFDep]     = useState("");
+  const [tri, setTri]       = useState("alpha");   // alpha | drix | recent
+  // Ligue et departement ne sont PAS dans JOUEUR_COLS (colonnes recentes) : on les
+  // charge en UNE requete a part, avec un catch. Une seule requete pour toute la
+  // liste, pas une par joueur.
+  const [carto, setCarto]   = useState({});
 
   useEffect(() => { dbJ.getJoueurs().then(j=>{setJoueurs(j||[]);setLoading(false);}).catch(()=>setLoading(false)); }, []);
 
-  const filtered = useMemo(()=>{ const q=search.toLowerCase(); return joueurs.filter(j=>!q||j.pseudo.toLowerCase().includes(q)); },[joueurs,search]);
+  useEffect(() => {
+    sbJ("joueurs?select=id,ligue,departement")
+      .then(r => {
+        const m = {};
+        (Array.isArray(r) ? r : []).forEach(x => { m[x.id] = x; });
+        setCarto(m);
+      })
+      .catch(() => { /* colonnes inaccessibles : les filtres restent caches */ });
+  }, []);
+
+  // On ne propose que les ligues et departements qui ont VRAIMENT des joueurs :
+  // une liste de 108 departements dont 3 utilises serait inutilisable.
+  const { ligues, deps } = useMemo(() => {
+    const L = new Map(), D = new Map();
+    joueurs.forEach(j => {
+      const c = carto[j.id];
+      if (c?.ligue) L.set(c.ligue, (L.get(c.ligue) || 0) + 1);
+      if (c?.departement) D.set(c.departement, (D.get(c.departement) || 0) + 1);
+    });
+    return {
+      ligues: [...L.entries()].sort((a,b)=>a[0].localeCompare(b[0],"fr")),
+      deps:   [...D.entries()].sort((a,b)=>a[0].localeCompare(b[0],"fr")),
+    };
+  }, [joueurs, carto]);
+
+  const filtered = useMemo(()=>{
+    const q = search.trim().toLowerCase();
+    // ⚠️ localeCompare avec "fr" : sans lui, « Élodie » se retrouve apres « Zoe ».
+    const parNom = (a,b) => String(a.pseudo||"").localeCompare(String(b.pseudo||""), "fr", { sensitivity:"base" });
+    const liste = joueurs.filter(j => {
+      if (q && !String(j.pseudo||"").toLowerCase().includes(q)) return false;
+      const c = carto[j.id];
+      if (fLigue && c?.ligue !== fLigue) return false;
+      if (fDep && c?.departement !== fDep) return false;
+      return true;
+    });
+    // ⚠️ On trie une COPIE : sort() modifie le tableau sur place, et trier `joueurs`
+    // directement corromprait l'etat a chaque rendu.
+    return [...liste].sort(
+      tri === "drix"   ? (a,b) => (b.drix||1000) - (a.drix||1000)
+      : tri === "recent" ? (a,b) => (Number(b.date_inscription)||0) - (Number(a.date_inscription)||0)
+      : parNom
+    );
+  },[joueurs,search,fLigue,fDep,tri,carto]);
+
+  const selStyle = (actif) => ({
+    background:CJ.card, border:`1px solid ${actif?CJ.accent:CJ.border}`, borderRadius:8,
+    padding:"9px 11px", color:actif?CJ.text:CJ.muted, fontSize:13, outline:"none",
+    minHeight:42, minWidth:0, flex:1, boxSizing:"border-box", cursor:"pointer",
+  });
 
   return (
     <div style={{ maxWidth:900, margin:"0 auto", padding:"36px 20px" }}>
       <h1 style={{ fontWeight:800,fontSize:26,marginBottom:6 }}>👥 Joueurs</h1>
-      <p style={{ color:CJ.muted,marginBottom:20 }}>{joueurs.length} joueurs inscrits</p>
+      <p style={{ color:CJ.muted,marginBottom:16 }}>
+        {filtered.length === joueurs.length
+          ? `${joueurs.length} joueurs inscrits`
+          : `${filtered.length} joueur${filtered.length>1?"s":""} sur ${joueurs.length}`}
+      </p>
+      {/* ── Filtres ── */}
+      <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+        <select value={tri} onChange={e=>setTri(e.target.value)} style={selStyle(tri!=="alpha")}>
+          <option value="alpha">A → Z</option>
+          <option value="drix">DRIX (meilleurs d'abord)</option>
+          <option value="recent">Derniers inscrits</option>
+        </select>
+        {deps.length > 0 && (
+          <select value={fDep} onChange={e=>setFDep(e.target.value)} style={selStyle(!!fDep)}>
+            <option value="">Tous les départements</option>
+            {deps.map(([num,n]) => <option key={num} value={num}>{num} · {nomDepartement(num)} ({n})</option>)}
+          </select>
+        )}
+        {ligues.length > 0 && (
+          <select value={fLigue} onChange={e=>setFLigue(e.target.value)} style={selStyle(!!fLigue)}>
+            <option value="">Toutes les ligues</option>
+            {ligues.map(([l,n]) => <option key={l} value={l}>{l} ({n})</option>)}
+          </select>
+        )}
+        {(fDep || fLigue || tri!=="alpha") && (
+          <button onClick={()=>{ setFDep(""); setFLigue(""); setTri("alpha"); }}
+            style={{ background:"transparent", border:`1px solid ${CJ.border}`, borderRadius:8, padding:"9px 14px", color:CJ.muted, fontSize:13, cursor:"pointer", minHeight:42 }}>
+            Tout effacer
+          </button>
+        )}
+      </div>
+
       <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Rechercher un pseudo…"
         style={{ width:"100%",background:CJ.card,border:`1px solid ${CJ.border}`,borderRadius:8,padding:"10px 14px",color:CJ.text,fontSize:14,marginBottom:20 }}/>
       {loading ? <SpinnerJ/> : (
@@ -2959,6 +3046,9 @@ export const PageJoueurs = ({ joueur, setPage }) => {
                   <div>
                     <div style={{ fontWeight:700,fontSize:14 }}>{j.pseudo}</div>
                     <div style={{ color,fontSize:11,fontWeight:600 }}>{drix} DRIX · {titre}</div>
+                    {carto[j.id]?.departement && (
+                      <div style={{ color:CJ.muted,fontSize:10.5,marginTop:1 }}>📍 {carto[j.id].departement} · {nomDepartement(carto[j.id].departement)}</div>
+                    )}
                   </div>
                 </div>
                 {joueur && joueur.id!==j.id && <div style={{ fontSize:11,color:CJ.accent }}>⚔️ Voir le profil →</div>}
