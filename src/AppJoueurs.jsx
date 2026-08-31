@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Crosshair, Star, Zap, Flame, Sparkles, Snowflake, Minus, ArrowUp, ArrowDown, Gamepad2, Dices, Scale, Beer, Cake, HeartCrack, Circle, Bomb, Sprout, List, Cog, Hand, Rocket, QrCode, RotateCcw } from "lucide-react";
 import QRCode from "qrcode";
 import { EmoIcon } from "./icons";
+import { LIGUES, DEPARTEMENTS, nomDepartement, chercherDepartementVille, ageDepuisNaissance } from "./ffdarts";
 import { confirmer } from "./uiConfirm.jsx";
 
 // ── Modal de crop circulaire (zoom + drag) — réutilisable ─────────────────────
@@ -629,6 +630,12 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
   const [mode, setMode] = useState(initMode); // "login" | "register" | "reset"
   // Pre-rempli avec le dernier pseudo connu : apres une reconnexion imposee par la
   // securite, le joueur n'a plus que son mot de passe a taper.
+  // Inscription : infos qui servent a la cartographie des joueurs.
+  const [regNaissance, setRegNaissance] = useState("");
+  const [regDep, setRegDep]     = useState("");
+  const [regLigue, setRegLigue] = useState("");
+  const [regDepPropose, setRegDepPropose] = useState(null);
+
   const [pseudo, setPseudo] = useState(() => {
     try { return localStorage.getItem("dp_dernier_pseudo") || ""; } catch { return ""; }
   });
@@ -671,12 +678,33 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
     setLoading(false);
   };
 
+  // Meme suggestion qu'en modification de profil : la ville propose le departement.
+  useEffect(() => {
+    const v = (ville || "").trim();
+    if (v.length < 2) { setRegDepPropose(null); return; }
+    let vivant = true;
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      const r = await chercherDepartementVille(v, ctrl.signal);
+      if (!vivant) return;
+      setRegDepPropose(r?.departement || null);
+      // ⚠️ On ne choisit JAMAIS a la place du joueur. « Bay » est une vraie commune
+      // de Haute-Saone : quelqu'un qui tape « Bayonne » lentement se retrouvait avec
+      // le 70 selectionne tout seul, puis verrouille. La suggestion reste un bouton.
+    }, 600);
+    return () => { vivant = false; ctrl.abort(); clearTimeout(t); };
+  }, [ville]);
+
   const register = async () => {
     if (!prenom.trim() || !nom.trim()) { setErr("Prénom et nom obligatoires"); return; }
     if (!email.trim() || !email.includes("@")) { setErr("Adresse e-mail invalide"); return; }
     if (!pseudo.trim() || !pwd || pwd !== pwd2) { setErr(pwd !== pwd2 ? "Les mots de passe ne correspondent pas" : "Pseudo et mots de passe obligatoires"); return; }
     const pseudoErr = validerPseudo(pseudo);
     if (pseudoErr) { setErr(pseudoErr); return; }
+    // Ville et departement sont obligatoires : sans eux, impossible de placer le
+    // joueur sur la carte, et c'est tout l'interet de ces nouveaux champs.
+    if (!ville.trim()) { setErr("La ville est obligatoire : elle sert à trouver des joueurs près de chez toi"); return; }
+    if (!regDep) { setErr("Le département est obligatoire"); return; }
     if (!acceptAge) { setErr("Tu dois confirmer avoir au moins 13 ans"); return; }
     if (!acceptCgu) { setErr("Tu dois accepter les Conditions d'utilisation et la Politique de confidentialité"); return; }
     setLoading(true); setErr("");
@@ -691,6 +719,9 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
           ville: ville.trim() || null,
           asso_slug: selectedAsso?.slug || null,
           niveau: niveau || null,
+          departement: regDep || null,
+          ligue: regLigue || null,
+          date_naissance: regNaissance || null,
         },
       });
       if (!r.ok || !r.joueur) { setErr(r.error || "Erreur lors de l'inscription"); setLoading(false); return; }
@@ -769,7 +800,38 @@ export const Connexion = ({ onLogin, setPage, associations=[], initMode="login" 
                 <FieldJ label="Nom *" value={nom} onChange={setNom} placeholder="Dupont"/>
               </div>
               <FieldJ label="Adresse e-mail *" value={email} onChange={setEmail} placeholder="jean@email.com" type="email"/>
-              <FieldJ label="Ville de résidence" value={ville} onChange={setVille} placeholder="Bayonne"/>
+              <FieldJ label="Ville de résidence *" value={ville} onChange={setVille} placeholder="Bayonne"/>
+
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontSize:12,color:CJ.muted,fontWeight:600,marginBottom:4 }}>Département *</div>
+                  <select value={regDep} onChange={e=>setRegDep(e.target.value)}
+                    style={{ width:"100%",background:CJ.bg,border:`1px solid ${regDep?CJ.border:"#f9731655"}`,borderRadius:10,padding:"11px 12px",color:regDep?CJ.text:CJ.muted,fontSize:13,outline:"none",boxSizing:"border-box",minHeight:44 }}>
+                    <option value="">— À choisir —</option>
+                    {DEPARTEMENTS.map(([num,nom]) => <option key={num} value={num}>{num} · {nom}</option>)}
+                  </select>
+                  {regDepPropose && regDepPropose !== regDep && (
+                    <button type="button" onClick={()=>setRegDep(regDepPropose)}
+                      style={{ marginTop:5, background:"#f9731618", border:`1px solid ${CJ.accent}55`, borderRadius:8, padding:"5px 9px", color:CJ.accent, fontSize:11, fontWeight:700, cursor:"pointer", width:"100%", minHeight:32 }}>
+                      D'après ta ville : {regDepPropose} — utiliser
+                    </button>
+                  )}
+                </div>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontSize:12,color:CJ.muted,fontWeight:600,marginBottom:4 }}>Date de naissance</div>
+                  <input value={regNaissance} onChange={e=>setRegNaissance(e.target.value)} type="date" max={new Date().toISOString().slice(0,10)}
+                    style={{ width:"100%",background:CJ.bg,border:`1px solid ${CJ.border}`,borderRadius:10,padding:"11px 12px",color:CJ.text,fontSize:13,outline:"none",boxSizing:"border-box",minHeight:44 }}/>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize:12,color:CJ.muted,fontWeight:600,marginBottom:4 }}>Ligue de fléchettes</div>
+                <select value={regLigue} onChange={e=>setRegLigue(e.target.value)}
+                  style={{ width:"100%",background:CJ.bg,border:`1px solid ${CJ.border}`,borderRadius:10,padding:"11px 12px",color:regLigue?CJ.text:CJ.muted,fontSize:13,outline:"none",boxSizing:"border-box",minHeight:44 }}>
+                  <option value="">— Aucune / je ne sais pas —</option>
+                  {LIGUES.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
 
               {/* Association */}
               <div style={{ position:"relative" }}>
@@ -936,8 +998,64 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
 
   // Edit mode
   const [editMode, setEditMode]   = useState(false);
-  const [editAge, setEditAge]     = useState(joueur.age||"");
+  // Date de naissance plutot que l'age : un age se perime tout seul, une date non.
+  // On garde l'ancien champ `age` en base pour les 18 joueurs qui l'avaient rempli.
+  const [editNaissance, setEditNaissance] = useState(joueur.date_naissance||"");
   const [editVille, setEditVille] = useState(joueur.ville||"");
+  const [editDep, setEditDep]     = useState(joueur.departement||"");
+  const [editLigue, setEditLigue] = useState(joueur.ligue||"");
+  // Departement propose d'apres la ville : le joueur garde la main sur la liste.
+  const [depPropose, setDepPropose] = useState(null);
+  // ⚠️ Ce qui est REELLEMENT en base, distinct de ce qu'on est en train de taper.
+  // Sans cette distinction, les badges de la carte affichaient une valeur devinee et
+  // jamais enregistree : le joueur croyait avoir rempli, et n'apparaissait nulle part.
+  const [enBase, setEnBase] = useState({ departement:"", ligue:"", date_naissance:"" });
+  // Vrai seulement si on a REUSSI a lire les 3 colonnes. Sinon on n'y touche pas a
+  // l'enregistrement : un reseau coupe effacerait sinon le departement du joueur.
+  const [extraCharge, setExtraCharge] = useState(false);
+
+  // Les trois colonnes ligue / departement / date_naissance sont chargees A PART,
+  // avec un catch. ⚠️ Les mettre dans JOUEUR_COLS serait dangereux : PostgREST est
+  // tout ou rien, donc si le SQL qui cree ces colonnes n'a pas encore ete lance,
+  // c'est TOUTE la lecture des joueurs qui echoue — et plus personne ne se connecte.
+  // Ici, au pire, les champs restent vides.
+  useEffect(() => {
+    if (!joueur?.id) return;
+    let vivant = true;
+    sbJ(`joueurs?id=eq.${joueur.id}&select=ligue,departement,date_naissance`)
+      .then(r => {
+        const x = Array.isArray(r) ? r[0] : null;
+        if (!vivant || !x) return;
+        setEditNaissance(v => v || x.date_naissance || "");
+        setEditDep(v => v || x.departement || "");
+        setEditLigue(v => v || x.ligue || "");
+        setEnBase({ departement:x.departement||"", ligue:x.ligue||"", date_naissance:x.date_naissance||"" });
+        setExtraCharge(true);
+      })
+      .catch(() => { /* colonnes pas creees ou reseau KO : on ne touchera a rien */ });
+    return () => { vivant = false; };
+  }, [joueur?.id]);
+
+  // Cherche le departement quand la ville change. Attente de 600 ms : sans elle,
+  // on interrogerait l'annuaire a chaque lettre tapee.
+  // ⚠️ AbortController + le drapeau `vivant` : sans eux, une reponse lente pour
+  // « Bay » arriverait APRES celle de « Bayonne » et ecraserait la bonne valeur.
+  useEffect(() => {
+    const v = (editVille || "").trim();
+    if (v.length < 2) { setDepPropose(null); return; }
+    let vivant = true;
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      const r = await chercherDepartementVille(v, ctrl.signal);
+      if (!vivant) return;
+      setDepPropose(r?.departement || null);
+      // Premiere fois seulement : si le joueur n'a rien choisi, on remplit pour lui.
+      // ⚠️ On ne choisit JAMAIS a la place du joueur. « Bay » est une vraie commune
+      // de Haute-Saone : quelqu'un qui tape « Bayonne » lentement se retrouvait avec
+      // le 70 selectionne tout seul, puis verrouille. La suggestion reste un bouton.
+    }, 600);
+    return () => { vivant = false; ctrl.abort(); clearTimeout(t); };
+  }, [editVille]);
   const [editStyle, setEditStyle] = useState(joueur.style_jeu||"electronique");
   const [editPseudo, setEditPseudo] = useState(joueur.pseudo||"");
   const [pseudoErreur, setPseudoErreur] = useState("");
@@ -1062,13 +1180,36 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     }
 
     setSavingEdit(true);
-    const patch = { age: parseInt(editAge)||null, ville: editVille.trim()||null, style_jeu: editStyle };
+    const patch = { ville: editVille.trim() || null, style_jeu: editStyle };
+    // ⚠️ On n'ecrit ligue / departement / naissance QUE si on a pu les lire au
+    // depart. Sinon une lecture ratee (tunnel, 500) transformerait trois champs
+    // remplis en trois NULL, sans un mot pour le joueur.
+    if (extraCharge) {
+      patch.date_naissance = editNaissance || null;
+      patch.departement = editDep || null;
+      patch.ligue = editLigue || null;
+    }
     if (pseudoChange) {
       patch.pseudo = newPseudo;
       patch.pseudo_changes_count = pseudoChanges + 1; // 🔒 DB source de vérité
     }
-    await dbJ.updateJoueur(joueur.id, patch);
-    const updated = {...joueur, ...patch};
+    // ⚠️ Repli : si le SQL qui cree ligue / departement / date_naissance n'a pas
+    // encore ete lance, PostgREST refuse TOUTE la mise a jour (42703) — le joueur
+    // perdrait aussi sa ville et son style de jeu. On reessaie donc sans les
+    // nouvelles colonnes plutot que de tout perdre.
+    let patchApplique = patch;
+    try {
+      await dbJ.updateJoueur(joueur.id, patch);
+    } catch {
+      const { date_naissance, departement, ligue, ...sansNouveau } = patch; // eslint-disable-line no-unused-vars
+      patchApplique = sansNouveau;
+      await dbJ.updateJoueur(joueur.id, sansNouveau);
+    }
+    if (patchApplique.departement !== undefined) {
+      setEnBase({ departement: patchApplique.departement || "", ligue: patchApplique.ligue || "", date_naissance: patchApplique.date_naissance || "" });
+      setExtraCharge(true);
+    }
+    const updated = {...joueur, ...patchApplique};
     setJoueur(updated); localStorage.setItem("dp_joueur", JSON.stringify(updated));
 
     if (pseudoChange) {
@@ -1277,7 +1418,15 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
             {/* Infos persos */}
             <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
               {joueur.ville && <BadgeJ color={CJ.blue}><EmoIcon e="📍" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{joueur.ville}</BadgeJ>}
-              {joueur.age && <BadgeJ color={CJ.muted}><EmoIcon e="🎂" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{joueur.age} ans</BadgeJ>}
+              {/* Departement et ligue : lus dans l'etat local, car ils ne sont pas dans
+                  JOUEUR_COLS (colonnes recentes, chargees a part). */}
+              {enBase.departement && <BadgeJ color={CJ.blue}>{enBase.departement} · {nomDepartement(enBase.departement)}</BadgeJ>}
+              {enBase.ligue && <BadgeJ color={CJ.green}><EmoIcon e="🎯" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{enBase.ligue.replace("Ligue ","")}</BadgeJ>}
+              {/* L'age vient de la date de naissance ; on retombe sur l'ancienne
+                  colonne `age` pour les 18 joueurs qui l'avaient remplie avant. */}
+              {(ageDepuisNaissance(enBase.date_naissance) ?? joueur.age) && (
+                <BadgeJ color={CJ.muted}><EmoIcon e="🎂" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{ageDepuisNaissance(enBase.date_naissance) ?? joueur.age} ans</BadgeJ>
+              )}
               {joueur.style_jeu && <BadgeJ color={CJ.accent}>{STYLES.find(s=>s[0]===joueur.style_jeu)?.[1]||joueur.style_jeu}</BadgeJ>}
             </div>
           </div>
@@ -1394,16 +1543,48 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
               {pseudoChanges === 0 && <div style={{ fontSize:11, color:CJ.muted, marginTop:4 }}>Tu peux changer ton pseudo 2 fois au total</div>}
             </div>
 
+            {/* ── OÙ TU JOUES — sert à la cartographie des joueurs ── */}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
               <div>
-                <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Âge</label>
-                <input value={editAge} onChange={e=>setEditAge(e.target.value)} placeholder="Ex: 28" type="number"
-                  style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"10px 12px",color:CJ.text,fontSize:16 }}/>
+                <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Date de naissance</label>
+                <input value={editNaissance} onChange={e=>setEditNaissance(e.target.value)} type="date" max={new Date().toISOString().slice(0,10)}
+                  style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"10px 12px",color:CJ.text,fontSize:13,outline:"none",boxSizing:"border-box",minHeight:42 }}/>
+                {ageDepuisNaissance(editNaissance) !== null && (
+                  <div style={{ fontSize:11, color:CJ.muted, marginTop:4 }}>{ageDepuisNaissance(editNaissance)} ans</div>
+                )}
               </div>
               <div>
-                <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Ville</label>
-                <input value={editVille} onChange={e=>setEditVille(e.target.value)} placeholder="Ex: Bayonne"
-                  style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"10px 12px",color:CJ.text,fontSize:16 }}/>
+                <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Ville <span style={{ color:CJ.accent }}>*</span></label>
+                <input value={editVille} onChange={e=>setEditVille(e.target.value)} placeholder="Ex : Bayonne"
+                  style={{ width:"100%",background:"#111",border:`1px solid ${editVille.trim()?CJ.border:"#f9731655"}`,borderRadius:8,padding:"10px 12px",color:CJ.text,fontSize:13,outline:"none",boxSizing:"border-box",minHeight:42 }}/>
+              </div>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+              <div style={{ minWidth:0 }}>
+                <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Département <span style={{ color:CJ.accent }}>*</span></label>
+                <select value={editDep} onChange={e=>setEditDep(e.target.value)}
+                  style={{ width:"100%",background:"#111",border:`1px solid ${editDep?CJ.border:"#f9731655"}`,borderRadius:8,padding:"10px 12px",color:editDep?CJ.text:CJ.muted,fontSize:13,outline:"none",boxSizing:"border-box",minHeight:42 }}>
+                  <option value="">— À choisir —</option>
+                  {DEPARTEMENTS.map(([num,nom]) => <option key={num} value={num}>{num} · {nom}</option>)}
+                </select>
+                {/* Proposition d'après la ville. On n'écrase JAMAIS un choix déjà fait :
+                    le joueur qui habite à cheval sur deux départements doit pouvoir
+                    garder le sien. */}
+                {depPropose && depPropose !== editDep && (
+                  <button type="button" onClick={()=>setEditDep(depPropose)}
+                    style={{ marginTop:5, background:"#f9731618", border:`1px solid ${CJ.accent}55`, borderRadius:8, padding:"5px 9px", color:CJ.accent, fontSize:11, fontWeight:700, cursor:"pointer", width:"100%", minHeight:32 }}>
+                    D'après ta ville : {depPropose} · {nomDepartement(depPropose)} — utiliser
+                  </button>
+                )}
+              </div>
+              <div style={{ minWidth:0 }}>
+                <label style={{ fontSize:11,color:CJ.muted,display:"block",marginBottom:4 }}>Ligue de fléchettes</label>
+                <select value={editLigue} onChange={e=>setEditLigue(e.target.value)}
+                  style={{ width:"100%",background:"#111",border:`1px solid ${CJ.border}`,borderRadius:8,padding:"10px 12px",color:editLigue?CJ.text:CJ.muted,fontSize:13,outline:"none",boxSizing:"border-box",minHeight:42 }}>
+                  <option value="">— Aucune —</option>
+                  {LIGUES.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
               </div>
             </div>
             {/* Email — lecture seule */}
@@ -3266,6 +3447,9 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
 
   // ── State ─────────────────────────────────────────────────────────────────────
   const [j, setJ]               = useState(null);
+  // Colonnes carto de CE joueur, lues a part (elles ne sont pas dans JOUEUR_COLS).
+  // Sans ca, la fiche que voient les AUTRES affichait encore l'ancien age fige.
+  const [carto, setCarto]       = useState(null);
   const [stats, setStats]       = useState(null);
   const [duels, setDuels]       = useState([]);
   const [drixMvts, setDrixMvts] = useState([]);
@@ -3303,6 +3487,9 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       sbJ(`tournois_potes?gagnant_id=eq.${joueurId}&select=id`).catch(()=>[]),
     ]).then(([jd, s, d, mvts, allJ, ms, md, jAmis, jTrn, jWtrn]) => {
       setJ(jd);
+      sbJ(`joueurs?id=eq.${joueurId}&select=ligue,departement,date_naissance`)
+        .then(r => setCarto(Array.isArray(r) ? r[0] : null))
+        .catch(() => { /* colonnes absentes : on garde l'ancien affichage */ });
       setStats(s);
       const termines = (d||[]).filter(x => x.statut==="termine").sort((a,b)=>(b.date||0)-(a.date||0));
       setDuels(termines);
@@ -3863,8 +4050,10 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                 <span style={{fontWeight:800,fontSize:12.5,color,letterSpacing:.4,textTransform:"uppercase"}}>{titre}</span>
               </div>
               <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                {j.age&&<BadgeJ color={CJ.muted}><EmoIcon e="🎂" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{j.age} ans</BadgeJ>}
+                {(ageDepuisNaissance(carto?.date_naissance) ?? j.age) ? <BadgeJ color={CJ.muted}><EmoIcon e="🎂" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{ageDepuisNaissance(carto?.date_naissance) ?? j.age} ans</BadgeJ> : null}
                 {j.ville&&<BadgeJ color={CJ.blue}><EmoIcon e="📍" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{j.ville}</BadgeJ>}
+                {carto?.departement && <BadgeJ color={CJ.blue}>{carto.departement} · {nomDepartement(carto.departement)}</BadgeJ>}
+                {carto?.ligue && <BadgeJ color={CJ.green}><EmoIcon e="🎯" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{carto.ligue.replace("Ligue ","")}</BadgeJ>}
               </div>
             </div>
             {moi&&moi.id!==j.id&&(

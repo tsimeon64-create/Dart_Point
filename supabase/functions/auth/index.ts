@@ -77,7 +77,10 @@ const PUBLIC_COLS =
   "bull_balance,last_daily_reward,bull_reserved,nom,prenom,email,niveau,cgu_accepte,cgu_date," +
   "anonymise,anonymise_date,xp,xp_badges_credited";
 // Champs de profil que l'inscription a le droit de fixer (jamais drix/xp/is_admin/etc.).
-const PROFIL_WHITELIST = ["nom", "prenom", "email", "ville", "asso_slug", "niveau", "age", "style_jeu", "bar_slug"];
+// ⚠️ ligue / departement / date_naissance servent a la cartographie des joueurs.
+// Ils doivent figurer ici, sinon l'inscription les jette en silence.
+const PROFIL_WHITELIST = ["nom", "prenom", "email", "ville", "asso_slug", "niveau", "age", "style_jeu", "bar_slug",
+  "ligue", "departement", "date_naissance"];
 
 const ITERATIONS = 150000;
 const b64 = (u8: Uint8Array) => btoa(String.fromCharCode(...u8));
@@ -307,10 +310,26 @@ Deno.serve(async (req) => {
         cgu_accepte: true,
         cgu_date: Date.now(),
       };
-      const created = await api(`joueurs?select=${PUBLIC_COLS}`, {
-        method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(row),
-      }).then((r) => r.json());
-      const joueur = Array.isArray(created) ? created[0] : created;
+      // ⚠️ REPLI OBLIGATOIRE : si joueurs_1_colonnes.sql n'a pas encore tourné,
+      // PostgREST refuse TOUT l'INSERT à cause de ligue / departement /
+      // date_naissance (42703), et plus PERSONNE ne peut créer de compte — panne
+      // invisible, puisque les joueurs déjà inscrits continuent de se connecter.
+      // Mieux vaut un compte sans département qu'aucun compte du tout.
+      // Le mot de passe est déjà haché dans `row` : rejouer l'insert ne coûte rien.
+      const CARTO = ["ligue", "departement", "date_naissance"];
+      const inserer = (r: Record<string, unknown>) =>
+        api(`joueurs?select=${PUBLIC_COLS}`, {
+          method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(r),
+        }).then((res) => res.json()).catch(() => null);
+
+      let created = await inserer(row);
+      let joueur = Array.isArray(created) ? created[0] : created;
+      if (!joueur?.id) {
+        const sansCarto: Record<string, unknown> = { ...row };
+        for (const k of CARTO) delete sansCarto[k];
+        created = await inserer(sansCarto);
+        joueur = Array.isArray(created) ? created[0] : created;
+      }
       if (!joueur?.id) return json({ error: "Erreur lors de la création du compte" }, 500);
 
       // ── ACCUEIL DU NOUVEAU JOUEUR ────────────────────────────────────────────
