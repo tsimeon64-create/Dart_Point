@@ -58,3 +58,22 @@ input, select, textarea, button {
 @keyframes fadeIn     { from { opacity: 0; } to { opacity: 1; } }
 @keyframes feedIn     { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes toastIn    { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+/* ── BOUTONS EN RELIEF (onglets du Comptoir) ──────────────────────────────────
+   Les onglets étaient du texte plat posé sur un fond : rien ne disait qu'on
+   pouvait appuyer dessus. Le relief vient d'une lumière venue d'en haut (dégradé
+   clair→sombre + liseré blanc en haut) et d'une ombre portée qui sert de « pied ».
+   À l'appui, le bouton descend sur son pied : c'est ce mouvement qui donne la
+   sensation de bouton réel, plus encore que l'ombre. */
+.dp-btn3d {
+  transition: transform .12s ease, box-shadow .12s ease, background .2s ease, color .2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.dp-btn3d:active {
+  transform: translateY(2px);
+  /* L'ombre se réduit d'autant : sans ça le bouton semble glisser, pas s'enfoncer. */
+  box-shadow: 0 0 0 rgba(0,0,0,0), inset 0 1px 0 rgba(255,255,255,.05) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dp-btn3d { transition: none; }
+  .dp-btn3d:active { transform: none; }
+}

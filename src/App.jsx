@@ -6366,6 +6366,30 @@ const PageActualite = ({ joueur, setPage, onOuvrirAsso }) => {
 // ── PHOTO D'UNE PUBLICATION ───────────────────────────────────────────────────
 // Redimensionne et compresse avant l'envoi : une photo de téléphone fait 3 à 8 Mo,
 // ce qui rendrait le fil illisible pour tout le monde et ferait exploser la base.
+// ── BOUTON EN RELIEF ──────────────────────────────────────────────────────────
+// Style commun aux trois boutons du Comptoir. Le relief tient a trois choses :
+// un degrade clair en haut vers sombre en bas (la lumiere vient d'en haut), un
+// liseré blanc sur l'arete superieure, et une ombre portee qui fait office de pied.
+// L'enfoncement au toucher est dans index.css (.dp-btn3d:active) : une pseudo-classe
+// ne peut pas s'ecrire en style en ligne.
+//
+// `teinte` sert a l'etat actif : le bouton s'allume dans sa couleur (violet pour la
+// Communaute, rouge pour le Live, orange pour la Tournee generale). ⚠️ La couleur
+// n'est PAS le seul indicateur : l'actif est aussi plus clair, borde et il brille.
+const boutonRelief = (actif, teinte) => ({
+  display:"flex", alignItems:"center", justifyContent:"center", gap:7,
+  border:`1px solid ${actif ? teinte + "88" : "#ffffff14"}`,
+  borderRadius:12, padding:"11px 12px", minHeight:46,
+  fontWeight:800, fontSize:14, cursor:"pointer",
+  color: actif ? "#fff" : C.muted,
+  background: actif
+    ? `linear-gradient(180deg, ${teinte}38, ${teinte}14)`
+    : "linear-gradient(180deg, #1d1d28, #131320)",
+  boxShadow: actif
+    ? `0 3px 0 ${teinte}33, 0 6px 16px ${teinte}30, inset 0 1px 0 rgba(255,255,255,.14)`
+    : "0 3px 0 rgba(0,0,0,.55), 0 6px 14px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06)",
+});
+
 // ── ANNONCE D'OUVERTURE — UNE SEULE FOIS PAR JOUEUR ───────────────────────────
 // Présente la Tournée générale au démarrage. La clé porte un numéro : pour une
 // future annonce, il suffira de changer ANNONCE_CLE (dp_annonce_2, etc.) et le
@@ -7535,11 +7559,11 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null, ongletInitia
         style={{ display:"block",width:"100%",height:"auto",borderRadius:20,marginBottom:20 }}/>
 
       {/* ── Onglets ── */}
-      <div style={{ display:"flex",background:"#0d0d12",border:"1px solid #ffffff08",borderRadius:14,padding:4,gap:4,marginBottom:20 }}>
-        <button onClick={()=>setMainTab("feed")} style={{ flex:1,padding:"10px",borderRadius:10,border:"none",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .2s",background:mainTab==="feed"?"linear-gradient(135deg,#1e1b2e,#1a1a2e)":"transparent",color:mainTab==="feed"?"#f1f5f9":C.muted,boxShadow:mainTab==="feed"?"0 2px 8px rgba(0,0,0,0.3)":"none",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
-          <Users size={14} color={mainTab==="feed"?"#a78bfa":C.muted}/>Communauté
+      <div style={{ display:"flex", gap:10, marginBottom:12 }}>
+        <button className="dp-btn3d" onClick={()=>setMainTab("feed")} style={{ flex:1, ...boutonRelief(mainTab==="feed","#a78bfa") }}>
+          <Users size={15} color={mainTab==="feed"?"#c4b5fd":C.muted}/>Communauté
         </button>
-        <button onClick={()=>setMainTab("live")} style={{ flex:1,padding:"10px",borderRadius:10,border:"none",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .2s",background:mainTab==="live"?"linear-gradient(135deg,#1a0b0b,#1a0808)":"transparent",color:mainTab==="live"?"#ef4444":C.muted,boxShadow:mainTab==="live"?"0 2px 8px rgba(0,0,0,0.3)":"none",display:"flex",alignItems:"center",justifyContent:"center",gap:7 }}>
+        <button className="dp-btn3d" onClick={()=>setMainTab("live")} style={{ flex:1, ...boutonRelief(mainTab==="live","#ef4444") }}>
           <span style={{ display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#ef4444",flexShrink:0,animation:"livePulse 1.2s infinite" }}/>
           Live
           {liveCount > 0 && (
@@ -7551,12 +7575,9 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null, ongletInitia
       {/* ── TOURNÉE GÉNÉRALE — bouton à part, SOUS la barre d'onglets ──
           Ce n'est pas un 3e onglet : à 375 px de large, trois onglets écrasent les
           libellés. Même choix que pour « Actualité du club ». */}
-      <button onClick={()=>setMainTab(mainTab==="tournee"?"feed":"tournee")}
-        style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-          background: mainTab==="tournee" ? C.accentTint : "linear-gradient(160deg,#141018,#0e0b12)",
-          border:`1px solid ${mainTab==="tournee" ? C.accent : C.accentBorder}`,
-          borderRadius:14, padding:"12px", marginBottom:20, cursor:"pointer", minHeight:46,
-          color: mainTab==="tournee" ? C.accent : C.text, fontWeight:800, fontSize:14 }}>
+      <button className="dp-btn3d" onClick={()=>setMainTab(mainTab==="tournee"?"feed":"tournee")}
+        style={{ width:"100%", marginBottom:20, ...boutonRelief(mainTab==="tournee", C.accent),
+          color: mainTab==="tournee" ? "#fff" : C.text }}>
         <EmoText s="🍻 Comptoir Tournée générale"/>
         {mainTab!=="tournee" && <span style={{ fontSize:11, fontWeight:600, color:C.muted }}>· tout le monde</span>}
       </button>
