@@ -1652,6 +1652,13 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
                 <span key={i} style={{ fontSize:10.5, color:i===0?CJ.green:CJ.muted, background:i===0?`${CJ.green}18`:"#ffffff08", border:`1px solid ${i===0?CJ.green+"55":CJ.border}`, borderRadius:6, padding:"1px 7px", fontWeight:700 }}>{t.k} : {t.n}</span>
               ))}
             </div>
+            {/* ⚠️ Sur combien de manches. Sans cette ligne, on croit lire une stat de
+                carriere : le compteur ne connait QUE les manches jouees depuis l'arrivee
+                de la fenetre « sur quel double as-tu fini ? », et seulement si le joueur
+                a repondu. Rien d'avant n'a jamais ete enregistre. */}
+            <div style={{ fontSize:10, color:CJ.muted, opacity:.75, marginTop:4 }}>
+              d'après {finishStats.total} manche{finishStats.total > 1 ? "s" : ""} enregistrée{finishStats.total > 1 ? "s" : ""} au scoreur
+            </div>
           </div>
         </div>
       )}
