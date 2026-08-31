@@ -7561,7 +7561,7 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null, ongletInitia
       {/* ── Onglets ── */}
       <div style={{ display:"flex", gap:10, marginBottom:12 }}>
         <button className="dp-btn3d" onClick={()=>setMainTab("feed")} style={{ flex:1, ...boutonRelief(mainTab==="feed","#a78bfa") }}>
-          <Users size={15} color={mainTab==="feed"?"#c4b5fd":C.muted}/>Communauté
+          <Users size={15} color={mainTab==="feed"?"#c4b5fd":C.muted}/>Comptoir des amis
         </button>
         <button className="dp-btn3d" onClick={()=>setMainTab("live")} style={{ flex:1, ...boutonRelief(mainTab==="live","#ef4444") }}>
           <span style={{ display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#ef4444",flexShrink:0,animation:"livePulse 1.2s infinite" }}/>
