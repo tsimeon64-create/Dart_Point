@@ -6366,6 +6366,64 @@ const PageActualite = ({ joueur, setPage, onOuvrirAsso }) => {
 // ── PHOTO D'UNE PUBLICATION ───────────────────────────────────────────────────
 // Redimensionne et compresse avant l'envoi : une photo de téléphone fait 3 à 8 Mo,
 // ce qui rendrait le fil illisible pour tout le monde et ferait exploser la base.
+// ── ANNONCE D'OUVERTURE — UNE SEULE FOIS PAR JOUEUR ───────────────────────────
+// Présente la Tournée générale au démarrage. La clé porte un numéro : pour une
+// future annonce, il suffira de changer ANNONCE_CLE (dp_annonce_2, etc.) et le
+// contenu — pas la mécanique.
+//
+// ⚠️ Ne s'affiche PAS pendant l'accueil des nouveaux (Onboarding) : deux fenêtres
+// l'une sur l'autre au tout premier lancement, c'est le meilleur moyen de faire
+// fermer les deux sans rien lire.
+const ANNONCE_CLE = "dp_annonce_tournee_1";
+
+const AnnonceTournee = ({ onFermer, onAller }) => (
+  <SurEcran>
+    <div style={{ position:"fixed", inset:0, zIndex:10000, background:"rgba(0,0,0,0.92)", backdropFilter:"blur(10px)",
+      display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div style={{ background:"linear-gradient(160deg,#161018,#0d0a10)", border:`1px solid ${C.accentBorder}`,
+        borderRadius:24, padding:"26px 22px", maxWidth:420, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,.7)" }}>
+
+        <div style={{ textAlign:"center", fontSize:46, marginBottom:10 }}>🍻</div>
+        <div style={{ textAlign:"center", fontWeight:900, fontSize:21, color:C.text, marginBottom:6, lineHeight:1.25 }}>
+          Le Comptoir Tournée générale
+        </div>
+        <div style={{ textAlign:"center", color:C.accent, fontWeight:700, fontSize:13, marginBottom:16 }}>
+          Nouveau · ouvert à tous les joueurs
+        </div>
+
+        <div style={{ color:C.muted, fontSize:14, lineHeight:1.6, marginBottom:18 }}>
+          Jusqu'ici, ce que tu publiais au Comptoir n'était vu que par tes amis.
+          <br/><br/>
+          La <b style={{ color:C.text }}>Tournée générale</b>, c'est le mur de toute la communauté :
+          tes photos et tes messages y sont vus par <b style={{ color:C.text }}>tous les joueurs</b>,
+          amis ou pas. Et tout le monde peut te répondre.
+        </div>
+
+        <div style={{ background:"#0a0a10", border:`1px solid ${C.border}`, borderRadius:14, padding:"12px 14px", marginBottom:18 }}>
+          <div style={{ color:C.text, fontSize:13, lineHeight:1.7 }}>
+            📸 Une photo de ta cible, de ta soirée<br/>
+            💬 Un message à toute la communauté<br/>
+            👍 Des j'aime et des commentaires, comme avant
+          </div>
+        </div>
+
+        <div style={{ color:C.textLabel, fontSize:12, textAlign:"center", marginBottom:16 }}>
+          Tu le trouveras dans le Comptoir, juste sous les onglets.
+        </div>
+
+        <button onClick={onAller} style={{ width:"100%", background:C.accent, color:"#fff", border:"none",
+          borderRadius:14, padding:"14px", fontWeight:800, fontSize:15, cursor:"pointer", minHeight:48, marginBottom:8 }}>
+          Aller voir
+        </button>
+        <button onClick={onFermer} style={{ width:"100%", background:"transparent", border:`1px solid ${C.border}`,
+          color:C.muted, borderRadius:14, padding:"12px", fontWeight:600, fontSize:14, cursor:"pointer", minHeight:44 }}>
+          Plus tard
+        </button>
+      </div>
+    </div>
+  </SurEcran>
+);
+
 const lirePhotoCompressee = (file) => new Promise((resolve, reject) => {
   if (!file) return reject(new Error("aucun fichier"));
   if (!file.type?.startsWith("image/")) return reject(new Error("Choisis une image."));
@@ -6600,8 +6658,8 @@ const TourneeGenerale = ({ joueur, setPage, focusRefId = null }) => {
   );
 };
 
-const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null }) => {
-  const [mainTab, setMainTab] = useState("feed");
+const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null, ongletInitial = "feed" }) => {
+  const [mainTab, setMainTab] = useState(ongletInitial);
   const [feed, setFeed] = useState([]);
   const [photosMap, setPhotosMap] = useState({});
   const [likesMap, setLikesMap] = useState({});
@@ -14314,6 +14372,18 @@ const HELP_CONTENT = {
 
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("dp_onboarding_done"));
+  // Annonce de la Tournee generale : une seule fois, et pas pendant l'accueil des
+  // nouveaux (deux fenetres superposees au premier lancement = les deux sont fermees
+  // sans etre lues).
+  const [showAnnonce, setShowAnnonce] = useState(() => {
+    try {
+      return !!localStorage.getItem("dp_onboarding_done") && !localStorage.getItem(ANNONCE_CLE);
+    } catch { return false; }
+  });
+  const fermerAnnonce = () => {
+    try { localStorage.setItem(ANNONCE_CLE, "1"); } catch { /* stockage indisponible */ }
+    setShowAnnonce(false);
+  };
   const [page,setPage]=useState("home");
   // Tournoi actif (pour le bouton flottant "Reprendre le tournoi")
   const [activeTournoi, setActiveTournoi] = useState(null);
@@ -14818,6 +14888,15 @@ export default function App() {
     <div style={{ minHeight:"100vh",display:"flex",flexDirection:"column",background:C.bg,color:C.text }}>
       {showOnboarding && <Onboarding onDone={()=>setShowOnboarding(false)} setPage={nav} hasAccount={!!joueur}/>}
 
+      {/* Annonce d'ouverture, une seule fois. `joueur` requis : inutile de presenter un
+          mur de discussion a quelqu'un qui n'a pas encore de compte. */}
+      {showAnnonce && !showOnboarding && joueur && (
+        <AnnonceTournee
+          onFermer={fermerAnnonce}
+          onAller={()=>{ fermerAnnonce(); nav("communaute-tournee"); }}
+        />
+      )}
+
       {/* ── Popup email obligatoire (anciens comptes sans email) ── */}
       {showEmailRequired && (
         <div style={{ position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.96)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
@@ -15205,7 +15284,10 @@ export default function App() {
             l'Actualité : on ouvre le Comptoir SUR la carte concernée. Attention, c'était la
             seule route en égalité stricte : sans ce startsWith on obtenait un écran blanc. */}
         {page.startsWith("communaute") && <PageCommunaute joueur={joueur} setPage={nav} bars={bars}
-          focusRefId={page.startsWith("communaute-") ? page.slice("communaute-".length) : null}/>}
+          // "communaute-tournee" ouvre directement le mur public. Traite AVANT le
+          // decoupage focusRefId, sinon "tournee" serait pris pour un id de publication.
+          ongletInitial={page === "communaute-tournee" ? "tournee" : "feed"}
+          focusRefId={(page.startsWith("communaute-") && page !== "communaute-tournee") ? page.slice("communaute-".length) : null}/>}
         {page==="actualite"        && <PageActualite joueur={joueur} setPage={nav} onOuvrirAsso={(s)=>{ setAssoSlug(s); nav("asso"); }}/>}
         {page==="bars"             && <Bars bars={bars} associations={associations} setPage={nav} setBarSlug={setBarSlug} setAssoSlug={setAssoSlug} villeFilter={villeFilter} setVilleFilter={setVilleFilter} barsActifs={barsActifs}/>}
         {page==="bar"              && <BarDetail slug={barSlug} allBars={bars} associations={associations} setBars={setBars} setPage={nav} setAssoSlug={setAssoSlug} isAdmin={isAdmin} joueur={joueur} setJoueurId={setJoueurId}/>}
