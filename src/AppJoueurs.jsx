@@ -3502,7 +3502,7 @@ const SecLabel = ({ icon:Icon, color, children, style }) => (
   </div>
 );
 
-export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage, setBarSlug }) => {
+export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage, setBarSlug, setAssoSlug }) => {
 
   // Respect du réglage système « réduire les animations »
   const reduceMotion = typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -4143,6 +4143,19 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                 {(ageDepuisNaissance(carto?.date_naissance) ?? j.age) ? <BadgeJ color={CJ.muted}><EmoIcon e="🎂" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{ageDepuisNaissance(carto?.date_naissance) ?? j.age} ans</BadgeJ> : null}
                 {j.ville&&<BadgeJ color={CJ.blue}><EmoIcon e="📍" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{j.ville}</BadgeJ>}
                 {carto?.departement && <BadgeJ color={CJ.blue}>{carto.departement} · {nomDepartement(carto.departement)}</BadgeJ>}
+                {/* Association : cliquable, elle mene a la fiche du club. `asso` est
+                    deja calcule plus haut a partir de asso_slug. */}
+                {asso && (
+                  <span onClick={(e)=>{
+                      e.stopPropagation();
+                      // ⚠️ La fiche d'un club se rejoint par setAssoSlug PUIS setPage("asso"),
+                      // pas par une adresse « association-<slug> » : cette route n'existe pas.
+                      if (!setAssoSlug) return;
+                      setAssoSlug(asso.slug); setPage("asso");
+                    }} style={{ cursor: setAssoSlug ? "pointer" : "default" }}>
+                    <BadgeJ color={CJ.purple}><EmoIcon e="🏛️" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{asso.nom}</BadgeJ>
+                  </span>
+                )}
                 {carto?.ligue && <BadgeJ color={CJ.green}><EmoIcon e="🎯" size={10} style={{verticalAlign:"-1px",marginRight:3}}/>{carto.ligue.replace("Ligue ","")}</BadgeJ>}
               </div>
             </div>
