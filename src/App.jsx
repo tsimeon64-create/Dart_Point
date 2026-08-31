@@ -6728,6 +6728,36 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null, ongletInitia
     e.target.value = "";
   };
   const [liveCount, setLiveCount] = useState(0);
+  // Pastille rouge sur la Tournee generale : nombre de publications parues DEPUIS
+  // la derniere visite du joueur. La date de derniere visite vit dans le
+  // navigateur (une par joueur) : c'est une commodite d'affichage, pas une donnee
+  // a stocker en base.
+  const CLE_VU = `dp_tournee_vu_${joueur?.id || "invite"}`;
+  const [nouveauxPublics, setNouveauxPublics] = useState(0);
+
+  const marquerTourneeVue = useCallback(() => {
+    try { localStorage.setItem(CLE_VU, String(Date.now())); } catch { /* ignore */ }
+    setNouveauxPublics(0);
+  }, [CLE_VU]);
+
+  useEffect(() => {
+    if (!joueur?.id) return;
+    let vivant = true;
+    // Premiere visite : on ne montre pas « 47 nouveautes » a quelqu'un qui decouvre
+    // le mur. On part de maintenant, il verra les suivantes.
+    let depuis;
+    try { depuis = localStorage.getItem(CLE_VU); } catch { depuis = null; }
+    if (!depuis) { try { localStorage.setItem(CLE_VU, String(Date.now())); } catch { /* ignore */ } return; }
+    // On exclut ses propres publications : personne n'a besoin d'etre prevenu
+    // qu'il vient lui-meme de publier.
+    sb(`wall_posts?type=eq.public&date=gt.${Number(depuis)}&joueur_id=neq.${joueur.id}&select=id`)
+      .then(r => { if (vivant) setNouveauxPublics(Array.isArray(r) ? r.length : 0); })
+      .catch(() => { /* pastille absente plutot qu'un chiffre faux */ });
+    return () => { vivant = false; };
+  }, [joueur?.id, CLE_VU, refreshTick]);
+
+  // Ouvrir le mur remet le compteur a zero.
+  useEffect(() => { if (mainTab === "tournee") marquerTourneeVue(); }, [mainTab, marquerTourneeVue]);
 
   // ── Joueur de la semaine de l'asso affiliée (moyenne + ratio V/D) ───────────
   // Fenêtre 7 jours ; repli sur la saison si personne n'a assez joué cette semaine.
@@ -7579,7 +7609,13 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null, ongletInitia
         style={{ width:"100%", marginBottom:20, ...boutonRelief(mainTab==="tournee", C.accent),
           color: mainTab==="tournee" ? "#fff" : C.text }}>
         <EmoText s="🍻 Comptoir Tournée générale"/>
-        {mainTab!=="tournee" && <span style={{ fontSize:11, fontWeight:600, color:C.muted }}>· tout le monde</span>}
+        {nouveauxPublics > 0 && mainTab !== "tournee" && (
+          <span style={{ background:"#ef4444", color:"#fff", borderRadius:20, fontSize:10, fontWeight:900,
+            padding:"1px 7px", lineHeight:1.6, boxShadow:"0 0 8px #ef444488" }}>
+            {nouveauxPublics > 99 ? "99+" : nouveauxPublics}
+          </span>
+        )}
+        {mainTab!=="tournee" && nouveauxPublics === 0 && <span style={{ fontSize:11, fontWeight:600, color:C.muted }}>· tout le monde</span>}
       </button>
 
       {mainTab==="tournee" ? (
