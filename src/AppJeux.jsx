@@ -1952,20 +1952,24 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   // ── Mode bot : à la fin de la partie, créditer un peu d'XP au joueur (jamais de DRIX) ──
   useEffect(() => {
-    if (etape !== "fin" || !botPseudo || botSelf || botXpRef.current) return; // pas d'XP contre soi-même (anti-farm)
+    if (etape !== "fin" || !botPseudo || botXpRef.current) return;
     botXpRef.current = true;
     const humainGagne = !!(gagnant && gagnant.nom !== botPseudo);
-    const delta = 15 + (humainGagne ? 15 : 0);
+    // ⚠️ AUCUN XP contre SON PROPRE bot : on pourrait en gagner a volonte (anti-farm).
+    // La PUBLICATION, elle, est proposee dans les deux cas — c'est au joueur de decider
+    // s'il veut partager, y compris un entrainement contre lui-meme.
+    const delta = botSelf ? 0 : 15 + (humainGagne ? 15 : 0);
     if (joueur?.id) {
-      const newXp = (joueur.xp || 0) + delta;
-      dbJ.updateJoueur(joueur.id, { xp: newXp }).catch(() => {});
-      if (setJoueur) setJoueur((p) => ({ ...p, xp: newXp }));
-      window.dpToast?.(`+${delta} XP ${humainGagne ? "— victoire contre le bot 🎯" : "— bien joué 👍"}`, "success");
+      if (delta > 0) {
+        const newXp = (joueur.xp || 0) + delta;
+        dbJ.updateJoueur(joueur.id, { xp: newXp }).catch(() => {});
+        if (setJoueur) setJoueur((p) => ({ ...p, xp: newXp }));
+        window.dpToast?.(`+${delta} XP ${humainGagne ? "— victoire contre le bot 🎯" : "— bien joué 👍"}`, "success");
+      }
 
       // Le résultat n'est PLUS publié tout seul : on DEMANDE au joueur s'il veut le partager.
       // Un match contre un bot n'intéresse pas forcément le fil, et c'est à lui de choisir.
-      // (Rien n'est proposé quand on joue contre soi-même : c'est de l'entraînement privé.)
-      if (!botSelf && joueurs?.length >= 2) {
+      if (joueurs?.length >= 2) {
         const botJ = joueurs.find((j) => j.nom === botPseudo);
         const humJ = joueurs.find((j) => j.nom !== botPseudo);
         const winnerJ = humainGagne ? humJ : botJ;
@@ -1974,12 +1978,18 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         // Photo de chaque côté : le bot = la photo de l'ami simulé (botAmi), l'humain = la sienne.
         const photoDe = (j) => j?.nom === botPseudo ? (botAmi?.photo || null) : (joueur.photo || null);
         // Détail XP côté HUMAIN (le bot ne gagne pas d'XP) : match joué (+15) + victoire (+15).
-        const xpLinesHum = humainGagne
-          ? [{ label: "Match joué contre le bot", xp: 15 }, { label: "Victoire", xp: 15 }]
-          : [{ label: "Match joué contre le bot", xp: 15 }];
+        // Contre son propre bot il n'y a pas d'XP : la carte ne doit donc afficher
+        // aucune ligne d'XP, sinon elle annoncerait des points jamais credites.
+        const xpLinesHum = botSelf
+          ? []
+          : humainGagne
+            ? [{ label: "Match joué contre le bot", xp: 15 }, { label: "Victoire", xp: 15 }]
+            : [{ label: "Match joué contre le bot", xp: 15 }];
         const duelPost = {
           bot: true, botNom: botPseudo, mode: config.mode,
-          headline: `🤖 ${winnerJ?.nom} bat ${loserJ?.nom} ${winnerJ?.manchesGagnees || 0}-${loserJ?.manchesGagnees || 0}`,
+          headline: botSelf
+            ? `🪞 Entraînement — ${winnerJ?.nom} bat ${loserJ?.nom} ${winnerJ?.manchesGagnees || 0}-${loserJ?.manchesGagnees || 0}`
+            : `🤖 ${winnerJ?.nom} bat ${loserJ?.nom} ${winnerJ?.manchesGagnees || 0}-${loserJ?.manchesGagnees || 0}`,
           winner: { nom: winnerJ?.nom, nbManches: winnerJ?.manchesGagnees || 0, total: 0, elo: 0, xp: humainGagne ? delta : 0, xpLines: humainGagne ? xpLinesHum : [], moy: moyOf(winnerJ), photo: photoDe(winnerJ) },
           loser:  { nom: loserJ?.nom,  nbManches: loserJ?.manchesGagnees || 0,  total: 0, elo: 0, xp: humainGagne ? 0 : delta, xpLines: humainGagne ? [] : xpLinesHum, moy: moyOf(loserJ), photo: photoDe(loserJ) },
           manches: manchesHistory || [],
