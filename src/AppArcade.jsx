@@ -128,17 +128,14 @@ export const Arcade = ({ setPage, joueur }) => {
 
   const effacerSauvegarde = () => { try { localStorage.removeItem(SAUVE); } catch { /* ignore */ } };
 
-  // ⚠️ Sur téléphone, valider une volée laisse l'écran au niveau du clavier :
-  // le joueur suivant arrive et ne voit PAS son score, qui est remonté hors
-  // champ. On ramène donc le haut du jeu à l'écran à chaque changement de tour.
+  // ⚠️ À 8 joueurs sur un petit téléphone, la zone des scores peut défiler. Si le
+  // joueur précédent l'avait fait glisser, le suivant arriverait sur la liste des
+  // adversaires au lieu de son propre score : on la remet en haut à chaque tour.
+  const [confirmQuit, setConfirmQuit] = useState(false);
   const hautDuJeu = useRef(null);
-
-  // Remontée automatique à chaque changement de joueur (et au lancement de la
-  // partie, qui se fait depuis le bas de l'écran de configuration).
   useEffect(() => {
     if (etape !== "jeu") return;
-    try { hautDuJeu.current?.scrollIntoView({ block: "start", behavior: "smooth" }); }
-    catch { /* navigateur sans scrollIntoView à options */ }
+    try { if (hautDuJeu.current) hautDuJeu.current.scrollTop = 0; } catch { /* ignore */ }
   }, [etape, actif]);
 
   const reprendre = () => {
@@ -210,6 +207,9 @@ export const Arcade = ({ setPage, joueur }) => {
     setActif((a) => (a + 1) % maj.length);
   };
 
+  // ⚠️ Quitter EFFACE la partie en cours. Un pouce qui dérape sur « Quitter »
+  // ne doit pas faire perdre un 501 à trois joueurs : on demande confirmation,
+  // comme le scoreur classique.
   const quitter = () => { effacerSauvegarde(); setPage("jeux"); };
 
   const revanche = () => {
@@ -384,104 +384,154 @@ export const Arcade = ({ setPage, joueur }) => {
     );
   }
 
-  // ════════════════════════════════════════════════════════════════ JEU ════
+  // ═══════════════════════════════════════════════════════════════ JEU ════
+  // ⚠️ PLEIN ÉCRAN, comme le scoreur classique : position fixed + inset 0, au-dessus
+  // de l'en-tête (z 200), de la barre du bas (z 300) et du menu (z 400). Sans ça, on
+  // joue « dans la page » : l'en-tête mange le score et le pied de page traîne sous
+  // le clavier. La colonne est en 3 morceaux — barre du haut, zone qui respire,
+  // clavier collé en bas — pour que le clavier reste toujours sous le pouce.
   return (
-    <div ref={hautDuJeu} style={{ minHeight: "100vh", background: C.bg, color: C.text, padding: "10px 12px 20px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <button onClick={quitter} style={btnRetour}><ArrowLeft size={15} /> Quitter</button>
+    <div className="arc-plein" style={{
+      position: "fixed", inset: 0, zIndex: 500, display: "flex", flexDirection: "column",
+      background: C.bg, color: C.text, fontFamily: "Inter,sans-serif",
+      overflow: "hidden", touchAction: "none",
+    }}>
+      <style>{`
+        .arc-plein button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
+        .arc-plein button:active:not(:disabled){transform:scale(.96);opacity:.85}
+      `}</style>
+
+      {/* ── Confirmation avant d'abandonner ── */}
+      {confirmQuit && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 999, background: "#000000cc",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: C.card, border: `2px solid ${C.red}`, borderRadius: 18,
+            padding: 24, maxWidth: 320, width: "100%", textAlign: "center" }}>
+            <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 8 }}>Quitter la partie ?</div>
+            <p style={{ color: C.muted, fontSize: 13.5, lineHeight: 1.5, marginBottom: 20 }}>
+              La partie en cours sera perdue. Tu ne pourras pas la reprendre.
+            </p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setConfirmQuit(false)} style={{ ...btnVide, flex: 1, color: C.text }}>
+                Continuer
+              </button>
+              <button onClick={quitter} style={{ ...btnPlein, flex: 1, background: "#7f1d1d" }}>
+                Quitter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Barre du haut (ne bouge jamais) ── */}
+      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "calc(6px + env(safe-area-inset-top)) 12px 6px" }}>
+        <button onClick={() => setConfirmQuit(true)} style={btnRetour}><ArrowLeft size={15} /> Quitter</button>
         <div style={{ fontSize: 11, color: C.faint, fontWeight: 700, letterSpacing: 1 }}>
           {JEU.toUpperCase()} · {scoreDepart} · {doubleOut ? "DOUBLE OUT" : "SIMPLE OUT"}
         </div>
       </div>
 
-      {/* ── Joueur actif ── */}
-      <div style={{ ...bloc, textAlign: "center", borderColor: C.orange, marginBottom: 10 }}>
-        <div style={{ fontSize: 15, fontWeight: 800, color: C.orange }}>{j?.nom}</div>
-        <div style={{ fontSize: 62, fontWeight: 900, lineHeight: 1.05, margin: "2px 0",
-          color: apercu?.bust ? C.red : C.text }}>
-          {apercu ? apercu.score : j?.score}
+      {/* ── Zone qui respire : c'est la SEULE partie qui peut défiler ──
+          touchAction "pan-y" la rend glissable au doigt même si la racine bloque
+          tout le reste (sinon, à 8 joueurs sur un petit téléphone, on ne pourrait
+          plus atteindre le bas de la liste). */}
+      <div ref={hautDuJeu} style={{ flex: 1, minHeight: 0, overflowY: "auto",
+        padding: "0 12px", touchAction: "pan-y" }}>
+
+        {/* Joueur actif */}
+        <div style={{ ...bloc, textAlign: "center", borderColor: C.orange, marginBottom: 10 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: C.orange }}>{j?.nom}</div>
+          <div style={{ fontSize: 62, fontWeight: 900, lineHeight: 1.05, margin: "2px 0",
+            color: apercu?.bust ? C.red : C.text }}>
+            {apercu ? apercu.score : j?.score}
+          </div>
+          {volee.length > 0 && (
+            <div style={{ fontSize: 12, color: apercu?.bust ? C.red : C.muted, fontWeight: 700 }}>
+              {apercu?.bust ? "BUST — la volée sera annulée" : `${apercu.fait} points cette volée`}
+            </div>
+          )}
+          {/* Les 3 fléchettes */}
+          <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 10 }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{
+                flex: 1, maxWidth: 90, minHeight: 42, borderRadius: 10,
+                border: `1px solid ${volee[i] ? C.orange + "77" : C.border}`,
+                background: volee[i] ? C.orange + "18" : C.card2,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 900, fontSize: 16, color: volee[i] ? C.text : C.faint,
+              }}>
+                {volee[i] ? libelle(volee[i]) : "—"}
+              </div>
+            ))}
+          </div>
         </div>
-        {volee.length > 0 && (
-          <div style={{ fontSize: 12, color: apercu?.bust ? C.red : C.muted, fontWeight: 700 }}>
-            {apercu?.bust ? "BUST — la volée sera annulée" : `${apercu.fait} points cette volée`}
+
+        {message && (
+          <div style={{ textAlign: "center", padding: "8px 0", fontWeight: 900, fontSize: 19,
+            color: message.ton === "mauvais" ? C.red : C.green }}>
+            {message.texte}
           </div>
         )}
-        {/* Les 3 fléchettes */}
-        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 10 }}>
-          {[0, 1, 2].map((i) => (
-            <div key={i} style={{
-              flex: 1, maxWidth: 90, minHeight: 42, borderRadius: 10,
-              border: `1px solid ${volee[i] ? C.orange + "77" : C.border}`,
-              background: volee[i] ? C.orange + "18" : C.card2,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontWeight: 900, fontSize: 16, color: volee[i] ? C.text : C.faint,
-            }}>
-              {volee[i] ? libelle(volee[i]) : "—"}
+
+        {/* Adversaires */}
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
+          {joueurs.map((p, i) => i === actif ? null : (
+            <div key={p.nom} style={{ flexShrink: 0, minWidth: 74, background: C.card, border: `1px solid ${C.border}`,
+              borderRadius: 10, padding: "7px 10px", textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 74 }}>{p.nom}</div>
+              <div style={{ fontSize: 19, fontWeight: 900 }}>{p.score}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {message && (
-        <div style={{ textAlign: "center", padding: "8px 0", fontWeight: 900, fontSize: 19,
-          color: message.ton === "mauvais" ? C.red : C.green }}>
-          {message.texte}
+      {/* ── Clavier collé en bas (ne défile jamais) ── */}
+      <div style={{ flexShrink: 0, borderTop: `1px solid ${C.border}`, background: C.bg,
+        padding: "8px 12px calc(10px + env(safe-area-inset-bottom))" }}>
+
+        <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+          {[[1, "SIMPLE"], [2, "DOUBLE"], [3, "TRIPLE"]].map(([m, lbl]) => (
+            <button key={m} onClick={() => setMult((x) => (x === m ? 1 : m))}
+              style={{ flex: 1, minHeight: 44, borderRadius: 10, fontWeight: 900, fontSize: 12, cursor: "pointer",
+                border: `1px solid ${mult === m ? C.violet : C.border}`,
+                background: mult === m ? C.violet + "28" : C.card,
+                color: mult === m ? C.violet : C.muted }}>
+              {lbl}
+            </button>
+          ))}
         </div>
-      )}
 
-      {/* ── Adversaires ── */}
-      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
-        {joueurs.map((p, i) => i === actif ? null : (
-          <div key={p.nom} style={{ flexShrink: 0, minWidth: 74, background: C.card, border: `1px solid ${C.border}`,
-            borderRadius: 10, padding: "7px 10px", textAlign: "center" }}>
-            <div style={{ fontSize: 11, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 74 }}>{p.nom}</div>
-            <div style={{ fontSize: 19, fontWeight: 900 }}>{p.score}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Pavé de saisie ── */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-        {[[1, "SIMPLE"], [2, "DOUBLE"], [3, "TRIPLE"]].map(([m, lbl]) => (
-          <button key={m} onClick={() => setMult((x) => (x === m ? 1 : m))}
-            style={{ flex: 1, minHeight: 44, borderRadius: 10, fontWeight: 900, fontSize: 12, cursor: "pointer",
-              border: `1px solid ${mult === m ? C.violet : C.border}`,
-              background: mult === m ? C.violet + "28" : C.card,
-              color: mult === m ? C.violet : C.muted }}>
-            {lbl}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 }}>
+          {Array.from({ length: 20 }, (_, i) => i + 1).map((s) => (
+            <button key={s} onClick={() => ajouter(s)} disabled={volee.length >= 3} style={touche(volee.length >= 3)}>
+              {s}
+            </button>
+          ))}
+          <button onClick={() => ajouter(25)} disabled={volee.length >= 3}
+            style={{ ...touche(volee.length >= 3), gridColumn: "span 2", color: C.red, fontSize: 14 }}>
+            BULL
           </button>
-        ))}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 }}>
-        {Array.from({ length: 20 }, (_, i) => i + 1).map((s) => (
-          <button key={s} onClick={() => ajouter(s)} disabled={volee.length >= 3} style={touche(volee.length >= 3)}>
-            {s}
+          <button onClick={() => ajouter(0)} disabled={volee.length >= 3}
+            style={{ ...touche(volee.length >= 3), gridColumn: "span 2", color: C.muted }}>
+            RATÉ
           </button>
-        ))}
-        <button onClick={() => ajouter(25)} disabled={volee.length >= 3}
-          style={{ ...touche(volee.length >= 3), gridColumn: "span 2", color: C.red, fontSize: 14 }}>
-          BULL
-        </button>
-        <button onClick={() => ajouter(0)} disabled={volee.length >= 3}
-          style={{ ...touche(volee.length >= 3), gridColumn: "span 2", color: C.muted }}>
-          RATÉ
-        </button>
-        <button onClick={retirer} disabled={volee.length === 0}
-          style={{ ...touche(volee.length === 0), color: C.orange }} aria-label="Effacer la dernière fléchette">
-          ←
+          <button onClick={retirer} disabled={volee.length === 0}
+            style={{ ...touche(volee.length === 0), color: C.orange }} aria-label="Effacer la dernière fléchette">
+            ←
+          </button>
+        </div>
+
+        <button onClick={validerVolee} disabled={volee.length === 0}
+          style={{ ...btnPlein, width: "100%", marginTop: 8, minHeight: 52, fontSize: 16,
+            opacity: volee.length === 0 ? 0.4 : 1,
+            background: apercu?.bust ? C.red : C.orange }}>
+          {volee.length === 0 ? "Saisis tes fléchettes"
+            : apercu?.gagne ? "🏆 VALIDER LA VICTOIRE"
+            : apercu?.bust ? "Valider (bust)"
+            : `Valider — ${apercu.fait} pts`}
         </button>
       </div>
-
-      <button onClick={validerVolee} disabled={volee.length === 0}
-        style={{ ...btnPlein, width: "100%", marginTop: 10, minHeight: 52, fontSize: 16,
-          opacity: volee.length === 0 ? 0.4 : 1,
-          background: apercu?.bust ? C.red : C.orange }}>
-        {volee.length === 0 ? "Saisis tes fléchettes"
-          : apercu?.gagne ? "🏆 VALIDER LA VICTOIRE"
-          : apercu?.bust ? "Valider (bust)"
-          : `Valider — ${apercu.fait} pts`}
-      </button>
     </div>
   );
 };
