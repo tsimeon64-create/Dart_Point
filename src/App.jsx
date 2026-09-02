@@ -7918,6 +7918,70 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
     </button>
   );
 
+  // Carte jeu DESSINÉE (sans image). Sert aux jeux qui n'ont pas encore reçu leur
+  // bannière : sinon la carte emprunte celle d'un autre jeu et on se retrouve avec
+  // deux « Double Down » à la suite dans la liste.
+  // ⚠️ Les tailles sont en cqw (pourcentage de la LARGEUR de la carte), comme la
+  // pastille de record : c'est ce qui garde le titre lisible sur un téléphone
+  // comme sur un grand écran, exactement au même format que les bannières
+  // (1600 × 360 → aspect-ratio 40/9).
+  const GameCardTexte = ({ label, sub, badge, onClick, col = "#f59e0b", col2 = "#a855f7" }) => (
+    <button
+      type="button" onClick={onClick} className="mj-card mj-card-img"
+      aria-label={`${label} — ${sub}`}
+      style={{
+        display:"flex", alignItems:"center", gap:"3cqw", width:"100%",
+        padding:"0 4cqw", border:"none", cursor:"pointer", textAlign:"left",
+        touchAction:"manipulation", borderRadius:22, position:"relative",
+        containerType:"inline-size", aspectRatio:"40 / 9", overflow:"hidden",
+        background:"linear-gradient(115deg,#0b0713 0%,#1a0f2e 45%,#2a1108 100%)",
+        boxShadow:`inset 0 0 0 2px ${col}55, inset 0 0 40px ${col2}22`,
+        transition:"transform .18s cubic-bezier(.22,.61,.36,1), filter .18s ease",
+      }}
+    >
+      {/* halo néon décoratif */}
+      <span aria-hidden style={{
+        position:"absolute", right:"-6%", top:"-40%", width:"46%", height:"180%",
+        borderRadius:"50%", pointerEvents:"none",
+        background:`radial-gradient(circle,${col}33 0%,transparent 70%)`,
+      }}/>
+
+      {/* pastille icône, comme sur les bannières */}
+      <span aria-hidden style={{
+        flexShrink:0, width:"9cqw", height:"9cqw", borderRadius:"2.2cqw",
+        background:`linear-gradient(135deg,${col}33,${col2}33)`,
+        boxShadow:`inset 0 0 0 .35cqw ${col}88`,
+        display:"flex", alignItems:"center", justifyContent:"center",
+        fontSize:"4.6cqw", lineHeight:1,
+      }}>🕹️</span>
+
+      <span style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column",
+        alignItems:"flex-start", gap:"1.2cqw", position:"relative" }}>
+        <span aria-hidden style={{
+          fontSize:"7cqw", fontWeight:900, letterSpacing:"-.02em", lineHeight:1,
+          color:"#fff", textShadow:`0 0 2.5cqw ${col}88`,
+        }}>{label}</span>
+        {badge && (
+          <span aria-hidden style={{
+            fontSize:"2.5cqw", fontWeight:900, letterSpacing:".08em", lineHeight:1,
+            color:"#0b0713", background:col, borderRadius:"1cqw", padding:".8cqw 1.5cqw",
+          }}>{badge}</span>
+        )}
+        <span aria-hidden style={{
+          fontSize:"3cqw", fontWeight:600, lineHeight:1.25, color:"#e2e8f0",
+        }}>{sub}</span>
+      </span>
+
+      <span aria-hidden style={{
+        flexShrink:0, display:"flex", alignItems:"center", gap:".8cqw",
+        fontSize:"3.1cqw", fontWeight:900, letterSpacing:".04em", color:"#0b0713",
+        background:`linear-gradient(135deg,${col},#fbbf24)`,
+        borderRadius:"99px", padding:"1.5cqw 2.8cqw", whiteSpace:"nowrap",
+        boxShadow:`0 0 2.5cqw ${col}66`, position:"relative",
+      }}>▶ JOUER</span>
+    </button>
+  );
+
   // Carte jeu active (ancienne version, encore utilisée pour fléchettes)
   const ModeBtn = ({ icon: IconComp, label, sub, onClick, col, badge }) => (
     <div onClick={onClick}
@@ -8133,9 +8197,11 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
             sub="Organise ton propre tournoi privé entre amis."
             onClick={()=>setPage("tournois-potes")}/>
 
-          {/* 5. Arcade — X01 avec cadeaux et pouvoirs */}
-          <GameCardImg img="double-down" label={`${JEU} (bêta)`}
-            sub="Un X01 où tout peut basculer. Cadeaux, pouvoirs, bonus et crasses entre joueurs."
+          {/* 5. Arcade — X01 avec cadeaux et pouvoirs.
+              Carte DESSINÉE en attendant sa vraie bannière : avec l'image de Double
+              Down, la liste affichait deux « Double Down » identiques à la suite. */}
+          <GameCardTexte label={JEU.toUpperCase()} badge="BÊTA"
+            sub="Cadeaux, pouvoirs et crasses : tout peut basculer."
             onClick={()=>setPage("arcade")}/>
 
           {/* 6. Double Down */}
