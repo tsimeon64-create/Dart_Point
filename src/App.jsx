@@ -21,6 +21,7 @@ import { ConfigCricket } from "./AppCricket";
 import { JeuCapital } from "./AppJeuDecalePoint";
 import { ToucheCoule } from "./AppToucheCoule";
 import { DoubleDown } from "./AppDoubleDown";
+import { Arcade, JEU } from "./AppArcade";
 import { ConfettiBurst } from "./DPLottie";
 import confettiData from "./lottie/confetti.json";
 import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper } from "./AppTournoiPotes";
@@ -8132,7 +8133,12 @@ const PageModeJeu = ({ joueur, setPage, initCat=null }) => {
             sub="Organise ton propre tournoi privé entre amis."
             onClick={()=>setPage("tournois-potes")}/>
 
-          {/* 5. Double Down */}
+          {/* 5. Arcade — X01 avec cadeaux et pouvoirs */}
+          <GameCardImg img="double-down" label={`${JEU} (bêta)`}
+            sub="Un X01 où tout peut basculer. Cadeaux, pouvoirs, bonus et crasses entre joueurs."
+            onClick={()=>setPage("arcade")}/>
+
+          {/* 6. Double Down */}
           <GameCardImg img="double-down" label="Double Down"
             sub="Atteins la cible imposée sur 9 manches. Rate-la et ton score est divisé par deux !"
             onClick={()=>setPage("double-down")}/>
@@ -14870,7 +14876,7 @@ export default function App() {
 
   const [pendingNav, setPendingNav] = useState(null);
   const isGamePage = (p) =>
-    p === "jeux-capital" || p === "touche-coule" || p === "double-down" || p === "scoreur" || p === "scoreur-bot" || p === "scoreur-libre" || p === "scoreur-doublette" ||
+    p === "jeux-capital" || p === "touche-coule" || p === "double-down" || p === "arcade" || p === "scoreur" || p === "scoreur-bot" || p === "scoreur-libre" || p === "scoreur-doublette" ||
     p === "cricket-config" || p === "rush-mode" || p === "chrono-finish" || p === "entrainement-finish" ||
     p === "chrono-scoreur" || p === "horloge-double" ||
     p.startsWith("scoreur-duel-") || p.startsWith("scoreur-potes-") || p.startsWith("scoreur-bot-") || p.startsWith("scoreur-online-play-");
@@ -15375,6 +15381,7 @@ export default function App() {
         {page==="jeux-capital"          && <JeuCapital setPage={nav} joueur={joueur}/>}
         {page==="touche-coule"          && <ToucheCoule setPage={nav} joueur={joueur}/>}
         {page==="double-down"           && <DoubleDown setPage={nav} joueur={joueur}/>}
+        {page==="arcade"                && <Arcade setPage={nav} joueur={joueur}/>}
         {page==="entrainement-finish"   && <EntrainementFinish setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="chrono-finish"         && <ChronoFinish setPage={nav} joueur={joueur}/>}
         {page==="chrono-scoreur"        && <ChronoScoreur setPage={nav} joueur={joueur}/>}
