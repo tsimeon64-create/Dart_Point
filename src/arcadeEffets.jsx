@@ -58,6 +58,9 @@ export const StylesArcade = () => (
     @keyframes arcMonte    { 0%{ transform:translateY(14px); opacity:0 } 100%{ transform:translateY(0); opacity:1 } }
     @keyframes arcFile     { 0%{ transform:translate(0,0) scale(1); opacity:1 } 85%{ opacity:1 } 100%{ transform:translate(var(--dx),var(--dy)) scale(.5); opacity:0 } }
     @keyframes arcBrille   { 0%{ transform:translateX(-120%) skewX(-18deg) } 55%,100%{ transform:translateX(320%) skewX(-18deg) } }
+    /* Respiration du cadre autour du score quand un pouvoir est arme. Volontairement
+       LENTE et discrete : c'est un rappel permanent, pas un clignotant. */
+    @keyframes arcHalo     { 0%,100%{ filter:brightness(1) } 50%{ filter:brightness(1.16) } }
 
     /* Le point 71 demande de rester fluide. Un joueur qui a demandé « moins
        d'animations » dans son téléphone doit voir le jeu se calmer, pas ramer. */

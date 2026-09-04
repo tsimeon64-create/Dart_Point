@@ -175,7 +175,7 @@ const SlotVide = () => (
 );
 
 // ── Badge d'effet actif ──────────────────────────────────────────────────────
-const BadgeEffet = ({ e }) => {
+const BadgeEffet = ({ e, nomDe }) => {
   const p = POUVOIRS[e.id];
   if (!p) return null;
   const mauvais = !!EST_MALUS[e.id];
@@ -186,6 +186,9 @@ const BadgeEffet = ({ e }) => {
       background: col + "1e", border: `1px solid ${col}66`, color: col,
       borderRadius: 8, padding: "3px 7px", fontSize: 10.5, fontWeight: 800, whiteSpace: "nowrap" }}>
       <EmoIcon e={p.icone} size={11} color={col} /> {p.nom}{suffixe}
+      {/* ⚠️ On dit TOUJOURS qui a envoyé le coup : subir un gel sans savoir de qui
+          il vient, c'est frustrant et ça casse toute la rivalité entre joueurs. */}
+      {nomDe && <span style={{ opacity: 0.75, fontWeight: 700 }}>· {nomDe}</span>}
     </span>
   );
 };
@@ -366,6 +369,16 @@ export const Arcade = ({ setPage, joueur }) => {
   );
   const maxF = apercu?.maxF ?? 3;
   const cache = !!apercu?.aBrouillard;             // score masqué (Brouillard)
+
+  // ⚠️ CE QUI ENTOURE LE SCORE (points 64 et 65). Un pouvoir armé est actif pour
+  // la volée qu'on lance juste après : entre le moment où on le déclenche et le
+  // moment où on tape sa dernière fléchette, il ne doit JAMAIS disparaître de
+  // l'écran, sinon on oublie qu'on l'a et on joue comme si de rien n'était.
+  const bonus = effets.filter((e) => !EST_MALUS[e.id]);
+  const malus = effets.filter((e) => EST_MALUS[e.id]);
+  const cadre = malus.length ? C.red : bonus.length ? C.green : C.orange;
+  // La mention en toutes lettres : « SIMPLE AUTORISÉ », « TOUT AUTORISÉ »…
+  const mentions = effets.map((e) => POUVOIRS[e.id]?.mention).filter(Boolean);
 
   // ── Saisie ────────────────────────────────────────────────────────────────
   const ajouter = (s) => {
@@ -745,8 +758,11 @@ export const Arcade = ({ setPage, joueur }) => {
         <ArrowLeft size={16} /> Jeux
       </button>
 
-      <h1 style={{ fontSize: 30, fontWeight: 900, letterSpacing: -0.5, margin: "14px 0 2px" }}>
+      <h1 style={{ fontSize: 30, fontWeight: 900, letterSpacing: -0.5, margin: "14px 0 2px",
+        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         {JEU.toUpperCase()}
+        <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: 1.5, color: "#0b0713",
+          background: C.gold, borderRadius: 7, padding: "3px 8px" }}>BÊTA</span>
       </h1>
       <p style={{ color: C.muted, fontSize: 13.5, margin: "0 0 20px", lineHeight: 1.5 }}>
         Un X01 où tout peut basculer. Tente des cadeaux, récupère des pouvoirs,
@@ -1010,7 +1026,7 @@ export const Arcade = ({ setPage, joueur }) => {
         padding: "calc(6px + env(safe-area-inset-top)) 12px 6px" }}>
         <button onClick={() => setConfirmQuit(true)} style={btnRetour}><ArrowLeft size={15} /> Quitter</button>
         <div style={{ fontSize: 11, color: C.faint, fontWeight: 700, letterSpacing: 1 }}>
-          {JEU.toUpperCase()} · {scoreDepart} · {doubleOut ? "DOUBLE OUT" : "SIMPLE OUT"}
+          {JEU.toUpperCase()} BÊTA · {scoreDepart} · {doubleOut ? "DOUBLE OUT" : "SIMPLE OUT"}
         </div>
       </div>
 
@@ -1018,8 +1034,14 @@ export const Arcade = ({ setPage, joueur }) => {
       <div ref={hautDuJeu} style={{ flex: 1, minHeight: 0, overflowY: "auto",
         padding: "0 12px", touchAction: "pan-y" }}>
 
-        {/* Joueur actif */}
-        <div style={{ ...bloc, textAlign: "center", borderColor: C.orange, marginBottom: 10 }}>
+        {/* Joueur actif — le cadre CHANGE DE COULEUR selon ce qui est armé :
+            vert si un pouvoir t'aide, rouge si tu subis quelque chose. */}
+        <div className="arc-anim" style={{
+          ...bloc, textAlign: "center", marginBottom: 10,
+          border: `2px solid ${cadre}`,
+          boxShadow: effets.length ? `0 0 0 1px ${cadre}44, 0 0 26px ${cadre}33, inset 0 0 30px ${cadre}12` : "none",
+          animation: effets.length ? "arcHalo 2.4s ease-in-out infinite" : "none",
+        }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: C.orange }}>{j?.nom}</div>
           {/* ⚠️ Le numéro à viser reste sous les yeux pendant TOUTE la volée :
               annoncé une fois puis oublié, personne ne s'en souvient au moment
@@ -1043,6 +1065,13 @@ export const Arcade = ({ setPage, joueur }) => {
             animation: apercu?.multPos > 1 ? "arcPulse 1.3s ease-in-out infinite" : "none" }}>
             {cache ? "???" : apercu ? apercu.score : j?.score}
           </div>
+          {mentions.length > 0 && !cache && (
+            <div style={{
+              display: "inline-block", marginTop: 2, padding: "3px 12px", borderRadius: 999,
+              background: C.green + "22", border: `1px solid ${C.green}88`,
+              fontSize: 12, fontWeight: 900, color: C.green, letterSpacing: 1,
+            }}>{mentions.join(" · ")}</div>
+          )}
           {cache && (
             <div style={{ fontSize: 11.5, color: C.red, fontWeight: 800 }}>
               <EmoIcon e="🌫️" size={12} color={C.red} /> BROUILLARD — tu joues sans voir ton score
@@ -1057,7 +1086,7 @@ export const Arcade = ({ setPage, joueur }) => {
           {/* Effets en cours sur ce joueur */}
           {effets.length > 0 && (
             <div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "center", marginTop: 8 }}>
-              {effets.map((e, i) => <BadgeEffet key={i} e={e} />)}
+              {effets.map((e, i) => <BadgeEffet key={i} e={e} nomDe={joueurs[e.de]?.nom} />)}
             </div>
           )}
           {(j?.bouclier || j?.renvoi) && (
@@ -1211,6 +1240,8 @@ const Panneau = ({ panneau, enAttente, cadeauNum, dernierTour, joueurs, actif, j
   // qui joue, son score, ce qu'il subit, et le numéro à viser.
   if (t === "tour") {
     const effets = j?.effets || [];
+    const malusRecus = effets.filter((e) => EST_MALUS[e.id]);
+    const bonusActifs = effets.filter((e) => !EST_MALUS[e.id]);
     return (
       <Fenetre>
         {dernierTour && (
@@ -1228,9 +1259,34 @@ const Panneau = ({ panneau, enAttente, cadeauNum, dernierTour, joueurs, actif, j
         <div style={{ fontSize: 22, fontWeight: 900, color: C.orange, marginTop: 4 }}>{j?.nom}</div>
         <div style={{ fontSize: 40, fontWeight: 900, lineHeight: 1.1 }}>{j?.score}</div>
 
-        {(effets.length > 0 || j?.bouclier || j?.renvoi) && (
+        {/* ⚠️ CE QU'ON SUBIT, EN TOUTES LETTRES. Un badge de trois mots ne suffit
+            pas : le joueur doit comprendre ce qui va lui arriver et savoir qui le
+            lui a fait, sinon il découvre le problème au milieu de sa volée. */}
+        {malusRecus.length > 0 && (
+          <div style={{ margin: "12px 0 2px", padding: "10px 12px", borderRadius: 14,
+            background: `${C.red}14`, border: `1px solid ${C.red}77`, textAlign: "left" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 900, color: C.red, letterSpacing: 1.2,
+              marginBottom: 7, textAlign: "center" }}>ON T'A ENVOYÉ ÇA</div>
+            {malusRecus.map((e, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: i ? 8 : 0 }}>
+                <EmoIcon e={POUVOIRS[e.id].icone} size={17} color={C.red} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 12.5, fontWeight: 900, color: C.red }}>
+                    {POUVOIRS[e.id].nom}{e.id === "verrouillage" ? ` — le ${e.num}` : ""}
+                    {joueurs[e.de] ? <span style={{ color: C.muted, fontWeight: 700 }}> · par {joueurs[e.de].nom}</span> : null}
+                  </span>
+                  <span style={{ display: "block", fontSize: 11.5, color: C.muted, lineHeight: 1.4 }}>
+                    {POUVOIRS[e.id].subi || POUVOIRS[e.id].aide}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {(bonusActifs.length > 0 || j?.bouclier || j?.renvoi) && (
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "center", margin: "8px 0 2px" }}>
-            {effets.map((e, i) => <BadgeEffet key={i} e={e} />)}
+            {bonusActifs.map((e, i) => <BadgeEffet key={i} e={e} />)}
             {j.bouclier && <BadgeEffet e={{ id: "bouclier" }} />}
             {j.renvoi && <BadgeEffet e={{ id: "renvoi" }} />}
           </div>

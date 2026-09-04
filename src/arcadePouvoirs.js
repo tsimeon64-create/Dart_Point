@@ -92,21 +92,25 @@ export const POUVOIRS = {
   frein: {
     nom: "FREIN", icone: "🐢", rarete: "super", tags: ["attaque"],
     texte: "Sa volée divisée par deux", cible: true, groupe: "annulation",
+    subi: "Seule la MOITIÉ de tes points te sera retirée.",
     aide: "La prochaine volée de l'adversaire visé ne lui retire que la moitié des points.",
   },
   finishFacile: {
     nom: "FINISH FACILE", icone: "🎯", rarete: "super", tags: ["boost"],
     texte: "Tu peux finir sur un simple", soi: true, groupe: "finish",
+    mention: "SIMPLE AUTORISÉ",
     aide: "Pendant ta prochaine volée, tu peux terminer sur n'importe quelle zone, même en Double Out.",
   },
   gel: {
     nom: "GEL", icone: "❄️", rarete: "super", tags: ["attaque"],
     texte: "Il n'aura que 2 fléchettes", cible: true, groupe: "restriction",
+    subi: "Tu n'as que DEUX fléchettes ce tour-ci.",
     aide: "L'adversaire visé ne lance que deux fléchettes à son prochain tour.",
   },
   verrouillage: {
     nom: "VERROUILLAGE", icone: "🔒", rarete: "super", tags: ["attaque"],
     texte: "Un numéro vaudra zéro pour lui", cible: true, choixNumero: true,
+    subi: "Toutes tes fléchettes sur ce numéro valent ZÉRO.",
     aide: "Tu choisis un numéro entre 15 et 20 : pendant sa prochaine volée, toutes ses fléchettes sur ce numéro valent zéro.",
   },
   renvoi: {
@@ -122,11 +126,13 @@ export const POUVOIRS = {
   bombe40: {
     nom: "BOMBE 40", icone: "💣", rarete: "super", tags: ["attaque"],
     texte: "Moins de 40 ? Sa volée vaut zéro", cible: true, groupe: "annulation",
+    subi: "Si tu fais moins de 40 points, ta volée ne comptera PAS.",
     aide: "Si l'adversaire visé fait moins de 40 points à sa prochaine volée, elle ne compte pas du tout.",
   },
   brouillard: {
     nom: "BROUILLARD", icone: "🌫️", rarete: "super", tags: ["attaque"],
     texte: "Il jouera sans voir son score", cible: true,
+    subi: "Tu joues SANS VOIR ton score. Il revient à la fin de ta volée.",
     aide: "Pendant sa prochaine volée, son score restant est masqué. Il réapparaît à la fin.",
   },
 
@@ -139,11 +145,13 @@ export const POUVOIRS = {
   voleeAnnulee: {
     nom: "VOLÉE ANNULÉE", icone: "🚫", rarete: "mega", tags: ["attaque"],
     texte: "Sa prochaine volée ne compte pas", cible: true, groupe: "annulation",
+    subi: "Lance quand même : on verra ton score, puis tout sera effacé.",
     aide: "Il lance vraiment ses fléchettes, on voit son score… puis tout est annulé.",
   },
   uneFlechette: {
     nom: "UNE SEULE FLÉCHETTE", icone: "🥶", rarete: "mega", tags: ["attaque"],
     texte: "Il n'aura qu'une fléchette", cible: true, groupe: "restriction",
+    subi: "Tu n'as qu'UNE SEULE fléchette ce tour-ci.",
     aide: "L'adversaire visé ne lance qu'une seule fléchette à son prochain tour.",
   },
   volPouvoir: {
@@ -164,6 +172,7 @@ export const POUVOIRS = {
   finishRoyal: {
     nom: "FINISH ROYAL", icone: "👑", rarete: "mega", tags: ["boost"],
     texte: "Finis sur simple, double ou triple", soi: true, groupe: "finish",
+    mention: "TOUT AUTORISÉ",
     aide: "Pendant ta prochaine volée, n'importe quelle zone termine la partie.",
   },
   chaos: {
@@ -196,6 +205,13 @@ export const POUVOIRS = {
 };
 
 export const infoPouvoir = (id) => POUVOIRS[id] || null;
+
+// ⚠️ TOUS les effets ne valent QUE pour la volée qui suit leur activation. Un
+// pouvoir qui durerait toute la partie a été essayé puis abandonné : un « finis
+// sur un simple » permanent supprime, en Double Out, la partie la plus difficile
+// du jeu pour tout le reste de la manche — beaucoup trop fort pour une carte de
+// niveau super. La contrepartie, c'est que le joueur doit VOIR que son pouvoir
+// est armé : c'est le rôle du cadre autour du score.
 
 // Les effets qui viennent d'un adversaire. Sert au bouclier, à Nettoyage,
 // à l'immunité de Supernova et au comptage des malus reçus.
