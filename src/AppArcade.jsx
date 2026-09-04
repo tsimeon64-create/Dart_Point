@@ -139,7 +139,9 @@ export const Arcade = ({ setPage, joueur }) => {
 
   const [joueurs, setJoueurs] = useState([]);
   const [actif, setActif] = useState(0);
-  const [phase, setPhase] = useState("choix");    // choix | saisie
+  // ⚠️ Plus d'écran de choix « Tenter un cadeau / Jouer normalement » : le cadeau
+  // est TOUJOURS en jeu. Une fenêtre annonce le numéro au début du tour, puis il
+  // reste rappelé à côté du score. Le joueur arrive donc directement au clavier.
   const [cadeauNum, setCadeauNum] = useState(null);
   const [volee, setVolee] = useState([]);
   const [mult, setMult] = useState(1);
@@ -150,6 +152,10 @@ export const Arcade = ({ setPage, joueur }) => {
   // exactement au même endroit si l'appli se ferme pendant que la fenêtre est
   // ouverte. Sinon le joueur rejouait sa volée et perdait son cadeau.
   const [enAttente, setEnAttente] = useState(null);
+  // Ce qui vient de se passer, repris en une ligne dans la fenêtre du joueur
+  // suivant : sans ça, un « cadeau raté » n'était jamais lu — la main change
+  // immédiatement après la volée et efface le bandeau.
+  const [dernierTour, setDernierTour] = useState(null);
   const [gagnant, setGagnant] = useState(null);
   const [reprise, setReprise] = useState(null);
   const [confirmQuit, setConfirmQuit] = useState(false);
@@ -174,17 +180,17 @@ export const Arcade = ({ setPage, joueur }) => {
     if (etape !== "jeu") return;
     try {
       localStorage.setItem(SAUVE, JSON.stringify({
-        etape, joueurs, actif, phase, cadeauNum, volee, depart, doubleOut,
+        etape, joueurs, actif, cadeauNum, volee, depart, doubleOut,
         // ⚠️ `perso` EST INDISPENSABLE : sans lui, une partie en score
         // personnalisé reprend avec un score de départ de 0, et la revanche
         // devient injouable (chaque volée buste, même trois RATÉ).
         perso,
-        enAttente,
-        fenetre: panneau && (panneau.type === "resultat" || panneau.type === "plein") ? panneau.type : null,
+        enAttente, dernierTour,
+        fenetre: panneau && ["resultat", "plein", "tour"].includes(panneau.type) ? panneau.type : null,
         v: VERSION_SAUVE,
       }));
     } catch { /* stockage plein ou indisponible */ }
-  }, [etape, joueurs, actif, phase, cadeauNum, volee, depart, doubleOut, perso, enAttente, panneau]);
+  }, [etape, joueurs, actif, cadeauNum, volee, depart, doubleOut, perso, enAttente, dernierTour, panneau]);
 
   const effacerSauvegarde = () => { try { localStorage.removeItem(SAUVE); } catch { /* ignore */ } };
 
@@ -195,7 +201,7 @@ export const Arcade = ({ setPage, joueur }) => {
   useEffect(() => {
     if (etape !== "jeu") return;
     try { if (hautDuJeu.current) hautDuJeu.current.scrollTop = 0; } catch { /* ignore */ }
-  }, [etape, actif, phase]);
+  }, [etape, actif]);
 
   // ⚠️ Le bandeau vert « 60 points » du joueur precedent restait affiche
   // pendant plus d une seconde sur l ecran du suivant, qui croyait avoir marque.
@@ -205,10 +211,11 @@ export const Arcade = ({ setPage, joueur }) => {
   const reprendre = () => {
     const s = reprise;
     setJoueurs(s.joueurs); setActif(s.actif); setVolee(s.volee || []);
-    setPhase(s.phase || "choix"); setCadeauNum(s.cadeauNum ?? null);
+    setCadeauNum(s.cadeauNum ?? null);
     setDepart(s.depart); setPerso(s.perso ?? "");
     setDoubleOut(s.doubleOut ?? true);
     setEnAttente(s.enAttente ?? null);
+    setDernierTour(s.dernierTour ?? null);
     setPanneau(s.fenetre ? { type: s.fenetre } : null);
     setReprise(null); setEtape("jeu");
   };
@@ -224,14 +231,31 @@ export const Arcade = ({ setPage, joueur }) => {
   const nomsRemplis = noms.map((n) => n.trim()).filter(Boolean);
   const peutJouer = nomsRemplis.length >= 2 && departValide;
 
+  // Début d'un tour : on tire le numéro cadeau, on compte la tentative et on
+  // ouvre la fenêtre d'annonce. C'est aussi elle qui sert de passage de main
+  // (point 68 : nom, score, effets en cours).
+  // ⚠️ L'index est passé en argument : setActif n'a pas encore pris effet quand
+  // cette fonction est appelée juste après, et on créditerait la tentative au
+  // joueur précédent.
+  const demarrerTour = (idx) => {
+    const num = hasard(NUMEROS_CADEAU);
+    setActif(idx);
+    setCadeauNum(num);
+    setJoueurs((l) => l.map((p, i) => (i !== idx ? p
+      : { ...p, stats: { ...p.stats, cadeauxTentes: p.stats.cadeauxTentes + 1 } })));
+    setVolee([]); setMult(1);
+    setPanneau({ type: "tour" });
+  };
+
   const nouvelleManche = (liste, premier) => {
-    setJoueurs(liste); setActif(premier);
-    setPhase("choix"); setCadeauNum(null); setVolee([]); setMult(1);
-    setGagnant(null); setMessage(null); setPanneau(null); setEnAttente(null);
+    setJoueurs(liste);
+    setCadeauNum(null); setVolee([]); setMult(1);
+    setGagnant(null); setMessage(null); setPanneau(null); setEnAttente(null); setDernierTour(null);
     // La partie proposée en reprise vient d'être remplacée : sans ça, l'écran de
     // configuration reproposait de « reprendre » une partie déjà finie.
     setReprise(null);
     setEtape("jeu");
+    demarrerTour(premier);
   };
 
   const demarrer = () => {
@@ -478,14 +502,6 @@ export const Arcade = ({ setPage, joueur }) => {
     i !== idx || p.pouvoirs.length >= MAX_POUVOIRS ? p : { ...p, pouvoirs: [...p.pouvoirs, id] }
   ));
 
-  // ══════════════════════════════════════════════════════ TENTER UN CADEAU ══
-  const tenterCadeau = () => {
-    setCadeauNum(hasard(NUMEROS_CADEAU));
-    setJoueurs((l) => l.map((p, i) => (i !== actif ? p
-      : { ...p, stats: { ...p.stats, cadeauxTentes: p.stats.cadeauxTentes + 1 } })));
-    setPhase("saisie");
-  };
-
   // ═════════════════════════════════════════════════════════════ VALIDATION ══
   const validerVolee = () => {
     if (!j || volee.length === 0 || gagnant) return;
@@ -540,6 +556,12 @@ export const Arcade = ({ setPage, joueur }) => {
       return;
     }
 
+    setDernierTour({
+      nom: j.nom, fait: r.fait, bust: r.bust,
+      rate: !!cadeauNum && !cadeau,
+      gagne: cadeau ? RARETES[cadeau.rarete].nom : null,
+    });
+
     const suivant = {
       r, cadeau, plein: !!plein,
       rate: !!cadeauNum && !cadeau,
@@ -547,11 +569,13 @@ export const Arcade = ({ setPage, joueur }) => {
       nb: liste.length,
     };
 
-    // Un résumé apparaît dès qu'il s'est passé quelque chose d'inhabituel :
-    // sinon on enchaîne sans rien couper (point 81 : une action = un choix).
-    // Le brouillard en fait partie : c'est le seul moment où le joueur revoit
-    // son score, sinon il ne saurait jamais ce qu'il a marqué.
-    const inhabituel = r.bust || cadeauNum || r.multPos !== 1 || r.facteurNeg !== 1
+    // ⚠️ Le résumé ne s'ouvre QUE s'il s'est passé quelque chose. Depuis que le
+    // cadeau est tenté à chaque tour, s'arrêter sur « cadeau raté » à toutes les
+    // volées ferait deux fenêtres par tour : injouable. Un cadeau manqué se dit
+    // donc en une ligne, sans couper le jeu (point 81 : une action = un choix).
+    // Le brouillard reste dans la liste : c'est le seul moment où le joueur
+    // revoit son score.
+    const inhabituel = r.bust || cadeau || r.multPos !== 1 || r.facteurNeg !== 1
       || r.verrou !== null || r.maxF !== 3 || r.immunise || r.doubleX2 || rejoue
       || r.aBrouillard;
 
@@ -559,7 +583,6 @@ export const Arcade = ({ setPage, joueur }) => {
       setEnAttente(suivant);
       setPanneau({ type: "resultat" });
     } else {
-      flash(`${r.fait} points`);
       passerLaMain(suivant);
     }
   };
@@ -570,6 +593,7 @@ export const Arcade = ({ setPage, joueur }) => {
   const passerLaMain = (a) => {
     setEnAttente(null);
     if (a?.rejoueBust || a?.rejoueBonus) {
+      // On REJOUE : même joueur, pas de nouvelle fenêtre d'annonce.
       // Le tour bonus ne permet pas de retenter un cadeau (point 33).
       // La seconde chance, si : c'est la même volée qu'on relance, sur le même
       // numéro — mais elle compte alors comme une NOUVELLE tentative, sans quoi
@@ -579,12 +603,9 @@ export const Arcade = ({ setPage, joueur }) => {
         setJoueurs((l) => l.map((x, i) => (i !== actif ? x
           : { ...x, stats: { ...x.stats, cadeauxTentes: x.stats.cadeauxTentes + 1 } })));
       }
-      setPhase("saisie");
       return;
     }
-    setCadeauNum(null);
-    setPhase("choix");
-    setActif((x) => (x + 1) % (a?.nb || joueurs.length));
+    demarrerTour((actif + 1) % (a?.nb || joueurs.length));
   };
 
   const fermerResultat = () => {
@@ -824,7 +845,8 @@ export const Arcade = ({ setPage, joueur }) => {
       )}
 
       {panneau && <Panneau
-        panneau={panneau} enAttente={enAttente} joueurs={joueurs} actif={actif} j={j} adversaires={adversaires}
+        panneau={panneau} enAttente={enAttente} cadeauNum={cadeauNum} dernierTour={dernierTour}
+        joueurs={joueurs} actif={actif} j={j} adversaires={adversaires}
         onFermer={() => setPanneau(null)} onResultat={fermerResultat}
         onCible={suiteApresCible} onAppliquer={appliquer} onGarder={garderDeux}
       />}
@@ -845,6 +867,19 @@ export const Arcade = ({ setPage, joueur }) => {
         {/* Joueur actif */}
         <div style={{ ...bloc, textAlign: "center", borderColor: C.orange, marginBottom: 10 }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: C.orange }}>{j?.nom}</div>
+          {/* ⚠️ Le numéro à viser reste sous les yeux pendant TOUTE la volée :
+              annoncé une fois puis oublié, personne ne s'en souvient au moment
+              de lancer. Il est collé au score, là où le regard se pose. */}
+          {cadeauNum && (
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6,
+              background: `linear-gradient(120deg,${C.violet}30,${C.violet}12)`,
+              border: `1px solid ${C.violet}88`, borderRadius: 999,
+              padding: "4px 12px 4px 9px", marginTop: 4 }}>
+              <EmoIcon e="🎁" size={14} color={C.violet} />
+              <span style={{ fontSize: 12, fontWeight: 800, color: C.violet, letterSpacing: 0.5 }}>VISE LE</span>
+              <span style={{ fontSize: 19, fontWeight: 900, color: "#fff", lineHeight: 1 }}>{cadeauNum}</span>
+            </div>
+          )}
           {/* ⚠️ Sous Brouillard le « ??? » doit rester BLANC : le passer en rouge
               sur un bust annoncerait exactement ce que le brouillard cache. */}
           <div style={{ fontSize: 62, fontWeight: 900, lineHeight: 1.05, margin: "2px 0",
@@ -895,21 +930,6 @@ export const Arcade = ({ setPage, joueur }) => {
             </div>
           )}
         </div>
-
-        {/* Cadeau en cours */}
-        {cadeauNum && (
-          <div style={{ ...bloc, marginBottom: 10, textAlign: "center", borderColor: C.violet,
-            background: `linear-gradient(120deg,${C.violet}14,${C.card})` }}>
-            <div style={{ fontSize: 11, color: C.violet, fontWeight: 900, letterSpacing: 1,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-              <EmoIcon e="🎁" size={12} color={C.violet} /> CADEAU EN JEU
-            </div>
-            <div style={{ fontSize: 30, fontWeight: 900, margin: "4px 0 2px" }}>VISE LE {cadeauNum}</div>
-            <div style={{ fontSize: 11.5, color: C.muted }}>
-              Simple = petit · Double = super · Triple = méga
-            </div>
-          </div>
-        )}
 
         {message && (
           <div style={{ textAlign: "center", padding: "8px 10px", marginBottom: 10, borderRadius: 12,
@@ -962,29 +982,7 @@ export const Arcade = ({ setPage, joueur }) => {
         </div>
       </div>
 
-      {/* ── Bas de l'écran ── */}
-      {phase === "choix" ? (
-        <div style={{ flexShrink: 0, borderTop: `1px solid ${C.border}`, background: C.bg,
-          padding: "10px 12px calc(12px + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ fontSize: 11, color: C.faint, fontWeight: 800, letterSpacing: 1, textAlign: "center" }}>
-            À TOI DE JOUER
-          </div>
-          <button onClick={tenterCadeau} style={{ ...btnPlein, width: "100%", minHeight: 52, fontSize: 15,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            background: `linear-gradient(120deg,${C.violet},#7c3aed)` }}>
-            <EmoIcon e="🎁" size={17} color="#fff" /> TENTER UN CADEAU
-          </button>
-          <button onClick={() => setPhase("saisie")} style={{ ...btnPlein, width: "100%", minHeight: 52, fontSize: 15,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            <EmoIcon e="🎯" size={17} color="#fff" /> JOUER NORMALEMENT
-          </button>
-          {(j?.pouvoirs?.length || 0) > 0 && (
-            <div style={{ fontSize: 11.5, color: C.muted, textAlign: "center" }}>
-              Touche une carte au-dessus pour utiliser un pouvoir
-            </div>
-          )}
-        </div>
-      ) : (
+      {/* ── Clavier, toujours à l'écran ── */}
         <div style={{ flexShrink: 0, borderTop: `1px solid ${C.border}`, background: C.bg,
           padding: "8px 12px calc(10px + env(safe-area-inset-bottom))" }}>
 
@@ -1030,8 +1028,7 @@ export const Arcade = ({ setPage, joueur }) => {
               : apercu?.bust ? "Valider (bust)"
               : `Valider — ${apercu.fait} pts`}
           </button>
-        </div>
-      )}
+      </div>
     </div>
   );
 };
@@ -1049,8 +1046,74 @@ const Fenetre = ({ children, large = false }) => (
 );
 
 // ── Toutes les fenêtres du jeu ───────────────────────────────────────────────
-const Panneau = ({ panneau, enAttente, joueurs, actif, j, adversaires, onFermer, onResultat, onCible, onAppliquer, onGarder }) => {
+const Panneau = ({ panneau, enAttente, cadeauNum, dernierTour, joueurs, actif, j, adversaires, onFermer, onResultat, onCible, onAppliquer, onGarder }) => {
   const t = panneau.type;
+
+  // ── Passage de main + annonce du cadeau (points 15 et 68) ──
+  // Une seule fenêtre pour tout ce que le joueur doit savoir avant de lancer :
+  // qui joue, son score, ce qu'il subit, et le numéro à viser.
+  if (t === "tour") {
+    const effets = j?.effets || [];
+    return (
+      <Fenetre>
+        {dernierTour && (
+          <div style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10,
+            padding: "7px 10px", marginBottom: 14, fontSize: 12, color: C.muted }}>
+            <b style={{ color: C.text }}>{dernierTour.nom}</b>{" "}
+            {dernierTour.bust ? <span style={{ color: C.red, fontWeight: 800 }}>a fait BUST</span>
+              : <>a marqué <b style={{ color: C.text }}>{dernierTour.fait}</b></>}
+            {dernierTour.gagne
+              ? <> · <span style={{ color: C.green, fontWeight: 800 }}>{dernierTour.gagne}</span></>
+              : dernierTour.rate ? <> · cadeau raté</> : null}
+          </div>
+        )}
+        <div style={{ fontSize: 11, color: C.faint, fontWeight: 800, letterSpacing: 1.5 }}>À TOI DE JOUER</div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: C.orange, marginTop: 4 }}>{j?.nom}</div>
+        <div style={{ fontSize: 40, fontWeight: 900, lineHeight: 1.1 }}>{j?.score}</div>
+
+        {(effets.length > 0 || j?.bouclier || j?.renvoi) && (
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "center", margin: "8px 0 2px" }}>
+            {effets.map((e, i) => <BadgeEffet key={i} e={e} />)}
+            {j.bouclier && <BadgeEffet e={{ id: "bouclier" }} />}
+            {j.renvoi && <BadgeEffet e={{ id: "renvoi" }} />}
+          </div>
+        )}
+
+        {cadeauNum && (
+          <div style={{ margin: "16px 0 4px", padding: "14px 12px", borderRadius: 16,
+            background: `linear-gradient(140deg,${C.violet}26,${C.card2})`,
+            border: `1px solid ${C.violet}88` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
+              <EmoIcon e="🎁" size={20} color={C.violet} />
+              <span style={{ fontSize: 12, fontWeight: 900, color: C.violet, letterSpacing: 1.5 }}>CADEAU MYSTÈRE</span>
+            </div>
+            <div style={{ fontSize: 34, fontWeight: 900, margin: "6px 0 8px", lineHeight: 1 }}>
+              VISE LE <span style={{ color: C.violet }}>{cadeauNum}</span>
+            </div>
+            <div style={{ display: "flex", gap: 5, justifyContent: "center" }}>
+              {[["Simple", "petit", "petit"], ["Double", "super", "super"], ["Triple", "méga", "mega"]].map(([z, quoi, rar]) => (
+                <span key={z} style={{ flex: 1, background: C.card, borderRadius: 9,
+                  border: `1px solid ${RARETES[rar].couleur}55`, padding: "6px 2px" }}>
+                  <span style={{ display: "block", fontSize: 11, fontWeight: 800, color: C.text }}>{z}</span>
+                  <span style={{ display: "block", fontSize: 10, fontWeight: 800, color: RARETES[rar].couleur }}>{quoi}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {(j?.pouvoirs?.length || 0) > 0 && (
+          <p style={{ color: C.muted, fontSize: 12, margin: "12px 0 0", lineHeight: 1.4 }}>
+            Tu as {j.pouvoirs.length} carte{j.pouvoirs.length > 1 ? "s" : ""} — touche-la avant de lancer pour t'en servir.
+          </p>
+        )}
+
+        <button onClick={onFermer} style={{ ...btnPlein, width: "100%", marginTop: 16, minHeight: 52, fontSize: 16 }}>
+          C'EST PARTI
+        </button>
+      </Fenetre>
+    );
+  }
 
   // Résumé de volée — le calcul est TOUJOURS montré (point 67), sinon personne
   // ne comprend pourquoi le score a bougé de cette façon.
