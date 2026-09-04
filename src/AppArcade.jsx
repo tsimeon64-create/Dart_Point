@@ -6,25 +6,32 @@
 // ⚠️ NOM DE TRAVAIL. Le cahier des charges parlait de « Mario Darts », mais
 // Champignon / Étoile / Carapace sont des objets Nintendo : tout est codé sous
 // des noms NEUTRES dès le départ pour ne pas avoir à renommer cartes,
-// animations et textes plus tard. Les mécaniques, elles, sont identiques à la
-// demande. Un seul endroit à changer si le nom évolue : JEU ci-dessous.
+// animations et textes plus tard. Un seul endroit à changer : JEU ci-dessous.
 //
-// ── ÉTAPE 1 : LE MOTEUR ──
-// Ce fichier contient pour l'instant le X01 complet et fiable : configuration,
-// saisie fléchette par fléchette, bust, rotation des joueurs, victoire,
-// reprise après fermeture de l'appli, statistiques de fin.
-// Les cadeaux et les pouvoirs viendront s'y greffer (étape 2), puis les
-// animations (étape 3). C'est l'ordre demandé au point 83 du cahier des
-// charges : la stabilité du moteur passe avant les effets.
+// ── OÙ EST QUOI ──
+// arcadePouvoirs.js : TOUTES les règles (score, effets, cadeaux, tirages).
+//                     Fonctions pures, testées à part.
+// ce fichier        : uniquement l'écran et l'enchaînement des tours.
 //
-// ⚠️ POURQUOI LA SAISIE EST FLÉCHETTE PAR FLÉCHETTE, et pas un total :
-// les cadeaux se gagnent sur un SIMPLE / DOUBLE / TRIPLE d'un numéro précis
-// (S18, D18, T18). Sans le secteur ET le multiplicateur de chaque fléchette,
-// l'étape 2 serait impossible. Le moteur les enregistre donc dès maintenant.
+// ⚠️ Aucun calcul de score ici. resoudreVolee() est le seul endroit qui retire
+// des points : c'est ce qui garantit l'ordre de priorité du point 38 et évite
+// que deux effets se contredisent.
+//
+// ── ÉTAPE 2 : CADEAUX ET POUVOIRS ──
+// Fait : cadeaux (simple/double/triple), inventaire de 2, utilisation,
+// ciblage, malus, boucliers, renvoi, anti-abus, équilibrage, statistiques.
+// Reste (étape 3) : tutoriel, animations, explosions, particules, vibrations.
 // ───────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useRef, useMemo } from "react";
-import { ArrowLeft, X, RotateCcw, Trophy } from "lucide-react";
+import { ArrowLeft, X, RotateCcw, Trophy, HelpCircle } from "lucide-react";
 import { FriendNameInput } from "./FriendPicker";
+import { EmoIcon } from "./icons";
+import {
+  POUVOIRS, RARETES, NUMEROS_CADEAU, MAX_POUVOIRS, EST_MALUS,
+  resoudreVolee, cadeauDeLaVolee, tirerCadeau, tirerPouvoir,
+  envoyerMalus, passerLesProtections, pourquoiImpossible, retraitAutorise,
+  rangDuJoueur, nouveauJoueur, titresDeFin, libelle,
+} from "./arcadePouvoirs";
 
 export const JEU = "Arcade";
 
@@ -36,6 +43,7 @@ const C = {
 };
 
 const SAUVE = "dp_arcade_partie";
+const VERSION_SAUVE = 2;
 const DEPARTS = [
   { v: 301,  t: "Partie rapide" },
   { v: 501,  t: "Partie classique" },
@@ -45,46 +53,80 @@ const DEPARTS = [
 const MIN_PERSO = 101;
 const MAX_PERSO = 3001;
 
-// ── Une fléchette ────────────────────────────────────────────────────────────
-// { s: secteur 1-20 | 25 (bull) | 0 (raté), m: multiplicateur 1|2|3 }
-// Le bull compte comme 25 (simple) ou 50 (double). Un triple bull n'existe pas.
-const points = (d) => (d?.s || 0) * (d?.m || 1);
-const estDouble = (d) => d?.m === 2 || (d?.s === 25 && d?.m === 2);
-const libelle = (d) => {
-  if (!d || d.s === 0) return "0";
-  if (d.s === 25) return d.m === 2 ? "BULL" : "25";
-  return (d.m === 3 ? "T" : d.m === 2 ? "D" : "") + d.s;
+const hasard = (liste) => liste[Math.floor(Math.random() * liste.length)];
+
+// ── Carte de pouvoir ───────────────────────────────────────────────
+// ⚠️ Le « ? » est un bouton à part, posé À CÔTÉ de la carte et non dedans :
+// un <button> dans un <button> est du HTML invalide, et le navigateur avale
+// alors un clic sur deux.
+const CartePouvoir = ({ id, onClick, onAide, petite = false, desactive = false, raison = null }) => {
+  const p = POUVOIRS[id];
+  if (!p) return null;
+  const col = RARETES[p.rarete].couleur;
+  const inerte = desactive || !onClick;
+  return (
+    <div style={{
+      display: "flex", alignItems: "stretch", width: "100%",
+      background: `linear-gradient(120deg,${col}14,${C.card})`,
+      border: `1px solid ${col}${p.rarete === "legendaire" ? "cc" : "66"}`,
+      borderRadius: 14, overflow: "hidden", opacity: desactive ? 0.45 : 1,
+      boxShadow: p.rarete === "legendaire" ? `0 0 18px ${col}44` : "none",
+    }}>
+      <button
+        type="button" onClick={inerte ? undefined : onClick} disabled={inerte}
+        style={{
+          flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 10,
+          textAlign: "left", background: "none", border: "none", font: "inherit",
+          color: C.text, padding: petite ? "8px 10px" : "11px 12px",
+          cursor: inerte ? "default" : "pointer",
+        }}
+      >
+        <span style={{ flexShrink: 0, display: "flex" }}>
+          <EmoIcon e={p.icone} size={petite ? 20 : 26} color={col} strokeWidth={2.2} />
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontWeight: 900, fontSize: petite ? 12 : 13.5, color: col }}>{p.nom}</span>
+          <span style={{ display: "block", fontSize: petite ? 10.5 : 12, color: C.muted, lineHeight: 1.35 }}>
+            {raison || p.texte}
+          </span>
+        </span>
+      </button>
+      {onAide && (
+        <button type="button" onClick={() => onAide(id)}
+          aria-label={`Comment marche ${p.nom} ?`}
+          style={{ background: "none", border: "none", borderLeft: `1px solid ${col}33`,
+            color: C.faint, cursor: "pointer", padding: "0 10px", display: "flex",
+            alignItems: "center", flexShrink: 0 }}>
+          <HelpCircle size={16} />
+        </button>
+      )}
+    </div>
+  );
 };
 
-// ── Résultat d'une volée ─────────────────────────────────────────────────────
-// Centralisé ici : c'est LE point où les pouvoirs viendront s'insérer à
-// l'étape 2 (multiplicateurs, divisions, annulations). Toute la logique de
-// score passe par cette fonction, jamais ailleurs — sinon les effets se
-// contrediraient les uns les autres.
-const resoudreVolee = (scoreAvant, flechettes, doubleOut) => {
-  let score = scoreAvant;
-  let bust = false;
-  let gagne = false;
-  let fait = 0;
+// ── Emplacement d'inventaire vide ────────────────────────────────────────────
+const SlotVide = () => (
+  <div style={{ flex: 1, minHeight: 44, borderRadius: 14, border: `1px dashed ${C.border}`,
+    display: "flex", alignItems: "center", justifyContent: "center",
+    color: C.faint, fontSize: 11, fontWeight: 700 }}>
+    vide
+  </div>
+);
 
-  for (const d of flechettes) {
-    const p = points(d);
-    const reste = score - p;
-    fait += p;
-
-    if (reste < 0)                      { bust = true; break; }
-    if (reste === 1 && doubleOut)       { bust = true; break; }
-    if (reste === 0) {
-      // Sortie : en Double Out il faut finir sur un double (bull compris).
-      if (doubleOut && !estDouble(d))   { bust = true; break; }
-      score = 0; gagne = true; break;
-    }
-    score = reste;
-  }
-
-  // ⚠️ Un bust ANNULE toute la volée : le score revient à sa valeur du début,
-  // pas à celle d'avant la dernière fléchette.
-  return { score: bust ? scoreAvant : score, bust, gagne, fait: bust ? 0 : fait };
+// ── Badge d'effet actif ──────────────────────────────────────────────────────
+const BadgeEffet = ({ e }) => {
+  const p = POUVOIRS[e.id];
+  if (!p) return null;
+  const mauvais = !!EST_MALUS[e.id];
+  const col = mauvais ? C.red : C.green;
+  const suffixe = e.id === "verrouillage" ? ` ${e.num}` : e.id === "jackpot" ? ` ×${e.x}` : "";
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4,
+      background: col + "1e", border: `1px solid ${col}66`, color: col,
+      borderRadius: 8, padding: "3px 7px", fontSize: 10.5, fontWeight: 800, whiteSpace: "nowrap" }}>
+      <EmoIcon e={p.icone} size={11} color={col} /> {p.nom}{suffixe}
+    </span>
+  );
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -95,53 +137,79 @@ export const Arcade = ({ setPage, joueur }) => {
   const [perso, setPerso] = useState("");
   const [doubleOut, setDoubleOut] = useState(true);
 
-  const [joueurs, setJoueurs] = useState([]);     // { nom, score, volees[], flechettes, total }
+  const [joueurs, setJoueurs] = useState([]);
   const [actif, setActif] = useState(0);
-  const [volee, setVolee] = useState([]);         // fléchettes de la volée en cours
-  const [mult, setMult] = useState(1);            // multiplicateur armé au pavé
+  const [phase, setPhase] = useState("choix");    // choix | saisie
+  const [cadeauNum, setCadeauNum] = useState(null);
+  const [volee, setVolee] = useState([]);
+  const [mult, setMult] = useState(1);
   const [message, setMessage] = useState(null);   // { texte, ton }
+  const [panneau, setPanneau] = useState(null);   // fenêtre par-dessus le jeu
+  // ⚠️ Ce qu'il reste à faire APRÈS la fenêtre de résumé. Uniquement des données
+  // (jamais de fonction) : c'est ce qui permet de l'enregistrer et de reprendre
+  // exactement au même endroit si l'appli se ferme pendant que la fenêtre est
+  // ouverte. Sinon le joueur rejouait sa volée et perdait son cadeau.
+  const [enAttente, setEnAttente] = useState(null);
   const [gagnant, setGagnant] = useState(null);
   const [reprise, setReprise] = useState(null);
+  const [confirmQuit, setConfirmQuit] = useState(false);
 
-  // ── Reprise après fermeture de l'appli ────────────────────────────────────
+  // ── Reprise après fermeture de l'appli (point 79) ─────────────────────────
   useEffect(() => {
     try {
       const brut = localStorage.getItem(SAUVE);
-      if (brut) {
-        const s = JSON.parse(brut);
-        if (s?.joueurs?.length && s.etape === "jeu") setReprise(s);
-      }
+      if (!brut) return;
+      const s = JSON.parse(brut);
+      if (!s?.joueurs?.length || s.etape !== "jeu") return;
+      // Une sauvegarde de l'étape 1 n'a ni pouvoirs ni effets : on la complète
+      // au lieu de la jeter, sinon la partie en cours disparaît sans prévenir.
+      s.joueurs = s.joueurs.map((p) => ({ ...nouveauJoueur(p.nom, p.score), ...p,
+        pouvoirs: p.pouvoirs || [], effets: p.effets || [],
+        stats: { ...nouveauJoueur(p.nom, p.score).stats, ...(p.stats || {}) } }));
+      setReprise(s);
     } catch { /* sauvegarde illisible : on repart de zéro */ }
   }, []);
 
-  // Sauvegarde après CHAQUE changement d'état de jeu (point 79 du cahier des
-  // charges). On n'enregistre rien pendant la configuration : une partie non
-  // commencée n'a pas à être proposée en reprise.
   useEffect(() => {
     if (etape !== "jeu") return;
     try {
       localStorage.setItem(SAUVE, JSON.stringify({
-        etape, joueurs, actif, volee, depart, doubleOut, v: 1,
+        etape, joueurs, actif, phase, cadeauNum, volee, depart, doubleOut,
+        // ⚠️ `perso` EST INDISPENSABLE : sans lui, une partie en score
+        // personnalisé reprend avec un score de départ de 0, et la revanche
+        // devient injouable (chaque volée buste, même trois RATÉ).
+        perso,
+        enAttente,
+        fenetre: panneau && (panneau.type === "resultat" || panneau.type === "plein") ? panneau.type : null,
+        v: VERSION_SAUVE,
       }));
     } catch { /* stockage plein ou indisponible */ }
-  }, [etape, joueurs, actif, volee, depart, doubleOut]);
+  }, [etape, joueurs, actif, phase, cadeauNum, volee, depart, doubleOut, perso, enAttente, panneau]);
 
   const effacerSauvegarde = () => { try { localStorage.removeItem(SAUVE); } catch { /* ignore */ } };
 
   // ⚠️ À 8 joueurs sur un petit téléphone, la zone des scores peut défiler. Si le
   // joueur précédent l'avait fait glisser, le suivant arriverait sur la liste des
   // adversaires au lieu de son propre score : on la remet en haut à chaque tour.
-  const [confirmQuit, setConfirmQuit] = useState(false);
   const hautDuJeu = useRef(null);
   useEffect(() => {
     if (etape !== "jeu") return;
     try { if (hautDuJeu.current) hautDuJeu.current.scrollTop = 0; } catch { /* ignore */ }
-  }, [etape, actif]);
+  }, [etape, actif, phase]);
+
+  // ⚠️ Le bandeau vert « 60 points » du joueur precedent restait affiche
+  // pendant plus d une seconde sur l ecran du suivant, qui croyait avoir marque.
+  // On l efface des que la main change.
+  useEffect(() => { setMessage(null); }, [actif]);
 
   const reprendre = () => {
     const s = reprise;
     setJoueurs(s.joueurs); setActif(s.actif); setVolee(s.volee || []);
-    setDepart(s.depart); setDoubleOut(s.doubleOut ?? true);
+    setPhase(s.phase || "choix"); setCadeauNum(s.cadeauNum ?? null);
+    setDepart(s.depart); setPerso(s.perso ?? "");
+    setDoubleOut(s.doubleOut ?? true);
+    setEnAttente(s.enAttente ?? null);
+    setPanneau(s.fenetre ? { type: s.fenetre } : null);
     setReprise(null); setEtape("jeu");
   };
 
@@ -156,18 +224,44 @@ export const Arcade = ({ setPage, joueur }) => {
   const nomsRemplis = noms.map((n) => n.trim()).filter(Boolean);
   const peutJouer = nomsRemplis.length >= 2 && departValide;
 
-  const demarrer = () => {
-    if (!peutJouer) return;
-    setJoueurs(nomsRemplis.map((nom) => ({
-      nom, score: scoreDepart, volees: [], flechettes: 0, total: 0, busts: 0,
-    })));
-    setActif(0); setVolee([]); setMult(1); setGagnant(null); setMessage(null);
+  const nouvelleManche = (liste, premier) => {
+    setJoueurs(liste); setActif(premier);
+    setPhase("choix"); setCadeauNum(null); setVolee([]); setMult(1);
+    setGagnant(null); setMessage(null); setPanneau(null); setEnAttente(null);
+    // La partie proposée en reprise vient d'être remplacée : sans ça, l'écran de
+    // configuration reproposait de « reprendre » une partie déjà finie.
+    setReprise(null);
     setEtape("jeu");
   };
 
+  const demarrer = () => {
+    if (!peutJouer) return;
+    nouvelleManche(nomsRemplis.map((nom) => nouveauJoueur(nom, scoreDepart)), 0);
+  };
+
+  const revanche = () => {
+    // Point 78 : mêmes joueurs, même score, inventaires et malus remis à zéro,
+    // et c'est un AUTRE qui commence.
+    // ⚠️ Garde-fou : un score de départ à 0 rend la partie injouable (tout buste).
+    // Ne devrait plus arriver depuis que `perso` est sauvegardé, mais mieux vaut
+    // renvoyer vers la configuration que lancer une partie impossible.
+    if (!departValide) { setEtape("config"); setGagnant(null); setReprise(null); return; }
+    const suivant = ((gagnant?.index ?? 0) + 1) % joueurs.length;
+    nouvelleManche(joueurs.map((p) => nouveauJoueur(p.nom, scoreDepart)), suivant);
+  };
+
+  const j = joueurs[actif];
+  const effets = j?.effets || [];
+  const apercu = useMemo(
+    () => (j ? resoudreVolee(j.score, volee, doubleOut, effets) : null),
+    [j, volee, doubleOut, effets]
+  );
+  const maxF = apercu?.maxF ?? 3;
+  const cache = !!apercu?.aBrouillard;             // score masqué (Brouillard)
+
   // ── Saisie ────────────────────────────────────────────────────────────────
   const ajouter = (s) => {
-    if (volee.length >= 3 || gagnant) return;
+    if (volee.length >= maxF || gagnant) return;
     // Le bull n'a pas de triple : un T armé sur le bull vaut le double (50).
     const m = s === 25 ? Math.min(mult, 2) : s === 0 ? 1 : mult;
     setVolee((v) => [...v, { s, m }]);
@@ -175,50 +269,344 @@ export const Arcade = ({ setPage, joueur }) => {
   };
   const retirer = () => { if (!gagnant) setVolee((v) => v.slice(0, -1)); };
 
-  const j = joueurs[actif];
-  const apercu = useMemo(
-    () => (j ? resoudreVolee(j.score, volee, doubleOut) : null),
-    [j, volee, doubleOut]
-  );
+  const flash = (texte, ton = "bon") => {
+    setMessage({ texte, ton });
+    setTimeout(() => setMessage((m) => (m?.texte === texte ? null : m)), 1800);
+  };
 
+  // ══════════════════════════════════════════════ UTILISATION D'UN POUVOIR ══
+  const adversaires = joueurs.map((p, i) => ({ p, i })).filter(({ i }) => i !== actif);
+
+  const lancerPouvoir = (id) => {
+    const p = POUVOIRS[id];
+    if (!p) return;
+
+    // Les pouvoirs qui ne servent à rien maintenant sont refusés AVANT d'être
+    // consommés : perdre une carte pour rien serait injuste.
+    if (id === "nouvelleBoite" && !cadeauNum) { flash("Aucun cadeau en cours", "mauvais"); return; }
+    if (id === "nettoyage" && !effets.some((e) => EST_MALUS[e.id])) { flash("Aucun malus à effacer", "mauvais"); return; }
+    if (id === "raccourci" && !retraitAutorise(j.score, 20, doubleOut)) {
+      flash("Trop près de zéro : la dernière fléchette doit être lancée", "mauvais"); return;
+    }
+    // ⚠️ Bouclier et Renvoi ne sont pas des « effets » : pourquoiImpossible ne les
+    // voit pas. Sans ce test, rejouer la carte alors qu'elle est déjà armée la
+    // faisait disparaître pour rien (true reste true).
+    if (id === "bouclier" && j.bouclier) { flash("Ton bouclier est déjà en place", "mauvais"); return; }
+    if (id === "renvoi" && j.renvoi) { flash("Ton renvoi est déjà armé", "mauvais"); return; }
+    if (id === "espion" && !adversaires.some(({ p: c }) => (c.pouvoirs || []).length || c.bouclier || c.renvoi)) {
+      flash("Personne n'a rien à cacher", "mauvais"); return;
+    }
+    if (p.soi) {
+      const raison = pourquoiImpossible(j, id);
+      if (raison) { flash(raison, "mauvais"); return; }
+    }
+
+    if (p.cible) {
+      const dispo = adversaires.filter(({ p: cible }) => {
+        if (id === "volPouvoir") return (cible.pouvoirs || []).length > 0;
+        if (id === "espion") return (cible.pouvoirs || []).length > 0 || cible.bouclier || cible.renvoi;
+        if (p.immediat) return true;
+        return !pourquoiImpossible(cible, id);
+      });
+      if (!dispo.length) { flash("Aucune cible possible", "mauvais"); return; }
+      if (dispo.length === 1) { suiteApresCible(id, dispo[0].i); return; }
+      setPanneau({ type: "cible", id });
+      return;
+    }
+    appliquer(id, {});
+  };
+
+  const suiteApresCible = (id, iCible) => {
+    if (POUVOIRS[id].choixNumero) { setPanneau({ type: "numero", id, cible: iCible }); return; }
+    if (id === "volPouvoir") { setPanneau({ type: "vol", id, cible: iCible }); return; }
+    appliquer(id, { cible: iCible });
+  };
+
+  // Retire la carte de la main du joueur actif et compte l'utilisation.
+  const consommer = (liste, id) => liste.map((p, i) => {
+    if (i !== actif) return p;
+    const k = p.pouvoirs.indexOf(id);
+    return {
+      ...p,
+      pouvoirs: k < 0 ? p.pouvoirs : [...p.pouvoirs.slice(0, k), ...p.pouvoirs.slice(k + 1)],
+      stats: { ...p.stats, pouvoirsUtilises: p.stats.pouvoirsUtilises + 1 },
+    };
+  });
+
+  const appliquer = (id, { cible = null, num = null, vole = null, choisi = null }) => {
+    setPanneau(null);
+    const p = POUVOIRS[id];
+    let liste = consommer(joueurs, id);
+    let texte = `${p.icone} ${p.nom}`;
+
+    // ⚠️ « ton » decide de la couleur du bandeau. Un coup renvoye sur soi
+    // affiche en vert « +100 pour Thomas » : le joueur croit avoir gagne des
+    // points alors qu il vient d en prendre 100. On force donc le rouge des
+    // qu une protection a devie le coup.
+    let ton = "bon";
+    const majActif = (fn) => { liste = liste.map((x, i) => (i === actif ? fn(x) : x)); };
+    const compterEnvoi = () => majActif((x) => ({ ...x, stats: { ...x.stats, malusEnvoyes: x.stats.malusEnvoyes + 1 } }));
+
+    switch (id) {
+      // ── Sur soi, tout de suite ──
+      case "raccourci":
+        majActif((x) => ({ ...x, score: x.score - 20 }));
+        texte = "−20 points d'un coup !";
+        break;
+      case "bouclier":  majActif((x) => ({ ...x, bouclier: true })); texte = "Bouclier en place"; break;
+      case "renvoi":    majActif((x) => ({ ...x, renvoi: true }));   texte = "Renvoi armé"; break;
+      case "nettoyage": {
+        const k = (j.effets || []).findIndex((e) => EST_MALUS[e.id]);
+        if (k < 0) { flash("Aucun malus à effacer", "mauvais"); return; }
+        const efface = POUVOIRS[j.effets[k].id]?.nom || "malus";
+        majActif((x) => ({ ...x, effets: x.effets.filter((_, i) => i !== k) }));
+        texte = `${efface} effacé`;
+        break;
+      }
+      case "nouvelleBoite": {
+        const autre = hasard(NUMEROS_CADEAU.filter((n) => n !== cadeauNum));
+        setCadeauNum(autre);
+        texte = `Nouveau numéro à viser : ${autre}`;
+        break;
+      }
+
+      // ── Cartes qui en donnent une autre ──
+      case "chaos": {
+        const neuf = tirerPouvoir("mega", { nbJoueurs: joueurs.length, rang: rangDuJoueur(joueurs, actif), exclure: ["chaos"] });
+        setJoueurs(ajouterPouvoir(liste, actif, neuf));
+        setPanneau({ type: "cadeau", id: neuf, rarete: "mega", titre: "CHAOS !" });
+        return;
+      }
+      case "arcEnCiel":
+        if (!choisi) { setPanneau({ type: "arcEnCiel" }); return; }
+        setJoueurs(ajouterPouvoir(liste, actif, choisi));
+        setPanneau({ type: "cadeau", id: choisi, rarete: POUVOIRS[choisi].rarete, titre: "ARC-EN-CIEL" });
+        return;
+
+      // ── Regarder / voler ──
+      case "espion":
+        setJoueurs(liste);
+        setPanneau({ type: "espion", cible });
+        return;
+      case "volPouvoir": {
+        const { joueurs: apres, iFinal, texte: bloque } = passerLesProtections(liste, actif, cible);
+        liste = apres;
+        if (iFinal === null) { setJoueurs(liste); flash(bloque, "mauvais"); return; }
+        // ⚠️ Un RENVOI ferait revenir le vol sur le voleur : l'index de carte
+        // choisi ne désignerait plus rien chez lui. On annule au lieu de voler
+        // n'importe quelle carte au hasard.
+        if (iFinal !== cible) { setJoueurs(liste); flash(bloque || "Vol renvoyé — rien ne bouge", "mauvais"); return; }
+        liste = liste.map((x, i) => (i === iFinal
+          ? { ...x, pouvoirs: x.pouvoirs.filter((_, k) => k !== vole) }
+          : x));
+        const idVole = joueurs[cible].pouvoirs[vole];
+        liste = ajouterPouvoir(liste, actif, idVole);
+        compterEnvoi();
+        texte = `${POUVOIRS[idVole].nom} volé à ${joueurs[cible].nom}`;
+        break;
+      }
+
+      // ── Attaques immédiates sur le score ──
+      case "retourArriere":
+      case "bombe100": {
+        const pts = id === "bombe100" ? 100 : 50;
+        const { joueurs: apres, iFinal, texte: bloque } = passerLesProtections(liste, actif, cible);
+        liste = apres;
+        if (iFinal === null) { setJoueurs(liste); flash(bloque, "mauvais"); return; }
+        liste = liste.map((x, i) => (i === iFinal
+          ? { ...x, score: x.score + pts, stats: { ...x.stats, malusRecus: x.stats.malusRecus + 1 } }
+          : x));
+        compterEnvoi();
+        // Le texte du renvoi vient de passerLesProtections : sans lui, le joueur
+        // voit « +100 pour toi » sans comprendre d ou ca sort.
+        texte = `${bloque ? bloque + " " : ""}+${pts} pour ${liste[iFinal].nom}`;
+        if (iFinal === actif) ton = "mauvais";
+        break;
+      }
+      case "bombeGenerale": {
+        // ⚠️ Un adversaire peut BLOQUER (bouclier) ou RENVOYER le coup. Sans les
+        // deux gardes ci-dessous, l'attaquant prenait des +50 en silence tout en
+        // les voyant comptés comme « adversaires touchés ».
+        let touches = 0;
+        let retours = 0;
+        const dits = [];
+        for (const { i } of adversaires) {
+          const { joueurs: apres, iFinal, texte: dit } = passerLesProtections(liste, actif, i);
+          liste = apres;
+          if (dit) dits.push(dit);
+          if (iFinal === null) continue;
+          liste = liste.map((x, k) => (k === iFinal
+            ? { ...x, score: x.score + 50, stats: { ...x.stats, malusRecus: x.stats.malusRecus + 1 } }
+            : x));
+          if (iFinal === actif) retours++; else touches++;
+        }
+        compterEnvoi();
+        texte = `+50 pour ${touches} adversaire${touches > 1 ? "s" : ""}`;
+        if (retours) { texte += ` — et ${retours * 50} points pour toi !`; ton = "mauvais"; }
+        if (dits.length) texte = `${dits.join(" ")} ${texte}`;
+        break;
+      }
+
+      // ── Effets sur la prochaine volée ──
+      default: {
+        if (p.soi) {
+          const effet = { id };
+          if (id === "jackpot") effet.x = Math.random() < 0.5 ? 1.5 : 2;
+          majActif((x) => ({ ...x, effets: [...x.effets, effet] }));
+          texte = id === "jackpot" ? `🎰 Multiplicateur ×${effet.x} !` : `${p.icone} ${p.nom} activé`;
+        } else if (p.cible) {
+          const effet = { id };
+          if (num !== null) effet.num = num;
+          const res = envoyerMalus(liste, actif, cible, effet);
+          liste = res.joueurs;
+          compterEnvoi();
+          texte = res.texte || `${p.nom} envoyé à ${joueurs[cible].nom}`;
+          // Un coup bloque ou renvoye n est pas une bonne nouvelle pour l attaquant.
+          if (res.texte) ton = "mauvais";
+        }
+        break;
+      }
+    }
+
+    setJoueurs(liste);
+    flash(texte, ton);
+  };
+
+  // Ajoute une carte à un joueur. Si sa main est pleine, on NE JETTE RIEN
+  // automatiquement (point 25) : la fenêtre de choix s'ouvrira.
+  const ajouterPouvoir = (liste, idx, id) => liste.map((p, i) => (
+    i !== idx || p.pouvoirs.length >= MAX_POUVOIRS ? p : { ...p, pouvoirs: [...p.pouvoirs, id] }
+  ));
+
+  // ══════════════════════════════════════════════════════ TENTER UN CADEAU ══
+  const tenterCadeau = () => {
+    setCadeauNum(hasard(NUMEROS_CADEAU));
+    setJoueurs((l) => l.map((p, i) => (i !== actif ? p
+      : { ...p, stats: { ...p.stats, cadeauxTentes: p.stats.cadeauxTentes + 1 } })));
+    setPhase("saisie");
+  };
+
+  // ═════════════════════════════════════════════════════════════ VALIDATION ══
   const validerVolee = () => {
     if (!j || volee.length === 0 || gagnant) return;
-    const r = resoudreVolee(j.score, volee, doubleOut);
+    const r = resoudreVolee(j.score, volee, doubleOut, effets);
+    const forceCadeau = cadeauNum ? cadeauDeLaVolee(volee, cadeauNum, r.utilisees) : 0;
+    const cadeau = forceCadeau
+      ? tirerCadeau(forceCadeau, { nbJoueurs: joueurs.length, rang: rangDuJoueur(joueurs, actif) })
+      : null;
 
-    const maj = joueurs.map((p, i) => i !== actif ? p : {
-      ...p,
-      score: r.score,
-      volees: [...p.volees, { flechettes: volee, fait: r.fait, bust: r.bust }],
-      flechettes: p.flechettes + volee.length,
-      total: p.total + r.fait,
-      busts: p.busts + (r.bust ? 1 : 0),
+    // ── Rejouer : Seconde chance après un bust, Tour bonus à 100 points ──
+    // Seconde chance garde les AUTRES effets : le joueur n'a pas profité de son
+    // turbo, ce serait le punir deux fois. Tour bonus, lui, repart à zéro.
+    const rejoueBust  = r.bust && r.aSecondeChance;
+    const rejoueBonus = !r.bust && r.aTourBonus && r.fait >= 100;
+    const rejoue = rejoueBust || rejoueBonus;
+
+    let liste = joueurs.map((p, i) => {
+      if (i !== actif) return p;
+      const st = { ...p.stats };
+      if (cadeau) {
+        st.cadeauxReussis += 1;
+        st[cadeau.rarete === "petit" ? "petits" : cadeau.rarete === "super" ? "supers"
+          : cadeau.rarete === "mega" ? "megas" : "legendaires"] += 1;
+      }
+      return {
+        ...p,
+        score: r.score,
+        volees: [...p.volees, { flechettes: volee, fait: r.fait, bust: r.bust }],
+        flechettes: p.flechettes + r.utilisees,
+        total: p.total + r.fait,
+        busts: p.busts + (r.bust ? 1 : 0),
+        effets: rejoueBust ? p.effets.filter((e) => e.id !== "secondeChance") : [],
+        stats: st,
+      };
     });
-    setJoueurs(maj);
+
+    // Le cadeau rentre dans la main s'il y a de la place.
+    const plein = cadeau && liste[actif].pouvoirs.length >= MAX_POUVOIRS;
+    if (cadeau && !plein) liste = ajouterPouvoir(liste, actif, cadeau.id);
+
+    // Retard maximum de chacun (sert au titre « MIRACULÉ »).
+    const meilleur = Math.min(...liste.map((p) => p.score));
+    liste = liste.map((p) => ({ ...p, retardMax: Math.max(p.retardMax || 0, p.score - meilleur) }));
+
+    setJoueurs(liste);
     setVolee([]); setMult(1);
 
     if (r.gagne) {
-      setGagnant({ ...maj[actif], index: actif });
+      setGagnant({ ...liste[actif], index: actif });
       setEtape("fin");
       effacerSauvegarde();
       return;
     }
-    setMessage(r.bust ? { texte: "BUST !", ton: "mauvais" } : { texte: `${r.fait} points`, ton: "bon" });
-    setTimeout(() => setMessage(null), 1100);
-    setActif((a) => (a + 1) % maj.length);
+
+    const suivant = {
+      r, cadeau, plein: !!plein,
+      rate: !!cadeauNum && !cadeau,
+      rejoueBust, rejoueBonus,
+      nb: liste.length,
+    };
+
+    // Un résumé apparaît dès qu'il s'est passé quelque chose d'inhabituel :
+    // sinon on enchaîne sans rien couper (point 81 : une action = un choix).
+    // Le brouillard en fait partie : c'est le seul moment où le joueur revoit
+    // son score, sinon il ne saurait jamais ce qu'il a marqué.
+    const inhabituel = r.bust || cadeauNum || r.multPos !== 1 || r.facteurNeg !== 1
+      || r.verrou !== null || r.maxF !== 3 || r.immunise || r.doubleX2 || rejoue
+      || r.aBrouillard;
+
+    if (inhabituel) {
+      setEnAttente(suivant);
+      setPanneau({ type: "resultat" });
+    } else {
+      flash(`${r.fait} points`);
+      passerLaMain(suivant);
+    }
   };
 
-  // ⚠️ Quitter EFFACE la partie en cours. Un pouce qui dérape sur « Quitter »
-  // ne doit pas faire perdre un 501 à trois joueurs : on demande confirmation,
-  // comme le scoreur classique.
+  // Fin d'un tour : la seule porte de sortie. Prend ses décisions dans des
+  // DONNÉES (enAttente), jamais dans une fonction gardée en mémoire — sinon la
+  // sauvegarde ne peut pas les rejouer après une fermeture de l'appli.
+  const passerLaMain = (a) => {
+    setEnAttente(null);
+    if (a?.rejoueBust || a?.rejoueBonus) {
+      // Le tour bonus ne permet pas de retenter un cadeau (point 33).
+      // La seconde chance, si : c'est la même volée qu'on relance, sur le même
+      // numéro — mais elle compte alors comme une NOUVELLE tentative, sans quoi
+      // le taux de réussite du titre SNIPER pouvait dépasser 100 %.
+      if (a.rejoueBonus) setCadeauNum(null);
+      else if (cadeauNum) {
+        setJoueurs((l) => l.map((x, i) => (i !== actif ? x
+          : { ...x, stats: { ...x.stats, cadeauxTentes: x.stats.cadeauxTentes + 1 } })));
+      }
+      setPhase("saisie");
+      return;
+    }
+    setCadeauNum(null);
+    setPhase("choix");
+    setActif((x) => (x + 1) % (a?.nb || joueurs.length));
+  };
+
+  const fermerResultat = () => {
+    const a = enAttente;
+    setPanneau(null);
+    if (!a) return;
+    if (a.plein && a.cadeau) { setPanneau({ type: "plein" }); return; }
+    passerLaMain(a);
+  };
+
+  // Inventaire plein : le joueur garde 2 cartes sur 3 (point 25).
+  const garderDeux = (idAJeter) => {
+    const nouveau = enAttente?.cadeau?.id;
+    if (!nouveau) { setPanneau(null); passerLaMain(enAttente); return; }
+    const main = [...j.pouvoirs, nouveau];
+    const gardees = main.filter((_, i) => i !== idAJeter);
+    setJoueurs((l) => l.map((p, i) => (i === actif ? { ...p, pouvoirs: gardees } : p)));
+    setPanneau(null);
+    passerLaMain(enAttente);
+  };
+
   const quitter = () => { effacerSauvegarde(); setPage("jeux"); };
-
-  const revanche = () => {
-    // Point 78 : mêmes joueurs, même score, et c'est un AUTRE qui commence.
-    const suivant = ((gagnant?.index ?? 0) + 1) % joueurs.length;
-    setJoueurs(joueurs.map((p) => ({ ...p, score: scoreDepart, volees: [], flechettes: 0, total: 0, busts: 0 })));
-    setActif(suivant); setVolee([]); setMult(1); setGagnant(null); setMessage(null);
-    setEtape("jeu");
-  };
 
   // ══════════════════════════════════════════════════════════════ CONFIG ════
   if (etape === "config") return (
@@ -248,7 +636,6 @@ export const Arcade = ({ setPage, joueur }) => {
         </div>
       )}
 
-      {/* ── Joueurs ── */}
       <div style={bloc}>
         <div style={titreBloc}>JOUEURS</div>
         {noms.map((n, i) => (
@@ -278,7 +665,6 @@ export const Arcade = ({ setPage, joueur }) => {
         )}
       </div>
 
-      {/* ── Score de départ ── */}
       <div style={bloc}>
         <div style={titreBloc}>SCORE DE DÉPART</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -308,7 +694,6 @@ export const Arcade = ({ setPage, joueur }) => {
         )}
       </div>
 
-      {/* ── Fin de partie ── */}
       <div style={bloc}>
         <div style={titreBloc}>FIN DE PARTIE</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -334,6 +719,8 @@ export const Arcade = ({ setPage, joueur }) => {
   if (etape === "fin" && gagnant) {
     const moy = gagnant.flechettes > 0 ? (gagnant.total / gagnant.flechettes * 3).toFixed(1) : "0.0";
     const meilleure = Math.max(0, ...gagnant.volees.map((v) => v.fait));
+    const st = gagnant.stats;
+    const titres = titresDeFin(joueurs);
     return (
       <div style={{ minHeight: "100vh", background: C.bg, color: C.text, padding: "14px 14px 90px" }}>
         <div style={{ textAlign: "center", padding: "36px 0 18px" }}>
@@ -351,6 +738,13 @@ export const Arcade = ({ setPage, joueur }) => {
             ["Moyenne par volée", moy],
             ["Meilleure volée", meilleure],
             ["Busts", gagnant.busts],
+            ["Cadeaux tentés", st.cadeauxTentes],
+            ["Cadeaux réussis", st.cadeauxReussis],
+            ["Petits · super · méga", `${st.petits} · ${st.supers} · ${st.megas}`],
+            ["Légendaires", st.legendaires],
+            ["Pouvoirs utilisés", st.pouvoirsUtilises],
+            ["Mauvais coups envoyés", st.malusEnvoyes],
+            ["Mauvais coups reçus", st.malusRecus],
           ].map(([k, v]) => (
             <div key={k} style={ligneStat}>
               <span style={{ color: C.muted, fontSize: 13 }}>{k}</span>
@@ -359,12 +753,30 @@ export const Arcade = ({ setPage, joueur }) => {
           ))}
         </div>
 
+        {titres.length > 0 && (
+          <div style={bloc}>
+            <div style={titreBloc}>LES TITRES DE LA PARTIE</div>
+            {titres.map((t) => (
+              <div key={t.titre} style={ligneStat}>
+                <span>
+                  <span style={{ fontWeight: 900, color: C.gold, fontSize: 12, letterSpacing: 0.5 }}>{t.titre}</span>
+                  <span style={{ display: "block", fontSize: 11.5, color: C.muted }}>{t.texte}</span>
+                </span>
+                <span style={{ fontWeight: 800 }}>{t.nom}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div style={bloc}>
           <div style={titreBloc}>CLASSEMENT</div>
-          {[...joueurs].sort((a, b) => a.score - b.score).map((p, i) => (
-            <div key={p.nom} style={ligneStat}>
-              <span style={{ fontWeight: p.nom === gagnant.nom ? 800 : 500 }}>
-                {i + 1}. {p.nom}
+          {/* ⚠️ On trie des PAIRES {joueur, place d'origine} : avec deux joueurs
+              du même prénom, une clé basée sur le nom cassait la liste et les
+              mettait tous les deux en gras comme gagnants. */}
+          {joueurs.map((p, i) => ({ p, i })).sort((a, b) => a.p.score - b.p.score).map(({ p, i }, rang) => (
+            <div key={i} style={ligneStat}>
+              <span style={{ fontWeight: i === gagnant.index ? 800 : 500 }}>
+                {rang + 1}. {p.nom}
               </span>
               <span style={{ color: p.score === 0 ? C.green : C.muted, fontWeight: 800 }}>
                 {p.score === 0 ? "🏆" : p.score}
@@ -386,10 +798,7 @@ export const Arcade = ({ setPage, joueur }) => {
 
   // ═══════════════════════════════════════════════════════════════ JEU ════
   // ⚠️ PLEIN ÉCRAN, comme le scoreur classique : position fixed + inset 0, au-dessus
-  // de l'en-tête (z 200), de la barre du bas (z 300) et du menu (z 400). Sans ça, on
-  // joue « dans la page » : l'en-tête mange le score et le pied de page traîne sous
-  // le clavier. La colonne est en 3 morceaux — barre du haut, zone qui respire,
-  // clavier collé en bas — pour que le clavier reste toujours sous le pouce.
+  // de l'en-tête (z 200), de la barre du bas (z 300) et du menu (z 400).
   return (
     <div className="arc-plein" style={{
       position: "fixed", inset: 0, zIndex: 500, display: "flex", flexDirection: "column",
@@ -401,29 +810,26 @@ export const Arcade = ({ setPage, joueur }) => {
         .arc-plein button:active:not(:disabled){transform:scale(.96);opacity:.85}
       `}</style>
 
-      {/* ── Confirmation avant d'abandonner ── */}
       {confirmQuit && (
-        <div style={{ position: "absolute", inset: 0, zIndex: 999, background: "#000000cc",
-          display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: C.card, border: `2px solid ${C.red}`, borderRadius: 18,
-            padding: 24, maxWidth: 320, width: "100%", textAlign: "center" }}>
-            <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 8 }}>Quitter la partie ?</div>
-            <p style={{ color: C.muted, fontSize: 13.5, lineHeight: 1.5, marginBottom: 20 }}>
-              La partie en cours sera perdue. Tu ne pourras pas la reprendre.
-            </p>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmQuit(false)} style={{ ...btnVide, flex: 1, color: C.text }}>
-                Continuer
-              </button>
-              <button onClick={quitter} style={{ ...btnPlein, flex: 1, background: "#7f1d1d" }}>
-                Quitter
-              </button>
-            </div>
+        <Fenetre>
+          <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 8 }}>Quitter la partie ?</div>
+          <p style={{ color: C.muted, fontSize: 13.5, lineHeight: 1.5, marginBottom: 20 }}>
+            La partie en cours sera perdue. Tu ne pourras pas la reprendre.
+          </p>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={() => setConfirmQuit(false)} style={{ ...btnVide, flex: 1, color: C.text }}>Continuer</button>
+            <button onClick={quitter} style={{ ...btnPlein, flex: 1, background: "#7f1d1d" }}>Quitter</button>
           </div>
-        </div>
+        </Fenetre>
       )}
 
-      {/* ── Barre du haut (ne bouge jamais) ── */}
+      {panneau && <Panneau
+        panneau={panneau} enAttente={enAttente} joueurs={joueurs} actif={actif} j={j} adversaires={adversaires}
+        onFermer={() => setPanneau(null)} onResultat={fermerResultat}
+        onCible={suiteApresCible} onAppliquer={appliquer} onGarder={garderDeux}
+      />}
+
+      {/* ── Barre du haut ── */}
       <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "calc(6px + env(safe-area-inset-top)) 12px 6px" }}>
         <button onClick={() => setConfirmQuit(true)} style={btnRetour}><ArrowLeft size={15} /> Quitter</button>
@@ -432,28 +838,46 @@ export const Arcade = ({ setPage, joueur }) => {
         </div>
       </div>
 
-      {/* ── Zone qui respire : c'est la SEULE partie qui peut défiler ──
-          touchAction "pan-y" la rend glissable au doigt même si la racine bloque
-          tout le reste (sinon, à 8 joueurs sur un petit téléphone, on ne pourrait
-          plus atteindre le bas de la liste). */}
+      {/* ── Zone qui respire ── */}
       <div ref={hautDuJeu} style={{ flex: 1, minHeight: 0, overflowY: "auto",
         padding: "0 12px", touchAction: "pan-y" }}>
 
         {/* Joueur actif */}
         <div style={{ ...bloc, textAlign: "center", borderColor: C.orange, marginBottom: 10 }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: C.orange }}>{j?.nom}</div>
+          {/* ⚠️ Sous Brouillard le « ??? » doit rester BLANC : le passer en rouge
+              sur un bust annoncerait exactement ce que le brouillard cache. */}
           <div style={{ fontSize: 62, fontWeight: 900, lineHeight: 1.05, margin: "2px 0",
-            color: apercu?.bust ? C.red : C.text }}>
-            {apercu ? apercu.score : j?.score}
+            color: !cache && apercu?.bust ? C.red : C.text }}>
+            {cache ? "???" : apercu ? apercu.score : j?.score}
           </div>
-          {volee.length > 0 && (
+          {cache && (
+            <div style={{ fontSize: 11.5, color: C.red, fontWeight: 800 }}>
+              <EmoIcon e="🌫️" size={12} color={C.red} /> BROUILLARD — tu joues sans voir ton score
+            </div>
+          )}
+          {!cache && volee.length > 0 && (
             <div style={{ fontSize: 12, color: apercu?.bust ? C.red : C.muted, fontWeight: 700 }}>
               {apercu?.bust ? "BUST — la volée sera annulée" : `${apercu.fait} points cette volée`}
             </div>
           )}
-          {/* Les 3 fléchettes */}
+
+          {/* Effets en cours sur ce joueur */}
+          {effets.length > 0 && (
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "center", marginTop: 8 }}>
+              {effets.map((e, i) => <BadgeEffet key={i} e={e} />)}
+            </div>
+          )}
+          {(j?.bouclier || j?.renvoi) && (
+            <div style={{ display: "flex", gap: 5, justifyContent: "center", marginTop: 6 }}>
+              {j.bouclier && <BadgeEffet e={{ id: "bouclier" }} />}
+              {j.renvoi && <BadgeEffet e={{ id: "renvoi" }} />}
+            </div>
+          )}
+
+          {/* Les fléchettes */}
           <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 10 }}>
-            {[0, 1, 2].map((i) => (
+            {Array.from({ length: maxF }, (_, i) => i).map((i) => (
               <div key={i} style={{
                 flex: 1, maxWidth: 90, minHeight: 42, borderRadius: 10,
                 border: `1px solid ${volee[i] ? C.orange + "77" : C.border}`,
@@ -465,75 +889,388 @@ export const Arcade = ({ setPage, joueur }) => {
               </div>
             ))}
           </div>
+          {maxF < 3 && (
+            <div style={{ fontSize: 11, color: C.red, fontWeight: 800, marginTop: 6 }}>
+              {maxF === 1 ? "UNE SEULE FLÉCHETTE" : "2 FLÉCHETTES SEULEMENT"}
+            </div>
+          )}
         </div>
 
+        {/* Cadeau en cours */}
+        {cadeauNum && (
+          <div style={{ ...bloc, marginBottom: 10, textAlign: "center", borderColor: C.violet,
+            background: `linear-gradient(120deg,${C.violet}14,${C.card})` }}>
+            <div style={{ fontSize: 11, color: C.violet, fontWeight: 900, letterSpacing: 1,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+              <EmoIcon e="🎁" size={12} color={C.violet} /> CADEAU EN JEU
+            </div>
+            <div style={{ fontSize: 30, fontWeight: 900, margin: "4px 0 2px" }}>VISE LE {cadeauNum}</div>
+            <div style={{ fontSize: 11.5, color: C.muted }}>
+              Simple = petit · Double = super · Triple = méga
+            </div>
+          </div>
+        )}
+
         {message && (
-          <div style={{ textAlign: "center", padding: "8px 0", fontWeight: 900, fontSize: 19,
-            color: message.ton === "mauvais" ? C.red : C.green }}>
+          <div style={{ textAlign: "center", padding: "8px 10px", marginBottom: 10, borderRadius: 12,
+            background: (message.ton === "mauvais" ? C.red : C.green) + "18",
+            border: `1px solid ${(message.ton === "mauvais" ? C.red : C.green)}55`,
+            fontWeight: 800, fontSize: 14, color: message.ton === "mauvais" ? C.red : C.green }}>
             {message.texte}
           </div>
         )}
 
+        {/* Inventaire */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          {[0, 1].map((i) => (
+            j?.pouvoirs?.[i]
+              ? <div key={i} style={{ flex: 1, minWidth: 0 }}>
+                  {/* Une fois la première fléchette saisie, les pouvoirs sont
+                      gelés (ils changeraient le calcul en cours de volée). La
+                      carte doit alors être VISIBLEMENT éteinte : avant, elle
+                      restait normale et ne répondait plus, sans explication. */}
+                  <CartePouvoir id={j.pouvoirs[i]} petite
+                    desactive={volee.length > 0}
+                    raison={volee.length > 0 ? "Trop tard : ta volée est commencée" : null}
+                    onAide={(id) => setPanneau({ type: "aide", id })}
+                    onClick={() => lancerPouvoir(j.pouvoirs[i])} />
+                </div>
+              : <SlotVide key={i} />
+          ))}
+        </div>
+
         {/* Adversaires */}
         <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
-          {joueurs.map((p, i) => i === actif ? null : (
-            <div key={p.nom} style={{ flexShrink: 0, minWidth: 74, background: C.card, border: `1px solid ${C.border}`,
+          {adversaires.map(({ p, i }) => (
+            <div key={i} style={{ flexShrink: 0, minWidth: 78, background: C.card, border: `1px solid ${C.border}`,
               borderRadius: 10, padding: "7px 10px", textAlign: "center" }}>
-              <div style={{ fontSize: 11, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 74 }}>{p.nom}</div>
+              <div style={{ fontSize: 11, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 78 }}>{p.nom}</div>
               <div style={{ fontSize: 19, fontWeight: 900 }}>{p.score}</div>
+              {/* ⚠️ On montre le NOMBRE de cartes, jamais lesquelles, et surtout
+                  pas les protections : c est tout l interet du pouvoir ESPION, et
+                  un bouclier doit rester une surprise. */}
+              <div style={{ fontSize: 10, color: C.faint, marginTop: 1, display: "flex",
+                gap: 2, justifyContent: "center", alignItems: "center" }}>
+                {(p.pouvoirs?.length || 0) === 0 ? "—"
+                  : Array.from({ length: p.pouvoirs.length }, (_, k) => (
+                      <EmoIcon key={k} e="⚡" size={11} color={C.gold} />
+                    ))}
+                {(p.effets || []).some((e) => EST_MALUS[e.id]) && <EmoIcon e="⚠️" size={11} color={C.red} />}
+              </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── Clavier collé en bas (ne défile jamais) ── */}
-      <div style={{ flexShrink: 0, borderTop: `1px solid ${C.border}`, background: C.bg,
-        padding: "8px 12px calc(10px + env(safe-area-inset-bottom))" }}>
-
-        <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-          {[[1, "SIMPLE"], [2, "DOUBLE"], [3, "TRIPLE"]].map(([m, lbl]) => (
-            <button key={m} onClick={() => setMult((x) => (x === m ? 1 : m))}
-              style={{ flex: 1, minHeight: 44, borderRadius: 10, fontWeight: 900, fontSize: 12, cursor: "pointer",
-                border: `1px solid ${mult === m ? C.violet : C.border}`,
-                background: mult === m ? C.violet + "28" : C.card,
-                color: mult === m ? C.violet : C.muted }}>
-              {lbl}
-            </button>
-          ))}
+      {/* ── Bas de l'écran ── */}
+      {phase === "choix" ? (
+        <div style={{ flexShrink: 0, borderTop: `1px solid ${C.border}`, background: C.bg,
+          padding: "10px 12px calc(12px + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontSize: 11, color: C.faint, fontWeight: 800, letterSpacing: 1, textAlign: "center" }}>
+            À TOI DE JOUER
+          </div>
+          <button onClick={tenterCadeau} style={{ ...btnPlein, width: "100%", minHeight: 52, fontSize: 15,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            background: `linear-gradient(120deg,${C.violet},#7c3aed)` }}>
+            <EmoIcon e="🎁" size={17} color="#fff" /> TENTER UN CADEAU
+          </button>
+          <button onClick={() => setPhase("saisie")} style={{ ...btnPlein, width: "100%", minHeight: 52, fontSize: 15,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <EmoIcon e="🎯" size={17} color="#fff" /> JOUER NORMALEMENT
+          </button>
+          {(j?.pouvoirs?.length || 0) > 0 && (
+            <div style={{ fontSize: 11.5, color: C.muted, textAlign: "center" }}>
+              Touche une carte au-dessus pour utiliser un pouvoir
+            </div>
+          )}
         </div>
+      ) : (
+        <div style={{ flexShrink: 0, borderTop: `1px solid ${C.border}`, background: C.bg,
+          padding: "8px 12px calc(10px + env(safe-area-inset-bottom))" }}>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 }}>
-          {Array.from({ length: 20 }, (_, i) => i + 1).map((s) => (
-            <button key={s} onClick={() => ajouter(s)} disabled={volee.length >= 3} style={touche(volee.length >= 3)}>
-              {s}
+          <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+            {[[1, "SIMPLE"], [2, "DOUBLE"], [3, "TRIPLE"]].map(([m, lbl]) => (
+              <button key={m} onClick={() => setMult((x) => (x === m ? 1 : m))}
+                style={{ flex: 1, minHeight: 44, borderRadius: 10, fontWeight: 900, fontSize: 12, cursor: "pointer",
+                  border: `1px solid ${mult === m ? C.violet : C.border}`,
+                  background: mult === m ? C.violet + "28" : C.card,
+                  color: mult === m ? C.violet : C.muted }}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 }}>
+            {Array.from({ length: 20 }, (_, i) => i + 1).map((s) => (
+              <button key={s} onClick={() => ajouter(s)} disabled={volee.length >= maxF} style={touche(volee.length >= maxF)}>
+                {s}
+              </button>
+            ))}
+            <button onClick={() => ajouter(25)} disabled={volee.length >= maxF}
+              style={{ ...touche(volee.length >= maxF), gridColumn: "span 2", color: C.red, fontSize: 14 }}>
+              BULL
             </button>
-          ))}
-          <button onClick={() => ajouter(25)} disabled={volee.length >= 3}
-            style={{ ...touche(volee.length >= 3), gridColumn: "span 2", color: C.red, fontSize: 14 }}>
-            BULL
-          </button>
-          <button onClick={() => ajouter(0)} disabled={volee.length >= 3}
-            style={{ ...touche(volee.length >= 3), gridColumn: "span 2", color: C.muted }}>
-            RATÉ
-          </button>
-          <button onClick={retirer} disabled={volee.length === 0}
-            style={{ ...touche(volee.length === 0), color: C.orange }} aria-label="Effacer la dernière fléchette">
-            ←
+            <button onClick={() => ajouter(0)} disabled={volee.length >= maxF}
+              style={{ ...touche(volee.length >= maxF), gridColumn: "span 2", color: C.muted }}>
+              RATÉ
+            </button>
+            <button onClick={retirer} disabled={volee.length === 0}
+              style={{ ...touche(volee.length === 0), color: C.orange }} aria-label="Effacer la dernière fléchette">
+              ←
+            </button>
+          </div>
+
+          <button onClick={validerVolee} disabled={volee.length === 0}
+            style={{ ...btnPlein, width: "100%", marginTop: 8, minHeight: 52, fontSize: 16,
+              opacity: volee.length === 0 ? 0.4 : 1,
+              background: !cache && apercu?.bust ? C.red : C.orange }}>
+            {volee.length === 0 ? "Saisis tes fléchettes"
+              : cache ? "Valider"
+              : apercu?.gagne ? "VALIDER LA VICTOIRE — tu gagnes !"
+              : apercu?.bust ? "Valider (bust)"
+              : `Valider — ${apercu.fait} pts`}
           </button>
         </div>
-
-        <button onClick={validerVolee} disabled={volee.length === 0}
-          style={{ ...btnPlein, width: "100%", marginTop: 8, minHeight: 52, fontSize: 16,
-            opacity: volee.length === 0 ? 0.4 : 1,
-            background: apercu?.bust ? C.red : C.orange }}>
-          {volee.length === 0 ? "Saisis tes fléchettes"
-            : apercu?.gagne ? "🏆 VALIDER LA VICTOIRE"
-            : apercu?.bust ? "Valider (bust)"
-            : `Valider — ${apercu.fait} pts`}
-        </button>
-      </div>
+      )}
     </div>
   );
+};
+
+// ── Fenêtre par-dessus le jeu ────────────────────────────────────────────────
+const Fenetre = ({ children, large = false }) => (
+  <div style={{ position: "absolute", inset: 0, zIndex: 999, background: "#000000d8",
+    display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18,
+      padding: 20, maxWidth: large ? 400 : 340, width: "100%", textAlign: "center",
+      maxHeight: "88%", overflowY: "auto" }}>
+      {children}
+    </div>
+  </div>
+);
+
+// ── Toutes les fenêtres du jeu ───────────────────────────────────────────────
+const Panneau = ({ panneau, enAttente, joueurs, actif, j, adversaires, onFermer, onResultat, onCible, onAppliquer, onGarder }) => {
+  const t = panneau.type;
+
+  // Résumé de volée — le calcul est TOUJOURS montré (point 67), sinon personne
+  // ne comprend pourquoi le score a bougé de cette façon.
+  if (t === "resultat") {
+    if (!enAttente) return null;
+    const { r, cadeau, rate, rejoueBust, rejoueBonus } = enAttente;
+    const lignes = [];
+    if (r.maxF < 3) lignes.push([r.maxF === 1 ? "Une seule fléchette" : "Deux fléchettes", "malus"]);
+    if (r.verrou !== null) lignes.push([`Verrouillage du ${r.verrou}`, "malus"]);
+    lignes.push(["Volée brute", `${r.brut}`]);
+    if (r.multPos !== 1) lignes.push([`Multiplicateur ×${r.multPos}`, "bonus"]);
+    if (r.doubleX2) lignes.push(["Meilleure fléchette ×2", "bonus"]);
+    if (r.facteurNeg === 0.5) lignes.push(["Divisé par deux", "malus"]);
+    if (r.facteurNeg === 0) lignes.push(["Volée annulée", "malus"]);
+    if (r.immunise && r.malusBloques.length) lignes.push(["Supernova bloque tout", "bonus"]);
+    return (
+      <Fenetre>
+        <div style={{ fontSize: 26, fontWeight: 900, color: r.bust ? C.red : C.green }}>
+          {r.bust ? "BUST !" : `${r.fait} points`}
+        </div>
+        <div style={{ margin: "12px 0", textAlign: "left" }}>
+          {lignes.map(([g, d], i) => (
+            <div key={i} style={{ ...ligneStat, borderColor: C.border + "55" }}>
+              <span style={{ color: C.muted, fontSize: 12.5 }}>{g}</span>
+              <span style={{ fontWeight: 800, fontSize: 12.5,
+                color: d === "malus" ? C.red : d === "bonus" ? C.green : C.text }}>
+                {d === "malus" ? "✕" : d === "bonus" ? "✓" : d}
+              </span>
+            </div>
+          ))}
+          <div style={{ ...ligneStat, borderBottom: "none" }}>
+            <span style={{ color: C.muted, fontSize: 12.5 }}>Score restant</span>
+            <span style={{ fontWeight: 900, fontSize: 17 }}>{r.score}</span>
+          </div>
+        </div>
+
+        {cadeau && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 900, color: RARETES[cadeau.rarete].couleur, marginBottom: 6 }}>
+              {RARETES[cadeau.rarete].nom}
+            </div>
+            <CartePouvoir id={cadeau.id} />
+          </div>
+        )}
+        {rate && (
+          <div style={{ marginBottom: 12, color: C.muted, fontWeight: 800, fontSize: 14 }}>
+            CADEAU RATÉ
+            <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2 }}>Aucune pénalité, tes points comptent.</div>
+          </div>
+        )}
+
+        {rejoueBust && <p style={{ color: C.green, fontSize: 13, fontWeight: 800 }}>Seconde chance : tu rejoues !</p>}
+        {rejoueBonus && <p style={{ color: C.green, fontSize: 13, fontWeight: 800 }}>Tour bonus : tu rejoues !</p>}
+
+        <button onClick={onResultat} style={{ ...btnPlein, width: "100%", marginTop: 4 }}>CONTINUER</button>
+      </Fenetre>
+    );
+  }
+
+  if (t === "cadeau") {
+    return (
+      <Fenetre>
+        <div style={{ fontSize: 15, fontWeight: 900, color: RARETES[panneau.rarete].couleur, marginBottom: 10 }}>
+          {panneau.titre || RARETES[panneau.rarete].nom}
+        </div>
+        <CartePouvoir id={panneau.id} />
+        <p style={{ color: C.muted, fontSize: 12.5, lineHeight: 1.5, margin: "12px 0 14px" }}>
+          {POUVOIRS[panneau.id].aide}
+        </p>
+        <button onClick={onFermer} style={{ ...btnPlein, width: "100%" }}>OK</button>
+      </Fenetre>
+    );
+  }
+
+  if (t === "aide") {
+    const p = POUVOIRS[panneau.id];
+    return (
+      <Fenetre>
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <EmoIcon e={p.icone} size={38} color={RARETES[p.rarete].couleur} strokeWidth={2} />
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 900, color: RARETES[p.rarete].couleur, margin: "4px 0 8px" }}>{p.nom}</div>
+        <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.55, marginBottom: 16 }}>{p.aide}</p>
+        <button onClick={onFermer} style={{ ...btnPlein, width: "100%" }}>Compris</button>
+      </Fenetre>
+    );
+  }
+
+  // Choisir sa cible (point 35)
+  if (t === "cible") {
+    const id = panneau.id;
+    return (
+      <Fenetre large>
+        <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 4 }}>CHOISIS TA CIBLE</div>
+        <div style={{ color: C.muted, fontSize: 12.5, marginBottom: 14 }}>{POUVOIRS[id].nom} — {POUVOIRS[id].texte}</div>
+        {adversaires.map(({ p, i }) => {
+          const raison = id === "volPouvoir"
+            ? ((p.pouvoirs || []).length ? null : "Aucune carte à voler")
+            : (POUVOIRS[id].immediat || id === "espion" ? null : pourquoiImpossible(p, id));
+          return (
+            <button key={i} onClick={() => !raison && onCible(id, i)} disabled={!!raison}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, textAlign: "left",
+                background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12,
+                padding: "11px 12px", marginBottom: 7, cursor: raison ? "default" : "pointer",
+                opacity: raison ? 0.45 : 1, color: C.text }}>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontWeight: 800, fontSize: 14 }}>{p.nom}</span>
+                <span style={{ display: "block", fontSize: 11.5, color: raison ? C.red : C.muted }}>
+                  {raison || `${(p.pouvoirs || []).length} pouvoir${(p.pouvoirs || []).length > 1 ? "s" : ""}`}
+                </span>
+              </span>
+              <span style={{ fontSize: 20, fontWeight: 900 }}>{p.score}</span>
+            </button>
+          );
+        })}
+        <button onClick={onFermer} style={{ ...btnVide, width: "100%", marginTop: 4 }}>Annuler</button>
+      </Fenetre>
+    );
+  }
+
+  // Verrouillage : choisir le numéro
+  if (t === "numero") {
+    return (
+      <Fenetre>
+        <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 4 }}>QUEL NUMÉRO ?</div>
+        <div style={{ color: C.muted, fontSize: 12.5, marginBottom: 14 }}>
+          Il vaudra zéro pour {joueurs[panneau.cible].nom} à sa prochaine volée.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+          {NUMEROS_CADEAU.map((n) => (
+            <button key={n} onClick={() => onAppliquer(panneau.id, { cible: panneau.cible, num: n })}
+              style={{ ...touche(false), minHeight: 54, fontSize: 20 }}>{n}</button>
+          ))}
+        </div>
+        <button onClick={onFermer} style={{ ...btnVide, width: "100%", marginTop: 12 }}>Annuler</button>
+      </Fenetre>
+    );
+  }
+
+  // Vol de pouvoir : quelle carte prendre
+  if (t === "vol") {
+    const cible = joueurs[panneau.cible];
+    return (
+      <Fenetre>
+        <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 12 }}>QUELLE CARTE ?</div>
+        {(cible.pouvoirs || []).map((id, k) => (
+          <div key={k} style={{ marginBottom: 7 }}>
+            <CartePouvoir id={id} onClick={() => onAppliquer("volPouvoir", { cible: panneau.cible, vole: k })} />
+          </div>
+        ))}
+        <button onClick={onFermer} style={{ ...btnVide, width: "100%", marginTop: 4 }}>Annuler</button>
+      </Fenetre>
+    );
+  }
+
+  // Espion : voir les cartes d'un adversaire
+  if (t === "espion") {
+    const cible = joueurs[panneau.cible];
+    const cartes = cible.pouvoirs || [];
+    return (
+      <Fenetre>
+        <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 12 }}>LES CARTES DE {cible.nom.toUpperCase()}</div>
+        {cartes.length
+          ? cartes.map((id, k) => <div key={k} style={{ marginBottom: 7 }}><CartePouvoir id={id} /></div>)
+          : <p style={{ color: C.muted, fontSize: 13, marginBottom: 12 }}>Il n'a aucune carte.</p>}
+        {(cible.bouclier || cible.renvoi) && (
+          <p style={{ color: C.muted, fontSize: 12.5, marginBottom: 12 }}>
+            Protections : {cible.bouclier ? "bouclier " : ""}{cible.renvoi ? "renvoi" : ""}
+          </p>
+        )}
+        <button onClick={onFermer} style={{ ...btnPlein, width: "100%" }}>OK</button>
+      </Fenetre>
+    );
+  }
+
+  // Arc-en-ciel : choisir n'importe quelle carte
+  if (t === "arcEnCiel") {
+    // ⚠️ Pas de légendaire dans la liste : Arc-en-ciel EST un légendaire, et
+    // pouvoir en choisir un autre reviendrait à s'en offrir deux d'affilée.
+    const parRarete = ["petit", "super", "mega"];
+    return (
+      <Fenetre large>
+        <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 12 }}>CHOISIS TA CARTE</div>
+        {parRarete.map((rar) => (
+          <div key={rar} style={{ marginBottom: 10 }}>
+            <div style={{ ...titreBloc, color: RARETES[rar].couleur, textAlign: "left" }}>{RARETES[rar].nom}</div>
+            {Object.keys(POUVOIRS)
+              .filter((id) => POUVOIRS[id].rarete === rar && (!POUVOIRS[id].min || joueurs.length >= POUVOIRS[id].min))
+              .map((id) => (
+                <div key={id} style={{ marginBottom: 6 }}>
+                  <CartePouvoir id={id} petite onClick={() => onAppliquer("arcEnCiel", { choisi: id })} />
+                </div>
+              ))}
+          </div>
+        ))}
+        <button onClick={onFermer} style={{ ...btnVide, width: "100%" }}>Annuler</button>
+      </Fenetre>
+    );
+  }
+
+  // Inventaire plein : garder 2 cartes sur 3 (point 25)
+  if (t === "plein") {
+    if (!enAttente?.cadeau) return null;
+    const main = [...j.pouvoirs, enAttente.cadeau.id];
+    return (
+      <Fenetre>
+        <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 4 }}>INVENTAIRE PLEIN</div>
+        <div style={{ color: C.muted, fontSize: 12.5, marginBottom: 14 }}>
+          Touche la carte que tu veux <b>jeter</b>. Tu en gardes deux.
+        </div>
+        {main.map((id, k) => (
+          <div key={k} style={{ marginBottom: 7 }}>
+            <CartePouvoir id={id} onClick={() => onGarder(k)} />
+          </div>
+        ))}
+      </Fenetre>
+    );
+  }
+
+  return null;
 };
 
 // ── Styles partagés ──────────────────────────────────────────────────────────
@@ -551,8 +1288,8 @@ const pastille = { width: 26, height: 26, borderRadius: "50%", background: C.car
   display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: C.muted, flexShrink: 0 };
 const ligneStat = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0",
   borderBottom: `1px solid ${C.border}55` };
-const carteChoix = (actif) => ({
-  background: actif ? C.orange + "1e" : C.card2, border: `1px solid ${actif ? C.orange : C.border}`,
+const carteChoix = (on) => ({
+  background: on ? C.orange + "1e" : C.card2, border: `1px solid ${on ? C.orange : C.border}`,
   borderRadius: 12, padding: "12px 8px", cursor: "pointer", color: C.text, minHeight: 62,
 });
 const touche = (off) => ({

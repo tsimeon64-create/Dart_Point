@@ -11,6 +11,7 @@ import {
   Calendar, Building2, Globe, ArrowLeft, ArrowRight, ArrowLeftRight, ArrowUp, ArrowDown, Palette,
   Delete, Hand, Ban, Eye, EyeOff, Megaphone, Smile, PartyPopper, Heart, ThumbsUp, Send, Bot, Radio, Info,
   Flag, Smartphone, BookOpen, Phone, Plug, Newspaper, Map, Menu, Timer, ChevronDown, ChevronUp, Inbox, Coins, Tag,
+  Clover, Recycle, Eraser, CloudFog, Anchor, Rewind, Tornado, Rainbow, Gift,
 } from "lucide-react";
 
 // Map emoji → composant Lucide. Tout emoji absent de la map reste affiché en emoji (secours).
@@ -62,6 +63,12 @@ export const EMOJI_ICON = {
   "💀": Skull, "☠️": Skull,
   // IA / signal
   "🤖": Bot, "📡": Radio, "🛰️": Radio, "🛰": Radio,
+  // Pouvoirs du jeu Arcade (cartes et badges) — sans ça, une police de
+  // téléphone sans l'emoji affiche un carré vide à la place de l'icône.
+  "🍀": Clover, "♻️": Recycle, "♻": Recycle, "🧹": Eraser,
+  "🎰": Dices, "🌫️": CloudFog, "🌫": CloudFog,
+  "🥶": Snowflake, "🪝": Anchor, "⏪": Rewind, "🌀": Tornado,
+  "🌈": Rainbow, "☄️": Sparkles, "☄": Sparkles, "🎁": Gift,
   // Réactions positives (utilisées comme icônes d'UI)
   "👏": ThumbsUp, "😱": AlertTriangle, "😊": Smile, "😌": Smile, "🙂": Smile, "😄": Smile, "🎉": PartyPopper, "🎊": PartyPopper, "❤️": Heart, "👆": Hand,
 };
