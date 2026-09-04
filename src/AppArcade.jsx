@@ -17,15 +17,24 @@
 // des points : c'est ce qui garantit l'ordre de priorité du point 38 et évite
 // que deux effets se contredisent.
 //
-// ── ÉTAPE 2 : CADEAUX ET POUVOIRS ──
-// Fait : cadeaux (simple/double/triple), inventaire de 2, utilisation,
-// ciblage, malus, boucliers, renvoi, anti-abus, équilibrage, statistiques.
-// Reste (étape 3) : tutoriel, animations, explosions, particules, vibrations.
+// ── OÙ SONT LES EFFETS ──
+// arcadeEffets.jsx : boîte cadeau, explosions, particules, flashs, vibrations.
+// arcadeTuto.jsx   : le tutoriel en six écrans.
+// Rien de tout cela ne connaît les règles : on peut couper les animations sans
+// toucher au jeu, et changer une règle sans casser une animation.
 // ───────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useRef, useMemo } from "react";
 import { ArrowLeft, X, RotateCcw, Trophy, HelpCircle } from "lucide-react";
 import { FriendNameInput } from "./FriendPicker";
 import { EmoIcon } from "./icons";
+import { ConfettiBurst } from "./DPLottie";
+import confettiData from "./lottie/confetti.json";
+import {
+  StylesArcade, Explosion, FlashEcran, BoiteCadeau, Tampon,
+  Projectile, useSecousse, Bulle, vibrer, vibrationsActives, reglerVibrations,
+  aideDejaVue, marquerAideVue, oublierLesAides,
+} from "./arcadeEffets";
+import { TutoArcade, tutoDejaVu } from "./arcadeTuto";
 import {
   POUVOIRS, RARETES, NUMEROS_CADEAU, MAX_POUVOIRS, EST_MALUS,
   resoudreVolee, cadeauDeLaVolee, tirerCadeau, tirerPouvoir,
@@ -104,6 +113,58 @@ const CartePouvoir = ({ id, onClick, onAide, petite = false, desactive = false, 
   );
 };
 
+// ── Révélation d'un cadeau (points 47 à 50) ─────────────────────────────────
+// La boîte arrive, tremble, puis explose et laisse la carte. Plus le cadeau est
+// rare, plus l'attente est longue et l'explosion forte — c'est TOUT l'intérêt
+// du système : un méga doit se faire attendre (point 82).
+// Durées du point 72 : petit 0,8 s · super 1,2 s · méga 1,8 s · légendaire 2,5 s.
+const ATTENTE = { petit: 260, super: 430, mega: 700, legendaire: 1100 };
+const NIVEAU  = { petit: 1, super: 2, mega: 3, legendaire: 4 };
+
+const Revelation = ({ cadeau }) => {
+  const [ouvert, setOuvert] = useState(false);
+  const col = RARETES[cadeau.rarete].couleur;
+  const attente = ATTENTE[cadeau.rarete] || 300;
+
+  useEffect(() => {
+    const t = setTimeout(() => setOuvert(true), attente);
+    return () => clearTimeout(t);
+  }, [attente]);
+
+  return (
+    // Toucher accélère : le point 72 l'exige pour les animations longues.
+    // ⚠️ overflow caché : une explosion de niveau 3 ou 4 mesure jusqu'à 320 px et
+    // débordait de la fenêtre, ce qui faisait apparaître une barre de défilement
+    // horizontale en plein moment fort.
+    <div onClick={() => setOuvert(true)} style={{
+      position: "relative", marginBottom: 12, cursor: "pointer",
+      overflow: "hidden", borderRadius: 16, minHeight: ouvert ? 0 : 96,
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+    }}>
+      {/* L'explosion passe PAR-DESSUS la carte au lieu de laisser un trou vide
+          là où était la boîte. */}
+      {ouvert && (
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+          <Explosion niveau={NIVEAU[cadeau.rarete] || 1} couleur={col} />
+        </div>
+      )}
+
+      {!ouvert && <BoiteCadeau taille={84} couleur={col} etat={cadeau.rarete === "petit" ? "arrive" : "tremble"} />}
+
+      {ouvert && (
+        <div className="arc-anim" style={{ width: "100%", animation: "arcCarte 420ms cubic-bezier(.2,1.4,.4,1) both" }}>
+          <div style={{
+            fontSize: cadeau.rarete === "legendaire" ? 16 : 13, fontWeight: 900, color: col,
+            marginBottom: 6, letterSpacing: 0.5,
+            textShadow: NIVEAU[cadeau.rarete] >= 3 ? `0 0 18px ${col}` : "none",
+          }}>{RARETES[cadeau.rarete].nom}</div>
+          <CartePouvoir id={cadeau.id} />
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Emplacement d'inventaire vide ────────────────────────────────────────────
 const SlotVide = () => (
   <div style={{ flex: 1, minHeight: 44, borderRadius: 14, border: `1px dashed ${C.border}`,
@@ -159,6 +220,29 @@ export const Arcade = ({ setPage, joueur }) => {
   const [gagnant, setGagnant] = useState(null);
   const [reprise, setReprise] = useState(null);
   const [confirmQuit, setConfirmQuit] = useState(false);
+
+  // ── Étape 3 : le décor ──
+  const [tuto, setTuto] = useState(null);        // { auto } quand le tutoriel est ouvert
+  const [bulle, setBulle] = useState(null);      // { cle, texte } aide contextuelle
+  const [effet, setEffet] = useState(null);      // { type, ... } animation en cours
+  const [confettis, setConfettis] = useState(false);
+  const [vibOn, setVibOn] = useState(vibrationsActives);
+  const [styleSecousse, secouer] = useSecousse();
+
+  // Le tutoriel s'ouvre TOUT SEUL une seule fois (point 6).
+  useEffect(() => { if (!tutoDejaVu()) setTuto({ auto: true }); }, []);
+
+  // Une explication ne s'affiche qu'une fois par joueur (point 14).
+  const aider = (cle, texte) => {
+    if (aideDejaVue(cle)) return;
+    setBulle({ cle, texte });
+  };
+
+  // Une animation courte, qui se retire toute seule.
+  const jouerEffet = (e, ms = 900) => {
+    setEffet(e);
+    setTimeout(() => setEffet((x) => (x === e ? null : x)), ms);
+  };
 
   // ── Reprise après fermeture de l'appli (point 79) ─────────────────────────
   useEffect(() => {
@@ -415,7 +499,7 @@ export const Arcade = ({ setPage, joueur }) => {
       case "volPouvoir": {
         const { joueurs: apres, iFinal, texte: bloque } = passerLesProtections(liste, actif, cible);
         liste = apres;
-        if (iFinal === null) { setJoueurs(liste); flash(bloque, "mauvais"); return; }
+        if (iFinal === null) { setJoueurs(liste); flash(bloque, "mauvais"); jouerEffet({ type: "bloque" }, 900); return; }
         // ⚠️ Un RENVOI ferait revenir le vol sur le voleur : l'index de carte
         // choisi ne désignerait plus rien chez lui. On annule au lieu de voler
         // n'importe quelle carte au hasard.
@@ -436,7 +520,7 @@ export const Arcade = ({ setPage, joueur }) => {
         const pts = id === "bombe100" ? 100 : 50;
         const { joueurs: apres, iFinal, texte: bloque } = passerLesProtections(liste, actif, cible);
         liste = apres;
-        if (iFinal === null) { setJoueurs(liste); flash(bloque, "mauvais"); return; }
+        if (iFinal === null) { setJoueurs(liste); flash(bloque, "mauvais"); jouerEffet({ type: "bloque" }, 900); return; }
         liste = liste.map((x, i) => (i === iFinal
           ? { ...x, score: x.score + pts, stats: { ...x.stats, malusRecus: x.stats.malusRecus + 1 } }
           : x));
@@ -487,6 +571,7 @@ export const Arcade = ({ setPage, joueur }) => {
           texte = res.texte || `${p.nom} envoyé à ${joueurs[cible].nom}`;
           // Un coup bloque ou renvoye n est pas une bonne nouvelle pour l attaquant.
           if (res.texte) ton = "mauvais";
+          if (/BLOQU/.test(res.texte || "")) jouerEffet({ type: "bloque" }, 900);
         }
         break;
       }
@@ -494,6 +579,16 @@ export const Arcade = ({ setPage, joueur }) => {
 
     setJoueurs(liste);
     flash(texte, ton);
+
+    // Une attaque part visiblement vers le bas de l'écran, là où sont affichés
+    // les adversaires (point 56 : on doit voir QUI vient d'être attaqué).
+    if (p.cible && !p.soi) {
+      jouerEffet({ type: "projectile", icone: p.icone, couleur: ton === "mauvais" ? C.red : C.orange }, 700);
+      vibrer("malus");
+      aider("attaque", "Certains pouvoirs partent chez un adversaire. Il les subira à son prochain tour.");
+    } else {
+      vibrer("clic");
+    }
   };
 
   // Ajoute une carte à un joueur. Si sa main est pleine, on NE JETTE RIEN
@@ -538,6 +633,11 @@ export const Arcade = ({ setPage, joueur }) => {
       };
     });
 
+    if (cadeau) {
+      vibrer(cadeau.rarete);
+      aider("cadeau", "Tu as gagné un pouvoir ! Tu peux en garder deux au maximum, et les sortir quand tu veux.");
+    }
+
     // Le cadeau rentre dans la main s'il y a de la place.
     const plein = cadeau && liste[actif].pouvoirs.length >= MAX_POUVOIRS;
     if (cadeau && !plein) liste = ajouterPouvoir(liste, actif, cadeau.id);
@@ -552,9 +652,16 @@ export const Arcade = ({ setPage, joueur }) => {
     if (r.gagne) {
       setGagnant({ ...liste[actif], index: actif });
       setEtape("fin");
+      setConfettis(true);
+      vibrer("victoire");
       effacerSauvegarde();
       return;
     }
+
+    // Point 66 : le bust doit se VOIR. Écran rouge très bref, secousse, vibration
+    // sèche. Court : le joueur suivant attend son tour.
+    if (r.bust) { jouerEffet({ type: "bust" }, 700); secouer(); vibrer("bust"); }
+    else if (r.fait >= 100) vibrer("super");
 
     setDernierTour({
       nom: j.nom, fait: r.fait, bust: r.bust,
@@ -632,6 +739,8 @@ export const Arcade = ({ setPage, joueur }) => {
   // ══════════════════════════════════════════════════════════════ CONFIG ════
   if (etape === "config") return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, padding: "14px 14px 90px" }}>
+      <StylesArcade />
+      {tuto && <TutoArcade auto={tuto.auto} onFermer={() => setTuto(null)} />}
       <button onClick={() => setPage("jeux")} style={btnRetour}>
         <ArrowLeft size={16} /> Jeux
       </button>
@@ -729,6 +838,27 @@ export const Arcade = ({ setPage, joueur }) => {
         </div>
       </div>
 
+      {/* Réglages secondaires : le point 5 demande de ne pas encombrer l'écran
+          principal, donc ils vivent tout en bas, après le bouton JOUER. */}
+      <div style={bloc}>
+        <div style={titreBloc}>OPTIONS</div>
+        {/* Revoir les règles remet aussi les petites bulles d'explication : si on
+            vient relire le fonctionnement, c'est qu'on a besoin d'être guidé. */}
+        <button onClick={() => { oublierLesAides(); setTuto({ auto: false }); }}
+          style={{ ...btnVide, width: "100%", marginBottom: 8, color: C.text,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <HelpCircle size={16} /> RÈGLES DU JEU
+        </button>
+        <button
+          onClick={() => { const v = !vibOn; setVibOn(v); reglerVibrations(v); if (v) vibrer("super"); }}
+          style={{ ...btnVide, width: "100%", color: vibOn ? C.green : C.muted,
+            borderColor: vibOn ? C.green + "77" : C.border,
+            display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span>Vibrations</span>
+          <span style={{ fontWeight: 900 }}>{vibOn ? "OUI" : "NON"}</span>
+        </button>
+      </div>
+
       <button onClick={demarrer} disabled={!peutJouer}
         style={{ ...btnPlein, width: "100%", marginTop: 4, opacity: peutJouer ? 1 : 0.4, fontSize: 16, minHeight: 54 }}>
         {nomsRemplis.length < 2 ? "Il faut au moins 2 joueurs" : "JOUER"}
@@ -744,7 +874,14 @@ export const Arcade = ({ setPage, joueur }) => {
     const titres = titresDeFin(joueurs);
     return (
       <div style={{ minHeight: "100vh", background: C.bg, color: C.text, padding: "14px 14px 90px" }}>
-        <div style={{ textAlign: "center", padding: "36px 0 18px" }}>
+        <StylesArcade />
+        {confettis && <ConfettiBurst data={confettiData} />}
+        {/* ⚠️ overflow caché : l'explosion de niveau 4 mesure 320 px de large et
+            débordait de l'écran d'un téléphone (452 px de contenu pour 375 px de
+            large), ce qui rendait toute la page glissable latéralement. */}
+        <div style={{ textAlign: "center", padding: "36px 0 18px", position: "relative",
+          overflow: "hidden", borderRadius: 20 }}>
+          <Explosion niveau={4} couleur={C.gold} />
           <Trophy size={54} color={C.gold} />
           <div style={{ fontSize: 30, fontWeight: 900, marginTop: 10, color: C.gold }}>VICTOIRE !</div>
           <div style={{ fontSize: 17, marginTop: 6 }}>{gagnant.nom} remporte la course</div>
@@ -824,12 +961,29 @@ export const Arcade = ({ setPage, joueur }) => {
     <div className="arc-plein" style={{
       position: "fixed", inset: 0, zIndex: 500, display: "flex", flexDirection: "column",
       background: C.bg, color: C.text, fontFamily: "Inter,sans-serif",
-      overflow: "hidden", touchAction: "none",
+      overflow: "hidden", touchAction: "none", ...styleSecousse,
     }}>
+      <StylesArcade />
       <style>{`
         .arc-plein button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
         .arc-plein button:active:not(:disabled){transform:scale(.96);opacity:.85}
       `}</style>
+
+      {tuto && <TutoArcade auto={tuto.auto} onFermer={() => setTuto(null)} />}
+
+      {/* Effets courts, par-dessus le jeu et sans jamais bloquer un bouton. */}
+      {effet?.type === "bust" && <><FlashEcran couleur={C.red} /><Tampon texte="BUST !" /></>}
+      {effet?.type === "bloque" && <Tampon texte="BLOQUÉ !" couleur={C.blue} />}
+      {effet?.type === "projectile" && (
+        <Projectile icone={<EmoIcon e={effet.icone} size={26} color="#fff" />}
+          couleur={effet.couleur} onDone={() => setEffet(null)} />
+      )}
+
+      {/* ⚠️ Jamais de bulle pendant qu'une fenêtre est ouverte : elle s'affiche
+          derrière, illisible et impossible à fermer. Elle attend son tour. */}
+      {bulle && !panneau && !confirmQuit && (
+        <Bulle texte={bulle.texte} onCompris={() => { marquerAideVue(bulle.cle); setBulle(null); }} />
+      )}
 
       {confirmQuit && (
         <Fenetre>
@@ -881,9 +1035,12 @@ export const Arcade = ({ setPage, joueur }) => {
             </div>
           )}
           {/* ⚠️ Sous Brouillard le « ??? » doit rester BLANC : le passer en rouge
-              sur un bust annoncerait exactement ce que le brouillard cache. */}
-          <div style={{ fontSize: 62, fontWeight: 900, lineHeight: 1.05, margin: "2px 0",
-            color: !cache && apercu?.bust ? C.red : C.text }}>
+              sur un bust annoncerait exactement ce que le brouillard cache.
+              Le score PULSE quand un multiplicateur est armé (point 53) : c'est
+              le seul rappel visible qu'une volée va compter double ou triple. */}
+          <div className="arc-anim" style={{ fontSize: 62, fontWeight: 900, lineHeight: 1.05, margin: "2px 0",
+            color: !cache && apercu?.bust ? C.red : (apercu?.multPos > 1 ? C.gold : C.text),
+            animation: apercu?.multPos > 1 ? "arcPulse 1.3s ease-in-out infinite" : "none" }}>
             {cache ? "???" : apercu ? apercu.score : j?.score}
           </div>
           {cache && (
@@ -1039,7 +1196,7 @@ const Fenetre = ({ children, large = false }) => (
     display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18,
       padding: 20, maxWidth: large ? 400 : 340, width: "100%", textAlign: "center",
-      maxHeight: "88%", overflowY: "auto" }}>
+      maxHeight: "88%", overflowY: "auto", overflowX: "hidden" }}>
       {children}
     </div>
   </div>
@@ -1083,10 +1240,10 @@ const Panneau = ({ panneau, enAttente, cadeauNum, dernierTour, joueurs, actif, j
           <div style={{ margin: "16px 0 4px", padding: "14px 12px", borderRadius: 16,
             background: `linear-gradient(140deg,${C.violet}26,${C.card2})`,
             border: `1px solid ${C.violet}88` }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
-              <EmoIcon e="🎁" size={20} color={C.violet} />
-              <span style={{ fontSize: 12, fontWeight: 900, color: C.violet, letterSpacing: 1.5 }}>CADEAU MYSTÈRE</span>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 2 }}>
+              <BoiteCadeau taille={72} couleur={C.violet} />
             </div>
+            <div style={{ fontSize: 12, fontWeight: 900, color: C.violet, letterSpacing: 1.5 }}>CADEAU MYSTÈRE</div>
             <div style={{ fontSize: 34, fontWeight: 900, margin: "6px 0 8px", lineHeight: 1 }}>
               VISE LE <span style={{ color: C.violet }}>{cadeauNum}</span>
             </div>
@@ -1150,14 +1307,7 @@ const Panneau = ({ panneau, enAttente, cadeauNum, dernierTour, joueurs, actif, j
           </div>
         </div>
 
-        {cadeau && (
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 900, color: RARETES[cadeau.rarete].couleur, marginBottom: 6 }}>
-              {RARETES[cadeau.rarete].nom}
-            </div>
-            <CartePouvoir id={cadeau.id} />
-          </div>
-        )}
+        {cadeau && <Revelation cadeau={cadeau} />}
         {rate && (
           <div style={{ marginBottom: 12, color: C.muted, fontWeight: 800, fontSize: 14 }}>
             CADEAU RATÉ
