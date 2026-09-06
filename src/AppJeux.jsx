@@ -17,15 +17,10 @@ const ficheCheckout = (p) => {
   return { pct: Math.round(Math.min(45, Math.max(5, (m - 30) / 1.6))), reel: false };
 };
 
-// Dangerosité sur 5, d'après la moyenne, +1 s'il sort des 180.
-const ficheDanger = (p) => {
-  const m = ficheMoyenne(p);
-  let n = m < 40 ? 1 : m < 55 ? 2 : m < 70 ? 3 : m < 85 ? 4 : 5;
-  if ((p?.rate180 || 0) >= 0.03 && n < 5) n += 1;
-  const noms = ["", "Tranquille", "Régulier", "Solide", "Redoutable", "Monstre"];
-  const cols = ["", "#94a3b8", "#60a5fa", "#a78bfa", "#f97316", "#ef4444"];
-  return { n, nom: noms[n], col: cols[n] };
-};
+// ⚠️ La dangerosité n'est PAS calculée ici : elle vient d'analyserJoueur, le
+// même calcul que la fiche du joueur. Une première version avait inventé une
+// échelle à flammes d'après la moyenne : le même joueur affichait « Régulier »
+// ici et « Joueur dangereux » sur son profil.
 
 const ficheSource = (p) => {
   if (!p) return "";
@@ -37,6 +32,11 @@ const ficheSource = (p) => {
   if (p.source === "stats") return `D'après ses dernières parties (${p.volees} volées)`;
   return "Estimé d'après son DRIX — il a peu joué";
 };
+
+// Le champion n'a pas de fiche en base : dangerosité maximale, assumée, et les
+// vraies stats du pro (moyenne réalisée ~96, checkout 43 %).
+const ANALYSE_CHAMPION = { winRate: 100, formePct: 1, A: { avgReel: 96, checkoutPct: 43, n180: 5 },
+  dangerScore: 100, dangerColor: "#ef4444", dangerLabel: "Joueur dangereux", dangerDriver: "calé sur les vraies stats d'un pro" };
 import { confirmer } from "./uiConfirm.jsx";
 // Logique PURE du pavé « fléchette par fléchette » (testée : src/voleeFlechettes.test.mjs)
 import {
@@ -861,7 +861,7 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
     </div>
   );
 };
-import { finaliserDuel, dbJ } from "./AppJoueurs";
+import { finaliserDuel, dbJ, analyserJoueur, analyseDepuisVue, chancesContre, CircleGauge, STYLE_JAUGE } from "./AppJoueurs";
 
 // ── AppJeux.jsx ───────────────────────────────────────────────────────────────
 // Scores depuis lesquels un checkout (finish) est possible : tous les scores de 2 à
@@ -1074,6 +1074,14 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [ficheOuverte, setFicheOuverte] = useState(null); // clé de l'ami dont la fiche est dépliée
   const [fiches, setFiches] = useState({});                // profils déjà calculés, par clé d'ami
   const [ficheEnCharge, setFicheEnCharge] = useState(null);
+  // Les chiffres du PROFIL (moyenne réelle, dangerosité, chances) de toute la liste,
+  // lus en une requête dans la vue v_analyse_joueurs : visibles sans déplier, triables.
+  // Un miroir en ref pour les fonctions async (l'état capturé serait périmé).
+  const [analyses, setAnalyses] = useState({ champ: { analyse: ANALYSE_CHAMPION, chances: 5 } });
+  const analysesRef = useRef(analyses);
+  const poserAnalyses = (maj) => setAnalyses((prev) => { const v = typeof maj === "function" ? maj(prev) : maj; analysesRef.current = v; return v; });
+  const [analysesEtat, setAnalysesEtat] = useState("idle"); // idle | charge | ok | erreur
+  const [tri, setTri] = useState(() => { try { return localStorage.getItem("dp_bot_tri") || "drix"; } catch { return "drix"; } });
   const [botPreparing, setBotPreparing] = useState(!!initBotAmiId); // entrée directe « Affronte son bot » depuis une fiche joueur
   const botXpRef = useRef(false);                       // évite de créditer l'XP deux fois
   // Publication du match bot au Comptoir : la charge utile est gardée pour que l'écran de fin
@@ -1408,6 +1416,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       // « Toi-même » ensuite : jouer contre ton propre bot.
       const moi = { id: joueur.id, pseudo: joueur.pseudo, photo: joueur.photo || null, drix: joueur.drix ?? 1000, self: true };
       setAmisListe([luckyLittler, moi, ...amis]);
+      chargerAnalyses([moi, ...amis]); // en arrière-plan : la liste s'affiche tout de suite
     } catch { setAmisListe([]); }
     setLoadingAmis(false);
   };
@@ -1424,18 +1433,53 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // Le profil d'un bot, calculé une seule fois puis gardé : la fiche ET la
   // partie s'en servent, inutile de recharger ses volées deux fois.
   const cleAmi = (ami) => (ami.champion ? "champ" : ami.self ? "self" : String(ami.id));
-  const calculerProfil = async (ami) => {
+
+  // Les chiffres du profil de TOUTE la liste, en une requête (vue SQL, voir
+  // bots_1_vue_analyse.sql). Si la vue manque ou tombe, la liste reste utilisable :
+  // DRIX seul, et chaque fiche dépliée recalcule ses chiffres dans l'appli.
+  const chargerAnalyses = async (liste) => {
+    setAnalysesEtat("charge");
+    try {
+      const rows = await dbJ.getAnalysesJoueurs(liste.map((a) => a.id));
+      const parId = {};
+      for (const r of rows) parId[r.joueur_id] = r;
+      const map = {};
+      for (const a of liste) {
+        const r = parId[a.id];
+        if (!r) continue;
+        const analyse = analyseDepuisVue(r, a.drix ?? 1000); // le DRIX affiché dans la liste
+        map[cleAmi(a)] = { analyse, chances: a.self ? null : chancesContre({ drix: a.drix ?? 1000, monDrix: joueur?.drix || 1000, formePct: analyse.formePct }) };
+      }
+      poserAnalyses((prev) => ({ ...prev, ...map }));
+      setAnalysesEtat("ok");
+    } catch { setAnalysesEtat("erreur"); }
+  };
+
+  // `avecAnalyse` : seule la fiche dépliée en a besoin ; l'entrée directe « Affronte
+  // son bot » et la revanche vont droit aux réglages, sans requête de plus.
+  const calculerProfil = async (ami, { avecAnalyse = false } = {}) => {
     const cle = cleAmi(ami);
     if (fiches[cle]) return fiches[cle];
     let profil;
     if (ami.champion) {
       profil = { ...BOT_LUCKY_LITTLER };   // profil FIXE du champion — aucun historique à charger
     } else {
-      const [duels, volees] = await Promise.all([
+      const manque = avecAnalyse && !analysesRef.current[cle];
+      const [duels, volees, stats] = await Promise.all([
         dbJ.getDuels(ami.id).catch(() => []),
         dbJ.getVoleesReelles(ami.id).catch(() => []),
+        manque ? dbJ.getStats(ami.id).catch(() => null) : Promise.resolve(null),
       ]);
       profil = calculerProfilBot({ drix: ami.drix, duels, amiPseudo: ami.pseudo, volees });
+      // Ses chiffres de profil ne sont pas là (vue SQL absente ou en erreur) : on les
+      // calcule ici comme la fiche joueur, avec la MÊME préparation des duels (terminés,
+      // du plus récent au plus ancien), sinon forme et dangerosité divergeraient.
+      if (manque) {
+        const termines = (duels || []).filter((d) => d.statut === "termine").sort((a, b) => (b.date || 0) - (a.date || 0));
+        const analyse = analyserJoueur({ joueurId: ami.id, pseudo: ami.pseudo, drix: ami.drix, stats, duels: termines });
+        poserAnalyses((prev) => ({ ...prev, [cle]: { analyse,
+          chances: ami.self ? null : chancesContre({ drix: ami.drix, monDrix: joueur?.drix || 1000, formePct: analyse.formePct }) } }));
+      }
     }
     setFiches((f) => ({ ...f, [cle]: profil }));
     return profil;
@@ -1449,7 +1493,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     setFicheOuverte(cle);
     if (fiches[cle]) return;
     setFicheEnCharge(cle);
-    try { await calculerProfil(ami); }
+    try { await calculerProfil(ami, { avecAnalyse: true }); }
     catch { window.dpToast?.("Impossible de charger cet ami", "error"); setFicheOuverte(null); }
     setFicheEnCharge(null);
   };
@@ -2191,6 +2235,16 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     );
   }
 
+  // ── Tri de la liste des bots : DRIX (ordre d'origine), moyenne réelle ou dangerosité.
+  // Sans chiffre (fiche pas encore là) = en bas ; à égalité, le DRIX départage.
+  const valeurTri = (a) => {
+    const an = analyses[cleAmi(a)]?.analyse;
+    return tri === "moyenne" ? (an?.A?.avgReel ?? -1) : tri === "danger" ? (an?.dangerScore ?? -1) : (a.drix || 0);
+  };
+  const listeTriee = tri === "drix" ? amisListe
+    : [...amisListe].sort((a, b) => (valeurTri(b) - valeurTri(a)) || ((b.drix || 0) - (a.drix || 0)));
+  const changerTri = (k) => { setTri(k); try { localStorage.setItem("dp_bot_tri", k); } catch { /* stockage indisponible */ } };
+
   // ── ÉCRAN SÉLECTION D'UN AMI (mode bot) ────────────────────────────────────
   if (etape === "amis") return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"16px 16px 24px", fontFamily:"Inter,sans-serif" }}>
@@ -2209,13 +2263,31 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           <div style={{ fontSize:42, marginBottom:10 }}>🫂</div>
           <p style={{ fontSize:14, lineHeight:1.6 }}>Tu n'as pas encore d'amis dans l'app.<br/>Ajoutes-en pour pouvoir les affronter en bot !</p>
         </div>
-      ) : (
+      ) : (<>
+        {/* Tri : DRIX, moyenne réelle ou dangerosité — les chiffres du profil */}
+        <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:12, flexWrap:"wrap" }}>
+          <span style={{ fontSize:11, color:"#64748b", fontWeight:700, marginRight:2 }}>Trier :</span>
+          {[["drix", "DRIX"], ["moyenne", "Moyenne"], ["danger", "Dangerosité"]].map(([k, l]) => {
+            const actif = tri === k;
+            return (
+              <button key={k} onClick={()=>changerTri(k)} aria-pressed={actif}
+                style={{ padding:"7px 12px", borderRadius:999, cursor:"pointer", fontSize:12, fontWeight:800, transition:"background .15s, color .15s",
+                  border:`1px solid ${actif ? "#f97316" : "#2a2a2a"}`, background: actif ? "#f9731622" : "#1a1a1a", color: actif ? "#f97316" : "#94a3b8" }}>
+                {l}
+              </button>
+            );
+          })}
+          {analysesEtat === "charge" && <span style={{ fontSize:11, color:"#475569", marginLeft:"auto" }}>Calcul des fiches…</span>}
+          {analysesEtat === "erreur" && <span style={{ fontSize:11, color:"#f59e0b", marginLeft:"auto" }}>Fiches indisponibles</span>}
+        </div>
+        <style>{STYLE_JAUGE}</style>
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {amisListe.map((ami) => {
+          {listeTriee.map((ami) => {
             const champ = !!ami.champion;
+            const cle = cleAmi(ami);
+            const an = analyses[cle]?.analyse; // ses chiffres de profil (vue SQL, ou calcul de repli)
             const couleur = champ ? "#fbbf24" : ami.drix>=1800?"#fbbf24":ami.drix>=1400?"#a78bfa":ami.drix>=1100?"#60a5fa":"#94a3b8";
             const enCours = loadingBot===ami.id;
-            const cle = champ ? "champ" : ami.self ? "self" : String(ami.id);
             const ouverte = ficheOuverte === cle;
             const fiche = fiches[cle];
             const bord = champ ? "#fbbf24" : ami.self ? "#f97316" : couleur;
@@ -2226,7 +2298,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                   transition:"border-color .2s, box-shadow .2s" }}>
               <button onClick={()=>ouvrirFiche(ami)} disabled={!!loadingBot}
                 aria-expanded={ouverte}
-                style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"12px 14px", border:"none",
+                style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"12px 14px", border:"none",
                   background: champ ? "linear-gradient(135deg,#2a1e05,#1a1200)" : ami.self ? "#f9731610" : "#1a1a1a",
                   cursor: loadingBot?"default":"pointer", textAlign:"left", opacity: loadingBot && !enCours ? 0.5 : 1 }}>
                 {champ
@@ -2235,13 +2307,31 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                     ? <img src={ami.photo} alt="" style={{ width:46, height:46, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
                     : <div style={{ width:46, height:46, borderRadius:"50%", background:"#f9731633", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><EmoIcon e="🎯" size={20} color="#f97316"/></div>}
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontWeight:800, fontSize:16, color:"#f1f5f9", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", display:"flex", alignItems:"center", gap:6 }}>
-                    {champ ? "Lucky Tillter" : ami.self ? "Toi-même" : ami.pseudo}
+                  {/* Le nom s'ellipse (« … ») ; le badge passe dessous s'il ne tient pas sur un petit écran. */}
+                  <div style={{ fontWeight:800, fontSize:16, color:"#f1f5f9", display:"flex", flexWrap:"wrap", alignItems:"center", gap:"2px 6px" }}>
+                    <span style={{ minWidth:0, maxWidth:"100%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      {champ ? "Lucky Tillter" : ami.self ? "Toi-même" : ami.pseudo}
+                    </span>
                     {champ && <span style={{ fontSize:9, fontWeight:900, color:"#fbbf24", background:"#fbbf2422", border:"1px solid #fbbf2488", borderRadius:5, padding:"1px 6px", letterSpacing:.5, flexShrink:0, display:"inline-flex", alignItems:"center", gap:3 }}><EmoIcon e="👑" size={9}/>CHAMPION</span>}
                     {ami.self && <span style={{ fontSize:9, fontWeight:900, color:"#f97316", background:"#f9731622", border:"1px solid #f9731566", borderRadius:5, padding:"1px 5px", letterSpacing:.5, flexShrink:0 }}>TON BOT</span>}
                   </div>
                   <div style={{ fontSize:12, color:couleur, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{champ ? "Le prodige · sort des 180 · checkout 43%" : ami.self ? `${ami.drix} DRIX · affronte ton propre niveau` : `${ami.drix} DRIX`}</div>
                 </div>
+                {/* Ses chiffres de profil, visibles SANS déplier : moyenne réelle + dangerosité */}
+                {an ? (
+                  <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+                    <div style={{ textAlign:"center" }}>
+                      <div style={{ fontSize:18, fontWeight:900, color:"#f1f5f9", lineHeight:1 }}>{an.A?.avgReel ?? "—"}</div>
+                      <div style={{ fontSize:8, fontWeight:800, color:"#64748b", letterSpacing:1, marginTop:3 }}>MOY</div>
+                    </div>
+                    <div role="img" aria-label={`Dangerosité ${an.dangerScore} sur 100, ${an.dangerLabel}`} title={an.dangerLabel}
+                      style={{ width:34, height:34, flexShrink:0 }}>
+                      <CircleGauge value={an.dangerScore} color={an.dangerColor} size={34} strokeWidth={4} compact />
+                    </div>
+                  </div>
+                ) : analysesEtat === "charge" ? (
+                  <span style={{ fontSize:11, color:"#475569", flexShrink:0 }}>…</span>
+                ) : null}
                 <span style={{ color: champ ? "#fbbf24" : "#a78bfa", fontWeight:900, fontSize:18,
                   display:"inline-block", transition:"transform .25s", transform: ouverte ? "rotate(90deg)" : "none" }}>
                   {enCours ? "…" : "→"}
@@ -2253,62 +2343,78 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                 <div style={{ padding:"4px 14px 14px", background: champ ? "#1a1200" : "#141414",
                     borderTop:`1px solid ${bord}33`, animation:"dpFicheOuvre .22s ease-out both" }}>
                   <style>{`@keyframes dpFicheOuvre{0%{opacity:0;transform:translateY(-6px)}100%{opacity:1;transform:none}}`}</style>
-                  {!fiche ? (
+                  {!an && !fiche ? (
                     <p style={{ color:"#64748b", fontSize:13, textAlign:"center", padding:"14px 0 6px" }}>
                       {ficheEnCharge === cle ? "Je regarde ses dernières parties…" : "…"}
                     </p>
                   ) : (() => {
-                    const moy = ficheMoyenne(fiche);
-                    const ck = ficheCheckout(fiche);
-                    const dg = ficheDanger(fiche);
+                    // Les chiffres du PROFIL d'abord (les mêmes que sur sa fiche joueur) ;
+                    // ceux du bot seulement en repli, quand le profil n'a rien.
+                    const moyProfil = an?.A?.avgReel != null;
+                    const moy = moyProfil ? an.A.avgReel : fiche ? ficheMoyenne(fiche) : null;
+                    const ck = an?.A?.checkoutPct != null ? { pct: an.A.checkoutPct, reel: true } : fiche ? ficheCheckout(fiche) : null;
+                    const chances = analyses[cle]?.chances ?? 50;
+                    const colChances = chances >= 50 ? "#22c55e" : "#ef4444";
                     return (
                       <>
                         <div style={{ display:"flex", gap:10, marginTop:10 }}>
                           {/* Moyenne */}
                           <div style={{ flex:1, background:"#0f0f0f", border:"1px solid #2a2a2a", borderRadius:12, padding:"10px 12px" }}>
                             <div style={{ fontSize:10, fontWeight:800, color:"#64748b", letterSpacing:1 }}>MOYENNE</div>
-                            <div style={{ fontSize:32, fontWeight:900, color:"#f1f5f9", lineHeight:1.1, marginTop:2 }}>{moy}</div>
-                            <div style={{ fontSize:11, color:"#94a3b8" }}>points par volée</div>
+                            <div style={{ fontSize:32, fontWeight:900, color:"#f1f5f9", lineHeight:1.1, marginTop:2 }}>{moy ?? "…"}</div>
+                            <div style={{ fontSize:11, color:"#94a3b8" }}>{moyProfil ? "par volée · comme son profil" : "par volée · estimée"}</div>
                           </div>
                           {/* Réussite au finish */}
                           <div style={{ flex:1.3, background:"#0f0f0f", border:"1px solid #2a2a2a", borderRadius:12, padding:"10px 12px" }}>
                             <div style={{ fontSize:10, fontWeight:800, color:"#64748b", letterSpacing:1 }}>RÉUSSITE AU FINISH</div>
                             <div style={{ display:"flex", alignItems:"baseline", gap:4, marginTop:2 }}>
-                              <span style={{ fontSize:26, fontWeight:900, color: bord, lineHeight:1.1 }}>{ck.pct}</span>
+                              <span style={{ fontSize:26, fontWeight:900, color: bord, lineHeight:1.1 }}>{ck ? ck.pct : "…"}</span>
                               <span style={{ fontSize:14, fontWeight:800, color: bord }}>%</span>
                             </div>
                             <div style={{ height:6, borderRadius:3, background:"#2a2a2a", marginTop:6, overflow:"hidden" }}>
-                              <div style={{ width:`${Math.min(100, ck.pct * 2)}%`, height:"100%", borderRadius:3,
+                              <div style={{ width:`${ck ? Math.min(100, ck.pct * 2) : 0}%`, height:"100%", borderRadius:3,
                                 background:`linear-gradient(90deg,${bord}88,${bord})`, transition:"width .5s ease-out" }} />
                             </div>
-                            <div style={{ fontSize:10.5, color:"#64748b", marginTop:4 }}>{ck.reel ? "taux réel" : "estimé"}</div>
+                            <div style={{ fontSize:10.5, color:"#64748b", marginTop:4 }}>{!ck ? "…" : ck.reel ? "taux réel" : "estimé"}</div>
                           </div>
                         </div>
 
-                        {/* Dangerosité */}
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10,
-                            background:"#0f0f0f", border:"1px solid #2a2a2a", borderRadius:12, padding:"10px 12px", marginTop:8 }}>
-                          <div style={{ fontSize:10, fontWeight:800, color:"#64748b", letterSpacing:1 }}>DANGEROSITÉ</div>
-                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                            <div style={{ display:"flex", gap:3 }}>
-                              {[1,2,3,4,5].map((k) => (
-                                <EmoIcon key={k} e="🔥" size={16} color={k <= dg.n ? dg.col : "#2f2f2f"}
-                                  fill={k <= dg.n ? dg.col : "none"} />
-                              ))}
+                        {/* Les DEUX jauges du profil, calculées par la même formule que lui (scoreDanger) */}
+                        <div style={{ display:"flex", gap:10, marginTop:8 }}>
+                          <div style={{ flex:1.4, display:"flex", gap:10, alignItems:"center", borderRadius:12, padding:"10px 12px",
+                              border:`1px solid ${an?.dangerColor || "#2a2a2a"}55`,
+                              background:`linear-gradient(135deg, ${an?.dangerColor || "#2a2a2a"}18, #0f0f0f 65%)` }}>
+                            <CircleGauge value={an?.dangerScore ?? 0} color={an?.dangerColor || "#94a3b8"} size={72} strokeWidth={8} />
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:10, fontWeight:800, color:"#64748b", letterSpacing:1 }}>DANGEROSITÉ</div>
+                              <div style={{ fontSize:14, fontWeight:900, color: an?.dangerColor || "#94a3b8", lineHeight:1.15, marginTop:2 }}>{an?.dangerLabel || "…"}</div>
+                              <div style={{ fontSize:10.5, color:"#94a3b8", lineHeight:1.35, marginTop:3 }}>{an?.dangerDriver || ""}</div>
                             </div>
-                            <span style={{ fontSize:13, fontWeight:900, color: dg.col }}>{dg.nom}</span>
                           </div>
+                          {!ami.self && (
+                            <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                                textAlign:"center", borderRadius:12, padding:"10px 8px", background:"#0f0f0f", border:"1px solid #2a2a2a" }}>
+                              <div style={{ fontSize:10, fontWeight:800, color:"#64748b", letterSpacing:1, marginBottom:6 }}>VOS CHANCES</div>
+                              <CircleGauge value={chances} color={colChances} size={64} strokeWidth={8} />
+                              <div style={{ fontSize:10, color:"#94a3b8", fontWeight:700, marginTop:6 }}>
+                                {chances >= 60 ? "Vous partez favori" : chances <= 40 ? "Vous êtes outsider" : "Match serré"}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
-                        <div style={{ fontSize:11, color:"#64748b", textAlign:"center", marginTop:8 }}>{ficheSource(fiche)}</div>
+                        <div style={{ fontSize:11, color:"#64748b", textAlign:"center", marginTop:8 }}>
+                          {fiche ? ficheSource(fiche) : "Je regarde ses dernières parties…"}
+                        </div>
 
-                        <button onClick={()=>choisirAmiBot(ami)} disabled={!!loadingBot}
+                        <button onClick={()=>choisirAmiBot(ami)} disabled={!!loadingBot || ficheEnCharge === cle}
                           style={{ width:"100%", marginTop:10, padding:"13px", borderRadius:12, border:"none", cursor:"pointer",
+                            opacity: ficheEnCharge === cle ? 0.6 : 1,
                             fontWeight:900, fontSize:15, color: champ ? "#1a1200" : "#fff",
                             background: champ ? "linear-gradient(135deg,#fbbf24,#f59e0b)" : "linear-gradient(135deg,#f97316,#ea580c)",
                             display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
                           <EmoIcon e="⚔️" size={16} color={champ ? "#1a1200" : "#fff"} />
-                          {enCours ? "Préparation…" : ami.self ? "AFFRONTER MON BOT" : "AFFRONTER SON BOT"}
+                          {enCours || ficheEnCharge === cle ? "Préparation…" : ami.self ? "AFFRONTER MON BOT" : "AFFRONTER SON BOT"}
                         </button>
                       </>
                     );
@@ -2319,7 +2425,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             );
           })}
         </div>
-      )}
+      </>)}
       <button onClick={()=>{ if (initBotAmiId) setPage?.("profil-joueur-"+initBotAmiId); else if (botStart) setPage?.("defi"); else setEtape("config"); }}
         style={{ marginTop:18, width:"100%", background:"none", border:"none", color:"#94a3b8", cursor:"pointer", fontSize:13, padding:8 }}>
         ← Retour

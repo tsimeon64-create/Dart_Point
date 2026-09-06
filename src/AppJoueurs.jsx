@@ -213,13 +213,27 @@ export const dbJ = {
   // Compteur des doubles de finish (stat « finish favori ») — { "1":n, ..., "20":n, "B":n }
   getFinishs: (id) => sbJ(`joueurs?id=eq.${id}&select=finishs_doubles`).then(r => r?.[0]?.finishs_doubles || {}).catch(() => ({})),
   getJoueursByBar: (slug) => sbJ(`joueurs?bar_slug=eq.${encodeURIComponent(slug)}&select=${JOUEUR_COLS}`),
-  getStats: (joueur_id) => sbJ(`stats_joueurs?joueur_id=eq.${joueur_id}&select=*`).then(r => r?.[0]),
+  // order=id.asc : si un joueur a deux lignes (course à l'inscription), on lit la MÊME que la vue SQL.
+  getStats: (joueur_id) => sbJ(`stats_joueurs?joueur_id=eq.${joueur_id}&select=*&order=id.asc&limit=1`).then(r => r?.[0]),
   addStats: (d) => sbJ("stats_joueurs", { method: "POST", body: JSON.stringify(d) }),
   updateStats: (id, d) => sbJ(`stats_joueurs?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(d), prefer: "return=minimal" }),
-  getDuels: (joueur_id) => sbJ(`duels?or=(challenger_id.eq.${joueur_id},defie_id.eq.${joueur_id})&order=date.desc&select=*`),
+  // id.desc en second : deux duels à la même milliseconde sont départagés comme dans la vue SQL (forme).
+  getDuels: (joueur_id) => sbJ(`duels?or=(challenger_id.eq.${joueur_id},defie_id.eq.${joueur_id})&order=date.desc,id.desc&select=*`),
   // Amis acceptés d'un joueur (pour le mode bot) + profils par lot (pseudo/photo/drix).
   getAmis: (id) => sbJ(`amis?or=(joueur_id.eq.${id},ami_id.eq.${id})&statut=eq.accepte&select=*`),
   getJoueursByIds: (ids) => (ids && ids.length ? sbJ(`joueurs?id=in.(${ids.join(",")})&select=${JOUEUR_COLS}`) : Promise.resolve([])),
+  // Les sommes du profil (moyenne réelle, finish, 180, forme…) pour TOUTE une liste
+  // de joueurs, calculées par Supabase (vue v_analyse_joueurs — bots_1_vue_analyse.sql).
+  // Par paquets de 60 ids : l'URL reste courte et on ne dépend pas du plafond de
+  // 1000 lignes. Si la vue n'existe pas (SQL pas encore lancé), ça rejette : l'appelant
+  // retombe sur le calcul dans l'appli, joueur par joueur.
+  getAnalysesJoueurs: async (ids) => {
+    const uniques = [...new Set((ids || []).filter(Boolean))];
+    const paquets = [];
+    for (let i = 0; i < uniques.length; i += 60) paquets.push(uniques.slice(i, i + 60));
+    const rows = await Promise.all(paquets.map((pq) => sbJ(`v_analyse_joueurs?joueur_id=in.(${pq.join(",")})&select=*`)));
+    return rows.flat().filter(Boolean);
+  },
   // Vraies volées d'un joueur sur ses 5 dernières parties live (pour le bot « replay »).
   // 5 et pas 10 : on veut son niveau ACTUEL. Sur 10 parties on mélangeait des soirées vieilles de
   // deux semaines avec sa forme du moment, et le bot devenait un joueur moyen qui n'existe pas.
@@ -3509,31 +3523,168 @@ const SecLabel = ({ icon:Icon, color, children, style }) => (
   </div>
 );
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LA DANGEROSITÉ, EN UN SEUL ENDROIT.
+// Elle était calculée en double (fiche d'un joueur ET page « mes stats »), et la
+// fiche du bot avait fini par inventer une troisième échelle. Trois écrans, trois
+// chiffres différents pour le même joueur. Désormais tout le monde appelle ceci.
+//
+// duels : les duels TERMINÉS, du plus récent au plus ancien.
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️ LA formule de dangerosité, à un seul endroit. Elle ne lit que des sommes :
+// la fiche profil les calcule depuis les duels (analyserJoueur), la liste des
+// bots les reçoit de Supabase (vue v_analyse_joueurs). Même entrée → même chiffre.
+export const scoreDanger = ({ winRate = 0, formePct = 0, drix = 1000, avgReel = null, checkoutPct = null, n180 = 0 }) => {
+  // Dangerosité — composite des signaux réels (max 100)
+  const dangerScore = Math.min(100, Math.round(
+      (winRate*0.30) +
+      (formePct*20) +
+      Math.min(20, Math.max(0,(drix-900)/50)) +
+      (avgReel!=null ? Math.min(15, Math.max(0,(avgReel-30)/3)) : 0) +
+      (checkoutPct!=null ? Math.min(10, checkoutPct/10) : 0) +
+      Math.min(5, n180)
+  ));
+  const dangerColor = dangerScore>=75?"#ef4444":dangerScore>=50?"#f97316":dangerScore>=25?"#f59e0b":"#22c55e";
+  const dangerLabel = dangerScore>=75?"Joueur dangereux":dangerScore>=50?"Adversaire solide":dangerScore>=30?"À surveiller":"Accessible";
+  // Ce qui porte sa dangerosité (driver principal), à la troisième personne.
+  const dangerDriver =
+      (checkoutPct!=null && checkoutPct>=45) ? `porté par son checkout (${checkoutPct}%)` :
+      (avgReel!=null && avgReel>=52)         ? `porté par son scoring (moy ${avgReel})` :
+      (winRate>=58)                          ? `porté par son taux de victoire (${winRate}%)` :
+      (formePct>=0.6)                        ? `porté par sa forme du moment` :
+      (dangerScore<30)                       ? `profil encore tendre, à ta portée` : `profil équilibré`;
+  return { dangerScore, dangerColor, dangerLabel, dangerDriver };
+};
+
+// Une ligne de la vue v_analyse_joueurs → la même forme que ce que rend analyserJoueur
+// (winRate, formePct, A.avgReel…, dangerScore…). `drix` peut être forcé (celui de la liste).
+export const analyseDepuisVue = (row, drix = null) => {
+  const num = (v) => (v == null || v === "" || isNaN(Number(v)) ? null : Number(v));
+  const winRate = num(row.win_rate) ?? 0;
+  const formePct = num(row.forme_pct) ?? 0;
+  const A = { avgReel: num(row.avg_reel), checkoutPct: num(row.checkout_pct), n180: num(row.n180) ?? 0,
+              coAttempts: num(row.co_attempts) ?? 0, coWon: num(row.co_won) ?? 0,
+              legsWon: num(row.legs_won) ?? 0, legsLost: num(row.legs_lost) ?? 0, totalLegs: (num(row.legs_won) ?? 0) + (num(row.legs_lost) ?? 0) };
+  const d = drix ?? num(row.drix) ?? 1000;
+  return { winRate, formePct, moyenneDuels: null, A, nbDuels: num(row.nb_duels) ?? 0, drix: d,
+           ...scoreDanger({ winRate, formePct, drix: d, avgReel: A.avgReel, checkoutPct: A.checkoutPct, n180: A.n180 }) };
+};
+
+export const analyserJoueur = ({ joueurId, pseudo = "", drix = 1000, stats = null, duels = [] }) => {
+  // ⚠️ Arrondis EXACTS, identiques à la vue SQL v_analyse_joueurs (qui calcule en
+  // numeric) : on divise en DERNIER, sur des entiers, pour que 57,5 donne bien 58
+  // (en flottant, 23/40*100 = 57,4999… → 57, et la liste des bots dirait 58).
+  const winRate = stats?.parties > 0 ? Math.round(stats.victoires * 100 / stats.parties) : 0;
+
+  const getScores = (list, id) => list
+    .map(d => parseFloat(d.challenger_id === id ? d.score_challenger : d.score_defie))
+    .filter(sc => !isNaN(sc) && sc > 0);
+  const moyAll = getScores(duels, joueurId);
+  // En centièmes entiers, puis arrondi à 1 décimale : même résultat que round(avg, 1) en SQL.
+  const moyenneDuels = moyAll.length > 0
+    ? (Math.round(moyAll.reduce((a, b) => a + Math.round(b * 100), 0) / (moyAll.length * 10)) / 10).toFixed(1) : null;
+
+  const derniers10 = duels.slice(0, 10);
+  const victoires10 = derniers10.filter(d => d.gagnant_id === joueurId).length;
+  const formePct = derniers10.length > 0 ? victoires10 / derniers10.length : 0;
+
+  const A = (() => {
+    let legsWon=0, legsLost=0, legVol=0, sumMoyW=0, volMoy=0;
+    let n180=0, n140=0, n100=0, n26=0, coAttempts=0, coWon=0;
+    const legMoys=[]; const finishes=[];
+    let firstPlayed=0, firstWon=0, decPlayed=0, decWon=0;
+    for (const d of duels) {
+      const isChal = d.challenger_id === joueurId;
+      const myP = isChal ? (d.challenger_pseudo || pseudo) : (d.defie_pseudo || pseudo);
+      const md = d.manches_detail || [];
+      md.forEach(m => {
+        const isW = m.winner === myP || m.winner === pseudo;
+        const vol = (isW ? m.winner_volees : m.loser_volees) || 0;
+        const moy = (isW ? m.winner_moy    : m.loser_moy)    || 0;
+        if (isW) legsWon++; else legsLost++;
+        if (moy>0){ legMoys.push(moy); sumMoyW += Math.round(moy*10000)*Math.max(1,vol); volMoy += Math.max(1,vol); } // en dix-millièmes entiers (exact)
+        legVol += vol;
+        n180 += (isW?m.winner_180:m.loser_180)||0;
+        n140 += (isW?m.winner_140plus:m.loser_140plus)||0;
+        n100 += (isW?m.winner_100plus:m.loser_100plus)||0;
+        n26  += (isW?m.winner_26:m.loser_26)||0;
+        const coAtt = (isW?m.winner_checkout_attempts:m.loser_checkout_attempts)||0; coAttempts += coAtt;
+        // Checkout % = manches gagnées AVEC tentative / total tentatives (même population que PageProfilStats).
+        if (isW){ if (coAtt>0) coWon++; if ((m.winner_finish||0)>0) finishes.push(m.winner_finish); }
+      });
+      if (md.length>=1){ firstPlayed++; const f=md[0]; if (f.winner===myP||f.winner===pseudo) firstWon++; }
+      if (md.length>=3){ decPlayed++; const last=md[md.length-1]; if (last.winner===myP||last.winner===pseudo) decWon++; }
+    }
+    const totalLegs = legsWon+legsLost;
+    const avgReel = volMoy>0 ? Math.round(sumMoyW/(10000*volMoy)) : (moyenneDuels?Math.round(parseFloat(moyenneDuels)):null);
+    const checkoutPct = coAttempts>0 ? Math.round(coWon*100/coAttempts) : null;
+    const tonPlus = n180+n140+n100;
+    const tonRate = legVol>0 ? Math.round(tonPlus/legVol*100) : null;
+    const rate180 = totalLegs>0 ? +(n180/totalLegs).toFixed(2) : 0;
+    const mean = legMoys.length ? legMoys.reduce((a,b)=>a+b,0)/legMoys.length : 0;
+    const stdev = legMoys.length>1 ? Math.sqrt(legMoys.map(x=>(x-mean)**2).reduce((a,b)=>a+b,0)/legMoys.length) : null;
+    const regularite = stdev==null ? null : Math.max(0,Math.min(100,Math.round(100-stdev*4)));
+    const dechetRate = legVol>0 ? Math.round(n26/legVol*100) : null;
+    const firstLegPct = firstPlayed>=4 ? Math.round(firstWon/firstPlayed*100) : null;
+    const deciderPct  = decPlayed>=3  ? Math.round(decWon/decPlayed*100)    : null;
+    const bestFinish  = finishes.length ? Math.max(...finishes) : 0;
+    return { totalLegs, legsWon, legsLost, avgReel, checkoutPct, coAttempts, coWon, n180, tonRate, rate180,
+             regularite, stdev, dechetRate, firstLegPct, firstPlayed, firstWon, deciderPct, decPlayed, decWon, bestFinish };
+  })();
+
+  const { dangerScore, dangerColor, dangerLabel, dangerDriver } =
+    scoreDanger({ winRate, formePct, drix, avgReel: A.avgReel, checkoutPct: A.checkoutPct, n180: A.n180 });
+
+  return { winRate, formePct, moyenneDuels, A, dangerScore, dangerColor, dangerLabel, dangerDriver };
+};
+
+// Mes chances de le battre, en pourcentage (5 à 95). Formule Elo sur le DRIX,
+// corrigée par SA forme du moment. Même calcul que « VOS CHANCES » sur sa fiche.
+export const chancesContre = ({ drix, monDrix, formePct = 0.5 }) =>
+  Math.round(Math.min(95, Math.max(5, (1 / (1 + Math.pow(10, (drix - monDrix) / 400))) * 100 + (formePct < 0.4 ? 8 : formePct > 0.7 ? -8 : 0))));
+
+// La jauge ronde des profils, partagée. Respecte « réduire les animations ».
+const REDUIRE_ANIM = typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+// `compact` : version miniature (liste des bots) — seulement le chiffre, dans la
+// couleur de la jauge, sans le « /100 » qui serait illisible à cette taille.
+export const CircleGauge = ({ value, max=100, color, size=90, strokeWidth=9, compact=false }) => {
+  const r = (size - strokeWidth) / 2;
+  const circ = 2 * Math.PI * r;
+  const fill = Math.min(1, value / max) * circ;
+  const off  = circ - fill;
+  // Pas d'animation en compact : 150 lignes qui se redessinent à chaque tri, ça clignote.
+  const fixe = REDUIRE_ANIM || compact;
+  return (
+    <svg width={size} height={size} style={{ display:"block" }}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#ffffff10" strokeWidth={strokeWidth}/>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={strokeWidth}
+        strokeDasharray={circ} strokeDashoffset={fixe ? off : circ} strokeLinecap="round"
+        transform={`rotate(-90 ${size/2} ${size/2})`}
+        style={fixe ? undefined : { ["--dp-circ"]: circ, ["--dp-off"]: off, animation:"dpDraw 1.1s ease forwards" }}/>
+      {compact ? (
+        <text x={size/2} y={size/2+1} textAnchor="middle" dominantBaseline="middle"
+          style={{ fill:color, fontWeight:900, fontSize:size*0.32 }}>{value}</text>
+      ) : (<>
+        <text x={size/2} y={size/2+1} textAnchor="middle" dominantBaseline="middle"
+          style={{ fill:"#f1f5f9", fontWeight:900, fontSize:size*0.24 }}>{value}</text>
+        <text x={size/2} y={size/2+size*0.22} textAnchor="middle" dominantBaseline="middle"
+          style={{ fill:"#94a3b8", fontWeight:400, fontSize:size*0.13 }}>/{max}</text>
+      </>)}
+    </svg>
+  );
+};
+// Le trait de la jauge qui se dessine. À inclure dans le <style> de tout écran
+// qui affiche une CircleGauge.
+export const STYLE_JAUGE = "@keyframes dpDraw{from{stroke-dashoffset:var(--dp-circ)}to{stroke-dashoffset:var(--dp-off)}}";
+
 export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage, setBarSlug, setAssoSlug }) => {
 
   // Respect du réglage système « réduire les animations »
   const reduceMotion = typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ── SVG helpers ──────────────────────────────────────────────────────────────
-  const CircleGauge = ({ value, max=100, color, size=90, strokeWidth=9 }) => {
-    const r = (size - strokeWidth) / 2;
-    const circ = 2 * Math.PI * r;
-    const fill = Math.min(1, value / max) * circ;
-    const off  = circ - fill;
-    return (
-      <svg width={size} height={size} style={{ display:"block" }}>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#ffffff10" strokeWidth={strokeWidth}/>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={strokeWidth}
-          strokeDasharray={circ} strokeDashoffset={reduceMotion ? off : circ} strokeLinecap="round"
-          transform={`rotate(-90 ${size/2} ${size/2})`}
-          style={reduceMotion ? undefined : { ["--dp-circ"]: circ, ["--dp-off"]: off, animation:"dpDraw 1.1s ease forwards" }}/>
-        <text x={size/2} y={size/2+1} textAnchor="middle" dominantBaseline="middle"
-          style={{ fill:"#f1f5f9", fontWeight:900, fontSize:size*0.24 }}>{value}</text>
-        <text x={size/2} y={size/2+size*0.22} textAnchor="middle" dominantBaseline="middle"
-          style={{ fill:"#94a3b8", fontWeight:400, fontSize:size*0.13 }}>/{max}</text>
-      </svg>
-    );
-  };
+  // CircleGauge : la version partagée, exportée plus haut dans ce fichier.
 
 
   const VDBadge = ({ gagne, size=30 }) => (
@@ -3645,7 +3796,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   // ── Calculs ───────────────────────────────────────────────────────────────────
   const bar  = bars.find(b => b.slug === j.bar_slug);
   const asso = associations.find(a => a.slug === j.asso_slug);
-  const drix = j.drix || 1000;
+  const drix = j.drix ?? 1000;
   const { titre, emoji, color } = getDrixTitreLocal(drix);
   const winRate = stats?.parties > 0 ? Math.round((stats.victoires/stats.parties)*100) : 0;
   const monDrix = moi?.drix || 1000;
@@ -3697,68 +3848,9 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   // Parcourt chaque leg de chaque duel pour le joueur ciblé et agrège des métriques
   // réelles : moyenne pondérée, % de checkout, scoring 100+/180, régularité (écart-type),
   // déchets (volées à 26), 1ʳᵉ manche gagnée et manches décisives (clutch).
-  const A = (() => {
-    let legsWon=0, legsLost=0, legVol=0, sumMoyW=0, volMoy=0;
-    let n180=0, n140=0, n100=0, n26=0, coAttempts=0, coWon=0;
-    const legMoys=[]; const finishes=[];
-    let firstPlayed=0, firstWon=0, decPlayed=0, decWon=0;
-    for (const d of duels) {
-      const isChal = d.challenger_id === joueurId;
-      const myP = isChal ? (d.challenger_pseudo || j.pseudo) : (d.defie_pseudo || j.pseudo);
-      const md = d.manches_detail || [];
-      md.forEach(m => {
-        const isW = m.winner === myP || m.winner === j.pseudo;
-        const vol = (isW ? m.winner_volees : m.loser_volees) || 0;
-        const moy = (isW ? m.winner_moy    : m.loser_moy)    || 0;
-        if (isW) legsWon++; else legsLost++;
-        if (moy>0){ legMoys.push(moy); sumMoyW += moy*Math.max(1,vol); volMoy += Math.max(1,vol); }
-        legVol += vol;
-        n180 += (isW?m.winner_180:m.loser_180)||0;
-        n140 += (isW?m.winner_140plus:m.loser_140plus)||0;
-        n100 += (isW?m.winner_100plus:m.loser_100plus)||0;
-        n26  += (isW?m.winner_26:m.loser_26)||0;
-        const coAtt = (isW?m.winner_checkout_attempts:m.loser_checkout_attempts)||0; coAttempts += coAtt;
-        // Checkout % = manches gagnées AVEC tentative / total tentatives (même population que PageProfilStats).
-        if (isW){ if (coAtt>0) coWon++; if ((m.winner_finish||0)>0) finishes.push(m.winner_finish); }
-      });
-      if (md.length>=1){ firstPlayed++; const f=md[0]; if (f.winner===myP||f.winner===j.pseudo) firstWon++; }
-      if (md.length>=3){ decPlayed++; const last=md[md.length-1]; if (last.winner===myP||last.winner===j.pseudo) decWon++; }
-    }
-    const totalLegs = legsWon+legsLost;
-    const avgReel = volMoy>0 ? Math.round(sumMoyW/volMoy) : (moyenneDuels?Math.round(parseFloat(moyenneDuels)):null);
-    const checkoutPct = coAttempts>0 ? Math.round(coWon/coAttempts*100) : null;
-    const tonPlus = n180+n140+n100;
-    const tonRate = legVol>0 ? Math.round(tonPlus/legVol*100) : null;
-    const rate180 = totalLegs>0 ? +(n180/totalLegs).toFixed(2) : 0;
-    const mean = legMoys.length ? legMoys.reduce((a,b)=>a+b,0)/legMoys.length : 0;
-    const stdev = legMoys.length>1 ? Math.sqrt(legMoys.map(x=>(x-mean)**2).reduce((a,b)=>a+b,0)/legMoys.length) : null;
-    const regularite = stdev==null ? null : Math.max(0,Math.min(100,Math.round(100-stdev*4)));
-    const dechetRate = legVol>0 ? Math.round(n26/legVol*100) : null;
-    const firstLegPct = firstPlayed>=4 ? Math.round(firstWon/firstPlayed*100) : null;
-    const deciderPct  = decPlayed>=3  ? Math.round(decWon/decPlayed*100)    : null;
-    const bestFinish  = finishes.length ? Math.max(...finishes) : 0;
-    return { totalLegs, legsWon, legsLost, avgReel, checkoutPct, coAttempts, coWon, n180, tonRate, rate180,
-             regularite, stdev, dechetRate, firstLegPct, firstPlayed, firstWon, deciderPct, decPlayed, decWon, bestFinish };
-  })();
-
-  // Dangerosité — composite des signaux réels (max 100)
-  const dangerScore = Math.min(100, Math.round(
-      (winRate*0.30) +
-      (formePct*20) +
-      Math.min(20, Math.max(0,(drix-900)/50)) +
-      (A.avgReel!=null ? Math.min(15, Math.max(0,(A.avgReel-30)/3)) : 0) +
-      (A.checkoutPct!=null ? Math.min(10, A.checkoutPct/10) : 0) +
-      Math.min(5, A.n180)
-  ));
-  const dangerColor = dangerScore>=75?"#ef4444":dangerScore>=50?"#f97316":dangerScore>=25?"#f59e0b":"#22c55e";
-  const dangerLabel = dangerScore>=75?"Joueur dangereux":dangerScore>=50?"Adversaire solide":dangerScore>=30?"À surveiller":"Accessible";
-  // Ce qui porte sa dangerosité (driver principal)
-  const dangerDriver =
-      (A.checkoutPct!=null && A.checkoutPct>=45) ? `porté par son checkout (${A.checkoutPct}%)` :
-      (A.avgReel!=null && A.avgReel>=52)         ? `porté par son scoring (moy ${A.avgReel})` :
-      (winRate>=58)                              ? `porté par son taux de victoire (${winRate}%)` :
-      (formePct>=0.6)                            ? `porté par sa forme du moment` :
-      (dangerScore<30)                           ? `profil encore tendre, à ta portée` : `profil équilibré`;
+  // ⚠️ Même calcul que la fiche du bot et que « mes stats » : ne rien recopier ici.
+  const { A, dangerScore, dangerColor, dangerLabel, dangerDriver } =
+    analyserJoueur({ joueurId, pseudo: j.pseudo, drix, stats, duels });
 
   // Tendance DRIX
   const now = Date.now();
@@ -3823,7 +3915,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
         : {label:"Données insuffisantes", detail:"Pas encore de manches décisives jouées", color:CJ.muted, emoji:"❔"});
 
   // Probabilité
-  const probaVictoire = Math.round(Math.min(95,Math.max(5,( 1/(1+Math.pow(10,(drix-monDrix)/400)) )*100+(formePct<0.4?8:formePct>0.7?-8:0))));
+  const probaVictoire = chancesContre({ drix, monDrix, formePct });
 
   // Résultats 5 derniers matchs (pour badges V/D dans la modal défi)
   const resultats5 = duels.slice(0,5).map(d => d.gagnant_id===joueurId ? "V" : "D");
@@ -4984,23 +5076,7 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
   const sec = (i=0) => reduceMotion ? {} : { animation:"dpFade .45s ease both", animationDelay:`${(0.045*i).toFixed(2)}s` };
 
   // ── Sous-composants ──
-  const CircleGauge = ({ value, max=100, color, size=90, strokeWidth=9 }) => {
-    const r = (size - strokeWidth) / 2;
-    const circ = 2 * Math.PI * r;
-    const fill = Math.min(1, value / max) * circ;
-    const off  = circ - fill;
-    return (
-      <svg width={size} height={size} style={{ display:"block" }}>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#ffffff10" strokeWidth={strokeWidth}/>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={strokeWidth}
-          strokeDasharray={circ} strokeDashoffset={reduceMotion ? off : circ} strokeLinecap="round"
-          transform={`rotate(-90 ${size/2} ${size/2})`}
-          style={reduceMotion ? undefined : { ["--dp-circ"]: circ, ["--dp-off"]: off, animation:"dpDraw 1.1s ease forwards" }}/>
-        <text x={size/2} y={size/2+1} textAnchor="middle" dominantBaseline="middle" style={{ fill:"#f1f5f9", fontWeight:900, fontSize:size*0.24 }}>{value}</text>
-        <text x={size/2} y={size/2+size*0.22} textAnchor="middle" dominantBaseline="middle" style={{ fill:"#94a3b8", fontWeight:400, fontSize:size*0.13 }}>/{max}</text>
-      </svg>
-    );
-  };
+  // CircleGauge : la version partagée, exportée plus haut dans ce fichier.
   const VDBadge = ({ gagne, size=30 }) => (
     <div style={{ width:size, height:size, borderRadius:"50%", background:gagne?"#16a34a":"#dc2626", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:size*0.42, color:"#fff", flexShrink:0 }}>{gagne?"V":"D"}</div>
   );
@@ -5069,58 +5145,9 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
   const tempsDepuisMatch = (date) => { const diff = Date.now()-(date||0); const h = Math.floor(diff/3600000); if(h<1) return "il y a moins d'1h"; if(h<24) return `il y a ${h}h`; return `il y a ${Math.floor(h/24)}j`; };
 
   // ── Analyse fine des manches ──
-  const A = (() => {
-    let legsWon=0, legsLost=0, legVol=0, sumMoyW=0, volMoy=0;
-    let n180=0, n140=0, n100=0, n26=0, coAttempts=0, coWon=0;
-    const legMoys=[]; const finishes=[];
-    let firstPlayed=0, firstWon=0, decPlayed=0, decWon=0;
-    for (const d of duels) {
-      const isChal = d.challenger_id === joueurId;
-      const myP = isChal ? (d.challenger_pseudo || j.pseudo) : (d.defie_pseudo || j.pseudo);
-      const md = d.manches_detail || [];
-      md.forEach(m => {
-        const isW = m.winner === myP || m.winner === j.pseudo;
-        const vol = (isW ? m.winner_volees : m.loser_volees) || 0;
-        const moy = (isW ? m.winner_moy    : m.loser_moy)    || 0;
-        if (isW) legsWon++; else legsLost++;
-        if (moy>0){ legMoys.push(moy); sumMoyW += moy*Math.max(1,vol); volMoy += Math.max(1,vol); }
-        legVol += vol;
-        n180 += (isW?m.winner_180:m.loser_180)||0;
-        n140 += (isW?m.winner_140plus:m.loser_140plus)||0;
-        n100 += (isW?m.winner_100plus:m.loser_100plus)||0;
-        n26  += (isW?m.winner_26:m.loser_26)||0;
-        const coAtt = (isW?m.winner_checkout_attempts:m.loser_checkout_attempts)||0; coAttempts += coAtt;
-        // Checkout % = manches gagnées AVEC tentative / total tentatives (même population que PageProfilStats).
-        if (isW){ if (coAtt>0) coWon++; if ((m.winner_finish||0)>0) finishes.push(m.winner_finish); }
-      });
-      if (md.length>=1){ firstPlayed++; const f=md[0]; if (f.winner===myP||f.winner===j.pseudo) firstWon++; }
-      if (md.length>=3){ decPlayed++; const last=md[md.length-1]; if (last.winner===myP||last.winner===j.pseudo) decWon++; }
-    }
-    const totalLegs = legsWon+legsLost;
-    const avgReel = volMoy>0 ? Math.round(sumMoyW/volMoy) : (moyenneDuels?Math.round(parseFloat(moyenneDuels)):null);
-    const checkoutPct = coAttempts>0 ? Math.round(coWon/coAttempts*100) : null;
-    const tonPlus = n180+n140+n100;
-    const tonRate = legVol>0 ? Math.round(tonPlus/legVol*100) : null;
-    const rate180 = totalLegs>0 ? +(n180/totalLegs).toFixed(2) : 0;
-    const mean = legMoys.length ? legMoys.reduce((a,b)=>a+b,0)/legMoys.length : 0;
-    const stdev = legMoys.length>1 ? Math.sqrt(legMoys.map(x=>(x-mean)**2).reduce((a,b)=>a+b,0)/legMoys.length) : null;
-    const regularite = stdev==null ? null : Math.max(0,Math.min(100,Math.round(100-stdev*4)));
-    const dechetRate = legVol>0 ? Math.round(n26/legVol*100) : null;
-    const firstLegPct = firstPlayed>=4 ? Math.round(firstWon/firstPlayed*100) : null;
-    const deciderPct  = decPlayed>=3  ? Math.round(decWon/decPlayed*100)    : null;
-    const bestFinish  = finishes.length ? Math.max(...finishes) : 0;
-    return { totalLegs, legsWon, legsLost, avgReel, checkoutPct, coAttempts, coWon, n180, tonRate, rate180,
-             regularite, stdev, dechetRate, firstLegPct, firstPlayed, firstWon, deciderPct, decPlayed, decWon, bestFinish };
-  })();
-
-  // Dangerosité (indice de menace)
-  const dangerScore = Math.min(100, Math.round(
-      (winRate*0.30) + (formePct*20) + Math.min(20, Math.max(0,(drix-900)/50)) +
-      (A.avgReel!=null ? Math.min(15, Math.max(0,(A.avgReel-30)/3)) : 0) +
-      (A.checkoutPct!=null ? Math.min(10, A.checkoutPct/10) : 0) + Math.min(5, A.n180)
-  ));
-  const dangerColor = dangerScore>=75?"#ef4444":dangerScore>=50?"#f97316":dangerScore>=25?"#f59e0b":"#22c55e";
-  const dangerLabel = dangerScore>=75?"Joueur dangereux":dangerScore>=50?"Adversaire solide":dangerScore>=30?"À surveiller":"Accessible";
+  // ⚠️ Même calcul que la fiche d'un joueur et que la fiche du bot.
+  const { A, dangerScore, dangerColor, dangerLabel } =
+    analyserJoueur({ joueurId, pseudo: j.pseudo, drix, stats, duels });
   const dangerDriver =
       (A.checkoutPct!=null && A.checkoutPct>=45) ? `porté par ton checkout (${A.checkoutPct}%)` :
       (A.avgReel!=null && A.avgReel>=52)         ? `porté par ton scoring (moy ${A.avgReel})` :
