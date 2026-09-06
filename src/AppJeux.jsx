@@ -3,6 +3,40 @@ import { SCORER } from "./theme";
 import { Search, Swords, Check, X } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
 import { calculerProfilBot, genererScoreBot, BOT_LUCKY_LITTLER } from "./botFleche";
+
+// ── Fiche d'un bot : ce qu'on MONTRE au joueur avant d'affronter ──────────────
+// ⚠️ La moyenne du champion (122) est un RÉGLAGE interne du générateur, pas sa
+// moyenne réalisée (~96, celle de Luke Littler). Afficher 122 serait faux.
+const ficheMoyenne = (p) => (p?.source === "champion" ? 96 : Math.round(p?.moyenne || 0));
+
+// Réussite au finish. Réelle quand on a rejoué ses volées (mode replay) ou pour
+// le champion ; sinon ESTIMÉE depuis la moyenne, et on le dit.
+const ficheCheckout = (p) => {
+  if (typeof p?.checkoutRate === "number") return { pct: Math.round(p.checkoutRate * 100), reel: true };
+  const m = ficheMoyenne(p);
+  return { pct: Math.round(Math.min(45, Math.max(5, (m - 30) / 1.6))), reel: false };
+};
+
+// Dangerosité sur 5, d'après la moyenne, +1 s'il sort des 180.
+const ficheDanger = (p) => {
+  const m = ficheMoyenne(p);
+  let n = m < 40 ? 1 : m < 55 ? 2 : m < 70 ? 3 : m < 85 ? 4 : 5;
+  if ((p?.rate180 || 0) >= 0.03 && n < 5) n += 1;
+  const noms = ["", "Tranquille", "Régulier", "Solide", "Redoutable", "Monstre"];
+  const cols = ["", "#94a3b8", "#60a5fa", "#a78bfa", "#f97316", "#ef4444"];
+  return { n, nom: noms[n], col: cols[n] };
+};
+
+const ficheSource = (p) => {
+  if (!p) return "";
+  if (p.source === "champion") return "Calé sur les vraies stats d'un pro";
+  // ⚠️ Le mode « replay » du moteur s'appelle source: "volees" (mode: "replay") :
+  // tester "replay" ici affichait « estimé d'après son DRIX » à un joueur dont on
+  // avait pourtant rejoué les vraies volées.
+  if (p.source === "volees" || p.mode === "replay") return `D'après ses ${p.volees} dernières volées réelles`;
+  if (p.source === "stats") return `D'après ses dernières parties (${p.volees} volées)`;
+  return "Estimé d'après son DRIX — il a peu joué";
+};
 import { confirmer } from "./uiConfirm.jsx";
 // Logique PURE du pavé « fléchette par fléchette » (testée : src/voleeFlechettes.test.mjs)
 import {
@@ -1037,6 +1071,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [amisListe, setAmisListe] = useState([]);   // liste d'amis pour le sélecteur
   const [loadingAmis, setLoadingAmis] = useState(false);
   const [loadingBot, setLoadingBot]   = useState(null); // id de l'ami en cours de préparation
+  const [ficheOuverte, setFicheOuverte] = useState(null); // clé de l'ami dont la fiche est dépliée
+  const [fiches, setFiches] = useState({});                // profils déjà calculés, par clé d'ami
+  const [ficheEnCharge, setFicheEnCharge] = useState(null);
   const [botPreparing, setBotPreparing] = useState(!!initBotAmiId); // entrée directe « Affronte son bot » depuis une fiche joueur
   const botXpRef = useRef(false);                       // évite de créditer l'XP deux fois
   // Publication du match bot au Comptoir : la charge utile est gardée pour que l'écran de fin
@@ -1384,19 +1421,43 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   }, []);
 
   // Choisir un ami → calculer le profil du bot (stats réelles ou DRIX) → écran réglages.
+  // Le profil d'un bot, calculé une seule fois puis gardé : la fiche ET la
+  // partie s'en servent, inutile de recharger ses volées deux fois.
+  const cleAmi = (ami) => (ami.champion ? "champ" : ami.self ? "self" : String(ami.id));
+  const calculerProfil = async (ami) => {
+    const cle = cleAmi(ami);
+    if (fiches[cle]) return fiches[cle];
+    let profil;
+    if (ami.champion) {
+      profil = { ...BOT_LUCKY_LITTLER };   // profil FIXE du champion — aucun historique à charger
+    } else {
+      const [duels, volees] = await Promise.all([
+        dbJ.getDuels(ami.id).catch(() => []),
+        dbJ.getVoleesReelles(ami.id).catch(() => []),
+      ]);
+      profil = calculerProfilBot({ drix: ami.drix, duels, amiPseudo: ami.pseudo, volees });
+    }
+    setFiches((f) => ({ ...f, [cle]: profil }));
+    return profil;
+  };
+
+  // Un clic sur un bot DÉPLIE sa fiche (moyenne, finish, dangerosité). Un
+  // second clic la replie. On ne lance la partie que depuis le bouton de la fiche.
+  const ouvrirFiche = async (ami) => {
+    const cle = cleAmi(ami);
+    if (ficheOuverte === cle) { setFicheOuverte(null); return; }
+    setFicheOuverte(cle);
+    if (fiches[cle]) return;
+    setFicheEnCharge(cle);
+    try { await calculerProfil(ami); }
+    catch { window.dpToast?.("Impossible de charger cet ami", "error"); setFicheOuverte(null); }
+    setFicheEnCharge(null);
+  };
+
   const choisirAmiBot = async (ami) => {
     setLoadingBot(ami.id);
     try {
-      let profil;
-      if (ami.champion) {
-        profil = { ...BOT_LUCKY_LITTLER };   // profil FIXE du champion — aucun historique à charger
-      } else {
-        const [duels, volees] = await Promise.all([
-          dbJ.getDuels(ami.id).catch(() => []),
-          dbJ.getVoleesReelles(ami.id).catch(() => []),
-        ]);
-        profil = calculerProfilBot({ drix: ami.drix, duels, amiPseudo: ami.pseudo, volees });
-      }
+      const profil = await calculerProfil(ami);
       const botNom = ami.self ? `${ami.pseudo} (bot)` : ami.pseudo; // « contre soi-même » : nom distinct pour ne pas confondre les 2 joueurs
       botXpRef.current = false;
       setBotSelf(!!ami.self);
@@ -2154,12 +2215,19 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             const champ = !!ami.champion;
             const couleur = champ ? "#fbbf24" : ami.drix>=1800?"#fbbf24":ami.drix>=1400?"#a78bfa":ami.drix>=1100?"#60a5fa":"#94a3b8";
             const enCours = loadingBot===ami.id;
+            const cle = champ ? "champ" : ami.self ? "self" : String(ami.id);
+            const ouverte = ficheOuverte === cle;
+            const fiche = fiches[cle];
+            const bord = champ ? "#fbbf24" : ami.self ? "#f97316" : couleur;
             return (
-              <button key={champ ? "champ" : ami.self ? "self" : ami.id} onClick={()=>choisirAmiBot(ami)} disabled={!!loadingBot}
-                style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderRadius:14,
-                  border: champ ? "1px solid #fbbf2488" : ami.self ? "1px solid #f9731566" : "1px solid #2a2a2a",
+              <div key={cle} style={{ borderRadius:14, overflow:"hidden",
+                  border: `1px solid ${ouverte ? bord + "aa" : champ ? "#fbbf2488" : ami.self ? "#f9731566" : "#2a2a2a"}`,
+                  boxShadow: ouverte ? `0 0 26px ${bord}22` : champ ? "0 0 22px #fbbf2426, inset 0 1px 0 #fbbf2422" : "none",
+                  transition:"border-color .2s, box-shadow .2s" }}>
+              <button onClick={()=>ouvrirFiche(ami)} disabled={!!loadingBot}
+                aria-expanded={ouverte}
+                style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"12px 14px", border:"none",
                   background: champ ? "linear-gradient(135deg,#2a1e05,#1a1200)" : ami.self ? "#f9731610" : "#1a1a1a",
-                  boxShadow: champ ? "0 0 22px #fbbf2426, inset 0 1px 0 #fbbf2422" : "none",
                   cursor: loadingBot?"default":"pointer", textAlign:"left", opacity: loadingBot && !enCours ? 0.5 : 1 }}>
                 {champ
                   ? <div style={{ width:46, height:46, borderRadius:"50%", background:"radial-gradient(circle,#fbbf2455,#7c2d1233)", border:"1px solid #fbbf24aa", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:"0 0 14px #fbbf2455" }}><EmoIcon e="👑" size={22} color="#fbbf24"/></div>
@@ -2174,8 +2242,80 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                   </div>
                   <div style={{ fontSize:12, color:couleur, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{champ ? "Le prodige · sort des 180 · checkout 43%" : ami.self ? `${ami.drix} DRIX · affronte ton propre niveau` : `${ami.drix} DRIX`}</div>
                 </div>
-                <span style={{ color: champ ? "#fbbf24" : "#a78bfa", fontWeight:900, fontSize:18 }}>{enCours ? "…" : "→"}</span>
+                <span style={{ color: champ ? "#fbbf24" : "#a78bfa", fontWeight:900, fontSize:18,
+                  display:"inline-block", transition:"transform .25s", transform: ouverte ? "rotate(90deg)" : "none" }}>
+                  {enCours ? "…" : "→"}
+                </span>
               </button>
+
+              {/* ── La fiche dépliée ── */}
+              {ouverte && (
+                <div style={{ padding:"4px 14px 14px", background: champ ? "#1a1200" : "#141414",
+                    borderTop:`1px solid ${bord}33`, animation:"dpFicheOuvre .22s ease-out both" }}>
+                  <style>{`@keyframes dpFicheOuvre{0%{opacity:0;transform:translateY(-6px)}100%{opacity:1;transform:none}}`}</style>
+                  {!fiche ? (
+                    <p style={{ color:"#64748b", fontSize:13, textAlign:"center", padding:"14px 0 6px" }}>
+                      {ficheEnCharge === cle ? "Je regarde ses dernières parties…" : "…"}
+                    </p>
+                  ) : (() => {
+                    const moy = ficheMoyenne(fiche);
+                    const ck = ficheCheckout(fiche);
+                    const dg = ficheDanger(fiche);
+                    return (
+                      <>
+                        <div style={{ display:"flex", gap:10, marginTop:10 }}>
+                          {/* Moyenne */}
+                          <div style={{ flex:1, background:"#0f0f0f", border:"1px solid #2a2a2a", borderRadius:12, padding:"10px 12px" }}>
+                            <div style={{ fontSize:10, fontWeight:800, color:"#64748b", letterSpacing:1 }}>MOYENNE</div>
+                            <div style={{ fontSize:32, fontWeight:900, color:"#f1f5f9", lineHeight:1.1, marginTop:2 }}>{moy}</div>
+                            <div style={{ fontSize:11, color:"#94a3b8" }}>points par volée</div>
+                          </div>
+                          {/* Réussite au finish */}
+                          <div style={{ flex:1.3, background:"#0f0f0f", border:"1px solid #2a2a2a", borderRadius:12, padding:"10px 12px" }}>
+                            <div style={{ fontSize:10, fontWeight:800, color:"#64748b", letterSpacing:1 }}>RÉUSSITE AU FINISH</div>
+                            <div style={{ display:"flex", alignItems:"baseline", gap:4, marginTop:2 }}>
+                              <span style={{ fontSize:26, fontWeight:900, color: bord, lineHeight:1.1 }}>{ck.pct}</span>
+                              <span style={{ fontSize:14, fontWeight:800, color: bord }}>%</span>
+                            </div>
+                            <div style={{ height:6, borderRadius:3, background:"#2a2a2a", marginTop:6, overflow:"hidden" }}>
+                              <div style={{ width:`${Math.min(100, ck.pct * 2)}%`, height:"100%", borderRadius:3,
+                                background:`linear-gradient(90deg,${bord}88,${bord})`, transition:"width .5s ease-out" }} />
+                            </div>
+                            <div style={{ fontSize:10.5, color:"#64748b", marginTop:4 }}>{ck.reel ? "taux réel" : "estimé"}</div>
+                          </div>
+                        </div>
+
+                        {/* Dangerosité */}
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10,
+                            background:"#0f0f0f", border:"1px solid #2a2a2a", borderRadius:12, padding:"10px 12px", marginTop:8 }}>
+                          <div style={{ fontSize:10, fontWeight:800, color:"#64748b", letterSpacing:1 }}>DANGEROSITÉ</div>
+                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                            <div style={{ display:"flex", gap:3 }}>
+                              {[1,2,3,4,5].map((k) => (
+                                <EmoIcon key={k} e="🔥" size={16} color={k <= dg.n ? dg.col : "#2f2f2f"}
+                                  fill={k <= dg.n ? dg.col : "none"} />
+                              ))}
+                            </div>
+                            <span style={{ fontSize:13, fontWeight:900, color: dg.col }}>{dg.nom}</span>
+                          </div>
+                        </div>
+
+                        <div style={{ fontSize:11, color:"#64748b", textAlign:"center", marginTop:8 }}>{ficheSource(fiche)}</div>
+
+                        <button onClick={()=>choisirAmiBot(ami)} disabled={!!loadingBot}
+                          style={{ width:"100%", marginTop:10, padding:"13px", borderRadius:12, border:"none", cursor:"pointer",
+                            fontWeight:900, fontSize:15, color: champ ? "#1a1200" : "#fff",
+                            background: champ ? "linear-gradient(135deg,#fbbf24,#f59e0b)" : "linear-gradient(135deg,#f97316,#ea580c)",
+                            display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                          <EmoIcon e="⚔️" size={16} color={champ ? "#1a1200" : "#fff"} />
+                          {enCours ? "Préparation…" : ami.self ? "AFFRONTER MON BOT" : "AFFRONTER SON BOT"}
+                        </button>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+              </div>
             );
           })}
         </div>
