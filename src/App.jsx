@@ -6841,11 +6841,11 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null, ongletInitia
       // 3. Charger drix_mouvements : paliers amis + tous participants duels + entraînements amis
       const duelIds = (duels||[]).filter(d=>d?.id).map(d=>d.id);
       const [friendDrixMvts, duelDrixMvts, trainingDrixMvts] = await Promise.all([
-        sb(`drix_mouvements?joueur_id=in.(${inList})&order=date.desc&limit=100&select=*`).catch(()=>[]),
+        sb(`drix_mouvements?joueur_id=in.(${inList})&order=date.desc&limit=100&select=*&or=(resultat.is.null,resultat.neq.saison)`).catch(()=>[]),
         duelIds.length > 0
           ? sb(`drix_mouvements?duel_id=in.(${duelIds.join(",")})&select=*`).catch(()=>[])
           : Promise.resolve([]),
-        sb(`drix_mouvements?duel_id=is.null&joueur_id=in.(${inList})&order=date.desc&limit=40&select=*`).catch(()=>[]),
+        sb(`drix_mouvements?duel_id=is.null&joueur_id=in.(${inList})&order=date.desc&limit=40&select=*&or=(resultat.is.null,resultat.neq.saison)`).catch(()=>[]),
       ]);
       // Fusionner et dédoublonner par id
       const seenMvt = new Set();
@@ -6957,6 +6957,9 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null, ongletInitia
         // le remboursement fabriquait une fausse carte « Nouveau palier débloqué ! »
         // dans le fil de tous les amis, pour un match qui venait d'être effacé.
         if (m.resultat === "annule") return;
+        // La remise à 1000 de début de saison n'est pas une chute non plus :
+        // sans ce filtre, tous les amis recevaient une carte « palier perdu ».
+        if (m.resultat === "saison") return;
         // Mouvements d'entraînement (Comptage de finish)
         if (m.adversaire_pseudo === "Comptage de finish" && !m.duel_id) {
           const ts = typeof m.date === "number" ? m.date : new Date(m.date).getTime();
@@ -11307,7 +11310,7 @@ const AdminJoueurs = ({ addLog }) => {
       sb(`stats_joueurs?joueur_id=eq.${j.id}&select=victoires,defaites,parties,moyenne`).catch(()=>[]),
       sb(`duels?or=(challenger_id.eq.${j.id},defie_id.eq.${j.id})&statut=eq.termine&select=id,date&order=date.desc&limit=1`).catch(()=>[]),
       sb(`presences?joueur_id=eq.${j.id}&select=date_jour&limit=1000`).catch(()=>[]),
-      sb(`drix_mouvements?joueur_id=eq.${j.id}&select=variation,date&order=date.desc&limit=5`).catch(()=>[]),
+      sb(`drix_mouvements?joueur_id=eq.${j.id}&select=variation,date&order=date.desc&limit=5&or=(resultat.is.null,resultat.neq.saison)`).catch(()=>[]),
     ]);
     setFiche(f=>({...f,[j.id]:{ stats:stats?.[0]||null, lastDuel:duels?.[0]||null, nbPresences:(presences||[]).length, mouvements:mouvements||[] }}));
     setFicheLoading(f=>({...f,[j.id]:false}));
@@ -13993,7 +13996,7 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
       const [stats, duels, drixMvts, amis, trn, wtrn] = await Promise.all([
         sb(`stats_joueurs?joueur_id=eq.${joueur.id}&select=*`).then(r=>r?.[0]),
         sb(`duels?or=(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id})&order=date.desc&select=*`),
-        sb(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=200&select=drix_apres`).catch(()=>[]),
+        sb(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=200&select=drix_apres&or=(resultat.is.null,resultat.neq.saison)`).catch(()=>[]),
         sb(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&select=statut`).catch(()=>[]),
         sb(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
         sb(`tournois_potes?gagnant_id=eq.${joueur.id}&select=id`).catch(()=>[]),

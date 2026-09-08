@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Crosshair, Star, Zap, Flame, Sparkles, Snowflake, Minus, ArrowUp, ArrowDown, Gamepad2, Dices, Scale, Beer, Cake, HeartCrack, Circle, Bomb, Sprout, List, Cog, Hand, Rocket, QrCode, RotateCcw } from "lucide-react";
+import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Crosshair, Star, Zap, Flame, Sparkles, Snowflake, Minus, ArrowUp, ArrowDown, Gamepad2, Dices, Scale, Beer, Cake, HeartCrack, Circle, Bomb, Sprout, List, Cog, Hand, Rocket, QrCode, RotateCcw, History } from "lucide-react";
 import QRCode from "qrcode";
 import { EmoIcon } from "./icons";
 import { LIGUES, DEPARTEMENTS, nomDepartement, chercherDepartementVille, ageDepuisNaissance } from "./ffdarts";
@@ -1125,8 +1125,8 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
     Promise.all([
       dbJ.getStats(joueur.id),
       dbJ.getDuels(joueur.id),
-      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=200&select=*`).catch(()=>[]),
-      sbJ(`joueurs?order=drix.desc&select=id`).catch(()=>[]),
+      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=200&select=*&or=(resultat.is.null,resultat.neq.saison)`).catch(()=>[]),
+      sbJ(`joueurs?order=drix.desc,pseudo.asc&select=id`).catch(()=>[]),
       sbJ(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&select=statut`).catch(()=>[]),
       // 🆕 Pour le calcul des badges sociaux/tournois (sinon soc_trn et soc_wtrn jamais débloqués)
       sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
@@ -1896,8 +1896,8 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
     Promise.all([
       dbJ.getStats(joueur.id),
       dbJ.getDuels(joueur.id),
-      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=400&select=*`).catch(()=>[]),
-      sbJ(`joueurs?order=drix.desc&select=id`).catch(()=>[]),
+      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=400&select=*&or=(resultat.is.null,resultat.neq.saison)`).catch(()=>[]),
+      sbJ(`joueurs?order=drix.desc,pseudo.asc&select=id`).catch(()=>[]),
       sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
       sbJ(`presences?joueur_id=eq.${joueur.id}&select=bar_slug`).catch(()=>[]),
     ]).then(([s, d, mvts, allJ, trn, pres]) => {
@@ -2561,7 +2561,7 @@ export const PageProfilHistorique = ({ joueur, setPage, embedded = false }) => {
   useEffect(() => {
     Promise.all([
       dbJ.getDuels(joueur.id),
-      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&select=*`).catch(()=>[]),
+      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&select=*&or=(resultat.is.null,resultat.neq.saison)`).catch(()=>[]),
     ]).then(([d, mvts]) => {
       setDuels(d||[]);
       const map = {};
@@ -2816,7 +2816,7 @@ export const PageProfilBadges = ({ joueur, setPage, embedded = false }) => {
     Promise.all([
       dbJ.getStats(joueur.id),
       dbJ.getDuels(joueur.id),
-      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=200&select=drix_apres,variation,resultat`).catch(()=>[]),
+      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=200&select=drix_apres,variation,resultat&or=(resultat.is.null,resultat.neq.saison)`).catch(()=>[]),
       sbJ(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&select=statut`).catch(()=>[]),
       sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
       sbJ(`tournois_potes?gagnant_id=eq.${joueur.id}&select=id`).catch(()=>[]),
@@ -3725,8 +3725,8 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       dbJ.getJoueur(joueurId),
       dbJ.getStats(joueurId),
       dbJ.getDuels(joueurId),
-      sbJ(`drix_mouvements?joueur_id=eq.${joueurId}&order=date.desc&limit=200&select=*`).catch(()=>[]),
-      sbJ(`joueurs?order=drix.desc&select=id`).catch(()=>[]),
+      sbJ(`drix_mouvements?joueur_id=eq.${joueurId}&order=date.desc&limit=200&select=*&or=(resultat.is.null,resultat.neq.saison)`).catch(()=>[]),
+      sbJ(`joueurs?order=drix.desc,pseudo.asc&select=id`).catch(()=>[]),
       moi ? dbJ.getStats(moi.id) : Promise.resolve(null),
       moi ? dbJ.getDuels(moi.id) : Promise.resolve(null),
       // 🆕 Données pour calcul correct des badges (amis, tournois)
@@ -5471,7 +5471,7 @@ export const JoueurAnalyse = ({ j, stats, duels:duelsRaw=[], drixMvts=[] }) => {
       {/* 7 ── ÉVOLUTION DRIX (onglets période + échelle + dates) ── */}
       {drixMvts.length>=2&&(
         <div style={{...sec(8),marginBottom:10}}>
-          <DrixEvolution drixMvts={drixMvts} current={drixMvts[0]?.drix_apres ?? 1000}/>
+          <DrixEvolution drixMvts={drixMvts} current={j?.drix ?? drixMvts[0]?.drix_apres ?? 1000}/>
         </div>
       )}
 
@@ -5649,12 +5649,22 @@ const dbDrix = {
   updateDrix: (id, drix) => sbJ(`joueurs?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ drix }), prefer:"return=minimal" }),
   updateXP: (id, xp) => sbJ(`joueurs?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ xp }), prefer:"return=minimal" }),
   addMouvement: (d) => sbJ("drix_mouvements", { method:"POST", body:JSON.stringify(d) }),
-  getClassement: () => sbJ("joueurs?order=drix.desc&select=id,pseudo,drix,bar_slug,asso_slug,photo,xp"),
-  getClassementBar: (slug) => sbJ(`joueurs?bar_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo,xp`),
-  getClassementAsso: (slug) => sbJ(`joueurs?asso_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo,xp`),
+  // pseudo.asc en second : en début de saison tout le monde est à 1000, sans ça
+  // le podium et le « #N national » changeaient d'une ouverture à l'autre.
+  getClassement: () => sbJ("joueurs?order=drix.desc,pseudo.asc&select=id,pseudo,drix,bar_slug,asso_slug,photo,xp"),
+  getClassementBar: (slug) => sbJ(`joueurs?bar_slug=eq.${encodeURIComponent(slug)}&order=drix.desc,pseudo.asc&select=id,pseudo,drix,photo,xp`),
+  getClassementAsso: (slug) => sbJ(`joueurs?asso_slug=eq.${encodeURIComponent(slug)}&order=drix.desc,pseudo.asc&select=id,pseudo,drix,photo,xp`),
   getHistorique: (joueur_id) => sbJ(`drix_mouvements?joueur_id=eq.${joueur_id}&order=date.desc&limit=10&select=*`),
   getHallOfFame: () => sbJ("drix_historique?order=saison.desc,classement.asc&select=*"),
 };
+
+// ── Saisons DRIX ──────────────────────────────────────────────────────────────
+// Une saison va de début septembre à fin août et porte le numéro de l'année où
+// elle se termine : septembre 2026 → août 2027 = saison 2027, affichée « 2026-2027 ».
+// Exception : la toute première (janvier → septembre 2026) est archivée sous 2026
+// et s'affiche « 2026 » tout court. La clôture se fait par SQL (saison_2_cloture.sql).
+export const numeroSaison = (d = new Date()) => (d.getMonth() >= 8 ? d.getFullYear() + 1 : d.getFullYear());
+export const libelleSaison = (n) => (Number(n) <= 2026 ? String(n) : `${Number(n) - 1}-${n}`);
 
 // ── Bonus de performance (manches + grosses volées + gros finishes) ───────────
 // joueursData: [{nom, manchesGagnees, tours:[],...}, ...]  (index 0=challenger, 1=defie)
@@ -5955,6 +5965,109 @@ export const finaliserDuel = async (duel, matchData = null) => {
   return breakdown || xpOnly;
 };
 
+// ── HISTORIQUE DES SAISONS ───────────────────────────────────────────────────
+// Le classement FINAL des saisons passées, lu dans l'archive drix_historique
+// (remplie par saison_2_cloture.sql à chaque début septembre). Top 10, national
+// ou par asso. Les photos viennent du classement vivant : l'archive ne les copie
+// pas (elles pèsent lourd, et un joueur peut en changer).
+const HistoriqueSaison = ({ archives = [], classement = [], joueur, associations = [], setPage, loading = false }) => {
+  const saisons = useMemo(() => [...new Set(archives.map(h => Number(h.saison)))].filter(Number.isFinite).sort((a, b) => b - a), [archives]);
+  const [saisonVoulue, setSaisonVoulue] = useState(null);
+  const saison = saisonVoulue ?? saisons[0] ?? null;
+  const [filtre, setFiltre] = useState("national"); // le classement final est d'abord national ; « Asso » à un tap
+  const [assoVoulue, setAssoVoulue] = useState(joueur?.asso_slug || "");
+  const lignes = useMemo(() => archives.filter(h => Number(h.saison) === saison).sort((a, b) => (a.classement || 0) - (b.classement || 0)), [archives, saison]);
+  // Les assos présentes dans cette saison archivée, avec leur nom et leur effectif
+  const assos = useMemo(() => {
+    const m = new Map();
+    for (const h of lignes) if (h.asso_slug) m.set(h.asso_slug, (m.get(h.asso_slug) || 0) + 1);
+    return [...m.entries()].map(([slug, nb]) => ({ slug, nb, nom: associations.find(a => a.slug === slug)?.nom || slug })).sort((a, b) => b.nb - a.nb);
+  }, [lignes, associations]);
+  const asso = assos.some(a => a.slug === assoVoulue) ? assoVoulue : (assos[0]?.slug || "");
+  const photos = useMemo(() => { const m = {}; for (const j of classement) m[j.id] = j.photo || null; return m; }, [classement]);
+  const visibles = useMemo(() => (filtre === "asso" ? lignes.filter(h => h.asso_slug === asso) : lignes), [lignes, filtre, asso]);
+  const top = visibles.slice(0, 10);
+  const maLigne = joueur ? visibles.find(h => h.joueur_id === joueur.id) : null;
+  const monRang = maLigne ? visibles.indexOf(maLigne) + 1 : null;
+  const nomAsso = (slug) => associations.find(a => a.slug === slug)?.nom || slug || "";
+
+  if (loading && !archives.length) return <SpinnerJ/>;
+  if (!saisons.length) return (
+    <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:"28px 16px", textAlign:"center", marginBottom:12 }}>
+      <History size={30} color={CJ.muted} style={{ margin:"0 auto 10px", display:"block" }}/>
+      <div style={{ fontWeight:800, color:CJ.text, fontSize:14 }}>Pas encore de saison archivée</div>
+      <div style={{ color:CJ.muted, fontSize:12, marginTop:5, lineHeight:1.5 }}>Le classement final de chaque saison apparaîtra ici, dès la première clôture (début septembre).</div>
+    </div>
+  );
+
+  const chip = (actif, couleur) => ({ padding:"7px 12px", borderRadius:999, cursor:"pointer", fontSize:12, fontWeight:800, transition:"background .15s, color .15s",
+    border:`1px solid ${actif ? couleur : CJ.border}`, background: actif ? `${couleur}22` : "#1a1a1a", color: actif ? couleur : CJ.muted });
+  return (
+    <div style={{ background:CJ.card, border:"1px solid #a78bfa33", borderRadius:14, padding:16, marginBottom:12 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+        <History size={16} color="#a78bfa"/>
+        <span style={{ fontWeight:900, fontSize:13, color:"#a78bfa", letterSpacing:.5 }}>SAISON {libelleSaison(saison)} · CLASSEMENT FINAL</span>
+        {saisons.length > 1 && (
+          <select value={saison} onChange={(e) => setSaisonVoulue(Number(e.target.value))} aria-label="Choisir la saison"
+            style={{ marginLeft:"auto", background:"#1a1a1a", border:`1px solid ${CJ.border}`, borderRadius:8, padding:"6px 8px", color:CJ.text, fontSize:12, fontWeight:700 }}>
+            {saisons.map(s => <option key={s} value={s}>{libelleSaison(s)}</option>)}
+          </select>
+        )}
+      </div>
+      {/* National / Asso */}
+      <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:12, flexWrap:"wrap" }}>
+        <button onClick={() => setFiltre("national")} aria-pressed={filtre === "national"} style={chip(filtre === "national", "#a78bfa")}>National</button>
+        {assos.length > 0 && <button onClick={() => setFiltre("asso")} aria-pressed={filtre === "asso"} style={chip(filtre === "asso", CJ.accent)}>Asso</button>}
+        {filtre === "asso" && assos.length > 1 && (
+          <select value={asso} onChange={(e) => setAssoVoulue(e.target.value)} aria-label="Choisir l'association"
+            style={{ flex:1, minWidth:120, background:"#1a1a1a", border:`1px solid ${CJ.accent}66`, borderRadius:8, padding:"6px 8px", color:CJ.text, fontSize:12, fontWeight:700 }}>
+            {assos.map(a => <option key={a.slug} value={a.slug}>{a.nom} ({a.nb})</option>)}
+          </select>
+        )}
+        {filtre === "asso" && assos.length === 1 && <span style={{ fontSize:12, color:CJ.muted, fontWeight:700 }}>{assos[0].nom}</span>}
+      </div>
+      <div style={{ fontSize:10, fontWeight:800, color:CJ.muted, letterSpacing:1, marginBottom:8 }}>
+        TOP {Math.min(10, top.length)} {filtre === "asso" ? nomAsso(asso).toUpperCase() : "NATIONAL"} · {visibles.length} CLASSÉS
+      </div>
+      {top.map((h, i) => {
+        const rang = i + 1;
+        const isMe = joueur && h.joueur_id === joueur.id;
+        const medal = rang === 1 ? "#fbbf24" : rang === 2 ? "#cbd5e1" : rang === 3 ? "#d97706" : null;
+        const photo = photos[h.joueur_id];
+        const sousTitre = [
+          filtre === "national" && h.asso_slug ? nomAsso(h.asso_slug) : null,
+          h.parties != null ? `${h.parties} match${h.parties > 1 ? "s" : ""}` : null,
+          h.victoires != null ? `${h.victoires} V` : null,
+        ].filter(Boolean).join(" · ");
+        return (
+          <div key={h.id || h.joueur_id} onClick={() => h.joueur_id && setPage("profil-joueur-" + h.joueur_id)}
+            style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 10px", marginBottom:6, borderRadius:12, cursor:"pointer",
+              background: isMe ? "#a78bfa14" : "#0f0f0f", border:`1px solid ${isMe ? "#a78bfa88" : medal ? medal + "55" : CJ.border}` }}>
+            <div style={{ width:28, textAlign:"center", fontWeight:900, fontSize: medal ? 18 : 13, color: medal || CJ.muted, flexShrink:0 }}>
+              {rang === 1 ? "🥇" : rang === 2 ? "🥈" : rang === 3 ? "🥉" : rang}
+            </div>
+            {photo
+              ? <img src={photo} alt="" style={{ width:36, height:36, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
+              : <div style={{ width:36, height:36, borderRadius:"50%", background:"#a78bfa22", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Target size={16} color="#a78bfa"/></div>}
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontWeight:800, fontSize:14, color:CJ.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{h.joueur_pseudo}{isMe ? " (toi)" : ""}</div>
+              {sousTitre && <div style={{ fontSize:11, color:CJ.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{sousTitre}</div>}
+            </div>
+            <div style={{ fontWeight:900, fontSize:15, color:"#a78bfa", flexShrink:0 }}>{h.score_final} <span style={{ fontSize:10, color:CJ.muted }}>DRIX</span></div>
+          </div>
+        );
+      })}
+      {maLigne && monRang > 10 && (
+        <div style={{ marginTop:8, padding:"9px 12px", borderRadius:12, background:"#a78bfa14", border:"1px solid #a78bfa55", display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:13 }}>
+          <span style={{ fontWeight:800, color:CJ.text }}>Toi : {monRang}{monRang === 1 ? "er" : "e"} sur {visibles.length}</span>
+          <span style={{ fontWeight:900, color:"#a78bfa" }}>{maLigne.score_final} DRIX</span>
+        </div>
+      )}
+      {!top.length && <p style={{ color:CJ.muted, fontSize:12, textAlign:"center", margin:"10px 0 0" }}>Aucun joueur classé pour ce filtre.</p>}
+    </div>
+  );
+};
+
 // ── PAGE CLASSEMENT DRIX ──────────────────────────────────────────────────────
 export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurId }) => {
   const [classement, setClassement]   = useState([]);
@@ -5974,7 +6087,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
   });
   useEffect(() => { try { localStorage.setItem("drix_cards_open_v2", JSON.stringify(cardsOpen)); } catch { /* ignore */ } }, [cardsOpen]);
   const toggleCard = (k) => setCardsOpen(o => ({ ...o, [k]: !o[k] }));
-  const saisonActuelle = new Date().getFullYear();
+  const saisonActuelle = libelleSaison(numeroSaison()); // « 2026-2027 »
 
   useEffect(() => {
     Promise.all([
@@ -5984,9 +6097,15 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
       // alors que les DRIX, eux, avaient bien été rendus.
       sbJ(`drix_mouvements?resultat=in.(victoire,defaite,annule)&order=date.desc&select=joueur_id,joueur_pseudo,variation,resultat,date,duel_id`).catch(() => []),
       dbDrix.getHallOfFame().catch(() => []),
-    ]).then(([c, mvts, hof]) => {
+      // Début de la saison en cours = la dernière remise à 1000 (ligne « saison »).
+      sbJ("drix_mouvements?resultat=eq.saison&order=date.desc&limit=1&select=date").catch(() => []),
+    ]).then(([c, mvts, hof, deb]) => {
+      // Matchs, séries, « DRIX cette semaine », palmarès vivant : seulement la saison
+      // en cours. Sans ça, le lendemain de la clôture, on affichait 127 matchs et une
+      // série de 5 victoires à un joueur qui repartait de 1000.
+      const debut = Number(deb?.[0]?.date) || 0;
       setClassement(c || []);
-      setMouvements(mvts || []);
+      setMouvements((mvts || []).filter(mv => !debut || (mv.date || 0) >= debut));
       setHallOfFame(hof || []);
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -6109,7 +6228,9 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
   }, [classement, joueur, variationMap]);
 
   // Podium top 3 (classement national)
-  const podium = useMemo(() => classement.slice(0, 3), [classement]);
+  // Les 3 premiers parmi ceux qui ont joué cette saison : en début de saison,
+  // trois joueurs à 1000 DRIX ne font pas un podium.
+  const podium = useMemo(() => classement.filter(j => joueursClassesIds.has(j.id)).slice(0, 3), [classement, joueursClassesIds]);
 
   // Palmarès vivant — saison en cours (leader / progression / série / gain / activité)
   const liveHof = useMemo(() => {
@@ -6242,7 +6363,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
             <path d={area} fill="url(#drix-grad)"/>
             <polyline points={polyline} fill="none" stroke="#22c55e" strokeWidth="2.5"/>
             {pts.map((p, i) => (
-              <circle key={i} cx={x(i)} cy={y(vals[i])} r="4" fill={p.variation > 0 ? "#22c55e" : "#ef4444"} stroke="#0f0f0f" strokeWidth="1.5"/>
+              <circle key={i} cx={x(i)} cy={y(vals[i])} r="4" fill={p.resultat === "saison" ? "#94a3b8" : p.variation > 0 ? "#22c55e" : "#ef4444"} stroke="#0f0f0f" strokeWidth="1.5"/>
             ))}
           </svg>
         </div>
@@ -6255,11 +6376,11 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
             <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:`1px solid ${CJ.border}` }}>
               <div style={{ width:28, height:28, borderRadius:"50%", background:isVictoire ? "#16a34a22" : isDefaite ? "#7f1d1d22" : "#1e293b22", border:`1.5px solid ${isVictoire ? "#22c55e44" : isDefaite ? "#ef444444" : "#33415544"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, flexShrink:0 }}>{isVictoire ? "V" : isDefaite ? "D" : "·"}</div>
               <div style={{ flex:1 }}>
-                <div style={{ fontWeight:600, fontSize:13 }}>vs {m.adversaire_pseudo}</div>
+                <div style={{ fontWeight:600, fontSize:13 }}>{m.resultat === "saison" ? `${m.adversaire_pseudo} · remise à 1000` : `vs ${m.adversaire_pseudo}`}</div>
                 <div style={{ fontSize:11, color:CJ.muted }}>{m.drix_avant} → {m.drix_apres} DRIX</div>
               </div>
               <div>
-                <div style={{ fontWeight:800, fontSize:15, color:gainDrix ? CJ.green : CJ.red, textAlign:"right" }}>{gainDrix ? "+" : ""}{m.variation}</div>
+                <div style={{ fontWeight:800, fontSize:15, color:m.resultat === "saison" ? CJ.muted : gainDrix ? CJ.green : CJ.red, textAlign:"right" }}>{gainDrix ? "+" : ""}{m.variation}</div>
                 <div style={{ fontSize:10, color:CJ.muted }}>{new Date(m.date).toLocaleDateString("fr-FR")}</div>
               </div>
             </div>
@@ -6279,7 +6400,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
           <Gem size={28} color="#a78bfa"/>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontWeight:900, fontSize:20, color:CJ.text }}>Classement <span style={{ color:"#a78bfa" }}>DRIX</span></div>
-            <div style={{ color:CJ.muted, fontSize:12 }}>Saison {saisonActuelle} · Système ELO · Remise à zéro le 1er janvier</div>
+            <div style={{ color:CJ.muted, fontSize:12 }}>Saison {saisonActuelle} · Système ELO · Nouvelle saison chaque début septembre</div>
           </div>
           {classement.length > 0 && (
             <div style={{ textAlign:"center", flexShrink:0 }}>
@@ -6290,11 +6411,14 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
         </div>
         {/* View toggle */}
         <div style={{ display:"flex", gap:8 }}>
-          <button onClick={() => setView("classement")} style={{ flex:1, padding:"10px 0", borderRadius:10, border:`2px solid ${view==="classement"?CJ.yellow:CJ.border}`, background:view==="classement"?`${CJ.yellow}18`:"transparent", color:view==="classement"?CJ.yellow:CJ.muted, fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-            <Trophy size={14}/> HALL OF FAME
+          <button onClick={() => setView("classement")} style={{ flex:1, padding:"10px 2px", borderRadius:10, border:`2px solid ${view==="classement"?CJ.yellow:CJ.border}`, background:view==="classement"?`${CJ.yellow}18`:"transparent", color:view==="classement"?CJ.yellow:CJ.muted, fontWeight:700, fontSize:11.5, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:4, minWidth:0 }}>
+            <Trophy size={13}/> HALL OF FAME
           </button>
-          <button onClick={() => setView("evolution")} style={{ flex:1, padding:"10px 0", borderRadius:10, border:`2px solid ${view==="evolution"?CJ.blue:CJ.border}`, background:view==="evolution"?`${CJ.blue}18`:"transparent", color:view==="evolution"?CJ.blue:CJ.muted, fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-            <TrendingUp size={14}/> ÉVOLUTION
+          <button onClick={() => setView("evolution")} style={{ flex:1, padding:"10px 2px", borderRadius:10, border:`2px solid ${view==="evolution"?CJ.blue:CJ.border}`, background:view==="evolution"?`${CJ.blue}18`:"transparent", color:view==="evolution"?CJ.blue:CJ.muted, fontWeight:700, fontSize:11.5, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:4, minWidth:0 }}>
+            <TrendingUp size={13}/> ÉVOLUTION
+          </button>
+          <button onClick={() => setView("historique")} style={{ flex:1, padding:"10px 2px", borderRadius:10, border:`2px solid ${view==="historique"?"#a78bfa":CJ.border}`, background:view==="historique"?`${"#a78bfa"}18`:"transparent", color:view==="historique"?"#a78bfa":CJ.muted, fontWeight:700, fontSize:11.5, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:4, minWidth:0 }}>
+            <History size={13}/> HISTORIQUE
           </button>
         </div>
       </div>
@@ -6337,7 +6461,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
         )}
 
         {/* ── MON CLASSEMENT ── */}
-        {joueur && (
+        {joueur && view !== "historique" && (
           <div style={{ background:CJ.card, border:`1.5px solid ${CJ.yellow}55`, borderRadius:16, padding:16, marginBottom:12, position:"relative", overflow:"hidden", boxShadow:`0 0 24px ${CJ.yellow}18` }}>
             <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${CJ.yellow},${CJ.accent},${CJ.yellow})` }}/>
             <div onClick={() => toggleCard("mon")} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: cardsOpen.mon?14:0, cursor:"pointer" }}>
@@ -6484,7 +6608,8 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
         )}
 
 
-        {/* ── FILTRES ── */}
+        {/* ── FILTRES ── (les filtres du classement vivant : rien à filtrer dans l'historique) */}
+        {view !== "historique" && (
         <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:14, marginBottom:14 }}>
           <div onClick={() => toggleCard("filtres")} style={{ display:"flex", alignItems:"center", gap:7, marginBottom: cardsOpen.filtres?10:0, cursor:"pointer" }}>
             <Settings size={15} color={CJ.text}/>
@@ -6518,9 +6643,12 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
           {filtre === "asso" && !joueur?.asso_slug && <p style={{ color:CJ.red, fontSize:12, marginTop:8, textAlign:"center" }}>Rejoins une association depuis ton profil.</p>}
           </>)}
         </div>
+        )}
 
         {/* ── CONTENU PRINCIPAL ── */}
-        {view === "evolution" ? (
+        {view === "historique" ? (
+          <HistoriqueSaison archives={hallOfFame} classement={classement} joueur={joueur} associations={associations} setPage={setPage} loading={loading}/>
+        ) : view === "evolution" ? (
           <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:16, marginBottom:12 }}>
             {joueur ? <EvolutionChart/> : <p style={{ color:CJ.muted, textAlign:"center", padding:20, fontSize:13 }}>Connecte-toi pour voir ton évolution.</p>}
           </div>
@@ -6702,7 +6830,7 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
                   const saisons = [...new Set(hallOfFame.map(h=>h.saison))].sort((a,b)=>b-a);
                   return saisons.map(s => (
                     <div key={s} style={{ marginBottom:16 }}>
-                      <div style={{ fontWeight:700, fontSize:13, color:CJ.yellow, marginBottom:8 }}>Saison {s}</div>
+                      <div style={{ fontWeight:700, fontSize:13, color:CJ.yellow, marginBottom:8 }}>Saison {libelleSaison(s)}</div>
                       {hallOfFame.filter(h=>h.saison===s).slice(0,3).map((h,i)=>(
                         <div key={h.id} style={{ background:"#0f0f0f", border:`1px solid ${i===0?CJ.yellow+"55":CJ.border}`, borderRadius:10, padding:"10px 14px", marginBottom:6, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -6785,12 +6913,12 @@ export const HistoriqueDrix = ({ joueurId }) => {
       {mouvements.map(m => (
         <div key={m.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${CJ.border}` }}>
           <div>
-            <span style={{ fontWeight:600, fontSize:13 }}>vs {m.adversaire_pseudo}</span>
+            <span style={{ fontWeight:600, fontSize:13 }}>{m.resultat === "saison" ? `${m.adversaire_pseudo} · remise à 1000` : `vs ${m.adversaire_pseudo}`}</span>
             <span style={{ color:CJ.muted, fontSize:11, marginLeft:8 }}>{new Date(m.date).toLocaleDateString("fr-FR")}</span>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <span style={{ color:CJ.muted, fontSize:12 }}>{m.drix_avant} → {m.drix_apres}</span>
-            <span style={{ fontWeight:800, fontSize:14, color:m.variation>0?CJ.green:CJ.red }}>
+            <span style={{ fontWeight:800, fontSize:14, color:m.resultat === "saison" ? CJ.muted : m.variation>0?CJ.green:CJ.red }}>
               {m.variation>0?"+":""}{m.variation}
             </span>
           </div>
