@@ -1,33 +1,43 @@
 -- ============================================================================
--- bots_1_vue_analyse.sql — À coller dans Supabase → SQL Editor → Run (une fois)
+-- stats_1_reset_colonne.sql — bouton « Réinitialiser mes stats » (v135)
+-- À coller dans Supabase → SQL Editor → Run (une fois). Relançable sans risque.
 -- ============================================================================
--- Pourquoi : la liste « Affronter un ami » doit montrer, pour CHAQUE ami, sa
--- moyenne et sa dangerosité AVANT de déplier sa fiche — et permettre de trier
--- par moyenne ou par dangerosité. Ces chiffres viennent du détail de chaque
--- manche (manches_detail) : additionner ça dans le téléphone pour 150 amis
--- voudrait dire télécharger tous les duels (1,7 Mo, 300 requêtes) à chaque
--- ouverture. Ici c'est Supabase qui additionne, et l'appli lit le résultat en
--- une requête de quelques ko.
+-- Pourquoi : chaque joueur peut désormais remettre SES statistiques à zéro depuis
+-- sa page Stats (double confirmation). L'appli n'efface rien : elle note la date de
+-- la remise à zéro dans joueurs.stats_reset_at, et n'affiche plus que ce qui s'est
+-- passé APRÈS (matchs, moyennes, séries…). Les compteurs parties / victoires /
+-- défaites de stats_joueurs sont remis à 0 par l'appli au même moment.
+-- DRIX, XP et badges ne sont pas touchés.
 --
--- Ce script ne MODIFIE aucune donnée : il crée une « vue » (une table calculée
--- à la volée en lisant duels, stats_joueurs et joueurs) et une petite fonction
--- de lecture sûre des nombres. Il peut être relancé sans risque.
---
--- ⚠️ Les additions ici reproduisent EXACTEMENT analyserJoueur (src/AppJoueurs.jsx),
--- le calcul de la fiche profil. La FORMULE de dangerosité, elle, reste dans
--- l'appli (scoreDanger) : la vue ne fournit que les sommes.
+-- Ce script : 1) crée la colonne, 2) donne à l'appli le droit de la lire et de
+-- l'écrire (la table joueurs est protégée colonne par colonne), 3) met à jour la
+-- vue v_analyse_joueurs (liste des bots) pour qu'elle ignore aussi les duels
+-- d'avant la remise à zéro — sinon la fiche du bot et le profil divergeraient.
 -- ============================================================================
 
--- La vue lit joueurs.stats_reset_at (remise à zéro des stats, v135). Pour que ce
--- script reste lançable seul, dans n'importe quel ordre, on s'assure que la colonne
--- existe et que l'appli peut la lire (sans effet si stats_1_reset_colonne.sql est passé).
+-- 1) La colonne (date en millisecondes, comme les autres dates de l'appli)
 alter table public.joueurs add column if not exists stats_reset_at bigint;
-grant select (stats_reset_at) on public.joueurs to anon, authenticated;
 
--- Un texte → un nombre, ou NULL si ce n'est pas un nombre (jamais d'erreur).
+-- 2) Les droits, colonne par colonne (même principe que joueurs_1b_droits.sql)
+grant select (stats_reset_at) on public.joueurs to anon, authenticated;
+grant update (stats_reset_at) on public.joueurs to anon, authenticated;
+
+-- 2b) Les compteurs d'AVANT la remise à zéro, gardés dans stats_joueurs : les
+--     badges (« 100 victoires »…) continuent de compter tout l'historique, alors
+--     que les stats affichées repartent de zéro. Cumulés si le joueur remet à zéro
+--     plusieurs fois.
+alter table public.stats_joueurs
+  add column if not exists parties_avant_reset   integer not null default 0,
+  add column if not exists victoires_avant_reset integer not null default 0,
+  add column if not exists defaites_avant_reset  integer not null default 0;
+grant select (parties_avant_reset, victoires_avant_reset, defaites_avant_reset) on public.stats_joueurs to anon, authenticated;
+grant update (parties_avant_reset, victoires_avant_reset, defaites_avant_reset) on public.stats_joueurs to anon, authenticated;
+
+-- 3) La vue des bots : même définition que bots_1_vue_analyse.sql, PLUS le filtre
+--    « duels postérieurs à la remise à zéro » dans dj.
 create or replace function public.dp_num(t text) returns numeric
 language sql immutable strict
-set search_path = pg_catalog   -- évite l'avertissement « search_path mutable » du Security Advisor
+set search_path = pg_catalog
 as $$
   select case when t ~ '^-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$' then t::numeric else null end
 $$;
@@ -35,26 +45,21 @@ $$;
 create or replace view public.v_analyse_joueurs
 with (security_invoker = true) as
 with
--- Chaque joueur avec ses duels TERMINÉS (comme la fiche profil : statut = 'termine').
--- (Les identifiants sont comparés en texte : uuid ou texte en base, ça marche pareil.)
 dj as (
   select j.id as joueur_id,
          coalesce(j.pseudo, '') as pseudo,
          d.id as duel_id, d.date,
          d.gagnant_id::text = j.id::text as gagne,
-         -- « myP » de l'appli : le pseudo sous lequel il apparaît dans ce duel
          case when d.challenger_id::text = j.id::text then coalesce(nullif(d.challenger_pseudo, ''), j.pseudo, '')
               else coalesce(nullif(d.defie_pseudo, ''), j.pseudo, '') end as my_p,
          public.dp_num(case when d.challenger_id::text = j.id::text then d.score_challenger::text else d.score_defie::text end) as mon_score,
          d.manches_detail
   from public.joueurs j
   join public.duels d on d.statut = 'termine' and (d.challenger_id::text = j.id::text or d.defie_id::text = j.id::text)
-   -- ⚠️ Remise à zéro des stats (v135, stats_1_reset_colonne.sql) : on ignore tout ce
-   -- qui est antérieur à joueurs.stats_reset_at, comme l'appli (sans remise à zéro
-   -- tout passe, même un vieux duel sans date).
+   -- ⚠️ Remise à zéro des stats : on ignore tout ce qui est antérieur (comme l'appli :
+   -- sans remise à zéro tout passe, même un vieux duel sans date)
    and coalesce(d.date, 0) >= coalesce(j.stats_reset_at, 0)
 ),
--- Une ligne par manche jouée. is_w = il a gagné CETTE manche (winner = son pseudo).
 legs as (
   select dj.joueur_id,
          ((m->>'winner') = dj.my_p or (m->>'winner') = dj.pseudo) as is_w,
@@ -64,7 +69,6 @@ legs as (
     case when jsonb_typeof(dj.manches_detail::jsonb) = 'array' then dj.manches_detail::jsonb else '[]'::jsonb end
   ) as m
 ),
--- Ses chiffres de la manche : winner_* s'il l'a gagnée, loser_* sinon (comme l'appli).
 legs_n as (
   select joueur_id, coalesce(is_w, false) as is_w,
          coalesce(public.dp_num(m->>(case when coalesce(is_w, false) then 'winner_volees' else 'loser_volees' end)), 0) as vol,
@@ -85,20 +89,17 @@ agg_legs as (
   from legs_n
   group by joueur_id
 ),
--- Moyenne de repli (quand aucune manche détaillée) : son score par duel, > 0.
 agg_duels as (
   select joueur_id, count(*) as nb_duels,
          avg(mon_score) filter (where mon_score > 0) as moyenne_duels
   from dj
   group by joueur_id
 ),
--- Forme : ses 10 derniers duels terminés (du plus récent au plus ancien).
 forme as (
   select joueur_id, count(*) as n_forme,
          count(*) filter (where gagne) as v_forme
   from (
     select joueur_id, gagne,
-           -- id desc en second : même départage que l'appli (getDuels : order=date.desc,id.desc)
            row_number() over (partition by joueur_id order by date desc nulls last, duel_id desc) as rn
     from dj
   ) x
@@ -138,12 +139,12 @@ left join forme     f  on f.joueur_id  = j.id
 left join agg_legs  al on al.joueur_id = j.id
 left join agg_duels ad on ad.joueur_id = j.id;
 
--- L'appli lit avec la clé publique : elle doit avoir le droit de LIRE la vue.
 grant select  on public.v_analyse_joueurs to anon, authenticated;
 grant execute on function public.dp_num(text) to anon, authenticated;
 
--- Aperçu (tu dois voir tes joueurs les mieux classés, avec leur moyenne réelle) :
-select pseudo, drix, win_rate, avg_reel, checkout_pct, n180, nb_duels
-from public.v_analyse_joueurs
-order by drix desc
-limit 20;
+-- Vérification : la colonne existe et l'appli (anon) peut la lire et l'écrire
+select column_name, privilege_type
+  from information_schema.column_privileges
+ where table_schema = 'public' and table_name = 'joueurs'
+   and grantee = 'anon' and column_name = 'stats_reset_at'
+ order by privilege_type;

@@ -2474,8 +2474,15 @@ const annulerDrixDuDuel = async (d, { parQui = "Admin", replierSurLeTemps = fals
       if (!pid) continue;
       const s = await sb(`stats_joueurs?joueur_id=eq.${pid}&select=*`).catch(()=>[]).then(r=>r?.[0]);
       if (!s) continue;
+      // Si le joueur a remis ses stats à zéro APRÈS ce match, la victoire/défaite à
+      // retirer est dans les compteurs d'avant (…_avant_reset), pas dans les courants.
+      const reset = await sb(`joueurs?id=eq.${pid}&select=stats_reset_at`).then(r => Number(r?.[0]?.stats_reset_at) || 0).catch(() => 0);
+      const dateDuel = typeof d.date === "number" ? d.date : new Date(d.date).getTime();
+      const avantReset = reset > 0 && Number.isFinite(dateDuel) && dateDuel < reset;
+      const cChamp = avantReset ? `${champ}_avant_reset` : champ;
+      const cParties = avantReset ? "parties_avant_reset" : "parties";
       await sb(`stats_joueurs?joueur_id=eq.${pid}`, { method:"PATCH", prefer:"return=minimal", body:JSON.stringify({
-        [champ]: Math.max(0,(s[champ]||0)-1), parties: Math.max(0,(s.parties||0)-1),
+        [cChamp]: Math.max(0,(s[cChamp]||0)-1), [cParties]: Math.max(0,(s[cParties]||0)-1),
       })}).catch(()=>{});
       statsFaites = true;
     }

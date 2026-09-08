@@ -215,6 +215,28 @@ export const dbJ = {
   getJoueursByBar: (slug) => sbJ(`joueurs?bar_slug=eq.${encodeURIComponent(slug)}&select=${JOUEUR_COLS}`),
   // order=id.asc : si un joueur a deux lignes (course à l'inscription), on lit la MÊME que la vue SQL.
   getStats: (joueur_id) => sbJ(`stats_joueurs?joueur_id=eq.${joueur_id}&select=*&order=id.asc&limit=1`).then(r => r?.[0]),
+  // ── Remise à zéro des stats par le joueur (bouton de la page Stats) ──
+  // Rien n'est effacé : joueurs.stats_reset_at (ms) marque le moment, et les écrans
+  // n'affichent que ce qui est postérieur. Sans la colonne (SQL stats_1_reset_colonne.sql
+  // pas lancé), la lecture rend 0 et l'écriture échoue proprement (rien ne change).
+  getStatsResetAt: (id) => sbJ(`joueurs?id=eq.${id}&select=stats_reset_at`).then(r => Number(r?.[0]?.stats_reset_at) || 0).catch(() => 0),
+  resetStats: async (id, statsRow) => {
+    const t = Date.now();
+    // La date d'abord : si la colonne manque, on s'arrête ici, les compteurs restent intacts.
+    // finishs_doubles (« finish favori ») repart aussi de zéro : c'est une stat.
+    await sbJ(`joueurs?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({ stats_reset_at: t, finishs_doubles: {} }), prefer:"return=minimal" });
+    if (statsRow?.id) {
+      // Les anciens compteurs sont GARDÉS (…_avant_reset) : les badges continuent de
+      // compter tout l'historique, seules les stats affichées repartent de zéro.
+      await sbJ(`stats_joueurs?id=eq.${statsRow.id}`, { method:"PATCH", prefer:"return=minimal", body:JSON.stringify({
+        parties_avant_reset:   (statsRow.parties_avant_reset   || 0) + (statsRow.parties   || 0),
+        victoires_avant_reset: (statsRow.victoires_avant_reset || 0) + (statsRow.victoires || 0),
+        defaites_avant_reset:  (statsRow.defaites_avant_reset  || 0) + (statsRow.defaites  || 0),
+        parties: 0, victoires: 0, defaites: 0,
+      }) });
+    }
+    return t;
+  },
   addStats: (d) => sbJ("stats_joueurs", { method: "POST", body: JSON.stringify(d) }),
   updateStats: (id, d) => sbJ(`stats_joueurs?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(d), prefer: "return=minimal" }),
   // id.desc en second : deux duels à la même milliseconde sont départagés comme dans la vue SQL (forme).
@@ -264,6 +286,10 @@ export const dbJ = {
   getMyPresence: (joueur_id, bar_slug) => sbJ(`presences?joueur_id=eq.${joueur_id}&bar_slug=eq.${encodeURIComponent(bar_slug)}&date_jour=eq.${todayStr()}&select=*`).then(r => r?.[0]),
   getBarsActifs: () => sbJ(`presences?date_jour=eq.${todayStr()}&select=bar_slug`),
 };
+
+// Ne garde que les duels / mouvements postérieurs à la remise à zéro des stats
+// (0 = jamais remis à zéro → tout). Les dates de l'appli sont en millisecondes.
+export const depuisReset = (liste, resetAt) => (resetAt ? (liste || []).filter(x => (Number(x?.date) || 0) >= resetAt) : (liste || []));
 
 // ── Couleurs ──────────────────────────────────────────────────────────────────
 const CJ = {
@@ -1131,8 +1157,10 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       // 🆕 Pour le calcul des badges sociaux/tournois (sinon soc_trn et soc_wtrn jamais débloqués)
       sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
       sbJ(`tournois_potes?gagnant_id=eq.${joueur.id}&select=id`).catch(()=>[]),
-    ]).then(([s, d, mvts, allJ, amis, trn, wtrn]) => {
-      setStats(s); setDuels(d||[]); setDrixMvts(mvts||[]);
+      dbJ.getStatsResetAt(joueur.id),
+    ]).then(([s, d, mvts, allJ, amis, trn, wtrn, reset]) => {
+      // Stats affichées : depuis la remise à zéro. Badges (plus bas) : tout l'historique.
+      setStats(s); setDuels(depuisReset(d||[], reset)); setDrixMvts(depuisReset(mvts||[], reset));
       // Amis acceptés uniquement
       const amisOk = (amis||[]).filter(a => a.statut === "accepte" || a.statut === "accepté");
       setAmisCount(amisOk.length);
@@ -1890,6 +1918,41 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
   const [extra, setExtra]         = useState({ tournois:0, bars:0 });
   const [loading, setLoading]     = useState(true);
   const [finishsDbl, setFinishsDbl] = useState({}); // { "1":n, …, "20":n, "B":n } — stat « finish favori »
+  const [resetAt, setResetAt] = useState(0);           // date (ms) de la dernière remise à zéro, 0 = jamais
+  const [resetEnCours, setResetEnCours] = useState(false);
+  const [mvtsBruts, setMvtsBruts] = useState([]);      // tout l'historique DRIX : le record DRIX ne repart pas de zéro
+
+  // « Réinitialiser mes stats » : deux confirmations, puis remise à zéro. Rien n'est
+  // effacé en base (voir dbJ.resetStats) ; DRIX, XP et badges sont conservés.
+  const reinitialiserStats = async () => {
+    if (resetEnCours) return;
+    const ok1 = await confirmer("Repartir à 0 ?\nEs-tu sûr de vouloir repartir à 0 ?\nTes matchs, victoires, défaites, moyennes et séries seront remis à zéro.",
+      { danger:true, ok:"Oui, continuer", annuler:"Annuler" });
+    if (!ok1) return;
+    const ok2 = await confirmer("Vraiment sûr ?\nEs-tu vraiment sûr ? C'est définitif : tes statistiques repartent de zéro.\nTes DRIX, ton XP et tes badges sont conservés.",
+      { danger:true, ok:"Oui, je remets à zéro", annuler:"Non, je garde tout" });
+    if (!ok2) return;
+    setResetEnCours(true);
+    try {
+      const t = await dbJ.resetStats(joueur.id, stats);
+      setResetAt(t); setDuels([]); setDrixMvts([]);
+      setStats(s => (s ? { ...s, parties:0, victoires:0, defaites:0 } : s));
+      setFinishsDbl({});
+      window.dpToast?.("C'est fait : tes stats repartent de zéro", "success");
+    } catch {
+      // Deux écritures (date, puis compteurs) : si la 2e a échoué, la date est déjà
+      // posée. On relit la base pour que l'écran dise la vérité, et on invite à
+      // réappuyer (le 2e appui refait les deux écritures, sans double comptage).
+      const t = await dbJ.getStatsResetAt(joueur.id).catch(() => 0);
+      if (t > 0 && t !== resetAt) {
+        setResetAt(t); setDuels([]); setDrixMvts([]); setFinishsDbl({});
+        window.dpToast?.("Remise à zéro faite à moitié (réseau ?) : appuie encore une fois pour finir", "error");
+      } else {
+        window.dpToast?.("Impossible de remettre à zéro pour l'instant. Réessaie plus tard.", "error");
+      }
+    }
+    setResetEnCours(false);
+  };
   useEffect(() => { dbJ.getFinishs(joueur.id).then(setFinishsDbl).catch(() => {}); }, [joueur.id]);
 
   useEffect(() => {
@@ -1900,10 +1963,14 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
       sbJ(`joueurs?order=drix.desc,pseudo.asc&select=id`).catch(()=>[]),
       sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
       sbJ(`presences?joueur_id=eq.${joueur.id}&select=bar_slug`).catch(()=>[]),
-    ]).then(([s, d, mvts, allJ, trn, pres]) => {
+      dbJ.getStatsResetAt(joueur.id),
+    ]).then(([s, d, mvts, allJ, trn, pres, reset]) => {
       setStats(s);
-      setDuels(d||[]);
-      setDrixMvts(mvts||[]);
+      setResetAt(reset);
+      setMvtsBruts(mvts||[]);
+      // Seulement ce qui s'est passé depuis la remise à zéro (0 = tout)
+      setDuels(depuisReset(d||[], reset));
+      setDrixMvts(depuisReset(mvts||[], reset));
       if (allJ?.length) {
         const pos = allJ.findIndex(j => j.id === joueur.id);
         setClassement({ position: pos >= 0 ? pos + 1 : null, total: allJ.length });
@@ -2108,7 +2175,8 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
   const cauchemar = Object.values(invaincu).filter(v => v.t >= 5 && v.w === v.t).length;
 
   // DRIX avancé
-  const drixMax = drixMvts.length ? Math.max(joueur.drix||1000, ...drixMvts.map(m => Math.max(m.drix_apres||0, m.drix_avant||0))) : (joueur.drix||1000);
+  // Record DRIX sur TOUT l'historique (les DRIX ne sont pas remis à zéro, leur record non plus)
+  const drixMax = mvtsBruts.length ? Math.max(joueur.drix||1000, ...mvtsBruts.map(m => Math.max(m.drix_apres||0, m.drix_avant||0))) : (joueur.drix||1000);
   const parJourDrix = {}, parMoisDrix = {};
   drixMvts.forEach(m => { if (!m.date) return; parJourDrix[jourKey(m.date)] = (parJourDrix[jourKey(m.date)]||0)+(m.variation||0); parMoisDrix[moisKey(m.date)] = (parMoisDrix[moisKey(m.date)]||0)+(m.variation||0); });
   const jVals = Object.values(parJourDrix), mVals = Object.values(parMoisDrix);
@@ -2513,6 +2581,22 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
           </div>
         </div>
       )}
+
+      {/* ── REMISE À ZÉRO (tout en bas, volontairement discret) ── */}
+      <div style={{ marginTop:22, padding:"14px 16px", borderRadius:14, border:`1px solid ${CJ.red}33`, background:"#1a1212" }}>
+        <div style={{ fontWeight:800, fontSize:13, color:CJ.text, display:"flex", alignItems:"center", gap:7 }}>
+          <RotateCcw size={15} color={CJ.red}/> Repartir à zéro
+        </div>
+        <div style={{ fontSize:12, color:CJ.muted, lineHeight:1.5, marginTop:4 }}>
+          Remet tes matchs, victoires, défaites, moyennes et séries à zéro. Tes DRIX, ton XP et tes badges restent.
+          {resetAt > 0 && <> Dernière remise à zéro : {new Date(resetAt).toLocaleDateString("fr-FR")}.</>}
+        </div>
+        <button onClick={reinitialiserStats} disabled={resetEnCours}
+          style={{ marginTop:10, width:"100%", padding:"11px", borderRadius:10, cursor:"pointer", fontWeight:800, fontSize:13,
+            border:`1px solid ${CJ.red}66`, background:"transparent", color:CJ.red, opacity: resetEnCours ? 0.6 : 1 }}>
+          {resetEnCours ? "Remise à zéro…" : "Réinitialiser mes stats"}
+        </button>
+      </div>
     </div>
   );
 };
@@ -2706,8 +2790,10 @@ export const ALL_BADGES = [
 
 export const computeBadgeValues = (joueur, stats, duels, drixMvts, amis, nbTournois=0, nbTournoisGagnes=0, nbDoublettes=0, nbWinsDoublette=0) => {
   const termines = (duels||[]).filter(d=>d.statut==="termine");
-  const victoires = stats?.victoires??0;
-  const parties   = stats?.parties??0;
+  // Les badges comptent TOUT l'historique : après une remise à zéro des stats, les
+  // anciens compteurs sont dans …_avant_reset (voir dbJ.resetStats).
+  const victoires = (stats?.victoires??0) + (stats?.victoires_avant_reset??0);
+  const parties   = (stats?.parties??0)   + (stats?.parties_avant_reset??0);
 
   let nb180=0, nb140=0, nb100=0, nb26=0, nbFinishes100=0, plusGrosFinish=0;
   let hasSixSevenFinish=false;
@@ -3701,6 +3787,8 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const [stats, setStats]       = useState(null);
   const [duels, setDuels]       = useState([]);
   const [drixMvts, setDrixMvts] = useState([]);
+  const [duelsBruts, setDuelsBruts] = useState([]);   // tout l'historique, pour les badges
+  const [mvtsBruts, setMvtsBruts]   = useState([]);
   const [classement, setClassement] = useState(null);
   const [mesStats, setMesStats] = useState(null);
   const [mesDuels, setMesDuels] = useState([]);
@@ -3733,15 +3821,18 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       sbJ(`amis?or=(joueur_id.eq.${joueurId},ami_id.eq.${joueurId})&select=statut`).catch(()=>[]),
       sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueurId}&select=tournoi_id`).catch(()=>[]),
       sbJ(`tournois_potes?gagnant_id=eq.${joueurId}&select=id`).catch(()=>[]),
-    ]).then(([jd, s, d, mvts, allJ, ms, md, jAmis, jTrn, jWtrn]) => {
+      dbJ.getStatsResetAt(joueurId),
+    ]).then(([jd, s, d, mvts, allJ, ms, md, jAmis, jTrn, jWtrn, reset]) => {
       setJ(jd);
       sbJ(`joueurs?id=eq.${joueurId}&select=ligue,departement,date_naissance`)
         .then(r => setCarto(Array.isArray(r) ? r[0] : null))
         .catch(() => { /* colonnes absentes : on garde l'ancien affichage */ });
       setStats(s);
       const termines = (d||[]).filter(x => x.statut==="termine").sort((a,b)=>(b.date||0)-(a.date||0));
-      setDuels(termines);
-      setDrixMvts(mvts||[]);
+      // Badges : tout l'historique. Stats affichées : seulement depuis sa remise à zéro.
+      setDuelsBruts(termines); setMvtsBruts(mvts||[]);
+      setDuels(depuisReset(termines, reset));
+      setDrixMvts(depuisReset(mvts||[], reset));
       setJAmis(jAmis||[]);
       setJNbTournois((jTrn||[]).length);
       setJNbTournoisGagnes((jWtrn||[]).length);
@@ -4043,11 +4134,12 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   }, null);
 
   // Drix sur duels FF
-  const drixFF = drixMvts.filter(m=>faceAFace.some(d=>d.id===m.duel_id)).reduce((s,m)=>s+(m.variation||0),0);
+  // Sur les mouvements BRUTS : le face-à-face ne dépend pas de la remise à zéro de l'un des deux.
+  const drixFF = mvtsBruts.filter(m=>faceAFace.some(d=>d.id===m.duel_id)).reduce((s,m)=>s+(m.variation||0),0);
 
   // Map drixMvt pour historique
   const drixMvtMap = {};
-  drixMvts.forEach(m=>{ if(m.duel_id) drixMvtMap[m.duel_id]=m.variation; });
+  mvtsBruts.forEach(m=>{ if(m.duel_id) drixMvtMap[m.duel_id]=m.variation; });
 
   // Série DATÉE des moyennes du joueur CONSULTÉ, pour le graphique d'évolution.
   // Même règle de lecture que partout ailleurs : sa moyenne est dans score_challenger s'il était
@@ -4062,7 +4154,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   // Avant, cette bandelette avait sa PROPRE liste de 10 badges écrits à la main (« Premier duel »,
   // « Combattant »…) qui n'existaient nulle part ailleurs : le titre annonçait « 24 badges obtenus »
   // et on en voyait défiler 10 autres, sans image possible faute d'identifiant.
-  const valsComplets = computeBadgeValues(j, stats, duels, drixMvts, jAmis, jNbTournois, jNbTournoisGagnes);
+  const valsComplets = computeBadgeValues(j, stats, duelsBruts, mvtsBruts, jAmis, jNbTournois, jNbTournoisGagnes);
   const badgesOk = ALL_BADGES.filter(b=>b.val(valsComplets)>=b.seuil);
   const totalBadgesOk = badgesOk.length;
 
