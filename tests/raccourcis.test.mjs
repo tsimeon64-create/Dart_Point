@@ -24,16 +24,16 @@ test("trop peu de volées → null (rangée par défaut)", () => {
   assert.equal(calculerRaccourcis(null), null);
 });
 
-test("les 8 plus fréquents, rangés du plus petit au plus grand", () => {
+test("les 7 plus fréquents, rangés du plus petit au plus grand, puis le 180", () => {
   const v = [...repete(60, 20), ...repete(45, 15), ...repete(100, 12), ...repete(41, 10), ...repete(26, 9),
              ...repete(85, 8), ...repete(81, 7), ...repete(140, 6), ...repete(7, 1), ...repete(180, 2)];
-  assert.deepEqual(calculerRaccourcis(v), [26, 41, 45, 60, 81, 85, 100, 140]);
+  assert.deepEqual(calculerRaccourcis(v), [26, 41, 45, 60, 81, 85, 100, 180]);
 });
 
 test("à fréquence égale, le plus gros score passe devant", () => {
   const v = [...repete(10, 10), ...repete(20, 10), ...repete(30, 10), ...repete(40, 10), ...repete(50, 10),
              ...repete(60, 10), ...repete(70, 10), ...repete(80, 10), ...repete(90, 10)];
-  assert.deepEqual(calculerRaccourcis(v), [20, 30, 40, 50, 60, 70, 80, 90]);
+  assert.deepEqual(calculerRaccourcis(v), [30, 40, 50, 60, 70, 80, 90, 180]);
 });
 
 test("bust (-1), zéro, >180 et non-entiers ignorés", () => {
@@ -50,7 +50,17 @@ test("joueur très régulier : complété avec la rangée par défaut, sans doub
   assert.equal(r.length, 8);
   assert.equal(new Set(r).size, 8);
   assert.ok(r.includes(60) && r.includes(45));
-  assert.deepEqual(r, [...new Set([60, 45, ...RACCOURCIS_DEFAUT])].slice(0, 8).sort((a, b) => a - b));
+  assert.deepEqual(r, [26, 45, 60, 81, 100, 121, 140, 180]);
+});
+
+test("le 180 toujours en DERNIER bouton : jamais marqué, ou très souvent (sans doublon)", () => {
+  const jamais = calculerRaccourcis([...repete(60, 20), ...repete(45, 20), ...repete(26, 5)]);
+  assert.equal(jamais[7], 180);
+  const souvent = calculerRaccourcis([...repete(180, 40), ...repete(60, 30)]);
+  assert.equal(souvent[7], 180);
+  assert.equal(souvent.filter((s) => s === 180).length, 1);
+  assert.deepEqual(souvent, [26, 45, 60, 81, 100, 121, 140, 180]);
+  assert.deepEqual(RACCOURCIS_DEFAUT.at(-1), 180);
 });
 
 test("scores reçus en texte (PostgREST) acceptés", () => {

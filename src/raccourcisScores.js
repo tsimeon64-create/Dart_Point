@@ -1,7 +1,7 @@
 // src/raccourcisScores.js — Raccourcis du scoreur (26, 45, 60…) PERSONNALISÉS
 //
-// Chaque joueur inscrit voit SES 8 scores les plus fréquents (tirés de ses 600 dernières
-// volées dans live_volees) au lieu des 8 scores fixes. Un invité, un bot, une équipe de
+// Chaque joueur inscrit voit SES 7 scores les plus fréquents (tirés de ses 600 dernières
+// volées dans live_volees) + le 180, TOUJOURS en dernier bouton, au lieu des 8 scores fixes. Un invité, un bot, une équipe de
 // doublette ou un joueur qui a encore peu joué garde la rangée par défaut.
 //
 // ⚠️ La rangée ne bouge PAS pendant une partie : elle est figée au premier affichage du
@@ -46,23 +46,25 @@ export function voleesDeScoring(rows) {
   return out;
 }
 
-// PURE : scores de scoring → les 8 plus fréquents, rangés du plus petit au plus grand
-// (l'ordre croissant garde les boutons à une place prévisible). null = pas assez de données.
+// PURE : scores de scoring → les 7 plus fréquents, rangés du plus petit au plus grand (l'ordre
+// croissant garde les boutons à une place prévisible), puis le 180 TOUJOURS en dernier : on doit
+// pouvoir marquer un 180 d'un seul appui, même quand c'est rare (choix de Thomas).
+// null = pas assez de données.
 export function calculerRaccourcis(scores) {
   const ok = (scores || []).map(Number).filter((s) => Number.isInteger(s) && s > 0 && s <= 180);
   if (ok.length < MIN_VOLEES) return null;
   const f = {};
-  for (const s of ok) f[s] = (f[s] || 0) + 1;
+  for (const s of ok) if (s !== 180) f[s] = (f[s] || 0) + 1;
   // À fréquence égale, le plus gros score passe devant.
-  const top = Object.keys(f).map(Number).sort((a, b) => f[b] - f[a] || b - a).slice(0, NB);
-  // Joueur très régulier (moins de 8 scores différents) : on complète avec la rangée par défaut.
-  for (const d of RACCOURCIS_DEFAUT) { if (top.length >= NB) break; if (!top.includes(d)) top.push(d); }
-  return top.sort((a, b) => a - b);
+  const top = Object.keys(f).map(Number).sort((a, b) => f[b] - f[a] || b - a).slice(0, NB - 1);
+  // Joueur très régulier (moins de 7 scores différents) : on complète avec la rangée par défaut.
+  for (const d of RACCOURCIS_DEFAUT) { if (top.length >= NB - 1) break; if (d !== 180 && !top.includes(d)) top.push(d); }
+  return [...top.sort((a, b) => a - b), 180];
 }
 
 const estUuid = (s) => typeof s === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 const cleLS = (id) => "dp_raccourcis_" + id;
-const valide = (v) => Array.isArray(v) && v.length === NB && v.every((n) => Number.isInteger(n) && n > 0 && n <= 180);
+const valide = (v) => Array.isArray(v) && v.length === NB && v[NB - 1] === 180 && v.every((n) => Number.isInteger(n) && n > 0 && n <= 180);
 const lireCache = (id) => { try { const v = JSON.parse(localStorage.getItem(cleLS(id)) || "null"); return valide(v) ? v : null; } catch { return null; } };
 const ecrireCache = (id, liste) => {
   try { if (liste) localStorage.setItem(cleLS(id), JSON.stringify(liste)); else localStorage.removeItem(cleLS(id)); }
@@ -94,7 +96,7 @@ async function comptesParPseudo(pseudos, lire) {
 // Renvoie un tableau aligné sur les sièges : la rangée de chacun (toujours 8 scores).
 export function useRaccourcis(sieges, lire, clePartie = "") {
   const liste = sieges || [];
-  const clePseudos = liste.filter((s) => s && !s.bot && !s.id && s.pseudo).map((s) => s.pseudo).join("");
+  const clePseudos = liste.filter((s) => s && !s.bot && !s.id && s.pseudo).map((s) => s.pseudo).join("\u0001");
   const [parPseudo, setParPseudo] = useState({});   // pseudo tapé → id du compte
   const [frais, setFrais] = useState({});           // id → rangée lue en base (sert quand rien n'était de côté)
 
@@ -114,7 +116,7 @@ export function useRaccourcis(sieges, lire, clePartie = "") {
 
   useEffect(() => {
     if (!clePseudos) return;
-    comptesParPseudo(clePseudos.split(""), lire)
+    comptesParPseudo(clePseudos.split("\u0001"), lire)
       .then((m) => setParPseudo(m))
       .catch(() => { /* pas de compte trouvé : rangée par défaut */ });
   }, [clePseudos]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -83,11 +83,52 @@ function analyseReplay(volees) {
   return { scoringPool, finishPool, rateZone, zones: ZONES, bustRate, globalRate };
 }
 
+// ⚠️ DEUX FORMATS dans live_volees. Le scoreur de l'appli écrit un bust avec score -1 et un
+// finish avec reste 0 — c'est ce qu'attendent analyseReplay et reconstruireManches. Le mode
+// « Jouer en ligne » (onlineGame.js) écrit un bust avec le score TAPÉ et le reste inchangé, et
+// un finish avec, dans `reste`, le NOMBRE DE FLÉCHETTES (1 à 3). Sans conversion, ses finishs
+// n'étaient jamais reconnus (taux de finish faussé) et ses busts comptaient comme des descentes.
+// On ramène tout au format de l'appli. Le test, valable partout : une volée normale fait baisser
+// le reste d'EXACTEMENT son score. Au passage, une faute de frappe annulée avec « Retour » mais
+// restée en base (avant que « Retour » l'efface) est retirée : la volée suivante ne s'enchaîne
+// pas sur elle mais sur celle d'avant. Les volées doivent arriver dans l'ordre (partie, n°).
+const DEPARTS = [301, 501, 701, 1001];   // score de départ d'une manche (701 = barrage de tournoi)
+export function normaliserVolees(volees) {
+  const out = [];
+  let sess, prevReste = null;
+  for (const v of volees || []) {
+    if (!v || typeof v.reste !== "number" || typeof v.score !== "number") { out.push(v); continue; }
+    if (v.session_id !== sess) { sess = v.session_id; prevReste = null; }
+    let w = v;
+    // 1re volée d'une manche (reste + score = un score de départ) : rien à convertir. Indispensable
+    // après une manche PERDUE, où le « reste d'avant » est encore celui de la manche précédente.
+    const debutManche = v.score > 0 && DEPARTS.includes(v.reste + v.score);
+    if (prevReste != null && v.score > 0 && v.reste > 0 && !debutManche) {
+      // Le finish AVANT le bust : finir le double 1 depuis 2 en 2 fléchettes s'écrit {2, 2} en ligne.
+      if (v.reste <= 3 && v.score === prevReste) w = { ...v, reste: 0 };            // finish en ligne
+      // Un bust n'existe que si le score atteint le reste (il dépasse, ou laisserait 1) :
+      // un reste identique avec un petit score, c'est une volée ressaisie (doublon), pas un bust.
+      else if (v.reste === prevReste && v.score >= prevReste - 1) w = { ...v, score: -1 };   // bust en ligne
+      else if (v.reste + v.score !== prevReste) {
+        // Ne s'enchaîne pas sur la précédente mais sur celle d'avant → la précédente était une
+        // faute de frappe annulée. Jamais un finish ni un bust (ceux-là restent).
+        const p1 = out[out.length - 1], p2 = out[out.length - 2];
+        if (p1 && p2 && p1.session_id === sess && p2.session_id === sess && p1.reste !== 0 && p1.score > 0
+            && p2.reste === v.reste + v.score) { out.pop(); prevReste = p2.reste; }
+      }
+    }
+    out.push(w);
+    prevReste = w.reste === 0 ? null : w.reste;   // après un finish : nouvelle manche
+  }
+  return out;
+}
+
 // Construit le profil du bot. 3 niveaux de réalisme, du meilleur au plus prudent :
 //  1) REPLAY : si on a ses VRAIES volées (live_volees), le bot rejoue ses lancers exacts.
 //  2) STATS  : sinon, modèle statistique calé sur ses 10 derniers matchs (manches_detail).
 //  3) DRIX   : sinon, estimation depuis son classement.
-export function calculerProfilBot({ drix, duels, amiPseudo, volees }) {
+export function calculerProfilBot({ drix, duels, amiPseudo, volees: voleesBrutes }) {
+  const volees = Array.isArray(voleesBrutes) ? normaliserVolees(voleesBrutes) : voleesBrutes;   // les 2 formats → 1 seul
   // ── 1) MODE REPLAY (le plus réaliste) ──
   if (Array.isArray(volees) && volees.length >= 25) {
     const scoring = volees.filter((v) => v.reste !== 0 && v.score > 0).map((v) => v.score); // lancers de scoring (hors finish, hors bust, hors tour blanc à 0)

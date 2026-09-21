@@ -1161,6 +1161,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const liveIdRef = useRef(null);
   const liveIdsRef = useRef([null, null]); // ids des 2 joueurs de la session live (duel OU bot)
   const liveVoleeNumRef = useRef([0, 0]);
+  const dernierEnvoiRef = useRef(null);   // TOUS les envois de volées en route (« Retour » les attend avant d'effacer)
+  const suivreEnvoi = (p) => { dernierEnvoiRef.current = Promise.allSettled([dernierEnvoiRef.current, p]); return p; };
   const liveMaxFinishRef = useRef([0, 0]);
   const liveBustsRef = useRef([0, 0]);
 
@@ -1588,6 +1590,44 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
 
   const [annulMsg, setAnnulMsg] = useState(null);
 
+  // ── « Retour » : effacer AUSSI en base les volées envoyées après l'état où l'on revient ──
+  // Sinon la faute de frappe corrigée restait dans live_volees et faussait l'historique du joueur
+  // (réglage de son bot, raccourcis personnalisés). Chaque photo d'état retient la session live et
+  // le dernier n° envoyé par joueur : on efface ce qui est au-delà. Les n° ne sont jamais réutilisés
+  // (comme en ligne) : une vue live qui a déjà lu une volée ne la confond pas avec la suivante.
+  // Après une reprise de partie, la session live est NOUVELLE : tout ce qu'elle contient a été
+  // envoyé après une photo prise dans l'ancienne → on l'efface aussi.
+  const effacerVoleesLiveApres = (snap) => {
+    if (!snap || !Array.isArray(snap.liveNums)) return;   // photo d'avant ce mécanisme : on ne sait pas
+    const courante = liveIdRef.current;
+    const ids = liveIdsRef.current || [];
+    const cibles = [];
+    (joueurs || []).forEach((j, idx) => {
+      if (botPseudo && j.nom === botPseudo) return;       // le bot n'écrit jamais de volées
+      const jid = ids[idx];
+      if (!jid) return;
+      const dernier = Number(snap.liveNums[idx]) || 0;
+      // Borne haute FIGÉE maintenant : sur un réseau lent, l'effacement part après les envois en
+      // route, et la volée corrigée, tapée entre-temps, ne doit pas partir avec (n° jamais réutilisés).
+      const haut = liveVoleeNumRef.current[idx] || 0;
+      const apres = `numero_volee=gt.${dernier}`;
+      if (snap.liveSess && snap.liveSess === courante) {
+        if (dernier >= haut) return;   // rien envoyé depuis : rien à effacer
+        cibles.push(`session_id=eq.${courante}&joueur_id=eq.${jid}&${apres}&numero_volee=lte.${haut}`);
+        return;
+      }
+      // Photo prise dans une AUTRE session (partie reprise après une fermeture de l'appli) :
+      // ce qui suit la photo dans l'ancienne, et TOUT ce qu'il y a dans la nouvelle.
+      if (snap.liveSess) cibles.push(`session_id=eq.${snap.liveSess}&joueur_id=eq.${jid}&${apres}`);
+      if (courante && haut > 0) cibles.push(`session_id=eq.${courante}&joueur_id=eq.${jid}&numero_volee=lte.${haut}`);
+    });
+    if (!cibles.length) return;
+    // APRÈS le dernier envoi : un effacement qui doublerait l'envoi encore en route le raterait.
+    Promise.resolve(dernierEnvoiRef.current).catch(() => {}).then(() => Promise.all(cibles.map((q) =>
+      fetch(`${SB_URL}/rest/v1/live_volees?${q}`, { method:"DELETE",
+        headers:{ apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, Prefer:"return=minimal" } }).catch(() => {}))));
+  };
+
   const annulerDernierCoup = () => {
     if (historique.length === 0 && !pendingVolee) return;
     // Si popup finish/zero ouverte → on annule d'abord sans dépiler (l'entrée a déjà été pushée)
@@ -1610,6 +1650,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     }
 
     const prev = historique[historique.length - nbPop];
+    effacerVoleesLiveApres(prev);   // la volée annulée disparaît aussi de la base
     // Rollback TOTAL : scores + joueur actif + manche + starter + historique manches
     setJoueurs(prev.joueurs.map(j => ({ ...j, tours: [...j.tours] })));
     setActifIdx(prev.actifIdx);
@@ -1823,11 +1864,11 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           headers:{ apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, "Content-Type":"application/json", Prefer:"return=minimal" },
           body: JSON.stringify({ [statsKey]:{ moy, volees:j.tours.length, flech, total_pts:j.totalPoints, nb180, reste, max_finish:liveMaxFinishRef.current[joueurIdx], busts:liveBustsRef.current[joueurIdx] }, [scoreKey]:j.manchesGagnees }),
         }),
-        estLeBot ? Promise.resolve() : fetch(`${SB_URL}/rest/v1/live_volees`, {
+        estLeBot ? Promise.resolve() : suivreEnvoi(fetch(`${SB_URL}/rest/v1/live_volees`, {
           method:"POST",
           headers:{ apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, "Content-Type":"application/json", Prefer:"return=minimal" },
           body: JSON.stringify({ session_id:liveIdRef.current, joueur_id:liveIdsRef.current[joueurIdx], numero_volee:liveVoleeNumRef.current[joueurIdx], score:isBust?-1:score, reste, date:Date.now() }),
-        }),
+        })),
       ]);
     } catch(e) { console.warn("pushLiveVolee:", e); }
   };
@@ -1852,12 +1893,17 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       scorePrecedent: j.scorePrecedent, tours: [...j.tours],
     })),
     actifIdx,
+    // Pour « Retour » : la session live et le dernier n° de volée envoyé par joueur à cet instant.
+    liveSess: liveIdRef.current, liveNums: [...liveVoleeNumRef.current],
     mancheEnCours,
     mancheStart: { vol:[...mancheStart.vol], pts:[...mancheStart.pts], nbtours:[...mancheStart.nbtours], flechettes:[...mancheStart.flechettes] },
     manchesHistory: [...manchesHistory],
   });
 
-  const pushHistorique = () => setHistorique(h => [...h.slice(-14), snapshot()]);
+  // ⚠️ La photo est prise TOUT DE SUITE, pas dans la fonction passée à setHistorique : React
+  // l'exécute plus tard, APRÈS l'envoi de la volée, et elle lisait alors le n° de volée suivant
+  // (« Retour » effaçait à partir du mauvais n° et laissait la volée annulée en base).
+  const pushHistorique = () => { const snap = snapshot(); setHistorique(h => [...h.slice(-14), snap]); };
 
   // opts (mode « fléchette par fléchette » uniquement) : { darts, dbl }
   //   darts = nombre RÉEL de fléchettes lancées (1..3) au lieu des 3 assumées
@@ -2527,7 +2573,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:11, color:"#a78bfa", fontWeight:800, letterSpacing:.5 }}>🤖 ADVERSAIRE (BOT)</div>
                 <div style={{ fontWeight:800, fontSize:17, color:"#f1f5f9", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{botPseudo}</div>
-                <div style={{ fontSize:12, color:"#94a3b8" }}>{botProfil?.source==="champion" ? "👑 Champion · calé sur les vraies stats d'un pro" : `${botAmi?.drix} DRIX · ${botProfil?.source==="stats" ? "joue à son vrai niveau" : "niveau estimé (DRIX)"}`}</div>
+                <div style={{ fontSize:12, color:"#94a3b8" }}>{botProfil?.source==="champion" ? "👑 Champion · calé sur les vraies stats d'un pro" : `${botAmi?.drix} DRIX · ${(botProfil?.source==="stats" || botProfil?.source==="volees" || botProfil?.mode==="replay") ? "joue à son vrai niveau" : "niveau estimé (DRIX)"}`}</div>
               </div>
             </div>
             {/* Tirage au sort — au-dessus du choix à la main : c'est le geste le plus rapide
