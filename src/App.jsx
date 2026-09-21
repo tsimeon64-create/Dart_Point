@@ -13,7 +13,7 @@ import {
   appliquerDrixDuel, getDrixTitre, getDrixProgression, calculerDrix, finaliserDuel,
   dbJoueurs, todayStr, hashPwd, callAuth,
   ALL_BADGES, computeBadgeValues, getBadgesStored, storeBadgesSet,
-  NiveauBulle,
+  NiveauBulle, tournoisGagnes,
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
 import { useRaccourcis } from "./raccourcisScores";
@@ -584,7 +584,8 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
 
   useEffect(() => {
     if (!open || !joueur) return;
-    sb(`stats?joueur_id=eq.${joueur.id}&select=victoires,defaites,parties`).then(r => setJoueurStats(r?.[0]||null)).catch(()=>{});
+    // « stats_joueurs » (la table « stats » n'existe pas : la ligne V / D / % WR ne s'affichait jamais)
+    sb(`stats_joueurs?joueur_id=eq.${joueur.id}&select=victoires,defaites,parties&order=id.asc&limit=1`).then(r => setJoueurStats(r?.[0]||null)).catch(()=>{});
   }, [open, joueur?.id]);
 
   // Close profile dropdown on outside click
@@ -620,7 +621,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
   };
   const tickerItems = [
     liveStats.matchsLive > 0 ? `🔥 ${liveStats.matchsLive} matchs live` : null,
-    liveStats.joueursConnectes > 0 ? `👥 ${liveStats.joueursConnectes} joueurs aujourd'hui` : null,
+    liveStats.joueursConnectes > 0 ? `👥 ${liveStats.joueursConnectes} joueur${liveStats.joueursConnectes > 1 ? "s" : ""} aujourd'hui` : null,
     barsActifs.length > 0 ? `🍺 ${barsActifs.length} bars actifs ce soir` : null,
     tournoisDuJour > 0 ? `🏆 ${tournoisDuJour} tournoi${tournoisDuJour>1?"s":""} aujourd'hui` : null,
     chronoRecord ? `⏱ Finish Speedrun — 🥇 ${chronoRecord.joueur_pseudo}  ${fmtTickerMs(chronoRecord.temps_ms)}` : null,
@@ -8611,7 +8612,10 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
     const todayStart = new Date(); todayStart.setHours(0,0,0,0);
     Promise.all([
       sb(`presences?date_jour=eq.${today}&select=joueur_id,bar_slug,joueur_pseudo,heure&order=heure.desc&limit=100`),
-      sb(`duels?statut=eq.termine&date=gte.${todayStart.toISOString()}&order=date.desc&limit=10&select=gagnant_pseudo,challenger_pseudo,defie_pseudo,bar_slug,date`),
+      // Cassé de mai à sept. 2026 : duels.date est en MILLISECONDES (on envoyait une date ISO) et
+      // la table duels n'a PAS de colonne bar_slug → erreur 400, et le Promise.all entier tombait :
+      // ni présences, ni activité récente. Le .catch garde les présences si les duels échouent.
+      sb(`duels?statut=eq.termine&date=gte.${todayStart.getTime()}&order=date.desc&limit=10&select=gagnant_pseudo,challenger_pseudo,defie_pseudo,date`).catch(() => []),
     ]).then(([pres, duels]) => {
       const presArr = pres || [];
       setJoueursPresentAujourd(new Set(presArr.map(p => p.joueur_id)).size);
@@ -8625,7 +8629,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
       const events = [];
       (duels || []).forEach(d => {
         const adv = d.gagnant_pseudo === d.challenger_pseudo ? d.defie_pseudo : d.challenger_pseudo;
-        events.push({ type:"duel", date: d.date, label:`🏆 ${d.gagnant_pseudo} a battu ${adv}`, bar:d.bar_slug });
+        events.push({ type:"duel", date: d.date, label:`🏆 ${d.gagnant_pseudo} a battu ${adv}` });   // un duel n'a pas de bar
       });
       // Présences récentes (uniquement les arrivées les + récentes)
       const seenJoueurs = new Set();
@@ -8788,7 +8792,7 @@ const Bars = ({ bars, associations=[], setPage, setBarSlug, setAssoSlug=()=>{}, 
               )}
               {joueursPresentAujourd > 0 && (
                 <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:14, background:"linear-gradient(135deg,#60a5fa22,#60a5fa08)", border:"1px solid #60a5fa77", fontSize:10, fontWeight:800, color:"#60a5fa" }}>
-                  <EmoIcon e="👥" size={10}/>{joueursPresentAujourd} joueurs aujourd'hui
+                  <EmoIcon e="👥" size={10}/>{joueursPresentAujourd} joueur{joueursPresentAujourd > 1 ? "s" : ""} aujourd'hui
                 </span>
               )}
             </div>
@@ -11470,7 +11474,8 @@ const AdminJoueurs = ({ addLog }) => {
     if (fiche[j.id] || ficheLoading[j.id]) return;
     setFicheLoading(f=>({...f,[j.id]:true}));
     const [stats, duels, presences, mouvements] = await Promise.all([
-      sb(`stats_joueurs?joueur_id=eq.${j.id}&select=victoires,defaites,parties,moyenne`).catch(()=>[]),
+      // pas de colonne « moyenne » dans stats_joueurs : la lecture échouait et le bloc restait vide
+      sb(`stats_joueurs?joueur_id=eq.${j.id}&select=victoires,defaites,parties&order=id.asc&limit=1`).catch(()=>[]),
       sb(`duels?or=(challenger_id.eq.${j.id},defie_id.eq.${j.id})&statut=eq.termine&select=id,date&order=date.desc&limit=1`).catch(()=>[]),
       sb(`presences?joueur_id=eq.${j.id}&select=date_jour&limit=1000`).catch(()=>[]),
       sb(`drix_mouvements?joueur_id=eq.${j.id}&select=variation,date&order=date.desc&limit=5&or=(resultat.is.null,resultat.neq.saison)`).catch(()=>[]),
@@ -14179,7 +14184,7 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
         sb(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=200&select=drix_apres&or=(resultat.is.null,resultat.neq.saison)`).catch(()=>[]),
         sb(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&select=statut`).catch(()=>[]),
         sb(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
-        sb(`tournois_potes?gagnant_id=eq.${joueur.id}&select=id`).catch(()=>[]),
+        tournoisGagnes(sb, joueur.id),   // tournois_potes n'a pas de gagnant_id (voir AppJoueurs)
       ]);
       const vals = computeBadgeValues(joueur, stats, duels||[], drixMvts||[], amis||[], (trn||[]).length, (wtrn||[]).length, 0, 0);
       const stored = getBadgesStored(joueur.id);
@@ -14682,6 +14687,11 @@ const HELP_CONTENT = {
   },
 };
 
+// Adresse d'arrivée (lien partagé /bars/<slug> ou /#t=<tournoi>), notée au chargement, AVANT que
+// l'appli la remette à « / ». Si la mise à jour automatique (version.txt) recharge la page juste
+// après, on recharge CETTE adresse : sinon l'ami qui ouvrait le lien retombait sur l'accueil.
+const ADRESSE_ARRIVEE = window.location.pathname + window.location.search + window.location.hash;
+
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("dp_onboarding_done"));
   // Annonce de la Tournee generale : une seule fois, et pas pendant l'accueil des
@@ -14822,6 +14832,7 @@ export default function App() {
   // Vérification de version — mise à jour automatique sans bandeau
   useEffect(()=>{
     const VERSION_KEY = "dp_version";
+    let premiere = true;   // 1re vérification = celle du démarrage
     const check = async () => {
       try {
         const res = await fetch("/version.txt?t=" + Date.now(), { cache:"no-store" });
@@ -14831,9 +14842,11 @@ export default function App() {
         if (!local) { localStorage.setItem(VERSION_KEY, remote); return; }
         if (remote !== local) {
           localStorage.setItem(VERSION_KEY, remote);
+          // Au démarrage, on recharge le lien d'arrivée (fiche de bar, tournoi) et pas « / »
+          if (premiere && ADRESSE_ARRIVEE !== "/") window.history.replaceState(null, "", ADRESSE_ARRIVEE);
           window.location.reload();
         }
-      } catch {}
+      } catch {} finally { premiere = false; }
     };
     check();
     // Revérifier toutes les 2 minutes
@@ -14948,13 +14961,23 @@ export default function App() {
     }
   },[joueur?.id]);
 
-  // Lien de partage tournoi entre potes (#t=UUID)
+  // Lien de partage tournoi entre potes (#t=UUID) et fiche d'un bar (/bars/<slug>)
   useEffect(()=>{
     const hash=window.location.hash;
     if(hash.startsWith("#t=")){
       const tid=hash.replace("#t=","");
       if(tid){ setShowOnboarding(false); nav("tournoi-potes-"+tid); } // invité : on saute l'onboarding pour aller direct au tournoi
       window.history.replaceState(null,"",window.location.pathname);
+      return;
+    }
+    // Bouton « Partager » d'un bar : le lien est /bars/<slug>. Vercel sert l'appli à cette
+    // adresse (vercel.json, « rewrites ») ; ici on ouvre la fiche du bar, puis on remet « / »
+    // dans la barre d'adresse. Avant : page « NOT_FOUND » de Vercel pour l'ami qui cliquait.
+    const m=window.location.pathname.match(/^\/bars\/([^/]+)\/?$/);
+    if(m){
+      let slug=m[1]; try{ slug=decodeURIComponent(slug); }catch{ /* slug laissé tel quel */ }
+      setShowOnboarding(false); setBarSlug(slug); nav("bar");
+      window.history.replaceState(null,"","/");
     }
   },[]);
 

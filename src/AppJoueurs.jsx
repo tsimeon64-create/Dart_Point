@@ -1156,7 +1156,7 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       sbJ(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&select=statut`).catch(()=>[]),
       // 🆕 Pour le calcul des badges sociaux/tournois (sinon soc_trn et soc_wtrn jamais débloqués)
       sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
-      sbJ(`tournois_potes?gagnant_id=eq.${joueur.id}&select=id`).catch(()=>[]),
+      tournoisGagnes(sbJ, joueur.id),
       dbJ.getStatsResetAt(joueur.id),
     ]).then(([s, d, mvts, allJ, amis, trn, wtrn, reset]) => {
       // Stats affichées : depuis la remise à zéro. Badges (plus bas) : tout l'historique.
@@ -2905,7 +2905,7 @@ export const PageProfilBadges = ({ joueur, setPage, embedded = false }) => {
       sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=200&select=drix_apres,variation,resultat&or=(resultat.is.null,resultat.neq.saison)`).catch(()=>[]),
       sbJ(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&select=statut`).catch(()=>[]),
       sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
-      sbJ(`tournois_potes?gagnant_id=eq.${joueur.id}&select=id`).catch(()=>[]),
+      tournoisGagnes(sbJ, joueur.id),
     ]).then(([s,d,dm,a,trn,wtrn])=>{
       setStats(s);
       setDuels(d||[]);
@@ -3820,7 +3820,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       // 🆕 Données pour calcul correct des badges (amis, tournois)
       sbJ(`amis?or=(joueur_id.eq.${joueurId},ami_id.eq.${joueurId})&select=statut`).catch(()=>[]),
       sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueurId}&select=tournoi_id`).catch(()=>[]),
-      sbJ(`tournois_potes?gagnant_id=eq.${joueurId}&select=id`).catch(()=>[]),
+      tournoisGagnes(sbJ, joueurId),
       dbJ.getStatsResetAt(joueurId),
     ]).then(([jd, s, d, mvts, allJ, ms, md, jAmis, jTrn, jWtrn, reset]) => {
       setJ(jd);
@@ -6028,6 +6028,25 @@ const upsertStatsRow = async (statsRow, joueurId, isWinner) => {
     victoires: isWinner ? 1 : 0,
     defaites:  isWinner ? 0 : 1,
   });
+};
+
+// Tournois entre potes GAGNÉS par un compte (badge « Boss de la bande »). La table tournois_potes
+// n'a PAS de colonne gagnant_id : les 4 lectures qui la demandaient échouaient en silence et le
+// badge ne se débloquait jamais. Le vainqueur est celui de la FINALE (tournois_potes_matchs,
+// phase « finale » terminée), et son gagnant_id est l'id de l'INSCRIPTION, pas du compte : on
+// cherche donc d'abord mes inscriptions (solo ou capitaine par joueur_id, binôme par « membres »).
+// `lire` = sb ou sbJ. Renvoie la liste des tournoi_id gagnés (sans doublon).
+export const tournoisGagnes = async (lire, compteId) => {
+  if (!compteId) return [];
+  const filtreMembre = "cs." + encodeURIComponent(`[{"id":"${compteId}"}]`);
+  const [parId, parMembre] = await Promise.all([
+    lire(`tournois_potes_joueurs?joueur_id=eq.${compteId}&select=id`).catch(() => []),
+    lire(`tournois_potes_joueurs?membres=${filtreMembre}&select=id`).catch(() => []),
+  ]);
+  const ids = [...new Set([...(parId || []), ...(parMembre || [])].map((i) => i.id).filter(Boolean))];
+  if (!ids.length) return [];
+  const finales = await lire(`tournois_potes_matchs?phase=eq.finale&statut=eq.termine&gagnant_id=in.(${ids.join(",")})&select=tournoi_id`).catch(() => []);
+  return [...new Set((finales || []).map((m) => m.tournoi_id))];
 };
 
 export const finaliserDuel = async (duel, matchData = null) => {

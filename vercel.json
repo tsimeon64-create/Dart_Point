@@ -1,4 +1,7 @@
 {
+  "rewrites": [
+    { "source": "/bars/:slug", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
