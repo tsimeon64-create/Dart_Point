@@ -21,7 +21,6 @@ import {
   calculateQualifiedCount,
   getNextBracketSize,
   matchesInPool,
-  estimatePoolDuration,
   formatDuration,
   validatePoolConfiguration,
   buildPoolConfigurationSummary,
@@ -687,12 +686,10 @@ const usePoulesCalculs = (config, participantCount, onChange) => {
 
   const manches = config.manches || 2;
   const cibles = config.availableTargets || 1;
-  const ciblesMode = config.ciblesMode === "par_poule" ? "par_poule" : "optimise";
-  // Durée annoncée sur la carte « Optimisé ». `summary` ne porte pas la valeur brute (seulement une
-  // ligne de texte), on la recalcule donc ici — sinon la carte affichait « environ 0 min ».
-  // ⚠️ À déclarer APRÈS `cibles` : en JS, lire un const avant sa ligne de déclaration
-  // plante la page entière ("Cannot access before initialization").
-  const dureeOptimisee = estimatePoolDuration({ groups, availableTargets: cibles, averageMatchDuration: DUREE_MATCH_MIN });
+  // Un seul mode depuis septembre 2026 : « une poule par cible » (le mode « optimisé », où l'appli
+  // répartissait les matchs et convoquait les joueurs, a été retiré de l'assistant à la demande de
+  // Thomas). Les tournois déjà lancés en « optimisé » gardent leur déroulé (AppTournoiPotes).
+  const ciblesMode = "par_poule";
   // En « une poule par cible », une poule ne peut PAS être découpée : elle occupe une cible du
   // début à la fin. Donc :
   //  · plus de cibles que de poules ne sert à rien (les cibles en trop restent vides) ;
@@ -715,7 +712,7 @@ const usePoulesCalculs = (config, participantCount, onChange) => {
   return { set, unite, uniteQ, qpp, qppVoulu, recommended, groups, minPool,
     nbPoules, minPoules, maxPoules, selectedOption,
     summary, validation, conseqQual, nbPoulesDe2, manches, cibles, ciblesMode,
-    dureeOptimisee, ciblesUtiles, dureeParPoule };
+    ciblesUtiles, dureeParPoule };
 };
 
 // Le 1er tour d'un tableau de `bs` places, et celui où arrive un exempt. Sert à dire DE QUOI il
@@ -964,9 +961,36 @@ export const StepQualifies = ({ config, participantCount, onChange }) => {
   );
 };
 
-// ── ÉTAPE 3 : les cibles et la façon de les occuper ──────────────────────────
+// ── ÉTAPE 3 : les cibles (chaque poule s'installe sur la sienne) ──────────────
+// Une carte d'information, pas un choix : il n'y a plus qu'une organisation.
+const CarteInfo = ({ emoji, titre, sousTitre, lignes }) => (
+  <div className="tsw-anim" style={{ position: "relative", padding: "16px 16px", borderRadius: D.r.l, marginTop: 4,
+    border: "1.5px solid rgba(255,255,255,.09)", background: D.fondCarte, boxShadow: `${D.ombre}, ${D.liseré}` }}>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 13 }}>
+      <div style={{ flexShrink: 0, width: 46, height: 46, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center",
+        background: "linear-gradient(150deg, rgba(255,255,255,.07), rgba(255,255,255,.02))", border: "1px solid rgba(255,255,255,.08)",
+        boxShadow: `${D.liseré}, 0 4px 10px -6px rgba(0,0,0,.9)` }}>
+        <EmoText s={emoji} size={23} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 15.5, fontWeight: 800, letterSpacing: -0.2, color: CT.text }}>{titre}</div>
+        <div style={{ fontSize: 12.5, color: CT.muted, marginTop: 3, lineHeight: 1.45 }}>{sousTitre}</div>
+        <div style={{ marginTop: 9, display: "flex", flexDirection: "column", gap: 4 }}>
+          {lignes.map((l, i) => (
+            <div key={i} style={{ fontSize: 12, color: l.strong ? CT.text : CT.muted, fontWeight: l.strong ? 700 : 500, lineHeight: 1.45,
+              display: "flex", alignItems: "flex-start", gap: 7 }}>
+              <span style={{ flexShrink: 0, opacity: l.strong ? 1 : 0.75 }}><EmoText s={l.icon} size={12} /></span>
+              <span>{l.text}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 export const StepCibles = ({ config, participantCount, onChange }) => {
-  const { set, cibles, ciblesMode, groups, dureeOptimisee, dureeParPoule, ciblesUtiles } =
+  const { set, cibles, groups, dureeParPoule, ciblesUtiles } =
     usePoulesCalculs(config, participantCount, onChange);
   return (
     <div>
@@ -974,11 +998,8 @@ export const StepCibles = ({ config, participantCount, onChange }) => {
         <EmoText s="🎯" size={18} /> Les cibles
       </h2>
       <p style={{ fontSize: 13, color: CT.muted, margin: "0 0 14px" }}>
-        Combien de cibles tu as, et comment les occuper.
+        Combien de cibles tu as. Chaque poule s'installe sur la sienne.
       </p>
-      {/* ORDRE VOULU : on demande D'ABORD combien de cibles existent dans le bar, ENSUITE comment
-          les occuper. L'inverse n'a pas de sens : les durées annoncées sur les deux cartes
-          dépendent justement de ce nombre. */}
       <SectionLabel hint="(jeux de fléchettes en parallèle)">Cibles disponibles</SectionLabel>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 18 }}>
         <button
@@ -1000,44 +1021,23 @@ export const StepCibles = ({ config, participantCount, onChange }) => {
         </button>
       </div>
       <div style={{ fontSize: 11.5, color: CT.muted, textAlign: "center", marginTop: 8, lineHeight: 1.4 }}>
-        {ciblesMode === "par_poule"
-          ? <>🎯 {cibles} cible{cibles > 1 ? "s" : ""} pour {groups.length} poule{groups.length > 1 ? "s" : ""}.{cibles < groups.length ? ` ${groups.length - cibles} poule${groups.length - cibles > 1 ? "s devront" : " devra"} partager.` : cibles > groups.length ? " Il en restera de libres." : " Chaque poule a la sienne 👍"} Réglable pendant le tournoi.</>
-          : <>🎯 Jusqu'à {cibles === 1 ? "1 match" : `${cibles} matchs`} en même temps (un par cible). Réglable pendant le tournoi.</>}
+        <>🎯 {cibles} cible{cibles > 1 ? "s" : ""} pour {groups.length} poule{groups.length > 1 ? "s" : ""}.{cibles < groups.length ? ` ${groups.length - cibles} poule${groups.length - cibles > 1 ? "s devront" : " devra"} partager.` : cibles > groups.length ? " Il en restera de libres." : " Chaque poule a la sienne 👍"} Réglable pendant le tournoi.</>
       </div>
 
-      {/* Deux façons d'occuper les cibles. « Optimisé » = l'appli répartit et annonce qui joue.
-          « Une poule par cible » = chaque poule s'installe sur sa cible et joue dans l'ordre qu'elle
-          veut ; l'appli propose juste un ordre pour qu'un joueur n'enchaîne pas deux matchs de suite. */}
-      <SectionLabel>Organisation des cibles</SectionLabel>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <ChoiceCard
-          emoji="⚡"
-          title="Optimisé"
-          subtitle="L'appli répartit les matchs sur les cibles et annonce qui joue maintenant."
-          selected={ciblesMode !== "par_poule"}
-          ariaLabel="Organisation optimisée"
-          onClick={() => set({ ciblesMode: "optimise" })}
-          lines={[
-            { icon: "⏱️", text: `Le plus rapide : environ ${formatDuration(dureeOptimisee)}`, strong: true },
-            { icon: "🔔", text: "Chacun est prévenu sur son téléphone quand c'est à lui." },
-          ]}
-        />
-        <ChoiceCard
-          emoji="🏟️"
-          title="Une poule par cible"
-          subtitle="Chaque poule s'installe sur sa cible et joue à son rythme."
-          selected={ciblesMode === "par_poule"}
-          ariaLabel="Une poule par cible"
-          onClick={() => set({ ciblesMode: "par_poule" })}
-          lines={[
-            { icon: "🎯", text: `${groups.length} poule${groups.length > 1 ? "s" : ""} → ${groups.length} cible${groups.length > 1 ? "s" : ""} conseillée${groups.length > 1 ? "s" : ""}`, strong: true },
-            { icon: "⏱️", text: `Environ ${formatDuration(dureeParPoule)} avec ${ciblesUtiles} cible${ciblesUtiles > 1 ? "s" : ""}${cibles > groups.length ? ` (${cibles - groups.length} inutile${cibles - groups.length > 1 ? "s" : ""} ici)` : ""}`, strong: true },
-            { icon: "🙌", text: "Les joueurs choisissent l'ordre de leurs matchs eux-mêmes." },
-            { icon: "💡", text: "L'appli affiche un ordre conseillé (personne n'enchaîne 2 matchs)." },
-            { icon: "🔕", text: "Pas d'alerte « c'est à toi » : vous êtes déjà autour de la cible." },
-          ]}
-        />
-      </div>
+      {/* Le résumé de l'organisation (plus de choix : une poule par cible). La durée n'a de sens
+          qu'ici, une fois le nombre de cibles connu. */}
+      <CarteInfo
+        emoji="🏟️"
+        titre="Une poule par cible"
+        sousTitre="Chaque poule s'installe sur sa cible et joue à son rythme."
+        lignes={[
+          { icon: "🎯", text: `${groups.length} poule${groups.length > 1 ? "s" : ""} → ${groups.length} cible${groups.length > 1 ? "s" : ""} conseillée${groups.length > 1 ? "s" : ""}`, strong: true },
+          { icon: "⏱️", text: `Environ ${formatDuration(dureeParPoule)} avec ${ciblesUtiles} cible${ciblesUtiles > 1 ? "s" : ""}${cibles > groups.length ? ` (${cibles - groups.length} inutile${cibles - groups.length > 1 ? "s" : ""} ici)` : ""}`, strong: true },
+          { icon: "🙌", text: "Les joueurs choisissent l'ordre de leurs matchs eux-mêmes." },
+          { icon: "💡", text: "L'appli affiche un ordre conseillé (personne n'enchaîne 2 matchs)." },
+          { icon: "🔕", text: "Pas d'alerte « c'est à toi » : vous êtes déjà autour de la cible." },
+        ]}
+      />
 
     </div>
   );
@@ -1447,9 +1447,7 @@ export const StepResume = ({ phase, config, participantCount, context = {}, onEd
   // réglage effectif que l'écran Poules et le lancement (resoudrePoules).
   const regle = resoudrePoules(config, participantCount);
   const groups = regle.groups;
-  const ciblesMode = config.ciblesMode === "par_poule" ? "par_poule" : "optimise";
   const ciblesR = config.availableTargets || 1;
-  const dureeOptimisee = estimatePoolDuration({ groups, availableTargets: ciblesR, averageMatchDuration: DUREE_MATCH_MIN });
   // Même règle qu'à l'étape Cibles : une poule occupe UNE cible du début à la fin.
   const dureeParPoule = (() => {
     const parPoule = groups.map((n) => (n * (n - 1)) / 2).sort((a, b) => b - a);
@@ -1467,7 +1465,10 @@ export const StepResume = ({ phase, config, participantCount, context = {}, onEd
     qualifiersPerPool: regle.qualifiersPerPool,
     manches: config.manches || 2,
     availableTargets: config.availableTargets || 1,
-    averageMatchDuration: DUREE_MATCH_MIN,
+    // Pas de durée dans cet encadré : elle est donnée juste en dessous, calculée pour « une poule
+    // par cible ». L'encadré la calculait avec la règle de l'ancien mode « optimisé » : deux
+    // durées différentes sur le même écran.
+    averageMatchDuration: null,
     format: config.format,
   });
   return (
@@ -1491,7 +1492,7 @@ export const StepResume = ({ phase, config, participantCount, context = {}, onEd
       <div style={{ ...encartStyle(CT.blue), marginTop: 22 }}>
         <span style={pastilleEncart(CT.blue)}>⏱️</span>
         <span>
-          <span style={{ fontWeight: 800, fontSize: 13.5 }}>Durée estimée des poules : environ {formatDuration(ciblesMode === "par_poule" ? dureeParPoule : dureeOptimisee)}</span>
+          <span style={{ fontWeight: 800, fontSize: 13.5 }}>Durée estimée des poules : environ {formatDuration(dureeParPoule)}</span>
           <div style={{ fontSize: 11, color: CT.muted, fontWeight: 500, marginTop: 4, lineHeight: 1.5 }}>Estimation indicative, sur une base de {DUREE_MATCH_MIN} min par match. En cas d'égalité parfaite, 1 à 3 matchs de barrage en 701 peuvent s'ajouter à la fin des poules.</div>
         </span>
       </div>
@@ -1628,7 +1629,7 @@ export const TournoiSetupWizard = ({
     else if (onLaunchPoules) {
       // On lance EXACTEMENT ce que le résumé vient d'afficher, recalculé pour les inscrits du moment.
       const regle = resoudrePoules(config, participantCount);
-      onLaunchPoules({ ...config, poolCount: regle.poolCount, qualifiersPerPool: regle.qualifiersPerPool,
+      onLaunchPoules({ ...config, ciblesMode: "par_poule", poolCount: regle.poolCount, qualifiersPerPool: regle.qualifiersPerPool,
         playersPerPool: Math.max(1, Math.round(participantCount / Math.max(1, regle.poolCount))) });
     }
   };
