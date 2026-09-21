@@ -277,6 +277,25 @@ export const getPoolCountOptions = (playerCount, { qualifiersPerPool = 2 } = {})
   return { min, max, options, recommended };
 };
 
+// Nombre de qualifiés par poule CONSEILLÉ pour des poules données (étape « Qualification ») :
+// le moins d'exempts ; à égalité, le plus proche de la moitié de la plus petite poule (les
+// poules gardent du sens), puis le plus grand. Seuls les choix possibles comptent (au moins un
+// éliminé par poule). null si aucun n'est possible.
+export const recommanderQualifies = (groups, candidats = [1, 2, 3]) => {
+  const minPool = (groups || []).length ? Math.min(...groups) : 0;
+  const possibles = candidats.filter((q) => q < minPool);
+  if (!possibles.length) return null;
+  const info = (q) => {
+    const qc = calculateQualifiedCount(groups, q);
+    return { q, bye: getNextBracketSize(qc) - qc };
+  };
+  return possibles.map(info).sort((a, b) =>
+    a.bye - b.bye ||
+    Math.abs(a.q - minPool / 2) - Math.abs(b.q - minPool / 2) ||
+    b.q - a.q
+  )[0].q;
+};
+
 // Le réglage EFFECTIF des poules pour `playerCount` inscrits : ce qui est affiché à CHAQUE
 // étape de l'assistant ET ce qui est lancé. Un seul calcul, sinon le résumé pouvait annoncer
 // 7 poules quand le lancement en créait 6 (une équipe partie entre-temps).
@@ -373,6 +392,7 @@ export const validatePoolConfiguration = (config = {}) => {
     groups = [],
     qualifiersPerPool = 2,
     availableTargets = 1,
+    etape = "complet",   // "poules" : pas de durée (cibles pas encore choisies), exempts déjà expliqués
     averageMatchDuration = 15,
   } = config;
   const errors = [];
@@ -407,7 +427,7 @@ export const validatePoolConfiguration = (config = {}) => {
     const duration = estimatePoolDuration({ groups, availableTargets, averageMatchDuration });
 
     // — Avertissements non bloquants —
-    if (byeCount > 0) {
+    if (byeCount > 0 && etape !== "poules") {
       warnings.push(
         `${byeCount} exempt${byeCount > 1 ? "s" : ""} au 1er tour du tableau : ${byeCount > 1 ? "ils passent" : "il passe"} directement le 1er tour.`
       );
@@ -420,7 +440,7 @@ export const validatePoolConfiguration = (config = {}) => {
     if (totalMatches > 60) {
       warnings.push(`Beaucoup de matchs de poules (${totalMatches}) : le tournoi sera long.`);
     }
-    if (duration > 180) {
+    if (duration > 180 && etape !== "poules") {
       warnings.push(`Durée estimée des poules élevée : environ ${formatDuration(duration)}.`);
     }
 
@@ -489,6 +509,9 @@ export const buildPoolConfigurationSummary = (config = {}) => {
     availableTargets = 1,
     averageMatchDuration = null,
     format = "simple",
+    // "poules" = l'étape Poules de l'assistant : les manches (étape 2) et les cibles (étape 3)
+    // ne sont pas encore choisies, donc ni manches, ni cibles, ni DURÉE (elle dépend des cibles).
+    etape = "complet",
   } = config;
 
   const poolCount = groups.length;
@@ -518,10 +541,12 @@ export const buildPoolConfigurationSummary = (config = {}) => {
       ? { icon: "👍", text: "Aucun exempt" }
       : { icon: "⚠️", text: `${byeCount} exempt${byeCount > 1 ? "s" : ""}` }
   );
-  lines.push({ icon: "🎲", text: `Premier à ${manches} manche${manches > 1 ? "s" : ""}` });
-  lines.push({ icon: "🎯", text: `${availableTargets} cible${availableTargets > 1 ? "s" : ""} disponible${availableTargets > 1 ? "s" : ""}` });
+  if (etape !== "poules") {
+    lines.push({ icon: "🎲", text: `Premier à ${manches} manche${manches > 1 ? "s" : ""}` });
+    lines.push({ icon: "🎯", text: `${availableTargets} cible${availableTargets > 1 ? "s" : ""} disponible${availableTargets > 1 ? "s" : ""}` });
+  }
 
-  if (averageMatchDuration) {
+  if (averageMatchDuration && etape !== "poules") {
     const dur = estimatePoolDuration({ groups, availableTargets, averageMatchDuration });
     lines.push({ icon: "⏱️", text: `Durée estimée : environ ${formatDuration(dur)}` });
   }

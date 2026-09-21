@@ -20,6 +20,7 @@ import {
   getPoolDistributionOptions,
   getPoolCountOptions,
   resoudrePoules,
+  recommanderQualifies,
   estimatePoolDuration,
   estimateBracketDuration,
   formatDuration,
@@ -407,6 +408,27 @@ eq("calculateQualifiedCount([5,5,5,5],3)", calculateQualifiedCount([5, 5, 5, 5],
     (() => { const r = resoudrePoules({ poolCount: 7, poolCountChoisi: true, qualifiersPerPool: 1, qualifiersPerPoolVoulu: 2 }, 21); return [r.poolCount, r.groups, r.qualifiersPerPool]; })(),
     [7, [3, 3, 3, 3, 3, 3, 3], 2]);
   ok("résolu: 0 ou 1 inscrit → 1 poule, pas de plantage", resoudrePoules({}, 1).poolCount === 1 && resoudrePoules({}, 0).poolCount === 1);
+
+  // Qualifiés conseillés : le moins d'exempts, puis le plus proche de la moitié de la poule
+  eq("qualifiés conseillés: 4 poules de 5 → les 2 premiers (0 exempt, comme le 1er, mais plus proche de la moitié)",
+    recommanderQualifies([5, 5, 5, 5]), 2);
+  eq("qualifiés conseillés: 5 poules de 4 → les 3 premiers (1 exempt, contre 3 et 6)", recommanderQualifies([4, 4, 4, 4, 4]), 3);
+  eq("qualifiés conseillés: 6 poules de 3-4 → le 1er (2 exempts, contre 4)", recommanderQualifies([4, 4, 3, 3, 3, 3]), 1);
+  eq("qualifiés conseillés: une poule de 2 → le 1er (seul possible)", recommanderQualifies([3, 3, 3, 3, 3, 3, 2]), 1);
+  eq("qualifiés conseillés: aucune poule assez grande → null", recommanderQualifies([1, 1]), null);
+
+  // Étape « Poules » : ni manches, ni cibles, ni durée (choisies aux étapes suivantes)
+  const base = { playerCount: 20, groups: [5, 5, 5, 5], qualifiersPerPool: 2, manches: 2, availableTargets: 4, averageMatchDuration: 25, format: "doublette" };
+  const txt = (r) => r.lines.map((l) => l.text).join(" | ");
+  ok("résumé étape poules: pas de durée, de manches ni de cibles",
+    !/Durée|manche|cible/.test(txt(buildPoolConfigurationSummary({ ...base, etape: "poules" }))));
+  ok("résumé complet (résumé final): durée, manches et cibles présentes",
+    /Durée/.test(txt(buildPoolConfigurationSummary(base))) && /manche/.test(txt(buildPoolConfigurationSummary(base))) && /cible/.test(txt(buildPoolConfigurationSummary(base))));
+  const longue = { playerCount: 20, groups: [10, 10], qualifiersPerPool: 1, availableTargets: 1, averageMatchDuration: 25 };
+  ok("validation étape poules: pas d'avertissement de durée",
+    !validatePoolConfiguration({ ...longue, etape: "poules" }).warnings.some((w) => /Durée/.test(w)));
+  ok("validation complète: l'avertissement de durée reste",
+    validatePoolConfiguration(longue).warnings.some((w) => /Durée/.test(w)));
 }
 
 // ── Bilan ────────────────────────────────────────────────────────────────────

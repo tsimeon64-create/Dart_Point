@@ -17,6 +17,7 @@ import { useState, useEffect, useRef } from "react";
 import { EmoText } from "./icons";
 import {
   resoudrePoules,
+  recommanderQualifies,
   calculateQualifiedCount,
   getNextBracketSize,
   matchesInPool,
@@ -189,6 +190,7 @@ export const ChoiceCard = ({
             right: 12,
             background: `linear-gradient(180deg, #4ade80, ${CT.green})`,
             color: "#04120a",
+            WebkitTextFillColor: "#04120a",   // sinon le -webkit-text-fill-color du body l'écrit en blanc
             fontSize: 10.5,
             fontWeight: 900,
             padding: "3px 10px",
@@ -653,6 +655,7 @@ const usePoulesCalculs = (config, participantCount, onChange) => {
 
   // Résumé + validation en direct.
   const summary = buildPoolConfigurationSummary({
+    etape: "poules",   // pas de durée ici : elle dépend des cibles (étape 3)
     playerCount: participantCount,
     groups,
     qualifiersPerPool: qpp,
@@ -662,6 +665,7 @@ const usePoulesCalculs = (config, participantCount, onChange) => {
     format: config.format,
   });
   const validation = validatePoolConfiguration({
+    etape: "poules",
     playerCount: participantCount,
     groups,
     qualifiersPerPool: qpp,
@@ -714,6 +718,24 @@ const usePoulesCalculs = (config, participantCount, onChange) => {
     dureeOptimisee, ciblesUtiles, dureeParPoule };
 };
 
+// Le 1er tour d'un tableau de `bs` places, et celui où arrive un exempt. Sert à dire DE QUOI il
+// est dispensé : « ils ne jouent pas les 8es de finale et passent directement en quarts ».
+const DU_TOUR = { seizieme: "les 16es de finale", huitieme: "les 8es de finale", quart: "les quarts de finale", demi: "les demi-finales", finale: "la finale" };
+const EN_TOUR = { seizieme: "en 16es de finale", huitieme: "en 8es de finale", quart: "en quarts de finale", demi: "en demi-finales", finale: "en finale" };
+const toursTableau = (bs) => {
+  const tours = roundsForBracket(Math.max(2, bs || 2));
+  // Tableau de 64 : les deux premiers tours portent le même nom (« 16es ») → on dit « 1er / 2e tour ».
+  if (tours[1] && tours[0] === tours[1]) return { premier: "le 1er tour", suivant: "au 2e tour" };
+  return { premier: DU_TOUR[tours[0]] || "le 1er tour", suivant: tours[1] ? EN_TOUR[tours[1]] : null };
+};
+// « 6 équipes ne jouent pas les 8es de finale du tableau final et passent directement en quarts de finale »
+const phraseExempts = (bye, bs, uniteS) => {
+  const t = toursTableau(bs);
+  const qui = bye > 1 ? `${bye} ${uniteS}s ne jouent pas` : `1 ${uniteS} ne joue pas`;
+  const ou = t.suivant ? `${bye > 1 ? "passent" : "passe"} directement ${t.suivant}` : `${bye > 1 ? "gagnent" : "gagne"} sans jouer`;
+  return `${qui} ${t.premier} du tableau final et ${ou}`;
+};
+
 // ── Compteur − / + du nombre de poules ───────────────────────────────────────
 // Gros boutons (56 px) : on règle ça debout au comptoir, le téléphone dans une main.
 // aria-disabled plutôt que disabled : un bouton qui devient « disabled » sous le doigt (ou le
@@ -753,7 +775,7 @@ const CarteDetailPoules = ({ conseil, lignes }) => (
     boxShadow: `${D.ombre}, ${D.liseré}` }}>
     {conseil && (
       <span style={{ position: "absolute", top: -11, right: 12, background: `linear-gradient(180deg, #4ade80, ${CT.green})`,
-        color: "#04120a", fontSize: 10.5, fontWeight: 900, padding: "3px 10px", borderRadius: 20, letterSpacing: 0.3,
+        color: "#04120a", WebkitTextFillColor: "#04120a", fontSize: 10.5, fontWeight: 900, padding: "3px 10px", borderRadius: 20, letterSpacing: 0.3,
         boxShadow: `0 3px 10px -2px ${CT.green}88, inset 0 1px 0 rgba(255,255,255,.45)`, whiteSpace: "nowrap" }}>
         ⭐ Recommandé
       </span>
@@ -798,8 +820,8 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
     // « Exempt » est du jargon : on dit ce que ça veut dire. Le tableau n'a que 2, 4, 8, 16 ou 32
     // places ; les places en trop sont des cases vides, et celui qui tombe dessus passe le tour.
     o.byeCount === 0
-      ? { icon: "👍", text: "Aucun exempt : tout le monde joue dès le 1er tour du tableau" }
-      : { icon: "⚠️", text: `${o.byeCount} exempt${o.byeCount > 1 ? "s" : ""} : ${o.qualifiedCount} ${uniteQ} pour un tableau de ${o.bracketSize} places, donc ${o.byeCount} ${o.byeCount > 1 ? uniteS + "s passent" : uniteS + " passe"} directement au tour suivant` },
+      ? { icon: "👍", text: `Aucun exempt : tout le monde joue ${toursTableau(o.bracketSize).premier} du tableau final` }
+      : { icon: "⚠️", text: `${o.byeCount} exempt${o.byeCount > 1 ? "s" : ""} : ${o.qualifiedCount} ${uniteQ} pour un tableau de ${o.bracketSize} places, donc ${phraseExempts(o.byeCount, o.bracketSize, uniteS)}` },
     ...(o.qualifiersPerPool !== qppVoulu
       ? [{ icon: "ℹ️", text: `La plus petite poule n'a que ${o.minPool} ${unite} → ${o.qualifiersPerPool} qualifié${o.qualifiersPerPool > 1 ? "s" : ""} par poule (au lieu de ${qppVoulu})` }]
       : []),
@@ -845,9 +867,26 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
 
 // ── ÉTAPE 2 : qui se qualifie, et en combien de manches ──────────────────────
 export const StepQualifies = ({ config, participantCount, onChange }) => {
-  const { uniteQ, qpp, set, minPool, conseqQual, manches, groups } =
+  const { uniteQ, qpp, set, minPool, conseqQual, manches, groups, nbPoules } =
     usePoulesCalculs(config, participantCount, onChange);
-  void groups;
+  const uniteS = config.format === "doublette" ? "équipe" : "joueur";
+  const fem = config.format === "doublette";
+  // Choisir les qualifiés FIGE le nombre de poules affiché : sinon, tant que le compteur de
+  // l'étape 1 n'avait pas été touché, le conseil de poules se recalculait avec ces qualifiés,
+  // les poules changeaient sous le doigt et la pastille verte sautait d'un bouton à l'autre.
+  const choisirQualifies = (q) => set({ qualifiersPerPool: q, qualifiersPerPoolVoulu: q, poolCount: nbPoules, poolCountChoisi: true });
+  const conseil = recommanderQualifies(groups);          // encadré en vert
+  const cs = conseqQual(qpp);                            // le choix en cours, détaillé dessous
+  const lignes = [
+    { icon: "✅", strong: true, text: `${cs.qc} ${uniteQ} → tableau final de ${cs.bs} places` },
+    ...(cs.bye === 0
+      ? [{ icon: "👍", text: `Aucun exempt : tout le monde joue ${toursTableau(cs.bs).premier} du tableau final.` }]
+      : [
+          { icon: "⚠️", text: `${cs.bye} exempt${cs.bye > 1 ? "s" : ""} : ${phraseExempts(cs.bye, cs.bs, uniteS)}.` },
+          { icon: "🏅", text: fem ? "Qui ? Les mieux classées des poules, les 1res de poule d'abord." : "Qui ? Les mieux classés des poules, les 1ers de poule d'abord." },
+          { icon: "ℹ️", text: `Exempté, c'est seulement au tableau final : tout le monde joue tous ses matchs de poule.` },
+        ]),
+  ];
   return (
     <div>
       <h2 style={{ fontSize: 19, fontWeight: 800, color: CT.text, margin: "0 0 4px" }}>
@@ -859,23 +898,28 @@ export const StepQualifies = ({ config, participantCount, onChange }) => {
       <SectionLabel hint="(qui passe au tableau)">
         {config.format === "doublette" ? "Équipes qualifiées" : "Qualifiés"} par poule
       </SectionLabel>
-      <div style={{ display: "flex", gap: 8 }}>
+      {/* paddingTop : la place de la pastille « Recommandé » posée à cheval sur le bouton */}
+      <div style={{ display: "flex", gap: 8, paddingTop: 10 }}>
         {[1, 2, 3].map((q) => {
           const possible = q < minPool; // au moins un non-qualifié → valide
           const sq = qpp === q;
           const c = conseqQual(q);
+          const estConseil = possible && q === conseil;
           return (
             <button
               key={q}
-              onClick={possible ? () => set({ qualifiersPerPool: q, qualifiersPerPoolVoulu: q }) : undefined}
+              onClick={possible ? () => choisirQualifies(q) : undefined}
               disabled={!possible}
               aria-pressed={sq}
               aria-label={`${q} qualifié${q > 1 ? "s" : ""} par poule`}
               style={{
+                position: "relative",
                 flex: 1,
                 minHeight: 64,
                 borderRadius: 12,
-                border: `1.5px solid ${sq ? CT.accent : CT.border}`,
+                // Le conseil est ENCADRÉ EN VERT (même quand il n'est pas choisi) ; le choix, lui, se remplit en orange.
+                border: estConseil ? `2px solid ${CT.green}` : `1.5px solid ${sq ? CT.accent : CT.border}`,
+                boxShadow: estConseil ? `0 0 14px -4px ${CT.green}99` : "none",
                 background: sq ? CT.accent + "1f" : CT.card,
                 color: sq ? CT.accent : CT.text,
                 cursor: possible ? "pointer" : "not-allowed",
@@ -889,6 +933,13 @@ export const StepQualifies = ({ config, participantCount, onChange }) => {
                 touchAction: "manipulation",
               }}
             >
+              {estConseil && (
+                <span style={{ position: "absolute", top: -10, left: "50%", transform: "translateX(-50%)",
+                  background: `linear-gradient(180deg, #4ade80, ${CT.green})`, color: "#04120a", WebkitTextFillColor: "#04120a",
+                  fontSize: 9.5, fontWeight: 900, padding: "2px 8px", borderRadius: 20, whiteSpace: "nowrap", boxShadow: `0 2px 8px -2px ${CT.green}88` }}>
+                  Recommandé
+                </span>
+              )}
               <span style={{ fontSize: 13.5, fontWeight: 800 }}>
                 {q === 1 ? "Le 1er" : `Les ${q} premiers`}
               </span>
@@ -900,10 +951,13 @@ export const StepQualifies = ({ config, participantCount, onChange }) => {
         })}
       </div>
 
+      {/* Le détail du choix : combien d'exempts, de QUOI ils sont dispensés, et qui. */}
+      <CarteDetailPoules conseil={qpp === conseil} lignes={lignes} />
+
       <SectionLabel hint="(premier à…)">Manches par match</SectionLabel>
       <NumberPills values={[1, 2, 3, 4, 5]} value={manches} onPick={(m) => set({ manches: m })} />
       <div style={{ fontSize: 12, color: CT.muted, marginTop: 8, lineHeight: 1.4 }}>
-        Le premier {config.format === "doublette" ? "équipe" : "joueur"} à atteindre <b style={{ color: CT.text }}>{manches} manche{manches > 1 ? "s" : ""}</b> remporte le match.
+        {config.format === "doublette" ? "La première équipe" : "Le premier joueur"} à atteindre <b style={{ color: CT.text }}>{manches} manche{manches > 1 ? "s" : ""}</b> remporte le match.
       </div>
 
     </div>
