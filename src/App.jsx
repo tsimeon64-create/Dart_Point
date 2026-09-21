@@ -16,6 +16,7 @@ import {
   NiveauBulle,
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
+import { useRaccourcis } from "./raccourcisScores";
 import { reduceGameOnline, buildFinalizationData, mergeVolleys } from "./onlineGame";
 import { ConfigCricket } from "./AppCricket";
 import { JeuCapital } from "./AppJeuDecalePoint";
@@ -13607,6 +13608,9 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
   const state = duel ? reduceGameOnline(volleys, { startScore, manchesToWin, starterId, players }) : null;
 
   const meId = joueur.id;
+  // Raccourcis 26…180 : les scores que TU marques le plus (chaque téléphone joue pour son joueur).
+  // ⚠️ Avant les `return` conditionnels plus bas : un hook après un `return` ferait planter React.
+  const [mesRaccourcis] = useRaccourcis([{ id: meId }], sb, duelId);
   const advId = duel ? (meId === duel.challenger_id ? duel.defie_id : duel.challenger_id) : null;
   const mePseudo = duel ? (meId === duel.challenger_id ? duel.challenger_pseudo : duel.defie_pseudo) : "";
   const advPseudo = duel ? (meId === duel.challenger_id ? duel.defie_pseudo : duel.challenger_pseudo) : "";
@@ -13777,7 +13781,7 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
     { id: duel.challenger_id, pseudo: duel.challenger_pseudo, p: state.players[duel.challenger_id] },
     { id: duel.defie_id,      pseudo: duel.defie_pseudo,      p: state.players[duel.defie_id] },
   ];
-  const quickScores = [26, 45, 60, 81, 100, 121, 140, 180];
+  const quickScores = mesRaccourcis;   // tes scores les plus fréquents (raccourcisScores.js)
   const disabled = !monTour;
   const tap = (fn) => (e) => { e.preventDefault(); fn(); };
   // RETOUR : on peut toujours corriger SA propre dernière volée, même juste après

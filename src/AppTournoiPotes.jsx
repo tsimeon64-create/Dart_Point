@@ -3084,6 +3084,11 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
     defie_pseudo:j2.nom,
     challenger_id:j1.id,
     defie_id:j2.id,
+    // Les COMPTES des joueurs, pour les raccourcis personnalisés du scoreur : challenger_id et
+    // defie_id sont des INSCRIPTIONS au tournoi (le live et le résultat en dépendent, on n'y
+    // touche pas). Une équipe de doublette n'a pas de compte unique → rangée par défaut.
+    challenger_compte_id:tournoi.format==="doublette"?null:(j1.joueur_id||null),
+    defie_compte_id:tournoi.format==="doublette"?null:(j2.joueur_id||null),
   };
 
   const handleResultat=async({gagnantNom,scoreC,scoreD})=>{

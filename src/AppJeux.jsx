@@ -3,6 +3,7 @@ import { SCORER } from "./theme";
 import { Search, Swords, Check, X } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
 import { calculerProfilBot, genererScoreBot, BOT_LUCKY_LITTLER } from "./botFleche";
+import { useRaccourcis, RACCOURCIS_DEFAUT } from "./raccourcisScores";
 
 // ── Fiche d'un bot : ce qu'on MONTRE au joueur avant d'affronter ──────────────
 // ⚠️ La moyenne du champion (122) est un RÉGLAGE interne du générateur, pas sa
@@ -945,6 +946,9 @@ const CHECKOUTS = {
 
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
+// Lecture PostgREST toute simple : sert aux raccourcis personnalisés du scoreur.
+const lireSb = (chemin) => fetch(`${SB_URL}/rest/v1/${chemin}`, { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } })
+  .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))));
 
 // ── Composant : section JOUEURS de la config (dynamique 2-6 joueurs + recherche) ─
 const JoueursConfigSection = ({ config, setConfig, modeDuel, joueur }) => {
@@ -1059,6 +1063,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [input, setInput] = useState("");
   const [joueurs, setJoueurs] = useState(resume ? resume.joueurs : null);
   const [actifIdx, setActifIdx] = useState(resume?.actifIdx ?? 0);
+  const [numPartie, setNumPartie] = useState(0);   // +1 à chaque partie (revanche comprise) → raccourcis refigés
   const [bulleStartIdx, setBulleStartIdx] = useState(resume?.bulleStartIdx ?? 0); // qui commence la manche 1
   const [ordreBulle, setOrdreBulle] = useState([]); // mode libre : ordre de passage choisi à la bulle (indices de config.noms)
   const [pofOuvert, setPofOuvert] = useState(false); // pile ou face : tirage de celui qui commence
@@ -1315,6 +1320,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       score: sv, manchesGagnees: 0, tours: [], flechettes: 0, totalPoints: 0, scorePrecedent: null,
     })));
     setBulleStartIdx(startIdx);
+    setNumPartie((k) => k + 1);   // les raccourcis prennent la rangée mise à jour par la partie d'avant
     setMancheEnCours(0);
     setActifIdx(startIdx);
     setGagnant(null);
@@ -2109,6 +2115,28 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [etape, botPseudo, gagnant]);
+
+  // ── Raccourcis 26…180 PERSONNALISÉS : les scores que CHAQUE joueur marque le plus ──
+  // Duel (et tournoi) : les deux comptes du duel. Contre le bot : ton siège (le bot tape
+  // tout seul). Partie libre : un nom tapé identique au pseudo d'un inscrit → ses scores.
+  // ⚠️ Avant les écrans conditionnels plus bas : un hook après un `return` ferait planter React.
+  const siegesRaccourcis = (joueurs || []).map((j, i) => {
+    // Duel : en mode duel, `joueurs` vaut toujours [challenger, défié], dans cet ordre (on ne
+    // se fie PAS aux noms : deux équipes de tournoi peuvent s'appeler pareil).
+    // Tournoi : le COMPTE est fourni à part (challenger_compte_id) — ses challenger_id sont des
+    // inscriptions, et une équipe de doublette n'a pas de compte unique (→ rangée par défaut).
+    // Un « duel » sans aucun identifiant (scoreur de l'accueil) est une partie libre : noms tapés.
+    if (modeDuel && duel && ("challenger_compte_id" in duel || duel.challenger_id || duel.defie_id)) {
+      const compte = "challenger_compte_id" in duel
+        ? (i === 0 ? duel.challenger_compte_id : duel.defie_compte_id)
+        : (i === 0 ? duel.challenger_id : duel.defie_id);
+      return compte ? { id: String(compte) } : {};
+    }
+    if (botPseudo && j.nom === botPseudo) return { bot: true };
+    if (joueur?.id && j.nom === joueur.pseudo) return { id: String(joueur.id) };
+    return { pseudo: j.nom };   // nom tapé → le compte qui a exactement ce pseudo, s'il existe
+  });
+  const raccourcis = useRaccourcis(siegesRaccourcis, lireSb, numPartie);
 
   // Moyenne globale (pour écran fin)
   const moyenneCalc = (j) => {
@@ -3072,12 +3100,13 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* RACCOURCIS RAPIDES — scores fréquents, les 8 sur UNE rangée      */}
+      {/* RACCOURCIS RAPIDES — les scores que CE joueur marque le plus      */}
+      {/* (raccourcisScores.js), les 8 sur UNE rangée                       */}
       {/* sans défilement, 44 px de haut (taille conseillée pour un pouce)  */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       {!modeFlech && (<>
       <div style={{ display:"flex", gap:4, padding:"6px 8px", background:"#0a0a0a", flexShrink:0, borderBottom:"1px solid #1a1a1a" }}>
-        {[26, 45, 60, 81, 100, 121, 140, 180].map(qs => (
+        {(raccourcis[actifIdx] || RACCOURCIS_DEFAUT).map(qs => (
           <button key={qs}
             onPointerDown={e=>{ e.preventDefault(); if(botJoue) return; envoyer(qs); }}
             style={{
