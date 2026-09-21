@@ -4,6 +4,7 @@ import { Search, Swords, Check, X } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
 import { calculerProfilBot, genererScoreBot, BOT_LUCKY_LITTLER } from "./botFleche";
 import { useRaccourcis, RACCOURCIS_DEFAUT } from "./raccourcisScores";
+import { texteContoure, epaisseurContour, FOND_CARTE_JAUNE, KEYFRAMES_CARTE_JAUNE } from "./contourTexte";
 
 // ── Fiche d'un bot : ce qu'on MONTRE au joueur avant d'affronter ──────────────
 // ⚠️ La moyenne du champion (122) est un RÉGLAGE interne du générateur, pas sa
@@ -2955,6 +2956,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         @keyframes scScoreFlash { 0%{transform:scale(1)} 30%{transform:scale(1.08);text-shadow:0 0 24px #f9731699} 100%{transform:scale(1)} }
         @keyframes scShine     { 0%{transform:translateX(-120%) skewX(-18deg)} 60%,100%{transform:translateX(320%) skewX(-18deg)} }
         @keyframes scPulse     { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(1.25)} }
+        ${KEYFRAMES_CARTE_JAUNE}
       `}</style>
       <div style={{ background:"#0a0a0a", padding:"6px 12px", display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #1a1a1a", flexShrink:0 }}>
         <button onClick={()=>setShowConfirmQuitter(true)}
@@ -3010,36 +3012,49 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           const j = joueurs[realIdx];
           const isActif = realIdx === actifIdx;
           const fin = isFinishable(j.score); // finish possible → FOND de la carte en rouge
+          // Le joueur qui joue : carte JAUNE à anneau noir (rouge si un finish est possible), et
+          // tout son texte en blanc cerné de noir (contourTexte.js).
+          const jaune = isActif && !fin;
+          // 4 joueurs : cartes de 90 px (72 de place) → 34 px, sinon « 501 » (81 px en 42) dépassait
+          // et le bord de la carte coupait le contour du dernier chiffre.
+          const tailleScore = joueurs.length <= 2 ? 64 : joueurs.length === 3 ? 42 : joueurs.length === 4 ? 34 : 30;
+          const tailleNom = joueurs.length <= 2 ? 13 : 12;   // nom du joueur qui joue
           const card = (
             <div key={displayI} ref={isActif ? activeCardRef : null} style={{
               position:"relative", overflow:"hidden",
               borderRadius:14, padding:"10px 8px",
               background: fin
                 ? (isActif ? "linear-gradient(135deg,#8f1d1d,#3a0808)" : "linear-gradient(135deg,#3a1010,#1a0707)")
-                : (isActif ? "linear-gradient(135deg,#1a0a00,#100600)" : "linear-gradient(135deg,#0a0a14,#070710)"),
-              animation: (isActif && !fin) ? "scActiveGlow 2.4s ease-in-out infinite" : "none",
-              border: fin ? `1px solid ${isActif ? "#ef4444" : "#ef444455"}` : (isActif ? "1px solid transparent" : "1px solid #1a1a1a"),
-              boxShadow: fin && isActif ? "0 0 22px #ef444466, inset 0 0 24px #ef444426" : "none",
+                : (isActif ? FOND_CARTE_JAUNE : "linear-gradient(135deg,#0a0a14,#070710)"),
+              animation: jaune ? "scActiveJaune 2.4s ease-in-out infinite" : "none",
+              border: fin ? `1px solid ${isActif ? "#ef4444" : "#ef444455"}` : (isActif ? "1px solid #000" : "1px solid #1a1a1a"),
+              // l'anneau noir est posé EN DUR : si le téléphone « réduit les animations », l'animation
+              // (qui le dessine aussi) s'arrête tout de suite et il disparaissait.
+              boxShadow: fin && isActif ? "0 0 22px #ef444466, inset 0 0 24px #ef444426" : jaune ? "0 0 0 2px #000" : "none",
               transition:"all .3s",
               opacity: isActif ? 1 : .55,
               transform: isActif ? "scale(1)" : "scale(0.96)",
             }}>
 
-              {/* Header carte : nom + indicateur */}
-              <div style={{ position:"relative", display:"flex", alignItems:"center", gap:5, marginBottom:4 }}>
-                {isActif && <span style={{ width:6, height:6, borderRadius:"50%", background:"#f97316", boxShadow:"0 0 8px #f97316", animation:"scPulse 1.4s ease-in-out infinite", flexShrink:0 }}/>}
-                <span style={{ fontWeight:800, fontSize:11, color: isActif ? "#fbbf24" : "#64748b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", letterSpacing:.5, textTransform:"uppercase" }}>
+              {/* Header carte : le nom. Plus de point orange devant quand c'est son tour : la carte
+                  jaune (ou rouge) le dit déjà, et ça laisse la place au nom en plus gros.
+                  Hauteur FIXE : sinon le score sautait de quelques px à chaque changement de tour. */}
+              <div style={{ position:"relative", display:"flex", alignItems:"center", height:18, marginBottom:2 }}>
+                {/* padding : le contour dépasse de la lettre, sans lui l'« overflow » le couperait */}
+                <span style={{ fontWeight:800, fontSize: isActif ? tailleNom : 11, lineHeight:"16px", color: isActif ? "#fbbf24" : "#64748b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", letterSpacing:.5, textTransform:"uppercase",
+                  ...(isActif ? { ...texteContoure(1.5), padding:"1px 1.5px" } : {}) }}>
                   {j.nom}
                 </span>
               </div>
 
               {/* Score MASSIF — sans effet (lisibilité max en jeu) */}
               <div style={{
-                fontSize: joueurs.length <= 2 ? 64 : joueurs.length <= 4 ? 42 : 30,
+                fontSize: tailleScore,
                 fontWeight:900, lineHeight:.95,
                 color: isActif ? "#fff" : "#475569",
                 textAlign:"center", margin:"2px 0",
                 fontVariantNumeric:"tabular-nums",
+                ...(isActif ? texteContoure(epaisseurContour(tailleScore)) : {}),
               }}>
                 {j.score}
               </div>
@@ -3047,9 +3062,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
               {/* Dernière volée du joueur, en petit sous le reste */}
               <div style={{
                 textAlign:"center", marginTop:1, marginBottom:3,
-                fontSize:10.5, fontWeight:800, letterSpacing:.3,
+                fontSize:10.5, lineHeight:"15px", fontWeight:800, letterSpacing:.3,
                 fontVariantNumeric:"tabular-nums",
                 color: j.scorePrecedent == null ? "#3a3a46" : isActif ? "#fbbf24" : "#64748b",
+                ...(isActif ? { fontSize:12, ...texteContoure(1.5) } : {}),
               }}>
                 {j.scorePrecedent == null ? "—" : `▸ ${j.scorePrecedent}`}
               </div>
@@ -3059,10 +3075,16 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                 {Array.from({length: manchesTotal}).map((_,mi)=>(
                   <div key={mi} style={{
                     width:8, height:8, borderRadius:"50%",
+                    // sur le jaune : manche gagnée = rond noir plein, manche à gagner = rond noir vide ;
+                    // sur le rouge (finish) : rond jaune plein / rond blanc vide
                     background: mi < j.manchesGagnees
-                      ? (isActif?"#fbbf24":"#f97316aa")
-                      : (isActif?"#ffffff15":"#1a1a1a"),
-                    boxShadow: mi < j.manchesGagnees && isActif ? "0 0 8px #fbbf24" : "none",
+                      ? (jaune ? "#000" : isActif?"#fbbf24":"#f97316aa")
+                      : (isActif ? "transparent" : "#1a1a1a"),
+                    boxShadow: jaune
+                      ? (mi < j.manchesGagnees ? "none" : "inset 0 0 0 1.5px #000")
+                      : isActif
+                        ? (mi < j.manchesGagnees ? "0 0 8px #fbbf24" : "inset 0 0 0 1.5px #ffffffaa")
+                        : "none",
                   }}/>
                 ))}
               </div>
@@ -3072,8 +3094,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                 const d = realIdx === 0 ? drixData.challenger : drixData.defie;
                 return (
                   <div style={{ display:"flex", gap:3, justifyContent:"center", flexWrap:"wrap" }}>
-                    <span style={{ background:"#14532d", color:"#4ade80", borderRadius:5, padding:"1px 5px", fontWeight:800, fontSize:10, opacity: isActif?1:.7 }}>+{d.gain}</span>
-                    <span style={{ background:"#7f1d1d", color:"#f87171", borderRadius:5, padding:"1px 5px", fontWeight:800, fontSize:10, opacity: isActif?1:.7 }}>−{d.perte}</span>
+                    <span style={{ background:"#14532d", color:"#4ade80", borderRadius:5, padding:"1px 5px", fontWeight:800, fontSize:10, opacity: isActif?1:.7,
+                      ...(isActif ? { fontSize:11, border:"1px solid #000", ...texteContoure(1) } : {}) }}>+{d.gain}</span>
+                    <span style={{ background:"#7f1d1d", color:"#f87171", borderRadius:5, padding:"1px 5px", fontWeight:800, fontSize:10, opacity: isActif?1:.7,
+                      ...(isActif ? { fontSize:11, border:"1px solid #000", ...texteContoure(1) } : {}) }}>−{d.perte}</span>
                   </div>
                 );
               })()}

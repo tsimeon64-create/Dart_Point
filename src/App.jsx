@@ -17,6 +17,7 @@ import {
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
 import { useRaccourcis } from "./raccourcisScores";
+import { texteContoure, epaisseurContour, FOND_CARTE_JAUNE, KEYFRAMES_CARTE_JAUNE } from "./contourTexte";
 import { reduceGameOnline, buildFinalizationData, mergeVolleys } from "./onlineGame";
 import { ConfigCricket } from "./AppCricket";
 import { JeuCapital } from "./AppJeuDecalePoint";
@@ -13791,7 +13792,7 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
 
   return (
     <div className="scoreur-wrap" style={{ position:"fixed", inset:0, background:"#0f0f0f", fontFamily:"Inter,sans-serif", display:"flex", flexDirection:"column", overflow:"hidden", zIndex:500, touchAction:"none" }}>
-      <style>{`.scoreur-wrap button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}.scoreur-wrap button:active{opacity:.7;transform:scale(.96)}@keyframes scActiveGlow{0%,100%{box-shadow:0 0 0 1px #f9731666,0 0 18px #f9731633}50%{box-shadow:0 0 0 1px #f97316cc,0 0 36px #f9731666}}@keyframes scPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.25)}}`}</style>
+      <style>{`.scoreur-wrap button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}.scoreur-wrap button:active{opacity:.7;transform:scale(.96)}@keyframes scActiveGlow{0%,100%{box-shadow:0 0 0 1px #f9731666,0 0 18px #f9731633}50%{box-shadow:0 0 0 1px #f97316cc,0 0 36px #f9731666}}@keyframes scPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.25)}}${KEYFRAMES_CARTE_JAUNE}`}</style>
 
       {/* POP-UP : l'adversaire vient de jouer (pseudo + photo + score, 3 s) */}
       {oppAnnonce && (
@@ -13889,23 +13890,35 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
         {cards.map((c, ci) => {
           const isActif = c.id === activeId;
           const fin = isFinishableScore(c.p.reste); // finish possible → FOND de la carte en rouge
+          const jaune = isActif && !fin;   // le joueur qui joue : carte jaune, texte cerné de noir
           const el = (
             <div key={c.id} style={{ position:"relative", overflow:"hidden", borderRadius:14, padding:"10px 8px", textAlign:"center",
               background: fin
                 ? (isActif ? "linear-gradient(135deg,#8f1d1d,#3a0808)" : "linear-gradient(135deg,#3a1010,#1a0707)")
-                : (isActif ? "linear-gradient(135deg,#1a0a00,#100600)" : "linear-gradient(135deg,#0a0a14,#070710)"),
-              animation: (isActif && !fin) ? "scActiveGlow 2.4s ease-in-out infinite" : "none",
-              border: fin ? `1px solid ${isActif ? "#ef4444" : "#ef444455"}` : (isActif ? "1px solid transparent" : "1px solid #1a1a1a"),
-              boxShadow: fin && isActif ? "0 0 22px #ef444466, inset 0 0 24px #ef444426" : "none",
+                : (isActif ? FOND_CARTE_JAUNE : "linear-gradient(135deg,#0a0a14,#070710)"),
+              animation: jaune ? "scActiveJaune 2.4s ease-in-out infinite" : "none",
+              border: fin ? `1px solid ${isActif ? "#ef4444" : "#ef444455"}` : (isActif ? "1px solid #000" : "1px solid #1a1a1a"),
+              // l'anneau noir est posé EN DUR : si le téléphone « réduit les animations », l'animation
+              // (qui le dessine aussi) s'arrête tout de suite et il disparaissait.
+              boxShadow: fin && isActif ? "0 0 22px #ef444466, inset 0 0 24px #ef444426" : jaune ? "0 0 0 2px #000" : "none",
               opacity: isActif ? 1 : .55, transform: isActif ? "scale(1)" : "scale(0.96)", transition:"all .3s" }}>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:5, marginBottom:4 }}>
-                {isActif && <span style={{ width:6, height:6, borderRadius:"50%", background:"#f97316", boxShadow:"0 0 8px #f97316", animation:"scPulse 1.4s ease-in-out infinite" }}/>}
-                <span style={{ fontWeight:800, fontSize:11, color:isActif?"#fbbf24":"#64748b", letterSpacing:.5, textTransform:"uppercase", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.pseudo}{c.id===meId?" (toi)":""}</span>
+              {/* Le nom (hauteur FIXE : le score ne saute pas au changement de tour). Pas de point
+                  orange quand c'est son tour : la carte jaune/rouge le dit déjà. « (toi) » est à
+                  part : un pseudo long se coupe (« … ») mais « (toi) » reste toujours lisible. */}
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:3, height:18, marginBottom:2 }}>
+                <span style={{ minWidth:0, fontWeight:800, fontSize: isActif ? 13 : 11, lineHeight:"16px", color:isActif?"#fbbf24":"#64748b", letterSpacing:.5, textTransform:"uppercase", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+                  ...(isActif ? { ...texteContoure(1.5), padding:"1px 1.5px" } : {}) }}>{c.pseudo}</span>
+                {c.id===meId && <span style={{ flexShrink:0, fontWeight:800, fontSize: isActif ? 10.5 : 9.5, lineHeight:"16px", color:isActif?"#fbbf24":"#64748b", letterSpacing:.3, textTransform:"uppercase",
+                  ...(isActif ? { ...texteContoure(1), padding:"1px 1px" } : {}) }}>(toi)</span>}
               </div>
-              <div style={{ fontSize:64, fontWeight:900, lineHeight:.95, color:isActif?"#fff":"#475569", margin:"2px 0", fontVariantNumeric:"tabular-nums" }}>{c.p.reste}</div>
+              <div style={{ fontSize:64, fontWeight:900, lineHeight:.95, color:isActif?"#fff":"#475569", margin:"2px 0", fontVariantNumeric:"tabular-nums",
+                ...(isActif ? texteContoure(epaisseurContour(64)) : {}) }}>{c.p.reste}</div>
               <div style={{ display:"flex", gap:4, justifyContent:"center", marginTop:4 }}>
                 {Array.from({length:manchesToWin}).map((_,mi)=>(
-                  <div key={mi} style={{ width:8, height:8, borderRadius:"50%", background: mi<c.p.manches ? (isActif?"#fbbf24":"#f97316aa") : (isActif?"#ffffff15":"#1a1a1a"), boxShadow: mi<c.p.manches&&isActif?"0 0 8px #fbbf24":"none" }}/>
+                  <div key={mi} style={{ width:8, height:8, borderRadius:"50%",
+                    background: mi<c.p.manches ? (jaune ? "#000" : isActif?"#fbbf24":"#f97316aa") : (isActif ? "transparent" : "#1a1a1a"),
+                    boxShadow: jaune ? (mi<c.p.manches ? "none" : "inset 0 0 0 1.5px #000")
+                      : isActif ? (mi<c.p.manches ? "0 0 8px #fbbf24" : "inset 0 0 0 1.5px #ffffffaa") : "none" }}/>
                 ))}
               </div>
             </div>
