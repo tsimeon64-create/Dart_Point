@@ -797,7 +797,7 @@ const Nav = ({ page, setPage, isAdmin, joueur, setJoueur, defisCount, demandesAm
                     {/* Menu items */}
                     {[
                       { icon:<User size={15}/>,   label:"Mon profil",    target:"mon-profil", badge: newBadgesCount, badgeColor:"#f59e0b", badgeTitle: newBadgesCount>0 ? "🏅 Nouveaux badges" : null },
-                      { icon:<Bell size={15}/>,   label:"Actualité",     target:"actualite",    badge: actuCount, badgeColor:"#f97316", badgeTitle: actuCount>0 ? "Nouveaux j'aime / commentaires" : null },
+                      { icon:<Bell size={15}/>,   label:"Actualité",     target:"actualite",    badge: actuCount, badgeColor:"#f97316", badgeTitle: actuCount>0 ? "Nouveaux j'aime, commentaires et réponses" : null },
                       { icon:<Trophy size={15}/>, label:"Mes stats",     target:"profil-stats" },
                       { icon:<Bell size={15}/>,   label:"Mes amis",      target:"profil-amis",  badge: demandesAmisCount, badgeColor:C.red },
                       { icon:<Search size={15}/>, label:"Mes défis",     target:"defi",         badge: defisCount, badgeColor:C.red },
@@ -6193,6 +6193,12 @@ const resoudreCartes = async (refIds, joueurId) => {
   if (inconnus.length) {
     const reste = new Set(inconnus);
     const liste = () => [...reste].join(",");
+    // ⚠️ Une sonde qui ÉCHOUE (réseau coupé, 503…) ne veut pas dire « pas à moi ». Mettre
+    // null en cache ferait passer ma propre carte pour celle d'un autre jusqu'au
+    // rechargement (et fabriquerait une fausse « réponse »). On note l'échec, et ce qui
+    // n'a pas été reconnu n'est PAS mis en cache : on réessaiera au passage suivant.
+    let echec = false;
+    const sonde = (p) => p.catch(() => { echec = true; return []; });
     const poseMatch = (id, d) => _cacheCartes[cle(id)] = (
       (d.challenger_id === joueurId || d.defie_id === joueurId)
         ? { kind:"match", label: d.challenger_id === joueurId ? d.defie_pseudo : d.challenger_pseudo }
@@ -6200,7 +6206,7 @@ const resoudreCartes = async (refIds, joueurId) => {
 
     // a) carte de match reconstruite directement depuis la table duels
     if (reste.size) {
-      const duels = await sb(`duels?id=in.(${liste()})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`).catch(()=>[]);
+      const duels = await sonde(sb(`duels?id=in.(${liste()})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`));
       (duels||[]).forEach(d => { reste.delete(d.id); poseMatch(d.id, d); });
     }
 
@@ -6209,7 +6215,7 @@ const resoudreCartes = async (refIds, joueurId) => {
     const postsDuel = [];
     if (reste.size) {
       // surtout PAS select=* : la colonne image_url contient des photos en base64.
-      const posts = await sb(`wall_posts?id=in.(${liste()})&select=id,joueur_id,contenu`).catch(()=>[]);
+      const posts = await sonde(sb(`wall_posts?id=in.(${liste()})&select=id,joueur_id,contenu`));
       (posts||[]).forEach(p => {
         reste.delete(p.id);
         if ((p.contenu||"").startsWith("__DUEL__|")) postsDuel.push(p);
@@ -6230,20 +6236,20 @@ const resoudreCartes = async (refIds, joueurId) => {
         } catch(e) { _cacheCartes[cle(p.id)] = (p.joueur_id === joueurId ? { kind:"match", label:"" } : null); }
       });
       if (Object.keys(parDuel).length) {
-        const ds = await sb(`duels?id=in.(${Object.keys(parDuel).join(",")})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`).catch(()=>[]);
+        const ds = await sonde(sb(`duels?id=in.(${Object.keys(parDuel).join(",")})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`));
         const vus = new Set();
         (ds||[]).forEach(d => { vus.add(d.id); poseMatch(parDuel[d.id], d); });
-        Object.entries(parDuel).forEach(([duelId, postId]) => { if (!vus.has(duelId)) _cacheCartes[cle(postId)] = null; });
+        if (!echec) Object.entries(parDuel).forEach(([duelId, postId]) => { if (!vus.has(duelId)) _cacheCartes[cle(postId)] = null; });
       }
     }
 
     // d) palier DRIX / entraînement, puis présence au bar
     if (reste.size) {
-      const mv = await sb(`drix_mouvements?id=in.(${liste()})&joueur_id=eq.${joueurId}&select=id,adversaire_pseudo`).catch(()=>[]);
+      const mv = await sonde(sb(`drix_mouvements?id=in.(${liste()})&joueur_id=eq.${joueurId}&select=id,adversaire_pseudo`));
       (mv||[]).forEach(m => { reste.delete(m.id); _cacheCartes[cle(m.id)] = ({ kind: m.adversaire_pseudo === "Comptage de finish" ? "training" : "drix", label:"" }); });
     }
     if (reste.size) {
-      const pr = await sb(`presences?id=in.(${liste()})&joueur_id=eq.${joueurId}&select=id`).catch(()=>[]);
+      const pr = await sonde(sb(`presences?id=in.(${liste()})&joueur_id=eq.${joueurId}&select=id`));
       (pr||[]).forEach(p => { reste.delete(p.id); _cacheCartes[cle(p.id)] = ({ kind:"presence", label:"" }); });
     }
 
@@ -6251,7 +6257,7 @@ const resoudreCartes = async (refIds, joueurId) => {
     //    du fil : on note la carte PARENTE dans `cible`, sinon toucher la notification chercherait
     //    une carte qui n'existe pas. Sondé en dernier pour ne rien changer aux cas d'avant.
     if (reste.size) {
-      const coms = await sb(`wall_comments?id=in.(${liste()})&select=id,ref_id,joueur_id`).catch(()=>[]);
+      const coms = await sonde(sb(`wall_comments?id=in.(${liste()})&select=id,ref_id,joueur_id`));
       (coms||[]).forEach(c => {
         reste.delete(c.id);
         _cacheCartes[cle(c.id)] = (c.joueur_id === joueurId ? { kind:"commentaire", label:"", cible:c.ref_id } : null);
@@ -6260,11 +6266,104 @@ const resoudreCartes = async (refIds, joueurId) => {
 
     // Tout ce qui reste ne me concerne pas (ou la carte a été supprimée) : on le
     // mémorise aussi, sinon on la redemanderait à chaque sondage.
-    reste.forEach(id => _cacheCartes[cle(id)] = (null));
+    if (!echec) reste.forEach(id => _cacheCartes[cle(id)] = (null));
+  }
+  // null = « on SAIT que ce n'est pas à moi » ; undefined = « pas encore su » (sonde ratée).
+  // Les j'aime et commentaires testent `if (c)` : pour eux les deux reviennent au même.
+  const out = {};
+  [...new Set(refIds)].forEach(id => { out[id] = (cle(id) in _cacheCartes) ? (_cacheCartes[cle(id)] || null) : undefined; });
+  return out;
+};
+
+// ── De quelle carte parle une réponse ? (« la publication de Tribs », « le match A vs B ») ──
+// Seulement pour les cartes des AUTRES où j'ai commenté : les miennes sont déjà décrites
+// par resoudreCartes. Même sondage en cascade (5 tables possibles, aucune colonne ne dit
+// laquelle), avec un cache : la page ne redemande jamais deux fois la même carte.
+// Chaque joueur d'une carte : { id, pseudo, bot? }. Un bot n'est JAMAIS reconnu par son
+// pseudo : « Affronte son bot » lui donne le vrai pseudo d'un ami.
+const _cacheDescr = {};   // refId → { genre:"match"|"pub"|"asso", joueurs:[…], asso_slug? } ou null
+const decrireCartes = async (refIds) => {
+  const inconnus = [...new Set(refIds)].filter(id => !(id in _cacheDescr));
+  if (inconnus.length) {
+    let echec = false;   // même règle que resoudreCartes : une sonde ratée ne fige rien en cache
+    const sonde = (p) => p.catch(() => { echec = true; return []; });
+    const reste = new Set(inconnus);
+    const liste = () => [...reste].join(",");
+    const lesDeux = (d) => [{ id:d.challenger_id, pseudo:d.challenger_pseudo }, { id:d.defie_id, pseudo:d.defie_pseudo }];
+    if (reste.size) {
+      const ds = await sonde(sb(`duels?id=in.(${liste()})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`));
+      (ds||[]).forEach(d => { reste.delete(d.id); _cacheDescr[d.id] = { genre:"match", joueurs:lesDeux(d) }; });
+    }
+    if (reste.size) {
+      // surtout PAS select=* : image_url contient des photos en base64.
+      const ps = await sonde(sb(`wall_posts?id=in.(${liste()})&select=id,joueur_id,joueur_pseudo,contenu`));
+      const parDuel = {};   // duel_id → { post, repli } : les deux joueurs viennent de la table duels
+      (ps||[]).forEach(p => {
+        reste.delete(p.id);
+        if (!(p.contenu||"").startsWith("__DUEL__|")) { _cacheDescr[p.id] = { genre:"pub", joueurs:[{ id:p.joueur_id, pseudo:p.joueur_pseudo }] }; return; }
+        let d = null; try { d = JSON.parse(p.contenu.slice(9)); } catch { /* carte illisible : noms de repli */ }
+        if (d?.bot || d?.botNom) {
+          // Match contre un bot : publié par l'HUMAIN, qu'il ait gagné OU perdu.
+          _cacheDescr[p.id] = { genre:"match", joueurs:[{ id:p.joueur_id, pseudo:p.joueur_pseudo }, { id:null, pseudo:d?.botNom || "le bot", bot:true }] };
+          return;
+        }
+        // Match entre deux joueurs : publié par le vainqueur ; le perdant n'a que son nom dans le JSON.
+        const repli = [{ id:p.joueur_id, pseudo:d?.winner?.nom || p.joueur_pseudo }, { id:null, pseudo:d?.loser?.nom || "" }].filter(j => j.pseudo);
+        if (d?.duel_id) parDuel[d.duel_id] = { post:p.id, repli };
+        else _cacheDescr[p.id] = { genre:"match", joueurs:repli };
+      });
+      const idsDuels = Object.keys(parDuel);
+      if (idsDuels.length) {
+        const ds = await sonde(sb(`duels?id=in.(${idsDuels.join(",")})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`));
+        const vus = new Set();
+        (ds||[]).forEach(d => { vus.add(d.id); _cacheDescr[parDuel[d.id].post] = { genre:"match", joueurs:lesDeux(d) }; });
+        // Duel effacé : on garde les noms écrits dans la carte.
+        if (!echec) idsDuels.forEach(id => { if (!vus.has(id)) _cacheDescr[parDuel[id].post] = { genre:"match", joueurs:parDuel[id].repli }; });
+      }
+    }
+    if (reste.size) {
+      // Les annonces de club ont leurs commentaires dans la MÊME table que le Comptoir.
+      const an = await sonde(sb(`asso_posts?id=in.(${liste()})&select=id,asso_slug,joueur_id,joueur_pseudo`));
+      (an||[]).forEach(a => { reste.delete(a.id); _cacheDescr[a.id] = { genre:"asso", asso_slug:a.asso_slug, joueurs:[{ id:a.joueur_id, pseudo:a.joueur_pseudo }] }; });
+    }
+    if (reste.size) {
+      const mv = await sonde(sb(`drix_mouvements?id=in.(${liste()})&select=id,joueur_id,joueur_pseudo`));
+      (mv||[]).forEach(m => { reste.delete(m.id); _cacheDescr[m.id] = { genre:"pub", joueurs:[{ id:m.joueur_id, pseudo:m.joueur_pseudo }] }; });
+    }
+    if (reste.size) {
+      const pr = await sonde(sb(`presences?id=in.(${liste()})&select=id,joueur_id,joueur_pseudo`));
+      (pr||[]).forEach(p => { reste.delete(p.id); _cacheDescr[p.id] = { genre:"pub", joueurs:[{ id:p.joueur_id, pseudo:p.joueur_pseudo }] }; });
+    }
+    if (!echec) reste.forEach(id => { _cacheDescr[id] = null; });   // introuvable : « une publication que tu as commentée »
   }
   const out = {};
-  [...new Set(refIds)].forEach(id => { out[id] = _cacheCartes[cle(id)] || null; });
+  [...new Set(refIds)].forEach(id => { out[id] = _cacheDescr[id] || null; });
   return out;
+};
+
+// « sur la publication de Tribs, que tu as commentée » ; « sur sa publication » quand c'est
+// l'auteur qui répond ; « sur son match contre Beub » pour un joueur du match ; « ta / ton »
+// si la carte est à moi (cas rare : elle n'avait pas encore été reconnue comme mienne).
+const surQuoi = (n, moiId) => {
+  const d = n.cible;
+  if (!d || !d.joueurs?.length) return <>sur une publication que tu as commentée</>;
+  const estLui = (j) => (j.id ? j.id === n.from_id : (!j.bot && j.pseudo === n.from_pseudo));
+  const moi = d.joueurs.find(j => j.id && moiId && j.id === moiId);
+  const lui = d.joueurs.find(estLui);
+  if (d.genre === "asso") {
+    if (moi) return <>sur ton annonce, que tu as commentée</>;
+    if (lui) return <>sur son annonce du club, que tu as commentée</>;
+    return <>sur l'annonce de <b>{d.joueurs[0].pseudo}</b>, que tu as commentée</>;
+  }
+  if (d.genre === "match") {
+    const contre = (x) => d.joueurs.find(j => j !== x)?.pseudo;
+    if (moi) { const a = contre(moi); return <>sur ton match{a ? <> contre <b>{a}</b></> : null}, que tu as commenté</>; }
+    if (lui) { const a = contre(lui); return <>sur son match{a ? <> contre <b>{a}</b></> : null}, que tu as commenté</>; }
+    return <>sur le match <b>{d.joueurs.map(j => j.pseudo).join(" vs ")}</b>, que tu as commenté</>;
+  }
+  if (moi) return <>sur ta publication, que tu as commentée</>;
+  if (lui) return <>sur sa publication, que tu as commentée</>;
+  return <>sur la publication de <b>{d.joueurs[0].pseudo}</b>, que tu as commentée</>;
 };
 
 // `leger` : le sondage de fond ne compte que des dates, il n'a pas besoin des photos
@@ -6298,6 +6397,33 @@ const fetchActuNotifs = async (joueurId, { leger = false, assoSlug = null } = {}
   // `c.cible` : pour un j'aime sur un commentaire, la carte à ouvrir est la carte parente.
   ls.forEach(l => { const c = cartes[l.ref_id]; if (c) notifs.push({ id:"l_"+l.ref_id+"_"+l.joueur_id, type:"like", from_id:l.joueur_id, from_pseudo:l.joueur_pseudo, date:l.date, ref_id:c.cible||l.ref_id, kind:c.kind, label:c.label }); });
   cs.forEach(c0 => { const c = cartes[c0.ref_id]; if (c) notifs.push({ id:"c_"+(c0.id||c0.ref_id+"_"+c0.joueur_id+"_"+c0.date), type:"comment", from_id:c0.joueur_id, from_pseudo:c0.joueur_pseudo, from_photo:c0.joueur_photo, contenu:c0.contenu, date:c0.date, ref_id:c0.ref_id, kind:c.kind, label:c.label }); });
+
+  // ── RÉPONSES dans une conversation où j'ai commenté ──
+  // Un commentaire d'un autre, sur une carte dont on SAIT qu'elle n'est pas à moi (null ;
+  // undefined = pas encore reconnue, on attend le passage suivant). Si elle est à moi, c'est
+  // déjà « a commenté ta publication » juste au-dessus : jamais deux lignes pour un même
+  // commentaire. Et seulement s'il est posté APRÈS mon premier commentaire sur cette carte :
+  // ce qui était déjà là quand j'ai commenté, je l'ai lu.
+  const autres = cs.filter(c0 => cartes[c0.ref_id] === null);
+  if (autres.length) {
+    // Mes commentaires, mais seulement sur CES cartes : le résultat est exact (le vrai premier
+    // commentaire, même très ancien) et petit. Par paquets de 60 : l'URL reste courte.
+    const ids = [...new Set(autres.map(c0 => c0.ref_id))];
+    const paquets = [];
+    for (let i = 0; i < ids.length; i += 60) paquets.push(ids.slice(i, i + 60));
+    const mesComs = (await Promise.all(paquets.map(pq =>
+      sb(`wall_comments?joueur_id=eq.${joueurId}&ref_id=in.(${pq.join(",")})&select=ref_id,date`).catch(()=>[])))).flat();
+    const monPremier = {};   // ref_id → date de mon premier commentaire sur la carte
+    mesComs.forEach(m => { if (m?.ref_id && (!(m.ref_id in monPremier) || (m.date||0) < monPremier[m.ref_id])) monPremier[m.ref_id] = m.date || 0; });
+    const reponses = autres.filter(c0 => (c0.ref_id in monPremier) && (c0.date||0) > monPremier[c0.ref_id]);
+    // Le nom de la carte (« la publication de Tribs ») : seulement pour la page, pas pour le
+    // sondage de fond qui ne compte que des dates.
+    const descr = (!leger && reponses.length) ? await decrireCartes(reponses.map(c0 => c0.ref_id)) : {};
+    reponses.forEach(c0 => notifs.push({ id:"r_"+(c0.id||c0.ref_id+"_"+c0.joueur_id+"_"+c0.date), type:"reply",
+      from_id:c0.joueur_id, from_pseudo:c0.joueur_pseudo, from_photo:c0.joueur_photo, contenu:c0.contenu,
+      date:c0.date, ref_id:c0.ref_id, cible: descr[c0.ref_id] || null }));
+  }
+
   notifs.sort((a,b) => (b.date||0) - (a.date||0));
   return notifs;
 };
@@ -6333,7 +6459,7 @@ const PageActualite = ({ joueur, setPage, onOuvrirAsso }) => {
   return (
     <div style={{ maxWidth:640, margin:"0 auto", padding:"16px 16px 40px" }}>
       <h1 style={{ fontWeight:900, fontSize:22, marginBottom:4, display:"flex", alignItems:"center", gap:8 }}><Bell size={20} color={C.accent}/> Actualité</h1>
-      <p style={{ color:C.muted, fontSize:13, marginBottom:20 }}>Les j'aime et commentaires reçus sur tes cartes du Comptoir, et les annonces de ton club. Touche une ligne pour aller voir.</p>
+      <p style={{ color:C.muted, fontSize:13, marginBottom:20 }}>Les j'aime et commentaires reçus sur tes cartes du Comptoir, les réponses dans les conversations où tu as commenté, et les annonces de ton club. Touche une ligne pour aller voir.</p>
       {loading ? <div style={{ textAlign:"center", padding:40, color:C.muted, fontSize:13 }}>Chargement…</div>
        : notifs.length === 0 ? <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:24, textAlign:"center", color:C.muted, fontSize:14, lineHeight:1.6 }}>Rien pour l'instant.<br/>Joue des matchs : ils apparaissent dans le Comptoir et tes amis pourront les aimer et les commenter. 🎯</div>
        : (
@@ -6343,11 +6469,13 @@ const PageActualite = ({ joueur, setPage, onOuvrirAsso }) => {
                 // Une annonce de club n'est pas une carte du Comptoir : elle s'ouvre sur la
                 // fiche du club, qui a besoin du slug ET du changement de page.
                 if (n.type === "asso") { if (n.asso_slug && onOuvrirAsso) onOuvrirAsso(n.asso_slug); return; }
+                // Une réponse sous une annonce de club : même chemin, la fiche du club.
+                if (n.type === "reply" && n.cible?.genre === "asso") { if (n.cible.asso_slug && onOuvrirAsso) onOuvrirAsso(n.cible.asso_slug); return; }
                 if (n.ref_id) setPage("communaute-"+n.ref_id); else if (n.from_id) setPage("profil-joueur-"+n.from_id);
               }} style={{ display:"flex", gap:12, alignItems:"flex-start", background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px", cursor:(n.ref_id||n.from_id||n.asso_slug)?"pointer":"default" }}>
               <div style={{ position:"relative", flexShrink:0 }}>
                 <FeedAvatar photo={n.type==="like"?photos[n.from_id]:n.from_photo} pseudo={n.from_pseudo} size={40}/>
-                <div style={{ position:"absolute", bottom:-3, right:-3, width:20, height:20, borderRadius:"50%", background:n.type==="like"?"#f97316":n.type==="asso"?"#f59e0b":"#7c3aed", display:"flex", alignItems:"center", justifyContent:"center", border:`2px solid ${C.card}` }}>
+                <div style={{ position:"absolute", bottom:-3, right:-3, width:20, height:20, borderRadius:"50%", background:n.type==="like"?"#f97316":n.type==="asso"?"#f59e0b":n.type==="reply"?"#3b82f6":"#7c3aed", display:"flex", alignItems:"center", justifyContent:"center", border:`2px solid ${C.card}` }}>
                   {n.type==="like" ? <ThumbsUp size={11} color="#fff"/> : n.type==="asso" ? <Megaphone size={11} color="#fff"/> : <MessageCircle size={11} color="#fff"/>}
                 </div>
               </div>
@@ -6355,12 +6483,14 @@ const PageActualite = ({ joueur, setPage, onOuvrirAsso }) => {
                 <div style={{ fontSize:13.5, color:C.text, lineHeight:1.4 }}>
                   {n.type === "asso" ? (
                     <><b>{n.from_pseudo}</b> a publié une annonce dans <b>ton club</b></>
+                  ) : n.type === "reply" ? (
+                    <><b>{n.from_pseudo}</b> a répondu {surQuoi(n, joueur.id)}</>
                   ) : (
                     <><b>{n.from_pseudo}</b> {n.type==="like" ? "a aimé" : "a commenté"} {NOM_CARTE[n.kind] || "ta publication"}
                       {n.kind === "match" && n.label ? <> <b>vs {n.label}</b></> : null}</>
                   )}
                 </div>
-                {(n.type==="comment" || n.type==="asso") && n.contenu && <div style={{ fontSize:12.5, color:C.muted, marginTop:3, fontStyle:"italic" }}>« {n.contenu.length > 120 ? n.contenu.slice(0,120)+"…" : n.contenu} »</div>}
+                {(n.type==="comment" || n.type==="reply" || n.type==="asso") && n.contenu && <div style={{ fontSize:12.5, color:C.muted, marginTop:3, fontStyle:"italic" }}>« {n.contenu.length > 120 ? n.contenu.slice(0,120)+"…" : n.contenu} »</div>}
                 <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{tempsDepuis(n.date)}</div>
               </div>
             </div>
@@ -7014,7 +7144,31 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null, ongletInitia
           else {
             const [df] = await sb(`duels?id=eq.${focusRefId}&select=*`).catch(()=>[]) || [];
             if (df) sliced.unshift({ type:"match", date: typeof df.date === "number" ? df.date : new Date(df.date).getTime(), data:df, drixMvts:{} });
-            else setFocusIntrouvable(true);
+            else {
+              // Palier DRIX, entraînement ou présence au bar sortis du fil (il ne garde que les 60
+              // derniers éléments et 20 présences) : on reconstruit la carte EXACTEMENT comme la
+              // boucle du dessus, au lieu d'annoncer à tort « cette publication n'existe plus ».
+              let epingle = null;
+              const [mf] = await sb(`drix_mouvements?id=eq.${focusRefId}&select=*`).catch(()=>[]) || [];
+              if (mf) {
+                const ts = typeof mf.date === "number" ? mf.date : new Date(mf.date).getTime();
+                if (mf.adversaire_pseudo === "Comptage de finish" && !mf.duel_id) epingle = { type:"training_drix", date:ts, data:mf };
+                else {
+                  const avant = mf.drix_avant || 1000, apres = mf.drix_apres || 1000;
+                  const up = PALIERS.filter(t => t > avant && t <= apres), down = PALIERS.filter(t => t < avant && t >= apres);
+                  if (up.length || down.length) epingle = { type:"drix_milestone", date:ts, data:{ ...mf, direction: up.length ? "up" : "down", palier: up.length ? up[up.length-1] : down[0] } };
+                }
+              } else {
+                const [prf] = await sb(`presences?id=eq.${focusRefId}&select=*`).catch(()=>[]) || [];
+                if (prf) {
+                  const ts = typeof prf.heure === "number" ? prf.heure
+                    : prf.heure ? new Date(`${prf.date_jour}T${prf.heure}`).getTime()
+                    : new Date(prf.date_jour).getTime();
+                  epingle = { type:"presence", date:ts, data:prf };
+                }
+              }
+              if (epingle) sliced.unshift(epingle); else setFocusIntrouvable(true);
+            }
           }
         } catch(e) { setFocusIntrouvable(true); }
       }
