@@ -13925,10 +13925,12 @@ const ScoreurOnlinePlay = ({ duelId, joueur, setPage }) => {
         {volleys.length===0 && <span style={{ marginLeft:"auto", color:"#6ee7b7", fontWeight:700, fontSize:10.5 }}>🎲 {startPseudo} commence</span>}
       </div>
 
-      {/* RACCOURCIS RAPIDES */}
-      <div style={{ display:"flex", gap:5, padding:"6px 10px", background:"#0a0a0a", overflowX:"auto", flexShrink:0, borderBottom:"1px solid #1a1a1a", opacity:disabled?.4:1 }}>
+      {/* RACCOURCIS RAPIDES — les 8 se partagent la largeur (pas de défilement : le 180 était
+          coupé sur un téléphone de 375 px) ; 44 px de haut (un peu moins sur les écrans très courts,
+          sinon le bas du pavé sortait de l'écran d'un iPhone SE), la taille conseillée pour un pouce. */}
+      <div style={{ display:"flex", gap:4, padding:"6px 8px", background:"#0a0a0a", flexShrink:0, borderBottom:"1px solid #1a1a1a", opacity:disabled?.4:1 }}>
         {quickScores.map(qs => (
-          <button key={qs} onPointerDown={tap(()=>{ if(!disabled) envoyer(qs); })} style={{ minWidth:50, flexShrink:0, padding:"6px 10px", borderRadius:10, border:"1px solid #2a2a2a", background:"linear-gradient(135deg,#1a1a1a,#0f0f0f)", color:"#fbbf24", fontWeight:800, fontSize:13, cursor:"pointer" }}>{qs}</button>
+          <button key={qs} onPointerDown={tap(()=>{ if(!disabled) envoyer(qs); })} style={{ flex:"1 1 0", minWidth:0, height:"min(44px, 7.2vh)", padding:0, borderRadius:10, border:"1px solid #2a2a2a", background:"linear-gradient(135deg,#1a1a1a,#0f0f0f)", color:"#fbbf24", fontWeight:900, fontSize:"clamp(14px, 4.3vw, 18px)", fontVariantNumeric:"tabular-nums", cursor:"pointer" }}>{qs}</button>
         ))}
       </div>
 

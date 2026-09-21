@@ -3072,18 +3072,19 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* RACCOURCIS RAPIDES — scores fréquents                            */}
+      {/* RACCOURCIS RAPIDES — scores fréquents, les 8 sur UNE rangée      */}
+      {/* sans défilement, 44 px de haut (taille conseillée pour un pouce)  */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       {!modeFlech && (<>
-      <div style={{ display:"flex", gap:5, padding:"6px 10px", background:"#0a0a0a", overflowX:"auto", flexShrink:0, borderBottom:"1px solid #1a1a1a" }}>
+      <div style={{ display:"flex", gap:4, padding:"6px 8px", background:"#0a0a0a", flexShrink:0, borderBottom:"1px solid #1a1a1a" }}>
         {[26, 45, 60, 81, 100, 121, 140, 180].map(qs => (
           <button key={qs}
             onPointerDown={e=>{ e.preventDefault(); if(botJoue) return; envoyer(qs); }}
             style={{
-              minWidth:50, flexShrink:0, padding:"6px 10px",
+              flex:"1 1 0", minWidth:0, height:"min(44px, 7.2vh)", padding:0,
               borderRadius:10, border:"1px solid #2a2a2a",
               background:"linear-gradient(135deg,#1a1a1a,#0f0f0f)",
-              color:"#fbbf24", fontWeight:800, fontSize:13, cursor:"pointer",
+              color:"#fbbf24", fontWeight:900, fontSize:"clamp(14px, 4.3vw, 18px)", fontVariantNumeric:"tabular-nums", cursor:"pointer",
               touchAction:"manipulation", WebkitTapHighlightColor:"transparent",
               boxShadow:"inset 0 1px 0 #ffffff10, 0 2px 4px #00000044",
             }}>
