@@ -215,6 +215,89 @@ export const getPoolDistributionOptions = (playerCount, { qualifiersPerPool = 2 
   return options;
 };
 
+// ── Choix par NOMBRE de poules (compteur − / + de l'assistant) ────────────────
+//
+// Choisir « X par poule » laissait des trous : pour 20 équipes, 6 poules n'était proposé par
+// aucune taille (round(20/3) = 7, round(20/4) = 5). Ici on part du nombre de poules, donc
+// toutes les valeurs entre le minimum et le maximum existent.
+// Bornes : les mêmes que les anciennes cartes (getPoolDistributionOptions) — pas moins de
+// poules, pas plus — pour ne rien proposer de plus risqué qu'avant (ex. 3 poules de 2).
+//
+// qualifiersPerPool = le nombre VOULU de qualifiés par poule. Une poule de g ne peut pas en
+// qualifier g ou plus : il est ramené à (plus petite poule − 1), comme le fait l'assistant.
+//
+// Renvoie { min, max, options:[…], recommended } ; chaque option :
+//   { poolCount, groups, balanced, playersPerPool, minPool, poolsOf2, totalPoolMatches,
+//     matchesPerPool, qualifiersPerPool (effectif), qualifiedCount, bracketSize, byeCount, recommended }
+export const getPoolCountOptions = (playerCount, { qualifiersPerPool = 2 } = {}) => {
+  const n = Math.max(0, Math.round(playerCount || 0));
+  const anciennes = getPoolDistributionOptions(n, { qualifiersPerPool });
+  if (!anciennes.length) return { min: 0, max: 0, options: [], recommended: null };
+  const min = Math.min(...anciennes.map((o) => o.poolCount));
+  const max = Math.max(...anciennes.map((o) => o.poolCount));
+  const voulu = Math.max(1, Math.round(qualifiersPerPool || 2));
+  const options = [];
+  for (let poolCount = min; poolCount <= max; poolCount++) {
+    const groups = distributePools(n, poolCount);
+    const minPool = Math.min(...groups);
+    const balanced = groups.every((g) => g === groups[0]);
+    const qEff = minPool >= 2 && voulu >= minPool ? Math.max(1, minPool - 1) : voulu;
+    const qualifiedCount = calculateQualifiedCount(groups, qEff);
+    const bracketSize = getNextBracketSize(qualifiedCount);
+    options.push({
+      poolCount,
+      groups,
+      balanced,
+      playersPerPool: Math.round(n / poolCount),
+      minPool,
+      poolsOf2: groups.filter((g) => g < 3).length,
+      totalPoolMatches: calculatePoolMatchCount(groups),
+      matchesPerPool: balanced ? matchesInPool(groups[0]) : null,
+      qualifiersPerPool: qEff,
+      qualifiedCount,
+      bracketSize,
+      byeCount: Math.max(0, bracketSize - qualifiedCount),
+      recommended: false,
+    });
+  }
+  // Conseillé : pas de poule de 2 (un seul match, la perdante sort aussitôt), puis le moins
+  // d'exempts, puis la taille de poule la plus « saine » (4-5 idéal, 6 bien, 3/7 correct),
+  // puis le moins de matchs. Même esprit que getPoolDistributionOptions.
+  const idealScore = (size) =>
+    size === 4 || size === 5 ? 0 : size === 6 ? 1 : size === 3 || size === 7 ? 2 : 3;
+  const ranked = [...options].sort(
+    (a, b) =>
+      a.poolsOf2 - b.poolsOf2 ||
+      a.byeCount - b.byeCount ||
+      idealScore(a.playersPerPool) - idealScore(b.playersPerPool) ||
+      a.totalPoolMatches - b.totalPoolMatches
+  );
+  const recommended = ranked[0] || null;
+  if (recommended) recommended.recommended = true;
+  return { min, max, options, recommended };
+};
+
+// Le réglage EFFECTIF des poules pour `playerCount` inscrits : ce qui est affiché à CHAQUE
+// étape de l'assistant ET ce qui est lancé. Un seul calcul, sinon le résumé pouvait annoncer
+// 7 poules quand le lancement en créait 6 (une équipe partie entre-temps).
+//  - nombre de poules : celui du compteur si l'organisateur l'a touché (poolCountChoisi) ET
+//    qu'il est encore possible ; sinon le conseil (qui suit le nombre d'inscrits) ;
+//  - qualifiés par poule : le nombre VOULU, ramené sous la plus petite poule.
+export const resoudrePoules = (config = {}, playerCount = 0) => {
+  const voulu = Math.max(1, Math.round(config.qualifiersPerPoolVoulu || config.qualifiersPerPool || 2));
+  const { min, max, options, recommended } = getPoolCountOptions(playerCount, { qualifiersPerPool: voulu });
+  const demande = config.poolCountChoisi ? Math.round(config.poolCount || 0) : 0;
+  const poolCount = demande >= 1 && demande >= min && demande <= max
+    ? demande
+    : recommended ? recommended.poolCount : Math.max(1, min);
+  const option = options.find((o) => o.poolCount === poolCount) || null;
+  const groups = option ? option.groups : distributePools(Math.max(0, Math.round(playerCount || 0)), poolCount);
+  const minPool = groups.length ? Math.min(...groups) : 0;
+  const qualifiersPerPool = minPool >= 2 ? Math.max(1, Math.min(voulu, minPool - 1)) : voulu;
+  return { poolCount, groups, minPool, qualifiersPerPool, qualifiersPerPoolVoulu: voulu,
+    min, max, options, option, recommended };
+};
+
 // ── Estimation de durée ─────────────────────────────────────────────────────
 
 // Durée estimée des poules, en MINUTES.

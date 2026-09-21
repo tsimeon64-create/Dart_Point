@@ -2249,7 +2249,9 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
   },[tournoi?.statut,isCreateur,matchs,tournoiId,reload]);
 
   // ── Lancer le tournoi (phase poules)
-  const lancerTournoi=async(poolSize=4,poolManches=2,nbCibles=2,nbQualif=2,ciblesMode="optimise")=>{
+  // nbPoulesVoulu : le nombre de poules choisi au compteur de l'assistant. Sans lui (ancien appel),
+  // on le déduit de la taille de poule comme avant.
+  const lancerTournoi=async(poolSize=4,poolManches=2,nbCibles=2,nbQualif=2,ciblesMode="optimise",nbPoulesVoulu=null)=>{
     if(joueurs.length<2)return;
     setSaving(true);
     setNbQualLocal(nbQualif); // affichage immediat (avant meme la relecture du tournoi)
@@ -2271,7 +2273,11 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
       // relecture échoue — on ne tire jamais les poules sur une liste vide.
       const frais=await dbTP.getJoueurs(tournoiId).catch(()=>null);
       const inscrits=(frais&&frais.length>=2)?frais:joueurs;
-      const nb=Math.max(1,Math.round(inscrits.length/poolSize)); // nb de poules d'après la taille choisie
+      // Nombre de poules : celui du compteur, borné pour qu'aucune poule n'ait moins de 2 équipes
+      // (un inscrit peut être parti entre le réglage et le lancement) ; sinon d'après la taille.
+      const nb=nbPoulesVoulu
+        ?Math.max(1,Math.min(Math.round(nbPoulesVoulu),Math.floor(inscrits.length/2)))
+        :Math.max(1,Math.round(inscrits.length/poolSize));
       // Vrai tirage au sort (Fisher-Yates) puis répartition round-robin → poules équilibrées et aléatoires
       const shuffled=melangerAleatoire(inscrits);
       for(let i=0;i<shuffled.length;i++){
@@ -2813,7 +2819,7 @@ export const TournoiPotesDetail=({tournoiId,joueurConnecte,setPage})=>{
           if(cfg.mode&&cfg.mode!==tournoi.mode)patch.mode=cfg.mode;
           if(cfg.format&&cfg.format!==tournoi.format)patch.format=cfg.format;
           if(Object.keys(patch).length){ try{ await dbTP.updateTournoi(tournoiId,patch); setTournoi(t=>t?{...t,...patch}:t); }catch(e){} }
-          await lancerTournoi(cfg.playersPerPool,cfg.manches,cfg.availableTargets,cfg.qualifiersPerPool,cfg.ciblesMode);
+          await lancerTournoi(cfg.playersPerPool,cfg.manches,cfg.availableTargets,cfg.qualifiersPerPool,cfg.ciblesMode,cfg.poolCount);
         }}
       />}
       {tournoi.statut==="poules"&&(

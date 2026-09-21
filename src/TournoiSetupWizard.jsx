@@ -13,12 +13,10 @@
 // TOUTE la logique de calcul vient de ./tournoiConfig.js (le « cerveau », testé).
 // Ce fichier ne fait qu'AFFICHER et laisser l'utilisateur choisir.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { EmoText } from "./icons";
 import {
-  getPoolDistributionOptions,
-  distributePools,
-  poolCountFromSize,
+  resoudrePoules,
   calculateQualifiedCount,
   getNextBracketSize,
   matchesInPool,
@@ -624,39 +622,34 @@ const NumberPills = ({ values, value, onPick, suffix }) => (
 // ⚠️ Les deux useEffect corrigent d'eux-mêmes une config devenue invalide. Un seul
 // écran est monté à la fois, ils ne peuvent donc pas se marcher dessus.
 const usePoulesCalculs = (config, participantCount, onChange) => {
-  const set = (patch) => onChange({ ...config, ...patch });
+  // Mise à jour FONCTIONNELLE : deux réglages posés dans le même instant (nombre de poules +
+  // qualifiés ramenés) s'écrasaient l'un l'autre avec { ...config }, figé au rendu.
+  const set = (patch) => onChange((c) => ({ ...c, ...patch }));
   const unite = config.format === "doublette" ? "équipes" : "joueurs";
   const uniteQ = config.format === "doublette" ? "équipes qualifiées" : "qualifiés";
-  const qpp = config.qualifiersPerPool || 2;
+  // LE réglage effectif (tournoiConfig.resoudrePoules) — le même que le résumé et le lancement.
+  // Nombre de poules : le choix du compteur, ou le conseil tant qu'on n'y a pas touché.
+  // Qualifiés : le nombre VOULU, ramené sous la plus petite poule ; il revient tout seul quand
+  // les poules regrossissent (avant, 7 poules puis 4 laissait 1 qualifié/poule, sans le dire).
+  const r = resoudrePoules(config, participantCount);
+  const { recommended, groups, minPool } = r;
+  const nbPoules = r.poolCount;
+  const minPoules = Math.max(1, r.min);
+  const maxPoules = Math.max(1, r.max);
+  const selectedOption = r.option;
+  const qppVoulu = r.qualifiersPerPoolVoulu;
+  const qpp = r.qualifiersPerPool;
+  const sel = Math.max(1, Math.round(participantCount / Math.max(1, nbPoules)));   // équipes par poule
 
-  // Options de répartition (calculées par le moteur testé). Les tailles candidates
-  // ne dépendent QUE du nombre de participants (pas des qualifiés).
-  const options = getPoolDistributionOptions(participantCount, { qualifiersPerPool: qpp });
-  const recommended = options.find((o) => o.recommended);
-  const validSizes = options.map((o) => o.playersPerPool);
-  const sel =
-    config.playersPerPool && validSizes.includes(config.playersPerPool)
-      ? config.playersPerPool
-      : recommended
-      ? recommended.playersPerPool
-      : validSizes[0];
-
-  // Au 1er affichage (ou si le choix devient invalide), on fixe la taille recommandée.
+  // On range le réglage effectif dans la config (étapes suivantes, résumé, lancement).
   useEffect(() => {
-    if (config.playersPerPool !== sel) set({ playersPerPool: sel });
+    if (config.poolCount !== nbPoules || config.playersPerPool !== sel) set({ poolCount: nbPoules, playersPerPool: sel });
     // eslint-disable-next-line
-  }, [sel]);
-
-  const selectedOption = options.find((o) => o.playersPerPool === sel);
-  const groups = selectedOption ? selectedOption.groups : distributePools(participantCount, poolCountFromSize(participantCount, sel));
-  const minPool = groups.length ? Math.min(...groups) : 0;
-
-  // Si la taille de poule choisie rend le nb de qualifiés invalide (qualifiés ≥
-  // plus petite poule), on le ramène automatiquement à une valeur valide.
+  }, [nbPoules, sel]);
   useEffect(() => {
-    if (minPool >= 2 && qpp >= minPool) set({ qualifiersPerPool: Math.max(1, minPool - 1) });
+    if (config.qualifiersPerPool !== qpp || config.qualifiersPerPoolVoulu !== qppVoulu) set({ qualifiersPerPool: qpp, qualifiersPerPoolVoulu: qppVoulu });
     // eslint-disable-next-line
-  }, [minPool]);
+  }, [qpp, qppVoulu]);
 
   // Résumé + validation en direct.
   const summary = buildPoolConfigurationSummary({
@@ -715,15 +708,102 @@ const usePoulesCalculs = (config, participantCount, onChange) => {
     return Math.max(...charge) * DUREE_MATCH_MIN;
   })();
 
-  return { set, unite, uniteQ, qpp, options, recommended, sel, groups, minPool,
+  return { set, unite, uniteQ, qpp, qppVoulu, recommended, groups, minPool,
+    nbPoules, minPoules, maxPoules, selectedOption,
     summary, validation, conseqQual, nbPoulesDe2, manches, cibles, ciblesMode,
     dureeOptimisee, ciblesUtiles, dureeParPoule };
 };
 
-// ── ÉTAPE 1 : combien d'équipes par poule ────────────────────────────────────
+// ── Compteur − / + du nombre de poules ───────────────────────────────────────
+// Gros boutons (56 px) : on règle ça debout au comptoir, le téléphone dans une main.
+// aria-disabled plutôt que disabled : un bouton qui devient « disabled » sous le doigt (ou le
+// clavier) perd le focus. React 19 : `ref` est une prop ordinaire (pas besoin de forwardRef).
+const CompteurPoules = ({ value, min, max, onChange, sousTitre, ref }) => {
+  const bouton = (signe, actif, aria, cible, r) => (
+    <button type="button" ref={r} onClick={actif ? () => onChange(cible) : undefined} aria-disabled={!actif}
+      aria-label={aria} className="tsw-btn"
+      style={{
+        width: 56, height: 56, flexShrink: 0, borderRadius: 16, fontSize: 28, fontWeight: 900, lineHeight: 1,
+        border: `1.5px solid ${actif ? CT.accent + "88" : "rgba(255,255,255,.08)"}`,
+        background: actif ? `linear-gradient(168deg, ${CT.accent}33, ${CT.accent}12)` : D.fondCarte,
+        color: actif ? CT.accent : CT.muted, opacity: actif ? 1 : 0.4,
+        cursor: actif ? "pointer" : "not-allowed", touchAction: "manipulation",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>{signe}</button>
+  );
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderRadius: D.r.l,
+      background: D.fondCarte, border: "1.5px solid rgba(255,255,255,.09)", boxShadow: `${D.ombre}, ${D.liseré}` }}>
+      {bouton("−", value > min, "Une poule de moins", value - 1, ref)}
+      <div style={{ flex: 1, minWidth: 0, textAlign: "center" }} aria-live="polite" aria-atomic="true">
+        <div style={{ fontSize: 38, fontWeight: 900, color: CT.text, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+        <div style={{ fontSize: 13, fontWeight: 800, color: CT.accent, marginTop: 4 }}>poule{value > 1 ? "s" : ""}</div>
+        {sousTitre ? <div style={{ fontSize: 12, color: CT.muted, marginTop: 2 }}>{sousTitre}</div> : null}
+      </div>
+      {bouton("+", value < max, "Une poule de plus", value + 1)}
+    </div>
+  );
+};
+
+// Le détail du choix en cours, sous le compteur (même présentation que les anciennes cartes).
+const CarteDetailPoules = ({ conseil, lignes }) => (
+  <div className="tsw-anim" style={{ position: "relative", marginTop: conseil ? 18 : 12, padding: "16px 16px",
+    borderRadius: D.r.l, border: `1.5px solid ${conseil ? CT.green + "88" : CT.accent}`,
+    background: `${D.teinte(conseil ? CT.green : CT.accent, conseil ? "10" : "18")}, ${D.fondCarte}`,
+    boxShadow: `${D.ombre}, ${D.liseré}` }}>
+    {conseil && (
+      <span style={{ position: "absolute", top: -11, right: 12, background: `linear-gradient(180deg, #4ade80, ${CT.green})`,
+        color: "#04120a", fontSize: 10.5, fontWeight: 900, padding: "3px 10px", borderRadius: 20, letterSpacing: 0.3,
+        boxShadow: `0 3px 10px -2px ${CT.green}88, inset 0 1px 0 rgba(255,255,255,.45)`, whiteSpace: "nowrap" }}>
+        ⭐ Recommandé
+      </span>
+    )}
+    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      {lignes.map((l, i) => (
+        <div key={i} style={{ fontSize: l.strong ? 13.5 : 12.5, color: l.strong ? CT.text : CT.muted, fontWeight: l.strong ? 800 : 500,
+          lineHeight: 1.45, display: "flex", alignItems: "flex-start", gap: 7 }}>
+          {l.icon ? <span style={{ flexShrink: 0, opacity: l.strong ? 1 : 0.75 }}><EmoText s={l.icon} size={12} /></span> : null}
+          <span>{l.text}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// ── ÉTAPE 1 : combien de poules ───────────────────────────────────────────────
 export const StepPoules = ({ config, participantCount, onChange }) => {
-  const { unite, uniteQ, qpp, recommended, options, sel, set, conseqQual, nbPoulesDe2,
-    summary, validation } = usePoulesCalculs(config, participantCount, onChange);
+  const { unite, uniteQ, qppVoulu, recommended, set, nbPoulesDe2, nbPoules, minPoules, maxPoules,
+    selectedOption: o, summary, validation } = usePoulesCalculs(config, participantCount, onChange);
+  const uniteS = config.format === "doublette" ? "équipe" : "joueur";
+  const choisir = (v) => {
+    if (!(v >= minPoules && v <= maxPoules)) return;
+    set({ poolCount: v, poolCountChoisi: true, playersPerPool: Math.max(1, Math.round(participantCount / v)) });
+  };
+  // « Revenir au conseil » : on repasse en mode « suit le conseil » (il suivra aussi les inscrits).
+  const refCompteur = useRef(null);
+  const revenirAuConseil = () => {
+    set({ poolCountChoisi: false, poolCount: recommended.poolCount });
+    // Le bouton disparaît : on rend le focus au compteur plutôt que de le perdre.
+    setTimeout(() => refCompteur.current?.focus(), 0);
+  };
+  const estConseil = !!recommended && recommended.poolCount === nbPoules;
+  // Le détail du choix en cours : exactement ce qui sera appliqué au lancement.
+  const lignes = o ? [
+    { icon: "🏟️", text: o.balanced ? `${o.poolCount} poule${o.poolCount > 1 ? "s" : ""} de ${o.groups[0]}` : `${o.poolCount} poules de ${o.minPool} à ${Math.max(...o.groups)}`, strong: true },
+    ...(nbPoulesDe2(o.groups) > 0
+      ? [{ icon: "⚠️", text: `${nbPoulesDe2(o.groups)} poule${nbPoulesDe2(o.groups) > 1 ? "s" : ""} de 2 ${unite} : 1 seul match, la perdante est éliminée aussitôt.` }]
+      : []),
+    { icon: "📋", text: `${o.totalPoolMatches} matchs au total${o.balanced ? ` (${o.matchesPerPool}/poule)` : ""}` },
+    { icon: "✅", text: `${o.qualifiedCount} ${uniteQ} → tableau de ${o.bracketSize}` },
+    // « Exempt » est du jargon : on dit ce que ça veut dire. Le tableau n'a que 2, 4, 8, 16 ou 32
+    // places ; les places en trop sont des cases vides, et celui qui tombe dessus passe le tour.
+    o.byeCount === 0
+      ? { icon: "👍", text: "Aucun exempt : tout le monde joue dès le 1er tour du tableau" }
+      : { icon: "⚠️", text: `${o.byeCount} exempt${o.byeCount > 1 ? "s" : ""} : ${o.qualifiedCount} ${uniteQ} pour un tableau de ${o.bracketSize} places, donc ${o.byeCount} ${o.byeCount > 1 ? uniteS + "s passent" : uniteS + " passe"} directement au tour suivant` },
+    ...(o.qualifiersPerPool !== qppVoulu
+      ? [{ icon: "ℹ️", text: `La plus petite poule n'a que ${o.minPool} ${unite} → ${o.qualifiersPerPool} qualifié${o.qualifiersPerPool > 1 ? "s" : ""} par poule (au lieu de ${qppVoulu})` }]
+      : []),
+  ] : [];
   return (
     <div>
       <h2 style={{ fontSize: 19, fontWeight: 800, color: CT.text, margin: "0 0 4px" }}>
@@ -737,47 +817,19 @@ export const StepPoules = ({ config, participantCount, onChange }) => {
           (c'était un doublon), mais l'organisateur doit garder l'info sous les yeux ici. */}
       <RecapParticipants count={participantCount} mode={config.mode} format={config.format} />
 
-      <SectionLabel hint={recommended ? `(conseillé : ${recommended.playersPerPool}/poule)` : ""}>
-        {config.format === "doublette" ? "Équipes" : "Joueurs"} par poule
+      <SectionLabel hint={recommended ? `(conseillé : ${recommended.poolCount})` : ""}>
+        Nombre de poules
       </SectionLabel>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {options.map((o) => {
-          // ⚠️ La carte doit annoncer ce qui sera VRAIMENT appliqué.
-          // Si la plus petite poule de CETTE option est trop petite pour le nombre de qualifiés
-          // demandé (ex. 20 joueurs en poules de 3 → il reste une poule de 2), le useEffect plus
-          // bas ramène automatiquement « qualifiés par poule » à (plus petite poule − 1). Sans
-          // anticiper ce clamp ici, la carte promettait « 14 qualifiés → tableau de 16 » et on
-          // obtenait « 7 → tableau de 8 » : les chiffres changeaient sous les yeux de
-          // l'organisateur au moment même du clic.
-          const mp = o.groups.length ? Math.min(...o.groups) : 0;
-          const qEff = mp >= 2 && qpp >= mp ? Math.max(1, mp - 1) : qpp;
-          const qc = calculateQualifiedCount(o.groups, qEff);
-          const bs = getNextBracketSize(qc);
-          const bye = Math.max(0, bs - qc);
-          return (
-            <ChoiceCard
-              key={o.playersPerPool}
-              title={`${o.playersPerPool} ${unite} par poule`}
-              selected={o.playersPerPool === sel}
-              recommended={o.recommended}
-              ariaLabel={`${o.playersPerPool} ${unite} par poule`}
-              onClick={() => set({ playersPerPool: o.playersPerPool })}
-              lines={[
-                { icon: "🏟️", text: o.balanced ? `${o.poolCount} poules de ${o.groups[0]}` : `${o.poolCount} poules de ${Math.min(...o.groups)} à ${Math.max(...o.groups)}`, strong: true },
-                ...(nbPoulesDe2(o.groups) > 0
-                  ? [{ icon: "⚠️", text: `${nbPoulesDe2(o.groups)} poule${nbPoulesDe2(o.groups) > 1 ? "s" : ""} de 2 ${unite} : 1 seul match, la perdante est éliminée aussitôt.` }]
-                  : []),
-                { icon: "📋", text: `${o.totalPoolMatches} matchs au total${o.balanced ? ` (${o.matchesPerPool}/poule)` : ""}` },
-                { icon: "✅", text: `${qc} ${uniteQ} → tableau de ${bs}` },
-                bye === 0 ? { icon: "👍", text: "Aucun exempt" } : { icon: "⚠️", text: `${bye} exempt${bye > 1 ? "s" : ""}` },
-                ...(qEff !== qpp
-                  ? [{ icon: "ℹ️", text: `La plus petite poule n'a que ${mp} ${unite} → ${qEff} qualifié${qEff > 1 ? "s" : ""} par poule (au lieu de ${qpp})` }]
-                  : []),
-              ]}
-            />
-          );
-        })}
-      </div>
+      <CompteurPoules ref={refCompteur} value={nbPoules} min={minPoules} max={maxPoules} onChange={choisir}
+        sousTitre={o ? (o.balanced ? `de ${o.groups[0]} ${unite}` : `de ${o.minPool} à ${Math.max(...o.groups)} ${unite}`) : ""} />
+      {!estConseil && recommended && (
+        <button type="button" onClick={revenirAuConseil} className="tsw-btn"
+          style={{ display: "block", margin: "10px auto 0", background: "none", border: "none", color: CT.green,
+            fontSize: 13, fontWeight: 800, cursor: "pointer", padding: "8px 12px", minHeight: 44, touchAction: "manipulation" }}>
+          ⭐ Revenir au conseil ({recommended.poolCount} poules)
+        </button>
+      )}
+      {o && <CarteDetailPoules conseil={estConseil} lignes={lignes} />}
 
       <SummaryBanner summary={summary} />
       <ValidationMessages result={validation} />
@@ -815,7 +867,7 @@ export const StepQualifies = ({ config, participantCount, onChange }) => {
           return (
             <button
               key={q}
-              onClick={possible ? () => set({ qualifiersPerPool: q }) : undefined}
+              onClick={possible ? () => set({ qualifiersPerPool: q, qualifiersPerPoolVoulu: q }) : undefined}
               disabled={!possible}
               aria-pressed={sq}
               aria-label={`${q} qualifié${q > 1 ? "s" : ""} par poule`}
@@ -1337,8 +1389,10 @@ export const StepResume = ({ phase, config, participantCount, context = {}, onEd
     );
   }
 
-  // Phase poules : récapitulatif de tout ce qui a été choisi sur les 3 écrans.
-  const groups = distributePools(participantCount, poolCountFromSize(participantCount, config.playersPerPool || 4));
+  // Phase poules : récapitulatif de tout ce qui a été choisi sur les 3 écrans — le MÊME
+  // réglage effectif que l'écran Poules et le lancement (resoudrePoules).
+  const regle = resoudrePoules(config, participantCount);
+  const groups = regle.groups;
   const ciblesMode = config.ciblesMode === "par_poule" ? "par_poule" : "optimise";
   const ciblesR = config.availableTargets || 1;
   const dureeOptimisee = estimatePoolDuration({ groups, availableTargets: ciblesR, averageMatchDuration: DUREE_MATCH_MIN });
@@ -1356,7 +1410,7 @@ export const StepResume = ({ phase, config, participantCount, context = {}, onEd
   const summary = buildPoolConfigurationSummary({
     playerCount: participantCount,
     groups,
-    qualifiersPerPool: config.qualifiersPerPool || 2,
+    qualifiersPerPool: regle.qualifiersPerPool,
     manches: config.manches || 2,
     availableTargets: config.availableTargets || 1,
     averageMatchDuration: DUREE_MATCH_MIN,
@@ -1517,7 +1571,12 @@ export const TournoiSetupWizard = ({
   };
   const doLaunch = () => {
     if (phase === "tableau") onLaunchBracket && onLaunchBracket(resolveBracketConfig());
-    else onLaunchPoules && onLaunchPoules(config);
+    else if (onLaunchPoules) {
+      // On lance EXACTEMENT ce que le résumé vient d'afficher, recalculé pour les inscrits du moment.
+      const regle = resoudrePoules(config, participantCount);
+      onLaunchPoules({ ...config, poolCount: regle.poolCount, qualifiersPerPool: regle.qualifiersPerPool,
+        playersPerPool: Math.max(1, Math.round(participantCount / Math.max(1, regle.poolCount))) });
+    }
   };
 
   // Récap court pour la confirmation.
@@ -1527,7 +1586,7 @@ export const TournoiSetupWizard = ({
       const bs = config.bracketSize || getNextBracketSize(qc);
       return [`${qc} ${tableauContext.format === "doublette" ? "équipes qualifiées" : "qualifiés"}`, `Tableau de ${bs}`];
     }
-    const groups = distributePools(participantCount, poolCountFromSize(participantCount, config.playersPerPool || 4));
+    const groups = resoudrePoules(config, participantCount).groups;
     const totalMatches = groups.reduce((t, g) => t + matchesInPool(g), 0);
     const unite = config.format === "doublette" ? "équipes" : "joueurs";
     return [`${participantCount} ${unite}`, `${groups.length} poules`, `${totalMatches} matchs générés`];

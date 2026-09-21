@@ -18,6 +18,8 @@ import {
   roundsForBracket,
   manchesForPhase,
   getPoolDistributionOptions,
+  getPoolCountOptions,
+  resoudrePoules,
   estimatePoolDuration,
   estimateBracketDuration,
   formatDuration,
@@ -363,6 +365,48 @@ eq("calculateQualifiedCount([5,5,5,5],3)", calculateQualifiedCount([5, 5, 5, 5],
   // Pour une poule de 4 (6 matchs, 4 joueurs), 0 enchaînement est IMPOSSIBLE : le
   // minimum théorique est 2. On vérifie que l'algo atteint bien ce minimum.
   ok("ordre: atteint le minimum théorique (≤ 2) pour une poule de 4", consecutifs(ordered) <= 2);
+}
+
+// ── Choix par NOMBRE de poules (compteur − / +) ──────────────────────────────
+{
+  const c = getPoolCountOptions(20, { qualifiersPerPool: 2 });
+  eq("compteur 20: bornes 2 à 7", [c.min, c.max], [2, 7]);
+  eq("compteur 20: toutes les valeurs, 6 poules comprises", c.options.map((o) => o.poolCount), [2, 3, 4, 5, 6, 7]);
+  eq("compteur 20: conseillé = 4 poules de 5", [c.recommended.poolCount, c.recommended.groups], [4, [5, 5, 5, 5]]);
+  const o6 = c.options.find((o) => o.poolCount === 6);
+  eq("compteur 20: 6 poules = 4,4,3,3,3,3", o6.groups, [4, 4, 3, 3, 3, 3]);
+  const o7 = c.options.find((o) => o.poolCount === 7);
+  eq("compteur 20: 7 poules → 1 poule de 2, 1 qualifié/poule, 7 → tableau de 8, 1 exempt, 19 matchs",
+    [o7.poolsOf2, o7.qualifiersPerPool, o7.qualifiedCount, o7.bracketSize, o7.byeCount, o7.totalPoolMatches], [1, 1, 7, 8, 1, 19]);
+  const o4 = c.options.find((o) => o.poolCount === 4);
+  eq("compteur 20: 4 poules → 40 matchs (10/poule), 8 qualifiés, tableau de 8, 0 exempt",
+    [o4.totalPoolMatches, o4.matchesPerPool, o4.qualifiedCount, o4.bracketSize, o4.byeCount], [40, 10, 8, 8, 0]);
+  // Mêmes bornes que les anciennes cartes, quel que soit le nombre d'inscrits
+  for (let n = 4; n <= 40; n++) {
+    const a = getPoolDistributionOptions(n).map((o) => o.poolCount);
+    const k = getPoolCountOptions(n);
+    ok(`compteur ${n}: bornes = anciennes cartes`, k.min === Math.min(...a) && k.max === Math.max(...a));
+    ok(`compteur ${n}: jamais de poule vide ni de poule d'1`, k.options.every((o) => o.minPool >= 2));
+    ok(`compteur ${n}: un conseil existe et est dans les bornes`, !!k.recommended && k.recommended.poolCount >= k.min && k.recommended.poolCount <= k.max);
+    ok(`compteur ${n}: moins de qualifiés que la plus petite poule`, k.options.every((o) => o.qualifiersPerPool < o.minPool));
+  }
+  eq("compteur: 1 inscrit → rien", getPoolCountOptions(1), { min: 0, max: 0, options: [], recommended: null });
+
+  // resoudrePoules : le réglage effectif (écran, résumé, lancement)
+  eq("résolu: jamais touché → le conseil", resoudrePoules({}, 20).poolCount, 4);
+  eq("résolu: compteur touché → son choix", resoudrePoules({ poolCount: 6, poolCountChoisi: true }, 20).poolCount, 6);
+  eq("résolu: valeur non choisie (défaut figé) → suit le conseil", resoudrePoules({ poolCount: 2 }, 20).poolCount, 4);
+  eq("résolu: choix devenu impossible (une équipe partie) → conseil",
+    resoudrePoules({ poolCount: 7, poolCountChoisi: true }, 13).poolCount, getPoolCountOptions(13).recommended.poolCount);
+  eq("résolu: 7 poules → 1 qualifié (poule de 2), le voulu reste 2",
+    [resoudrePoules({ poolCount: 7, poolCountChoisi: true, qualifiersPerPool: 1, qualifiersPerPoolVoulu: 2 }, 20).qualifiersPerPool,
+     resoudrePoules({ poolCount: 7, poolCountChoisi: true, qualifiersPerPool: 1, qualifiersPerPoolVoulu: 2 }, 20).qualifiersPerPoolVoulu], [1, 2]);
+  eq("résolu: retour à 4 poules → les 2 qualifiés voulus reviennent",
+    resoudrePoules({ poolCount: 4, poolCountChoisi: true, qualifiersPerPool: 1, qualifiersPerPoolVoulu: 2 }, 20).qualifiersPerPool, 2);
+  eq("résolu: 21e équipe pendant le résumé → 7 poules de 3, qualifiés revenus à 2",
+    (() => { const r = resoudrePoules({ poolCount: 7, poolCountChoisi: true, qualifiersPerPool: 1, qualifiersPerPoolVoulu: 2 }, 21); return [r.poolCount, r.groups, r.qualifiersPerPool]; })(),
+    [7, [3, 3, 3, 3, 3, 3, 3], 2]);
+  ok("résolu: 0 ou 1 inscrit → 1 poule, pas de plantage", resoudrePoules({}, 1).poolCount === 1 && resoudrePoules({}, 0).poolCount === 1);
 }
 
 // ── Bilan ────────────────────────────────────────────────────────────────────
