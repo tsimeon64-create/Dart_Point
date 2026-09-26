@@ -2684,7 +2684,7 @@ export const PageProfilHistorique = ({ joueur, setPage, embedded = false }) => {
                       <span style={{ fontWeight:700, fontSize:14 }}>vs{" "}
                         <span onClick={(e)=>{ e.stopPropagation(); setPage("profil-joueur-"+advId); }} style={{ color:CJ.accent, cursor:"pointer", textDecoration:"underline" }}>{adv}</span>
                       </span>
-                      <div style={{ color:CJ.muted, fontSize:12, marginTop:2 }}>{d.mode} · {d.manches||1} manche{(d.manches||1)>1?"s":""} · {new Date(d.date).toLocaleDateString("fr-FR")}</div>
+                      <div style={{ color:CJ.muted, fontSize:12, marginTop:2 }}>{d.mode} · {(d.manches||1)>1 ? `Premier à ${d.manches}` : "1 manche"} · {new Date(d.date).toLocaleDateString("fr-FR")}</div>
                     </div>
                     <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
                       <span style={{ fontWeight:800, fontSize:15 }}>{monM??'?'}–{sonM??'?'}</span>
@@ -5005,7 +5005,9 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
                       </div>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontWeight:700,fontSize:13}}>vs <span style={{color:CJ.accent,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setPage("profil-joueur-"+advId);}}>{adv}</span></div>
-                        <div style={{fontSize:10,color:CJ.muted}}>{d.mode} · Best of {d.manches||1}</div>
+                        {/* d.manches = manches à GAGNER, ce n'est pas un « best of » : gagner 3 manches,
+                            c'est « premier à 3 » (un best of 3 se gagnerait en 2 manches). */}
+                        <div style={{fontSize:10,color:CJ.muted}}>{d.mode} · {(d.manches||1)>1 ? `Premier à ${d.manches}` : "1 manche"}</div>
                       </div>
                       <VDBadge gagne={gagne} size={26}/>
                       <div style={{textAlign:"center",minWidth:36}}>

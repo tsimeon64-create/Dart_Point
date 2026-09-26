@@ -2019,7 +2019,7 @@ const MatchActifCard = ({ d, joueur, setPage, onAbandon }) => {
         <div>
           <div style={{ fontWeight:700,fontSize:15 }}><EmoIcon e="⚔️" size={14} style={{verticalAlign:"-2px",marginRight:5}}/>vs {adversaire}</div>
           <div style={{ color:C.muted,fontSize:12,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
-            <span>{d.mode} · {d.manches} manche{d.manches>1?"s":""}</span>
+            <span>{d.mode} · {(d.manches||1)>1 ? `Premier à ${d.manches} manches` : "1 manche"}</span>
             <span style={{ background:"#1a0030",color:"#a78bfa",borderRadius:20,padding:"1px 8px",fontSize:11,fontWeight:700,border:"1px solid #a78bfa33" }}><EmoText s="💎 DRIX" size={10} gap={3}/></span>
           </div>
         </div>
@@ -11992,7 +11992,7 @@ const AdminDuels = ({ addLog }) => {
                   <span style={{color:d.gagnant_id===d.defie_id?C.green:C.text}}>{d.defie_pseudo||"?"}</span>
                 </div>
                 <div style={{fontSize:11,color:C.muted,marginTop:2}}>
-                  {d.mode||"?"} · Premier à {d.manches||"?"} · {date}
+                  {d.mode||"?"} · {(d.manches||1)>1 ? `Premier à ${d.manches}` : "1 manche"} · {date}
                   {d.bar_slug && <span style={{marginLeft:6}}>· 🍺 {d.bar_slug}</span>}
                 </div>
               </div>
@@ -12700,7 +12700,7 @@ ${brut.slice(0,200)}`); }
                               <span style={{color:C.muted,margin:"0 6px",fontWeight:400}}>vs</span>
                               <span style={{color:dGagne?"#10b981":C.text}}>{m.defie_pseudo||"?"}</span>
                             </div>
-                            <div style={{fontSize:11,color:C.muted}}>{m.mode||"duel"} · {m.manches||1} manche{(m.manches||1)>1?"s":""} · {m.date?new Date(m.date).toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"—"}</div>
+                            <div style={{fontSize:11,color:C.muted}}>{m.mode||"duel"} · {(m.manches||1)>1 ? `Premier à ${m.manches}` : "1 manche"} · {m.date?new Date(m.date).toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"—"}</div>
                           </div>
                           <div style={{textAlign:"right",whiteSpace:"nowrap"}}>
                             <div style={{fontSize:9,color:C.muted,letterSpacing:.5}}>MOY.</div>
