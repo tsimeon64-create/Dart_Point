@@ -1292,7 +1292,8 @@ export const PoulesView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1
     const j1=joueurs.find(j=>j.id===m.joueur1_id), j2=joueurs.find(j=>j.id===m.joueur2_id);
     const done=m.statut==="termine";
     // Un barrage n'est actif que s'il est dans actifsBarrages (rotation cibles) ; un match de poule via actifs.
-    const actif=!done&&(barrage?actifsBarrages.has(m.id):actifs.has(m.id));
+    // En lecture seule (je revois un tournoi passé), aucun match n'est « à jouer maintenant ».
+    const actif=!done&&!lectureSeule&&(barrage?actifsBarrages.has(m.id):actifs.has(m.id));
     // Match "en cours" = le scoreur est lancé (live_sessions en_cours) → étiquette "Match en cours" + plus de bouton "Lancer".
     const enCours=actif&&!!live&&!!live.pairs&&live.pairs.has([String(m.joueur1_id),String(m.joueur2_id)].sort().join("|"));
     const attente=!done&&!actif;
@@ -1334,7 +1335,7 @@ export const PoulesView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1
           {done&&<span style={{fontSize:11,fontWeight:600,color:CT.green,background:CT.green+"18",borderRadius:20,padding:"3px 9px",display:"inline-flex",alignItems:"center",gap:4}}><EmoIcon e="✅" size={11}/>Terminé</span>}
           {enCours&&<span style={{fontSize:11,fontWeight:700,color:"#ef4444",background:"#ef444418",borderRadius:20,padding:"3px 9px",display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:6,height:6,borderRadius:"50%",background:"#ef4444",display:"inline-block",animation:"livePulse 1.4s infinite"}}/>Match en cours</span>}
           {actif&&!enCours&&<span style={{fontSize:11,fontWeight:600,color:col,background:col+"1e",borderRadius:20,padding:"3px 9px",display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:6,height:6,borderRadius:"50%",background:col,display:"inline-block"}}/>{barrage?"Barrage à jouer":"À jouer maintenant"}</span>}
-          {attente&&<span style={{fontSize:11,fontWeight:600,color:CT.muted,background:CT.muted+"18",borderRadius:20,padding:"3px 9px",display:"inline-flex",alignItems:"center",gap:4}}><EmoIcon e="⏳" size={11}/>En attente</span>}
+          {attente&&<span style={{fontSize:11,fontWeight:600,color:CT.muted,background:CT.muted+"18",borderRadius:20,padding:"3px 9px",display:"inline-flex",alignItems:"center",gap:4}}><EmoIcon e={lectureSeule?"➖":"⏳"} size={11}/>{lectureSeule?"Non joué":"En attente"}</span>}
           {!done&&<span style={{fontSize:10.5,color:CT.muted}}>Premier à {m.manches_max||2} manche{(m.manches_max||2)>1?"s":""}</span>}
           <div style={{marginLeft:"auto",display:"flex",gap:6}}>
             {actif&&!enCours&&canPlay&&<Btn onClick={()=>onJouerMatch(m)} variant="primary" small><EmoText s="▶ Lancer" size={12}/></Btn>}
@@ -1618,7 +1619,7 @@ const BktStatusBanner=({label,color,bg,hero})=>(
 // ============================================================================
 // `actif` = ce match est élu par le planning des cibles (matchsSurCibles). null = pas de planning
 // (rétrocompatible : tout est jouable, comportement d'avant).
-const BracketMatchCard=({match,joueurs,isCreateur,photos={},onSaisirScore,onJouerMatch,canPlay=false,hero=false,live=null,stats=null,actif=null})=>{
+const BracketMatchCard=({match,joueurs,isCreateur,photos={},onSaisirScore,onJouerMatch,canPlay=false,hero=false,live=null,stats=null,actif=null,lectureSeule=false})=>{
   const j1=joueurs.find(j=>j.id===match.joueur1_id);
   const j2=joueurs.find(j=>j.id===match.joueur2_id);
   const doneBrut=match.statut==="termine";
@@ -1650,6 +1651,8 @@ const BracketMatchCard=({match,joueurs,isCreateur,photos={},onSaisirScore,onJoue
   else if(bye){        banner={label:"Qualifié",color:CT.green,bg:CT.green+"14"}; }
   else if(waiting){    banner={label:"En attente",color:CT.muted,bg:"#ffffff08"}; }
   else if(enCours){    banner={label:"Match en cours",color:"#ef4444",bg:"#ef444416"}; }
+  // On revoit un tournoi passé : un match non joué reste non joué, il n'est pas « à jouer ».
+  else if(lectureSeule){ banner={label:"Non joué",color:CT.muted,bg:"#ffffff08"}; }
   else{                banner={label:"À jouer",color:roundCol,bg:roundCol+"14"}; }
 
   // Ligne joueur (avatar + nom + score) — ghostLabel quand le slot n'a pas encore de joueur
@@ -1762,7 +1765,7 @@ const BracketMatchCard=({match,joueurs,isCreateur,photos={},onSaisirScore,onJoue
           {isCreateur&&<Btn onClick={()=>onSaisirScore(match)} variant="dark" small style={{fontSize:12,padding:"7px 12px"}}><EmoText s="✏️" size={12}/></Btn>}
         </div>
       )}
-      {playable&&!enCours&&!canPlay&&(
+      {playable&&!enCours&&!canPlay&&!lectureSeule&&(
         <div style={{padding:"0 9px 9px"}}>
           <div style={{padding:"6px 8px",fontSize:10.5,color:surCible?roundCol:CT.muted,fontWeight:700,textAlign:"center",background:(surCible?roundCol:"#ffffff")+"12",borderRadius:8,border:`1px solid ${surCible?roundCol+"33":CT.border}`}}>
             <EmoText s={surCible?"🎯 Match à jouer":"⏳ En attente d'une cible"} size={10.5} color={surCible?roundCol:CT.muted}/>
@@ -1873,7 +1876,7 @@ export const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,photos={},nbC
           {colLabel(phase,r)}
           <div style={{flex:1,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-around",alignItems:"center",gap:24}}>
             {rm.map(m=>(
-              <BracketMatchCard key={m.id} match={m} joueurs={joueurs} photos={photos} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} hero={isFinaleCol} live={live} stats={stats} actif={actifsBracket.has(m.id)}/>
+              <BracketMatchCard key={m.id} match={m} joueurs={joueurs} photos={photos} isCreateur={isCreateur} lectureSeule={lectureSeule} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} hero={isFinaleCol} live={live} stats={stats} actif={actifsBracket.has(m.id)}/>
             ))}
           </div>
         </div>
@@ -1889,7 +1892,7 @@ export const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,photos={},nbC
   const petiteCol=()=>(
     <div key="petite-finale" style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",gap:24,flexShrink:0}}>
       {colLabel("petite_finale",0)}
-      <BracketMatchCard match={petiteM} joueurs={joueurs} photos={photos} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live} stats={stats} actif={actifsBracket.has(petiteM.id)}/>
+      <BracketMatchCard match={petiteM} joueurs={joueurs} photos={photos} isCreateur={isCreateur} lectureSeule={lectureSeule} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live} stats={stats} actif={actifsBracket.has(petiteM.id)}/>
     </div>
   );
 
@@ -1969,7 +1972,7 @@ export const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,photos={},nbC
                       </div>
                       <div style={{flex:1,width:"100%",display:"flex",flexDirection:"column",justifyContent:"space-around",alignItems:"center",gap:24}}>
                         {rm.map(m=>(
-                          <BracketMatchCard key={m.id} match={m} joueurs={joueurs} photos={photos} isCreateur={isCreateur} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live} stats={stats} actif={actifsBracket.has(m.id)}/>
+                          <BracketMatchCard key={m.id} match={m} joueurs={joueurs} photos={photos} isCreateur={isCreateur} lectureSeule={lectureSeule} onSaisirScore={onSaisirScore} onJouerMatch={onJouerMatch} canPlay={canPlay} live={live} stats={stats} actif={actifsBracket.has(m.id)}/>
                         ))}
                       </div>
                     </div>
@@ -3064,6 +3067,10 @@ export const TournoiPotesPage=({joueur,setPage})=>{
 };
 
 // ── SCOREUR WRAPPER TOURNOI ───────────────────────────────────────────────────
+// Le tableau final, ce sont les tours à élimination directe : ni les poules, ni un barrage 701
+// (qui départage une poule et n'apparaît PAS dans l'arbre).
+const estMatchTableau=(m)=>m&&m.phase!=="poules"&&m.phase!=="barrage";
+
 // ── REVOIR UN TOURNOI (depuis le profil) ──────────────────────────────────────
 // Écran de CONSULTATION d'un tournoi déjà joué : son tableau final et ses poules, en lecture seule.
 // On ne réutilise PAS TournoiPotesDetail : il sonde la base toutes les 5 s, mémorise le « tournoi en
@@ -3081,7 +3088,9 @@ export const TournoiRevoir=({tournoiId,joueurConnecte=null,setPage})=>{
         if(!t){setErreur(true);return;}
         const matchs=m||[];
         setData({tournoi:t,joueurs:j||[],matchs});
-        setVue(matchs.some(x=>x.phase!=="poules")?"elim":"poules");
+        // Un barrage 701 départage une POULE : ce n'est pas le tableau final (sinon l'écran
+        // s'ouvrait sur un onglet « Tableau final » entièrement vide).
+        setVue(matchs.some(estMatchTableau)?"elim":"poules");
       })
       .catch(()=>{ if(!annule)setErreur(true); });
     return()=>{annule=true;};
@@ -3090,7 +3099,8 @@ export const TournoiRevoir=({tournoiId,joueurConnecte=null,setPage})=>{
   const joueurs=data?data.joueurs:[];
   const photos=usePhotosEquipes(data?tournoiId:null,joueurs);
   const stats=useStatsTournoi(joueurs);
-  const retour=()=>{ if(setPage)setPage("profil"); };
+  // « profil » tout court n'est PAS une page de l'appli (l'écran serait vide) : c'est « mon-profil ».
+  const retour=()=>{ if(setPage)setPage("mon-profil"); };
 
   if(erreur)return(
     <div style={{minHeight:"100vh",background:CT.bg,color:CT.text,padding:"18px 14px"}}>
@@ -3101,7 +3111,11 @@ export const TournoiRevoir=({tournoiId,joueurConnecte=null,setPage})=>{
   if(!data)return(<div style={{minHeight:"100vh",background:CT.bg}}><Spinner/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>);
 
   const {tournoi,matchs}=data;
-  const aTableau=matchs.some(m=>m.phase!=="poules");
+  const aTableau=matchs.some(estMatchTableau);
+  const aPoules=matchs.some(m=>m.phase==="poules");
+  // Nombre de cibles réel du tournoi : sans lui, le planning retombait sur 1 cible et grisait
+  // des matchs en « en attente d'une cible ».
+  const ciblesT=tournoi.nb_cibles||2;
   const finale=matchs.find(m=>m.phase==="finale"&&m.statut==="termine"&&m.gagnant_id);
   const champion=finale?joueurs.find(j=>j.id===finale.gagnant_id):null;
   const dateT=tournoi.date?new Date(tournoi.date).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}):"";
@@ -3115,7 +3129,8 @@ export const TournoiRevoir=({tournoiId,joueurConnecte=null,setPage})=>{
         <div style={{fontSize:12.5,color:CT.muted,marginTop:4}}>
           {dateT}{dateT&&" · "}{tournoi.format==="doublette"?"Doublettes":"En simple"} · {tournoi.mode||"501"} · {joueurs.length} {unite}
         </div>
-        {champion&&<div style={{marginTop:9,fontWeight:800,fontSize:13.5,color:CT.yellow}}><EmoText s={`🏆 ${champion.nom} remporte le tournoi`} size={13}/></div>}
+        {/* Sur le tableau final, EliminatoiresView affiche déjà sa grande carte « champion ». */}
+        {champion&&(!aTableau||vue==="poules")&&<div style={{marginTop:9,fontWeight:800,fontSize:13.5,color:CT.yellow}}><EmoText s={`🏆 ${champion.nom} remporte le tournoi`} size={13}/></div>}
         {!champion&&tournoi.statut!=="termine"&&<div style={{marginTop:9,fontSize:12.5,color:CT.muted}}>Tournoi jamais terminé — voici où il en était.</div>}
       </Card>
       {aTableau&&(
@@ -3126,11 +3141,26 @@ export const TournoiRevoir=({tournoiId,joueurConnecte=null,setPage})=>{
         </div>
       )}
       {(!aTableau||vue==="poules")
-        ? <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} photos={photos} isCreateur={false} canPlay={false}
-            nbQual={tournoi.nb_qualifies!=null?tournoi.nb_qualifies:2} ciblesMode={tournoi.cibles_mode||"optimise"}
-            joueurConnecte={joueurConnecte} bracketLance={aTableau} stats={stats} lectureSeule/>
-        : <EliminatoiresView tournoi={tournoi} joueurs={joueurs} matchs={matchs.filter(m=>m.phase!=="poules")} photos={photos}
-            isCreateur={false} canPlay={false} stats={stats} lectureSeule/>}
+        ? (aPoules
+          ? <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} photos={photos} isCreateur={false} canPlay={false}
+              nbCibles={ciblesT} nbQual={tournoi.nb_qualifies!=null?tournoi.nb_qualifies:2} ciblesMode={tournoi.cibles_mode||"optimise"}
+              joueurConnecte={joueurConnecte} bracketLance={aTableau} stats={stats} lectureSeule/>
+          : <Card>
+            <div style={{fontWeight:800,fontSize:14,marginBottom:10}}><EmoText s="📋 Inscrits" size={14}/></div>
+            {joueurs.length===0
+              ? <div style={{fontSize:12.5,color:CT.muted}}>Personne ne s'était inscrit.</div>
+              : joueurs.map(j=>(
+                  <div key={j.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:`1px solid ${CT.border}`,flexWrap:"wrap"}}>
+                    <span style={{fontWeight:700,fontSize:13.5}}>{j.nom}</span>
+                    {Array.isArray(j.membres)&&j.membres.length>0&&(
+                      <span style={{fontSize:11.5,color:CT.muted}}>{j.membres.map(m=>(m&&m.nom)||"?").join("  &  ")}</span>
+                    )}
+                  </div>
+                ))}
+            <div style={{fontSize:12,color:CT.muted,marginTop:12,lineHeight:1.5}}>Ce tournoi n'a jamais été lancé : aucune poule n'a été tirée.</div>
+          </Card>)
+        : <EliminatoiresView tournoi={tournoi} joueurs={joueurs} matchs={matchs.filter(estMatchTableau)} photos={photos}
+            nbCibles={ciblesT} isCreateur={false} canPlay={false} stats={stats} lectureSeule/>}
     </div>
   );
 };

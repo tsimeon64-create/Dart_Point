@@ -2689,7 +2689,11 @@ const ListeTournoisProfil = ({ joueur, setPage }) => {
     <div style={boite}>
       {etat.tournois.map(t => {
         const dateT = t.date ? new Date(t.date).toLocaleDateString("fr-FR") : "";
-        const enCours = t.statut !== "termine";
+        // 3 états : « attente » = créé mais jamais lancé (aucun match), « poules »/« eliminatoires »
+        // = vraiment en cours, « termine » = fini. Sans ça, un tournoi abandonné il y a 6 mois
+        // s'affichait comme s'il était en train de se jouer.
+        const jamaisLance = t.statut === "attente";
+        const enCours = t.statut !== "termine" && !jamaisLance;
         return (
           <div key={t.id} onClick={()=>setPage("tournoi-revoir-"+t.id)} style={{ background:"#ffffff0a",
             border:`1px solid ${t.gagne ? "#fbbf2455" : CJ.border}`, borderRadius:10, padding:12, marginBottom:8,
@@ -2703,6 +2707,8 @@ const ListeTournoisProfil = ({ joueur, setPage }) => {
             </div>
             {enCours && <span style={{ flexShrink:0, fontSize:10.5, fontWeight:800, color:CJ.accent, background:CJ.accent+"22",
               border:`1px solid ${CJ.accent}44`, borderRadius:20, padding:"2px 8px", whiteSpace:"nowrap" }}>en cours</span>}
+            {jamaisLance && <span style={{ flexShrink:0, fontSize:10.5, fontWeight:700, color:CJ.muted, background:"#ffffff0d",
+              border:`1px solid ${CJ.border}`, borderRadius:20, padding:"2px 8px", whiteSpace:"nowrap" }}>jamais lancé</span>}
             <span style={{ flexShrink:0, color:CJ.muted, fontSize:18, lineHeight:1 }}>›</span>
           </div>
         );
