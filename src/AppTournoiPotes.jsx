@@ -1208,7 +1208,10 @@ const useStatsTournoi=(joueurs,refreshKey=0)=>{
   return stats;
 };
 
-const PoulesView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,nbQual=2,ciblesMode="optimise",onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,onLibererCibles,joueurConnecte,canPlay=false,onOpenShare,onModifier,saving=false,live=null,bracketLance=false,stats=null})=>{
+// `lectureSeule` : vue « je revois un tournoi déjà joué » (depuis le profil). Elle masque tout ce
+// qui parle du direct : compteur de cibles, « à lancer maintenant », mode spectateur, renvoi vers
+// l'onglet Éliminatoires. Aucun bouton d'écriture n'est concerné (ils dépendent d'isCreateur/canPlay).
+export const PoulesView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,nbQual=2,ciblesMode="optimise",onSetCibles,onSaisirScore,onJouerMatch,onLancerEliminatoires,onCreerBarrages,onLibererCibles,joueurConnecte,canPlay=false,onOpenShare,onModifier,saving=false,live=null,bracketLance=false,stats=null,lectureSeule=false})=>{
   const nbGroupes=Math.max(...joueurs.map(j=>j.groupe),1);
   const groupes=Array.from({length:nbGroupes},(_,i)=>i+1);
   // Ma poule (celle du joueur connecté) → pour l'⭐ sur l'onglet.
@@ -1356,7 +1359,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,nbQual
         <div style={{background:"#111",borderRadius:6,height:8,overflow:"hidden"}}>
           <div style={{background:allDone?CT.green:CT.accent,height:"100%",width:`${total?termines.length/total*100:0}%`,transition:"width .4s",borderRadius:6}}/>
         </div>
-        {!allDone&&(
+        {!allDone&&!lectureSeule&&(
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginTop:12,paddingTop:12,borderTop:`1px solid ${CT.border}`,flexWrap:"wrap"}}>
             <span style={{fontSize:13,fontWeight:600,color:CT.text,display:"inline-flex",alignItems:"center",gap:6}}><EmoIcon e="🎯" size={14}/>Cibles disponibles</span>
             {isCreateur&&onSetCibles?(
@@ -1368,10 +1371,10 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,nbQual
             ):<span style={{fontWeight:800,fontSize:16,color:CT.accent}}>{nbCibles}</span>}
           </div>
         )}
-        {!allDone&&<div style={{marginTop:10,fontSize:12.5,textAlign:"center"}}><span style={{color:CT.green,fontWeight:800}}>🟢 {nbALancer} à lancer maintenant</span>{nbEnCours>0&&<span style={{color:RED_TP}}> · 🔴 {nbEnCours} en cours</span>}{enAttente>0&&<span style={{color:CT.muted}}> · ⏳ {enAttente} en attente</span>}</div>}
+        {!allDone&&!lectureSeule&&<div style={{marginTop:10,fontSize:12.5,textAlign:"center"}}><span style={{color:CT.green,fontWeight:800}}>🟢 {nbALancer} à lancer maintenant</span>{nbEnCours>0&&<span style={{color:RED_TP}}> · 🔴 {nbEnCours} en cours</span>}{enAttente>0&&<span style={{color:CT.muted}}> · ⏳ {enAttente} en attente</span>}</div>}
         {/* Aucun match jouable alors qu'il en reste : des scoreurs sont restés ouverts et bloquent les
             cibles. Avant, l'écran affichait juste « 0 à jouer maintenant » sans rien expliquer. */}
-        {!allDone&&actifs.size===0&&enAttente>0&&(
+        {!allDone&&!lectureSeule&&actifs.size===0&&enAttente>0&&(
           <div style={{marginTop:10,padding:"10px 12px",background:RED_TP+"12",border:`1px solid ${RED_TP}44`,borderRadius:10,textAlign:"center"}}>
             <div style={{fontSize:12,color:"#fca5a5",fontWeight:700,marginBottom:onLibererCibles&&isCreateur?8:0}}>
               <EmoText s="⏳ Toutes les cibles sont occupées" size={12} color="#fca5a5"/>
@@ -1382,7 +1385,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,nbQual
             )}
           </div>
         )}
-        {!canPlay&&(
+        {!canPlay&&!lectureSeule&&(
           <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${CT.border}`,textAlign:"center"}}>
             <div style={{fontSize:12.5,color:CT.text,fontWeight:600,marginBottom:8}}>👀 Tu es en mode spectateur (lecture seule)</div>
             {onOpenShare&&<Btn onClick={onOpenShare} variant="ghost" small><EmoText s="🎯 Entrer le code pour jouer" size={12}/></Btn>}
@@ -1528,7 +1531,7 @@ const PoulesView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,nbQual
       {allDone&&isCreateur&&tieNonTranchee&&!bracketLance&&(
         <div style={{textAlign:"center",fontSize:12.5,color:RED_TP,fontWeight:700,padding:"12px 8px",lineHeight:1.5}}>⚠️ Départage l'égalité (barrage en 701) avant de lancer les éliminatoires.</div>
       )}
-      {bracketLance&&(
+      {bracketLance&&!lectureSeule&&(
         <div style={{textAlign:"center",fontSize:12,color:CT.muted,padding:"11px 12px",lineHeight:1.5,background:"#16161d",borderRadius:10,border:`1px solid ${CT.border}`}}><EmoIcon e="ℹ️" size={12} style={{verticalAlign:"-1px",marginRight:4}}/>Consultation des poules — le tableau final est déjà lancé (onglet <b style={{color:CT.accent}}>Éliminatoires</b>). Les scores de poule sont maintenant <b style={{color:CT.text}}>verrouillés</b> : le classement qui a servi à créer le tableau ne peut plus changer.</div>
       )}
     </div>
@@ -1815,7 +1818,7 @@ const BktGutter=({pairs,color})=>(
 // ============================================================================
 //  VUE ÉLIMINATOIRES (arbre de championnat)
 // ============================================================================
-const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,onSaisirScore,onJouerMatch,onRetourPoules,onTerminer,onLibererCibles,canPlay=false,onOpenShare,live=null,stats=null})=>{
+export const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1,onSaisirScore,onJouerMatch,onRetourPoules,onTerminer,onLibererCibles,canPlay=false,onOpenShare,live=null,stats=null,lectureSeule=false})=>{
   const bracketM=matchs.filter(m=>m.phase!=="poules");
   const mainM=bracketM.filter(m=>MAIN_PHASES.includes(m.phase));
   const petiteM=bracketM.find(m=>m.phase==="petite_finale");
@@ -1902,7 +1905,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1
         {isCreateur&&<Btn onClick={()=>onTerminer(allDone)} variant={allDone?"primary":"dark"} small style={{fontSize:12}}>🏆 Terminer le tournoi</Btn>}
       </div>
 
-      {!canPlay&&(
+      {!canPlay&&!lectureSeule&&(
         <Card style={{marginBottom:16,textAlign:"center"}}>
           <div style={{fontSize:12.5,color:CT.text,fontWeight:600,marginBottom:onOpenShare?8:0}}>👀 Tu es en mode spectateur (lecture seule)</div>
           {onOpenShare&&<Btn onClick={onOpenShare} variant="ghost" small><EmoText s="🎯 Entrer le code pour jouer" size={12}/></Btn>}
@@ -1918,7 +1921,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1
       )}
 
       {/* Compteur du planning des cibles — même repère qu'en poules */}
-      {!allDone&&jouables.length>0&&(
+      {!allDone&&!lectureSeule&&jouables.length>0&&(
         <div style={{marginTop:10,fontSize:12.5,textAlign:"center"}}>
           <span style={{color:CT.green,fontWeight:800}}>🟢 {nbALancerBracket} à lancer maintenant</span>
           {nbEnCoursBracket>0&&<span style={{color:RED_TP}}> · 🔴 {nbEnCoursBracket} en cours</span>}
@@ -1927,7 +1930,7 @@ const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,photos={},nbCibles=1
         </div>
       )}
       {/* Cibles toutes occupées alors qu'il reste des matchs : un scoreur est resté ouvert. */}
-      {!allDone&&jouables.length>0&&actifsBracket.size===0&&(
+      {!allDone&&!lectureSeule&&jouables.length>0&&actifsBracket.size===0&&(
         <div style={{marginTop:10,padding:"10px 12px",background:RED_TP+"12",border:`1px solid ${RED_TP}44`,borderRadius:10,textAlign:"center"}}>
           <div style={{fontSize:12,color:"#fca5a5",fontWeight:700,marginBottom:onLibererCibles&&isCreateur?8:0}}>
             <EmoText s="⏳ Toutes les cibles sont occupées" size={12} color="#fca5a5"/>
@@ -3061,6 +3064,77 @@ export const TournoiPotesPage=({joueur,setPage})=>{
 };
 
 // ── SCOREUR WRAPPER TOURNOI ───────────────────────────────────────────────────
+// ── REVOIR UN TOURNOI (depuis le profil) ──────────────────────────────────────
+// Écran de CONSULTATION d'un tournoi déjà joué : son tableau final et ses poules, en lecture seule.
+// On ne réutilise PAS TournoiPotesDetail : il sonde la base toutes les 5 s, mémorise le « tournoi en
+// cours » (bouton flottant Reprendre) et peut réparer des exempts en ÉCRIVANT. Ici : 3 lectures et
+// zéro écriture ; isCreateur/canPlay sont forcés à false, donc aucun bouton de modification.
+export const TournoiRevoir=({tournoiId,joueurConnecte=null,setPage})=>{
+  const [data,setData]=useState(null);
+  const [erreur,setErreur]=useState(false);
+  const [vue,setVue]=useState("elim");
+  useEffect(()=>{
+    let annule=false;
+    Promise.all([dbTP.getTournoi(tournoiId),dbTP.getJoueurs(tournoiId),dbTP.getMatchs(tournoiId)])
+      .then(([t,j,m])=>{
+        if(annule)return;
+        if(!t){setErreur(true);return;}
+        const matchs=m||[];
+        setData({tournoi:t,joueurs:j||[],matchs});
+        setVue(matchs.some(x=>x.phase!=="poules")?"elim":"poules");
+      })
+      .catch(()=>{ if(!annule)setErreur(true); });
+    return()=>{annule=true;};
+  },[tournoiId]);
+  // Hooks TOUJOURS appelés, même pendant le chargement (jamais après un return conditionnel).
+  const joueurs=data?data.joueurs:[];
+  const photos=usePhotosEquipes(data?tournoiId:null,joueurs);
+  const stats=useStatsTournoi(joueurs);
+  const retour=()=>{ if(setPage)setPage("profil"); };
+
+  if(erreur)return(
+    <div style={{minHeight:"100vh",background:CT.bg,color:CT.text,padding:"18px 14px"}}>
+      <Btn onClick={retour} variant="ghost" small>← Retour</Btn>
+      <p style={{marginTop:18,color:CT.muted,fontSize:13}}>Ce tournoi n'existe plus.</p>
+    </div>
+  );
+  if(!data)return(<div style={{minHeight:"100vh",background:CT.bg}}><Spinner/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>);
+
+  const {tournoi,matchs}=data;
+  const aTableau=matchs.some(m=>m.phase!=="poules");
+  const finale=matchs.find(m=>m.phase==="finale"&&m.statut==="termine"&&m.gagnant_id);
+  const champion=finale?joueurs.find(j=>j.id===finale.gagnant_id):null;
+  const dateT=tournoi.date?new Date(tournoi.date).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}):"";
+  const unite=tournoi.format==="doublette"?"équipes":"joueurs";
+  return (
+    <div style={{minHeight:"100vh",background:CT.bg,color:CT.text,padding:"14px 12px 90px"}}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <button onClick={retour} style={{background:"none",border:"none",color:CT.muted,cursor:"pointer",fontSize:14,marginBottom:10,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation"}}>← Retour</button>
+      <Card style={{marginBottom:14}}>
+        <div style={{fontWeight:900,fontSize:18}}>{tournoi.nom}</div>
+        <div style={{fontSize:12.5,color:CT.muted,marginTop:4}}>
+          {dateT}{dateT&&" · "}{tournoi.format==="doublette"?"Doublettes":"En simple"} · {tournoi.mode||"501"} · {joueurs.length} {unite}
+        </div>
+        {champion&&<div style={{marginTop:9,fontWeight:800,fontSize:13.5,color:CT.yellow}}><EmoText s={`🏆 ${champion.nom} remporte le tournoi`} size={13}/></div>}
+        {!champion&&tournoi.statut!=="termine"&&<div style={{marginTop:9,fontSize:12.5,color:CT.muted}}>Tournoi jamais terminé — voici où il en était.</div>}
+      </Card>
+      {aTableau&&(
+        <div style={{display:"flex",gap:6,marginBottom:16,background:"#16161d",borderRadius:12,padding:5,border:`1px solid ${CT.border}`}}>
+          {[["poules","🏟️ Poules"],["elim","🏆 Tableau final"]].map(([k,lab])=>(
+            <button key={k} onClick={()=>setVue(k)} style={{flex:1,background:vue===k?CT.accent:"transparent",color:vue===k?"#0f0f0f":CT.muted,border:"none",cursor:"pointer",padding:"9px 6px",borderRadius:9,fontWeight:800,fontSize:13,touchAction:"manipulation"}}>{lab}</button>
+          ))}
+        </div>
+      )}
+      {(!aTableau||vue==="poules")
+        ? <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} photos={photos} isCreateur={false} canPlay={false}
+            nbQual={tournoi.nb_qualifies!=null?tournoi.nb_qualifies:2} ciblesMode={tournoi.cibles_mode||"optimise"}
+            joueurConnecte={joueurConnecte} bracketLance={aTableau} stats={stats} lectureSeule/>
+        : <EliminatoiresView tournoi={tournoi} joueurs={joueurs} matchs={matchs.filter(m=>m.phase!=="poules")} photos={photos}
+            isCreateur={false} canPlay={false} stats={stats} lectureSeule/>}
+    </div>
+  );
+};
+
 export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
   const [data,setData]=useState(null);
   const [loading,setLoading]=useState(true);
@@ -3097,7 +3171,7 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
     defie_compte_id:tournoi.format==="doublette"?null:(j2.joueur_id||null),
   };
 
-  const handleResultat=async({gagnantNom,scoreC,scoreD})=>{
+  const handleResultat=async({gagnantNom,scoreC,scoreD,moyC,moyD,manchesDetail,sessionId})=>{
     // Le gagnant est celui qui a le PLUS de manches. scoreC = manches de j1 (challenger), scoreD = manches de j2 (defie).
     // On departage par ces scores plutot que par le nom → juste meme si j1 et j2 s'appellent pareil (homonymes).
     // Si egalite de manches (ne devrait pas arriver a la fin d'un match), on retombe sur le nom.
@@ -3133,6 +3207,18 @@ export const ScoreurPotesWrapper=({matchId,joueurConnecte,setPage})=>{
         const claim=await sbTP(`tournois_potes_matchs?id=eq.${match.id}&statut=neq.termine`,{method:"PATCH",prefer:"return=representation",body:JSON.stringify({score1,score2,gagnant_id,statut:"termine",date_fin:new Date().toISOString()})});
         if(!Array.isArray(claim)||claim.length===0)return; // un autre appareil a déjà terminé ce match → on ne compte pas 2 fois
       }
+      // Stats fines du match (colonnes ajoutées le 29/09/2026 : moy_j1, moy_j2, manches_detail,
+      // session_id). Écriture SÉPARÉE et sans attente : si les colonnes n'existent pas encore sur
+      // cette base, l'erreur est ignorée et le score, lui, est bien enregistré. Une seule colonne
+      // inconnue ferait échouer TOUTE l'écriture — d'où le PATCH à part.
+      (()=>{
+        const extra={};
+        if(Number.isFinite(+moyC))extra.moy_j1=Math.round((+moyC)*100)/100;
+        if(Number.isFinite(+moyD))extra.moy_j2=Math.round((+moyD)*100)/100;
+        if(Array.isArray(manchesDetail)&&manchesDetail.length)extra.manches_detail=manchesDetail;
+        if(sessionId)extra.session_id=sessionId;
+        if(Object.keys(extra).length)dbTP.updateMatch(match.id,extra).catch(()=>{});
+      })();
       // Mise à jour des stats — un BARRAGE ne change pas les points de poule (il départage seulement)
       if(match.phase==="poules"){
         // Recalcule TOUT le classement de la poule depuis les matchs terminés

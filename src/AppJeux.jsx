@@ -1674,7 +1674,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const enregistrerResultatDuel = async (gagnantNom, scoreC, scoreD, moyC, moyD, manchesDetail=[], joueursData=[]) => {
     try { if (resumeKey) localStorage.removeItem(resumeKey); } catch (e) {} // partie FINIE → efface le brouillon de reprise (sinon "partie fantôme" en rouvrant le match)
     if (onResultat) {
-      onResultat({ gagnantNom, scoreC, scoreD, moyC, moyD, joueurs: joueursData, manchesDetail });
+      // sessionId = la partie live de ce match : c'est le SEUL lien fiable entre un match de
+      // tournoi et ses stats fines (avant, on devait deviner par les noms et l'heure).
+      onResultat({ gagnantNom, scoreC, scoreD, moyC, moyD, joueurs: joueursData, manchesDetail, sessionId: liveIdRef.current || null });
       setResultEnregistre(true);
       if (onDuelTermine) onDuelTermine();
       return;

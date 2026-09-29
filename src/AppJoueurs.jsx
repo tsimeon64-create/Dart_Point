@@ -2636,11 +2636,87 @@ const MancheDetailListJ = ({ manches }) => (
   </div>
 );
 
+// ── MES TOURNOIS (sous-onglet de l'Historique) ──────────────────────────────
+// Une inscription à un tournoi n'est PAS un compte : on cherche mes inscriptions par joueur_id ET
+// dans le tableau JSON « membres » (doublette inscrite par le binôme), plus les tournois que j'ai
+// organisés. Les tournois où l'organisateur a tapé les noms à la main n'apparaissent nulle part :
+// c'est expliqué à l'écran plutôt que de laisser croire à un bug.
+const ListeTournoisProfil = ({ joueur, setPage }) => {
+  const [etat, setEtat] = useState({ chargement:true, tournois:[] });
+  useEffect(() => {
+    let annule = false;
+    const filtreMembre = "cs." + encodeURIComponent(`[{"id":"${joueur.id}"}]`);
+    Promise.all([
+      sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=id,tournoi_id,nom`).catch(()=>[]),
+      sbJ(`tournois_potes_joueurs?membres=${filtreMembre}&select=id,tournoi_id,nom`).catch(()=>[]),
+      sbJ(`tournois_potes?createur_id=eq.${joueur.id}&select=id`).catch(()=>[]),
+    ]).then(async ([parId, parMembre, crees]) => {
+      if (annule) return;
+      const inscriptions = [...(parId||[]), ...(parMembre||[])];
+      const monEquipe = {};
+      inscriptions.forEach(i => { if (i.tournoi_id && !monEquipe[i.tournoi_id]) monEquipe[i.tournoi_id] = i.nom; });
+      const ids = [...new Set([...inscriptions.map(i=>i.tournoi_id), ...(crees||[]).map(t=>t.id)].filter(Boolean))];
+      if (!ids.length) { setEtat({ chargement:false, tournois:[] }); return; }
+      const [fiches, gagnes] = await Promise.all([
+        sbJ(`tournois_potes?id=in.(${ids.join(",")})&select=id,nom,date,format,statut,mode,createur_id`).catch(()=>[]),
+        tournoisGagnes(sbJ, joueur.id),
+      ]);
+      if (annule) return;
+      const gagnesSet = new Set(gagnes||[]);
+      const liste = (fiches||[]).map(t => ({
+        ...t,
+        equipe: monEquipe[t.id] || null,
+        gagne: gagnesSet.has(t.id),
+        organise: t.createur_id === joueur.id,
+      })).sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
+      setEtat({ chargement:false, tournois:liste });
+    }).catch(() => { if (!annule) setEtat({ chargement:false, tournois:[] }); });
+    return () => { annule = true; };
+  }, [joueur.id]);
+
+  if (etat.chargement) return <SpinnerJ/>;
+  const boite = { background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:18 };
+  if (!etat.tournois.length) return (
+    <div style={boite}>
+      <p style={{ color:CJ.muted, fontSize:13, margin:0 }}>Aucun tournoi pour l'instant.</p>
+      <p style={{ color:CJ.muted, fontSize:12, marginTop:8, lineHeight:1.5 }}>
+        Un tournoi n'apparaît ici que si ton compte était relié à ton inscription. Quand l'organisateur
+        tape les noms à la main, le tournoi ne se retrouve dans aucun profil.
+      </p>
+    </div>
+  );
+  return (
+    <div style={boite}>
+      {etat.tournois.map(t => {
+        const dateT = t.date ? new Date(t.date).toLocaleDateString("fr-FR") : "";
+        const enCours = t.statut !== "termine";
+        return (
+          <div key={t.id} onClick={()=>setPage("tournoi-revoir-"+t.id)} style={{ background:"#ffffff0a",
+            border:`1px solid ${t.gagne ? "#fbbf2455" : CJ.border}`, borderRadius:10, padding:12, marginBottom:8,
+            cursor:"pointer", display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ fontSize:20, flexShrink:0 }}>{t.gagne ? "🏆" : "🎯"}</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontWeight:700, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.nom}</div>
+              <div style={{ color:CJ.muted, fontSize:12, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                {dateT}{dateT && " · "}{t.format === "doublette" ? "Doublettes" : "En simple"}{t.equipe ? ` · ${t.equipe}` : ""}{t.organise ? " · organisé par toi" : ""}
+              </div>
+            </div>
+            {enCours && <span style={{ flexShrink:0, fontSize:10.5, fontWeight:800, color:CJ.accent, background:CJ.accent+"22",
+              border:`1px solid ${CJ.accent}44`, borderRadius:20, padding:"2px 8px", whiteSpace:"nowrap" }}>en cours</span>}
+            <span style={{ flexShrink:0, color:CJ.muted, fontSize:18, lineHeight:1 }}>›</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 export const PageProfilHistorique = ({ joueur, setPage, embedded = false }) => {
   const [duels, setDuels]       = useState([]);
   const [drixMvtMap, setDrixMvtMap] = useState({});
   const [loading, setLoading]   = useState(true);
   const [openId, setOpenId]     = useState(null); // duel dont le détail manche par manche est ouvert
+  const [sousOnglet, setSousOnglet] = useState("drix"); // "drix" = les duels · "tournois" = les tournois entre potes
 
   useEffect(() => {
     Promise.all([
@@ -2663,7 +2739,20 @@ export const PageProfilHistorique = ({ joueur, setPage, embedded = false }) => {
     <div style={embedded ? {} : { maxWidth:860, margin:"0 auto", padding:"16px 16px 40px" }}>
       {!embedded && <button onClick={()=>window.history.back()} style={{ background:"none",border:"none",color:CJ.muted,cursor:"pointer",fontSize:14,marginBottom:16,display:"flex",alignItems:"center",gap:6,touchAction:"manipulation" }}><ArrowLeft size={16}/> Retour au profil</button>}
       <h1 style={{ fontWeight:900, fontSize:22, marginBottom:4, display:"flex", alignItems:"center", gap:8 }}><Clock size={20} color={CJ.accent}/>Historique</h1>
-      <p style={{ color:CJ.muted, fontSize:13, marginBottom:20 }}>{termines.length} duel{termines.length>1?"s":""} terminé{termines.length>1?"s":""}</p>
+      {/* Deux sous-onglets : les duels DRIX (comme avant) et les tournois entre potes. */}
+      <div style={{ display:"flex", gap:6, marginBottom:16, background:"#16161d", borderRadius:12, padding:5, border:`1px solid ${CJ.border}` }}>
+        {[["drix","⚔️ Matchs DRIX"],["tournois","🏆 Tournois"]].map(([cle,libelle])=>{
+          const actif = sousOnglet === cle;
+          return (
+            <button key={cle} onClick={()=>setSousOnglet(cle)} style={{ flex:1, background: actif?CJ.accent:"transparent",
+              color: actif?"#0f0f0f":CJ.muted, WebkitTextFillColor: actif?"#0f0f0f":CJ.muted,  // sinon le body écrit tout en blanc
+              border:"none", cursor:"pointer", padding:"9px 6px", borderRadius:9, fontWeight:800, fontSize:13, touchAction:"manipulation" }}>{libelle}</button>
+          );
+        })}
+      </div>
+      {sousOnglet === "drix" && <p style={{ color:CJ.muted, fontSize:13, marginBottom:20 }}>{termines.length} duel{termines.length>1?"s":""} terminé{termines.length>1?"s":""}</p>}
+      {sousOnglet === "tournois" && <ListeTournoisProfil joueur={joueur} setPage={setPage}/>}
+      {sousOnglet === "drix" && (
       <div style={{ background:CJ.card, border:`1px solid ${CJ.border}`, borderRadius:14, padding:18 }}>
         {termines.length === 0
           ? <p style={{ color:CJ.muted, fontSize:13 }}>Aucun duel terminé pour l'instant.</p>
@@ -2715,6 +2804,7 @@ export const PageProfilHistorique = ({ joueur, setPage, embedded = false }) => {
             })
         }
       </div>
+      )}
     </div>
   );
 };

@@ -26,7 +26,7 @@ import { DoubleDown } from "./AppDoubleDown";
 import { Arcade, JEU } from "./AppArcade";
 import { ConfettiBurst } from "./DPLottie";
 import confettiData from "./lottie/confetti.json";
-import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper } from "./AppTournoiPotes";
+import { TournoiPotesPage, TournoiPotesDetail, ScoreurPotesWrapper, TournoiRevoir } from "./AppTournoiPotes";
 import { EntrainementFinish } from "./AppEntrainementFinish";
 import { ChronoFinish, checkYesterdayReward } from "./AppChronoFinish";
 import { ChronoScoreur, checkYesterdayScoreurReward } from "./AppChronoScoreur";
@@ -15661,6 +15661,8 @@ export default function App() {
         {page==="rush-mode"             && <RushMode setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="tournois-potes"   && <TournoiPotesPage joueur={joueur} setPage={nav}/>}
         {page.startsWith("tournoi-potes-") && <TournoiPotesDetail tournoiId={page.replace("tournoi-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
+        {/* Revoir un tournoi déjà joué depuis son profil (lecture seule, aucun bouton de modif) */}
+        {page.startsWith("tournoi-revoir-") && <TournoiRevoir tournoiId={page.replace("tournoi-revoir-","")} joueurConnecte={joueur} setPage={nav}/>}
         {page.startsWith("tournoi-live-") && <TournoiLiveView tournoiId={page.replace("tournoi-live-","")} joueur={joueur} setPage={nav}/>}
         {page.startsWith("scoreur-potes-") && <ScoreurPotesWrapper matchId={page.replace("scoreur-potes-","")} joueurConnecte={joueur} setPage={nav}/>}
         {page==="messagerie"       && <MessagesPage joueur={joueur} setPage={nav}/>}
