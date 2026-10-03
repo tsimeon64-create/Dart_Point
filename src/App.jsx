@@ -7428,15 +7428,11 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null, ongletInitia
     }
   };
 
-  // ── Auto-cleanup des photos anciennes (>14 jours) pour ne pas saturer la DB ──
-  useEffect(() => {
-    const fortnightAgo = Date.now() - 14 * 86400000;
-    sb(`wall_posts?image_url=not.is.null&date=lt.${fortnightAgo}`, {
-      method:"PATCH",
-      body: JSON.stringify({ image_url: null }),
-      prefer:"return=minimal",
-    }).catch(()=>{});
-  }, []); // eslint-disable-line
+  // ── Ménage des vieilles photos : plus fait ici ──────────────────────────────
+  // Avant, l'appli tentait d'effacer depuis le téléphone les photos de plus de 14 jours. Depuis
+  // le verrouillage du Comptoir (août 2026) la base refuse cette écriture : la requête partait à
+  // CHAQUE ouverture du fil pour finir en 401 silencieux. Le ménage se fait maintenant en SQL
+  // (comptoir_4_menage_photos.sql), lancé depuis le tableau de bord Supabase.
 
   // ─── Renderers ────────────────────────────────────────────────────────────
   const cardBase = {
