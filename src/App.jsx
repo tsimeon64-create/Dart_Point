@@ -4769,6 +4769,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
   const [openDrix, setOpenDrix]       = useState(false);
   const [openStats, setOpenStats]     = useState(false);
   const [ongletStats, setOngletStats] = useState("match"); // "match" = toute la partie · "manches" = manche par manche
+  const [mancheSel, setMancheSel]     = useState(0);       // quelle manche on regarde
   // Pour un duel bot, l'auteur du post (humain) n'est pas forcément le gagnant : on prend les
   // photos stockées dans le post (celle du bot peut être null → avatar par défaut), pas celle de l'auteur.
   const [winnerPhoto, setWinnerPhoto] = useState(d.bot ? (d.winner?.photo || null) : (p.joueur_photo || null));
@@ -5231,7 +5232,26 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
                   const parManche = Array.isArray(d.statsManches) && d.statsManches.length === manches.length
                     ? d.statsManches
                     : statsParMancheDepuisDetail(manches, [w.nom, l.nom]);
-                  return manches.map((m, i) => {
+                  const idxSel = Math.min(Math.max(0, mancheSel), manches.length - 1);
+                  return (<>
+                  {/* Une manche à la fois : on choisit laquelle avec ces boutons. */}
+                  {manches.length > 1 && (
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
+                      {manches.map((m, i) => {
+                        const actif = i === idxSel;
+                        return (
+                          <button key={i} onClick={()=>setMancheSel(i)} style={{ flex:"1 1 auto", minWidth:78,
+                            background: actif ? "#fbbf2422" : "#15151c", border:`1px solid ${actif ? "#fbbf2488" : "#ffffff12"}`,
+                            color: actif ? "#fbbf24" : "#94a3b8", WebkitTextFillColor: actif ? "#fbbf24" : "#94a3b8",
+                            borderRadius:8, padding:"7px 6px", fontWeight:800, fontSize:11.5, cursor:"pointer", touchAction:"manipulation" }}>
+                            Manche {i+1}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {manches.map((m, i) => {
+                  if (i !== idxSel) return null;
                   const duo = parManche[i] || [];
                   const sw2 = duo.find(x => x && x.nom === w.nom) || duo[0] || {};
                   const sl2 = duo.find(x => x && x.nom === l.nom) || duo[1] || {};
@@ -5268,7 +5288,8 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
                       ))}
                     </div>
                   );
-                  });
+                  })}
+                  </>);
                 })() : (<>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 118px 1fr", marginBottom:6 }}>
                   <div style={{ textAlign:"right", fontWeight:800, fontSize:12, color:"#22c55e" }}>{w.nom}</div>
