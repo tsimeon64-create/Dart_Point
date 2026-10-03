@@ -1,6 +1,6 @@
 // Tests de calculerStatsMatch (src/statsMatch.js) — lancer : node tests/stats-match.test.mjs
 import assert from "node:assert/strict";
-import { calculerStatsMatch, BANDES } from "../src/statsMatch.js";
+import { calculerStatsMatch, statsParManche, BANDES } from "../src/statsMatch.js";
 
 let ok = 0;
 const test = (nom, f) => { f(); ok++; console.log("  ✓", nom); };
@@ -105,6 +105,33 @@ test("aucune donnée : pas de plantage", () => {
   assert.equal(vide.moyenne, 0);
   assert.equal(vide.meilleureManche, null);
   assert.equal(vide.checkout.pct, 0);
+});
+
+test("« <30 » : toutes les volées sous 30 points, bust (0) compris", () => {
+  const [j] = calculerStatsMatch({
+    joueurs: [{ nom: "A", flechettes: 36, totalPoints: 923, tours: [0, 18, 26, 29, 30, 60, 80, 100, 120, 140, 170, 180] }],
+    manches: [],
+  });
+  assert.equal(j.moins30, 4);          // 0, 18, 26 et 29
+  assert.equal(j.n26, 1);              // un seul 26
+  assert.equal(j.p60, 1);              // les seuils d'avant ne bougent pas
+  assert.equal(j.p180, 1);
+});
+
+test("le total du match = la somme des manches (<30 et 26)", () => {
+  const joueurs = [
+    { nom: "A", flechettes: 24, totalPoints: 501, tours: [60, 26, 41, 18, 100, 26, 130, 0] },
+    { nom: "B", flechettes: 24, totalPoints: 300, tours: [26, 29, 45, 60, 26, 14, 60, 40] },
+  ];
+  const manches = [
+    { winner: "A", loser: "B", winner_volees: 4, loser_volees: 4, winner_flech: 12, loser_flech: 12, winner_finish: 18, winner_checkout_attempts: 1, loser_checkout_attempts: 0 },
+    { winner: "A", loser: "B", winner_volees: 4, loser_volees: 4, winner_flech: 12, loser_flech: 12, winner_finish: 0,  winner_checkout_attempts: 1, loser_checkout_attempts: 0 },
+  ];
+  const [a] = calculerStatsMatch({ joueurs, manches, premierALaBulle: 0 });
+  const parManche = statsParManche({ joueurs, manches });
+  assert.equal(a.moins30, parManche.reduce((s2, duo) => s2 + duo[0].moins30, 0));
+  assert.equal(a.n26, parManche.reduce((s2, duo) => s2 + duo[0].n26, 0));
+  assert.equal(a.n26, 2);
 });
 
 console.log(`\n${ok} tests OK`);

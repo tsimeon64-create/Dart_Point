@@ -841,6 +841,9 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
               <StatRow label="Meilleure volée" v0={s0.bestVolee||"—"} v1={s1.bestVolee||"—"} h={hi(s0.bestVolee,s1.bestVolee)}/>
               <StatRow label="First 9" v0={d0.first9||"—"} v1={d1.first9||"—"} h={hi(d0.first9,d1.first9)}/>
               {/* Les tranches de volées, comme sur les appli de fléchettes : « 60+ » = de 60 à 79. */}
+              {/* Les petites volées d'abord : « <30 » et le fameux « 26 ». */}
+              <StatRow label="<30" v0={d0.moins30} v1={d1.moins30} h={hi(d0.moins30,d1.moins30,false)}/>
+              <StatRow label="26" v0={d0.n26} v1={d1.n26} h={hi(d0.n26,d1.n26,false)}/>
               {BANDES.map(b => (
                 <StatRow key={b.cle} label={b.label} v0={d0[b.cle]} v1={d1[b.cle]} h={hi(d0[b.cle],d1[b.cle])}/>
               ))}
@@ -1478,6 +1481,8 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       winner_checkout_attempts: countCheckoutAttempts(wTours),
       loser_checkout_attempts:  countCheckoutAttempts(lTours),
       // ── Ajouts d'octobre 2026 : de quoi réafficher les mêmes stats partout, plus tard ──
+      winner_moins30: wTours.filter(v=>v<30).length,
+      loser_moins30:  lTours.filter(v=>v<30).length,
       winner_120plus: cnt(wTours, 120, 139),
       loser_120plus:  cnt(lTours, 120, 139),
       winner_170plus: cnt(wTours, 170, 179),

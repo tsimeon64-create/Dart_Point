@@ -39,7 +39,9 @@ export const PanneauStatsMatch = ({ manches = [], stats = null, statsManches = n
   );
 
   // Les tranches de volées, mêmes libellés dans les deux onglets.
-  const TRANCHES = [["60+", (o) => o.p60], ["80+", (o) => o.p80], ["100+", (o) => o.p100],
+  // « <30 » et « 26 » d'abord : les petites volées, qui parlent à tout le monde.
+  const TRANCHES = [["<30", (o) => o.moins30], ["26", (o) => o.n26],
+    ["60+", (o) => o.p60], ["80+", (o) => o.p80], ["100+", (o) => o.p100],
     ["120+", (o) => o.p120], ["140+", (o) => o.p140], ["170+", (o) => o.p170], ["180", (o) => o.p180]];
   const incomplet = sa.first9 === null || sa.first9 === undefined;
 

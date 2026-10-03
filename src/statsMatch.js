@@ -19,6 +19,11 @@ export const BANDES = [
 ];
 
 const nb = (v) => (Number.isFinite(+v) ? +v : 0);
+
+// Les deux stats « pour tous les niveaux » : une volée à moins de 30 points, et le fameux 26.
+// Une volée bustée vaut 0 dans `tours` : elle compte donc dans « <30 », comme toute volée ratée.
+const compteMoins30 = (volees) => volees.filter((v) => v < 30).length;
+const compte26 = (volees) => volees.filter((v) => v === 26).length;
 const arrondi2 = (v) => Math.round(v * 100) / 100;
 
 // Les volées d'une manche appartenant à un joueur : le détail de manche ne garde que des
@@ -66,6 +71,8 @@ export const calculerStatsMatch = ({ joueurs = [], manches = [], premierALaBulle
 
     const bandes = {};
     for (const b of BANDES) bandes[b.cle] = tours.filter((v) => v >= b.min && v <= b.max).length;
+    bandes.moins30 = compteMoins30(tours);
+    bandes.n26 = compte26(tours);
 
     let gagnees = 0, finishMax = 0, finishs100 = 0, meilleureManche = null, pireManche = null;
     let tentatives = 0, commencees = 0, commenceesGagnees = 0, recues = 0, recuesGagnees = 0;
@@ -125,6 +132,7 @@ export const statsDepuisManches = (manches, noms = []) => {
     let finishMax = 0, finishs100 = 0, meilleureManche = null, pireManche = null, tentatives = 0;
     // Clés ajoutées en octobre 2026 : présentes seulement sur les matchs joués depuis.
     let p120 = 0, p170 = 0, f9pts = 0, f9flech = 0, fin = false, depart = false;
+    let moins30 = 0, aMoins30 = false;
     let commencees = 0, commenceesGagnees = 0, recues = 0, recuesGagnees = 0;
     for (const m of list) {
       const gagnant = m.winner === nom, perdant = m.loser === nom;
@@ -133,6 +141,7 @@ export const statsDepuisManches = (manches, noms = []) => {
       const brut = (cle) => m[(gagnant ? "winner_" : "loser_") + cle];
       const fl = p("flech");
       if (brut("120plus") !== undefined) { fin = true; p120 += p("120plus"); p170 += p("170plus"); }
+      if (brut("moins30") !== undefined) { aMoins30 = true; moins30 += p("moins30"); }
       if (brut("f9_flech") !== undefined) { f9pts += p("f9_pts"); f9flech += p("f9_flech"); }
       if (m.starter) {
         depart = true;
@@ -161,6 +170,7 @@ export const statsDepuisManches = (manches, noms = []) => {
       moyenne: flech > 0 ? arrondi2((points / flech) * 3) : 0,
       first9: f9flech > 0 ? arrondi2((f9pts / f9flech) * 3) : null,
       meilleureVolee, nb26,
+      moins30: aMoins30 ? moins30 : null, n26: nb26,
       p60, p80, p100, p120: fin ? p120 : null, p140, p170: fin ? p170 : null, p180,
       highFinish: finishMax, finishs100, meilleureManche, pireManche,
       checkout: { reussis: gagnees, tentatives, pct: tentatives > 0 ? arrondi2((gagnees / tentatives) * 100) : 0 },
@@ -190,6 +200,8 @@ export const statsParManche = ({ joueurs = [], manches = [] } = {}) => {
       const points = volees.reduce((s, v) => s + v, 0);
       const bandes = {};
       for (const b of BANDES) bandes[b.cle] = volees.filter((v) => v >= b.min && v <= b.max).length;
+      bandes.moins30 = compteMoins30(volees);
+      bandes.n26 = compte26(volees);
       const troisPremieres = volees.slice(0, 3);
       // Manche pliée en 3 volées ou moins : la dernière peut valoir 1 ou 2 fléchettes.
       const flech9 = volees.length <= 3 && flech > 0 ? Math.min(9, flech) : troisPremieres.length * 3;
@@ -227,6 +239,8 @@ export const statsParMancheDepuisDetail = (manches, noms = []) =>
         volees: p("volees"),
         flechettes: p("flech"),
         meilleureVolee: p("max"),
+        moins30: brut("moins30") !== undefined ? p("moins30") : null,
+        n26: p("26"),
         p60: p("60plus"), p80: p("80plus"), p100: p("100plus"), p120: fin ? p("120plus") : null, p140: p("140plus"), p170: fin ? p("170plus") : null, p180: p("180"),
         finish: gagnant ? nb(m.winner_finish) : 0,
         reste: perdant ? nb(m.reste_loser) : 0,
