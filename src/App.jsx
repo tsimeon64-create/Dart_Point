@@ -4768,6 +4768,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
   const [openManches, setOpenManches] = useState(false);
   const [openDrix, setOpenDrix]       = useState(false);
   const [openStats, setOpenStats]     = useState(false);
+  const [ongletStats, setOngletStats] = useState("match"); // "match" = toute la partie · "manches" = manche par manche
   // Pour un duel bot, l'auteur du post (humain) n'est pas forcément le gagnant : on prend les
   // photos stockées dans le post (celle du bot peut être null → avatar par défaut), pas celle de l'auteur.
   const [winnerPhoto, setWinnerPhoto] = useState(d.bot ? (d.winner?.photo || null) : (p.joueur_photo || null));
@@ -5214,6 +5215,47 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
             </button>
             {openStats && (
               <div style={{ marginTop:10, background:"#0b0b12", border:"1px solid #ffffff12", borderRadius:12, padding:"12px 14px" }}>
+                {/* Deux façons de lire la partie : l'ensemble du match, ou manche par manche. */}
+                <div style={{ display:"flex", gap:6, marginBottom:12, background:"#15151c", borderRadius:10, padding:4, border:"1px solid #ffffff10" }}>
+                  {[["match","🏆 Match"],["manches","🎯 Manche par manche"]].map(([cle,libelle])=>{
+                    const actif = ongletStats === cle;
+                    return (
+                      <button key={cle} onClick={()=>setOngletStats(cle)} style={{ flex:1, background: actif?"#fbbf24":"transparent",
+                        color: actif?"#0f0f0f":"#94a3b8", WebkitTextFillColor: actif?"#0f0f0f":"#94a3b8",
+                        border:"none", borderRadius:8, padding:"7px 4px", fontWeight:800, fontSize:11.5, cursor:"pointer", touchAction:"manipulation" }}>{libelle}</button>
+                    );
+                  })}
+                </div>
+                {ongletStats === "manches" ? manches.map((m, i) => {
+                  const lire = (nom, cle) => m[(m.winner === nom ? "winner_" : "loser_") + cle];
+                  const lignesManche = [
+                    ["Moyenne", (nom) => { const x = lire(nom, "moy"); return x ? Number(x).toFixed(2) : "—"; }],
+                    ["Fléchettes", (nom) => lire(nom, "flech") || "—"],
+                    ["Volées", (nom) => lire(nom, "volees") || "—"],
+                    ["Meilleure volée", (nom) => lire(nom, "max") || "—"],
+                    ["180", (nom) => lire(nom, "180") || 0],
+                    ["Fin de manche", (nom) => (m.winner === nom
+                      ? (m.winner_finish ? `finish ${m.winner_finish}` : "gagnée")
+                      : (m.reste_loser != null ? `reste ${m.reste_loser}` : "—"))],
+                  ];
+                  return (
+                    <div key={i} style={{ background:"#0f0f17", border:"1px solid #ffffff0d", borderRadius:10, padding:"10px 12px", marginBottom:8 }}>
+                      <div style={{ fontSize:11, fontWeight:800, color:"#fbbf24", marginBottom:7, textAlign:"center" }}>Manche {i+1} — gagnée par {m.winner}</div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 118px 1fr", marginBottom:3 }}>
+                        <div style={{ textAlign:"right", fontWeight:800, fontSize:11.5, color:"#22c55e" }}>{w.nom}</div>
+                        <div/>
+                        <div style={{ textAlign:"left", fontWeight:800, fontSize:11.5, color:"#94a3b8" }}>{l.nom}</div>
+                      </div>
+                      {lignesManche.map(([label, f]) => (
+                        <div key={label} style={{ display:"grid", gridTemplateColumns:"1fr 118px 1fr", alignItems:"center", padding:"5px 0", borderBottom:"1px solid #ffffff08" }}>
+                          <div style={{ textAlign:"right", fontSize:12.5, fontWeight:700, color:"#e2e8f0" }}>{f(w.nom)}</div>
+                          <div style={{ textAlign:"center", fontSize:10, color:"#64748b" }}>{label}</div>
+                          <div style={{ textAlign:"left", fontSize:12.5, fontWeight:700, color:"#e2e8f0" }}>{f(l.nom)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }) : (<>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 118px 1fr", marginBottom:6 }}>
                   <div style={{ textAlign:"right", fontWeight:800, fontSize:12, color:"#22c55e" }}>{w.nom}</div>
                   <div/>
@@ -5245,6 +5287,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
                     ils apparaîtront sur les matchs joués à partir de maintenant.
                   </div>
                 )}
+                </>)}
               </div>
             )}
           </>);
