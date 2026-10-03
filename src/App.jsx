@@ -19,7 +19,7 @@ import { Scoreur } from "./AppJeux";
 import { useRaccourcis } from "./raccourcisScores";
 import { texteContoure, epaisseurContour, FOND_CARTE_JAUNE, KEYFRAMES_CARTE_JAUNE } from "./contourTexte";
 import { reduceGameOnline, buildFinalizationData, mergeVolleys } from "./onlineGame";
-import { statsDepuisManches, statsParMancheDepuisDetail } from "./statsMatch";
+import { PanneauStatsMatch } from "./StatsMatchPanel";
 import { ConfigCricket } from "./AppCricket";
 import { JeuCapital } from "./AppJeuDecalePoint";
 import { ToucheCoule } from "./AppToucheCoule";
@@ -4768,8 +4768,6 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
   const [openManches, setOpenManches] = useState(false);
   const [openDrix, setOpenDrix]       = useState(false);
   const [openStats, setOpenStats]     = useState(false);
-  const [ongletStats, setOngletStats] = useState("match"); // "match" = toute la partie · "manches" = manche par manche
-  const [mancheSel, setMancheSel]     = useState(0);       // quelle manche on regarde
   // Pour un duel bot, l'auteur du post (humain) n'est pas forcément le gagnant : on prend les
   // photos stockées dans le post (celle du bot peut être null → avatar par défaut), pas celle de l'auteur.
   const [winnerPhoto, setWinnerPhoto] = useState(d.bot ? (d.winner?.photo || null) : (p.joueur_photo || null));
@@ -5183,150 +5181,25 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
         </div>
 
 
-        {/* « Plus de stats » — la même fiche qu'à la fin d'un match. Pour les cartes déjà
-            publiées, on recalcule ce qu'on peut depuis le détail des manches. */}
-        {manches.length > 0 && (() => {
-          const stats = Array.isArray(d.stats) && d.stats.length >= 2
-            ? d.stats
-            : statsDepuisManches(manches, [w.nom, l.nom]);
-          const sw = stats.find(x => x && x.nom === w.nom) || stats[0];
-          const sl = stats.find(x => x && x.nom === l.nom) || stats[1];
-          if (!sw || !sl) return null;
-          const val = (o, f) => { const v = f(o); return (v === null || v === undefined || v === "") ? "—" : v; };
-          const Ligne = ({ label, lire }) => (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 118px 1fr", alignItems:"center", padding:"6px 0", borderBottom:"1px solid #ffffff0d" }}>
-              <div style={{ textAlign:"right", fontSize:13, fontWeight:700, color:"#e2e8f0" }}>{val(sw, lire)}</div>
-              <div style={{ textAlign:"center", fontSize:10.5, color:"#64748b" }}>{label}</div>
-              <div style={{ textAlign:"left", fontSize:13, fontWeight:700, color:"#e2e8f0" }}>{val(sl, lire)}</div>
-            </div>
-          );
-          const pourcent = (o) => (o && o.total ? `${Math.round(o.pct)}% (${o.gagnes}/${o.total})` : null);
-          const incomplet = sw.first9 === null;
-          return (<>
-            <button onClick={()=>setOpenStats(o=>!o)} style={{
-              width:"100%", marginTop:10,
-              background: openStats ? "linear-gradient(135deg,#fbbf2422,#fbbf2408)" : "linear-gradient(135deg,#15151c,#0a0a10)",
-              border:`1px solid ${openStats ? "#fbbf2488" : "#ffffff15"}`,
-              borderRadius:12, padding:"10px", color: openStats ? "#fbbf24" : "#cbd5e1",
-              fontWeight:800, fontSize:12, cursor:"pointer", touchAction:"manipulation",
-              display:"flex", alignItems:"center", justifyContent:"center", gap:6,
-              boxShadow: openStats ? "0 0 14px #fbbf2433, inset 0 1px 0 #fbbf2433" : "inset 0 1px 0 #ffffff08",
-              transition:"all .15s" }}>
-              <EmoIcon e="📊" size={13}/>{openStats ? "Masquer les stats" : "Plus de stats"}
-            </button>
-            {openStats && (
-              <div style={{ marginTop:10, background:"#0b0b12", border:"1px solid #ffffff12", borderRadius:12, padding:"12px 14px" }}>
-                {/* Deux façons de lire la partie : l'ensemble du match, ou manche par manche. */}
-                <div style={{ display:"flex", gap:6, marginBottom:12, background:"#15151c", borderRadius:10, padding:4, border:"1px solid #ffffff10" }}>
-                  {[["match","🏆 Match"],["manches","🎯 Manche par manche"]].map(([cle,libelle])=>{
-                    const actif = ongletStats === cle;
-                    return (
-                      <button key={cle} onClick={()=>setOngletStats(cle)} style={{ flex:1, background: actif?"#fbbf24":"transparent",
-                        color: actif?"#0f0f0f":"#94a3b8", WebkitTextFillColor: actif?"#0f0f0f":"#94a3b8",
-                        border:"none", borderRadius:8, padding:"7px 4px", fontWeight:800, fontSize:11.5, cursor:"pointer", touchAction:"manipulation" }}>{libelle}</button>
-                    );
-                  })}
-                </div>
-                {ongletStats === "manches" ? (() => {
-                  // Mêmes lignes que l'onglet Match, mais sur une seule manche.
-                  const parManche = Array.isArray(d.statsManches) && d.statsManches.length === manches.length
-                    ? d.statsManches
-                    : statsParMancheDepuisDetail(manches, [w.nom, l.nom]);
-                  const idxSel = Math.min(Math.max(0, mancheSel), manches.length - 1);
-                  return (<>
-                  {/* Une manche à la fois : on choisit laquelle avec ces boutons. */}
-                  {manches.length > 1 && (
-                    <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
-                      {manches.map((m, i) => {
-                        const actif = i === idxSel;
-                        return (
-                          <button key={i} onClick={()=>setMancheSel(i)} style={{ flex:"1 1 auto", minWidth:78,
-                            background: actif ? "#fbbf2422" : "#15151c", border:`1px solid ${actif ? "#fbbf2488" : "#ffffff12"}`,
-                            color: actif ? "#fbbf24" : "#94a3b8", WebkitTextFillColor: actif ? "#fbbf24" : "#94a3b8",
-                            borderRadius:8, padding:"7px 6px", fontWeight:800, fontSize:11.5, cursor:"pointer", touchAction:"manipulation" }}>
-                            Manche {i+1}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {manches.map((m, i) => {
-                  if (i !== idxSel) return null;
-                  const duo = parManche[i] || [];
-                  const sw2 = duo.find(x => x && x.nom === w.nom) || duo[0] || {};
-                  const sl2 = duo.find(x => x && x.nom === l.nom) || duo[1] || {};
-                  const lignesManche = [
-                    ["Moyenne", (o) => o.moyenne || null],
-                    ["First 9", (o) => o.first9 || null],
-                    ["Fléchettes", (o) => o.flechettes || null],
-                    ["Volées", (o) => o.volees || null],
-                    ["Meilleure volée", (o) => o.meilleureVolee || null],
-                    ["60+", (o) => o.p60],
-                    ["80+", (o) => o.p80],
-                    ["100+", (o) => o.p100],
-                    ["120+", (o) => o.p120],
-                    ["140+", (o) => o.p140],
-                    ["170+", (o) => o.p170],
-                    ["180", (o) => o.p180],
-                    ["Checkout", (o) => (o.checkout && o.checkout.tentatives ? `${o.checkout.reussis}/${o.checkout.tentatives}` : null)],
-                    ["Fin de manche", (o) => (o.finish ? `finish ${o.finish}` : (o.reste ? `reste ${o.reste}` : null))],
-                  ];
-                  return (
-                    <div key={i} style={{ background:"#0f0f17", border:"1px solid #ffffff0d", borderRadius:10, padding:"10px 12px", marginBottom:8 }}>
-                      <div style={{ fontSize:11, fontWeight:800, color:"#fbbf24", marginBottom:7, textAlign:"center" }}>Manche {i+1} — gagnée par {m.winner}</div>
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 118px 1fr", marginBottom:3 }}>
-                        <div style={{ textAlign:"right", fontWeight:800, fontSize:11.5, color:"#22c55e" }}>{w.nom}</div>
-                        <div/>
-                        <div style={{ textAlign:"left", fontWeight:800, fontSize:11.5, color:"#94a3b8" }}>{l.nom}</div>
-                      </div>
-                      {lignesManche.map(([label, f]) => (
-                        <div key={label} style={{ display:"grid", gridTemplateColumns:"1fr 118px 1fr", alignItems:"center", padding:"5px 0", borderBottom:"1px solid #ffffff08" }}>
-                          <div style={{ textAlign:"right", fontSize:12.5, fontWeight:700, color:"#e2e8f0" }}>{val(sw2, f)}</div>
-                          <div style={{ textAlign:"center", fontSize:10, color:"#64748b" }}>{label}</div>
-                          <div style={{ textAlign:"left", fontSize:12.5, fontWeight:700, color:"#e2e8f0" }}>{val(sl2, f)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                  })}
-                  </>);
-                })() : (<>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 118px 1fr", marginBottom:6 }}>
-                  <div style={{ textAlign:"right", fontWeight:800, fontSize:12, color:"#22c55e" }}>{w.nom}</div>
-                  <div/>
-                  <div style={{ textAlign:"left", fontWeight:800, fontSize:12, color:"#94a3b8" }}>{l.nom}</div>
-                </div>
-                <Ligne label="Manches" lire={o=>o.manchesGagnees}/>
-                <Ligne label="Moyenne" lire={o=>o.moyenne || null}/>
-                <Ligne label="First 9" lire={o=>o.first9 || null}/>
-                <Ligne label="Fléchettes" lire={o=>o.flechettes || null}/>
-                <Ligne label="Volées" lire={o=>o.volees || null}/>
-                <Ligne label="Meilleure volée" lire={o=>o.meilleureVolee || null}/>
-                <Ligne label="60+" lire={o=>o.p60}/>
-                <Ligne label="80+" lire={o=>o.p80}/>
-                <Ligne label="100+" lire={o=>o.p100}/>
-                <Ligne label="120+" lire={o=>o.p120}/>
-                <Ligne label="140+" lire={o=>o.p140}/>
-                <Ligne label="170+" lire={o=>o.p170}/>
-                <Ligne label="180" lire={o=>o.p180}/>
-                <Ligne label="Plus gros finish" lire={o=>o.highFinish || null}/>
-                <Ligne label="Finishs 100+" lire={o=>o.finishs100}/>
-                <Ligne label="Meilleure manche" lire={o=>o.meilleureManche ? `${o.meilleureManche} fléch.` : null}/>
-                <Ligne label="Pire manche" lire={o=>o.pireManche ? `${o.pireManche} fléch.` : null}/>
-                <Ligne label="Checkout" lire={o=>o.checkout && o.checkout.tentatives ? `${Math.round(o.checkout.pct)}% (${o.checkout.reussis}/${o.checkout.tentatives})` : null}/>
-                <Ligne label="Keep" lire={o=>pourcent(o.keep)}/>
-                <Ligne label="Break" lire={o=>pourcent(o.brk)}/>
-                {incomplet && (
-                  <div style={{ fontSize:10.5, color:"#64748b", marginTop:9, lineHeight:1.5 }}>
-                    First 9, 120+, 170+, Keep et Break n&apos;étaient pas enregistrés pour cette partie :
-                    ils apparaîtront sur les matchs joués à partir de maintenant.
-                  </div>
-                )}
-                </>)}
-              </div>
-            )}
-          </>);
-        })()}
+        {/* « Plus de stats » — la même fiche qu'à la fin d'un match, partagée avec l'historique
+            du profil (StatsMatchPanel.jsx). Les cartes récentes embarquent les stats calculées
+            pendant la partie ; les anciennes sont recalculées depuis le détail des manches. */}
+        {manches.length > 0 && (<>
+          <button onClick={()=>setOpenStats(o=>!o)} style={{
+            width:"100%", marginTop:10,
+            background: openStats ? "linear-gradient(135deg,#fbbf2422,#fbbf2408)" : "linear-gradient(135deg,#15151c,#0a0a10)",
+            border:`1px solid ${openStats ? "#fbbf2488" : "#ffffff15"}`,
+            borderRadius:12, padding:"10px", color: openStats ? "#fbbf24" : "#cbd5e1",
+            fontWeight:800, fontSize:12, cursor:"pointer", touchAction:"manipulation",
+            display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+            boxShadow: openStats ? "0 0 14px #fbbf2433, inset 0 1px 0 #fbbf2433" : "inset 0 1px 0 #ffffff08",
+            transition:"all .15s" }}>
+            <EmoIcon e="📊" size={13}/>{openStats ? "Masquer les stats" : "Plus de stats"}
+          </button>
+          {openStats && (
+            <PanneauStatsMatch manches={manches} stats={d.stats} statsManches={d.statsManches} nomA={w.nom} nomB={l.nom}/>
+          )}
+        </>)}
 
         {openManches && (
           <div style={{ marginTop:10 }}>

@@ -1416,7 +1416,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   };
 
   // Construit le détail d'une manche à partir des données courantes vs. début de manche
-  const buildMancheDetail = (updated, winnerIdx, start, startScore = 501) => {
+  // `numManche` (0 = la 1re) sert à savoir qui a commencé cette manche : elles alternent à partir
+  // du gagnant de la bulle.
+  const buildMancheDetail = (updated, winnerIdx, start, startScore = 501, numManche = 0) => {
     const w = updated[winnerIdx];
     const l = updated[1-winnerIdx];
     const wFlech = w.flechettes - (start.flechettes?.[winnerIdx] ?? start.vol[winnerIdx]*3);
@@ -1428,6 +1430,11 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     const wTours = w.tours.slice(start.nbtours[winnerIdx]);
     const lTours = l.tours.slice(start.nbtours[1-winnerIdx]);
     const cnt = (arr, min, max=Infinity) => arr.filter(v=>v>=min&&v<=max).length;
+
+    // Les 9 premières fléchettes de la manche (3 volées) : si la manche s'est pliée avant,
+    // on compte les fléchettes RÉELLEMENT lancées.
+    const f9pts = (tours) => tours.slice(0, 3).reduce((a, v) => a + v, 0);
+    const f9flech = (tours, flechManche) => (tours.length <= 3 && flechManche > 0 ? Math.min(9, flechManche) : tours.slice(0, 3).length * 3);
 
     // Tentatives de checkout : volées où le score restant au DÉBUT de la volée était ≤ 170
     const countCheckoutAttempts = (tours) => {
@@ -1470,6 +1477,17 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       // donc 2→170 hors bogey numbers) vs. succès (leg gagnée = 1)
       winner_checkout_attempts: countCheckoutAttempts(wTours),
       loser_checkout_attempts:  countCheckoutAttempts(lTours),
+      // ── Ajouts d'octobre 2026 : de quoi réafficher les mêmes stats partout, plus tard ──
+      winner_120plus: cnt(wTours, 120, 139),
+      loser_120plus:  cnt(lTours, 120, 139),
+      winner_170plus: cnt(wTours, 170, 179),
+      loser_170plus:  cnt(lTours, 170, 179),
+      // 9 premières fléchettes de la manche : on garde points ET fléchettes pour pouvoir
+      // additionner plusieurs manches sans fausser la moyenne.
+      winner_f9_pts: f9pts(wTours), winner_f9_flech: f9flech(wTours, wFlech),
+      loser_f9_pts:  f9pts(lTours), loser_f9_flech:  f9flech(lTours, lFlech),
+      // Qui a commencé cette manche (les manches alternent depuis le gagnant de la bulle).
+      starter: (updated[(bulleStartIdx + numManche) % updated.length] || {}).nom || null,
     };
   };
 
@@ -2073,7 +2091,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     // buildMancheDetail compare DEUX joueurs (le gagnant et l'autre) : on le construit dès qu'ils
     // sont deux, y compris en partie libre — c'est ce qui alimente la fiche « Plus de stats »
     // (First 9, checkout, keep/break, meilleure manche). À 3 joueurs ou plus, on ne peut pas.
-    const mancheDetail = (modeDuel || botPseudo || updated.length === 2) ? buildMancheDetail(updated, actifIdx, mancheStart, startScore) : null;
+    const mancheDetail = (modeDuel || botPseudo || updated.length === 2) ? buildMancheDetail(updated, actifIdx, mancheStart, startScore, mancheEnCours) : null;
     if (newManches >= manchesTotal) {
       const allManches = mancheDetail ? [...manchesHistory, mancheDetail] : manchesHistory;
       setJoueurs(updated);

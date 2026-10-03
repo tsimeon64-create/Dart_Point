@@ -123,11 +123,22 @@ export const statsDepuisManches = (manches, noms = []) => {
     let gagnees = 0, flech = 0, volees = 0, points = 0, meilleureVolee = 0, nb26 = 0;
     let p60 = 0, p80 = 0, p100 = 0, p140 = 0, p180 = 0;
     let finishMax = 0, finishs100 = 0, meilleureManche = null, pireManche = null, tentatives = 0;
+    // Clés ajoutées en octobre 2026 : présentes seulement sur les matchs joués depuis.
+    let p120 = 0, p170 = 0, f9pts = 0, f9flech = 0, fin = false, depart = false;
+    let commencees = 0, commenceesGagnees = 0, recues = 0, recuesGagnees = 0;
     for (const m of list) {
       const gagnant = m.winner === nom, perdant = m.loser === nom;
       if (!gagnant && !perdant) continue;
       const p = (cle) => nb(m[(gagnant ? "winner_" : "loser_") + cle]);
+      const brut = (cle) => m[(gagnant ? "winner_" : "loser_") + cle];
       const fl = p("flech");
+      if (brut("120plus") !== undefined) { fin = true; p120 += p("120plus"); p170 += p("170plus"); }
+      if (brut("f9_flech") !== undefined) { f9pts += p("f9_pts"); f9flech += p("f9_flech"); }
+      if (m.starter) {
+        depart = true;
+        if (m.starter === nom) { commencees++; if (gagnant) commenceesGagnees++; }
+        else { recues++; if (gagnant) recuesGagnees++; }
+      }
       flech += fl; volees += p("volees");
       points += (nb(p("moy")) * fl) / 3;            // moy = 3 × points / fléchettes
       meilleureVolee = Math.max(meilleureVolee, p("max"));
@@ -148,12 +159,14 @@ export const statsDepuisManches = (manches, noms = []) => {
     return {
       nom, manchesGagnees: gagnees, volees, flechettes: flech, points: Math.round(points),
       moyenne: flech > 0 ? arrondi2((points / flech) * 3) : 0,
-      first9: null,                                  // pas de volées enregistrées
+      first9: f9flech > 0 ? arrondi2((f9pts / f9flech) * 3) : null,
       meilleureVolee, nb26,
-      p60, p80, p100, p120: null, p140, p170: null, p180,
+      p60, p80, p100, p120: fin ? p120 : null, p140, p170: fin ? p170 : null, p180,
       highFinish: finishMax, finishs100, meilleureManche, pireManche,
       checkout: { reussis: gagnees, tentatives, pct: tentatives > 0 ? arrondi2((gagnees / tentatives) * 100) : 0 },
-      keep: null, brk: null,                         // on ne sait pas qui a commencé chaque manche
+      // keep / break : seulement si le détail dit qui a commencé chaque manche.
+      keep: depart ? { gagnes: commenceesGagnees, total: commencees, pct: commencees > 0 ? arrondi2((commenceesGagnees / commencees) * 100) : 0 } : null,
+      brk:  depart ? { gagnes: recuesGagnees,     total: recues,     pct: recues     > 0 ? arrondi2((recuesGagnees / recues) * 100)         : 0 } : null,
     };
   });
 };
@@ -204,14 +217,17 @@ export const statsParMancheDepuisDetail = (manches, noms = []) =>
       const gagnant = m.winner === nom, perdant = m.loser === nom;
       if (!gagnant && !perdant) return { nom, absent: true };
       const p = (cle) => nb(m[(gagnant ? "winner_" : "loser_") + cle]);
+      const brut = (cle) => m[(gagnant ? "winner_" : "loser_") + cle];
+      const fin = brut("120plus") !== undefined;
+      const f9f = nb(p("f9_flech"));
       return {
         nom,
         moyenne: p("moy") ? arrondi2(p("moy")) : 0,
-        first9: null,
+        first9: f9f > 0 ? arrondi2((p("f9_pts") / f9f) * 3) : null,
         volees: p("volees"),
         flechettes: p("flech"),
         meilleureVolee: p("max"),
-        p60: p("60plus"), p80: p("80plus"), p100: p("100plus"), p120: null, p140: p("140plus"), p170: null, p180: p("180"),
+        p60: p("60plus"), p80: p("80plus"), p100: p("100plus"), p120: fin ? p("120plus") : null, p140: p("140plus"), p170: fin ? p("170plus") : null, p180: p("180"),
         finish: gagnant ? nb(m.winner_finish) : 0,
         reste: perdant ? nb(m.reste_loser) : 0,
         checkout: { reussis: gagnant ? 1 : 0, tentatives: p("checkout_attempts") },

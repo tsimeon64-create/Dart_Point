@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { PanneauStatsMatch } from "./StatsMatchPanel";
 import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Crosshair, Star, Zap, Flame, Sparkles, Snowflake, Minus, ArrowUp, ArrowDown, Gamepad2, Dices, Scale, Beer, Cake, HeartCrack, Circle, Bomb, Sprout, List, Cog, Hand, Rocket, QrCode, RotateCcw, History } from "lucide-react";
 import QRCode from "qrcode";
 import { EmoIcon } from "./icons";
@@ -2723,6 +2724,7 @@ export const PageProfilHistorique = ({ joueur, setPage, embedded = false }) => {
   const [loading, setLoading]   = useState(true);
   const [openId, setOpenId]     = useState(null); // duel dont le détail manche par manche est ouvert
   const [sousOnglet, setSousOnglet] = useState("drix"); // "drix" = les duels · "tournois" = les tournois entre potes
+  const [statsId, setStatsId]   = useState(null); // duel dont la fiche « Plus de stats » est ouverte
 
   useEffect(() => {
     Promise.all([
@@ -2801,7 +2803,20 @@ export const PageProfilHistorique = ({ joueur, setPage, embedded = false }) => {
                   {ouvert && (
                     <div onClick={(e)=>e.stopPropagation()}>
                       {Array.isArray(d.manches_detail) && d.manches_detail.length
-                        ? <MancheDetailListJ manches={d.manches_detail}/>
+                        ? (<>
+                            <MancheDetailListJ manches={d.manches_detail}/>
+                            {/* La même fiche que sur les cartes du Comptoir (StatsMatchPanel.jsx) */}
+                            <button onClick={()=>setStatsId(x => x === d.id ? null : d.id)} style={{
+                              width:"100%", marginTop:10, background: statsId === d.id ? "#fbbf2415" : "#ffffff08",
+                              border:`1px solid ${statsId === d.id ? "#fbbf2488" : CJ.border}`, borderRadius:10, padding:"9px",
+                              color: statsId === d.id ? "#fbbf24" : CJ.muted, WebkitTextFillColor: statsId === d.id ? "#fbbf24" : CJ.muted,
+                              fontWeight:800, fontSize:12, cursor:"pointer", touchAction:"manipulation" }}>
+                              📊 {statsId === d.id ? "Masquer les stats" : "Plus de stats"}
+                            </button>
+                            {statsId === d.id && (
+                              <PanneauStatsMatch manches={d.manches_detail} nomA={joueur.pseudo} nomB={adv}/>
+                            )}
+                          </>)
                         : <div style={{ marginTop:8, color:CJ.muted, fontSize:12, fontStyle:"italic" }}>Détail manche par manche indisponible pour ce match.</div>}
                     </div>
                   )}
