@@ -1993,7 +1993,9 @@ export const EliminatoiresView=({tournoi,joueurs,matchs,isCreateur,photos={},nbC
 };
 
 // ── VUE RÉSULTATS ─────────────────────────────────────────────────────────────
-const ResultatsView=({tournoi,joueurs,matchs,onRejouer,onQuitter})=>{
+// `lectureSeule` : on revoit un tournoi passé depuis le profil → pas de bouton « Rejouer »
+// (il CRÉE un nouveau tournoi et réinscrit tout le monde).
+export const ResultatsView=({tournoi,joueurs,matchs,onRejouer,onQuitter,lectureSeule=false})=>{
   // Verrou local anti double-clic sur 'Rejouer' (ResultatsView n'a pas l'etat 'saving' du parent)
   const rejouLockRef=useRef(false);
   const [rejouLock,setRejouLock]=useState(false);
@@ -2126,9 +2128,9 @@ const ResultatsView=({tournoi,joueurs,matchs,onRejouer,onQuitter})=>{
         </Btn>
       )}
       {/* Rejouer */}
-      <Btn onClick={()=>{ if(rejouLockRef.current)return; rejouLockRef.current=true; setRejouLock(true); onRejouer&&onRejouer(); }} disabled={rejouLock} variant="ghost" style={{width:"100%",marginTop:8}}>
+      {!lectureSeule&&<Btn onClick={()=>{ if(rejouLockRef.current)return; rejouLockRef.current=true; setRejouLock(true); onRejouer&&onRejouer(); }} disabled={rejouLock} variant="ghost" style={{width:"100%",marginTop:8}}>
         <EmoIcon e="🔄" size={14} style={{verticalAlign:"-2px",marginRight:6}}/>Rejouer avec les mêmes joueurs
-      </Btn>
+      </Btn>}
     </div>
   );
 };
@@ -3133,14 +3135,16 @@ export const TournoiRevoir=({tournoiId,joueurConnecte=null,setPage})=>{
         {champion&&(!aTableau||vue==="poules")&&<div style={{marginTop:9,fontWeight:800,fontSize:13.5,color:CT.yellow}}><EmoText s={`🏆 ${champion.nom} remporte le tournoi`} size={13}/></div>}
         {!champion&&tournoi.statut!=="termine"&&<div style={{marginTop:9,fontSize:12.5,color:CT.muted}}>Tournoi jamais terminé — voici où il en était.</div>}
       </Card>
-      {aTableau&&(
+      {(aTableau||aPoules)&&(
         <div style={{display:"flex",gap:6,marginBottom:16,background:"#16161d",borderRadius:12,padding:5,border:`1px solid ${CT.border}`}}>
-          {[["poules","🏟️ Poules"],["elim","🏆 Tableau final"]].map(([k,lab])=>(
-            <button key={k} onClick={()=>setVue(k)} style={{flex:1,background:vue===k?CT.accent:"transparent",color:vue===k?"#0f0f0f":CT.muted,border:"none",cursor:"pointer",padding:"9px 6px",borderRadius:9,fontWeight:800,fontSize:13,touchAction:"manipulation"}}>{lab}</button>
+          {[["poules","🏟️ Poules"],...(aTableau?[["elim","🏆 Tableau"]]:[]),["resultats","🏅 Résultats"]].map(([k,lab])=>(
+            <button key={k} onClick={()=>setVue(k)} style={{flex:1,background:vue===k?CT.accent:"transparent",color:vue===k?"#0f0f0f":CT.muted,WebkitTextFillColor:vue===k?"#0f0f0f":CT.muted,border:"none",cursor:"pointer",padding:"9px 4px",borderRadius:9,fontWeight:800,fontSize:12.5,whiteSpace:"nowrap",touchAction:"manipulation"}}>{lab}</button>
           ))}
         </div>
       )}
-      {(!aTableau||vue==="poules")
+      {vue==="resultats"
+        ? <ResultatsView tournoi={tournoi} joueurs={joueurs} matchs={matchs} lectureSeule/>
+        : (!aTableau||vue==="poules")
         ? (aPoules
           ? <PoulesView tournoi={tournoi} joueurs={joueurs} matchs={matchs} photos={photos} isCreateur={false} canPlay={false}
               nbCibles={ciblesT} nbQual={tournoi.nb_qualifies!=null?tournoi.nb_qualifies:2} ciblesMode={tournoi.cibles_mode||"optimise"}
