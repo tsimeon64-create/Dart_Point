@@ -1337,11 +1337,36 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     score: startVal, manchesGagnees: 0, tours: [], flechettes: 0, totalPoints: 0, scorePrecedent: null,
   }));
 
-  // ── +100 XP au joueur qui gagne la bulle (duel et match de tournoi seulement) ────────
-  // Une seule fois par match : revenir en arrière avec « ← Changer qui commence » ne reverse
-  // rien. Et seulement si le gagnant de la bulle a un COMPTE : au tournoi, challenger_id est
-  // une inscription (le compte est dans challenger_compte_id, null pour une doublette).
+  // ── +100 XP au joueur qui a gagné la bulle (duel et match de tournoi seulement) ──────
+  // Versé à la PREMIÈRE VOLÉE réellement jouée, pas au clic sur « X commence » : un faux départ
+  // (mauvais joueur désigné, on ressort de l'écran) ne paie donc rien, et on ne peut pas répéter
+  // le bonus en relançant le même match. Rien non plus si le joueur qui commence n'a pas de
+  // compte (équipe de doublette, invité tapé à la main).
   const XP_BULLE = 100;
+  // Marque « ce match a déjà payé » : d'abord EN BASE (colonne bulle_xp_joueur, réservation
+  // atomique → deux téléphones ne peuvent pas payer deux fois), et à défaut dans ce navigateur
+  // tant que le SQL n'a pas été lancé.
+  const reserverBulleXp = async (compteId) => {
+    const estPotes = String(duel.id || "").startsWith("potes-");
+    const cible = estPotes
+      ? `tournois_potes_matchs?id=eq.${String(duel.id).slice(6)}&bulle_xp_joueur=is.null`
+      : `duels?id=eq.${duel.id}&bulle_xp_joueur=is.null`;
+    try {
+      const r = await fetch(`${SB_URL}/rest/v1/${cible}`, {
+        method: "PATCH",
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "return=representation" },
+        body: JSON.stringify({ bulle_xp_joueur: compteId }),
+      });
+      if (!r.ok) throw new Error(String(r.status));   // colonne absente → repli local
+      const rows = await r.json();
+      return Array.isArray(rows) && rows.length > 0;   // [] = quelqu'un a déjà payé ce match
+    } catch {
+      // Colonne pas encore ajoutée (SQL non lancé) : repli local, le temps que Thomas le lance.
+      const cle = `dp_bulle_xp_${duel.id}`;
+      try { if (localStorage.getItem(cle)) return false; localStorage.setItem(cle, "1"); } catch { /* navigation privée */ }
+      return true;
+    }
+  };
   const crediterBulleXp = async (startIdx) => {
     if (!modeDuel || !duel || bulleXpRef.current) return;
     const estTournoi = duel.challenger_compte_id !== undefined || duel.defie_compte_id !== undefined;
@@ -1350,18 +1375,14 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       : (estTournoi ? duel.defie_compte_id : duel.defie_id);
     const nomQuiCommence = startIdx === 0 ? (duel.challenger_pseudo || "Joueur 1") : (duel.defie_pseudo || "Joueur 2");
     if (!compteId) return;
-    bulleXpRef.current = true;
+    bulleXpRef.current = true;   // verrou local immédiat (anti double-appel pendant l'attente)
     try {
+      if (!(await reserverBulleXp(compteId))) return;   // déjà payé pour ce match
       // On relit l'XP juste avant d'écrire : l'autre téléphone a pu la faire bouger entre-temps.
       const rows = await lireSb(`joueurs?id=eq.${compteId}&select=xp`);
       const actuel = (rows && rows[0] && rows[0].xp) || 0;
       await dbJ.updateJoueur(compteId, { xp: actuel + XP_BULLE });
-      if (joueur?.id === compteId) {
-        if (setJoueur) setJoueur((p) => ({ ...p, xp: actuel + XP_BULLE }));
-        window.dpToast?.(`+${XP_BULLE} XP — tu commences 🎯`, "success");
-      } else {
-        window.dpToast?.(`+${XP_BULLE} XP pour ${nomQuiCommence} — il commence 🎯`, "success");
-      }
+      window.dpToast?.(`+${XP_BULLE} XP pour ${nomQuiCommence} — il commence 🎯`, "success");
     } catch { bulleXpRef.current = false; }   // la base n'a pas répondu : on pourra réessayer
   };
 
@@ -1377,7 +1398,6 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       score: sv, manchesGagnees: 0, tours: [], flechettes: 0, totalPoints: 0, scorePrecedent: null,
     })));
     setBulleStartIdx(startIdx);
-    crediterBulleXp(startIdx);    // bonus « tu commences » (duel / tournoi) — sans bloquer le départ
     setNumPartie((k) => k + 1);   // les raccourcis prennent la rangée mise à jour par la partie d'avant
     setMancheEnCours(0);
     setActifIdx(startIdx);
@@ -1974,6 +1994,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     if (overrideVal === undefined && (!input || isNaN(val) || val < 0 || val > 180)) { setInput(""); return; }
     if (overrideVal !== undefined && (isNaN(val) || val < 0 || val > 180)) return;
     lockRef.current.envoi = true; // verrou anti double-tap : relâché par l'effet quand joueurs/actifIdx/pendingVolee change
+    crediterBulleXp(bulleStartIdx);  // bonus « il commence » : à la 1re volée du match, une seule fois
 
     const nbReel = opts && opts.darts >= 1 && opts.darts <= 3 ? opts.darts : null;
     // bust forcé : Double Out non respecté (le total est valide, mais la manche ne
