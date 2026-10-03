@@ -4,6 +4,7 @@ import { Search, Swords, Check, X } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
 import { calculerProfilBot, genererScoreBot, BOT_LUCKY_LITTLER } from "./botFleche";
 import { useRaccourcis, RACCOURCIS_DEFAUT } from "./raccourcisScores";
+import { calculerStatsMatch, BANDES } from "./statsMatch";
 import { texteContoure, epaisseurContour, FOND_CARTE_JAUNE, KEYFRAMES_CARTE_JAUNE } from "./contourTexte";
 
 // ── Fiche d'un bot : ce qu'on MONTRE au joueur avant d'affronter ──────────────
@@ -234,7 +235,7 @@ const PileOuFace = ({ joueurs, onFini, onFermer }) => {
 const SB_URL_J = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY_J = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 
-const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moyenne, demarrer, quitterPartie, onRejouer=null, joueurs: joueursData=[], manchesDetail=[], publierBot=null, etatPublication="attente" }) => {
+const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moyenne, demarrer, quitterPartie, onRejouer=null, joueurs: joueursData=[], manchesDetail=[], premierALaBulle=0, publierBot=null, etatPublication="attente" }) => {
   const [show, setShow] = useState(false);
   const [drixShow, setDrixShow] = useState(false);
   const [winnerPhoto, setWinnerPhoto] = useState(null);
@@ -287,6 +288,12 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
   const j1 = joueursData[1] || { nom: duel?.defie_pseudo||"Joueur 2", manchesGagnees:0, tours:[], flechettes:0, totalPoints:0 };
   const s0 = computeStats(j0);
   const s1 = computeStats(j1);
+  // Fiche détaillée (First 9, tranches, checkout, keep/break…) — tout est recalculé à partir
+  // des volées et du détail des manches, rien n'est stocké en plus (voir src/statsMatch.js).
+  const [d0, d1] = calculerStatsMatch({ joueurs: [j0, j1], manches: manchesDetail, premierALaBulle });
+  const pct1 = (v) => Math.round((v || 0) * 10) / 10;
+  const fraction = (o) => `${pct1(o?.pct)}%` + (o?.total ? ` (${o.gagnes ?? o.reussis}/${o.total ?? o.tentatives})` : "");
+  const checkoutTxt = (o) => (o?.tentatives ? `${pct1(o.pct)}% (${o.reussis}/${o.tentatives})` : "—");
   const gagnantIdx = gagnant?.nom === j0.nom ? 0 : 1;
   // Nom du perdant. On part du duel officiel quand il existe, SINON des joueurs réellement
   // présents dans la partie : sans ce repli, une partie contre un bot (ou une partie libre)
@@ -648,8 +655,18 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
       })()}
 
       {/* ════════════════════════════════════════════════════════════════ */}
-      {/* 6. HIGHLIGHTS DU MATCH                                            */}
+      {/* 6. PLUS DE STATS (fiche détaillée) puis HIGHLIGHTS DU MATCH       */}
       {/* ════════════════════════════════════════════════════════════════ */}
+      <button onClick={()=>setShowStats(true)}
+        style={{ width:"100%", padding:"12px 10px", borderRadius:14, border:"1px solid #fbbf2455", marginBottom:14,
+          background:"linear-gradient(135deg,#1a1200,#2a1a00)", color:"#fbbf24", fontWeight:800, fontSize:13.5,
+          cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+          touchAction:"manipulation", animation:"finCardIn .5s .95s both" }}>
+        <EmoIcon e="📊" size={16} color="#fbbf24"/>
+        <span>Plus de stats</span>
+        <span style={{ fontSize:12, color:"#a16207" }}>▾</span>
+      </button>
+
       <div style={{ background:"linear-gradient(135deg,#0a0a14,#050510)", border:"1px solid #ffffff10", borderRadius:14, padding:"12px 14px", marginBottom:14, animation:"finCardIn .5s 1s both" }}>
         <div style={{ fontSize:10, fontWeight:800, color:"#64748b", letterSpacing:2, marginBottom:10, textTransform:"uppercase", textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}><EmoIcon e="📌" size={11}/>Highlights du match</div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
@@ -822,11 +839,19 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
               <StatRow label="Fléchettes" v0={j0.flechettes} v1={j1.flechettes} h={hi(j0.flechettes,j1.flechettes,false)}/>
               <StatRow label="Volées" v0={(j0.tours||[]).length} v1={(j1.tours||[]).length} h={hi((j0.tours||[]).length,(j1.tours||[]).length,false)}/>
               <StatRow label="Meilleure volée" v0={s0.bestVolee||"—"} v1={s1.bestVolee||"—"} h={hi(s0.bestVolee,s1.bestVolee)}/>
-              <StatRow label="180" v0={s0.nb180} v1={s1.nb180} h={hi(s0.nb180,s1.nb180)}/>
-              <StatRow label="140 → 179" v0={s0.nb140} v1={s1.nb140} h={hi(s0.nb140,s1.nb140)}/>
-              <StatRow label="100 → 139" v0={s0.nb100} v1={s1.nb100} h={hi(s0.nb100,s1.nb100)}/>
-              <StatRow label="80 → 99" v0={s0.nb80} v1={s1.nb80} h={hi(s0.nb80,s1.nb80)}/>
-              <StatRow label="60 → 79" v0={s0.nb60} v1={s1.nb60} h={hi(s0.nb60,s1.nb60)}/>
+              <StatRow label="First 9" v0={d0.first9||"—"} v1={d1.first9||"—"} h={hi(d0.first9,d1.first9)}/>
+              {/* Les tranches de volées, comme sur les appli de fléchettes : « 60+ » = de 60 à 79. */}
+              {BANDES.map(b => (
+                <StatRow key={b.cle} label={b.label} v0={d0[b.cle]} v1={d1[b.cle]} h={hi(d0[b.cle],d1[b.cle])}/>
+              ))}
+              <StatRow label="Plus gros finish" v0={d0.highFinish||"—"} v1={d1.highFinish||"—"} h={hi(d0.highFinish,d1.highFinish)}/>
+              <StatRow label="Finishs 100+" v0={d0.finishs100} v1={d1.finishs100} h={hi(d0.finishs100,d1.finishs100)}/>
+              <StatRow label="Meilleure manche" v0={d0.meilleureManche ? `${d0.meilleureManche} fléch.` : "—"} v1={d1.meilleureManche ? `${d1.meilleureManche} fléch.` : "—"} h={hi(d0.meilleureManche,d1.meilleureManche,false)}/>
+              <StatRow label="Pire manche" v0={d0.pireManche ? `${d0.pireManche} fléch.` : "—"} v1={d1.pireManche ? `${d1.pireManche} fléch.` : "—"} h={hi(d0.pireManche,d1.pireManche,false)}/>
+              <StatRow label="Checkout" v0={checkoutTxt(d0.checkout)} v1={checkoutTxt(d1.checkout)} h={hi(d0.checkout.pct,d1.checkout.pct)}/>
+              {/* Keep = je commence la manche et je la gagne · Break = je gagne celle de l'adversaire */}
+              <StatRow label="Keep" v0={d0.keep.total?fraction(d0.keep):"—"} v1={d1.keep.total?fraction(d1.keep):"—"} h={hi(d0.keep.pct,d1.keep.pct)}/>
+              <StatRow label="Break" v0={d0.brk.total?fraction(d0.brk):"—"} v1={d1.brk.total?fraction(d1.brk):"—"} h={hi(d0.brk.pct,d1.brk.pct)}/>
 
               {/* Détail manches */}
               {manchesDetail.length > 0 && (
@@ -2019,7 +2044,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     const manchesTotal = modeDuel ? (duel?.manches || 1) : config.manches;
     const startScore = modeDuel ? parseInt(duel?.mode || "501") : startVal;
     // Détail par manche : en duel DRIX ET en partie bot (2 joueurs) → stats manche par manche.
-    const mancheDetail = (modeDuel || botPseudo) ? buildMancheDetail(updated, actifIdx, mancheStart, startScore) : null;
+    // buildMancheDetail compare DEUX joueurs (le gagnant et l'autre) : on le construit dès qu'ils
+    // sont deux, y compris en partie libre — c'est ce qui alimente la fiche « Plus de stats »
+    // (First 9, checkout, keep/break, meilleure manche). À 3 joueurs ou plus, on ne peut pas.
+    const mancheDetail = (modeDuel || botPseudo || updated.length === 2) ? buildMancheDetail(updated, actifIdx, mancheStart, startScore) : null;
     if (newManches >= manchesTotal) {
       const allManches = mancheDetail ? [...manchesHistory, mancheDetail] : manchesHistory;
       setJoueurs(updated);
@@ -2678,6 +2706,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       onRejouer={botPseudo ? rejouerBot : onRejouer}
       joueurs={joueurs}
       manchesDetail={manchesHistory}
+      premierALaBulle={bulleStartIdx}
       publierBot={postBot ? () => publierPostBot() : null}
       etatPublication={etatPostBot}
     />
