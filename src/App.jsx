@@ -19,7 +19,7 @@ import { Scoreur } from "./AppJeux";
 import { useRaccourcis } from "./raccourcisScores";
 import { texteContoure, epaisseurContour, FOND_CARTE_JAUNE, KEYFRAMES_CARTE_JAUNE } from "./contourTexte";
 import { reduceGameOnline, buildFinalizationData, mergeVolleys } from "./onlineGame";
-import { statsDepuisManches } from "./statsMatch";
+import { statsDepuisManches, statsParMancheDepuisDetail } from "./statsMatch";
 import { ConfigCricket } from "./AppCricket";
 import { JeuCapital } from "./AppJeuDecalePoint";
 import { ToucheCoule } from "./AppToucheCoule";
@@ -5226,17 +5226,30 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
                     );
                   })}
                 </div>
-                {ongletStats === "manches" ? manches.map((m, i) => {
-                  const lire = (nom, cle) => m[(m.winner === nom ? "winner_" : "loser_") + cle];
+                {ongletStats === "manches" ? (() => {
+                  // Mêmes lignes que l'onglet Match, mais sur une seule manche.
+                  const parManche = Array.isArray(d.statsManches) && d.statsManches.length === manches.length
+                    ? d.statsManches
+                    : statsParMancheDepuisDetail(manches, [w.nom, l.nom]);
+                  return manches.map((m, i) => {
+                  const duo = parManche[i] || [];
+                  const sw2 = duo.find(x => x && x.nom === w.nom) || duo[0] || {};
+                  const sl2 = duo.find(x => x && x.nom === l.nom) || duo[1] || {};
                   const lignesManche = [
-                    ["Moyenne", (nom) => { const x = lire(nom, "moy"); return x ? Number(x).toFixed(2) : "—"; }],
-                    ["Fléchettes", (nom) => lire(nom, "flech") || "—"],
-                    ["Volées", (nom) => lire(nom, "volees") || "—"],
-                    ["Meilleure volée", (nom) => lire(nom, "max") || "—"],
-                    ["180", (nom) => lire(nom, "180") || 0],
-                    ["Fin de manche", (nom) => (m.winner === nom
-                      ? (m.winner_finish ? `finish ${m.winner_finish}` : "gagnée")
-                      : (m.reste_loser != null ? `reste ${m.reste_loser}` : "—"))],
+                    ["Moyenne", (o) => o.moyenne || null],
+                    ["First 9", (o) => o.first9 || null],
+                    ["Fléchettes", (o) => o.flechettes || null],
+                    ["Volées", (o) => o.volees || null],
+                    ["Meilleure volée", (o) => o.meilleureVolee || null],
+                    ["60+", (o) => o.p60],
+                    ["80+", (o) => o.p80],
+                    ["100+", (o) => o.p100],
+                    ["120+", (o) => o.p120],
+                    ["140+", (o) => o.p140],
+                    ["170+", (o) => o.p170],
+                    ["180", (o) => o.p180],
+                    ["Checkout", (o) => (o.checkout && o.checkout.tentatives ? `${o.checkout.reussis}/${o.checkout.tentatives}` : null)],
+                    ["Fin de manche", (o) => (o.finish ? `finish ${o.finish}` : (o.reste ? `reste ${o.reste}` : null))],
                   ];
                   return (
                     <div key={i} style={{ background:"#0f0f17", border:"1px solid #ffffff0d", borderRadius:10, padding:"10px 12px", marginBottom:8 }}>
@@ -5248,14 +5261,15 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
                       </div>
                       {lignesManche.map(([label, f]) => (
                         <div key={label} style={{ display:"grid", gridTemplateColumns:"1fr 118px 1fr", alignItems:"center", padding:"5px 0", borderBottom:"1px solid #ffffff08" }}>
-                          <div style={{ textAlign:"right", fontSize:12.5, fontWeight:700, color:"#e2e8f0" }}>{f(w.nom)}</div>
+                          <div style={{ textAlign:"right", fontSize:12.5, fontWeight:700, color:"#e2e8f0" }}>{val(sw2, f)}</div>
                           <div style={{ textAlign:"center", fontSize:10, color:"#64748b" }}>{label}</div>
-                          <div style={{ textAlign:"left", fontSize:12.5, fontWeight:700, color:"#e2e8f0" }}>{f(l.nom)}</div>
+                          <div style={{ textAlign:"left", fontSize:12.5, fontWeight:700, color:"#e2e8f0" }}>{val(sl2, f)}</div>
                         </div>
                       ))}
                     </div>
                   );
-                }) : (<>
+                  });
+                })() : (<>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 118px 1fr", marginBottom:6 }}>
                   <div style={{ textAlign:"right", fontWeight:800, fontSize:12, color:"#22c55e" }}>{w.nom}</div>
                   <div/>

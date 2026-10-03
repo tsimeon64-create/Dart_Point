@@ -4,7 +4,7 @@ import { Search, Swords, Check, X } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
 import { calculerProfilBot, genererScoreBot, BOT_LUCKY_LITTLER } from "./botFleche";
 import { useRaccourcis, RACCOURCIS_DEFAUT } from "./raccourcisScores";
-import { calculerStatsMatch, BANDES } from "./statsMatch";
+import { calculerStatsMatch, statsParManche, BANDES } from "./statsMatch";
 import { texteContoure, epaisseurContour, FOND_CARTE_JAUNE, KEYFRAMES_CARTE_JAUNE } from "./contourTexte";
 
 // ── Fiche d'un bot : ce qu'on MONTRE au joueur avant d'affronter ──────────────
@@ -1842,6 +1842,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           // les volées. Une carte déjà publiée n'en a pas : le Comptoir les recalcule alors depuis
           // « manches », en moins complet (voir statsDepuisManches).
           stats: calculerStatsMatch({ joueurs: [j0, j1], manches: manchesDetail || [], premierALaBulle: bulleStartIdx }),
+          statsManches: statsParManche({ joueurs: [j0, j1], manches: manchesDetail || [] }),
         };
         const contenu = `__DUEL__|${JSON.stringify(duelPost)}`;
         const gagnantPhotoArr = await fetch(`${SB_URL}/rest/v1/joueurs?id=eq.${gagnantId}&select=photo`, {
@@ -2237,6 +2238,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           loser:  { nom: loserJ?.nom,  nbManches: loserJ?.manchesGagnees || 0,  total: 0, elo: 0, xp: humainGagne ? 0 : delta, xpLines: humainGagne ? [] : xpLinesHum, moy: moyOf(loserJ), photo: photoDe(loserJ) },
           manches: manchesHistory || [],
           stats: calculerStatsMatch({ joueurs: [winnerJ, loserJ].filter(Boolean), manches: manchesHistory || [], premierALaBulle: bulleStartIdx }),
+          statsManches: statsParManche({ joueurs: [winnerJ, loserJ].filter(Boolean), manches: manchesHistory || [] }),
         };
         // La charge utile est mise DE CÔTÉ, pas seulement capturée dans cette fonction : le bouton
         // « Publier au Comptoir » de l'écran de fin doit pouvoir la renvoyer plus tard, si la

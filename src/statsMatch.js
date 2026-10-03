@@ -157,3 +157,64 @@ export const statsDepuisManches = (manches, noms = []) => {
     };
   });
 };
+
+// ── LES MÊMES STATS, MANCHE PAR MANCHE ───────────────────────────────────────
+// Renvoie un tableau [manche][joueur] avec les mêmes clés que calculerStatsMatch, mais calculées
+// sur la seule manche. Les volées de chaque manche sont redécoupées dans `tours` avec le nombre
+// de volées enregistré pour cette manche.
+export const statsParManche = ({ joueurs = [], manches = [] } = {}) => {
+  const tours = joueurs.map((j) => (Array.isArray(j?.tours) ? j.tours.map(nb) : []));
+  const curseur = joueurs.map(() => 0);
+  return (manches || []).map((m) =>
+    joueurs.map((j, idx) => {
+      const nom = j?.nom;
+      const gagnant = m.winner === nom, perdant = m.loser === nom;
+      if (!gagnant && !perdant) return { nom, absent: true };
+      const combien = Math.max(0, Math.round(nb(gagnant ? m.winner_volees : m.loser_volees)));
+      const volees = tours[idx].slice(curseur[idx], curseur[idx] + combien);
+      curseur[idx] += combien;
+      const flech = nb(gagnant ? m.winner_flech : m.loser_flech) || volees.length * 3;
+      const points = volees.reduce((s, v) => s + v, 0);
+      const bandes = {};
+      for (const b of BANDES) bandes[b.cle] = volees.filter((v) => v >= b.min && v <= b.max).length;
+      const troisPremieres = volees.slice(0, 3);
+      // Manche pliée en 3 volées ou moins : la dernière peut valoir 1 ou 2 fléchettes.
+      const flech9 = volees.length <= 3 && flech > 0 ? Math.min(9, flech) : troisPremieres.length * 3;
+      return {
+        nom,
+        moyenne: flech > 0 ? arrondi2((points / flech) * 3) : 0,
+        first9: flech9 > 0 ? arrondi2((troisPremieres.reduce((s, v) => s + v, 0) / flech9) * 3) : 0,
+        volees: volees.length || combien,
+        flechettes: flech,
+        meilleureVolee: volees.length ? Math.max(...volees) : nb(gagnant ? m.winner_max : m.loser_max),
+        ...bandes,
+        finish: gagnant ? nb(m.winner_finish) : 0,
+        reste: perdant ? nb(m.reste_loser) : 0,
+        checkout: { reussis: gagnant ? 1 : 0, tentatives: nb(gagnant ? m.winner_checkout_attempts : m.loser_checkout_attempts) },
+      };
+    })
+  );
+};
+
+// La même chose pour une carte DÉJÀ publiée : on n'a que les compteurs de la manche.
+// First 9, 120+ et 170+ sont inconnus (il faudrait les volées) → null, affichés « — ».
+export const statsParMancheDepuisDetail = (manches, noms = []) =>
+  (Array.isArray(manches) ? manches : []).map((m) =>
+    noms.map((nom) => {
+      const gagnant = m.winner === nom, perdant = m.loser === nom;
+      if (!gagnant && !perdant) return { nom, absent: true };
+      const p = (cle) => nb(m[(gagnant ? "winner_" : "loser_") + cle]);
+      return {
+        nom,
+        moyenne: p("moy") ? arrondi2(p("moy")) : 0,
+        first9: null,
+        volees: p("volees"),
+        flechettes: p("flech"),
+        meilleureVolee: p("max"),
+        p60: p("60plus"), p80: p("80plus"), p100: p("100plus"), p120: null, p140: p("140plus"), p170: null, p180: p("180"),
+        finish: gagnant ? nb(m.winner_finish) : 0,
+        reste: perdant ? nb(m.reste_loser) : 0,
+        checkout: { reussis: gagnant ? 1 : 0, tentatives: p("checkout_attempts") },
+      };
+    })
+  );
