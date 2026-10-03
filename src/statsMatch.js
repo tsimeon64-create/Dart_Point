@@ -112,3 +112,48 @@ export const calculerStatsMatch = ({ joueurs = [], manches = [], premierALaBulle
     };
   });
 };
+
+// ── STATS D'UN MATCH DÉJÀ JOUÉ (cartes du Comptoir) ──────────────────────────
+// Ici on n'a PLUS les volées : seulement le détail manche par manche enregistré avec le duel
+// (`manches_detail`). On en tire tout ce qui s'y trouve ; ce qui demande les volées (First 9,
+// tranches 120+ et 170+) ou de savoir qui a commencé (keep / break) vaut null → « — » à l'écran.
+export const statsDepuisManches = (manches, noms = []) => {
+  const list = Array.isArray(manches) ? manches : [];
+  return noms.map((nom) => {
+    let gagnees = 0, flech = 0, volees = 0, points = 0, meilleureVolee = 0, nb26 = 0;
+    let p60 = 0, p80 = 0, p100 = 0, p140 = 0, p180 = 0;
+    let finishMax = 0, finishs100 = 0, meilleureManche = null, pireManche = null, tentatives = 0;
+    for (const m of list) {
+      const gagnant = m.winner === nom, perdant = m.loser === nom;
+      if (!gagnant && !perdant) continue;
+      const p = (cle) => nb(m[(gagnant ? "winner_" : "loser_") + cle]);
+      const fl = p("flech");
+      flech += fl; volees += p("volees");
+      points += (nb(p("moy")) * fl) / 3;            // moy = 3 × points / fléchettes
+      meilleureVolee = Math.max(meilleureVolee, p("max"));
+      nb26 += p("26");
+      p60 += p("60plus"); p80 += p("80plus"); p100 += p("100plus"); p140 += p("140plus"); p180 += p("180");
+      tentatives += p("checkout_attempts");
+      if (gagnant) {
+        gagnees++;
+        const f = nb(m.winner_finish);
+        if (f > finishMax) finishMax = f;
+        if (f >= 100) finishs100++;
+        if (fl > 0) {
+          if (meilleureManche === null || fl < meilleureManche) meilleureManche = fl;
+          if (pireManche === null || fl > pireManche) pireManche = fl;
+        }
+      }
+    }
+    return {
+      nom, manchesGagnees: gagnees, volees, flechettes: flech, points: Math.round(points),
+      moyenne: flech > 0 ? arrondi2((points / flech) * 3) : 0,
+      first9: null,                                  // pas de volées enregistrées
+      meilleureVolee, nb26,
+      p60, p80, p100, p120: null, p140, p170: null, p180,
+      highFinish: finishMax, finishs100, meilleureManche, pireManche,
+      checkout: { reussis: gagnees, tentatives, pct: tentatives > 0 ? arrondi2((gagnees / tentatives) * 100) : 0 },
+      keep: null, brk: null,                         // on ne sait pas qui a commencé chaque manche
+    };
+  });
+};

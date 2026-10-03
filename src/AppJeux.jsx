@@ -1838,6 +1838,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
             xpLines: bkL?.xp?.lines || [],
           },
           manches: manchesDetail || [],
+          // Stats complètes (First 9, tranches, keep/break…) : calculées ICI, tant qu'on a encore
+          // les volées. Une carte déjà publiée n'en a pas : le Comptoir les recalcule alors depuis
+          // « manches », en moins complet (voir statsDepuisManches).
+          stats: calculerStatsMatch({ joueurs: [j0, j1], manches: manchesDetail || [], premierALaBulle: bulleStartIdx }),
         };
         const contenu = `__DUEL__|${JSON.stringify(duelPost)}`;
         const gagnantPhotoArr = await fetch(`${SB_URL}/rest/v1/joueurs?id=eq.${gagnantId}&select=photo`, {
@@ -2232,6 +2236,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           winner: { nom: winnerJ?.nom, nbManches: winnerJ?.manchesGagnees || 0, total: 0, elo: 0, xp: humainGagne ? delta : 0, xpLines: humainGagne ? xpLinesHum : [], moy: moyOf(winnerJ), photo: photoDe(winnerJ) },
           loser:  { nom: loserJ?.nom,  nbManches: loserJ?.manchesGagnees || 0,  total: 0, elo: 0, xp: humainGagne ? 0 : delta, xpLines: humainGagne ? [] : xpLinesHum, moy: moyOf(loserJ), photo: photoDe(loserJ) },
           manches: manchesHistory || [],
+          stats: calculerStatsMatch({ joueurs: [winnerJ, loserJ].filter(Boolean), manches: manchesHistory || [], premierALaBulle: bulleStartIdx }),
         };
         // La charge utile est mise DE CÔTÉ, pas seulement capturée dans cette fonction : le bouton
         // « Publier au Comptoir » de l'écran de fin doit pouvoir la renvoyer plus tard, si la

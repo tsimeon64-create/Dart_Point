@@ -19,6 +19,7 @@ import { Scoreur } from "./AppJeux";
 import { useRaccourcis } from "./raccourcisScores";
 import { texteContoure, epaisseurContour, FOND_CARTE_JAUNE, KEYFRAMES_CARTE_JAUNE } from "./contourTexte";
 import { reduceGameOnline, buildFinalizationData, mergeVolleys } from "./onlineGame";
+import { statsDepuisManches } from "./statsMatch";
 import { ConfigCricket } from "./AppCricket";
 import { JeuCapital } from "./AppJeuDecalePoint";
 import { ToucheCoule } from "./AppToucheCoule";
@@ -4766,6 +4767,7 @@ const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepu
 const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepuis, setPage }) => {
   const [openManches, setOpenManches] = useState(false);
   const [openDrix, setOpenDrix]       = useState(false);
+  const [openStats, setOpenStats]     = useState(false);
   // Pour un duel bot, l'auteur du post (humain) n'est pas forcément le gagnant : on prend les
   // photos stockées dans le post (celle du bot peut être null → avatar par défaut), pas celle de l'auteur.
   const [winnerPhoto, setWinnerPhoto] = useState(d.bot ? (d.winner?.photo || null) : (p.joueur_photo || null));
@@ -5177,6 +5179,76 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
             </button>
           )}
         </div>
+
+
+        {/* « Plus de stats » — la même fiche qu'à la fin d'un match. Pour les cartes déjà
+            publiées, on recalcule ce qu'on peut depuis le détail des manches. */}
+        {manches.length > 0 && (() => {
+          const stats = Array.isArray(d.stats) && d.stats.length >= 2
+            ? d.stats
+            : statsDepuisManches(manches, [w.nom, l.nom]);
+          const sw = stats.find(x => x && x.nom === w.nom) || stats[0];
+          const sl = stats.find(x => x && x.nom === l.nom) || stats[1];
+          if (!sw || !sl) return null;
+          const val = (o, f) => { const v = f(o); return (v === null || v === undefined || v === "") ? "—" : v; };
+          const Ligne = ({ label, lire }) => (
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 118px 1fr", alignItems:"center", padding:"6px 0", borderBottom:"1px solid #ffffff0d" }}>
+              <div style={{ textAlign:"right", fontSize:13, fontWeight:700, color:"#e2e8f0" }}>{val(sw, lire)}</div>
+              <div style={{ textAlign:"center", fontSize:10.5, color:"#64748b" }}>{label}</div>
+              <div style={{ textAlign:"left", fontSize:13, fontWeight:700, color:"#e2e8f0" }}>{val(sl, lire)}</div>
+            </div>
+          );
+          const pourcent = (o) => (o && o.total ? `${Math.round(o.pct)}% (${o.gagnes}/${o.total})` : null);
+          const incomplet = sw.first9 === null;
+          return (<>
+            <button onClick={()=>setOpenStats(o=>!o)} style={{
+              width:"100%", marginTop:10,
+              background: openStats ? "linear-gradient(135deg,#fbbf2422,#fbbf2408)" : "linear-gradient(135deg,#15151c,#0a0a10)",
+              border:`1px solid ${openStats ? "#fbbf2488" : "#ffffff15"}`,
+              borderRadius:12, padding:"10px", color: openStats ? "#fbbf24" : "#cbd5e1",
+              fontWeight:800, fontSize:12, cursor:"pointer", touchAction:"manipulation",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+              boxShadow: openStats ? "0 0 14px #fbbf2433, inset 0 1px 0 #fbbf2433" : "inset 0 1px 0 #ffffff08",
+              transition:"all .15s" }}>
+              <EmoIcon e="📊" size={13}/>{openStats ? "Masquer les stats" : "Plus de stats"}
+            </button>
+            {openStats && (
+              <div style={{ marginTop:10, background:"#0b0b12", border:"1px solid #ffffff12", borderRadius:12, padding:"12px 14px" }}>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 118px 1fr", marginBottom:6 }}>
+                  <div style={{ textAlign:"right", fontWeight:800, fontSize:12, color:"#22c55e" }}>{w.nom}</div>
+                  <div/>
+                  <div style={{ textAlign:"left", fontWeight:800, fontSize:12, color:"#94a3b8" }}>{l.nom}</div>
+                </div>
+                <Ligne label="Manches" lire={o=>o.manchesGagnees}/>
+                <Ligne label="Moyenne" lire={o=>o.moyenne || null}/>
+                <Ligne label="First 9" lire={o=>o.first9 || null}/>
+                <Ligne label="Fléchettes" lire={o=>o.flechettes || null}/>
+                <Ligne label="Volées" lire={o=>o.volees || null}/>
+                <Ligne label="Meilleure volée" lire={o=>o.meilleureVolee || null}/>
+                <Ligne label="60+" lire={o=>o.p60}/>
+                <Ligne label="80+" lire={o=>o.p80}/>
+                <Ligne label="100+" lire={o=>o.p100}/>
+                <Ligne label="120+" lire={o=>o.p120}/>
+                <Ligne label="140+" lire={o=>o.p140}/>
+                <Ligne label="170+" lire={o=>o.p170}/>
+                <Ligne label="180" lire={o=>o.p180}/>
+                <Ligne label="Plus gros finish" lire={o=>o.highFinish || null}/>
+                <Ligne label="Finishs 100+" lire={o=>o.finishs100}/>
+                <Ligne label="Meilleure manche" lire={o=>o.meilleureManche ? `${o.meilleureManche} fléch.` : null}/>
+                <Ligne label="Pire manche" lire={o=>o.pireManche ? `${o.pireManche} fléch.` : null}/>
+                <Ligne label="Checkout" lire={o=>o.checkout && o.checkout.tentatives ? `${Math.round(o.checkout.pct)}% (${o.checkout.reussis}/${o.checkout.tentatives})` : null}/>
+                <Ligne label="Keep" lire={o=>pourcent(o.keep)}/>
+                <Ligne label="Break" lire={o=>pourcent(o.brk)}/>
+                {incomplet && (
+                  <div style={{ fontSize:10.5, color:"#64748b", marginTop:9, lineHeight:1.5 }}>
+                    First 9, 120+, 170+, Keep et Break n&apos;étaient pas enregistrés pour cette partie :
+                    ils apparaîtront sur les matchs joués à partir de maintenant.
+                  </div>
+                )}
+              </div>
+            )}
+          </>);
+        })()}
 
         {openManches && (
           <div style={{ marginTop:10 }}>
