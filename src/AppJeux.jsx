@@ -1090,6 +1090,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [tri, setTri] = useState(() => { try { return localStorage.getItem("dp_bot_tri") || "drix"; } catch { return "drix"; } });
   const [botPreparing, setBotPreparing] = useState(!!initBotAmiId); // entrée directe « Affronte son bot » depuis une fiche joueur
   const botXpRef = useRef(false);                       // évite de créditer l'XP deux fois
+  const bulleXpRef = useRef(false);                    // bonus « tu commences » : une seule fois par match
   // Publication du match bot au Comptoir : la charge utile est gardée pour que l'écran de fin
   // puisse la renvoyer, la fenêtre de confirmation n'étant plus la seule occasion.
   const [postBot, setPostBot] = useState(null);
@@ -1311,6 +1312,34 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     score: startVal, manchesGagnees: 0, tours: [], flechettes: 0, totalPoints: 0, scorePrecedent: null,
   }));
 
+  // ── +100 XP au joueur qui gagne la bulle (duel et match de tournoi seulement) ────────
+  // Une seule fois par match : revenir en arrière avec « ← Changer qui commence » ne reverse
+  // rien. Et seulement si le gagnant de la bulle a un COMPTE : au tournoi, challenger_id est
+  // une inscription (le compte est dans challenger_compte_id, null pour une doublette).
+  const XP_BULLE = 100;
+  const crediterBulleXp = async (startIdx) => {
+    if (!modeDuel || !duel || bulleXpRef.current) return;
+    const estTournoi = duel.challenger_compte_id !== undefined || duel.defie_compte_id !== undefined;
+    const compteId = startIdx === 0
+      ? (estTournoi ? duel.challenger_compte_id : duel.challenger_id)
+      : (estTournoi ? duel.defie_compte_id : duel.defie_id);
+    const nomQuiCommence = startIdx === 0 ? (duel.challenger_pseudo || "Joueur 1") : (duel.defie_pseudo || "Joueur 2");
+    if (!compteId) return;
+    bulleXpRef.current = true;
+    try {
+      // On relit l'XP juste avant d'écrire : l'autre téléphone a pu la faire bouger entre-temps.
+      const rows = await lireSb(`joueurs?id=eq.${compteId}&select=xp`);
+      const actuel = (rows && rows[0] && rows[0].xp) || 0;
+      await dbJ.updateJoueur(compteId, { xp: actuel + XP_BULLE });
+      if (joueur?.id === compteId) {
+        if (setJoueur) setJoueur((p) => ({ ...p, xp: actuel + XP_BULLE }));
+        window.dpToast?.(`+${XP_BULLE} XP — tu commences 🎯`, "success");
+      } else {
+        window.dpToast?.(`+${XP_BULLE} XP pour ${nomQuiCommence} — il commence 🎯`, "success");
+      }
+    } catch { bulleXpRef.current = false; }   // la base n'a pas répondu : on pourra réessayer
+  };
+
   // nomsOverride : en mode libre, ordre de passage choisi à la bulle (sinon ordre de config).
   const demarrerAvecBulle = (startIdx, nomsOverride = null) => {
     const sv = modeDuel ? parseInt(duel?.mode || "501") : startVal;
@@ -1323,6 +1352,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       score: sv, manchesGagnees: 0, tours: [], flechettes: 0, totalPoints: 0, scorePrecedent: null,
     })));
     setBulleStartIdx(startIdx);
+    crediterBulleXp(startIdx);    // bonus « tu commences » (duel / tournoi) — sans bloquer le départ
     setNumPartie((k) => k + 1);   // les raccourcis prennent la rangée mise à jour par la partie d'avant
     setMancheEnCours(0);
     setActifIdx(startIdx);
