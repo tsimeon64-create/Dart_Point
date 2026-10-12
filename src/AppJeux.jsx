@@ -235,7 +235,7 @@ const PileOuFace = ({ joueurs, onFini, onFermer }) => {
 const SB_URL_J = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY_J = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 
-const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moyenne, demarrer, quitterPartie, onRejouer=null, joueurs: joueursData=[], manchesDetail=[], premierALaBulle=0, publierBot=null, etatPublication="attente" }) => {
+const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moyenne, demarrer, quitterPartie, onRejouer=null, joueurs: joueursData=[], manchesDetail=[], premierALaBulle=0, manchesAGagner=null, publierBot=null, etatPublication="attente" }) => {
   const [show, setShow] = useState(false);
   const [drixShow, setDrixShow] = useState(false);
   const [winnerPhoto, setWinnerPhoto] = useState(null);
@@ -445,7 +445,8 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
             {gagnantIdx===0 ? j1.manchesGagnees : j0.manchesGagnees}
           </div>
         </div>
-        <div style={{ fontSize:10, fontWeight:700, color:"#86efac", letterSpacing:2, marginTop:6, textTransform:"uppercase" }}>Score final · {duel?.manches||3} manches gagnantes</div>
+        <div style={{ fontSize:10, fontWeight:700, color:"#86efac", letterSpacing:2, marginTop:6, textTransform:"uppercase" }}>{/* En partie libre `duel` est vide : on affichait « 3 » par défaut même pour un match en 1 manche */}
+          {(() => { const n = manchesAGagner || duel?.manches || 1; return `Score final · Premier à ${n} manche${n > 1 ? "s" : ""}`; })()}</div>
       </div>
 
       {/* ════════════════════════════════════════════════════════════════ */}
@@ -2758,6 +2759,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       joueurs={joueurs}
       manchesDetail={manchesHistory}
       premierALaBulle={bulleStartIdx}
+      manchesAGagner={modeDuel ? (duel?.manches || 1) : config.manches}
       publierBot={postBot ? () => publierPostBot() : null}
       etatPublication={etatPostBot}
     />
