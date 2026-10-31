@@ -1,6 +1,7 @@
 -- ============================================================================
 -- stats_1_reset_colonne.sql — bouton « Réinitialiser mes stats » (v135)
--- À coller dans Supabase → SQL Editor → Run (une fois). Relançable sans risque.
+-- À coller dans Supabase → SQL Editor → Run (une fois). DÉJÀ PASSÉ (v135) : ne plus le
+-- relancer, sa copie de la vue est périmée (voir partie 3 et bots_1_vue_analyse.sql).
 -- ============================================================================
 -- Pourquoi : chaque joueur peut désormais remettre SES statistiques à zéro depuis
 -- sa page Stats (double confirmation). L'appli n'efface rien : elle note la date de
@@ -35,6 +36,9 @@ grant update (parties_avant_reset, victoires_avant_reset, defaites_avant_reset) 
 
 -- 3) La vue des bots : même définition que bots_1_vue_analyse.sql, PLUS le filtre
 --    « duels postérieurs à la remise à zéro » dans dj.
+--    ⚠️ Octobre 2026 : cette copie est PÉRIMÉE (il lui manque avg_10 / n_10). Elle a déjà
+--    été passée ; NE PAS relancer ce script : la vue à jour est bots_1_vue_analyse.sql
+--    (relancer celle-ci par-dessus échouerait : « cannot drop columns from view »).
 create or replace function public.dp_num(t text) returns numeric
 language sql immutable strict
 set search_path = pg_catalog

@@ -13,6 +13,9 @@
 -- à la volée en lisant duels, stats_joueurs et joueurs) et une petite fonction
 -- de lecture sûre des nombres. Il peut être relancé sans risque.
 --
+-- Octobre 2026 : nouvelle colonne avg_10 (moyenne sur les 10 derniers matchs),
+-- celle que montre maintenant la liste des bots. Relancer ce script l'ajoute.
+--
 -- ⚠️ Les additions ici reproduisent EXACTEMENT analyserJoueur (src/AppJoueurs.jsx),
 -- le calcul de la fiche profil. La FORMULE de dangerosité, elle, reste dans
 -- l'appli (scoreDanger) : la vue ne fournit que les sommes.
@@ -46,7 +49,14 @@ dj as (
          case when d.challenger_id::text = j.id::text then coalesce(nullif(d.challenger_pseudo, ''), j.pseudo, '')
               else coalesce(nullif(d.defie_pseudo, ''), j.pseudo, '') end as my_p,
          public.dp_num(case when d.challenger_id::text = j.id::text then d.score_challenger::text else d.score_defie::text end) as mon_score,
-         d.manches_detail
+         d.manches_detail,
+         -- Son rang de récence parmi ses duels de 501 / 301 : 1 = le dernier (même ordre que
+         -- la forme ci-dessous). Sert à avg_10 / n_10, la moyenne de ses 10 derniers matchs
+         -- (liste des bots, oct. 2026). Un duel de Cricket n'a pas de moyenne : pas de rang
+         -- (NULL), il ne prend pas une des 10 places — comme compteDansLaMoyenne côté appli.
+         case when coalesce(d.mode, '') = 'Cricket' then null
+              else row_number() over (partition by j.id, coalesce(d.mode, '') = 'Cricket'
+                                      order by d.date desc nulls last, d.id desc) end as rn
   from public.joueurs j
   join public.duels d on d.statut = 'termine' and (d.challenger_id::text = j.id::text or d.defie_id::text = j.id::text)
    -- ⚠️ Remise à zéro des stats (v135, stats_1_reset_colonne.sql) : on ignore tout ce
@@ -56,7 +66,7 @@ dj as (
 ),
 -- Une ligne par manche jouée. is_w = il a gagné CETTE manche (winner = son pseudo).
 legs as (
-  select dj.joueur_id,
+  select dj.joueur_id, dj.rn,
          ((m->>'winner') = dj.my_p or (m->>'winner') = dj.pseudo) as is_w,
          m
   from dj
@@ -66,7 +76,7 @@ legs as (
 ),
 -- Ses chiffres de la manche : winner_* s'il l'a gagnée, loser_* sinon (comme l'appli).
 legs_n as (
-  select joueur_id, coalesce(is_w, false) as is_w,
+  select joueur_id, rn, coalesce(is_w, false) as is_w,
          coalesce(public.dp_num(m->>(case when coalesce(is_w, false) then 'winner_volees' else 'loser_volees' end)), 0) as vol,
          coalesce(public.dp_num(m->>(case when coalesce(is_w, false) then 'winner_moy'    else 'loser_moy'    end)), 0) as moy,
          coalesce(public.dp_num(m->>(case when coalesce(is_w, false) then 'winner_180'    else 'loser_180'    end)), 0) as n180,
@@ -81,14 +91,19 @@ agg_legs as (
          sum(co_att)                                                   as co_attempts,
          count(*) filter (where is_w and co_att > 0)                   as co_won,
          count(*) filter (where is_w)                                  as legs_won,
-         count(*) filter (where not is_w)                              as legs_lost
+         count(*) filter (where not is_w)                              as legs_lost,
+         -- Les mêmes sommes de moyenne, sur ses 10 derniers duels seulement (avg_10)
+         sum(case when rn <= 10 and moy > 0 then moy * greatest(1, vol) else 0 end) as sum_moy_w10,
+         sum(case when rn <= 10 and moy > 0 then greatest(1, vol) else 0 end)       as vol_moy10
   from legs_n
   group by joueur_id
 ),
 -- Moyenne de repli (quand aucune manche détaillée) : son score par duel, > 0.
 agg_duels as (
   select joueur_id, count(*) as nb_duels,
-         avg(mon_score) filter (where mon_score > 0) as moyenne_duels
+         avg(mon_score) filter (where mon_score > 0) as moyenne_duels,
+         avg(mon_score) filter (where mon_score > 0 and rn <= 10) as moyenne_duels10,
+         count(*) filter (where rn <= 10)                         as n_10
   from dj
   group by joueur_id
 ),
@@ -131,7 +146,15 @@ select j.id                                   as joueur_id,
        coalesce(al.co_won, 0)                 as co_won,
        coalesce(al.n180, 0)                   as n180,
        coalesce(al.legs_won, 0)               as legs_won,
-       coalesce(al.legs_lost, 0)              as legs_lost
+       coalesce(al.legs_lost, 0)              as legs_lost,
+       -- ⚠️ Toujours EN DERNIER : « create or replace view » n'accepte de nouvelles
+       -- colonnes qu'à la fin. Moyenne de ses 10 derniers matchs (501/301), même calcul
+       -- que avg_reel (moyenneDerniersMatchs dans src/moyenneRecente.js), et combien de
+       -- matchs elle couvre (moins de 10 s'il a peu joué).
+       case when coalesce(al.vol_moy10, 0) > 0 then round(al.sum_moy_w10 / al.vol_moy10)
+            when ad.moyenne_duels10 is not null then round(round(ad.moyenne_duels10, 1))
+            else null end                                                          as avg_10,
+       coalesce(ad.n_10, 0)                   as n_10
 from public.joueurs j
 left join stats     s  on s.joueur_id::text = j.id::text
 left join forme     f  on f.joueur_id  = j.id
@@ -142,8 +165,9 @@ left join agg_duels ad on ad.joueur_id = j.id;
 grant select  on public.v_analyse_joueurs to anon, authenticated;
 grant execute on function public.dp_num(text) to anon, authenticated;
 
--- Aperçu (tu dois voir tes joueurs les mieux classés, avec leur moyenne réelle) :
-select pseudo, drix, win_rate, avg_reel, checkout_pct, n180, nb_duels
+-- Aperçu (tu dois voir tes joueurs les mieux classés, avec leur moyenne réelle
+-- et, à côté, leur moyenne sur leurs 10 derniers matchs) :
+select pseudo, drix, win_rate, avg_reel, avg_10, checkout_pct, n180, nb_duels
 from public.v_analyse_joueurs
 order by drix desc
 limit 20;

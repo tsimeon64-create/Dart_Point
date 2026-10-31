@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { PanneauStatsMatch } from "./StatsMatchPanel";
+import { moyenneDerniersMatchs, MATCHS_RECENTS } from "./moyenneRecente";
 import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Crosshair, Star, Zap, Flame, Sparkles, Snowflake, Minus, ArrowUp, ArrowDown, Gamepad2, Dices, Scale, Beer, Cake, HeartCrack, Circle, Bomb, Sprout, List, Cog, Hand, Rocket, QrCode, RotateCcw, History } from "lucide-react";
 import QRCode from "qrcode";
 import { EmoIcon } from "./icons";
@@ -3762,7 +3763,12 @@ export const analyseDepuisVue = (row, drix = null) => {
   const formePct = num(row.forme_pct) ?? 0;
   const A = { avgReel: num(row.avg_reel), checkoutPct: num(row.checkout_pct), n180: num(row.n180) ?? 0,
               coAttempts: num(row.co_attempts) ?? 0, coWon: num(row.co_won) ?? 0,
-              legsWon: num(row.legs_won) ?? 0, legsLost: num(row.legs_lost) ?? 0, totalLegs: (num(row.legs_won) ?? 0) + (num(row.legs_lost) ?? 0) };
+              legsWon: num(row.legs_won) ?? 0, legsLost: num(row.legs_lost) ?? 0, totalLegs: (num(row.legs_won) ?? 0) + (num(row.legs_lost) ?? 0),
+              // Moyenne sur ses 10 derniers matchs (501/301). La colonne n'existe pas tant que la
+              // vue n'a pas été remise à jour (bots_1_vue_analyse.sql relancé) : avg10Dispo faux,
+              // et la liste retombe alors sur avgReel, comme avant.
+              avg10Dispo: "avg_10" in row, avg10: num(row.avg_10),
+              n10: Math.min(MATCHS_RECENTS, num(row.n_10) ?? 0) };
   const d = drix ?? num(row.drix) ?? 1000;
   return { winRate, formePct, moyenneDuels: null, A, nbDuels: num(row.nb_duels) ?? 0, drix: d,
            ...scoreDanger({ winRate, formePct, drix: d, avgReel: A.avgReel, checkoutPct: A.checkoutPct, n180: A.n180 }) };
@@ -3826,8 +3832,11 @@ export const analyserJoueur = ({ joueurId, pseudo = "", drix = 1000, stats = nul
     const firstLegPct = firstPlayed>=4 ? Math.round(firstWon/firstPlayed*100) : null;
     const deciderPct  = decPlayed>=3  ? Math.round(decWon/decPlayed*100)    : null;
     const bestFinish  = finishes.length ? Math.max(...finishes) : 0;
+    // Sa moyenne sur ses 10 derniers matchs (liste des bots) — même calcul, limité aux plus récents.
+    const recente = moyenneDerniersMatchs({ joueurId, pseudo, duels });
     return { totalLegs, legsWon, legsLost, avgReel, checkoutPct, coAttempts, coWon, n180, tonRate, rate180,
-             regularite, stdev, dechetRate, firstLegPct, firstPlayed, firstWon, deciderPct, decPlayed, decWon, bestFinish };
+             regularite, stdev, dechetRate, firstLegPct, firstPlayed, firstWon, deciderPct, decPlayed, decWon, bestFinish,
+             avg10Dispo: true, avg10: recente.moyenne, n10: recente.nbMatchs };
   })();
 
   const { dangerScore, dangerColor, dangerLabel, dangerDriver } =

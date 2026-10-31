@@ -5,6 +5,7 @@ import { EmoIcon, EmoText } from "./icons";
 import { calculerProfilBot, genererScoreBot, BOT_LUCKY_LITTLER } from "./botFleche";
 import { useRaccourcis, RACCOURCIS_DEFAUT } from "./raccourcisScores";
 import { calculerStatsMatch, statsParManche, BANDES } from "./statsMatch";
+import { texteDerniersMatchs } from "./moyenneRecente";
 import { texteContoure, epaisseurContour, FOND_CARTE_JAUNE, KEYFRAMES_CARTE_JAUNE } from "./contourTexte";
 
 // ── Fiche d'un bot : ce qu'on MONTRE au joueur avant d'affronter ──────────────
@@ -40,6 +41,19 @@ const ficheSource = (p) => {
 // vraies stats du pro (moyenne réalisée ~96, checkout 43 %).
 const ANALYSE_CHAMPION = { winRate: 100, formePct: 1, A: { avgReel: 96, checkoutPct: 43, n180: 5 },
   dangerScore: 100, dangerColor: "#ef4444", dangerLabel: "Joueur dangereux", dangerDriver: "calé sur les vraies stats d'un pro" };
+
+// La moyenne MONTRÉE dans la liste des bots : celle de ses 10 derniers matchs (501/301),
+// sa forme du moment, plus parlante que la moyenne de toute sa carrière.
+// Repli sur la moyenne générale seulement quand ce chiffre n'EXISTE pas : vue SQL pas
+// encore remise à jour (pas de colonne avg_10) ou champion (profil fixe). Si la colonne
+// existe mais qu'il n'a aucun chiffre dans ses 10 derniers matchs, on montre « — » plutôt
+// que de glisser sa moyenne générale sous l'étiquette « 10 derniers matchs ».
+// La dangerosité, elle, garde la moyenne générale : c'est la même jauge que sur son profil.
+const moyenneMontree = (an) => {
+  const A = an?.A;
+  if (A?.avg10Dispo) return { moy: A.avg10 ?? null, recente: true, n: A.n10 || 0 };
+  return { moy: A?.avgReel ?? null, recente: false, n: 0 };
+};
 import { confirmer } from "./uiConfirm.jsx";
 // Logique PURE du pavé « fléchette par fléchette » (testée : src/voleeFlechettes.test.mjs)
 import {
@@ -892,7 +906,7 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
     </div>
   );
 };
-import { finaliserDuel, dbJ, analyserJoueur, analyseDepuisVue, chancesContre, CircleGauge, STYLE_JAUGE } from "./AppJoueurs";
+import { finaliserDuel, dbJ, analyserJoueur, analyseDepuisVue, chancesContre, CircleGauge, STYLE_JAUGE, depuisReset } from "./AppJoueurs";
 
 // ── AppJeux.jsx ───────────────────────────────────────────────────────────────
 // Scores depuis lesquels un checkout (finish) est possible : tous les scores de 2 à
@@ -1573,19 +1587,22 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       profil = { ...BOT_LUCKY_LITTLER };   // profil FIXE du champion — aucun historique à charger
     } else {
       const manque = avecAnalyse && !analysesRef.current[cle];
-      const [duels, volees, stats] = await Promise.all([
+      const [duels, volees, stats, reset] = await Promise.all([
         dbJ.getDuels(ami.id).catch(() => []),
         dbJ.getVoleesReelles(ami.id).catch(() => []),
         manque ? dbJ.getStats(ami.id).catch(() => null) : Promise.resolve(null),
+        manque ? dbJ.getStatsResetAt(ami.id) : Promise.resolve(0),
       ]);
       profil = calculerProfilBot({ drix: ami.drix, duels, amiPseudo: ami.pseudo, volees });
       // Ses chiffres de profil ne sont pas là (vue SQL absente ou en erreur) : on les
       // calcule ici comme la fiche joueur, avec la MÊME préparation des duels (terminés,
-      // du plus récent au plus ancien), sinon forme et dangerosité divergeraient.
+      // du plus récent au plus ancien, depuis sa remise à zéro des stats comme la vue),
+      // sinon forme, dangerosité et moyenne des 10 derniers matchs divergeraient.
       if (manque) {
-        const termines = (duels || []).filter((d) => d.statut === "termine").sort((a, b) => (b.date || 0) - (a.date || 0));
+        const termines = depuisReset((duels || []).filter((d) => d.statut === "termine").sort((a, b) => (b.date || 0) - (a.date || 0)), reset);
         const analyse = analyserJoueur({ joueurId: ami.id, pseudo: ami.pseudo, drix: ami.drix, stats, duels: termines });
-        poserAnalyses((prev) => ({ ...prev, [cle]: { analyse,
+        // La vue a pu répondre pendant ce calcul : ses chiffres priment, on ne les écrase pas.
+        poserAnalyses((prev) => (prev[cle] ? prev : { ...prev, [cle]: { analyse,
           chances: ami.self ? null : chancesContre({ drix: ami.drix, monDrix: joueur?.drix || 1000, formePct: analyse.formePct }) } }));
       }
     }
@@ -2422,11 +2439,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     );
   }
 
-  // ── Tri de la liste des bots : DRIX (ordre d'origine), moyenne réelle ou dangerosité.
-  // Sans chiffre (fiche pas encore là) = en bas ; à égalité, le DRIX départage.
+  // ── Tri de la liste des bots : DRIX (ordre d'origine), moyenne (celle affichée : ses
+  // 10 derniers matchs) ou dangerosité. Sans chiffre (fiche pas encore là) = en bas ;
+  // à égalité, le DRIX départage.
   const valeurTri = (a) => {
     const an = analyses[cleAmi(a)]?.analyse;
-    return tri === "moyenne" ? (an?.A?.avgReel ?? -1) : tri === "danger" ? (an?.dangerScore ?? -1) : (a.drix || 0);
+    return tri === "moyenne" ? (moyenneMontree(an).moy ?? -1) : tri === "danger" ? (an?.dangerScore ?? -1) : (a.drix || 0);
   };
   const listeTriee = tri === "drix" ? amisListe
     : [...amisListe].sort((a, b) => (valeurTri(b) - valeurTri(a)) || ((b.drix || 0) - (a.drix || 0)));
@@ -2440,6 +2458,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       <h1 style={{ fontWeight:900, fontSize:24, marginBottom:4, color:"#f1f5f9", textAlign:"center" }}>🤖 Affronter un ami</h1>
       <p style={{ color:"#94a3b8", fontSize:13, marginBottom:22, textAlign:"center", lineHeight:1.5 }}>
         Choisis un ami : le bot jouera à son niveau, d'après ses vraies stats (ou son DRIX s'il a peu joué).
+        {/* Seulement quand la liste montre vraiment cette moyenne (vue SQL à jour) */}
+        {Object.values(analyses).some((x) => x?.analyse?.A?.avg10Dispo) && (
+          <><br/><span style={{ color:"#64748b", fontSize:12 }}>MOY = sa moyenne sur ses 10 derniers matchs.</span></>
+        )}
       </p>
       {botPreparing ? (
         <p style={{ color:"#64748b", textAlign:"center", padding:"30px 0" }}>🤖 Préparation du bot…</p>
@@ -2508,7 +2530,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                 {an ? (
                   <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
                     <div style={{ textAlign:"center" }}>
-                      <div style={{ fontSize:18, fontWeight:900, color:"#f1f5f9", lineHeight:1 }}>{an.A?.avgReel ?? "—"}</div>
+                      <div style={{ fontSize:18, fontWeight:900, color:"#f1f5f9", lineHeight:1 }}>{moyenneMontree(an).moy ?? "—"}</div>
                       <div style={{ fontSize:8, fontWeight:800, color:"#64748b", letterSpacing:1, marginTop:3 }}>MOY</div>
                     </div>
                     <div role="img" aria-label={`Dangerosité ${an.dangerScore} sur 100, ${an.dangerLabel}`} title={an.dangerLabel}
@@ -2537,8 +2559,12 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                   ) : (() => {
                     // Les chiffres du PROFIL d'abord (les mêmes que sur sa fiche joueur) ;
                     // ceux du bot seulement en repli, quand le profil n'a rien.
-                    const moyProfil = an?.A?.avgReel != null;
-                    const moy = moyProfil ? an.A.avgReel : fiche ? ficheMoyenne(fiche) : null;
+                    const montree = moyenneMontree(an);
+                    const moyProfil = montree.moy != null;
+                    const moy = moyProfil ? montree.moy : fiche ? ficheMoyenne(fiche) : null;
+                    // Sa moyenne de toute sa carrière, rappelée sous celle des 10 derniers matchs
+                    // quand elle est différente (c'est elle que cite la dangerosité).
+                    const moyGenerale = montree.recente && an.A.avgReel != null && an.A.avgReel !== montree.moy ? an.A.avgReel : null;
                     const ck = an?.A?.checkoutPct != null ? { pct: an.A.checkoutPct, reel: true } : fiche ? ficheCheckout(fiche) : null;
                     const chances = analyses[cle]?.chances ?? 50;
                     const colChances = chances >= 50 ? "#22c55e" : "#ef4444";
@@ -2549,7 +2575,14 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                           <div style={{ flex:1, background:"#0f0f0f", border:"1px solid #2a2a2a", borderRadius:12, padding:"10px 12px" }}>
                             <div style={{ fontSize:10, fontWeight:800, color:"#64748b", letterSpacing:1 }}>MOYENNE</div>
                             <div style={{ fontSize:32, fontWeight:900, color:"#f1f5f9", lineHeight:1.1, marginTop:2 }}>{moy ?? "…"}</div>
-                            <div style={{ fontSize:11, color:"#94a3b8" }}>{moyProfil ? "par volée · comme son profil" : "par volée · estimée"}</div>
+                            <div style={{ fontSize:11, color:"#94a3b8" }}>
+                              {montree.recente && moyProfil ? texteDerniersMatchs(montree.n, !!ami.self) : moyProfil ? "par volée · comme son profil" : "par volée · estimée"}
+                            </div>
+                            {moyGenerale != null && (
+                              <div style={{ fontSize:10.5, color:"#64748b", marginTop:2 }}>
+                                {moyGenerale} en général{montree.moy == null ? "" : montree.moy > moyGenerale ? " · en forme" : " · en petite forme"}
+                              </div>
+                            )}
                           </div>
                           {/* Réussite au finish */}
                           <div style={{ flex:1.3, background:"#0f0f0f", border:"1px solid #2a2a2a", borderRadius:12, padding:"10px 12px" }}>
