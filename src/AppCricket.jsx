@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Target, Swords, Home, Crown, Lock } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
-import { verserBonusBulle, nouvelEtatBulle, XP_BULLE } from "./bulleXp";
+import { verserBonusBulleFinDeMatch, bonusDejaVerseCeJour, debutDuJour, nouvelEtatBulle, XP_BULLE } from "./bulleXp";
 
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
@@ -387,9 +387,10 @@ export const ScoreurCricket = ({ config, setPage, onRejouer = null }) => {
   const [advancing, setAdvancing] = useState(false);
 
   // ── +100 XP au joueur qui a gagné la bulle (défi Cricket — même règle qu'au 501) ──────
-  // La bulle a rangé les joueurs : le 1er (index 0) est celui qui commence. Versé au PREMIER
-  // lancer réellement joué, une seule fois par duel — réservation + versement dans
-  // src/bulleXp.js, partagé avec le 501 (jamais deux fois, jamais d'XP effacée).
+  // La bulle a rangé les joueurs : le 1er (index 0) est celui qui commence. Versé à la FIN d'un
+  // défi TERMINÉ (effet de fin ci-dessous), au plus une fois par jour contre le même adversaire —
+  // réservation + versement dans src/bulleXp.js, partagé avec le 501 (jamais deux fois, jamais
+  // d'XP effacée). Plus au 1er lancer : c'était farmable (défi, 1 fléchette, quitter, recommencer).
   const bulleXpRef = useRef(nouvelEtatBulle());
   const crediterBulleXp = async () => {
     const d = config.defi;
@@ -397,8 +398,10 @@ export const ScoreurCricket = ({ config, setPage, onRejouer = null }) => {
     if (!d || !d.duelId || !premier) return;
     const compteId = premier.id;
     if (compteId !== d.challengerId && compteId !== d.defiId) return;   // jamais un compte inconnu
-    const res = await verserBonusBulle({ sbUrl: SB_URL, sbKey: SB_KEY, cible: `duels?id=eq.${d.duelId}`, compteId,
-      cleLocale: `dp_bulle_xp_${d.duelId}`, etat: bulleXpRef.current });
+    const adversaireId = compteId === d.challengerId ? d.defiId : d.challengerId;
+    const plafond = () => bonusDejaVerseCeJour({ sbUrl: SB_URL, sbKey: SB_KEY, compteId, adversaireId, duelId: d.duelId, debutJour: debutDuJour() });
+    const res = await verserBonusBulleFinDeMatch({ sbUrl: SB_URL, sbKey: SB_KEY, cible: `duels?id=eq.${d.duelId}`, compteId,
+      cleLocale: `dp_bulle_xp_${d.duelId}`, etat: bulleXpRef.current, plafond });
     if (res === "paye") window.dpToast?.(`+${XP_BULLE} XP pour ${premier.pseudo} — gagnant de la bulle 🎯`, "success");
   };
 
@@ -550,7 +553,6 @@ export const ScoreurCricket = ({ config, setPage, onRejouer = null }) => {
   // ── Enregistrer une fléchette ──────────────────────────────────────────────
   const hit = (zone) => {
     if (darts.length >= 3 || phase !== "jeu" || advancing) return;
-    crediterBulleXp();   // bonus du gagnant de la bulle : au 1er lancer du duel, une seule fois
     setHistorique(h => [...h.slice(-29), snap()]);
 
     const nb = zone === "Bull" ? Math.min(2, mult) : mult; // le Bull ne compte jamais comme un triple (max 2 marques)
@@ -598,7 +600,6 @@ export const ScoreurCricket = ({ config, setPage, onRejouer = null }) => {
 
   const miss = () => {
     if (darts.length >= 3 || phase !== "jeu" || advancing) return;
-    crediterBulleXp();
     setHistorique(h => [...h.slice(-29), snap()]);
     setMult(1);
     const nd = [...darts, { zone: null, label: "—" }];
@@ -762,6 +763,10 @@ export const ScoreurCricket = ({ config, setPage, onRejouer = null }) => {
           valide_defie:true,
           score_manches_challenger: scoreChallenger,
           score_manches_defie: scoreDefie,
+          // L'heure de FIN, comme au 501 : le plafond « 1 bonus de bulle par jour contre le même
+          // adversaire » lit duels.date — avec l'heure de création, un défi créé la veille et fini
+          // aujourd'hui échappait au plafond.
+          date: now,
         }), prefer:"return=minimal" }).catch(()=>{}),
         // Publication sur le Comptoir — format __DUEL__| pour bénéficier du DuelPost premium
         sbC("wall_posts", { method:"POST", body:JSON.stringify({
@@ -774,6 +779,9 @@ export const ScoreurCricket = ({ config, setPage, onRejouer = null }) => {
       ]).catch(()=>{
         window.dpToast?.("Erreur lors de la sauvegarde du résultat", "error", 5000);
       });
+      // Défi TERMINÉ : bonus du gagnant de la bulle (le Cricket n'écrit pas d'autre XP ici,
+      // les écritures ci-dessus touchent d'autres colonnes — pas de conflit).
+      crediterBulleXp();
       localStorage.removeItem("dp_cricket_duel");
     })();
   }, [phase, config.defi, drixPublished, joueurs]);

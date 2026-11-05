@@ -6,7 +6,7 @@ import { calculerProfilBot, genererScoreBot, BOT_LUCKY_LITTLER } from "./botFlec
 import { useRaccourcis, RACCOURCIS_DEFAUT } from "./raccourcisScores";
 import { calculerStatsMatch, statsParManche, BANDES } from "./statsMatch";
 import { texteDerniersMatchs } from "./moyenneRecente";
-import { verserBonusBulle, nouvelEtatBulle, XP_BULLE } from "./bulleXp";
+import { verserBonusBulleFinDeMatch, bonusDejaVerseCeJour, debutDuJour, nouvelEtatBulle, XP_BULLE } from "./bulleXp";
 import { texteContoure, epaisseurContour, FOND_CARTE_JAUNE, KEYFRAMES_CARTE_JAUNE } from "./contourTexte";
 
 // ── Fiche d'un bot : ce qu'on MONTRE au joueur avant d'affronter ──────────────
@@ -1361,20 +1361,30 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // (mauvais joueur désigné, on ressort de l'écran) ne paie donc rien, et on ne peut pas répéter
   // le bonus en relançant le même match. Rien non plus si le joueur qui commence n'a pas de
   // compte (équipe de doublette, invité tapé à la main).
-  // Réservation + versement : src/bulleXp.js (partagé avec le Cricket, testé à part). L'état du
-  // match (réservé ? payé ?) est gardé ici, par duel, d'un lancer à l'autre.
+  // Réservation + versement : src/bulleXp.js (partagé avec le Cricket, testé à part). Appelé à la
+  // FIN d'un match terminé (enregistrerResultatDuel), plus au 1er lancer : on pouvait créer un
+  // défi, lancer une fléchette, toucher 100 XP et recommencer (anti-farm, nov. 2026). Règle de
+  // Thomas, pour TOUS les matchs : au plus un bonus par jour contre le même adversaire.
   const crediterBulleXp = async (startIdx) => {
     if (!modeDuel || !duel) return;
     const estTournoi = duel.challenger_compte_id !== undefined || duel.defie_compte_id !== undefined;
     const compteId = startIdx === 0
       ? (estTournoi ? duel.challenger_compte_id : duel.challenger_id)
       : (estTournoi ? duel.defie_compte_id : duel.defie_id);
+    const adversaireId = startIdx === 0
+      ? (estTournoi ? duel.defie_compte_id : duel.defie_id)
+      : (estTournoi ? duel.challenger_compte_id : duel.challenger_id);
     const nomQuiCommence = startIdx === 0 ? (duel.challenger_pseudo || "Joueur 1") : (duel.defie_pseudo || "Joueur 2");
-    if (!compteId) return;
+    // Pas de bonus sans compte des DEUX côtés : contre un invité de tournoi (sans compte), on pouvait
+    // créer des mini-tournois à la chaîne contre « Bob » et toucher le bonus à chaque fois.
+    if (!compteId || !adversaireId) return;
     const etat = bulleXpRef.current[duel.id] || (bulleXpRef.current[duel.id] = nouvelEtatBulle());
     const estPotes = String(duel.id || "").startsWith("potes-");
-    const cible = estPotes ? `tournois_potes_matchs?id=eq.${String(duel.id).slice(6)}` : `duels?id=eq.${duel.id}`;
-    const res = await verserBonusBulle({ sbUrl: SB_URL, sbKey: SB_KEY, cible, compteId, cleLocale: `dp_bulle_xp_${duel.id}`, etat });
+    const matchId = estPotes ? String(duel.id).slice(6) : null;
+    const cible = estPotes ? `tournois_potes_matchs?id=eq.${matchId}` : `duels?id=eq.${duel.id}`;
+    const plafond = () => bonusDejaVerseCeJour({ sbUrl: SB_URL, sbKey: SB_KEY, compteId, adversaireId,
+      duelId: estPotes ? null : duel.id, matchId, debutJour: debutDuJour() });
+    const res = await verserBonusBulleFinDeMatch({ sbUrl: SB_URL, sbKey: SB_KEY, cible, compteId, cleLocale: `dp_bulle_xp_${duel.id}`, etat, plafond });
     if (res === "paye") window.dpToast?.(`+${XP_BULLE} XP pour ${nomQuiCommence} — gagnant de la bulle 🎯`, "success");
   };
 
@@ -1768,6 +1778,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       // tournoi et ses stats fines (avant, on devait deviner par les noms et l'heure).
       onResultat({ gagnantNom, scoreC, scoreD, moyC, moyD, joueurs: joueursData, manchesDetail, sessionId: liveIdRef.current || null });
       setResultEnregistre(true);
+      crediterBulleXp(bulleStartIdx);   // match de tournoi TERMINÉ : bonus du gagnant de la bulle
       if (onDuelTermine) onDuelTermine();
       return;
     }
@@ -1800,6 +1811,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         { joueursData, manchesDetail, moyennes: [moyC, moyD] }
       );
       if (breakdown) setDrixBreakdown(breakdown);
+      // Duel TERMINÉ : bonus du gagnant de la bulle — APRÈS finaliserDuel, qui vient d'écrire l'XP
+      // du match (relue par le bonus ; en parallèle, une écriture aurait effacé l'autre).
+      crediterBulleXp(bulleStartIdx);
 
       // ── Post Comptoir (TOUS les duels — y compris amicaux) ──
       {
@@ -2014,7 +2028,6 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     if (overrideVal === undefined && (!input || isNaN(val) || val < 0 || val > 180)) { setInput(""); return; }
     if (overrideVal !== undefined && (isNaN(val) || val < 0 || val > 180)) return;
     lockRef.current.envoi = true; // verrou anti double-tap : relâché par l'effet quand joueurs/actifIdx/pendingVolee change
-    crediterBulleXp(bulleStartIdx);  // bonus « il commence » : à la 1re volée du match, une seule fois
 
     const nbReel = opts && opts.darts >= 1 && opts.darts <= 3 ? opts.darts : null;
     // bust forcé : Double Out non respecté (le total est valide, mais la manche ne
