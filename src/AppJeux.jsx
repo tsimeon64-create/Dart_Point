@@ -6,6 +6,7 @@ import { calculerProfilBot, genererScoreBot, BOT_LUCKY_LITTLER } from "./botFlec
 import { useRaccourcis, RACCOURCIS_DEFAUT } from "./raccourcisScores";
 import { calculerStatsMatch, statsParManche, BANDES } from "./statsMatch";
 import { texteDerniersMatchs } from "./moyenneRecente";
+import { verserBonusBulle, nouvelEtatBulle, XP_BULLE } from "./bulleXp";
 import { texteContoure, epaisseurContour, FOND_CARTE_JAUNE, KEYFRAMES_CARTE_JAUNE } from "./contourTexte";
 
 // ── Fiche d'un bot : ce qu'on MONTRE au joueur avant d'affronter ──────────────
@@ -1133,7 +1134,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   const [tri, setTri] = useState(() => { try { return localStorage.getItem("dp_bot_tri") || "drix"; } catch { return "drix"; } });
   const [botPreparing, setBotPreparing] = useState(!!initBotAmiId); // entrée directe « Affronte son bot » depuis une fiche joueur
   const botXpRef = useRef(false);                       // évite de créditer l'XP deux fois
-  const bulleXpRef = useRef(false);                    // bonus « tu commences » : une seule fois par match
+  const bulleXpRef = useRef({});                       // bonus de la bulle : état par duel (src/bulleXp.js)
   // Publication du match bot au Comptoir : la charge utile est gardée pour que l'écran de fin
   // puisse la renvoyer, la fenêtre de confirmation n'étant plus la seule occasion.
   const [postBot, setPostBot] = useState(null);
@@ -1360,48 +1361,21 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // (mauvais joueur désigné, on ressort de l'écran) ne paie donc rien, et on ne peut pas répéter
   // le bonus en relançant le même match. Rien non plus si le joueur qui commence n'a pas de
   // compte (équipe de doublette, invité tapé à la main).
-  const XP_BULLE = 100;
-  // Marque « ce match a déjà payé » : d'abord EN BASE (colonne bulle_xp_joueur, réservation
-  // atomique → deux téléphones ne peuvent pas payer deux fois), et à défaut dans ce navigateur
-  // tant que le SQL n'a pas été lancé.
-  const reserverBulleXp = async (compteId) => {
-    const estPotes = String(duel.id || "").startsWith("potes-");
-    const cible = estPotes
-      ? `tournois_potes_matchs?id=eq.${String(duel.id).slice(6)}&bulle_xp_joueur=is.null`
-      : `duels?id=eq.${duel.id}&bulle_xp_joueur=is.null`;
-    try {
-      const r = await fetch(`${SB_URL}/rest/v1/${cible}`, {
-        method: "PATCH",
-        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "return=representation" },
-        body: JSON.stringify({ bulle_xp_joueur: compteId }),
-      });
-      if (!r.ok) throw new Error(String(r.status));   // colonne absente → repli local
-      const rows = await r.json();
-      return Array.isArray(rows) && rows.length > 0;   // [] = quelqu'un a déjà payé ce match
-    } catch {
-      // Colonne pas encore ajoutée (SQL non lancé) : repli local, le temps que Thomas le lance.
-      const cle = `dp_bulle_xp_${duel.id}`;
-      try { if (localStorage.getItem(cle)) return false; localStorage.setItem(cle, "1"); } catch { /* navigation privée */ }
-      return true;
-    }
-  };
+  // Réservation + versement : src/bulleXp.js (partagé avec le Cricket, testé à part). L'état du
+  // match (réservé ? payé ?) est gardé ici, par duel, d'un lancer à l'autre.
   const crediterBulleXp = async (startIdx) => {
-    if (!modeDuel || !duel || bulleXpRef.current) return;
+    if (!modeDuel || !duel) return;
     const estTournoi = duel.challenger_compte_id !== undefined || duel.defie_compte_id !== undefined;
     const compteId = startIdx === 0
       ? (estTournoi ? duel.challenger_compte_id : duel.challenger_id)
       : (estTournoi ? duel.defie_compte_id : duel.defie_id);
     const nomQuiCommence = startIdx === 0 ? (duel.challenger_pseudo || "Joueur 1") : (duel.defie_pseudo || "Joueur 2");
     if (!compteId) return;
-    bulleXpRef.current = true;   // verrou local immédiat (anti double-appel pendant l'attente)
-    try {
-      if (!(await reserverBulleXp(compteId))) return;   // déjà payé pour ce match
-      // On relit l'XP juste avant d'écrire : l'autre téléphone a pu la faire bouger entre-temps.
-      const rows = await lireSb(`joueurs?id=eq.${compteId}&select=xp`);
-      const actuel = (rows && rows[0] && rows[0].xp) || 0;
-      await dbJ.updateJoueur(compteId, { xp: actuel + XP_BULLE });
-      window.dpToast?.(`+${XP_BULLE} XP pour ${nomQuiCommence} — il commence 🎯`, "success");
-    } catch { bulleXpRef.current = false; }   // la base n'a pas répondu : on pourra réessayer
+    const etat = bulleXpRef.current[duel.id] || (bulleXpRef.current[duel.id] = nouvelEtatBulle());
+    const estPotes = String(duel.id || "").startsWith("potes-");
+    const cible = estPotes ? `tournois_potes_matchs?id=eq.${String(duel.id).slice(6)}` : `duels?id=eq.${duel.id}`;
+    const res = await verserBonusBulle({ sbUrl: SB_URL, sbKey: SB_KEY, cible, compteId, cleLocale: `dp_bulle_xp_${duel.id}`, etat });
+    if (res === "paye") window.dpToast?.(`+${XP_BULLE} XP pour ${nomQuiCommence} — gagnant de la bulle 🎯`, "success");
   };
 
   // nomsOverride : en mode libre, ordre de passage choisi à la bulle (sinon ordre de config).
@@ -2246,9 +2220,18 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
     const delta = botSelf ? 0 : 15 + (humainGagne ? 15 : 0);
     if (joueur?.id) {
       if (delta > 0) {
-        const newXp = (joueur.xp || 0) + delta;
-        dbJ.updateJoueur(joueur.id, { xp: newXp }).catch(() => {});
-        if (setJoueur) setJoueur((p) => ({ ...p, xp: newXp }));
+        // On RELIT l'XP en base juste avant d'écrire : celle gardée en mémoire peut être périmée
+        // (bonus de bulle gagné dans un duel juste avant, badges…) et écrire « mémoire + delta »
+        // effaçait ces points. Sans vraie ligne lue, on n'écrit rien.
+        (async () => {
+          try {
+            const rows = await lireSb(`joueurs?id=eq.${joueur.id}&select=xp`);
+            if (!Array.isArray(rows) || rows.length === 0) return;
+            const newXp = (Number(rows[0].xp) || 0) + delta;
+            await dbJ.updateJoueur(joueur.id, { xp: newXp });
+            if (setJoueur) setJoueur((p) => ({ ...p, xp: newXp }));
+          } catch { /* hors ligne : rien d'écrit plutôt qu'une XP fausse */ }
+        })();
         window.dpToast?.(`+${delta} XP ${humainGagne ? "— victoire contre le bot 🎯" : "— bien joué 👍"}`, "success");
       }
 

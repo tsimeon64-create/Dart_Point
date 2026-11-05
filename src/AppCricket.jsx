@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Target, Swords, Home, Crown, Lock } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
+import { verserBonusBulle, nouvelEtatBulle, XP_BULLE } from "./bulleXp";
 
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
@@ -387,49 +388,18 @@ export const ScoreurCricket = ({ config, setPage, onRejouer = null }) => {
 
   // ── +100 XP au joueur qui a gagné la bulle (défi Cricket — même règle qu'au 501) ──────
   // La bulle a rangé les joueurs : le 1er (index 0) est celui qui commence. Versé au PREMIER
-  // lancer réellement joué, une seule fois par duel : la colonne duels.bulle_xp_joueur est
-  // réservée de façon atomique (« is.null » + return=representation ; [] = déjà payé), donc ni
-  // un faux départ ni un 2e téléphone ne peuvent payer deux fois. Repli dans ce navigateur si la
-  // colonne manquait (SQL xp_1_bulle.sql). Voir crediterBulleXp dans AppJeux.jsx.
-  const XP_BULLE = 100;
-  const bulleXpRef = useRef(false);
+  // lancer réellement joué, une seule fois par duel — réservation + versement dans
+  // src/bulleXp.js, partagé avec le 501 (jamais deux fois, jamais d'XP effacée).
+  const bulleXpRef = useRef(nouvelEtatBulle());
   const crediterBulleXp = async () => {
     const d = config.defi;
     const premier = config.joueurs?.[0];
-    if (!d || !d.duelId || !premier || bulleXpRef.current) return;
+    if (!d || !d.duelId || !premier) return;
     const compteId = premier.id;
     if (compteId !== d.challengerId && compteId !== d.defiId) return;   // jamais un compte inconnu
-    bulleXpRef.current = true;   // verrou local immédiat (anti double-appel pendant l'attente)
-    try {
-      let reserve;
-      try {
-        const r = await fetch(`${SB_URL}/rest/v1/duels?id=eq.${d.duelId}&bulle_xp_joueur=is.null`, {
-          method: "PATCH",
-          headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "return=representation" },
-          body: JSON.stringify({ bulle_xp_joueur: compteId }),
-        });
-        if (!r.ok) throw new Error(String(r.status));
-        const rows = await r.json();
-        reserve = Array.isArray(rows) && rows.length > 0;
-      } catch {
-        const cle = `dp_bulle_xp_${d.duelId}`;
-        try { reserve = !localStorage.getItem(cle); if (reserve) localStorage.setItem(cle, "1"); } catch { reserve = true; }
-      }
-      if (!reserve) return;   // déjà payé pour ce duel
-      // On relit l'XP juste avant d'écrire : elle a pu bouger entre-temps.
-      // ⚠️ sbC ne lève pas d'erreur : une lecture ratée renverrait un objet d'erreur. Sans vraie
-      // ligne on s'arrête — écrire « 0 + 100 » effacerait toute son XP.
-      const rows = await sbC(`joueurs?id=eq.${compteId}&select=xp`);
-      if (!Array.isArray(rows) || rows.length === 0) throw new Error("lecture xp");
-      const actuel = Number(rows[0].xp) || 0;
-      const r2 = await fetch(`${SB_URL}/rest/v1/joueurs?id=eq.${compteId}`, {
-        method: "PATCH",
-        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" },
-        body: JSON.stringify({ xp: actuel + XP_BULLE }),
-      });
-      if (!r2.ok) throw new Error(String(r2.status));
-      window.dpToast?.(`+${XP_BULLE} XP pour ${premier.pseudo} — gagnant de la bulle 🎯`, "success");
-    } catch { bulleXpRef.current = false; }   // la base n'a pas répondu : on pourra réessayer
+    const res = await verserBonusBulle({ sbUrl: SB_URL, sbKey: SB_KEY, cible: `duels?id=eq.${d.duelId}`, compteId,
+      cleLocale: `dp_bulle_xp_${d.duelId}`, etat: bulleXpRef.current });
+    if (res === "paye") window.dpToast?.(`+${XP_BULLE} XP pour ${premier.pseudo} — gagnant de la bulle 🎯`, "success");
   };
 
   // ── Scroll auto vers le joueur actif ─────────────────────────────────────
@@ -957,12 +927,24 @@ export const ScoreurCricket = ({ config, setPage, onRejouer = null }) => {
                 style={{ flex:1, padding:"13px", borderRadius:10, border:`1px solid ${C.border}`, background:"#111", color:C.text, fontWeight:700, cursor:"pointer" }}>
                 Continuer
               </button>
-              <button onClick={() => {
-                  // Défi abandonné : on oublie le défi mémorisé, sinon le prochain Cricket ouvert
-                  // depuis les jeux repartait sur ce vieux duel (avec ses DRIX en jeu). Il se relance
-                  // depuis la page Défis, qui le remémorise.
-                  if (config.defi) { try { localStorage.removeItem("dp_cricket_duel"); } catch { /* rien */ } }
-                  setPage(config.defi ? "defi" : "jeux-flechettes");
+              <button onClick={async () => {
+                  // Défi abandonné, comme au 501 (quitterPartie) : le duel passe « abandonne » (sans
+                  // DRIX), sauf s'il est déjà terminé, et on oublie le défi mémorisé — sinon le
+                  // prochain Cricket ouvert depuis les jeux repartait sur ce vieux duel, DRIX en jeu.
+                  const d = config.defi;
+                  if (d) {
+                    try { localStorage.removeItem("dp_cricket_duel"); } catch { /* rien */ }
+                    if (d.duelId && phase !== "fin") {
+                      try {
+                        const etat = await sbC(`duels?id=eq.${d.duelId}&select=statut,gagnant_id`);
+                        const deja = Array.isArray(etat) && etat[0] && (etat[0].statut === "termine" || etat[0].gagnant_id);
+                        if (Array.isArray(etat) && !deja) {
+                          await sbC(`duels?id=eq.${d.duelId}`, { method:"PATCH", body:JSON.stringify({ statut:"abandonne" }), prefer:"return=minimal" });
+                        }
+                      } catch { /* hors ligne : le duel reste « en cours », il pourra être repris */ }
+                    }
+                  }
+                  setPage(d ? "defi" : "jeux-flechettes");
                 }}
                 style={{ flex:1, padding:"13px", borderRadius:10, border:"none", background:"#7f1d1d", color:C.red, fontWeight:700, cursor:"pointer" }}>
                 Quitter

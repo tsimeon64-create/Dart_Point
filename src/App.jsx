@@ -2014,6 +2014,25 @@ const MatchActifCard = ({ d, joueur, setPage, onAbandon }) => {
     await sb(`duels?id=eq.${d.id}`, { method:"PATCH", body:JSON.stringify({ statut:"abandonne" }), prefer:"return=minimal" });
     onAbandon();
   };
+  // Un défi CRICKET se reprend dans le scoreur Cricket : le scoreur 501 plantait dessus
+  // (parseInt("Cricket") = NaN). On remémorise le défi comme à sa création, DRIX du moment.
+  const reprendre = async () => {
+    if (d.mode !== "Cricket") { setPage("scoreur-duel-" + d.id); return; }
+    const drix = {};
+    try {
+      const rows = await sb(`joueurs?id=in.(${d.challenger_id},${d.defie_id})&select=id,drix`);
+      for (const r of Array.isArray(rows) ? rows : []) drix[r.id] = r.drix;
+    } catch { /* hors ligne : 1000 par défaut, comme à la création */ }
+    try {
+      localStorage.setItem("dp_cricket_duel", JSON.stringify({
+        duelId: d.id,
+        challengerId: d.challenger_id, challengerPseudo: d.challenger_pseudo, challengerDrix: drix[d.challenger_id] || 1000,
+        defiId: d.defie_id, defiPseudo: d.defie_pseudo, defiDrix: drix[d.defie_id] || 1000,
+        type: d.type || "drix",
+      }));
+    } catch { /* stockage indisponible */ }
+    setPage("cricket-config");
+  };
   return (
     <div style={{ background:C.card,border:`2px solid ${confirmAbandon?C.red:C.green}`,borderRadius:12,padding:16,marginBottom:10,transition:"border-color .2s" }}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:confirmAbandon?12:0 }}>
@@ -2025,7 +2044,7 @@ const MatchActifCard = ({ d, joueur, setPage, onAbandon }) => {
           </div>
         </div>
         <div style={{ display:"flex",gap:8 }}>
-          <Btn onClick={()=>setPage("scoreur-duel-"+d.id)} style={{ fontSize:13 }}><EmoText s="🎯 Reprendre"/></Btn>
+          <Btn onClick={reprendre} style={{ fontSize:13 }}><EmoText s="🎯 Reprendre"/></Btn>
           {!confirmAbandon && <Btn onClick={()=>setConfirmAbandon(true)} variant="danger" style={{ fontSize:13 }}><EmoText s="🏳 Abandonner"/></Btn>}
         </div>
       </div>
