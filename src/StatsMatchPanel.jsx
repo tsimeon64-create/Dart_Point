@@ -1,24 +1,39 @@
 import { useState } from "react";
-import { statsDepuisManches, statsParMancheDepuisDetail } from "./statsMatch";
+import { statsDepuisManches, statsParMancheDepuisDetail, first9DepuisManches } from "./statsMatch";
 
 // ── LA FICHE DE STATS D'UN MATCH (Comptoir + historique du profil) ───────────
 // Deux onglets : « Match » (toute la partie) et « Manche par manche » (une manche à la fois,
 // choisie avec des boutons). Les mêmes lignes dans les deux cas.
-//   stats / statsManches : déjà calculés et rangés avec la partie (matchs récents) ;
-//   sinon on recalcule ce qu'on peut à partir du détail des manches — ce qui demande les volées
-//   (First 9, 120+, 170+) ou de savoir qui a commencé (keep/break) reste « — » sur les vieilles
-//   parties, et s'affiche normalement sur les nouvelles.
-export const PanneauStatsMatch = ({ manches = [], stats = null, statsManches = null, nomA, nomB, couleurA = "#22c55e", couleurB = "#94a3b8" }) => {
+//   stats : déjà calculé et rangé avec la partie (matchs récents) — sauf le First 9, repris du
+//   détail des manches ; sinon on recalcule ce qu'on peut à partir du détail des manches — ce
+//   qui demande les volées (First 9, 120+, 170+) ou de savoir qui a commencé (keep/break) reste
+//   « — » sur les vieilles parties, et s'affiche normalement sur les nouvelles.
+//   Manche par manche : TOUJOURS le détail de chaque manche, enregistré à la fin de la manche sur
+//   ses vraies volées. Les chiffres « statsManches » rangés avec les cartes publiées jusqu'en
+//   novembre 2026 étaient souvent décalés d'une manche à l'autre (volées redécoupées au mauvais
+//   endroit) : on ne les lit plus, la carte se corrige donc toute seule.
+export const PanneauStatsMatch = ({ manches = [], stats = null, nomA, nomB, couleurA = "#22c55e", couleurB = "#94a3b8" }) => {
   const [onglet, setOnglet] = useState("match");
   const [mancheSel, setMancheSel] = useState(0);
   if (!Array.isArray(manches) || manches.length === 0) return null;
 
-  const duo = Array.isArray(stats) && stats.length >= 2 ? stats : statsDepuisManches(manches, [nomA, nomB]);
+  const rangees = Array.isArray(stats) && stats.length >= 2;
+  const depuisDetail = statsDepuisManches(manches, [nomA, nomB]);
+  const duoBrut = rangees ? stats : depuisDetail;
+  // Deux chiffres des stats rangées avec la carte sont repris du détail des manches, exact :
+  //  - le First 9 (même défaut de découpage des volées que « Manche par manche ») ;
+  //  - keep / break quand chaque manche dit qui l'a commencée : sur les cartes contre un bot,
+  //    ils étaient inversés quand celui qui avait commencé la 1re manche perdait.
+  const departsConnus = manches.every((m) => m && m.starter);
+  const duo = duoBrut.map((s) => {
+    if (!s || !rangees) return s;
+    const f9 = first9DepuisManches(manches, s.nom);
+    const d = depuisDetail.find((x) => x && x.nom === s.nom);
+    return { ...s, ...(f9 != null ? { first9: f9 } : {}), ...(departsConnus && d ? { keep: d.keep, brk: d.brk } : {}) };
+  });
   const sa = duo.find((x) => x && x.nom === nomA) || duo[0] || {};
   const sb2 = duo.find((x) => x && x.nom === nomB) || duo[1] || {};
-  const parManche = Array.isArray(statsManches) && statsManches.length === manches.length
-    ? statsManches
-    : statsParMancheDepuisDetail(manches, [nomA, nomB]);
+  const parManche = statsParMancheDepuisDetail(manches, [nomA, nomB]);
   const idxSel = Math.min(Math.max(0, mancheSel), manches.length - 1);
 
   const val = (o, f) => { const v = f(o || {}); return (v === null || v === undefined || v === "") ? "—" : v; };

@@ -2278,7 +2278,10 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
           winner: { nom: winnerJ?.nom, nbManches: winnerJ?.manchesGagnees || 0, total: 0, elo: 0, xp: humainGagne ? delta : 0, xpLines: humainGagne ? xpLinesHum : [], moy: moyOf(winnerJ), photo: photoDe(winnerJ) },
           loser:  { nom: loserJ?.nom,  nbManches: loserJ?.manchesGagnees || 0,  total: 0, elo: 0, xp: humainGagne ? 0 : delta, xpLines: humainGagne ? [] : xpLinesHum, moy: moyOf(loserJ), photo: photoDe(loserJ) },
           manches: manchesHistory || [],
-          stats: calculerStatsMatch({ joueurs: [winnerJ, loserJ].filter(Boolean), manches: manchesHistory || [], premierALaBulle: bulleStartIdx }),
+          // premierALaBulle est un indice dans le tableau PASSÉ (gagnant, perdant), pas dans `joueurs` :
+          // sinon keep et break s'inversaient quand celui qui avait commencé perdait.
+          stats: calculerStatsMatch({ joueurs: [winnerJ, loserJ].filter(Boolean), manches: manchesHistory || [],
+            premierALaBulle: Math.max(0, [winnerJ, loserJ].filter(Boolean).findIndex((j) => j.nom === joueurs[bulleStartIdx]?.nom)) }),
           statsManches: statsParManche({ joueurs: [winnerJ, loserJ].filter(Boolean), manches: manchesHistory || [] }),
         };
         // La charge utile est mise DE CÔTÉ, pas seulement capturée dans cette fonction : le bouton

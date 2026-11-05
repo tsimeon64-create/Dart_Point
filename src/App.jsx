@@ -5197,7 +5197,7 @@ const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepui
             <EmoIcon e="📊" size={13}/>{openStats ? "Masquer les stats" : "Plus de stats"}
           </button>
           {openStats && (
-            <PanneauStatsMatch manches={manches} stats={d.stats} statsManches={d.statsManches} nomA={w.nom} nomB={l.nom}/>
+            <PanneauStatsMatch manches={manches} stats={d.stats} nomA={w.nom} nomB={l.nom}/>
           )}
         </>)}
 

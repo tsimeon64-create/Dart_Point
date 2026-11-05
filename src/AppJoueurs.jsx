@@ -2815,7 +2815,9 @@ export const PageProfilHistorique = ({ joueur, setPage, embedded = false }) => {
                               📊 {statsId === d.id ? "Masquer les stats" : "Plus de stats"}
                             </button>
                             {statsId === d.id && (
-                              <PanneauStatsMatch manches={d.manches_detail} nomA={joueur.pseudo} nomB={adv}/>
+                              // Le pseudo qu'il avait CE jour-là (celui du détail des manches) : après un
+                              // changement de pseudo, joueur.pseudo ne correspondait plus et la fiche était vide.
+                              <PanneauStatsMatch manches={d.manches_detail} nomA={(isC ? d.challenger_pseudo : d.defie_pseudo) || joueur.pseudo} nomB={adv}/>
                             )}
                           </>)
                         : <div style={{ marginTop:8, color:CJ.muted, fontSize:12, fontStyle:"italic" }}>Détail manche par manche indisponible pour ce match.</div>}
