@@ -83,6 +83,11 @@ export const ConfigCricket = ({ joueur, setPage }) => {
   });
   const [started, setStarted] = useState(false);
   const [gameConfig, setGameConfig] = useState(null);
+  // La bulle, comme au 501 : on touche les joueurs dans l'ordre de passage, celui qui
+  // commence d'abord. Sautée seulement si « Ordre aléatoire » est coché (partie libre).
+  const [etape, setEtape] = useState("config");      // "config" | "bulle"
+  const [ordreBulle, setOrdreBulle] = useState([]);  // indices de config.joueurs, dans l'ordre de passage
+  const [partie, setPartie] = useState(0);           // numéro de partie : remonte un scoreur NEUF à chaque lancement
 
   const set = (key, val) => setConfig(c => ({ ...c, [key]: val }));
 
@@ -102,17 +107,111 @@ export const ConfigCricket = ({ joueur, setPage }) => {
     setConfig(c => ({ ...c, joueurs: c.joueurs.map((j, idx) => idx === i ? { ...j, pseudo } : j) }));
   };
 
-  const demarrer = () => {
-    if (config.joueurs.length < 2) return;
-    let js = [...config.joueurs];
-    if (config.random && !defiData) js = js.sort(() => Math.random() - 0.5);
+  // Lance la partie avec les joueurs dans l'ordre de passage (le 1er commence).
+  // En défi DRIX, l'ordre change sans risque : la fin de match retrouve chaque joueur par son id.
+  const lancer = (js) => {
     let legs = config.legs;
     if (config.format === "bestOf" && legs % 2 === 0) legs++;
     setGameConfig({ ...config, joueurs: js, legs });
+    setPartie((p) => p + 1);
     setStarted(true);
   };
 
-  if (started && gameConfig) return <ScoreurCricket config={gameConfig} setPage={setPage} />;
+  // Un pseudo laissé vide devient « Joueur N », dans la bulle ET dans la partie (sinon la
+  // colonne et l'écran de victoire restaient sans nom).
+  const nomAffiche = (j, i) => ((j.pseudo || "").trim() ? j.pseudo : `Joueur ${i + 1}`);
+  const avecNom = (j, i) => ({ ...j, pseudo: nomAffiche(j, i) });
+
+  const haut = () => { try { window.scrollTo(0, 0); } catch { /* rien */ } };
+  const ouvrirBulle = () => { setOrdreBulle([]); setEtape("bulle"); haut(); };
+
+  const demarrer = () => {
+    if (config.joueurs.length < 2) return;
+    if (config.random && !defiData) { lancer(config.joueurs.map(avecNom).sort(() => Math.random() - 0.5)); return; }
+    ouvrirBulle();
+  };
+
+  // « Rejouer » en fin de partie libre : comme la revanche du 501, on refait la bulle avec les
+  // mêmes joueurs (ou un nouveau tirage si « Ordre aléatoire »). Sinon le gagnant de la
+  // première bulle recommençait toutes les revanches.
+  const rejouer = () => {
+    if (config.random && !defiData) { lancer(config.joueurs.map(avecNom).sort(() => Math.random() - 0.5)); return; }
+    setStarted(false);
+    setGameConfig(null);
+    ouvrirBulle();
+  };
+
+  // Clic sur un joueur pendant la bulle : il prend la place suivante dans l'ordre. Re-clic sur
+  // un joueur déjà placé = on l'enlève, lui et ceux placés après (pour corriger). Quand il n'en
+  // reste qu'un, il est placé tout seul.
+  const clicBulleJoueur = (idx) => {
+    const dejaPlace = ordreBulle.indexOf(idx);
+    if (dejaPlace >= 0) { setOrdreBulle(ordreBulle.slice(0, dejaPlace)); return; }
+    let next = [...ordreBulle, idx];
+    const restants = config.joueurs.map((_, i) => i).filter((i) => !next.includes(i));
+    if (restants.length === 1) next = [...next, restants[0]];
+    setOrdreBulle(next);
+  };
+
+  if (started && gameConfig) return <ScoreurCricket key={partie} config={gameConfig} setPage={setPage} onRejouer={defiData ? null : rejouer} />;
+
+  // ── ÉCRAN BULLE (le même qu'au 501) ──────────────────────────────────────────
+  if (etape === "bulle") {
+    const complet = ordreBulle.length === config.joueurs.length;
+    return (
+      <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:"Inter,sans-serif" }}>
+        <div style={{ maxWidth:480, margin:"0 auto", padding:"40px 20px", textAlign:"center" }}>
+          <div style={{ marginBottom:16, display:"flex", justifyContent:"center" }}><EmoIcon e="🎯" size={60} color={C.accent}/></div>
+          <h2 style={{ fontWeight:900, fontSize:24, color:C.text, marginBottom:8 }}>La bulle</h2>
+          <p style={{ color:C.muted, fontSize:14, marginBottom:8, lineHeight:1.6 }}>
+            Faites la bulle, puis cliquez sur les joueurs <strong style={{ color:C.text }}>dans l'ordre de passage</strong> :
+            d'abord celui qui commence, puis le suivant…
+          </p>
+          <p style={{ color:C.accent, fontSize:13, fontWeight:700, marginBottom:24 }}>
+            {complet ? "✅ Ordre défini — clique sur « C'est parti »"
+              : ordreBulle.length === 0 ? "👉 Clique sur le joueur qui commence"
+              : `${ordreBulle.length} / ${config.joueurs.length} placés`}
+          </p>
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            {config.joueurs.map((j, idx) => {
+              const pos = ordreBulle.indexOf(idx);
+              const place = pos >= 0;
+              return (
+                <button key={j.id} onClick={() => clicBulleJoueur(idx)}
+                  style={{ padding:"18px 20px", borderRadius:16, border:`2px solid ${place ? C.green : C.accent}`, background: place ? `${C.green}18` : `${C.accent}22`, color:C.text, fontWeight:800, fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", gap:12, transition:"all .15s", textAlign:"left", touchAction:"manipulation" }}>
+                  <span style={{ width:30, height:30, borderRadius:"50%", background: place ? C.green : "#3a3a3a", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:15, flexShrink:0 }}>
+                    {place ? pos + 1 : "?"}
+                  </span>
+                  <span style={{ flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    {nomAffiche(j, idx)}{pos === 0 &&<span style={{ fontSize:13, color:C.muted, fontWeight:500, marginLeft:8 }}>commence</span>}
+                  </span>
+                  {place && <span style={{ fontSize:12.5, color:"#86efac", fontWeight:700, flexShrink:0 }}>✕ corriger</span>}
+                </button>
+              );
+            })}
+          </div>
+          {complet && (
+            <button onClick={() => lancer(ordreBulle.map((i) => avecNom(config.joueurs[i], i)))}
+              style={{ width:"100%", marginTop:22, padding:"18px", borderRadius:14, border:"none", fontWeight:900, fontSize:18, cursor:"pointer", background:`linear-gradient(135deg,${C.accent},#ea580c)`, color:"#fff", boxShadow:`0 8px 24px ${C.accent}44` }}>
+              <EmoIcon e="🎯" size={18} style={{ verticalAlign:"-3px", marginRight:8 }}/>C'est parti
+            </button>
+          )}
+          {ordreBulle.length > 0 && (
+            <button onClick={() => setOrdreBulle([])}
+              style={{ marginTop:14, background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13 }}>
+              ↺ Recommencer l'ordre
+            </button>
+          )}
+          <div>
+            <button onClick={() => { setEtape("config"); haut(); }}
+              style={{ marginTop:8, background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13 }}>
+              ← Retour aux réglages
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const canStart = config.joueurs.length >= 2;
 
@@ -207,7 +306,7 @@ export const ConfigCricket = ({ joueur, setPage }) => {
                 style={{ width:20, height:20, accentColor:C.accent, cursor:"pointer" }} />
               <div>
                 <div style={{ fontWeight:700, fontSize:14 }}>Ordre aléatoire</div>
-                <div style={{ fontSize:12, color:C.muted }}>L'ordre de jeu sera mélangé automatiquement.</div>
+                <div style={{ fontSize:12, color:C.muted }}>L'ordre de jeu est tiré au sort, sans passer par la bulle.</div>
               </div>
             </label>
           </Section>
@@ -273,7 +372,7 @@ const initJoueurs = (config) =>
   }));
 
 
-export const ScoreurCricket = ({ config, setPage }) => {
+export const ScoreurCricket = ({ config, setPage, onRejouer = null }) => {
   // ── State ──────────────────────────────────────────────────────────────────
   const [joueurs, setJoueurs] = useState(() => initJoueurs(config));
   const [actifIdx, setActifIdx] = useState(0);
@@ -285,6 +384,53 @@ export const ScoreurCricket = ({ config, setPage }) => {
   const [interInfo, setInterInfo] = useState(null);
   const [showQuit, setShowQuit] = useState(false);
   const [advancing, setAdvancing] = useState(false);
+
+  // ── +100 XP au joueur qui a gagné la bulle (défi Cricket — même règle qu'au 501) ──────
+  // La bulle a rangé les joueurs : le 1er (index 0) est celui qui commence. Versé au PREMIER
+  // lancer réellement joué, une seule fois par duel : la colonne duels.bulle_xp_joueur est
+  // réservée de façon atomique (« is.null » + return=representation ; [] = déjà payé), donc ni
+  // un faux départ ni un 2e téléphone ne peuvent payer deux fois. Repli dans ce navigateur si la
+  // colonne manquait (SQL xp_1_bulle.sql). Voir crediterBulleXp dans AppJeux.jsx.
+  const XP_BULLE = 100;
+  const bulleXpRef = useRef(false);
+  const crediterBulleXp = async () => {
+    const d = config.defi;
+    const premier = config.joueurs?.[0];
+    if (!d || !d.duelId || !premier || bulleXpRef.current) return;
+    const compteId = premier.id;
+    if (compteId !== d.challengerId && compteId !== d.defiId) return;   // jamais un compte inconnu
+    bulleXpRef.current = true;   // verrou local immédiat (anti double-appel pendant l'attente)
+    try {
+      let reserve;
+      try {
+        const r = await fetch(`${SB_URL}/rest/v1/duels?id=eq.${d.duelId}&bulle_xp_joueur=is.null`, {
+          method: "PATCH",
+          headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "return=representation" },
+          body: JSON.stringify({ bulle_xp_joueur: compteId }),
+        });
+        if (!r.ok) throw new Error(String(r.status));
+        const rows = await r.json();
+        reserve = Array.isArray(rows) && rows.length > 0;
+      } catch {
+        const cle = `dp_bulle_xp_${d.duelId}`;
+        try { reserve = !localStorage.getItem(cle); if (reserve) localStorage.setItem(cle, "1"); } catch { reserve = true; }
+      }
+      if (!reserve) return;   // déjà payé pour ce duel
+      // On relit l'XP juste avant d'écrire : elle a pu bouger entre-temps.
+      // ⚠️ sbC ne lève pas d'erreur : une lecture ratée renverrait un objet d'erreur. Sans vraie
+      // ligne on s'arrête — écrire « 0 + 100 » effacerait toute son XP.
+      const rows = await sbC(`joueurs?id=eq.${compteId}&select=xp`);
+      if (!Array.isArray(rows) || rows.length === 0) throw new Error("lecture xp");
+      const actuel = Number(rows[0].xp) || 0;
+      const r2 = await fetch(`${SB_URL}/rest/v1/joueurs?id=eq.${compteId}`, {
+        method: "PATCH",
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ xp: actuel + XP_BULLE }),
+      });
+      if (!r2.ok) throw new Error(String(r2.status));
+      window.dpToast?.(`+${XP_BULLE} XP pour ${premier.pseudo} — gagnant de la bulle 🎯`, "success");
+    } catch { bulleXpRef.current = false; }   // la base n'a pas répondu : on pourra réessayer
+  };
 
   // ── Scroll auto vers le joueur actif ─────────────────────────────────────
   const scrollContainerRef = useRef(null);
@@ -434,6 +580,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
   // ── Enregistrer une fléchette ──────────────────────────────────────────────
   const hit = (zone) => {
     if (darts.length >= 3 || phase !== "jeu" || advancing) return;
+    crediterBulleXp();   // bonus du gagnant de la bulle : au 1er lancer du duel, une seule fois
     setHistorique(h => [...h.slice(-29), snap()]);
 
     const nb = zone === "Bull" ? Math.min(2, mult) : mult; // le Bull ne compte jamais comme un triple (max 2 marques)
@@ -481,6 +628,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
 
   const miss = () => {
     if (darts.length >= 3 || phase !== "jeu" || advancing) return;
+    crediterBulleXp();
     setHistorique(h => [...h.slice(-29), snap()]);
     setMult(1);
     const nd = [...darts, { zone: null, label: "—" }];
@@ -691,7 +839,7 @@ export const ScoreurCricket = ({ config, setPage }) => {
                 <div style={{ fontWeight:800, fontSize:14, color: p.gain>=0?"#22c55e":"#ef4444" }}>
                   {p.gain>=0?"+":""}{p.gain} DRIX
                 </div>
-                <div style={{ fontSize:12, color:C.muted }}>{p.ancien} → {Math.max(0,p.ancien+p.gain)}</div>
+                <div style={{ fontSize:12, color:C.muted }}>{p.ancien} → {Math.max(100,p.ancien+p.gain)}</div>
               </div>
             ))}
           </div>
@@ -709,7 +857,10 @@ export const ScoreurCricket = ({ config, setPage }) => {
         </div>
         <div style={{ display:"flex", gap:12, width:"100%", maxWidth:380 }}>
           {!config.defi && (
-            <button onClick={() => { setJoueurs(initJoueurs(config)); setActifIdx(0); setMult(1); setDarts([]); setLastDarts({}); setHistorique([]); setInterInfo(null); setAdvancing(false); setPhase("jeu"); setDrixPublished(false); setDrixInfo(null); }}
+            <button onClick={() => {
+                // On repasse par la bulle (ConfigCricket) ; à défaut, on relance sur place dans le même ordre.
+                if (onRejouer) { onRejouer(); return; }
+                setJoueurs(initJoueurs(config)); setActifIdx(0); setMult(1); setDarts([]); setLastDarts({}); setHistorique([]); setInterInfo(null); setAdvancing(false); setPhase("jeu"); setDrixPublished(false); setDrixInfo(null); }}
               style={{ flex:1, padding:"16px", borderRadius:12, border:"none", fontWeight:800, fontSize:15, cursor:"pointer", background:`linear-gradient(135deg,${C.accent},#ea580c)`, color:"#fff" }}>
               <EmoIcon e="🔄" size={15} style={{verticalAlign:"-2px",marginRight:6}}/>Rejouer
             </button>
@@ -726,6 +877,12 @@ export const ScoreurCricket = ({ config, setPage }) => {
   }
 
   if (phase === "inter" && interInfo) {
+    // Qui commence la manche suivante : comme au 501, les manches ALTERNENT à partir du gagnant
+    // de la bulle (joueur 0 — la bulle a rangé les joueurs dans l'ordre de passage) : 1re manche
+    // → joueur 0, 2e → joueur 1, … chacun son tour à plus de 2. Avant, c'était le joueur placé
+    // après le gagnant de la manche (donc le perdant recommençait à deux joueurs).
+    const legsJoues = joueurs.reduce((s, j) => s + (j.legsWonTotal || 0), 0);
+    const prochainDepart = legsJoues % joueurs.length;
     return (
       <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:"Inter,sans-serif", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
         <div style={{ textAlign:"center", maxWidth:360 }}>
@@ -744,7 +901,10 @@ export const ScoreurCricket = ({ config, setPage }) => {
               </div>
             ))}
           </div>
-          <button onClick={() => { setPhase("jeu"); setInterInfo(null); setActifIdx(a => (a+1)%joueurs.length); }}
+          <div style={{ fontSize:14, color:C.muted, marginBottom:14 }}>
+            <strong style={{ color: joueurs[prochainDepart]?.color || C.text }}>{joueurs[prochainDepart]?.pseudo}</strong> commence le leg suivant
+          </div>
+          <button onClick={() => { setPhase("jeu"); setInterInfo(null); setActifIdx(prochainDepart); }}
             style={{ background:`linear-gradient(135deg,${C.accent},#ea580c)`, border:"none", borderRadius:14, padding:"18px 48px", color:"#fff", fontWeight:900, fontSize:18, cursor:"pointer" }}>
             Leg suivant →
           </button>
@@ -797,7 +957,13 @@ export const ScoreurCricket = ({ config, setPage }) => {
                 style={{ flex:1, padding:"13px", borderRadius:10, border:`1px solid ${C.border}`, background:"#111", color:C.text, fontWeight:700, cursor:"pointer" }}>
                 Continuer
               </button>
-              <button onClick={() => setPage("jeux-flechettes")}
+              <button onClick={() => {
+                  // Défi abandonné : on oublie le défi mémorisé, sinon le prochain Cricket ouvert
+                  // depuis les jeux repartait sur ce vieux duel (avec ses DRIX en jeu). Il se relance
+                  // depuis la page Défis, qui le remémorise.
+                  if (config.defi) { try { localStorage.removeItem("dp_cricket_duel"); } catch { /* rien */ } }
+                  setPage(config.defi ? "defi" : "jeux-flechettes");
+                }}
                 style={{ flex:1, padding:"13px", borderRadius:10, border:"none", background:"#7f1d1d", color:C.red, fontWeight:700, cursor:"pointer" }}>
                 Quitter
               </button>
