@@ -20,6 +20,7 @@ import { useRaccourcis } from "./raccourcisScores";
 import { texteContoure, epaisseurContour, FOND_CARTE_JAUNE, KEYFRAMES_CARTE_JAUNE } from "./contourTexte";
 import { reduceGameOnline, buildFinalizationData, mergeVolleys } from "./onlineGame";
 import { PanneauStatsMatch } from "./StatsMatchPanel";
+import { dateJourDepuisLabel, fmtTempsSpeedrun, trierClassement } from "./classementSpeedrun";
 import { ConfigCricket } from "./AppCricket";
 import { JeuCapital } from "./AppJeuDecalePoint";
 import { ToucheCoule } from "./AppToucheCoule";
@@ -4664,6 +4665,94 @@ const ChronoFinishPost = ({ p, info, C, cardBase, joueur, likesMap, commentsMap,
   );
 };
 
+// ── Classement complet du jour, sous une carte « Vainqueur du jour » ──────────
+// Demande de Thomas (nov. 2026) : voir TOUS ceux qui ont joué ce speedrun ce jour-là, pas
+// seulement le vainqueur. Tri et formats : src/classementSpeedrun.js (testé à part).
+// ⚠️ Le body impose -webkit-text-fill-color : une couleur ne s'affiche qu'avec WebkitTextFillColor.
+const enCouleur = (c) => ({ color: c, WebkitTextFillColor: c });
+const ClassementSpeedrunJour = ({ kind, dateLabel, joueur, setPage }) => {
+  const [ouvert, setOuvert] = useState(false);
+  const [etat, setEtat] = useState("idle");   // idle | charge | ok | erreur
+  const [lignes, setLignes] = useState([]);
+  const dateJour = dateJourDepuisLabel(dateLabel);
+  if (!dateJour) return null;   // vieille carte sans date lisible : pas de classement possible
+  const table = kind === "scoreur" ? "chrono_scoreur_scores" : "chrono_finish_scores";
+  const charger = async () => {
+    setEtat("charge");
+    try {
+      const rows = await sb(`${table}?date_jour=eq.${dateJour}&select=joueur_id,joueur_pseudo,temps_ms,erreurs,statut&order=temps_ms.asc&limit=500`);
+      setLignes(trierClassement(rows));
+      setEtat("ok");
+    } catch { setEtat("erreur"); }
+  };
+  const basculer = () => {
+    const o = !ouvert;
+    setOuvert(o);
+    if (o && etat !== "ok" && etat !== "charge") charger();
+  };
+  const medaille = { 1: "🥇", 2: "🥈", 3: "🥉" };
+  const nbTermines = lignes.filter((l) => l.termine).length;
+  return (
+    <div style={{ marginBottom:10 }}>
+      <button onClick={basculer} aria-expanded={ouvert}
+        style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"10px 12px", borderRadius:12, cursor:"pointer", touchAction:"manipulation",
+          background: ouvert ? "#fbbf241f" : "#1a1200", border:`1px solid ${ouvert ? "#fbbf24aa" : "#fbbf2455"}`, fontWeight:800, fontSize:13, ...enCouleur("#fbbf24") }}>
+        <EmoIcon e="🏆" size={14} color="#fbbf24"/>
+        {ouvert ? "Masquer le classement" : "Classement complet du jour"}
+        <span style={{ display:"inline-block", transition:"transform .2s", transform: ouvert ? "rotate(180deg)" : "none" }}>▾</span>
+      </button>
+      {ouvert && (
+        <div style={{ marginTop:8, background:"#0f0800", border:"1px solid #fbbf2433", borderRadius:12, padding:"8px 10px" }}>
+          {etat === "charge" && <div style={{ textAlign:"center", padding:"12px 0", fontSize:12, ...enCouleur("#a16207") }}>Chargement du classement…</div>}
+          {etat === "erreur" && (
+            <div style={{ textAlign:"center", padding:"12px 0", fontSize:12, ...enCouleur("#f87171") }}>
+              Classement indisponible pour l'instant.{" "}
+              <button onClick={charger} style={{ background:"none", border:"none", textDecoration:"underline", cursor:"pointer", fontSize:12, ...enCouleur("#fbbf24") }}>Réessayer</button>
+            </div>
+          )}
+          {etat === "ok" && lignes.length === 0 && <div style={{ textAlign:"center", padding:"12px 0", fontSize:12, ...enCouleur("#a16207") }}>Aucun résultat trouvé pour ce jour.</div>}
+          {etat === "ok" && lignes.map((l, i) => {
+            const moi = joueur?.id && l.joueur_id === joueur.id;
+            return (
+              <div key={`${l.joueur_id || l.joueur_pseudo}-${i}`} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 6px", borderRadius:8,
+                  borderBottom: i < lignes.length - 1 ? "1px solid #fbbf2414" : "none",
+                  background: moi ? "#fbbf2418" : "transparent", opacity: l.termine ? 1 : 0.55 }}>
+                <div style={{ width:28, textAlign:"center", flexShrink:0, fontWeight:900, fontSize: l.rang && l.rang <= 3 ? 17 : 13,
+                    ...enCouleur(l.rang === 1 ? "#fbbf24" : l.rang ? "#e2e8f0" : "#64748b") }}>
+                  {l.rang ? (medaille[l.rang] || `${l.rang}.`) : "—"}
+                </div>
+                <div onClick={() => l.joueur_id && setPage("profil-joueur-" + l.joueur_id)}
+                  style={{ flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", cursor: l.joueur_id ? "pointer" : "default",
+                    fontWeight: l.rang === 1 || moi ? 900 : 700, fontSize:13.5, ...enCouleur(l.rang === 1 ? "#fde047" : "#f1f5f9") }}>
+                  {l.joueur_pseudo || "Joueur"}{moi && <span style={{ fontSize:10.5, fontWeight:800, marginLeft:6, ...enCouleur("#fbbf24") }}>toi</span>}
+                </div>
+                {l.termine ? (
+                  <>
+                    <span style={{ fontSize:10.5, fontWeight:700, flexShrink:0, ...enCouleur((l.erreurs || 0) === 0 ? "#22c55e" : (l.erreurs || 0) <= 2 ? "#f59e0b" : "#ef4444") }}>
+                      {l.erreurs || 0} err.
+                    </span>
+                    <span style={{ fontSize:14, fontWeight:900, fontVariantNumeric:"tabular-nums", minWidth:62, textAlign:"right", flexShrink:0, ...enCouleur(l.rang === 1 ? "#fbbf24" : "#f1f5f9") }}>
+                      {fmtTempsSpeedrun(l.temps_ms)}
+                    </span>
+                  </>
+                ) : (
+                  <span style={{ fontSize:11, fontWeight:700, fontStyle:"italic", flexShrink:0, ...enCouleur("#64748b") }}>abandon</span>
+                )}
+              </div>
+            );
+          })}
+          {etat === "ok" && lignes.length > 0 && (
+            <div style={{ textAlign:"center", fontSize:10.5, marginTop:6, ...enCouleur("#a16207") }}>
+              {lignes.length} joueur{lignes.length > 1 ? "s" : ""} {lignes.length > 1 ? "ont" : "a"} participé
+              {nbTermines < lignes.length ? ` · ${nbTermines} à l'arrivée` : ""}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── ChronoVainqueurPost — Carte CHAMPION or/gold (vainqueur du jour) ──────────
 const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepuis, setPage, FeedAvatar, LikeButton, CommentSection }) => {
   const jeu = info?.kind === "scoreur" ? "Scoreur Speedrun" : "Finish Speedrun";
@@ -4776,6 +4865,9 @@ const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepu
           </div>
         </div>
 
+        {/* Tous ceux qui ont joué ce speedrun ce jour-là */}
+        <ClassementSpeedrunJour kind={info?.kind === "scoreur" ? "scoreur" : "finish"} dateLabel={info.date_label} joueur={joueur} setPage={setPage}/>
+
         <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
         <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
       </div>
@@ -4783,7 +4875,7 @@ const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepu
   );
 };
 
-const DuelPost = ({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepuis, setPage }) => {
+const DuelPost =({ p, d, C, cardBase, joueur, likesMap, commentsMap, tempsDepuis, setPage }) => {
   const [openManches, setOpenManches] = useState(false);
   const [openDrix, setOpenDrix]       = useState(false);
   const [openStats, setOpenStats]     = useState(false);
