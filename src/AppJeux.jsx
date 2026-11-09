@@ -5,7 +5,7 @@ import { EmoIcon, EmoText } from "./icons";
 import { calculerProfilBot, genererScoreBot, BOT_LUCKY_LITTLER } from "./botFleche";
 import { useRaccourcis, RACCOURCIS_DEFAUT } from "./raccourcisScores";
 import { calculerStatsMatch, statsParManche, BANDES } from "./statsMatch";
-import { texteDerniersMatchs } from "./moyenneRecente";
+import { texteDernieresManches } from "./moyenneRecente";
 import { verserBonusBulleFinDeMatch, bonusDejaVerseCeJour, debutDuJour, nouvelEtatBulle, XP_BULLE } from "./bulleXp";
 import { BoutonPartagerComptoir } from "./partageComptoir";
 import { texteContoure, epaisseurContour, FOND_CARTE_JAUNE, KEYFRAMES_CARTE_JAUNE } from "./contourTexte";
@@ -28,14 +28,22 @@ const ficheCheckout = (p) => {
 // échelle à flammes d'après la moyenne : le même joueur affichait « Régulier »
 // ici et « Joueur dangereux » sur son profil.
 
+// Un vrai duel de la table duels (pour relier sa partie live : live_sessions.duel_id).
+const UUID_DUEL = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const TYPES_DUEL_REEL = ["drix", "rivalite", "amical", "bull"];
+
+// « ses 10 dernières manches », « sa dernière manche » (sans compte : « ses dernières manches »)
+const texteManchesBot = (n) => (!n ? "ses dernières manches" : n === 1 ? "sa dernière manche" : `ses ${n} dernières manches`);
+
 const ficheSource = (p) => {
   if (!p) return "";
   if (p.source === "champion") return "Calé sur les vraies stats d'un pro";
   // ⚠️ Le mode « replay » du moteur s'appelle source: "volees" (mode: "replay") :
   // tester "replay" ici affichait « estimé d'après son DRIX » à un joueur dont on
   // avait pourtant rejoué les vraies volées.
-  if (p.source === "volees" || p.mode === "replay") return `D'après ses ${p.volees} dernières volées réelles`;
-  if (p.source === "stats") return `D'après ses dernières parties (${p.volees} volées)`;
+  // Le bot rejoue (ou imite) ses dernières manches de matchs DRIX : on dit combien.
+  if (p.source === "volees" || p.mode === "replay") return `Rejoue ${texteManchesBot(p.manches)} de matchs DRIX (${p.volees} volées réelles)`;
+  if (p.source === "stats") return `D'après ${texteManchesBot(p.manches)} de matchs DRIX (${p.volees} volées)`;
   return "Estimé d'après son DRIX — il a peu joué";
 };
 
@@ -44,12 +52,13 @@ const ficheSource = (p) => {
 const ANALYSE_CHAMPION = { winRate: 100, formePct: 1, A: { avgReel: 96, checkoutPct: 43, n180: 5 },
   dangerScore: 100, dangerColor: "#ef4444", dangerLabel: "Joueur dangereux", dangerDriver: "calé sur les vraies stats d'un pro" };
 
-// La moyenne MONTRÉE dans la liste des bots : celle de ses 10 derniers matchs (501/301),
-// sa forme du moment, plus parlante que la moyenne de toute sa carrière.
+// La moyenne MONTRÉE dans la liste des bots : celle de ses 10 dernières manches de matchs
+// DRIX (choix de Thomas, nov. 2026 : les manches mêmes que son bot rejoue), sa forme du
+// moment, plus parlante que la moyenne de toute sa carrière.
 // Repli sur la moyenne générale seulement quand ce chiffre n'EXISTE pas : vue SQL pas
 // encore remise à jour (pas de colonne avg_10) ou champion (profil fixe). Si la colonne
-// existe mais qu'il n'a aucun chiffre dans ses 10 derniers matchs, on montre « — » plutôt
-// que de glisser sa moyenne générale sous l'étiquette « 10 derniers matchs ».
+// existe mais qu'il n'a aucune manche DRIX, on montre « — » plutôt que de glisser sa
+// moyenne générale sous l'étiquette « 10 dernières manches ».
 // La dangerosité, elle, garde la moyenne générale : c'est la même jauge que sur son profil.
 const moyenneMontree = (an) => {
   const A = an?.A;
@@ -1606,17 +1615,20 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       profil = { ...BOT_LUCKY_LITTLER };   // profil FIXE du champion — aucun historique à charger
     } else {
       const manque = avecAnalyse && !analysesRef.current[cle];
-      const [duels, volees, stats, reset] = await Promise.all([
+      // Sa remise à zéro des stats sert aussi au bot : il rejoue ses 10 dernières manches DRIX
+      // DEPUIS cette date, les mêmes que la moyenne affichée (vue SQL : même filtre).
+      const [duels, stats, reset] = await Promise.all([
         dbJ.getDuels(ami.id).catch(() => []),
-        dbJ.getVoleesReelles(ami.id).catch(() => []),
         manque ? dbJ.getStats(ami.id).catch(() => null) : Promise.resolve(null),
-        manque ? dbJ.getStatsResetAt(ami.id) : Promise.resolve(0),
+        dbJ.getStatsResetAt(ami.id),
       ]);
-      profil = calculerProfilBot({ drix: ami.drix, duels, amiPseudo: ami.pseudo, volees });
+      // Ses volées APRÈS ses duels : c'est dans ses duels qu'on trouve ses 10 dernières manches DRIX.
+      const volees = await dbJ.getVoleesReelles(ami.id, { duels, pseudo: ami.pseudo, depuis: reset }).catch(() => []);
+      profil = calculerProfilBot({ drix: ami.drix, duels, amiPseudo: ami.pseudo, amiId: ami.id, depuis: reset, volees });
       // Ses chiffres de profil ne sont pas là (vue SQL absente ou en erreur) : on les
       // calcule ici comme la fiche joueur, avec la MÊME préparation des duels (terminés,
       // du plus récent au plus ancien, depuis sa remise à zéro des stats comme la vue),
-      // sinon forme, dangerosité et moyenne des 10 derniers matchs divergeraient.
+      // sinon forme, dangerosité et moyenne des 10 dernières manches divergeraient.
       if (manque) {
         const termines = depuisReset((duels || []).filter((d) => d.statut === "termine").sort((a, b) => (b.date || 0) - (a.date || 0)), reset);
         const analyse = analyserJoueur({ joueurId: ami.id, pseudo: ami.pseudo, drix: ami.drix, stats, duels: termines });
@@ -1928,11 +1940,16 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   // ── Suivi live session ────────────────────────────────────────────────────
   const createLiveSession = async () => {
     // Détermine les 2 joueurs : vrai duel OU partie bot (toi vs le « fantôme » d'un ami).
-    let p1, p2, botSide = 0, mode, manches;
+    let p1, p2, botSide = 0, mode, manches, duelId = null;
     if (modeDuel && duel?.id) {
       mode = duel.mode || "501"; manches = duel.manches || 1;
       p1 = { id:String(duel.challenger_id), pseudo:duel.challenger_pseudo, drix:duel.challenger_drix||1000 };
       p2 = { id:String(duel.defie_id), pseudo:duel.defie_pseudo, drix:duel.defie_drix||1000 };
+      // Un VRAI duel (une ligne de la table duels : id uuid + type) : on relie la partie à son
+      // duel (duel_id). C'est par ce lien que le bot retrouve les volées de ses 10 dernières
+      // manches DRIX. Les faux duels (match de tournoi « potes-… », doublette, partie libre)
+      // n'ont pas d'id de duel : rien à relier.
+      if (UUID_DUEL.test(String(duel.id)) && TYPES_DUEL_REEL.includes(duel.type)) duelId = String(duel.id);
     } else if (botPseudo && joueurs?.length >= 2) {
       mode = config.mode; manches = config.manches;
       const slot = (j) => j.nom === botPseudo
@@ -1954,6 +1971,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         debut:Date.now(), statut:"en_cours",
         score1:0, score2:0, stats_j1:initSt, stats_j2:initSt,
         ...(botSide ? { bot_side: botSide } : {}), // colonne ajoutée par migration ; seulement en mode bot
+        ...(duelId ? { duel_id: duelId } : {}),     // seulement pour un vrai duel
       };
       const postLive = (b) => fetch(`${SB_URL}/rest/v1/live_sessions`, {
         method:"POST",
@@ -1967,6 +1985,13 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       if (!r.ok && botSide && /bot_side/.test(text)) {
         const { bot_side, ...sansBot } = body; // eslint-disable-line no-unused-vars
         r = await postLive(sansBot);
+        text = await r.text();
+      }
+      // Même filet pour duel_id : si la base le refuse (colonne absente, lien refusé…), la partie
+      // live part quand même — le bot retrouvera ce duel à l'heure, comme les anciens.
+      if (!r.ok && duelId && /duel_id/.test(text)) {
+        const { duel_id, ...sansLien } = body; // eslint-disable-line no-unused-vars
+        r = await postLive(sansLien);
         text = await r.text();
       }
       if (!r.ok) { console.error("createLiveSession HTTP error:", r.status, text); return; }
@@ -2474,7 +2499,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
   }
 
   // ── Tri de la liste des bots : DRIX (ordre d'origine), moyenne (celle affichée : ses
-  // 10 derniers matchs) ou dangerosité. Sans chiffre (fiche pas encore là) = en bas ;
+  // 10 dernières manches DRIX) ou dangerosité. Sans chiffre (fiche pas encore là) = en bas ;
   // à égalité, le DRIX départage.
   const valeurTri = (a) => {
     const an = analyses[cleAmi(a)]?.analyse;
@@ -2494,7 +2519,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
         Choisis un ami : le bot jouera à son niveau, d'après ses vraies stats (ou son DRIX s'il a peu joué).
         {/* Seulement quand la liste montre vraiment cette moyenne (vue SQL à jour) */}
         {Object.values(analyses).some((x) => x?.analyse?.A?.avg10Dispo) && (
-          <><br/><span style={{ color:"#64748b", fontSize:12 }}>MOY = sa moyenne sur ses 10 derniers matchs.</span></>
+          <><br/><span style={{ color:"#64748b", fontSize:12 }}>MOY = sa moyenne sur ses 10 dernières manches de matchs DRIX.</span></>
         )}
       </p>
       {botPreparing ? (
@@ -2596,7 +2621,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                     const montree = moyenneMontree(an);
                     const moyProfil = montree.moy != null;
                     const moy = moyProfil ? montree.moy : fiche ? ficheMoyenne(fiche) : null;
-                    // Sa moyenne de toute sa carrière, rappelée sous celle des 10 derniers matchs
+                    // Sa moyenne de toute sa carrière, rappelée sous celle des 10 dernières manches
                     // quand elle est différente (c'est elle que cite la dangerosité).
                     const moyGenerale = montree.recente && an.A.avgReel != null && an.A.avgReel !== montree.moy ? an.A.avgReel : null;
                     const ck = an?.A?.checkoutPct != null ? { pct: an.A.checkoutPct, reel: true } : fiche ? ficheCheckout(fiche) : null;
@@ -2610,7 +2635,7 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
                             <div style={{ fontSize:10, fontWeight:800, color:"#64748b", letterSpacing:1 }}>MOYENNE</div>
                             <div style={{ fontSize:32, fontWeight:900, color:"#f1f5f9", lineHeight:1.1, marginTop:2 }}>{moy ?? "…"}</div>
                             <div style={{ fontSize:11, color:"#94a3b8" }}>
-                              {montree.recente && moyProfil ? texteDerniersMatchs(montree.n, !!ami.self) : moyProfil ? "par volée · comme son profil" : "par volée · estimée"}
+                              {montree.recente && moyProfil ? texteDernieresManches(montree.n, !!ami.self) : moyProfil ? "par volée · comme son profil" : "par volée · estimée"}
                             </div>
                             {moyGenerale != null && (
                               <div style={{ fontSize:10.5, color:"#64748b", marginTop:2 }}>

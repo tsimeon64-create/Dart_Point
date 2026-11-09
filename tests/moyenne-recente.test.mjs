@@ -1,92 +1,127 @@
-// Tests de moyenneDerniersMatchs (src/moyenneRecente.js) — lancer : node tests/moyenne-recente.test.mjs
+// Tests de la moyenne sur les 10 dernières manches DRIX (src/moyenneRecente.js)
+// Lancer : node tests/moyenne-recente.test.mjs   (ou tous : node --test tests/)
 import assert from "node:assert/strict";
-import { moyenneDerniersMatchs, texteDerniersMatchs, MATCHS_RECENTS } from "../src/moyenneRecente.js";
+import {
+  moyenneDernieresManches, dernieresManchesDrix, texteDernieresManches, duelDrixCompte, trierDuelsRecents, MANCHES_RECENTES,
+} from "../src/moyenneRecente.js";
 
 let ok = 0;
 const test = (nom, f) => { f(); ok++; console.log("  ✓", nom); };
 
 const MOI = "id-thomas";
-// Un duel terminé de Thomas (challenger) contre Toto, une manche gagnée à `moy` de moyenne en `vol` volées.
-const duel = (moy, vol = 6, extra = {}) => ({
+let date = 1_800_000_000_000;
+// Une manche : gagnée par Thomas (g = true) ou perdue, à `moy` de moyenne en `vol` volées.
+const manche = (moy, vol = 6, g = true) => g
+  ? { winner: "Thomas", loser: "Toto", winner_moy: moy, winner_volees: vol, loser_moy: 20, loser_volees: vol }
+  : { winner: "Toto", loser: "Thomas", winner_moy: 99, winner_volees: vol, loser_moy: moy, loser_volees: vol };
+// Un duel DRIX terminé de Thomas (challenger) contre Toto ; chaque nouveau duel est PLUS ancien.
+const duel = (manches, extra = {}) => ({
+  id: `d${String(date).slice(-6)}`, date: (date -= 1000), statut: "termine", type: "drix", mode: "501",
   challenger_id: MOI, challenger_pseudo: "Thomas", defie_id: "id-toto", defie_pseudo: "Toto",
-  manches_detail: [{ winner: "Thomas", loser: "Toto", winner_moy: moy, winner_volees: vol, loser_moy: 20, loser_volees: vol }],
-  ...extra,
+  manches_detail: manches, ...extra,
+});
+const moy = (duels, o = {}) => moyenneDernieresManches({ joueurId: MOI, pseudo: "Thomas", duels, ...o });
+
+test("ne compte QUE ses 10 dernières manches, la plus récente d'abord", () => {
+  // duel récent : 4 manches à 60 ; duel plus ancien : 8 manches dont les 6 DERNIÈRES à 60 et les 2 premières à 10
+  const duels = [duel([60, 60, 60, 60].map((m) => manche(m))), duel([10, 10, 60, 60, 60, 60, 60, 60].map((m) => manche(m)))];
+  const r = moy(duels);
+  assert.deepEqual(r, { moyenne: 60, nbManches: 10 });   // les 2 premières manches du vieux duel restent dehors
+  assert.equal(MANCHES_RECENTES, 10);
+  const l = dernieresManchesDrix({ joueurId: MOI, pseudo: "Thomas", duels });
+  assert.deepEqual(l.map((x) => x.index), [3, 2, 1, 0, 7, 6, 5, 4, 3, 2]);   // dans un duel : la dernière manche d'abord
+  assert.equal(l[0].duel, duels[0]);
 });
 
-test("ne compte QUE les 10 derniers matchs (les plus récents d'abord)", () => {
-  const duels = [...Array(10).fill(0).map(() => duel(60)), duel(20), duel(20)];
-  const r = moyenneDerniersMatchs({ joueurId: MOI, pseudo: "Thomas", duels });
-  assert.equal(r.moyenne, 60);          // les deux vieux matchs à 20 sont ignorés
-  assert.equal(r.nbMatchs, 10);
-  assert.equal(MATCHS_RECENTS, 10);
+test("seuls les vrais matchs DRIX comptent : drix et rivalité, terminés, en 501 / 301", () => {
+  const duels = [
+    duel([manche(90)], { type: "amical" }),
+    duel([manche(90)], { type: "bull" }),
+    duel([manche(90)], { mode: "Cricket" }),
+    duel([manche(90)], { statut: "abandonne" }),
+    duel([manche(90)], { statut: "conteste" }),
+    duel([manche(40)], { type: "rivalite" }),
+    duel([manche(50)], { mode: "301" }),
+  ];
+  assert.deepEqual(moy(duels), { moyenne: 45, nbManches: 2 });
+  assert.equal(duelDrixCompte({ statut: "termine", type: "drix", mode: 501 }), true);   // mode en nombre : accepté
+  assert.equal(duelDrixCompte(null), false);
+});
+
+test("un duel de Cricket ne prend pas une des 10 places", () => {
+  const cricket = duel(null, { mode: "Cricket" });
+  const duels = [cricket, ...Array.from({ length: 10 }, () => duel([manche(60)])), duel([manche(20)])];
+  assert.deepEqual(moy(duels), { moyenne: 60, nbManches: 10 });
+});
+
+test("l'ordre ne dépend pas de l'ordre reçu : date décroissante, puis id décroissant", () => {
+  const vieux = { ...duel(Array.from({ length: 10 }, () => manche(20))), date: 1000, id: "z" };
+  const recentA = { ...duel([manche(70)]), date: 5000, id: "a" };
+  const recentB = { ...duel([manche(50)]), date: 5000, id: "b" };   // même milliseconde : « b » passe avant « a »
+  const l = dernieresManchesDrix({ joueurId: MOI, pseudo: "Thomas", duels: [vieux, recentA, recentB] });
+  assert.deepEqual(l.slice(0, 3).map((x) => x.duel.id), ["b", "a", "z"]);
+  assert.deepEqual(trierDuelsRecents([{ id: "x" }, { id: "y", date: 3 }]).map((d) => d.id), ["y", "x"]);   // sans date : au bout
 });
 
 test("pondère chaque manche par son nombre de volées, comme la moyenne réelle du profil", () => {
-  const duels = [duel(40, 10), duel(70, 5)];
-  const r = moyenneDerniersMatchs({ joueurId: MOI, pseudo: "Thomas", duels });
+  const r = moy([duel([manche(40, 10), manche(70, 5)])]);
   assert.equal(r.moyenne, Math.round((40 * 10 + 70 * 5) / 15));   // 50
 });
 
 test("arrondi exact : 57,5 donne 58 (division en dernier)", () => {
-  const r = moyenneDerniersMatchs({ joueurId: MOI, pseudo: "Thomas", duels: [duel(57, 1), duel(58, 1)] });
-  assert.equal(r.moyenne, 58);
+  assert.equal(moy([duel([manche(57, 1), manche(58, 1)])]).moyenne, 58);
+  // 57,63 × 3 + 57,37 × 1 → 57,565 → 58 ; en flottant naïf on risquerait 57,56499…
+  assert.equal(moy([duel([manche(57.63, 3), manche(57.37, 1)])]).moyenne, 58);
+  assert.equal(moy([duel([manche(57.49, 1)])]).moyenne, 57);
 });
 
 test("ses chiffres de PERDANT quand il a perdu la manche, et du côté défié", () => {
-  const d = {
-    challenger_id: "id-toto", challenger_pseudo: "Toto", defie_id: MOI, defie_pseudo: "Thomas",
-    manches_detail: [{ winner: "Toto", loser: "Thomas", winner_moy: 80, winner_volees: 5, loser_moy: 45, loser_volees: 5 }],
-  };
-  const r = moyenneDerniersMatchs({ joueurId: MOI, pseudo: "Thomas", duels: [d] });
-  assert.equal(r.moyenne, 45);
+  const d = duel([manche(45, 5, false)], { challenger_id: "id-toto", challenger_pseudo: "Toto", defie_id: MOI, defie_pseudo: "Thomas" });
+  assert.deepEqual(moy([d]), { moyenne: 45, nbManches: 1 });
+  assert.equal(dernieresManchesDrix({ joueurId: MOI, pseudo: "Thomas", duels: [d] })[0].isW, false);
 });
 
 test("pseudo changé depuis : on le reconnaît par le pseudo enregistré dans le duel", () => {
-  const d = duel(66, 4, { challenger_pseudo: "Tom_ancien", manches_detail: [{ winner: "Tom_ancien", winner_moy: 66, winner_volees: 4 }] });
-  const r = moyenneDerniersMatchs({ joueurId: MOI, pseudo: "Thomas", duels: [d] });
-  assert.equal(r.moyenne, 66);
+  const d = duel([{ winner: "Tom_ancien", loser: "Toto", winner_moy: 66, winner_volees: 4 }], { challenger_pseudo: "Tom_ancien" });
+  assert.equal(moy([d]).moyenne, 66);
 });
 
-test("sans détail des manches : moyenne de ses scores de duel (> 0)", () => {
-  const vieux = [
-    { challenger_id: MOI, score_challenger: "48.4", manches_detail: null },
-    { challenger_id: "x", defie_id: MOI, score_defie: 51.2, manches_detail: [] },
-    { challenger_id: MOI, score_challenger: 0 },
+test("sans id du joueur : on retrouve son côté par le pseudo", () => {
+  const d = duel([manche(45, 5, false)], { challenger_id: "id-toto", challenger_pseudo: "Toto", defie_id: MOI, defie_pseudo: "Thomas" });
+  assert.equal(moyenneDernieresManches({ pseudo: "Thomas", duels: [d] }).moyenne, 45);
+});
+
+test("une manche sans moyenne ne prend pas de place ; un duel sans détail non plus", () => {
+  const duels = [
+    duel([manche(0), { winner: "Thomas" }, null, manche(50)]),
+    duel(null), duel("pas un tableau"),
+    ...Array.from({ length: 9 }, () => duel([manche(50)])),
+    duel([manche(10)]),
   ];
-  const r = moyenneDerniersMatchs({ joueurId: MOI, pseudo: "Thomas", duels: vieux });
-  assert.equal(r.moyenne, 50);          // (48,4 + 51,2) / 2 = 49,8 → 50
-  assert.equal(r.nbMatchs, 3);
+  assert.deepEqual(moy(duels), { moyenne: 50, nbManches: 10 });
 });
 
-test("moins de 10 matchs : sur ce qu'il a joué", () => {
-  const r = moyenneDerniersMatchs({ joueurId: MOI, pseudo: "Thomas", duels: [duel(55), duel(65)] });
-  assert.equal(r.nbMatchs, 2);
-  assert.equal(r.moyenne, 60);
+test("remise à zéro des stats : les manches d'avant ne comptent plus", () => {
+  const neuf = { ...duel([manche(70)]), date: 2000 };
+  const avant = { ...duel([manche(30)]), date: 1000 };
+  assert.deepEqual(moy([neuf, avant], { depuis: 1500 }), { moyenne: 70, nbManches: 1 });
+  assert.deepEqual(moy([neuf, avant]), { moyenne: 50, nbManches: 2 });
 });
 
-test("aucun match ou aucun chiffre : null, sans plantage", () => {
-  assert.deepEqual(moyenneDerniersMatchs({ joueurId: MOI }), { moyenne: null, nbMatchs: 0 });
-  assert.deepEqual(moyenneDerniersMatchs({ joueurId: MOI, duels: null }), { moyenne: null, nbMatchs: 0 });
-  const r = moyenneDerniersMatchs({ joueurId: MOI, duels: [{ challenger_id: MOI, manches_detail: "pas un tableau" }] });
-  assert.equal(r.moyenne, null);
-});
-
-test("un duel de Cricket ne prend pas une des 10 places (il n'a pas de moyenne)", () => {
-  const cricket = { mode: "Cricket", challenger_id: MOI, statut: "termine", manches_detail: null };
-  const duels = [cricket, cricket, cricket, ...Array(10).fill(0).map(() => duel(60, 6, { mode: "501" })), duel(20, 6, { mode: "301" })];
-  const r = moyenneDerniersMatchs({ joueurId: MOI, pseudo: "Thomas", duels });
-  assert.equal(r.moyenne, 60);          // ses 10 derniers 501/301 ; le vieux 301 à 20 reste dehors
-  assert.equal(r.nbMatchs, 10);
-  const peu = moyenneDerniersMatchs({ joueurId: MOI, pseudo: "Thomas", duels: [cricket, duel(50), cricket] });
-  assert.deepEqual(peu, { moyenne: 50, nbMatchs: 1 });   // « sur son seul match », pas « 3 »
+test("moins de 10 manches : sur ce qu'il a joué ; rien : null, sans plantage", () => {
+  assert.deepEqual(moy([duel([manche(55), manche(65)])]), { moyenne: 60, nbManches: 2 });
+  assert.deepEqual(moyenneDernieresManches({ joueurId: MOI }), { moyenne: null, nbManches: 0 });
+  assert.deepEqual(moyenneDernieresManches({ joueurId: MOI, duels: null }), { moyenne: null, nbManches: 0 });
+  assert.deepEqual(moyenneDernieresManches(), { moyenne: null, nbManches: 0 });
 });
 
 test("le petit texte sous la moyenne", () => {
-  assert.equal(texteDerniersMatchs(10), "sur ses 10 derniers matchs");
-  assert.equal(texteDerniersMatchs(4), "sur ses 4 derniers matchs");
-  assert.equal(texteDerniersMatchs(1), "sur son seul match");
-  assert.equal(texteDerniersMatchs(10, true), "sur tes 10 derniers matchs");
-  assert.equal(texteDerniersMatchs(1, true), "sur ton seul match");
+  assert.equal(texteDernieresManches(10), "sur ses 10 dernières manches");
+  assert.equal(texteDernieresManches(4), "sur ses 4 dernières manches");
+  assert.equal(texteDernieresManches(1), "sur sa seule manche");
+  assert.equal(texteDernieresManches(10, true), "sur tes 10 dernières manches");
+  assert.equal(texteDernieresManches(1, true), "sur ta seule manche");
+  assert.equal(texteDernieresManches(12), "sur ses 10 dernières manches");
 });
 
 console.log(`\n${ok} tests OK`);

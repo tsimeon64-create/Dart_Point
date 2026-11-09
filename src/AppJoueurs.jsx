@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { PanneauStatsMatch } from "./StatsMatchPanel";
-import { moyenneDerniersMatchs, MATCHS_RECENTS } from "./moyenneRecente";
+import { moyenneDernieresManches, dernieresManchesDrix, MANCHES_RECENTES } from "./moyenneRecente";
+import { creneauDuDuel, sessionsDuDuel, manchesDrixDepuisVolees } from "./botFleche";
 import { ArrowLeft, Check, Camera, Pencil, Save, BarChart2, Users, Medal, Clock, Trophy, Skull, Target, ChevronRight, ChevronDown, X, TrendingUp, TrendingDown, Crown, Swords, Search, User, Gem, Globe, Building2, Shield, Settings, MapPin, Crosshair, Star, Zap, Flame, Sparkles, Snowflake, Minus, ArrowUp, ArrowDown, Gamepad2, Dices, Scale, Beer, Cake, HeartCrack, Circle, Bomb, Sprout, List, Cog, Hand, Rocket, QrCode, RotateCcw, History } from "lucide-react";
 import QRCode from "qrcode";
 import { EmoIcon } from "./icons";
@@ -292,25 +293,48 @@ export const dbJ = {
     const rows = await Promise.all(paquets.map((pq) => sbJ(`v_analyse_joueurs?joueur_id=in.(${pq.join(",")})&select=*`)));
     return rows.flat().filter(Boolean);
   },
-  // Vraies volées d'un joueur sur ses 5 dernières parties live (pour le bot « replay »).
-  // 5 et pas 10 : on veut son niveau ACTUEL. Sur 10 parties on mélangeait des soirées vieilles de
-  // deux semaines avec sa forme du moment, et le bot devenait un joueur moyen qui n'existe pas.
-  // ⚠️ On part de SES VOLÉES, pas de la table des sessions. Une partie jouée contre son bot crée
-  // bien une session à son nom, mais elle ne contient plus aucune volée de lui (voir pushLiveVolee
-  // dans AppJeux) : partir des sessions faisait donc consommer les 10 places par des parties vides,
-  // et le bot finissait par se calibrer sur du vide ou sur lui-même. Ici, une partie sans volée de
-  // lui est simplement ignorée.
-  getVoleesReelles: async (joueur_id) => {
-    const recentes = await sbJ(`live_volees?joueur_id=eq.${joueur_id}&select=session_id,date&order=date.desc&limit=900`).catch(() => []);
-    if (!Array.isArray(recentes) || !recentes.length) return [];
-    const ids = [];
-    for (const v of recentes) {
-      if (v.session_id && !ids.includes(v.session_id)) ids.push(v.session_id);
-      if (ids.length >= 5) break;
+  // Les vraies volées de ses 10 DERNIÈRES MANCHES DRIX, pour son bot (mode « replay »).
+  // Choix de Thomas (nov. 2026) : le bot rejoue exactement les manches qui font la moyenne
+  // affichée dans la liste des bots (moyenneRecente.js) — jamais une partie contre un bot,
+  // une partie libre, un amical ou du Cricket. Avant, on prenait ses 5 dernières parties
+  // live de n'importe quel genre, parties contre un bot comprises.
+  //   1) ses 10 dernières manches DRIX, dans ses duels ;
+  //   2) les parties live de ces duels : par duel_id (rempli depuis nov. 2026), sinon à
+  //      l'heure (voir sessionsDuDuel dans botFleche.js) ;
+  //   3) SES volées de ces parties, remises en manches (manchesDrixDepuisVolees).
+  // Renvoie les volées, la manche la plus récente d'abord. `duels` : ses duels s'ils sont
+  // déjà chargés (sinon on les lit), `depuis` : sa remise à zéro des stats.
+  // ⚠️ Plafond de 1000 lignes par réponse : créneaux de quelques heures seulement, listes
+  // d'ids par 60, volées lues page par page.
+  getVoleesReelles: async (joueur_id, { duels = null, pseudo = "", depuis = 0 } = {}) => {
+    if (!joueur_id) return [];
+    const liste = Array.isArray(duels) ? duels : await dbJ.getDuels(joueur_id).catch(() => []);
+    const choisies = dernieresManchesDrix({ joueurId: joueur_id, pseudo, duels: liste, depuis });
+    if (!choisies.length) return [];
+    const concernes = [...new Set(choisies.map((c) => c.duel))];
+    // Les créneaux où chercher, fusionnés quand ils se chevauchent (une soirée = une requête).
+    const creneaux = concernes.map((d) => creneauDuDuel(d, liste)).sort((a, b) => a.debutMin - b.debutMin);
+    const fusion = [];
+    for (const c of creneaux) {
+      const der = fusion[fusion.length - 1];
+      if (der && c.debutMin <= der.fin) der.fin = Math.max(der.fin, c.fin);
+      else fusion.push({ ...c });
     }
+    const COLS = "id,duel_id,joueur1_id,joueur2_id,debut,bot_side";
+    const lots = await Promise.all([
+      ...fusion.map((c) => sbJ(`live_sessions?or=(joueur1_id.eq.${joueur_id},joueur2_id.eq.${joueur_id})&debut=gt.${Math.floor(c.debutMin)}&debut=lt.${Math.ceil(c.fin)}&select=${COLS}&order=debut.desc,id.desc&limit=1000`).catch(() => [])),
+      // Les parties reliées à leur duel (duel_id), même si elles sortent du créneau.
+      sbJ(`live_sessions?duel_id=in.(${concernes.map((d) => d.id).join(",")})&select=${COLS}&order=debut.desc,id.desc&limit=1000`).catch(() => []),
+    ]);
+    const sessions = lots.flat().filter(Boolean);
+    const ids = [...new Set(concernes.flatMap((d) => sessionsDuDuel(d, sessions, liste).map((s) => s.id)))];
     if (!ids.length) return [];
-    const vol = await sbJ(`live_volees?session_id=in.(${ids.join(",")})&joueur_id=eq.${joueur_id}&select=score,reste,session_id&order=session_id.asc,numero_volee.asc`).catch(() => []);
-    return Array.isArray(vol) ? vol : [];
+    const paquets = [];
+    for (let i = 0; i < ids.length; i += 60) paquets.push(ids.slice(i, i + 60));
+    const vol = (await Promise.all(paquets.map((pq) =>
+      sbToutesJ(`live_volees?session_id=in.(${pq.join(",")})&joueur_id=eq.${joueur_id}&select=id,session_id,joueur_id,numero_volee,score,reste&order=session_id.asc,numero_volee.asc,id.asc`).catch(() => [])
+    ))).flat();
+    return manchesDrixDepuisVolees({ joueurId: joueur_id, pseudo, duels: liste, sessions, volees: vol, depuis });
   },
   addDuel: (d) => sbJ("duels", { method: "POST", body: JSON.stringify(d) }),
   updateDuel: (id, d) => sbJ(`duels?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(d), prefer: "return=minimal" }),
@@ -3810,11 +3834,11 @@ export const analyseDepuisVue = (row, drix = null) => {
   const A = { avgReel: num(row.avg_reel), checkoutPct: num(row.checkout_pct), n180: num(row.n180) ?? 0,
               coAttempts: num(row.co_attempts) ?? 0, coWon: num(row.co_won) ?? 0,
               legsWon: num(row.legs_won) ?? 0, legsLost: num(row.legs_lost) ?? 0, totalLegs: (num(row.legs_won) ?? 0) + (num(row.legs_lost) ?? 0),
-              // Moyenne sur ses 10 derniers matchs (501/301). La colonne n'existe pas tant que la
-              // vue n'a pas été remise à jour (bots_1_vue_analyse.sql relancé) : avg10Dispo faux,
-              // et la liste retombe alors sur avgReel, comme avant.
+              // Moyenne sur ses 10 dernières manches DRIX (bots_2_moyenne_10_manches.sql) et
+              // combien de manches elle couvre. Sans la colonne (vue jamais mise à jour) :
+              // avg10Dispo faux, et la liste retombe sur avgReel, comme avant.
               avg10Dispo: "avg_10" in row, avg10: num(row.avg_10),
-              n10: Math.min(MATCHS_RECENTS, num(row.n_10) ?? 0) };
+              n10: Math.min(MANCHES_RECENTES, num(row.n_10) ?? 0) };
   const d = drix ?? num(row.drix) ?? 1000;
   return { winRate, formePct, moyenneDuels: null, A, nbDuels: num(row.nb_duels) ?? 0, drix: d,
            ...scoreDanger({ winRate, formePct, drix: d, avgReel: A.avgReel, checkoutPct: A.checkoutPct, n180: A.n180 }) };
@@ -3878,11 +3902,12 @@ export const analyserJoueur = ({ joueurId, pseudo = "", drix = 1000, stats = nul
     const firstLegPct = firstPlayed>=4 ? Math.round(firstWon/firstPlayed*100) : null;
     const deciderPct  = decPlayed>=3  ? Math.round(decWon/decPlayed*100)    : null;
     const bestFinish  = finishes.length ? Math.max(...finishes) : 0;
-    // Sa moyenne sur ses 10 derniers matchs (liste des bots) — même calcul, limité aux plus récents.
-    const recente = moyenneDerniersMatchs({ joueurId, pseudo, duels });
+    // Sa moyenne sur ses 10 dernières manches DRIX (liste des bots) — même pondération,
+    // limitée à ces manches-là (moyenneRecente.js, colonnes avg_10 / n_10 de la vue).
+    const recente = moyenneDernieresManches({ joueurId, pseudo, duels });
     return { totalLegs, legsWon, legsLost, avgReel, checkoutPct, coAttempts, coWon, n180, tonRate, rate180,
              regularite, stdev, dechetRate, firstLegPct, firstPlayed, firstWon, deciderPct, decPlayed, decWon, bestFinish,
-             avg10Dispo: true, avg10: recente.moyenne, n10: recente.nbMatchs };
+             avg10Dispo: true, avg10: recente.moyenne, n10: recente.nbManches };
   })();
 
   const { dangerScore, dangerColor, dangerLabel, dangerDriver } =

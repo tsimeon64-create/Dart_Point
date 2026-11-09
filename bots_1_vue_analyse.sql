@@ -16,6 +16,10 @@
 -- Octobre 2026 : nouvelle colonne avg_10 (moyenne sur les 10 derniers matchs),
 -- celle que montre maintenant la liste des bots. Relancer ce script l'ajoute.
 --
+-- ⚠️ Novembre 2026 : avg_10 / n_10 portent maintenant sur les 10 dernières MANCHES
+-- DRIX (bots_2_moyenne_10_manches.sql). Si tu relances ce script-ci, relance
+-- bots_2_moyenne_10_manches.sql juste après.
+--
 -- ⚠️ Les additions ici reproduisent EXACTEMENT analyserJoueur (src/AppJoueurs.jsx),
 -- le calcul de la fiche profil. La FORMULE de dangerosité, elle, reste dans
 -- l'appli (scoreDanger) : la vue ne fournit que les sommes.

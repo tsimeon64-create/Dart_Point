@@ -1,10 +1,12 @@
 // src/botFleche.js
 // ── Cerveau du « mode bot » du Scoreur ─────────────────────────────────────────
-// Simule un adversaire qui joue au NIVEAU RÉEL D'UN AMI, d'après ses 10 dernières
-// parties (moyenne, meilleur finish réel, meilleure volée réelle, fréquence de 180).
-// Le bot ne fait JAMAIS mieux que ce que l'ami a réellement réalisé → pas de finish à
-// 161 sorti de nulle part. À défaut d'historique : estimation prudente depuis le DRIX.
-// Le joueur choisit donc une PERSONNE, pas un « niveau de bot ». Pur calcul, zéro dépendance.
+// Simule un adversaire qui joue au NIVEAU RÉEL D'UN AMI, d'après ses 10 DERNIÈRES MANCHES
+// jouées en match DRIX (choix de Thomas, nov. 2026 — voir moyenneRecente.js) : il rejoue
+// ces manches-là, et seulement elles. Le bot ne fait JAMAIS mieux que ce que l'ami a
+// réellement réalisé → pas de finish à 161 sorti de nulle part. À défaut d'historique :
+// estimation prudente depuis le DRIX.
+// Le joueur choisit donc une PERSONNE, pas un « niveau de bot ». Pur calcul, aucune requête.
+import { dernieresManchesDrix, MANCHES_RECENTES } from "./moyenneRecente.js";
 
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
@@ -27,29 +29,22 @@ export function moyenneDepuisDrix(drix = 1000) {
   return Math.round(clamp(30 + (d - 800) * (58 / 1200), 22, 100));
 }
 
-// Analyse les 5 DERNIÈRES parties de l'ami pour en extraire son niveau réel (sa forme ACTUELLE).
-// manches_detail : winner/loser (pseudos), *_moy, *_volees, *_finish, *_max, *_180.
-export function statsReelles(duels, amiPseudo) {
-  const recents = (duels || []).slice(0, 5); // getDuels renvoie déjà les plus récents d'abord
+// Son niveau réel d'après le DÉTAIL de ses 10 dernières manches DRIX (duels.manches_detail) :
+// les MÊMES manches que la moyenne affichée et que le rejeu (dernieresManchesDrix).
+// Sert de repli quand on n'a pas ses volées. manches_detail : winner/loser (pseudos), *_moy,
+// *_volees, *_finish, *_max, *_180. `amiId` sert à le reconnaître dans le duel (sinon : pseudo),
+// `depuis` = sa remise à zéro des stats.
+export function statsReelles(duels, amiPseudo, amiId = null, depuis = 0) {
+  const manches = dernieresManchesDrix({ joueurId: amiId, pseudo: amiPseudo || "", duels, depuis });
   let pts = 0, vol = 0, maxFinish = 0, maxVisit = 0, n180 = 0;
-  for (const d of recents) {
-    let md = d?.manches_detail;
-    if (typeof md === "string") { try { md = JSON.parse(md); } catch { md = null; } }
-    if (!Array.isArray(md)) continue;
-    for (const m of md) {
-      if (m.winner === amiPseudo) {
-        if (m.winner_volees > 0) { pts += (m.winner_moy || 0) * m.winner_volees; vol += m.winner_volees; }
-        if (m.winner_finish) maxFinish = Math.max(maxFinish, m.winner_finish); // finish réel (uniquement le gagnant finit)
-        if (m.winner_max) maxVisit = Math.max(maxVisit, m.winner_max);
-        n180 += m.winner_180 || 0;
-      } else if (m.loser === amiPseudo) {
-        if (m.loser_volees > 0) { pts += (m.loser_moy || 0) * m.loser_volees; vol += m.loser_volees; }
-        if (m.loser_max) maxVisit = Math.max(maxVisit, m.loser_max);
-        n180 += m.loser_180 || 0;
-      }
-    }
+  for (const { m, isW, moy, vol: v } of manches) {
+    if (v > 0) { pts += moy * v; vol += v; }
+    if (isW && m.winner_finish) maxFinish = Math.max(maxFinish, Number(m.winner_finish) || 0); // seul le gagnant finit
+    const max = Number(isW ? m.winner_max : m.loser_max) || 0;
+    if (max) maxVisit = Math.max(maxVisit, max);
+    n180 += Number(isW ? m.winner_180 : m.loser_180) || 0;
   }
-  return { moyenne: vol > 0 ? pts / vol : 0, volees: vol, maxFinish, maxVisit, n180 };
+  return { moyenne: vol > 0 ? pts / vol : 0, volees: vol, maxFinish, maxVisit, n180, manches: manches.length };
 }
 
 // Analyse fine des VRAIES volées d'un joueur pour COLLER à son jeu :
@@ -123,24 +118,37 @@ export function normaliserVolees(volees) {
   return out;
 }
 
+// Le rejeu demande un minimum de matière : 10 manches font ~50 à 80 volées ; en dessous de
+// 3 manches (ou d'une vingtaine de volées), le bot rejouerait sans cesse la même manche → on
+// passe au modèle statistique, calé sur les mêmes manches.
+export const MIN_MANCHES_REJEU = 3;
+const MIN_VOLEES_REJEU = 20;
+const MIN_DESCENTES_REJEU = 12;
+
 // Construit le profil du bot. 3 niveaux de réalisme, du meilleur au plus prudent :
-//  1) REPLAY : si on a ses VRAIES volées (live_volees), le bot rejoue ses lancers exacts.
-//  2) STATS  : sinon, modèle statistique calé sur ses 10 derniers matchs (manches_detail).
+//  1) REPLAY : on a les VRAIES volées de ses 10 dernières manches DRIX (live_volees, voir
+//     manchesDrixDepuisVolees) → le bot rejoue CES manches-là, et seulement elles.
+//  2) STATS  : sinon, modèle statistique calé sur le détail de ces mêmes 10 manches.
 //  3) DRIX   : sinon, estimation depuis son classement.
-export function calculerProfilBot({ drix, duels, amiPseudo, volees: voleesBrutes }) {
-  const volees = Array.isArray(voleesBrutes) ? normaliserVolees(voleesBrutes) : voleesBrutes;   // les 2 formats → 1 seul
+// volees : les volées de ses manches, LA PLUS RÉCENTE D'ABORD (une manche = une suite dans
+// l'ordre, coupée par la session, le reste qui remonte ou le finish). On n'en garde jamais
+// plus de 10 manches, et TOUT (manches rejouées, descentes, finishs, busts) vient d'elles.
+export function calculerProfilBot({ drix, duels, amiPseudo, amiId = null, depuis = 0, volees: voleesBrutes }) {
   // ── 1) MODE REPLAY (le plus réaliste) ──
-  if (Array.isArray(volees) && volees.length >= 25) {
+  if (Array.isArray(voleesBrutes)) {
+    // les 2 formats → 1 seul, puis ses 10 manches les plus récentes
+    const manches = decouperManches(normaliserVolees(voleesBrutes)).slice(0, MANCHES_RECENTES);
+    const volees = manches.flat();
     const scoring = volees.filter((v) => v.reste !== 0 && v.score > 0).map((v) => v.score); // lancers de scoring (hors finish, hors bust, hors tour blanc à 0)
     const finishes = volees.filter((v) => v.reste === 0 && v.score > 0).map((v) => v.score); // finishes réels
     const valides = volees.map((v) => v.score).filter((s) => s >= 0);
-    if (scoring.length >= 15) {
+    if (manches.length >= MIN_MANCHES_REJEU && volees.length >= MIN_VOLEES_REJEU && scoring.length >= MIN_DESCENTES_REJEU) {
       const moy = Math.round(valides.reduce((a, b) => a + b, 0) / (valides.length || 1));
       const A = analyseReplay(volees);
       return {
         mode: "replay",
         moyenne: moy,
-        manchesReelles: reconstruireManches(volees), // pour rejouer ses manches telles quelles
+        manchesReelles: manches.map(versManche), // pour rejouer ses manches telles quelles
 
         scoringVolleys: A.scoringPool, // [{ s: score, a: distance }] pour piocher selon la situation
         maxFinish: finishes.length ? Math.max(...finishes) : Math.max(60, moy),
@@ -148,12 +156,12 @@ export function calculerProfilBot({ drix, duels, amiPseudo, volees: voleesBrutes
         rateZone: A.rateZone,         // taux de finish PAR zone → colle à son jeu
         zones: A.zones,
         bustRate: A.bustRate,         // il buste comme lui
-        source: "volees", volees: volees.length,
+        source: "volees", volees: volees.length, manches: manches.length,
       };
     }
   }
 
-  const s = statsReelles(duels, amiPseudo);
+  const s = statsReelles(duels, amiPseudo, amiId, depuis);
   if (s.volees >= 9) {
     const moy = Math.round(s.moyenne);
     return {
@@ -161,7 +169,7 @@ export function calculerProfilBot({ drix, duels, amiPseudo, volees: voleesBrutes
       plafondFinish: s.maxFinish > 0 ? clamp(s.maxFinish + 8, 40, 170) : clamp(moy + 25, 40, 100),
       plafondVolee:  s.maxVisit  > 0 ? clamp(s.maxVisit + 6, 60, 180)  : clamp(moy * 1.5 + 20, 80, 170),
       rate180: clamp(s.n180 / s.volees, 0, 0.08),
-      source: "stats", volees: s.volees, maxFinish: s.maxFinish, maxVisit: s.maxVisit,
+      source: "stats", volees: s.volees, manches: s.manches, maxFinish: s.maxFinish, maxVisit: s.maxVisit,
     };
   }
   const moy = moyenneDepuisDrix(drix);
@@ -277,26 +285,137 @@ function genererScoreReplay(remaining, profil) {
 //   • le `reste` qui REMONTE  → début d'une nouvelle manche
 //   • `reste === 0`           → manche gagnée
 //   • `score === -1`          → bust (voir pushLiveVolee dans AppJeux)
-export function reconstruireManches(volees) {
+//   • (si `depart` est connu) une volée jouée depuis le score de départ alors qu'il n'y était
+//     plus → nouvelle manche. Utile en 301 : perdre une manche à 140 puis ouvrir la suivante
+//     par un 180 (reste 121) fait DESCENDRE le reste, et les deux manches se collaient.
+// Renvoie les manches sous forme de listes de volées (les objets d'origine), dans l'ordre.
+const avantVolee = (v) => (v.score >= 0 ? v.reste + v.score : v.reste); // score restant AVANT la volée
+export function decouperManches(volees, depart = null) {
   const manches = [];
   let cur = null, prev = null, sess;
   for (const v of volees || []) {
     if (!v || typeof v.reste !== "number") continue;
-    // ⚠️ Couper aussi au changement de SESSION. Les volées de 5 parties arrivent concaténées, et
-    // deux parties se collaient en une seule manche impossible (une partie abandonnée tôt suivie
+    // ⚠️ Couper aussi au changement de SESSION. Les volées de plusieurs parties arrivent concaténées,
+    // et deux parties se collaient en une seule manche impossible (une partie abandonnée tôt suivie
     // d'une manche complète donnait « une manche de 501 » à 542 points de volées). Le seul test du
     // reste qui remonte ne suffit pas : entre deux parties, le reste peut très bien DESCENDRE.
     const changeDeSession = sess !== undefined && v.session_id !== sess;
-    if (cur == null || changeDeSession || (prev != null && v.reste > prev)) {
-      cur = { volees: [], gagnee: false, depart: null }; manches.push(cur); prev = null;
+    const repart = depart != null && prev != null && prev !== depart && avantVolee(v) === depart;
+    if (cur == null || changeDeSession || (prev != null && v.reste > prev) || repart) {
+      cur = []; manches.push(cur); prev = null;
     }
     sess = v.session_id;
-    if (cur.depart == null) cur.depart = v.score >= 0 ? v.reste + v.score : v.reste; // score AVANT sa 1re volée
-    cur.volees.push(v.score);
-    if (v.reste === 0) { cur.gagnee = true; cur = null; prev = null; }
+    cur.push(v);
+    if (v.reste === 0) { cur = null; prev = null; }
     else prev = v.reste;
   }
-  return manches.filter((m) => m.depart > 0 && m.volees.length > 0);
+  return manches.filter((m) => m.length > 0 && avantVolee(m[0]) > 0);
+}
+
+// Une manche (liste de volées) → ce que le rejeu utilise : ses scores, gagnée ou non, son départ.
+const versManche = (m) => ({ volees: m.map((v) => v.score), gagnee: m[m.length - 1].reste === 0, depart: avantVolee(m[0]) });
+
+export function reconstruireManches(volees, depart = null) {
+  return decouperManches(volees, depart).map(versManche);
+}
+
+// ── Quelles parties live ont servi à jouer UN duel ? ─────────────────────────
+// Une partie live (live_sessions) n'était pas reliée à son duel (duel_id jamais rempli avant
+// nov. 2026). Pour l'historique, on la retrouve à l'heure :
+//   • les deux mêmes joueurs (dans un sens ou dans l'autre), pas une partie contre un bot ;
+//   • commencée AVANT la fin du duel (duels.date = l'heure où il s'est terminé) et au plus
+//     2 h avant — mesuré sur 1 132 duels DRIX : 17 min d'écart en général, 47 min pour 99 %
+//     d'entre eux, 65 min au plus pour une vraie partie (au-delà : 4 jours et plus, ce n'était
+//     pas sa partie) ;
+//   • commencée APRÈS la fin du duel précédent des deux mêmes joueurs (sinon c'était la sienne).
+// On garde TOUTES les parties qui collent, pas seulement la dernière : une appli coupée en plein
+// match (appel, plantage) reprend la partie dans une NOUVELLE session, et les premières manches
+// sont restées dans l'ancienne. Une partie lancée puis abandonnée tombe dans le même panier :
+// manchesDrixDepuisVolees ne garde que les DERNIÈRES manches, autant qu'en compte le duel.
+// Une session reliée par duel_id (ou dont l'id EST celui d'un duel : partie en ligne) n'est
+// jamais attribuée à un autre duel.
+export const FENETRE_SESSION_MS = 2 * 3600 * 1000;
+const estPartieBot = (s) => Number(s?.bot_side) === 1 || Number(s?.bot_side) === 2;
+const memePaire = (s, d) => {
+  const a = String(d.challenger_id), b = String(d.defie_id);
+  const x = String(s.joueur1_id), y = String(s.joueur2_id);
+  return (x === a && y === b) || (x === b && y === a);
+};
+
+// Le créneau où chercher les parties de ce duel : ]debutMin ; fin[ (en ms).
+export function creneauDuDuel(duel, duelsDuJoueur = []) {
+  const fin = Number(duel?.date) || 0;
+  let debutMin = fin - FENETRE_SESSION_MS;
+  for (const d of duelsDuJoueur || []) {
+    if (!d || d.id === duel.id || d.statut !== "termine") continue;
+    const t = Number(d.date) || 0;
+    if (t < fin && t > debutMin && memePaire({ joueur1_id: d.challenger_id, joueur2_id: d.defie_id }, duel)) debutMin = t;
+  }
+  return { debutMin, fin };
+}
+
+// Les parties live de CE duel, de la plus ancienne à la plus récente.
+export function sessionsDuDuel(duel, sessions, duelsDuJoueur = []) {
+  if (!duel?.id) return [];
+  const idsDuels = new Set((duelsDuJoueur || []).map((d) => String(d?.id)));
+  const { debutMin, fin } = creneauDuDuel(duel, duelsDuJoueur);
+  const vus = new Set();
+  return (sessions || []).filter((s) => {
+    if (!s || estPartieBot(s) || vus.has(String(s.id))) return false;
+    vus.add(String(s.id));
+    const lien = s.duel_id != null ? String(s.duel_id) : idsDuels.has(String(s.id)) ? String(s.id) : null;
+    if (lien) return lien === String(duel.id);
+    const t = Number(s.debut) || 0;
+    return memePaire(s, duel) && t > debutMin && t < fin;
+  }).sort((a, b) => (Number(a.debut) || 0) - (Number(b.debut) || 0));
+}
+
+// ── Les VOLÉES de ses 10 dernières manches DRIX (ce que son bot rejoue) ──────
+// duels    : ses duels (getDuels), sessions : ses parties live autour de ces duels,
+// volees   : SES volées de ces parties (live_volees, avec session_id et numero_volee).
+// On prend les 10 manches choisies par dernieresManchesDrix (les mêmes que la moyenne
+// affichée) et, pour chacune, ses volées réelles. Une manche dont on ne retrouve pas les
+// volées (partie non enregistrée, téléphone hors ligne…) est simplement absente : le bot ne
+// rejoue JAMAIS une manche qui n'est pas dans ces 10-là.
+// Renvoie les volées, LA MANCHE LA PLUS RÉCENTE D'ABORD (dans une manche : dans l'ordre),
+// chaque manche avec son propre session_id (« idDuel#n° de manche ») pour qu'elles ne se
+// collent jamais entre elles.
+export function manchesDrixDepuisVolees({ joueurId = null, pseudo = "", duels = [], sessions = [], volees = [], n = MANCHES_RECENTES, depuis = 0 } = {}) {
+  const choisies = dernieresManchesDrix({ joueurId, pseudo, duels, n, depuis });
+  // ses volées, rangées par partie
+  const parSession = {};
+  for (const v of volees || []) {
+    if (!v || v.session_id == null) continue;
+    if (joueurId != null && v.joueur_id != null && String(v.joueur_id) !== String(joueurId)) continue;
+    const k = String(v.session_id);
+    if (!parSession[k]) parSession[k] = [];
+    parSession[k].push(v);
+  }
+  const out = [];
+  const dejaFaits = {};   // id du duel → ses manches reconstruites
+  for (const c of choisies) {
+    const d = c.duel;
+    let manches = dejaFaits[d.id];
+    if (!manches) {
+      // Toutes ses volées de ce duel, partie après partie, mises bout à bout (une partie
+      // reprise après une coupure continue la manche là où l'ancienne s'est arrêtée).
+      const suite = [];
+      for (const s of sessionsDuDuel(d, sessions, duels)) {
+        const vs = [...(parSession[String(s.id)] || [])].sort((a, b) => (Number(a.numero_volee) || 0) - (Number(b.numero_volee) || 0));
+        for (const v of vs) suite.push({ score: v.score, reste: v.reste, session_id: String(d.id) });
+      }
+      manches = decouperManches(normaliserVolees(suite), parseInt(d.mode, 10) || null);
+      dejaFaits[d.id] = manches;
+    }
+    // Les manches sont dans le même ordre que manches_detail : on les aligne PAR LA FIN (des
+    // manches d'une partie abandonnée avant peuvent précéder, jamais suivre).
+    const nDetail = Array.isArray(d.manches_detail) ? d.manches_detail.length : 0;
+    const leg = manches[manches.length - (nDetail - c.index)];
+    // Garde-fou : gagnée d'un côté, perdue de l'autre → ce n'est pas la même manche.
+    if (!leg || (leg[leg.length - 1].reste === 0) !== c.isW) continue;
+    for (const v of leg) out.push({ score: v.score, reste: v.reste, session_id: `${d.id}#${c.index}` });
+  }
+  return out;
 }
 
 // Curseur de rejeu, rangé À PART du profil (WeakMap) : les appelants gardent la même signature

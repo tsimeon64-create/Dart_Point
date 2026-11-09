@@ -145,8 +145,8 @@ console.log("\n5) IL NE JOUE PAS QUE SES BONS JOURS (manches perdues comprises)"
 console.log("\n6) MANCHE PERDUE EN VRAI, ADVERSAIRE QUI NE FINIT PAS → il continue proprement");
 {
   // TOUTES ses manches de référence sont PERDUES : chaque suite s'épuise autour de 150 restants.
-  // (Il faut au moins 25 volées pour que le mode rejeu s'active — c'est le garde-fou de
-  // calculerProfilBot, on lui donne donc 4 manches.)
+  // (Il faut au moins 3 manches et 20 volées pour que le mode rejeu s'active — c'est le
+  // garde-fou de calculerProfilBot, on lui donne donc 4 manches.)
   const PERDUES = [
     [45, 60, 45, 60, 45, 60, 36],
     [26, 45, 60, 45, 60, 45, 70],
