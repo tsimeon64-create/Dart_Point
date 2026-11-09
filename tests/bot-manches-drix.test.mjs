@@ -205,6 +205,20 @@ test("manche introuvable dans les volées : on la saute sans décaler les autres
   ]);
 });
 
+test("manche gagnée sans sa volée de finish : écartée, sans prendre une autre manche gagnée à sa place", () => {
+  // La volée de finish de la dernière manche n'a pas été enregistrée (envoi raté) : le morceau
+  // s'arrête à 40. Il ne faut ni le rejouer, ni glisser la manche n°1 à la place de la n°2.
+  const M0 = [100, 100, 100, 100, 60, 41], M1 = [100, 100, 100, 100, 69, 32], M2 = [100, 100, 100, 100, 61, 40];
+  const g = (fin) => ({ ...md(true), winner_finish: fin });
+  const d = duel("d1", T0, [g(41), g(32), g(40)]);
+  const vs = [...volees("s1", 501, M0), ...volees("s1", 501, M1, 7), ...volees("s1", 501, M2.slice(0, 5), 13)];
+  const out = manchesDrixDepuisVolees({ joueurId: MOI, pseudo: "Thomas", duels: [d], sessions: [session("s1", T0 - 20 * MIN)], volees: vs });
+  assert.deepEqual(manchesDe(out), [
+    { id: "d1#1", scores: M1, g: true },
+    { id: "d1#0", scores: M0, g: true },
+  ]);
+});
+
 test("ordre des volées dans une partie : par numéro, même reçues dans le désordre", () => {
   const d = duel("d1", T0, [md(true)]);
   const vs = volees("s1", 501, G501).reverse();

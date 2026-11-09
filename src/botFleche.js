@@ -385,6 +385,10 @@ export function sessionsDuDuel(duel, sessions, duelsDuJoueur = []) {
 //     (busts, scores retapés), parfois bien plus, presque jamais moins. Une « manche » d'une
 //     volée en face d'une manche de 8, c'est une faute de frappe restée en base. (Pas de limite
 //     haute : une vraie manche longue écartée décalerait toutes les plus anciennes.)
+//   • une manche GAGNÉE finit par le finish du détail (winner_finish = le score de sa dernière
+//     volée) : sans ce test, une manche dont la volée de finish n'a pas été enregistrée laissait
+//     la place à une AUTRE manche gagnée (la précédente, ou celle d'une partie abandonnée), et
+//     tout le duel se décalait. Vrai pour 3992 manches gagnées sur 3993 mesurées.
 export function mancheColle(leg, m, gagnee) {
   if (!Array.isArray(leg) || !leg.length || !m) return false;
   const fin = leg[leg.length - 1].reste;
@@ -392,6 +396,7 @@ export function mancheColle(leg, m, gagnee) {
   if (!gagnee && typeof m.reste_loser === "number" && fin !== m.reste_loser) return false;
   const volD = Number(gagnee ? m.winner_volees : m.loser_volees) || 0;
   if (volD > 0 && leg.length < volD - 2) return false;
+  if (gagnee && Number(m.winner_finish) > 0 && leg[leg.length - 1].score !== Number(m.winner_finish)) return false;
   return true;
 }
 
