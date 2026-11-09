@@ -6,7 +6,7 @@
 // réellement réalisé → pas de finish à 161 sorti de nulle part. À défaut d'historique :
 // estimation prudente depuis le DRIX.
 // Le joueur choisit donc une PERSONNE, pas un « niveau de bot ». Pur calcul, aucune requête.
-import { dernieresManchesDrix, MANCHES_RECENTES } from "./moyenneRecente.js";
+import { dernieresManchesDrix, MANCHES_RECENTES, pseudoDansDuel, mancheGagneePar } from "./moyenneRecente.js";
 
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
@@ -377,6 +377,42 @@ export function sessionsDuDuel(duel, sessions, duelsDuJoueur = []) {
 // affichée) et, pour chacune, ses volées réelles. Une manche dont on ne retrouve pas les
 // volées (partie non enregistrée, téléphone hors ligne…) est simplement absente : le bot ne
 // rejoue JAMAIS une manche qui n'est pas dans ces 10-là.
+// Une manche reconstruite (liste de volées) correspond-elle à cette manche du détail ?
+//   • gagnée d'un côté = gagnée de l'autre ;
+//   • une manche PERDUE s'arrête pile au `reste_loser` du détail (vrai pour 1344 manches
+//     perdues sur 1345 mesurées, novembre 2026) ;
+//   • pas BEAUCOUP MOINS de volées que le détail : le scoreur en compte souvent 1 à 3 de plus
+//     (busts, scores retapés), parfois bien plus, presque jamais moins. Une « manche » d'une
+//     volée en face d'une manche de 8, c'est une faute de frappe restée en base. (Pas de limite
+//     haute : une vraie manche longue écartée décalerait toutes les plus anciennes.)
+export function mancheColle(leg, m, gagnee) {
+  if (!Array.isArray(leg) || !leg.length || !m) return false;
+  const fin = leg[leg.length - 1].reste;
+  if ((fin === 0) !== !!gagnee) return false;
+  if (!gagnee && typeof m.reste_loser === "number" && fin !== m.reste_loser) return false;
+  const volD = Number(gagnee ? m.winner_volees : m.loser_volees) || 0;
+  if (volD > 0 && leg.length < volD - 2) return false;
+  return true;
+}
+
+// Associe chaque manche du détail (manches_detail) à sa manche reconstruite. On part de la FIN
+// (des manches d'une partie abandonnée avant peuvent précéder, jamais suivre) et on RECONNAÎT
+// chaque manche au lieu de la prendre à sa place : une fausse manche glissée au milieu (faute
+// de frappe sur la 1re volée d'une manche, gardée en base) décalait toutes les manches plus
+// anciennes du duel. On saute au plus SAUT_MAX morceaux qui ne collent pas ; une manche du
+// détail introuvable reste à null (elle n'est pas rejouée) sans rien décaler.
+const SAUT_MAX = 2;
+export function alignerSurDetail(manches, md, gagneeA) {
+  const res = new Array(Array.isArray(md) ? md.length : 0).fill(null);
+  let k = (manches || []).length - 1;
+  for (let i = res.length - 1; i >= 0 && k >= 0; i--) {
+    let j = k;
+    while (j >= 0 && k - j <= SAUT_MAX && !mancheColle(manches[j], md[i], gagneeA(i))) j--;
+    if (j >= 0 && k - j <= SAUT_MAX) { res[i] = manches[j]; k = j - 1; }
+  }
+  return res;
+}
+
 // Renvoie les volées, LA MANCHE LA PLUS RÉCENTE D'ABORD (dans une manche : dans l'ordre),
 // chaque manche avec son propre session_id (« idDuel#n° de manche ») pour qu'elles ne se
 // collent jamais entre elles.
@@ -392,7 +428,7 @@ export function manchesDrixDepuisVolees({ joueurId = null, pseudo = "", duels = 
     parSession[k].push(v);
   }
   const out = [];
-  const dejaFaits = {};   // id du duel → ses manches reconstruites
+  const dejaFaits = {};   // id du duel → ses manches reconstruites, rangées comme manches_detail
   for (const c of choisies) {
     const d = c.duel;
     let manches = dejaFaits[d.id];
@@ -404,15 +440,14 @@ export function manchesDrixDepuisVolees({ joueurId = null, pseudo = "", duels = 
         const vs = [...(parSession[String(s.id)] || [])].sort((a, b) => (Number(a.numero_volee) || 0) - (Number(b.numero_volee) || 0));
         for (const v of vs) suite.push({ score: v.score, reste: v.reste, session_id: String(d.id) });
       }
-      manches = decouperManches(normaliserVolees(suite), parseInt(d.mode, 10) || null);
+      const md = Array.isArray(d.manches_detail) ? d.manches_detail : [];
+      const myP = pseudoDansDuel(d, joueurId, pseudo);
+      manches = alignerSurDetail(decouperManches(normaliserVolees(suite), parseInt(d.mode, 10) || null), md,
+        (i) => mancheGagneePar(md[i], myP, pseudo));
       dejaFaits[d.id] = manches;
     }
-    // Les manches sont dans le même ordre que manches_detail : on les aligne PAR LA FIN (des
-    // manches d'une partie abandonnée avant peuvent précéder, jamais suivre).
-    const nDetail = Array.isArray(d.manches_detail) ? d.manches_detail.length : 0;
-    const leg = manches[manches.length - (nDetail - c.index)];
-    // Garde-fou : gagnée d'un côté, perdue de l'autre → ce n'est pas la même manche.
-    if (!leg || (leg[leg.length - 1].reste === 0) !== c.isW) continue;
+    const leg = manches[c.index];
+    if (!leg) continue;   // pas retrouvée dans ses volées : on ne rejoue pas autre chose à sa place
     for (const v of leg) out.push({ score: v.score, reste: v.reste, session_id: `${d.id}#${c.index}` });
   }
   return out;

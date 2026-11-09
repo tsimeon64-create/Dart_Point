@@ -10,7 +10,7 @@
 // moyenne), PAS l'amical, PAS les parties contre un bot ni les parties libres (elles ne
 // sont pas dans la table duels).
 //
-// ⚠️ Doit rester IDENTIQUE aux colonnes avg_10 / n_10 de la vue SQL v_analyse_joueurs
+// ⚠️ Doit rester IDENTIQUE aux colonnes avg_10m / n_10m de la vue SQL v_analyse_joueurs
 // (bots_2_moyenne_10_manches.sql) : mêmes duels, même ordre (date puis id du duel, du plus
 // récent au plus ancien ; dans un duel, la dernière manche d'abord), arrondi exact
 // (division en DERNIER, sur des entiers).
@@ -34,6 +34,14 @@ export const trierDuelsRecents = (duels) => [...(duels || [])].sort((a, b) => {
   return ia === ib ? 0 : ib > ia ? 1 : -1;
 });
 
+// Son pseudo dans ce duel : par l'id quand on l'a, sinon par le pseudo (il a pu changer de
+// pseudo depuis). Une manche est à lui si son `winner` est ce pseudo-là (ou l'actuel).
+export const pseudoDansDuel = (d, joueurId = null, pseudo = "") => {
+  const isChal = joueurId != null ? String(d.challenger_id) === String(joueurId) : d.challenger_pseudo === pseudo;
+  return isChal ? (d.challenger_pseudo || pseudo) : (d.defie_pseudo || pseudo);
+};
+export const mancheGagneePar = (m, myP, pseudo = "") => !!m && (m.winner === myP || m.winner === pseudo);
+
 // Ses N dernières manches DRIX, LA PLUS RÉCENTE D'ABORD. Chaque manche :
 //   { duel, index (sa place dans duel.manches_detail), isW (il l'a gagnée), moy, vol, m }
 // On reconnaît le joueur par le pseudo enregistré dans le duel (il a pu changer de pseudo
@@ -48,13 +56,11 @@ export const dernieresManchesDrix = ({ joueurId = null, pseudo = "", duels = [],
     if (out.length >= n) break;
     if (seuil && (Number(d.date) || 0) < seuil) continue;
     const md = Array.isArray(d.manches_detail) ? d.manches_detail : [];
-    // Son côté : par l'id quand on l'a, sinon par le pseudo.
-    const isChal = joueurId != null ? String(d.challenger_id) === String(joueurId) : d.challenger_pseudo === pseudo;
-    const myP = isChal ? (d.challenger_pseudo || pseudo) : (d.defie_pseudo || pseudo);
+    const myP = pseudoDansDuel(d, joueurId, pseudo);
     for (let i = md.length - 1; i >= 0 && out.length < n; i--) {
       const m = md[i];
       if (!m || typeof m !== "object") continue;
-      const isW = m.winner === myP || m.winner === pseudo;
+      const isW = mancheGagneePar(m, myP, pseudo);
       const vol = Number((isW ? m.winner_volees : m.loser_volees) || 0) || 0;
       const moy = Number((isW ? m.winner_moy : m.loser_moy) || 0) || 0;
       if (moy > 0) out.push({ duel: d, index: i, isW, moy, vol, m });

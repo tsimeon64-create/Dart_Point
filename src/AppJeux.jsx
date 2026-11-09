@@ -56,7 +56,7 @@ const ANALYSE_CHAMPION = { winRate: 100, formePct: 1, A: { avgReel: 96, checkout
 // DRIX (choix de Thomas, nov. 2026 : les manches mêmes que son bot rejoue), sa forme du
 // moment, plus parlante que la moyenne de toute sa carrière.
 // Repli sur la moyenne générale seulement quand ce chiffre n'EXISTE pas : vue SQL pas
-// encore remise à jour (pas de colonne avg_10) ou champion (profil fixe). Si la colonne
+// encore remise à jour (pas de colonne avg_10m, bots_2_moyenne_10_manches.sql) ou champion (profil fixe). Si la colonne
 // existe mais qu'il n'a aucune manche DRIX, on montre « — » plutôt que de glisser sa
 // moyenne générale sous l'étiquette « 10 dernières manches ».
 // La dangerosité, elle, garde la moyenne générale : c'est la même jauge que sur son profil.

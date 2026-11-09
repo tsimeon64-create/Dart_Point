@@ -160,7 +160,7 @@ test("garde-fou : gagnée dans le détail mais perdue dans les volées → manch
 });
 
 test("en 301 : manche perdue à 140 puis 180 d'entrée → deux manches, pas une", () => {
-  const d = duel("d1", T0, [md(false), md(true)], { mode: "301" });
+  const d = duel("d1", T0, [md(false, 50, 2), md(true, 50, 3)], { mode: "301" });
   // manche 1 : 81, 80 → reste 140 (perdue) ; manche 2 : 180 (121), 81 (40), 40 (0)
   const vs = [...volees("s1", 301, [81, 80]), ...volees("s1", 301, [180, 81, 40], 3)];
   const out = manchesDrixDepuisVolees({ joueurId: MOI, pseudo: "Thomas", duels: [d], sessions: [session("s1", T0 - 20 * MIN)], volees: vs });
@@ -168,6 +168,41 @@ test("en 301 : manche perdue à 140 puis 180 d'entrée → deux manches, pas une
   // sans connaître le départ, l'ancien découpage les collait
   assert.equal(reconstruireManches(vs).length, 1);
   assert.equal(reconstruireManches(vs, 301).length, 2);
+});
+
+test("faute de frappe restée en base sur la 1re volée d'une manche : pas de fausse manche, rien ne se décale", () => {
+  // Cas réel (YaYa ED, 18/09/2026) : 22 tapé (reste 479), corrigé en 21 (reste 480). Le découpage
+  // y voit une manche d'UNE volée ; calée par sa position, elle prenait la place de la vraie
+  // manche n°2 et décalait les plus anciennes (la manche gagnée n°1 disparaissait).
+  const P2 = [60, 60, 60, 60, 60, 60];               // reste 141
+  const P3 = [21, 60, 60, 60, 60, 60];               // reste 180
+  const d = duel("d1", T0, [
+    { ...md(false), reste_loser: 141 }, md(true), { ...md(false), reste_loser: 141 }, { ...md(false), reste_loser: 180 },
+  ]);
+  const vs = [
+    ...volees("s1", 501, P501), ...volees("s1", 501, G501, 7), ...volees("s1", 501, P2, 13),
+    ...volees("s1", 501, [22], 19),                  // la faute de frappe, jamais effacée
+    ...volees("s1", 501, P3, 20),                    // la vraie 1re volée (21, reste 480) et la suite
+  ];
+  const out = manchesDrixDepuisVolees({ joueurId: MOI, pseudo: "Thomas", duels: [d], sessions: [session("s1", T0 - 20 * MIN)], volees: vs });
+  assert.deepEqual(manchesDe(out), [
+    { id: "d1#3", scores: P3, g: false },
+    { id: "d1#2", scores: P2, g: false },
+    { id: "d1#1", scores: G501, g: true },
+    { id: "d1#0", scores: P501, g: false },
+  ]);
+});
+
+test("manche introuvable dans les volées : on la saute sans décaler les autres", () => {
+  // La manche n°1 manque (volées perdues) : les n°0 et n°2 gardent chacune LEURS volées.
+  const d = duel("d1", T0, [{ ...md(false), reste_loser: 141 }, md(true), { ...md(false), reste_loser: 201 }]);
+  const P2 = [60, 60, 60, 60, 60];                   // reste 201
+  const vs = [...volees("s1", 501, P501), ...volees("s1", 501, P2, 13)];
+  const out = manchesDrixDepuisVolees({ joueurId: MOI, pseudo: "Thomas", duels: [d], sessions: [session("s1", T0 - 20 * MIN)], volees: vs });
+  assert.deepEqual(manchesDe(out), [
+    { id: "d1#2", scores: P2, g: false },
+    { id: "d1#0", scores: P501, g: false },
+  ]);
 });
 
 test("ordre des volées dans une partie : par numéro, même reçues dans le désordre", () => {

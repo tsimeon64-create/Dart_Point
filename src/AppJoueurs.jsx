@@ -3834,11 +3834,14 @@ export const analyseDepuisVue = (row, drix = null) => {
   const A = { avgReel: num(row.avg_reel), checkoutPct: num(row.checkout_pct), n180: num(row.n180) ?? 0,
               coAttempts: num(row.co_attempts) ?? 0, coWon: num(row.co_won) ?? 0,
               legsWon: num(row.legs_won) ?? 0, legsLost: num(row.legs_lost) ?? 0, totalLegs: (num(row.legs_won) ?? 0) + (num(row.legs_lost) ?? 0),
-              // Moyenne sur ses 10 dernières manches DRIX (bots_2_moyenne_10_manches.sql) et
-              // combien de manches elle couvre. Sans la colonne (vue jamais mise à jour) :
-              // avg10Dispo faux, et la liste retombe sur avgReel, comme avant.
-              avg10Dispo: "avg_10" in row, avg10: num(row.avg_10),
-              n10: Math.min(MANCHES_RECENTES, num(row.n_10) ?? 0) };
+              // Moyenne sur ses 10 dernières manches DRIX et combien de manches elle couvre :
+              // colonnes avg_10m / n_10m, ajoutées par bots_2_moyenne_10_manches.sql. ⚠️ PAS
+              // avg_10 / n_10 : celles-là existent depuis octobre avec un autre sens (10 derniers
+              // MATCHS) ; les lire mettrait l'ancien chiffre sous « 10 dernières manches » tant
+              // que le SQL n'est pas lancé. Sans avg_10m : avg10Dispo faux → la liste retombe
+              // sur avgReel, comme avant.
+              avg10Dispo: "avg_10m" in row, avg10: num(row.avg_10m),
+              n10: Math.min(MANCHES_RECENTES, num(row.n_10m) ?? 0) };
   const d = drix ?? num(row.drix) ?? 1000;
   return { winRate, formePct, moyenneDuels: null, A, nbDuels: num(row.nb_duels) ?? 0, drix: d,
            ...scoreDanger({ winRate, formePct, drix: d, avgReel: A.avgReel, checkoutPct: A.checkoutPct, n180: A.n180 }) };
@@ -3903,7 +3906,7 @@ export const analyserJoueur = ({ joueurId, pseudo = "", drix = 1000, stats = nul
     const deciderPct  = decPlayed>=3  ? Math.round(decWon/decPlayed*100)    : null;
     const bestFinish  = finishes.length ? Math.max(...finishes) : 0;
     // Sa moyenne sur ses 10 dernières manches DRIX (liste des bots) — même pondération,
-    // limitée à ces manches-là (moyenneRecente.js, colonnes avg_10 / n_10 de la vue).
+    // limitée à ces manches-là (moyenneRecente.js, colonnes avg_10m / n_10m de la vue).
     const recente = moyenneDernieresManches({ joueurId, pseudo, duels });
     return { totalLegs, legsWon, legsLost, avgReel, checkoutPct, coAttempts, coWon, n180, tonRate, rate180,
              regularite, stdev, dechetRate, firstLegPct, firstPlayed, firstWon, deciderPct, decPlayed, decWon, bestFinish,

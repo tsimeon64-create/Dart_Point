@@ -11,14 +11,14 @@
 --
 -- Ce script ne MODIFIE aucune donnée : il crée une « vue » (une table calculée
 -- à la volée en lisant duels, stats_joueurs et joueurs) et une petite fonction
--- de lecture sûre des nombres. Il peut être relancé sans risque.
+-- de lecture sûre des nombres.
 --
 -- Octobre 2026 : nouvelle colonne avg_10 (moyenne sur les 10 derniers matchs),
 -- celle que montre maintenant la liste des bots. Relancer ce script l'ajoute.
 --
--- ⚠️ Novembre 2026 : avg_10 / n_10 portent maintenant sur les 10 dernières MANCHES
--- DRIX (bots_2_moyenne_10_manches.sql). Si tu relances ce script-ci, relance
--- bots_2_moyenne_10_manches.sql juste après.
+-- ⚠️ Novembre 2026 : REMPLACÉ par bots_2_moyenne_10_manches.sql (la même vue + les
+-- colonnes avg_10m / n_10m des 10 dernières manches DRIX). Ne relance plus celui-ci :
+-- une fois bots_2 passé, Postgres refuserait (il retirerait deux colonnes).
 --
 -- ⚠️ Les additions ici reproduisent EXACTEMENT analyserJoueur (src/AppJoueurs.jsx),
 -- le calcul de la fiche profil. La FORMULE de dangerosité, elle, reste dans
