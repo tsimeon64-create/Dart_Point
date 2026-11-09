@@ -132,6 +132,40 @@ const sbJ = async (path, opts = {}) => {
   return text ? JSON.parse(text) : null;
 };
 
+// ⚠️ Le serveur renvoie AU PLUS 1000 lignes par demande, sans prévenir (même avec un
+// limit plus grand). Pour une liste qui peut dépasser 1000 : la lire page par page.
+// `chemin` DOIT contenir un `order=` stable (ex. date.desc,id.desc), et ni limit ni offset.
+export const sbToutesJ = async (chemin, { max = 20000 } = {}) => {
+  const PAGE = 1000;
+  const toutes = [];
+  for (let offset = 0; offset < max; offset += PAGE) {
+    const page = await sbJ(`${chemin}&limit=${PAGE}&offset=${offset}`);
+    if (!Array.isArray(page)) break;
+    toutes.push(...page);
+    if (page.length < PAGE) break;
+  }
+  // Une ligne ajoutée entre deux pages décale tout d'un cran : la dernière ligne d'une page
+  // revient en tête de la suivante. On retire ces doublons (d'où `id` dans les select).
+  const vus = new Set();
+  return toutes.filter((l) => { if (l?.id == null) return true; if (vus.has(l.id)) return false; vus.add(l.id); return true; });
+};
+
+// Record DRIX (de toujours) et « Tueur de géants », demandés au serveur : 1 ligne chacun.
+// Les déduire des 200 derniers mouvements faisait perdre les badges dont l'exploit est plus
+// ancien (PATOX avait perdu « Élite » : son record de 2518 DRIX date d'août 2026).
+// null = la question a échoué → computeBadgeValues retombe sur les mouvements fournis.
+export const extremesDrix = async (joueurId) => {
+  if (!joueurId) return null;
+  const [mx, gk] = await Promise.all([
+    sbJ(`drix_mouvements?joueur_id=eq.${joueurId}&or=(resultat.is.null,resultat.neq.saison)&drix_apres=not.is.null&order=drix_apres.desc&limit=1&select=drix_apres`).catch(() => null),
+    sbJ(`drix_mouvements?joueur_id=eq.${joueurId}&resultat=eq.victoire&variation=gte.24&limit=1&select=id`).catch(() => null),
+  ]);
+  return {
+    maxDrix: Array.isArray(mx) && mx[0] ? Number(mx[0].drix_apres) || 0 : null,
+    giantKill: Array.isArray(gk) ? gk.length > 0 : null,
+  };
+};
+
 // Appel de l'Edge Function `auth` (login / register / reset). Le mot de passe est vérifié
 // CÔTÉ SERVEUR (PBKDF2) ; le hash ne transite jamais au client. Retourne { ok, error?, joueur? }.
 export const callAuth = async (action, payload = {}) => {
@@ -1160,7 +1194,8 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
       sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
       tournoisGagnes(sbJ, joueur.id),
       dbJ.getStatsResetAt(joueur.id),
-    ]).then(([s, d, mvts, allJ, amis, trn, wtrn, reset]) => {
+      extremesDrix(joueur.id),
+    ]).then(([s, d, mvts, allJ, amis, trn, wtrn, reset, extremes]) => {
       // Stats affichées : depuis la remise à zéro. Badges (plus bas) : tout l'historique.
       setStats(s); setDuels(depuisReset(d||[], reset)); setDrixMvts(depuisReset(mvts||[], reset));
       // Amis acceptés uniquement
@@ -1171,10 +1206,11 @@ export const MonProfil = ({ joueur, setJoueur, bars, associations, setPage, setB
         setClassement({ position: pos >= 0 ? pos + 1 : null, total: allJ.length });
       }
       // Calcul badge count réel — passe nbTournois et nbTournoisGagnes
-      const vals = computeBadgeValues(joueur, s, d||[], mvts||[], amis||[], (trn||[]).length, (wtrn||[]).length);
+      const vals = computeBadgeValues(joueur, s, d||[], mvts||[], amis||[], (trn||[]).length, (wtrn||[]).length, 0, 0, extremes);
       const unlocked = ALL_BADGES.filter(b=>b.val(vals)>=b.seuil).length;
       setBadgeCount(unlocked);
-      storeBadgesSet(joueur.id, new Set(ALL_BADGES.filter(b=>b.val(vals)>=b.seuil).map(b=>b.id)));
+      // On n'efface jamais un badge déjà rangé (une lecture ratée le ferait « redécouvrir »).
+      storeBadgesSet(joueur.id, new Set([...getBadgesStored(joueur.id), ...ALL_BADGES.filter(b=>b.val(vals)>=b.seuil).map(b=>b.id)]));
       // ── XP : resynchronise l'XP réel (gagné en duel/présence) + crédite les badges (+100, 1 fois) ──
       // On relit l'XP FRAIS en base avant d'écrire, sinon le crédit badge écraserait l'XP
       // gagné en duel depuis le dernier chargement du prop `joueur`.
@@ -1961,7 +1997,9 @@ export const PageProfilStats = ({ joueur, setJoueur, bars, associations, setPage
     Promise.all([
       dbJ.getStats(joueur.id),
       dbJ.getDuels(joueur.id),
-      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=400&select=*&or=(resultat.is.null,resultat.neq.saison)`).catch(()=>[]),
+      // TOUT l'historique, page par page (record DRIX, courbes « Tout » / « Année », plus gros
+      // gain / perte) : les 400 derniers ne remontaient plus qu'à fin juillet pour PATOX.
+      sbToutesJ(`drix_mouvements?joueur_id=eq.${joueur.id}&or=(resultat.is.null,resultat.neq.saison)&order=date.desc,id.desc&select=*`).catch(()=>[]),
       sbJ(`joueurs?order=drix.desc,pseudo.asc&select=id`).catch(()=>[]),
       sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
       sbJ(`presences?joueur_id=eq.${joueur.id}&select=bar_slug`).catch(()=>[]),
@@ -2730,7 +2768,9 @@ export const PageProfilHistorique = ({ joueur, setPage, embedded = false }) => {
   useEffect(() => {
     Promise.all([
       dbJ.getDuels(joueur.id),
-      sbJ(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&select=*&or=(resultat.is.null,resultat.neq.saison)`).catch(()=>[]),
+      // Seulement les mouvements liés à un duel (les lignes « saison » n'en ont pas), page par
+      // page : sans ça, passé 1000 mouvements, les plus vieux matchs perdaient leur « ±X DRIX ».
+      sbToutesJ(`drix_mouvements?joueur_id=eq.${joueur.id}&duel_id=not.is.null&order=date.desc,id.desc&select=id,duel_id,variation`).catch(()=>[]),
     ]).then(([d, mvts]) => {
       setDuels(d||[]);
       const map = {};
@@ -2902,7 +2942,8 @@ export const ALL_BADGES = [
   { id:"dbl_50",    cat:"doublette", emoji:"🏆",  nom:"Duo légendaire",        desc:"50 victoires en doublette",    seuil:50,  couleur:"#8b5cf6", val:d=>d.nbWinsDoublette },
 ];
 
-export const computeBadgeValues = (joueur, stats, duels, drixMvts, amis, nbTournois=0, nbTournoisGagnes=0, nbDoublettes=0, nbWinsDoublette=0) => {
+// `extremes` (facultatif) = extremesDrix(id) : record DRIX et giant kill lus sur TOUT l'historique.
+export const computeBadgeValues = (joueur, stats, duels, drixMvts, amis, nbTournois=0, nbTournoisGagnes=0, nbDoublettes=0, nbWinsDoublette=0, extremes=null) => {
   const termines = (duels||[]).filter(d=>d.statut==="termine");
   // Les badges comptent TOUT l'historique : après une remise à zéro des stats, les
   // anciens compteurs sont dans …_avant_reset (voir dbJ.resetStats).
@@ -2938,7 +2979,7 @@ export const computeBadgeValues = (joueur, stats, duels, drixMvts, amis, nbTourn
 
   // Max DRIX atteint (ever)
   const mvtsMax=(drixMvts||[]).map(m=>m.drix_apres||0);
-  const maxDrix=Math.max(joueur.drix||1000,...mvtsMax);
+  const maxDrix=Math.max(joueur.drix||1000,...mvtsMax, extremes?.maxDrix||0);
 
   // Streak jours consécutifs (jours avec au moins 1 duel)
   let streakJours=0;
@@ -2962,7 +3003,7 @@ export const computeBadgeValues = (joueur, stats, duels, drixMvts, amis, nbTourn
   // 🦁 Tueur de géants : a battu un joueur +200 DRIX
   // Proxy via formule ELO (K=32) : battre qqn +200 DRIX donne ~+24 DRIX au gagnant.
   // On considère un giant kill si on a au moins 1 victoire avec gain >= 24 DRIX.
-  const hasGiantKill = (drixMvts||[]).some(m =>
+  const hasGiantKill = !!extremes?.giantKill || (drixMvts||[]).some(m =>
     m.resultat === "victoire" && (m.variation || 0) >= 24
   );
 
@@ -3010,6 +3051,7 @@ export const PageProfilBadges = ({ joueur, setPage, embedded = false }) => {
   const [amis, setAmis]     = useState([]);
   const [nbTournois, setNbTournois] = useState(0);
   const [nbTournoisGagnes, setNbTournoisGagnes] = useState(0);
+  const [extremes, setExtremes] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -3020,10 +3062,12 @@ export const PageProfilBadges = ({ joueur, setPage, embedded = false }) => {
       sbJ(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&select=statut`).catch(()=>[]),
       sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
       tournoisGagnes(sbJ, joueur.id),
-    ]).then(([s,d,dm,a,trn,wtrn])=>{
+      extremesDrix(joueur.id),
+    ]).then(([s,d,dm,a,trn,wtrn,ext])=>{
       setStats(s);
       setDuels(d||[]);
       setDrixMvts(dm||[]);
+      setExtremes(ext);
       setAmis(a||[]);
       setNbTournois((trn||[]).length);
       setNbTournoisGagnes((wtrn||[]).length);
@@ -3033,7 +3077,7 @@ export const PageProfilBadges = ({ joueur, setPage, embedded = false }) => {
 
   if (loading) return <SpinnerJ/>;
 
-  const vals = computeBadgeValues(joueur, stats, duels, drixMvts, amis, nbTournois, nbTournoisGagnes, 0, 0);
+  const vals = computeBadgeValues(joueur, stats, duels, drixMvts, amis, nbTournois, nbTournoisGagnes, 0, 0, extremes);
   const totalUnlocked = ALL_BADGES.filter(b=>b.val(vals)>=b.seuil).length;
 
   // Marque tous les badges comme vus dès l'ouverture de la page
@@ -3922,6 +3966,11 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   const [defiForm, setDefiForm] = useState({ mode:"501", manches:1, type:"classe" });
   const [sending, setSending]   = useState(false);
   const [classementMoi, setClassementMoi] = useState(null);
+  // Tous ses mouvements liés à un duel (pour « +X DRIX » de chaque match et le face-à-face),
+  // et son record / giant kill de toujours (badges). Les 200 derniers mouvements ne
+  // suffisaient plus pour les gros joueurs (PATOX : 752 mouvements, face-à-face faux).
+  const [mvtsDuels, setMvtsDuels] = useState([]);
+  const [jExtremes, setJExtremes] = useState(null);
   // 🆕 Données pour calcul badges complets
   const [jAmis, setJAmis] = useState([]);
   const [jNbTournois, setJNbTournois] = useState(0);
@@ -3944,8 +3993,12 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
       sbJ(`tournois_potes_joueurs?joueur_id=eq.${joueurId}&select=tournoi_id`).catch(()=>[]),
       tournoisGagnes(sbJ, joueurId),
       dbJ.getStatsResetAt(joueurId),
-    ]).then(([jd, s, d, mvts, allJ, ms, md, jAmis, jTrn, jWtrn, reset]) => {
+      sbToutesJ(`drix_mouvements?joueur_id=eq.${joueurId}&duel_id=not.is.null&order=date.desc,id.desc&select=id,duel_id,variation,date`).catch(()=>[]),
+      extremesDrix(joueurId),
+    ]).then(([jd, s, d, mvts, allJ, ms, md, jAmis, jTrn, jWtrn, reset, mDuels, ext]) => {
       setJ(jd);
+      setMvtsDuels(mDuels||[]);
+      setJExtremes(ext);
       sbJ(`joueurs?id=eq.${joueurId}&select=ligue,departement,date_naissance`)
         .then(r => setCarto(Array.isArray(r) ? r[0] : null))
         .catch(() => { /* colonnes absentes : on garde l'ancien affichage */ });
@@ -4257,11 +4310,11 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
 
   // Drix sur duels FF
   // Sur les mouvements BRUTS : le face-à-face ne dépend pas de la remise à zéro de l'un des deux.
-  const drixFF = mvtsBruts.filter(m=>faceAFace.some(d=>d.id===m.duel_id)).reduce((s,m)=>s+(m.variation||0),0);
+  const drixFF = mvtsDuels.filter(m=>faceAFace.some(d=>d.id===m.duel_id)).reduce((s,m)=>s+(m.variation||0),0);
 
   // Map drixMvt pour historique
   const drixMvtMap = {};
-  mvtsBruts.forEach(m=>{ if(m.duel_id) drixMvtMap[m.duel_id]=m.variation; });
+  mvtsDuels.forEach(m=>{ if(m.duel_id) drixMvtMap[m.duel_id]=m.variation; });
 
   // Série DATÉE des moyennes du joueur CONSULTÉ, pour le graphique d'évolution.
   // Même règle de lecture que partout ailleurs : sa moyenne est dans score_challenger s'il était
@@ -4276,7 +4329,7 @@ export const FicheJoueur = ({ joueurId, joueur:moi, bars, associations, setPage,
   // Avant, cette bandelette avait sa PROPRE liste de 10 badges écrits à la main (« Premier duel »,
   // « Combattant »…) qui n'existaient nulle part ailleurs : le titre annonçait « 24 badges obtenus »
   // et on en voyait défiler 10 autres, sans image possible faute d'identifiant.
-  const valsComplets = computeBadgeValues(j, stats, duelsBruts, mvtsBruts, jAmis, jNbTournois, jNbTournoisGagnes);
+  const valsComplets = computeBadgeValues(j, stats, duelsBruts, mvtsBruts, jAmis, jNbTournois, jNbTournoisGagnes, 0, 0, jExtremes);
   const badgesOk = ALL_BADGES.filter(b=>b.val(valsComplets)>=b.seuil);
   const totalBadgesOk = badgesOk.length;
 
@@ -6325,20 +6378,24 @@ export const PageDrix = ({ setPage, bars=[], associations=[], joueur, setJoueurI
   const saisonActuelle = libelleSaison(numeroSaison()); // « 2026-2027 »
 
   useEffect(() => {
+    // Début de la saison en cours = la dernière remise à 1000 (ligne « saison »).
+    const debutSaison = sbJ("drix_mouvements?resultat=eq.saison&order=date.desc&limit=1&select=date")
+      .then(deb => Number(deb?.[0]?.date) || 0).catch(() => 0);
     Promise.all([
       dbDrix.getClassement(),
       // On charge aussi les annulations : sans elles, un match contesté continuait
       // d'alimenter « DRIX cette semaine », le compteur de matchs et les séries,
       // alors que les DRIX, eux, avaient bien été rendus.
-      sbJ(`drix_mouvements?resultat=in.(victoire,defaite,annule)&order=date.desc&select=joueur_id,joueur_pseudo,variation,resultat,date,duel_id`).catch(() => []),
+      // ⚠️ Seulement la saison en cours, page par page : le serveur coupe à 1000 lignes, et
+      // avant on lisait toute la table → les 2 premières semaines de septembre manquaient
+      // (5 joueurs « non classés », compteurs de matchs trop bas).
+      debutSaison.then(debut => sbToutesJ(`drix_mouvements?resultat=in.(victoire,defaite,annule)${debut ? `&date=gte.${debut}` : ""}&order=date.desc,id.desc&select=id,joueur_id,joueur_pseudo,variation,resultat,date,duel_id`)).catch(() => []),
       dbDrix.getHallOfFame().catch(() => []),
-      // Début de la saison en cours = la dernière remise à 1000 (ligne « saison »).
-      sbJ("drix_mouvements?resultat=eq.saison&order=date.desc&limit=1&select=date").catch(() => []),
-    ]).then(([c, mvts, hof, deb]) => {
+      debutSaison,
+    ]).then(([c, mvts, hof, debut]) => {
       // Matchs, séries, « DRIX cette semaine », palmarès vivant : seulement la saison
       // en cours. Sans ça, le lendemain de la clôture, on affichait 127 matchs et une
       // série de 5 victoires à un joueur qui repartait de 1000.
-      const debut = Number(deb?.[0]?.date) || 0;
       setClassement(c || []);
       setMouvements((mvts || []).filter(mv => !debut || (mv.date || 0) >= debut));
       setHallOfFame(hof || []);

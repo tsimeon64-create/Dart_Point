@@ -13,6 +13,7 @@ import { ArrowLeft } from "lucide-react";
 import { FriendNameInput } from "./FriendPicker";
 import { ConfettiBurst } from "./DPLottie";
 import confettiData from "./lottie/confetti.json";
+import { BoutonPartagerComptoir } from "./partageComptoir";
 
 // Supabase (recherche de profils Dart Point — optionnel, lecture seule)
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
@@ -729,6 +730,26 @@ export const ToucheCoule = ({ setPage, joueur }) => {
       ["Bateaux coulés", sunkList.length], ["Précision", precision.toFixed(1).replace(".", ",") + " %"],
       ["Premier coulé", sunkList[0] ? SHIPS[sunkList[0]].short : "—"], ["Dernier coulé", sunkList.length ? SHIPS[sunkList[sunkList.length - 1]].short : "—"],
     ];
+    // La carte « partie » du Comptoir (format : src/partageComptoir.jsx). Toujours 2 joueurs,
+    // jamais d'égalité : le premier qui coule les 4 bateaux adverses gagne.
+    const partieAPartager = () => {
+      const l = 1 - w, ll = log[l] || [];
+      const lHits = ll.filter(s => s.result === "hit" || s.result === "sunk").length;
+      const lPrec = ll.length > 0 ? lHits / ll.length * 100 : 0;
+      const pct = (v) => v.toFixed(1).replace(".", ",") + " %";
+      return {
+        jeu: "touche-coule", titre: "Touché-Coulé", details: `${turnCount + 1} tours`,
+        classement: [
+          { nom: players[w].name, score: `${SHIP_KEYS.length}/${SHIP_KEYS.length}`, unite: "coulés", detail: `${darts} fléchettes · ${pct(precision)} de précision`, gagnant: true },
+          { nom: players[l].name, score: `${SHIP_KEYS.length - shipsLeft(fleets[w], shots[l])}/${SHIP_KEYS.length}`, unite: "coulés", detail: `${ll.length} fléchettes · ${pct(lPrec)} de précision` },
+        ],
+        faits: [
+          { label: "Précision du vainqueur", valeur: pct(precision) },
+          { label: "Bateaux encore à flot", valeur: String(shipsLeft(fleets[w], shots[l])) },
+          sunkList.length ? { label: "Dernier coulé", valeur: SHIPS[sunkList[sunkList.length - 1]].short } : null,
+        ].filter(Boolean),
+      };
+    };
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: C.bg, color: C.text, fontFamily: "Inter,sans-serif", overflowY: "auto" }}>
         <ConfettiBurst data={confettiData} />
@@ -744,6 +765,7 @@ export const ToucheCoule = ({ setPage, joueur }) => {
               </div>
             ))}
           </div>
+          <BoutonPartagerComptoir joueur={joueur} construire={partieAPartager} style={{ marginBottom: 10 }}/>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <button onClick={startRevanche} style={{ ...btnMain, padding: "15px" }}>🔄 Revanche</button>
             <button onClick={() => { clearSave(); setFleets([null, null]); setPlacerIdx(0); setPhase("create"); }} style={{ ...btnSec, padding: "14px" }}>Nouvelle partie</button>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Timer, CheckCircle, X, Trophy, Star, TrendingUp, RotateCcw, Clock } from "lucide-react";
 import { C } from "./theme";
+import { BoutonPartagerComptoir } from "./partageComptoir";
 
 // ── Cibles : D1…D20 + Bull + D-Bull ──────────────────────────────────────────
 const TARGETS = [
@@ -24,7 +25,7 @@ const fmtMs = (ms) => {
 };
 
 // ── Composant principal ───────────────────────────────────────────────────────
-export const HorlogeDouble = ({ setPage }) => {
+export const HorlogeDouble = ({ setPage, joueur = null }) => {
   const [phase, setPhase]         = useState("intro");      // intro|running|confirming|between|results
   const [targetIdx, setTargetIdx] = useState(0);
   const [chronoStart, setChronoStart] = useState(null);
@@ -342,6 +343,18 @@ export const HorlogeDouble = ({ setPage }) => {
             </div>
           )}
         </div>
+
+        {/* Partager au Comptoir — ici plutôt qu'en bas : la liste des 22 doubles est longue */}
+        <BoutonPartagerComptoir joueur={joueur} style={{ marginBottom:20 }} construire={() => ({
+          jeu: "horloge-double", titre: "Horloge Double", details: `${TARGETS.length} doubles`,
+          classement: [{ nom: joueur?.pseudo || "Moi", score: fmtMs(totalTime), detail: `${totalDarts} fléchettes · ${pctHit}% de précision` }],
+          faits: [
+            { label: "Fléchettes", valeur: String(totalDarts) },
+            { label: "Précision", valeur: `${pctHit}%` },
+            favori ? { label: "Double favori", valeur: favori.target.short } : null,
+            pointFaible ? { label: "À travailler", valeur: pointFaible.target.short } : null,
+          ].filter(Boolean),
+        })}/>
 
         {/* Détail par double */}
         <div style={{ background:"#0d0d0d", border:"1px solid #ffffff11", borderRadius:16, overflow:"hidden", marginBottom:24 }}>

@@ -13,7 +13,7 @@ import {
   appliquerDrixDuel, getDrixTitre, getDrixProgression, calculerDrix, finaliserDuel,
   dbJoueurs, todayStr, hashPwd, callAuth,
   ALL_BADGES, computeBadgeValues, getBadgesStored, storeBadgesSet,
-  NiveauBulle, tournoisGagnes,
+  NiveauBulle, tournoisGagnes, numeroSaison, extremesDrix,
 } from "./AppJoueurs";
 import { Scoreur } from "./AppJeux";
 import { useRaccourcis } from "./raccourcisScores";
@@ -21,6 +21,7 @@ import { texteContoure, epaisseurContour, FOND_CARTE_JAUNE, KEYFRAMES_CARTE_JAUN
 import { reduceGameOnline, buildFinalizationData, mergeVolleys } from "./onlineGame";
 import { PanneauStatsMatch } from "./StatsMatchPanel";
 import { dateJourDepuisLabel, fmtTempsSpeedrun, trierClassement } from "./classementSpeedrun";
+import { PREFIXE_PARTIE, lirePartie } from "./partageComptoir";
 import { ConfigCricket } from "./AppCricket";
 import { JeuCapital } from "./AppJeuDecalePoint";
 import { ToucheCoule } from "./AppToucheCoule";
@@ -51,6 +52,23 @@ const sb = async (path, opts = {}) => {
   if (!res.ok) { const e = await res.text(); throw new Error(e); }
   const text = await res.text();
   return text ? JSON.parse(text) : null;
+};
+// ⚠️ Le serveur renvoie AU PLUS 1000 lignes par demande, sans prévenir (même avec
+// limit=3000). Pour une liste qui peut dépasser 1000 : la lire page par page.
+// `chemin` DOIT contenir un `order=` stable (ex. date.desc,id.desc), et ni limit ni offset.
+const sbToutes = async (chemin, { max = 20000 } = {}) => {
+  const PAGE = 1000;
+  const toutes = [];
+  for (let offset = 0; offset < max; offset += PAGE) {
+    const page = await sb(`${chemin}&limit=${PAGE}&offset=${offset}`);
+    if (!Array.isArray(page)) break;
+    toutes.push(...page);
+    if (page.length < PAGE) break;
+  }
+  // Une ligne ajoutée entre deux pages décale tout d'un cran : la dernière ligne d'une page
+  // revient en tête de la suivante. On retire ces doublons (d'où `id` dans les select).
+  const vus = new Set();
+  return toutes.filter((l) => { if (l?.id == null) return true; if (vus.has(l.id)) return false; vus.add(l.id); return true; });
 };
 // Opérations admin sensibles (DELETE/UPDATE) → Edge Function admin-ops (service key côté
 // serveur). Le mot de passe admin, stocké en session à la connexion, est revérifié serveur.
@@ -4493,6 +4511,8 @@ const parseChronoFinishContent = (contenu) => {
   if (contenu.startsWith("__CHRONO__|")) {
     try { return JSON.parse(contenu.slice(11)); } catch { return null; }
   }
+  // Une partie partagée peut contenir ces mots (nom de joueur) : ce n'est pas un speedrun.
+  if (contenu.startsWith(PREFIXE_PARTIE)) return null;
   // Format texte legacy : "⏱ Chrono Finish — ..." ou "🏆 Finish Speedrun — ..."
   if (contenu.includes("Chrono Finish") || contenu.includes("Finish Speedrun")) {
     const isVainqueur = contenu.includes("Vainqueur") || contenu.includes("remporte le défi");
@@ -4867,6 +4887,127 @@ const ChronoVainqueurPost = ({ p, info, joueur, likesMap, commentsMap, tempsDepu
 
         {/* Tous ceux qui ont joué ce speedrun ce jour-là */}
         <ClassementSpeedrunJour kind={info?.kind === "scoreur" ? "scoreur" : "finish"} dateLabel={info.date_label} joueur={joueur} setPage={setPage}/>
+
+        <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
+        <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
+      </div>
+    </div>
+  );
+};
+
+// ── PartiePost — une partie partagée depuis l'écran de fin (partie libre, Cricket libre,
+// Capital, Double Down, Touché-Coulé, Horloge Double). Format : src/partageComptoir.jsx.
+// Les noms viennent de ce qu'on a tapé dans le jeu (invités compris) : aucun n'est cliquable,
+// seul l'auteur de la carte l'est.
+const THEMES_PARTIE = {
+  "x01":            { emoji:"🎯", titre:"Partie libre", c:"#f97316", c2:"#ea580c", fond:"#1a0d00" },
+  "cricket":        { emoji:"🎯", titre:"Cricket",      c:"#22c55e", c2:"#15803d", fond:"#03140a" },
+  "capital":        { emoji:"💰", titre:"Le Capital",   c:"#fbbf24", c2:"#b45309", fond:"#1a1200" },
+  "double-down":    { emoji:"🎲", titre:"Double Down",  c:"#a78bfa", c2:"#7c3aed", fond:"#0f0a1f" },
+  "touche-coule":   { emoji:"🚢", titre:"Touché-Coulé", c:"#60a5fa", c2:"#1d4ed8", fond:"#030c1f" },
+  "horloge-double": { emoji:"⏰", titre:"Horloge Double", c:"#2dd4bf", c2:"#0f766e", fond:"#021614" },
+};
+const coupe = (v, n) => String(v ?? "").slice(0, n);
+const PartiePost = ({ p, d, joueur, likesMap, commentsMap, tempsDepuis, setPage }) => {
+  const [openStats, setOpenStats] = useState(false);
+  const th = THEMES_PARTIE[d.jeu] || THEMES_PARTIE["x01"];
+  const classement = (Array.isArray(d.classement) ? d.classement : []).slice(0, 8)
+    .map((c) => ({ nom: coupe(c?.nom, 40) || "Joueur", score: coupe(c?.score, 14), unite: coupe(c?.unite, 14), detail: coupe(c?.detail, 50), gagnant: !!c?.gagnant }));
+  const faits = (Array.isArray(d.faits) ? d.faits : []).slice(0, 4).map((f) => ({ label: coupe(f?.label, 24), valeur: coupe(f?.valeur, 32) }));
+  const solo = classement.length === 1;
+  const nbGagnants = classement.filter((c) => c.gagnant).length;
+  const tete = classement[0];
+  const autres = classement.slice(1);
+  const titreBande = d.jeu === "x01" ? `${th.titre} · ${coupe(d.titre, 12) || "501"}` : (coupe(d.titre, 24) || th.titre);
+  // Manches propres + noms complets (non coupés) pour que « Manche par manche » retrouve les joueurs.
+  const manchesOk = Array.isArray(d.manches) ? d.manches.filter((m) => m && typeof m === "object") : [];
+  const nomComplet = (i) => String(d.classement?.[i]?.nom ?? "") || "Joueur";
+  const avecStats = d.jeu === "x01" && classement.length === 2 && manchesOk.length > 0;
+  const enC = (c) => ({ color: c, WebkitTextFillColor: c });   // le body impose -webkit-text-fill-color
+  return (
+    <div style={{ position:"relative", overflow:"hidden", borderRadius:18, marginBottom:12, border:`1px solid ${th.c}55`,
+        background:`linear-gradient(160deg, ${th.fond} 0%, #0b0b10 60%)`, boxShadow:`0 4px 24px ${th.c}22`, animation:"feedIn .3s ease-out both" }}>
+      {/* Bande du jeu */}
+      <div style={{ background:`linear-gradient(90deg, ${th.c2}, ${th.c})`, padding:"7px 14px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
+        <span style={{ fontSize:11.5, fontWeight:900, letterSpacing:2, textTransform:"uppercase", display:"inline-flex", alignItems:"center", gap:6, ...enC("#0b0b10") }}>
+          <EmoIcon e={th.emoji} size={13} color="#0b0b10"/>{titreBande}
+        </span>
+        {d.details && <span style={{ fontSize:10.5, fontWeight:700, textAlign:"right", ...enC("#0b0b10cc") }}>{coupe(d.details, 60)}</span>}
+      </div>
+
+      <div style={{ padding:"12px 14px 12px" }}>
+        {/* Qui a partagé */}
+        <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:12 }}>
+          <FeedAvatar photo={p.joueur_photo} pseudo={p.joueur_pseudo} size={38} onClick={()=>setPage("profil-joueur-"+p.joueur_id)}/>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div onClick={()=>setPage("profil-joueur-"+p.joueur_id)} style={{ fontWeight:800, fontSize:14, cursor:"pointer", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", ...enC("#f1f5f9") }}>{p.joueur_pseudo}</div>
+            <div style={{ fontSize:11, ...enC("#64748b") }}>a partagé sa partie · {tempsDepuis(p.date)}</div>
+          </div>
+        </div>
+
+        {/* Le gagnant (ou le score en solo) */}
+        {tete && (
+          <div style={{ borderRadius:14, padding:"14px 14px", marginBottom: autres.length ? 8 : 10, textAlign:"center",
+              background:`radial-gradient(ellipse at center, ${th.c}26 0%, #0b0b10 75%)`, border:`1px solid ${th.c}66` }}>
+            <div style={{ fontSize:10, fontWeight:900, letterSpacing:3, textTransform:"uppercase", marginBottom:4, display:"inline-flex", alignItems:"center", gap:5, ...enC(th.c) }}>
+              {!solo && nbGagnants === 1 && <EmoIcon e="👑" size={12} color={th.c} fill={th.c}/>}
+              {solo ? "Score" : nbGagnants > 1 ? "Égalité" : "Vainqueur"}
+            </div>
+            <div style={{ fontSize:20, fontWeight:900, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", ...enC("#f1f5f9") }}>{tete.nom}</div>
+            {tete.score !== "" && (
+              <div style={{ marginTop:2, fontVariantNumeric:"tabular-nums" }}>
+                <span style={{ fontSize:34, fontWeight:900, lineHeight:1.1, ...enC(th.c) }}>{tete.score}</span>
+                {tete.unite && <span style={{ fontSize:13, fontWeight:800, marginLeft:5, ...enC(th.c) }}>{tete.unite}</span>}
+              </div>
+            )}
+            {tete.detail && <div style={{ fontSize:11.5, marginTop:3, ...enC("#94a3b8") }}>{tete.detail}</div>}
+          </div>
+        )}
+
+        {/* Les autres joueurs */}
+        {autres.length > 0 && (
+          <div style={{ background:"#0f0f17", border:"1px solid #ffffff10", borderRadius:12, padding:"4px 10px", marginBottom:10 }}>
+            {autres.map((c, i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 0", borderBottom: i < autres.length - 1 ? "1px solid #ffffff0d" : "none" }}>
+                <div style={{ width:22, textAlign:"center", fontWeight:900, fontSize:12.5, flexShrink:0, ...enC(c.gagnant ? th.c : "#64748b") }}>{c.gagnant ? "=" : `${i + 2}.`}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:700, fontSize:13.5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", ...enC("#e2e8f0") }}>{c.nom}</div>
+                  {c.detail && <div style={{ fontSize:10.5, ...enC("#64748b") }}>{c.detail}</div>}
+                </div>
+                {c.score !== "" && (
+                  <div style={{ fontSize:15, fontWeight:900, fontVariantNumeric:"tabular-nums", flexShrink:0, ...enC("#f1f5f9") }}>
+                    {c.score}{c.unite && <span style={{ fontSize:10.5, fontWeight:700, marginLeft:3, ...enC("#94a3b8") }}>{c.unite}</span>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Chiffres marquants */}
+        {faits.length > 0 && (
+          <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(faits.length, 2)}, 1fr)`, gap:6, marginBottom:10 }}>
+            {faits.map((f, i) => (
+              <div key={i} style={{ background:"#0f0f17", border:`1px solid ${th.c}33`, borderRadius:10, padding:"7px 10px" }}>
+                <div style={{ fontSize:9.5, fontWeight:800, letterSpacing:1, textTransform:"uppercase", ...enC("#64748b") }}>{f.label}</div>
+                <div style={{ fontSize:15, fontWeight:900, fontVariantNumeric:"tabular-nums", ...enC("#f1f5f9") }}>{f.valeur}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 501 à deux : la même fiche « Plus de stats » que les cartes de match */}
+        {avecStats && (
+          <>
+            <button onClick={()=>setOpenStats(o => !o)}
+              style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"9px", borderRadius:10, cursor:"pointer", touchAction:"manipulation",
+                fontWeight:800, fontSize:12.5, background: openStats ? `${th.c}1c` : "#ffffff08", border:`1px solid ${openStats ? th.c + "88" : "#ffffff14"}`, ...enC(openStats ? th.c : "#94a3b8") }}>
+              <EmoIcon e="📊" size={13}/>{openStats ? "Masquer les stats" : "Plus de stats"}
+            </button>
+            {openStats && <PanneauStatsMatch manches={manchesOk} stats={Array.isArray(d.stats) ? d.stats : null} nomA={nomComplet(0)} nomB={nomComplet(1)}/>}
+            <div style={{ height:10 }}/>
+          </>
+        )}
 
         <LikeButton refId={p.id} joueur={joueur} initialCount={likesMap[p.id]?.count||0} initialMyLike={likesMap[p.id]?.myLike||false}/>
         <CommentSection refId={p.id} joueur={joueur} initialComments={commentsMap[p.id]||[]}/>
@@ -6321,6 +6462,7 @@ const kindDuContenu = (contenu) => {
   const c = contenu || "";
   if (c.startsWith("__CHRONO_SCOREUR__|") || c.startsWith("__CHRONO__|")) return "speedrun";
   if (c.startsWith("__BADGE__|")) return "badge";
+  if (c.startsWith(PREFIXE_PARTIE)) return "partie";
   return "post";
 };
 
@@ -6329,13 +6471,19 @@ const resoudreCartes = async (refIds, joueurId) => {
   const inconnus = [...new Set(refIds)].filter(id => !(cle(id) in _cacheCartes));
   if (inconnus.length) {
     const reste = new Set(inconnus);
-    const liste = () => [...reste].join(",");
     // ⚠️ Une sonde qui ÉCHOUE (réseau coupé, 503…) ne veut pas dire « pas à moi ». Mettre
     // null en cache ferait passer ma propre carte pour celle d'un autre jusqu'au
     // rechargement (et fabriquerait une fausse « réponse »). On note l'échec, et ce qui
     // n'a pas été reconnu n'est PAS mis en cache : on réessaiera au passage suivant.
     let echec = false;
     const sonde = (p) => p.catch(() => { echec = true; return []; });
+    // Les ids par paquets de 60 : avec des centaines de j'aime, un seul `id=in.(…)` ferait une
+    // adresse de plusieurs dizaines de Ko, refusée par le serveur.
+    const parPaquets = async (ids, url) => {
+      const pq = [];
+      for (let i = 0; i < ids.length; i += 60) pq.push(ids.slice(i, i + 60));
+      return (await Promise.all(pq.map(p => sonde(sb(url(p.join(","))))))).flat();
+    };
     const poseMatch = (id, d) => _cacheCartes[cle(id)] = (
       (d.challenger_id === joueurId || d.defie_id === joueurId)
         ? { kind:"match", label: d.challenger_id === joueurId ? d.defie_pseudo : d.challenger_pseudo }
@@ -6343,7 +6491,7 @@ const resoudreCartes = async (refIds, joueurId) => {
 
     // a) carte de match reconstruite directement depuis la table duels
     if (reste.size) {
-      const duels = await sonde(sb(`duels?id=in.(${liste()})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`));
+      const duels = await parPaquets([...reste], (ids) => `duels?id=in.(${ids})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`);
       (duels||[]).forEach(d => { reste.delete(d.id); poseMatch(d.id, d); });
     }
 
@@ -6352,7 +6500,7 @@ const resoudreCartes = async (refIds, joueurId) => {
     const postsDuel = [];
     if (reste.size) {
       // surtout PAS select=* : la colonne image_url contient des photos en base64.
-      const posts = await sonde(sb(`wall_posts?id=in.(${liste()})&select=id,joueur_id,contenu`));
+      const posts = await parPaquets([...reste], (ids) => `wall_posts?id=in.(${ids})&select=id,joueur_id,contenu`);
       (posts||[]).forEach(p => {
         reste.delete(p.id);
         if ((p.contenu||"").startsWith("__DUEL__|")) postsDuel.push(p);
@@ -6373,7 +6521,7 @@ const resoudreCartes = async (refIds, joueurId) => {
         } catch(e) { _cacheCartes[cle(p.id)] = (p.joueur_id === joueurId ? { kind:"match", label:"" } : null); }
       });
       if (Object.keys(parDuel).length) {
-        const ds = await sonde(sb(`duels?id=in.(${Object.keys(parDuel).join(",")})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`));
+        const ds = await parPaquets(Object.keys(parDuel), (ids) => `duels?id=in.(${ids})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`);
         const vus = new Set();
         (ds||[]).forEach(d => { vus.add(d.id); poseMatch(parDuel[d.id], d); });
         if (!echec) Object.entries(parDuel).forEach(([duelId, postId]) => { if (!vus.has(duelId)) _cacheCartes[cle(postId)] = null; });
@@ -6382,11 +6530,11 @@ const resoudreCartes = async (refIds, joueurId) => {
 
     // d) palier DRIX / entraînement, puis présence au bar
     if (reste.size) {
-      const mv = await sonde(sb(`drix_mouvements?id=in.(${liste()})&joueur_id=eq.${joueurId}&select=id,adversaire_pseudo`));
+      const mv = await parPaquets([...reste], (ids) => `drix_mouvements?id=in.(${ids})&joueur_id=eq.${joueurId}&select=id,adversaire_pseudo`);
       (mv||[]).forEach(m => { reste.delete(m.id); _cacheCartes[cle(m.id)] = ({ kind: m.adversaire_pseudo === "Comptage de finish" ? "training" : "drix", label:"" }); });
     }
     if (reste.size) {
-      const pr = await sonde(sb(`presences?id=in.(${liste()})&joueur_id=eq.${joueurId}&select=id`));
+      const pr = await parPaquets([...reste], (ids) => `presences?id=in.(${ids})&joueur_id=eq.${joueurId}&select=id`);
       (pr||[]).forEach(p => { reste.delete(p.id); _cacheCartes[cle(p.id)] = ({ kind:"presence", label:"" }); });
     }
 
@@ -6394,7 +6542,7 @@ const resoudreCartes = async (refIds, joueurId) => {
     //    du fil : on note la carte PARENTE dans `cible`, sinon toucher la notification chercherait
     //    une carte qui n'existe pas. Sondé en dernier pour ne rien changer aux cas d'avant.
     if (reste.size) {
-      const coms = await sonde(sb(`wall_comments?id=in.(${liste()})&select=id,ref_id,joueur_id`));
+      const coms = await parPaquets([...reste], (ids) => `wall_comments?id=in.(${ids})&select=id,ref_id,joueur_id`);
       (coms||[]).forEach(c => {
         reste.delete(c.id);
         _cacheCartes[cle(c.id)] = (c.joueur_id === joueurId ? { kind:"commentaire", label:"", cible:c.ref_id } : null);
@@ -6425,15 +6573,19 @@ const decrireCartes = async (refIds) => {
     let echec = false;   // même règle que resoudreCartes : une sonde ratée ne fige rien en cache
     const sonde = (p) => p.catch(() => { echec = true; return []; });
     const reste = new Set(inconnus);
-    const liste = () => [...reste].join(",");
+    const parPaquets = async (ids, url) => {
+      const pq = [];
+      for (let k = 0; k < ids.length; k += 60) pq.push(ids.slice(k, k + 60));
+      return (await Promise.all(pq.map(p => sonde(sb(url(p.join(","))))))).flat();
+    };
     const lesDeux = (d) => [{ id:d.challenger_id, pseudo:d.challenger_pseudo }, { id:d.defie_id, pseudo:d.defie_pseudo }];
     if (reste.size) {
-      const ds = await sonde(sb(`duels?id=in.(${liste()})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`));
+      const ds = await parPaquets([...reste], (ids) => `duels?id=in.(${ids})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`);
       (ds||[]).forEach(d => { reste.delete(d.id); _cacheDescr[d.id] = { genre:"match", joueurs:lesDeux(d) }; });
     }
     if (reste.size) {
       // surtout PAS select=* : image_url contient des photos en base64.
-      const ps = await sonde(sb(`wall_posts?id=in.(${liste()})&select=id,joueur_id,joueur_pseudo,contenu`));
+      const ps = await parPaquets([...reste], (ids) => `wall_posts?id=in.(${ids})&select=id,joueur_id,joueur_pseudo,contenu`);
       const parDuel = {};   // duel_id → { post, repli } : les deux joueurs viennent de la table duels
       (ps||[]).forEach(p => {
         reste.delete(p.id);
@@ -6451,7 +6603,7 @@ const decrireCartes = async (refIds) => {
       });
       const idsDuels = Object.keys(parDuel);
       if (idsDuels.length) {
-        const ds = await sonde(sb(`duels?id=in.(${idsDuels.join(",")})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`));
+        const ds = await parPaquets(idsDuels, (ids) => `duels?id=in.(${ids})&select=id,challenger_id,challenger_pseudo,defie_id,defie_pseudo`);
         const vus = new Set();
         (ds||[]).forEach(d => { vus.add(d.id); _cacheDescr[parDuel[d.id].post] = { genre:"match", joueurs:lesDeux(d) }; });
         // Duel effacé : on garde les noms écrits dans la carte.
@@ -6460,15 +6612,15 @@ const decrireCartes = async (refIds) => {
     }
     if (reste.size) {
       // Les annonces de club ont leurs commentaires dans la MÊME table que le Comptoir.
-      const an = await sonde(sb(`asso_posts?id=in.(${liste()})&select=id,asso_slug,joueur_id,joueur_pseudo`));
+      const an = await parPaquets([...reste], (ids) => `asso_posts?id=in.(${ids})&select=id,asso_slug,joueur_id,joueur_pseudo`);
       (an||[]).forEach(a => { reste.delete(a.id); _cacheDescr[a.id] = { genre:"asso", asso_slug:a.asso_slug, joueurs:[{ id:a.joueur_id, pseudo:a.joueur_pseudo }] }; });
     }
     if (reste.size) {
-      const mv = await sonde(sb(`drix_mouvements?id=in.(${liste()})&select=id,joueur_id,joueur_pseudo`));
+      const mv = await parPaquets([...reste], (ids) => `drix_mouvements?id=in.(${ids})&select=id,joueur_id,joueur_pseudo`);
       (mv||[]).forEach(m => { reste.delete(m.id); _cacheDescr[m.id] = { genre:"pub", joueurs:[{ id:m.joueur_id, pseudo:m.joueur_pseudo }] }; });
     }
     if (reste.size) {
-      const pr = await sonde(sb(`presences?id=in.(${liste()})&select=id,joueur_id,joueur_pseudo`));
+      const pr = await parPaquets([...reste], (ids) => `presences?id=in.(${ids})&select=id,joueur_id,joueur_pseudo`);
       (pr||[]).forEach(p => { reste.delete(p.id); _cacheDescr[p.id] = { genre:"pub", joueurs:[{ id:p.joueur_id, pseudo:p.joueur_pseudo }] }; });
     }
     if (!echec) reste.forEach(id => { _cacheDescr[id] = null; });   // introuvable : « une publication que tu as commentée »
@@ -6508,14 +6660,20 @@ const surQuoi = (n, moiId) => {
 const fetchActuNotifs = async (joueurId, { leger = false, assoSlug = null } = {}) => {
   if (!joueurId) return [];
   const depuis = Date.now() - 30*24*3600*1000;   // au-delà de 30 jours ce n'est plus une « actualité »
-  const champsCom = `id,ref_id,joueur_id,joueur_pseudo,contenu,date${leger ? "" : ",joueur_photo"}`;
+  // Sans la photo (≈ 40 Ko de base64 chacune) : la page charge ensuite les photos des seuls
+  // auteurs affichés (PageActualite), par paquets.
+  const champsCom = `id,ref_id,joueur_id,joueur_pseudo,contenu,date`;
   // Les annonces du club ne se « résolvent » pas comme les autres : il n'y a rien à sonder,
   // on est concerné si on est membre du club, point. D'où la requête à part, faite seulement
   // si le joueur appartient à un club. `catch` silencieux : tant que la table `asso_posts`
   // n'existe pas, la cloche doit continuer à afficher le reste.
+  // La page lit TOUS les j'aime / commentaires des 30 jours (page par page : le serveur coupe à
+  // 1000) ; avant, 200 seulement → les j'aime de plus de ~25 jours manquaient. Le sondage de fond
+  // de la cloche (`leger`) garde les 200 plus récents : il ne compte que ce qui est nouveau.
+  const lire = (chemin) => leger ? sb(`${chemin}&limit=200`) : sbToutes(chemin);
   const [likes, comments, annonces] = await Promise.all([
-    sb(`wall_likes?date=gt.${depuis}&order=date.desc&limit=200&select=ref_id,joueur_id,joueur_pseudo,date`).catch(()=>[]),
-    sb(`wall_comments?date=gt.${depuis}&order=date.desc&limit=200&select=${champsCom}`).catch(()=>[]),
+    lire(`wall_likes?date=gt.${depuis}&order=date.desc,id.desc&select=id,ref_id,joueur_id,joueur_pseudo,date`).catch(()=>[]),
+    lire(`wall_comments?date=gt.${depuis}&order=date.desc,id.desc&select=${champsCom}`).catch(()=>[]),
     assoSlug
       ? sb(`asso_posts?asso_slug=eq.${encodeURIComponent(assoSlug)}&date=gt.${depuis}&order=date.desc&limit=50&select=id,asso_slug,joueur_id,joueur_pseudo,contenu,date${leger ? "" : ",joueur_photo"}`).catch(()=>[])
       : Promise.resolve([]),
@@ -6566,7 +6724,7 @@ const fetchActuNotifs = async (joueurId, { leger = false, assoSlug = null } = {}
 };
 
 // Ce qu'on lit dans « X a aimé … ». `label` n'est utilisé que pour un match.
-const NOM_CARTE = { match:"ton match", speedrun:"ton speed run", badge:"ton badge", post:"ta publication", drix:"ton palier DRIX", training:"ton entraînement", presence:"ta présence au bar", commentaire:"ton commentaire" };
+const NOM_CARTE = { match:"ton match", speedrun:"ton speed run", badge:"ton badge", partie:"ta partie", post:"ta publication", drix:"ton palier DRIX", training:"ton entraînement", presence:"ta présence au bar", commentaire:"ton commentaire" };
 
 const PageActualite = ({ joueur, setPage, onOuvrirAsso }) => {
   const [notifs, setNotifs] = useState([]);
@@ -6579,9 +6737,12 @@ const PageActualite = ({ joueur, setPage, onOuvrirAsso }) => {
       const ns = await fetchActuNotifs(joueur.id, { assoSlug: joueur.asso_slug || null });
       if (!alive) return;
       setNotifs(ns);
-      const likeIds = [...new Set(ns.filter(n=>n.type==="like").map(n=>n.from_id).filter(Boolean))];
-      if (likeIds.length) {
-        const ph = await sb(`joueurs?id=in.(${likeIds.join(",")})&select=id,photo`).catch(()=>[]);
+      // Photos des auteurs (j'aime, commentaires, réponses), par paquets de 60 ids
+      const auteurs = [...new Set(ns.filter(n => !n.from_photo).map(n => n.from_id).filter(Boolean))];
+      if (auteurs.length) {
+        const paquets = [];
+        for (let i = 0; i < auteurs.length; i += 60) paquets.push(auteurs.slice(i, i + 60));
+        const ph = (await Promise.all(paquets.map(pq => sb(`joueurs?id=in.(${pq.join(",")})&select=id,photo`).catch(()=>[])))).flat();
         const pm = {}; (ph||[]).forEach(p=>{ pm[p.id]=p.photo; }); if (alive) setPhotos(pm);
       }
       if (alive) setLoading(false);
@@ -6611,7 +6772,7 @@ const PageActualite = ({ joueur, setPage, onOuvrirAsso }) => {
                 if (n.ref_id) setPage("communaute-"+n.ref_id); else if (n.from_id) setPage("profil-joueur-"+n.from_id);
               }} style={{ display:"flex", gap:12, alignItems:"flex-start", background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px", cursor:(n.ref_id||n.from_id||n.asso_slug)?"pointer":"default" }}>
               <div style={{ position:"relative", flexShrink:0 }}>
-                <FeedAvatar photo={n.type==="like"?photos[n.from_id]:n.from_photo} pseudo={n.from_pseudo} size={40}/>
+                <FeedAvatar photo={n.from_photo || photos[n.from_id]} pseudo={n.from_pseudo} size={40}/>
                 <div style={{ position:"absolute", bottom:-3, right:-3, width:20, height:20, borderRadius:"50%", background:n.type==="like"?"#f97316":n.type==="asso"?"#f59e0b":n.type==="reply"?"#3b82f6":"#7c3aed", display:"flex", alignItems:"center", justifyContent:"center", border:`2px solid ${C.card}` }}>
                   {n.type==="like" ? <ThumbsUp size={11} color="#fff"/> : n.type==="asso" ? <Megaphone size={11} color="#fff"/> : <MessageCircle size={11} color="#fff"/>}
                 </div>
@@ -7035,7 +7196,12 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null, ongletInitia
   useEffect(() => { if (mainTab === "tournee") marquerTourneeVue(); }, [mainTab, marquerTourneeVue]);
 
   // ── Joueur de la semaine de l'asso affiliée (moyenne + ratio V/D) ───────────
-  // Fenêtre 7 jours ; repli sur la saison si personne n'a assez joué cette semaine.
+  // Fenêtre 7 jours, 3 matchs minimum ; repli sur la saison en cours (depuis le
+  // 1er septembre) si personne n'a assez joué cette semaine.
+  // On ne demande QUE la période utile, triée du plus récent, et la saison page par
+  // page : le serveur coupe à 1000 lignes. Avant, on lisait tous les duels du club sans
+  // tri → les 1000 plus anciens → depuis le 20/10/2026 (1361 duels) plus aucun match de
+  // la semaine n'était vu, et la carte affichait « joueur de la saison » à tort.
   const [assoMvp, setAssoMvp] = useState(null);
   useEffect(() => {
     const slug = joueur?.asso_slug;
@@ -7051,11 +7217,9 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null, ongletInitia
       const membresOk = membres.filter((m) => !COMPTES_TEST.has((m.pseudo || "").trim()));
       if (!membresOk.length) { setAssoMvp(null); return; }
       const ids = membresOk.map((m) => m.id);
-      const duels = await sb(
-        `duels?or=(challenger_id.in.(${ids.join(",")}),defie_id.in.(${ids.join(",")}))&statut=eq.termine&select=challenger_id,defie_id,gagnant_id,score_challenger,score_defie,date&limit=3000`
-      ).catch(() => []);
-      if (!alive) return;
-      const weekTs = Date.now() - 7 * 86400000;
+      const filtreClub = `or=(challenger_id.in.(${ids.join(",")}),defie_id.in.(${ids.join(",")}))&statut=eq.termine&select=id,challenger_id,defie_id,gagnant_id,score_challenger,score_defie,date`;
+      // null = lecture ratée : on n'affiche rien plutôt qu'un faux « joueur de la saison »
+      const lireDuels = (depuis) => sbToutes(`duels?${filtreClub}&date=gte.${depuis}&order=date.desc,id.desc`).catch(() => null);
       // score_challenger / score_defie = moyenne du joueur dans ce duel
       const calc = (list, id) => {
         let wins = 0, losses = 0, sumMoy = 0, nMoy = 0;
@@ -7067,18 +7231,27 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null, ongletInitia
         const games = wins + losses;
         return { games, wins, losses, moyenne: nMoy ? sumMoy / nMoy : 0, winRate: games ? wins / games : 0 };
       };
-      const per = membresOk.map((m) => {
-        const mine = (duels || []).filter((d) => d.challenger_id === m.id || d.defie_id === m.id);
-        return { m, week: calc(mine.filter((d) => (d.date || 0) >= weekTs), m.id), all: calc(mine, m.id) };
-      });
-      const qWeek = per.filter((p) => p.week.games >= 2);
-      const useWeek = qWeek.length > 0;
-      const pool = useWeek ? qWeek : per.filter((p) => p.all.games >= 3);
+      // Les membres qui ont joué au moins `minimum` matchs dans la liste, avec leurs chiffres
+      const classer = (duels, minimum) => membresOk
+        .map((m) => ({ m, st: calc((duels || []).filter((d) => d.challenger_id === m.id || d.defie_id === m.id), m.id) }))
+        .filter((p) => p.st.games >= minimum);
+      let periode = "semaine";
+      const semaine = await lireDuels(Date.now() - 7 * 86400000);
+      if (!alive || semaine === null) return;
+      let pool = classer(semaine, 3);
+      if (!pool.length) {
+        periode = "saison";
+        // Début de saison = la dernière remise à 1000 (ligne « saison »), sinon le 1er septembre
+        const deb = await sb("drix_mouvements?resultat=eq.saison&order=date.desc&limit=1&select=date").catch(() => null);
+        const debutSaison = Number(deb?.[0]?.date) || new Date(numeroSaison() - 1, 8, 1).getTime();
+        const saison = await lireDuels(debutSaison);
+        if (!alive || saison === null) return;
+        pool = classer(saison, 3);
+      }
       if (!pool.length) { setAssoMvp(null); return; }
       const score = (st) => st.moyenne + st.winRate * 40; // moyenne dominante + bonus ratio
-      const best = pool.map((p) => ({ m: p.m, st: useWeek ? p.week : p.all }))
-        .sort((a, b) => score(b.st) - score(a.st))[0];
-      setAssoMvp({ ...best.m, ...best.st, periode: useWeek ? "semaine" : "saison", assoNom: assoRows?.[0]?.nom || null });
+      const best = [...pool].sort((a, b) => score(b.st) - score(a.st))[0];
+      setAssoMvp({ ...best.m, ...best.st, periode, assoNom: assoRows?.[0]?.nom || null });
     })();
     return () => { alive = false; };
   }, [joueur?.asso_slug, joueur?.id, refreshTick]);
@@ -7440,6 +7613,17 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null, ongletInitia
           joueur={joueur} likesMap={likesMap} commentsMap={commentsMap}
           tempsDepuis={tempsDepuis} setPage={setPage}/>
       );
+    }
+
+    // ── Partie partagée depuis l'écran de fin d'un jeu ──────────────────────
+    if (p.contenu?.startsWith(PREFIXE_PARTIE)) {
+      const d = lirePartie(p.contenu);
+      if (d) return (
+        <PartiePost key={`post-${p.id}`} p={p} d={d}
+          joueur={joueur} likesMap={likesMap} commentsMap={commentsMap}
+          tempsDepuis={tempsDepuis} setPage={setPage}/>
+      );
+      return null;   // carte illisible : rien plutôt qu'un pavé de JSON
     }
 
     // ── Badge post ──────────────────────────────────────────────────────────
@@ -9791,7 +9975,7 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
   const [actuLikes, setActuLikes] = useState({});     // ref_id → { count, myLike }
   const [actuComs, setActuComs] = useState({});       // ref_id → commentaires
   const [editingAsso, setEditingAsso] = useState(false);
-  const [assoClassesIds, setAssoClassesIds] = useState(new Set());
+  const [assoClassesIds, setAssoClassesIds] = useState(null);   // null = pas (encore) su
   const [showAssoNonClasses, setShowAssoNonClasses] = useState(false);
   const [cropImage, setCropImage] = useState(null);
   const [savingPhoto, setSavingPhoto] = useState(false);
@@ -9840,16 +10024,23 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
     }
   };
   useEffect(() => {
-    sb(`joueurs?asso_slug=eq.${encodeURIComponent(slug)}&order=drix.desc&select=id,pseudo,drix,photo,ville&limit=50`)
-      .then(d => setMembres(Array.isArray(d) ? d : []))
-      .catch(() => setMembres([]))
+    // Tous les membres (plus de plafond à 50), et pour chacun : a-t-il au moins un match
+    // classé ? (`drix_mouvements(id)` embarqué, 1 ligne max par membre). Avant, on lisait
+    // TOUTE la table des mouvements pour le savoir → coupée à 1000 lignes par le serveur
+    // → 12 membres actifs d'Euskal Dardoa passaient en « non classés ».
+    const base = `joueurs?asso_slug=eq.${encodeURIComponent(slug)}&order=drix.desc,id.asc`;
+    sbToutes(`${base}&select=id,pseudo,drix,photo,ville,drix_mouvements(id)&drix_mouvements.resultat=in.(victoire,defaite)&drix_mouvements.limit=1`)
+      .then(d => {
+        const liste = Array.isArray(d) ? d : [];
+        setMembres(liste);
+        setAssoClassesIds(new Set(liste.filter(m => (m.drix_mouvements || []).length > 0).map(m => m.id)));
+      })
+      // Repli : la liste seule (tout le monde affiché « classé », comme avant le calcul)
+      .catch(() => { setAssoClassesIds(null); return sbToutes(`${base}&select=id,pseudo,drix,photo,ville`).then(d => setMembres(Array.isArray(d) ? d : [])).catch(() => setMembres([])); })
       .finally(() => setLoadMembres(false));
     sb(`tournois?association=eq.${encodeURIComponent(asso?.nom || "")}&order=date.desc&select=*&limit=10`)
       .then(d => setEvents(Array.isArray(d) ? d : []))
       .catch(() => []);
-    sb(`drix_mouvements?resultat=in.(victoire,defaite)&select=joueur_id`)
-      .then(d => setAssoClassesIds(new Set((Array.isArray(d)?d:[]).map(m=>m.joueur_id))))
-      .catch(() => {});
   }, [slug]);
 
   // ── Actualité du club ──────────────────────────────────────────────────────
@@ -10130,8 +10321,8 @@ const AssoDetail = ({ slug, associations, setAssociations, bars, setPage, setBar
             <p style={{ color:C.muted,fontSize:12 }}>Les membres peuvent rejoindre ce club depuis leur profil.</p>
           </div>
         ) : (() => {
-          const membresClasses    = membres.filter(m => assoClassesIds.size === 0 || assoClassesIds.has(m.id));
-          const membresNonClasses = membres.filter(m => assoClassesIds.size > 0 && !assoClassesIds.has(m.id));
+          const membresClasses    = membres.filter(m => assoClassesIds === null || assoClassesIds.has(m.id));
+          const membresNonClasses = membres.filter(m => assoClassesIds !== null && !assoClassesIds.has(m.id));
           return (
             <>
               {membresClasses.map((m, i) => {
@@ -14308,23 +14499,34 @@ const ScoreurDuel = ({ duelId, joueur, setPage }) => {
   const handleDuelTermine = async ({ gagnantId } = {}) => {
     if (!joueur) return;
     try {
-      const [stats, duels, drixMvts, amis, trn, wtrn] = await Promise.all([
+      const [stats, duels, drixMvts, amis, trn, wtrn, extremes] = await Promise.all([
         sb(`stats_joueurs?joueur_id=eq.${joueur.id}&select=*`).then(r=>r?.[0]),
         sb(`duels?or=(challenger_id.eq.${joueur.id},defie_id.eq.${joueur.id})&order=date.desc&select=*`),
         sb(`drix_mouvements?joueur_id=eq.${joueur.id}&order=date.desc&limit=200&select=drix_apres&or=(resultat.is.null,resultat.neq.saison)`).catch(()=>[]),
         sb(`amis?or=(joueur_id.eq.${joueur.id},ami_id.eq.${joueur.id})&select=statut`).catch(()=>[]),
         sb(`tournois_potes_joueurs?joueur_id=eq.${joueur.id}&select=tournoi_id`).catch(()=>[]),
         tournoisGagnes(sb, joueur.id),   // tournois_potes n'a pas de gagnant_id (voir AppJoueurs)
+        // Record DRIX et « Tueur de géants » sur TOUT l'historique (les 200 derniers mouvements
+        // ne suffisent plus, et ne contenaient même pas `resultat` / `variation` ici).
+        extremesDrix(joueur.id),
       ]);
-      const vals = computeBadgeValues(joueur, stats, duels||[], drixMvts||[], amis||[], (trn||[]).length, (wtrn||[]).length, 0, 0);
+      const vals = computeBadgeValues(joueur, stats, duels||[], drixMvts||[], amis||[], (trn||[]).length, (wtrn||[]).length, 0, 0, extremes);
       const stored = getBadgesStored(joueur.id);
       const freshUnlocked = ALL_BADGES.filter(b=>b.val(vals)>=b.seuil);
-      storeBadgesSet(joueur.id, new Set(freshUnlocked.map(b=>b.id)));
+      // On n'efface JAMAIS un badge déjà rangé : une lecture ratée le ferait « redécouvrir »
+      // (et republier) au match suivant.
+      storeBadgesSet(joueur.id, new Set([...stored, ...freshUnlocked.map(b=>b.id)]));
+      // v152 : record DRIX et « Tueur de géants » sont lus sur TOUT l'historique. Les badges
+      // retrouvés ainsi sont ANCIENS (≈ 40 joueurs) : la 1re fois, on les range sans annonce.
+      const cleV2 = `dp_badges_v2_${joueur.id}`;
+      let premiereV2 = false;
+      try { premiereV2 = !localStorage.getItem(cleV2); localStorage.setItem(cleV2, "1"); } catch { /* stockage indisponible */ }
+      const RETROUVES = new Set(["d_giant", "dr_1200", "dr_1500", "dr_2000"]);
       // ANTI-INONDATION du Comptoir : on ne publie/félicite un badge QUE si on avait déjà
       // une base locale fiable. Si elle est vide (nouvel appareil / cache vidé), republier
       // ferait apparaître TOUTE la liste des anciens badges d'un coup → on enregistre en
       // silence. Et on ne publie jamais une avalanche (>3 d'un coup = base locale périmée).
-      const nouveaux = stored.size > 0 ? freshUnlocked.filter(b=>!stored.has(b.id)) : [];
+      const nouveaux = stored.size > 0 ? freshUnlocked.filter(b=>!stored.has(b.id) && !(premiereV2 && RETROUVES.has(b.id))) : [];
       const justUnlocked = nouveaux.length <= 3 ? nouveaux : [];
       if (justUnlocked.length > 0) {
         setNewBadges(justUnlocked);
@@ -15787,7 +15989,7 @@ export default function App() {
         {page==="entrainement-finish"   && <EntrainementFinish setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="chrono-finish"         && <ChronoFinish setPage={nav} joueur={joueur}/>}
         {page==="chrono-scoreur"        && <ChronoScoreur setPage={nav} joueur={joueur}/>}
-        {page==="horloge-double"        && <HorlogeDouble setPage={nav}/>}
+        {page==="horloge-double"        && <HorlogeDouble setPage={nav} joueur={joueur}/>}
         {page==="rush-mode"             && <RushMode setPage={nav} joueur={joueur} setJoueur={setJoueur}/>}
         {page==="tournois-potes"   && <TournoiPotesPage joueur={joueur} setPage={nav}/>}
         {page.startsWith("tournoi-potes-") && <TournoiPotesDetail tournoiId={page.replace("tournoi-potes-","")} joueurConnecte={joueur} setPage={nav}/>}

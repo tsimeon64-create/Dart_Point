@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Target, Swords, Home, Crown, Lock } from "lucide-react";
 import { EmoIcon, EmoText } from "./icons";
 import { verserBonusBulleFinDeMatch, bonusDejaVerseCeJour, debutDuJour, nouvelEtatBulle, XP_BULLE } from "./bulleXp";
+import { BoutonPartagerComptoir } from "./partageComptoir";
 
 const SB_URL = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
@@ -154,7 +155,7 @@ export const ConfigCricket = ({ joueur, setPage }) => {
     setOrdreBulle(next);
   };
 
-  if (started && gameConfig) return <ScoreurCricket key={partie} config={gameConfig} setPage={setPage} onRejouer={defiData ? null : rejouer} />;
+  if (started && gameConfig) return <ScoreurCricket key={partie} config={gameConfig} setPage={setPage} onRejouer={defiData ? null : rejouer} joueur={joueur} />;
 
   // ── ÉCRAN BULLE (le même qu'au 501) ──────────────────────────────────────────
   if (etape === "bulle") {
@@ -373,7 +374,7 @@ const initJoueurs = (config) =>
   }));
 
 
-export const ScoreurCricket = ({ config, setPage, onRejouer = null }) => {
+export const ScoreurCricket = ({ config, setPage, onRejouer = null, joueur = null }) => {
   // ── State ──────────────────────────────────────────────────────────────────
   const [joueurs, setJoueurs] = useState(() => initJoueurs(config));
   const [actifIdx, setActifIdx] = useState(0);
@@ -833,6 +834,30 @@ export const ScoreurCricket = ({ config, setPage, onRejouer = null }) => {
             </div>
           ))}
         </div>
+        {/* Partie libre : la partager au Comptoir (un défi DRIX, lui, publie sa carte tout seul) */}
+        {!config.defi && (
+          <div style={{ width:"100%", maxWidth:380, marginBottom:12 }}>
+            <BoutonPartagerComptoir joueur={joueur} construire={() => {
+              const setsTarget = config.format === "bestOf" ? Math.ceil(config.sets / 2) : config.sets;
+              const legsTarget = config.format === "bestOf" ? Math.ceil(config.legs / 2) : config.legs;
+              const enSets = setsTarget > 1;
+              const mode = !config.points ? "Sans points" : config.cutThroat ? "Cut-Throat" : "Normal";
+              const format = enSets ? `Premier à ${setsTarget} sets` : `Premier à ${legsTarget} leg${legsTarget > 1 ? "s" : ""}`;
+              return {
+                jeu: "cricket", titre: "Cricket", details: `${mode} · ${format}`,
+                classement: sorted.map((j) => {
+                  const val = enSets ? j.setsGagnes : (j.legsWonTotal || 0);
+                  return {
+                    nom: j.pseudo, score: val, unite: enSets ? `set${val > 1 ? "s" : ""}` : `leg${val > 1 ? "s" : ""}`,
+                    detail: enSets ? `${j.legsWonTotal || 0} legs gagnés` : (config.points ? `${j.score} pts au dernier leg` : ""),
+                    gagnant: j === w,
+                  };
+                }),
+                faits: [{ label: "Legs joués", valeur: String(joueurs.reduce((s, j) => s + (j.legsWonTotal || 0), 0)) }],
+              };
+            }}/>
+          </div>
+        )}
         <div style={{ display:"flex", gap:12, width:"100%", maxWidth:380 }}>
           {!config.defi && (
             <button onClick={() => {

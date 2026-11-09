@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { EmoIcon, EmoText } from "./icons";
 import { FriendNameInput } from "./FriendPicker";
+import { BoutonPartagerComptoir } from "./partageComptoir";
 
 const C = {
   bg:"#0f0f0f", card:"#1a1a1a", border:"#2a2a2a",
@@ -160,7 +161,7 @@ function ModalQuitter({ onRester, onQuitter }) {
 // ── JEU CAPITAL ───────────────────────────────────────────────────────────────
 // On stocke les scores dans un tableau plat 1D : scores[ji * NB_OBJ + oi]
 // Cela garantit que React détecte tous les changements correctement
-function Capital({ joueurs, onFin }) {
+function Capital({ joueurs, onFin, joueur = null }) {
   const nbJ = joueurs.length;
   const [scores, setScores] = useState(() => new Array(nbJ * NB_OBJ).fill(null));
   const [objIdx, setObjIdx] = useState(0);
@@ -207,6 +208,17 @@ function Capital({ joueurs, onFin }) {
       if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
     };
   }, []);
+
+  // Partie terminée : on rend le défilement à la page. Le blocage ci-dessus restait actif sur
+  // l'écran de fin, dont le bas (classement à 7-8 joueurs, boutons) était coupé sur téléphone.
+  useEffect(() => {
+    if (!fini) return;
+    document.body.style.overflow = "";
+    document.body.style.position = "";
+    document.body.style.width = "";
+    document.body.style.height = "";
+    document.body.style.touchAction = "";
+  }, [fini]);
 
   // Bouton retour téléphone géré par App.jsx (modale globale)
 
@@ -271,6 +283,34 @@ function Capital({ joueurs, onFin }) {
 
   const classement = joueurs.map((nom, i) => ({ nom, total: totaux[i] })).sort((a,b) => b.total - a.total);
 
+  // La carte « partie » du Comptoir (format : src/partageComptoir.jsx), construite au clic.
+  const partieAPartager = () => {
+    const parJoueur = joueurs.map((nom, ji) => {
+      let reussis = 0, rates = 0, meilleur = 0, meilleurObj = null;
+      for (let oi = 0; oi < NB_OBJ; oi++) {
+        const s = getScore(ji, oi);
+        if (s === -1) rates++;
+        else if (s > 0) { reussis++; if (s > meilleur) { meilleur = s; meilleurObj = oi; } }
+      }
+      return { nom, total: totaux[ji], reussis, rates, meilleur, meilleurObj };
+    }).sort((a, b) => b.total - a.total);
+    const haut = parJoueur[0]?.total;
+    const record = parJoueur.reduce((best, j) => (j.meilleur > (best?.meilleur || 0) ? j : best), null);
+    const objNom = (oi) => (oi == null ? "" : OBJECTIFS[oi].nom.replace(/^\S+\s/, ""));   // sans l'emoji
+    return {
+      jeu: "capital", titre: "Le Capital", details: "15 objectifs",
+      classement: parJoueur.map((j) => ({
+        nom: j.nom, score: j.total, unite: "pts",
+        detail: `${j.reussis}/15 réussis · ${j.rates} ÷2`,
+        gagnant: parJoueur.length > 1 && j.total === haut,
+      })),
+      faits: [
+        record && record.meilleur > 0 ? { label: "Plus gros coup", valeur: `${record.meilleur} pts · ${objNom(record.meilleurObj)}` } : null,
+        { label: "Divisions ÷2", valeur: String(parJoueur.reduce((s, j) => s + j.rates, 0)) },
+      ].filter(Boolean),
+    };
+  };
+
   if (fini) return (
     <div style={{ maxWidth:480, margin:"0 auto", padding:"40px 20px" }}>
       <div style={{ textAlign:"center", marginBottom:28 }}>
@@ -286,7 +326,8 @@ function Capital({ joueurs, onFin }) {
           <span style={{ fontWeight:800, fontSize:20, color:i===0?C.yellow:C.text }}>{j.total} pts</span>
         </div>
       ))}
-      <button onClick={onFin} style={{ marginTop:20, width:"100%", background:C.accent, color:"#fff", border:"none", borderRadius:12, padding:"16px", fontSize:15, fontWeight:700, cursor:"pointer" }}>
+      <BoutonPartagerComptoir joueur={joueur} construire={partieAPartager} style={{ marginTop:20 }}/>
+      <button onClick={onFin} style={{ marginTop:12, width:"100%", background:C.accent, color:"#fff", border:"none", borderRadius:12, padding:"16px", fontSize:15, fontWeight:700, cursor:"pointer" }}>
         <EmoIcon e="🔄" size={15} style={{verticalAlign:"-2px",marginRight:6}}/>Nouvelle partie
       </button>
     </div>
@@ -405,5 +446,5 @@ export function JeuCapital({ setPage, joueur }) {
   const [phase, setPhase] = useState("setup");
   const [joueurs, setJoueurs] = useState([]);
   if (phase === "setup") return <Setup onStart={j => { setJoueurs(j); setPhase("jeu"); }} joueur={joueur}/>;
-  return <Capital joueurs={joueurs} onFin={() => setPhase("setup")}/>;
+  return <Capital joueurs={joueurs} joueur={joueur} onFin={() => setPhase("setup")}/>;
 }

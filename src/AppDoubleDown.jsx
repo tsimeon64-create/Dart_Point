@@ -12,6 +12,7 @@ import { ArrowLeft } from "lucide-react";
 import { FriendNameInput } from "./FriendPicker";
 import { ConfettiBurst } from "./DPLottie";
 import confettiData from "./lottie/confetti.json";
+import { BoutonPartagerComptoir } from "./partageComptoir";
 
 const C = {
   bg: "#0a0a12", card: "#12121c", card2: "#0b0b12", border: "#26263a", text: "#f1f5f9", muted: "#8b93a7",
@@ -628,6 +629,26 @@ export const DoubleDown = ({ setPage, joueur }) => {
     const rk = ranking(players);
     const st = endStats(players);
     const podium = rk.slice(0, 3);
+    // La carte « partie » du Comptoir (format : src/partageComptoir.jsx). Le gagnant d'abord : après
+    // un départage au Bull, il n'est pas forcément le premier du tri (ex æquo au score).
+    const partieAPartager = () => {
+      const ordre = [rk.find((x) => x.i === winner), ...rk.filter((x) => x.i !== winner)].filter(Boolean);
+      const solo = players.length === 1;
+      const meilleurGain = st.stats.reduce((best, s, i) => (s.bestGain > (best?.gain || 0) ? { gain: s.bestGain, cible: s.bestRound, nom: players[i].name } : best), null);
+      return {
+        jeu: "double-down", titre: "Double Down", details: tb ? "gagné au départage du Bull" : "9 manches",
+        classement: ordre.map((x) => ({
+          nom: x.name, score: fmt(x.score), unite: "pts",
+          detail: `${st.stats[x.i].targets}/9 cibles · ${st.stats[x.i].dd}× ÷2`,
+          gagnant: !solo && x.i === winner,
+        })),
+        faits: [
+          meilleurGain ? { label: "Plus gros gain", valeur: `+${meilleurGain.gain} sur ${meilleurGain.cible}${solo ? "" : ` · ${meilleurGain.nom}`}` } : null,
+          !solo && st.mostRegular != null ? { label: "Le plus régulier", valeur: players[st.mostRegular].name } : null,
+          { label: "Divisions ÷2", valeur: String(st.stats.reduce((s, x) => s + x.dd, 0)) },
+        ].filter(Boolean),
+      };
+    };
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: C.bg, color: C.text, fontFamily: "Inter,sans-serif", overflowY: "auto" }}>
         <ConfettiBurst data={confettiData} />
@@ -706,6 +727,7 @@ export const DoubleDown = ({ setPage, joueur }) => {
             })}
           </div>
 
+          <BoutonPartagerComptoir joueur={joueur} construire={partieAPartager} style={{ marginBottom: 10 }}/>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <button onClick={revanche} style={{ ...btnMain, padding: "15px", background: `linear-gradient(135deg,${C.orange},#ea580c)`, color: "#1a0a02" }}>🔄 Revanche</button>
             <button onClick={() => { clearSave(); setPhase("create"); }} style={{ ...btnSec, padding: "14px" }}>Nouvelle partie</button>

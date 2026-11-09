@@ -7,6 +7,7 @@ import { useRaccourcis, RACCOURCIS_DEFAUT } from "./raccourcisScores";
 import { calculerStatsMatch, statsParManche, BANDES } from "./statsMatch";
 import { texteDerniersMatchs } from "./moyenneRecente";
 import { verserBonusBulleFinDeMatch, bonusDejaVerseCeJour, debutDuJour, nouvelEtatBulle, XP_BULLE } from "./bulleXp";
+import { BoutonPartagerComptoir } from "./partageComptoir";
 import { texteContoure, epaisseurContour, FOND_CARTE_JAUNE, KEYFRAMES_CARTE_JAUNE } from "./contourTexte";
 
 // ── Fiche d'un bot : ce qu'on MONTRE au joueur avant d'affronter ──────────────
@@ -250,7 +251,7 @@ const PileOuFace = ({ joueurs, onFini, onFermer }) => {
 const SB_URL_J = "https://secuyejzngzhnnuweuwm.supabase.co";
 const SB_KEY_J = "sb_publishable_kx6R8ywhyheCFwYMlYwSdA_L9MfqWyC";
 
-const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moyenne, demarrer, quitterPartie, onRejouer=null, joueurs: joueursData=[], manchesDetail=[], premierALaBulle=0, manchesAGagner=null, publierBot=null, etatPublication="attente" }) => {
+const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moyenne, demarrer, quitterPartie, onRejouer=null, joueurs: joueursData=[], manchesDetail=[], premierALaBulle=0, manchesAGagner=null, publierBot=null, etatPublication="attente", partageLibre=null, joueurConnecte=null }) => {
   const [show, setShow] = useState(false);
   const [drixShow, setDrixShow] = useState(false);
   const [winnerPhoto, setWinnerPhoto] = useState(null);
@@ -800,6 +801,40 @@ const FinScreen = ({ gagnant, duel, drixData, drixBreakdown=null, modeDuel, moye
           <EmoIcon e={etatPublication === "publie" ? "✅" : "🍻"} size={16}/>
           <span>{etatPublication === "publie" ? "Publié au Comptoir" : etatPublication === "envoi" ? "Publication…" : "Publier au Comptoir"}</span>
         </button>
+      )}
+      {/* Partie LIBRE : la partager au Comptoir (un duel publie sa carte tout seul, un match
+          contre un bot a son bouton juste au-dessus). Format : src/partageComptoir.jsx. */}
+      {partageLibre && (
+        <BoutonPartagerComptoir joueur={joueurConnecte} style={{ marginBottom:8 }} construire={() => {
+          const js = (joueursData || []).filter(Boolean);
+          const moy = (j) => (j.flechettes > 0 ? Math.round((j.totalPoints / j.flechettes) * 3 * 10) / 10 : 0);
+          // Le gagnant d'abord, puis par manches gagnées, puis par moyenne.
+          const tri = [...js].sort((a, b) =>
+            ((b.nom === gagnant?.nom) - (a.nom === gagnant?.nom)) || ((b.manchesGagnees || 0) - (a.manchesGagnees || 0)) || (moy(b) - moy(a)));
+          const tours = js.flatMap((j) => j.tours || []);
+          const nb180 = tours.filter((v) => v === 180).length;
+          const meilleureVolee = tours.length ? Math.max(...tours) : 0;
+          const grosFinish = (manchesDetail || []).reduce((m, x) => Math.max(m, x?.winner_finish || 0), 0);
+          const n = partageLibre.manches || 1;
+          const deux = tri.length === 2 && (manchesDetail || []).length > 0;
+          // Pour la fiche « Plus de stats » (501 à deux) : celui qui a commencé, dans l'ordre de tri.
+          const pb = Math.max(0, tri.indexOf(js[premierALaBulle]));
+          return {
+            jeu: "x01", titre: String(partageLibre.mode || "501"),
+            details: `Premier à ${n} manche${n > 1 ? "s" : ""} · ${partageLibre.doubleOut ? "Double out" : "Simple out"}`,
+            classement: tri.map((j) => ({
+              nom: j.nom, score: j.manchesGagnees || 0, unite: `manche${(j.manchesGagnees || 0) > 1 ? "s" : ""}`,
+              detail: `moy ${String(moy(j)).replace(".", ",")} · ${j.flechettes || 0} fléch.`,
+              gagnant: j.nom === gagnant?.nom,
+            })),
+            faits: [
+              meilleureVolee > 0 ? { label: "Meilleure volée", valeur: String(meilleureVolee) } : null,
+              nb180 > 0 ? { label: "180", valeur: `${nb180}×` } : null,
+              grosFinish > 0 ? { label: "Plus gros finish", valeur: String(grosFinish) } : null,
+            ].filter(Boolean),
+            ...(deux ? { manches: manchesDetail, stats: calculerStatsMatch({ joueurs: tri, manches: manchesDetail, premierALaBulle: pb }) } : {}),
+          };
+        }}/>
       )}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
         <button onClick={()=>setShowStats(true)} style={{ padding:"11px 6px", borderRadius:12, border:"1px solid #22c55e44", fontWeight:700, fontSize:12, cursor:"pointer", background:"#0a1a0a", color:"#22c55e", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
@@ -2794,6 +2829,9 @@ export const Scoreur = ({ duel = null, drixData = null, onDuelTermine = null, se
       manchesAGagner={modeDuel ? (duel?.manches || 1) : config.manches}
       publierBot={postBot ? () => publierPostBot() : null}
       etatPublication={etatPostBot}
+      // Partie LIBRE seulement (ni duel, ni tournoi, ni bot) : bouton « Partager au Comptoir »
+      partageLibre={!modeDuel && !onResultat && !botPseudo ? { mode: config.mode, manches: config.manches, doubleOut: config.doubleOut !== false } : null}
+      joueurConnecte={joueur}
     />
   );
 
