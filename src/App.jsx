@@ -7336,12 +7336,31 @@ const PageCommunaute = ({ joueur, setPage, bars, focusRefId = null, ongletInitia
         // La carte existe-t-elle déjà dans le fil (post réel d'un ami) ? → ne pas dupliquer.
         const dejaFinish  = postsAll.some(p => { const ci=parseChronoFinishContent(p.contenu); return ci && ci.type==="vainqueur" && ci.date_label===yLabel; });
         const dejaScoreur = postsAll.some(p => { const ci=parseChronoScoreurContent(p.contenu); return ci && ci.date_label===yLabel; });
-        if (finW?.[0] && !dejaFinish) {
+        // Pas dans le fil ? La VRAIE carte existe presque toujours en base : le fil ne charge
+        // que les 30 dernières publications des amis (on est souvent ami avec presque tout le
+        // monde, et les temps individuels des speedruns, masqués, en mangent une partie), et le
+        // vainqueur n'est pas toujours un ami. On la va chercher parmi SES publications depuis
+        // hier : une carte fabriquée (« __syn… ») n'accepte ni j'aime ni commentaire.
+        const debutHier = Date.parse(`${yj}T00:00:00Z`);
+        const vraieCarte = async (w, estLaBonne) => {
+          if (!w?.joueur_id) return null;
+          const rows = await sb(`wall_posts?joueur_id=eq.${w.joueur_id}&date=gte.${debutHier}&or=(type.is.null,type.neq.public)&order=date.asc,id.asc&limit=50&select=id,joueur_id,joueur_pseudo,contenu,date,type,image_url`).catch(()=>null);
+          const p = Array.isArray(rows) ? rows.find(r => estLaBonne(r.contenu)) : null;
+          return p ? { ...p, joueur_photo: photoWin[w.joueur_id] || null } : null;
+        };
+        const [vraieFin, vraieSco] = await Promise.all([
+          dejaFinish ? null : vraieCarte(finW?.[0], c => { const ci=parseChronoFinishContent(c); return ci && ci.type==="vainqueur" && ci.date_label===yLabel; }),
+          dejaScoreur ? null : vraieCarte(scoW?.[0], c => { const ci=parseChronoScoreurContent(c); return ci && ci.date_label===yLabel; }),
+        ]);
+        if (vraieFin) postsAll = [...postsAll, vraieFin];
+        if (vraieSco) postsAll = [...postsAll, vraieSco];
+        // Carte fabriquée seulement si la vraie n'existe VRAIMENT pas (envoi raté du générateur).
+        if (finW?.[0] && !dejaFinish && !vraieFin) {
           const w = finW[0];
           postsAll = [...postsAll, { id:`__syn_fin_${yj}`, joueur_id:w.joueur_id, joueur_pseudo:w.joueur_pseudo, joueur_photo:photoWin[w.joueur_id]||null,
             contenu:`🏆 Finish Speedrun — Vainqueur du ${yLabel}\n👑 ${w.joueur_pseudo} remporte le défi du jour en ${fmtChrono(w.temps_ms)} !\n🥇 +5 DRIX`, date:stamp }];
         }
-        if (scoW?.[0] && !dejaScoreur) {
+        if (scoW?.[0] && !dejaScoreur && !vraieSco) {
           const w = scoW[0];
           postsAll = [...postsAll, { id:`__syn_sco_${yj}`, joueur_id:w.joueur_id, joueur_pseudo:w.joueur_pseudo, joueur_photo:photoWin[w.joueur_id]||null,
             contenu:`__CHRONO_SCOREUR__|${JSON.stringify({type:"chrono_scoreur_vainqueur",temps_ms:w.temps_ms,drix:5,date_jour:yj})}`, date:stamp }];
